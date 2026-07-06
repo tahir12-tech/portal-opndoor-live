@@ -199,11 +199,11 @@ export function Login() {
               <form className="auth__form" onSubmit={submitCreds} noValidate>
                 <div className="field">
                   <label htmlFor="email">Work email</label>
-                  <input id="email" type="email" placeholder="you@brackenhouse.co.uk" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <input id="email" type="email" placeholder="you@brackenhouse.co.uk" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} required />
                 </div>
                 <div className="field">
                   <label htmlFor="pass">Password</label>
-                  <PasswordInput id="pass" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                  <PasswordInput id="pass" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </div>
                 <div className="auth__row auth__row--end">
                   {/* Carry the typed email over so the reset form is prefilled (#60). */}
