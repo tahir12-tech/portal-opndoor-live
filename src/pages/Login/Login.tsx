@@ -28,7 +28,7 @@ export function Login() {
   const navigate = useNavigate();
   const { status, markMfaVerified } = useSession();
   const [step, setStep] = useState<Step>('creds');
-  const [email, setEmail] = useState('priya.nair@brackenhouse.co.uk');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [masked, setMasked] = useState('');
   const [codes, setCodes] = useState<string[]>(['', '', '', '', '', '']);
@@ -213,7 +213,8 @@ export function Login() {
               </form>
               <p className="auth__foot">Not set up yet? Ask your administrator for access, or use the contact details on this screen.</p>
             </div>
-          ) : (
+          )
+           : (
             <div>
               <button className="back-link" type="button" onClick={() => { setStep('creds'); setError(''); }}>
                 <Icon name="arrowLeft" /> Back
