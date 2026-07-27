@@ -185,22 +185,16 @@
 .tl-step--terminated .tl-step__note {
   color: var(--ink-mute, #7a7a8c);
 }
-<<<<<<< HEAD
- .tl-step::after {
-=======
 /* .tl-step::after {
->>>>>>> e3a5be0 (status time change css only in live)
   content: '';
   position: absolute;
   top: 18px;
-  left: 22px;
-  right: 0%;
+  left: calc(50% + 22px);
+  right: calc(-50% + 22px);
   height: 2px;
   background: var(--deed);
-  transform: translateX(18px);
   z-index: 1;
 } */
-
  .tl-step::after {
   content: '';
   position: absolute;
