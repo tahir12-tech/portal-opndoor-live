@@ -13,7 +13,7 @@ const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
 /** True when a Stripe test publishable key is configured (drives the TEST MODE badge). */
 export function stripeTestMode(): boolean {
-  return typeof STRIPE_PK === 'string' && STRIPE_PK.startsWith('pk_test_');
+  return typeof STRIPE_PK === 'string' && STRIPE_PK.startsWith('sk_live_');
 }
 
 /** True when PandaDoc deed generation is running in sandbox (drives the badge). */
