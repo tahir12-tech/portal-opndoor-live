@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
         const canReinstate = full?.status === "withdrawn" && full?.withdrawn_by_tenant === true;
         if (!canReinstate) return json({ ok: false, error: isPaid ? "This fee has already been paid." : "This application is closed.", status: app.status }, 409);
       }
-      if (!STRIPE_SECRET.startsWith("sk_test_")) return json({ ok: false, error: "Payments are not configured for test mode." }, 400);
+      if (!STRIPE_SECRET.startsWith("sk_live_")) return json({ ok: false, error: "Payments are not configured for live mode." }, 400);
       const utm = typeof body.utm_source === "string" ? body.utm_source.slice(0, 40) : "confirmation_page";
       const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
       const session = await stripe.checkout.sessions.create({

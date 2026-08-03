@@ -32,8 +32,8 @@ Deno.serve(async (req) => {
     const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
     const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
-    if (!STRIPE_SECRET.startsWith("sk_test_")) {
-      return json({ ok: false, error: "Stripe is not configured for test mode. An sk_test_ key is required." }, 400);
+    if (!STRIPE_SECRET.startsWith("sk_live_")) {
+      return json({ ok: false, error: "Stripe is not configured for live mode. An sk_live_ key is required." }, 400);
     }
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader) return json({ ok: false, error: "Not authenticated." }, 401);

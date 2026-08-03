@@ -26,7 +26,7 @@ import { titleCaseAddress } from "../_shared/text.ts";
 Deno.serve(async (req) => {
   const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
   const WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
-  if (!STRIPE_SECRET.startsWith("sk_test_")) return new Response("Test mode only (sk_test_ required).", { status: 400 });
+  if (!STRIPE_SECRET.startsWith("sk_live_")) return new Response("Live mode only (sk_live_ required).", { status: 400 });
   if (!WEBHOOK_SECRET) return new Response("Webhook secret not configured.", { status: 400 });
 
   const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
