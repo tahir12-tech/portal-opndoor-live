@@ -737,7 +737,7 @@ export function ApplicationDetail() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           {SUPABASE_ENABLED && pi && (
             <Card>
-              <CardHead title="Payment" actions={stripeTestMode() ? <span className="pay-badge">Test mode</span> : undefined} />
+              <CardHead title="Payment" actions={stripeTestMode() ? <span className="pay-badge">Live Mode</span> : undefined} />
               <CardBody style={{ paddingTop: 6, paddingBottom: 12 }}>
                 {payWithdrawn && (
                   <>
