@@ -16,9 +16,13 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 2 | A foreign Supabase project is hardcoded in three migrations | High |
 | 3 | Stripe guards demand `sk_live_` while their headers claim test-only | High |
 | 4 | Test email redirect removed from all thirteen sending modules | Critical |
+| 5 | The repo cannot rebuild the live schema. Disaster recovery fails | High |
 
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
+
+Defect 5 is different in kind from the others. It costs nothing while everything
+is working, and everything if it is not.
 
 ---
 
@@ -363,3 +367,128 @@ rather than a commented-out block:
 
 Whichever way it goes, the three runbooks above need correcting, because they
 currently assert a safety property that does not hold.
+
+---
+
+## Defect 5: the repo cannot rebuild the live schema
+
+**Severity: high. Costs nothing until the day it costs everything.**
+
+### What it is
+
+Applying this repository's migrations to an empty Postgres database **fails**.
+Not once, but twice, for two unrelated reasons. The migration set is therefore
+not a reproducible description of the running schema, and has not been for some
+time.
+
+This was found by doing it: a disposable project was reset and rebuilt from these
+migrations, which is the only way this class of defect surfaces. Both failures
+are now fixed in the tree that produced this document, but the fixes are not in
+live.
+
+**Cause 1: no migration enables any extension.**
+
+There is no `create extension` statement anywhere in the migration set. A clean
+apply dies at `20260703153600_rate_limit_cleanup.sql:10`, which calls
+`cron.schedule()`:
+
+```
+ERROR: schema "cron" does not exist
+```
+
+pg_cron is required from that migration onward, and pg_net from
+`20260705102238_ops_failure_alerting.sql`. The running projects work only because
+somebody enabled both by hand in the Supabase dashboard. That action left no
+trace in the repository, so it is invisible to anyone rebuilding from source.
+
+**Cause 2: a function's return type is changed by `create or replace`.**
+
+`public.reconciliation_queue()` is created with nine OUT columns at
+[20260704130732_org_review_state_and_reconciliation.sql:92](supabase/migrations/20260704130732_org_review_state_and_reconciliation.sql#L92).
+[20260705171000_reconciliation_fold_head_office.sql:8](supabase/migrations/20260705171000_reconciliation_fold_head_office.sql#L8)
+then issues a `create or replace` with **ten**, adding `folded_head_office boolean`.
+
+PostgreSQL does not permit this:
+
+```
+ERROR: cannot change return type of existing function (SQLSTATE 42P13)
+Row type defined by OUT parameters is different.
+```
+
+Changing the OUT column list of a `RETURNS TABLE` function is a return type
+change, and `create or replace` cannot do it. A `drop function` must come first.
+Nothing in the tree ever drops it.
+
+That live has a working ten-column `reconciliation_queue()` means the drop
+happened **outside the migration set**, by hand. As with the extensions, that is
+invisible to a rebuild.
+
+### Business impact
+
+**Disaster recovery does not work.** If the production project were lost,
+corrupted, or needed rebuilding from source, the migration set would not
+reconstruct it. Recovery would fall back to a physical backup, and if that were
+unavailable or stale, to reconstructing a schema by hand under exactly the
+pressure that makes mistakes likely.
+
+**No environment can be created from source.** Staging, a second dev project, a
+per-developer database, or a throwaway environment for testing a risky migration
+are all blocked by the same wall. This is a standing tax on every piece of work
+that would benefit from a clean environment, and it is probably part of why
+testing has been happening against live (defect 3).
+
+**The schema has undocumented manual steps.** Two are known now. The mechanism
+that allowed them, a manual action in the dashboard that no migration records,
+is still in place, so there may be others that have not surfaced because nothing
+has forced a clean rebuild. The count is unknown, which is itself the problem.
+
+**It undermines the migration set as a source of truth.** Reading the migrations
+no longer tells you what the database looks like. Anyone reasoning about schema
+from the repository is reasoning from something known to be incomplete.
+
+### Confirm it
+
+The only reliable test is to do it. Against a **disposable** project:
+
+```sh
+npx -y supabase@2.111.0 db reset --linked --yes
+```
+
+Statically, the two specific causes:
+
+```sh
+grep -rn "create extension" supabase/migrations/          # expect: no results
+grep -rn "function public.reconciliation_queue" supabase/migrations/
+grep -rn "drop function.*reconciliation_queue" supabase/migrations/  # expect: no results
+```
+
+### Suggested fix
+
+Two migrations, both additive, both already written in the tree that produced
+this document and available to lift:
+
+1. **`20260703153500_enable_pg_cron_pg_net.sql`**, dated before its first
+   consumer because a fresh project applies migrations in version order. Both
+   statements use `if not exists`, so it is a **no-op on live**, where the
+   extensions are already enabled. It records in the repo what is currently only
+   true in the dashboard.
+
+2. **`20260705170500_drop_reconciliation_queue_for_signature_change.sql`**,
+   ordered immediately before `20260705171000`, dropping the function so the
+   existing `create or replace` succeeds. Guarded with `if exists`, and
+   `20260705171000` recreates the function and re-applies both grants on the next
+   statement, so there is no window where it is missing. **Also a no-op in
+   practice on live**, where the ten-column version already exists.
+
+Neither changes live's behaviour. Both make live's state reproducible.
+
+**The broader fix is a habit, not a migration.** These two were found only
+because something forced a clean rebuild. Periodically rebuilding a disposable
+project from the migration set is what stops the gap reopening, and it is cheap
+now that the two known blockers are gone. Doing it as part of a release would
+catch the next one at the point it is introduced rather than years later.
+
+Worth noting for the future: `create or replace function` silently accepts many
+changes but refuses a return type change. Any migration that alters a function's
+OUT columns, argument types or return type needs an explicit `drop function`
+first, and that is the pattern that produced cause 2.
