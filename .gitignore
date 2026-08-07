@@ -29,6 +29,10 @@ build
 # Supabase local
 supabase/.branches
 supabase/.temp
+# The pattern above is anchored to the repo root, so it missed a nested CLI
+# artefact at supabase/functions/supabase/.temp/ which committed a live project
+# ref. This bare pattern catches .temp at any depth.
+.temp/
 .supabase
 
 # Logs
