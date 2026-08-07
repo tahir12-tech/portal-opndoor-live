@@ -1,0 +1,36 @@
+-- Drop reconciliation_queue() so the next migration can change its return type.
+--
+-- THE BUG THIS FIXES. public.reconciliation_queue() is created with nine OUT
+-- columns at 20260704130732_org_review_state_and_reconciliation.sql:92, then
+-- 20260705171000_reconciliation_fold_head_office.sql:8 issues a
+-- `create or replace` with TEN, adding folded_head_office boolean. PostgreSQL
+-- refuses:
+--
+--   ERROR: cannot change return type of existing function (SQLSTATE 42P13)
+--   Row type defined by OUT parameters is different.
+--
+-- `create or replace function` cannot alter a function's return type. Changing
+-- the OUT column list of a RETURNS TABLE function is a return type change. The
+-- function is never dropped anywhere in the tree, so the chain cannot be applied
+-- to a clean database: it fails on the final migration.
+--
+-- The existing projects only work because they were built incrementally while
+-- the function happened not to exist in its nine-column form at the moment the
+-- ten-column version was first applied, or because it was dropped by hand. Either
+-- way the repo alone could not reproduce them, which is worth knowing.
+--
+-- WHY A DROP RATHER THAN A REWRITE. The alternative is editing
+-- 20260705171000 to drop-then-create. That migration has already been applied to
+-- live, so editing it would make the applied state and the source diverge. A new
+-- migration ordered before it is the additive fix, and leaves 20260705171000
+-- untouched.
+--
+-- VERSION CHOICE. Dated between 20260705170000 and 20260705171000 so it runs
+-- immediately before the migration whose replace would otherwise fail.
+--
+-- SAFE ON AN EXISTING PROJECT. `if exists` makes this a no-op where the function
+-- is absent. Where it is present, 20260705171000 recreates it on the very next
+-- statement and re-applies both grants (lines 56-57), so no window exists in
+-- which the function is missing outside this migration pair.
+
+drop function if exists public.reconciliation_queue();
