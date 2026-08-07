@@ -10,10 +10,14 @@
 //   decline  - #14 tenant self-decline: withdraw the application (tenant-flagged),
 //              idempotent and token-scoped, returning the resulting status.
 // No email/PII beyond what the tenant already received is returned.
+//
+// Stripe key mode must match the project: sk_test_ on a non-production project,
+// sk_live_ everywhere else. See _shared/stripeMode.ts.
 // =====================================================================
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { titleCaseAddress } from "../_shared/text.ts";
+import { stripeKeyModeError } from "../_shared/stripeMode.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -131,7 +135,8 @@ Deno.serve(async (req) => {
         const canReinstate = full?.status === "withdrawn" && full?.withdrawn_by_tenant === true;
         if (!canReinstate) return json({ ok: false, error: isPaid ? "This fee has already been paid." : "This application is closed.", status: app.status }, 409);
       }
-      if (!STRIPE_SECRET.startsWith("sk_live_")) return json({ ok: false, error: "Payments are not configured for live mode." }, 400);
+      const modeError = stripeKeyModeError(STRIPE_SECRET);
+      if (modeError) return json({ ok: false, error: modeError }, 400);
       const utm = typeof body.utm_source === "string" ? body.utm_source.slice(0, 40) : "confirmation_page";
       const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
       const session = await stripe.checkout.sessions.create({

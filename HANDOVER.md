@@ -242,8 +242,9 @@ drives at
 reads `Live Mode`. With the test key now in `.env.local` the predicate is false,
 so **no badge renders at all** and the UI gives no mode signal either way.
 
-**Deciding what to do here is yours.** It is a behavioural change to existing
-files, so nothing has been touched.
+**This has since been changed. See [section 5](#5-change-stripe-key-mode-now-follows-the-project).**
+The stale header comments were corrected in the same change. The inverted badge
+was deliberately left alone.
 
 ### 4c. The test email safety redirect has been removed everywhere
 
@@ -354,14 +355,127 @@ an attacker-supplied Hub. Nothing to do with the disconnect, flagged in passing.
 
 ---
 
-## 5. Open items for you
+## 5. Change: Stripe key mode now follows the project
+
+This is the first change in this tree that modifies existing files. Everything
+before it was additive or a deleted stray artefact.
+
+### The problem
+
+Section 4b: `payment-page`, `stripe-webhook` and `create-referral` each
+hardcoded `if (!STRIPE_SECRET.startsWith("sk_live_"))`. A test key was rejected
+outright, so the payment path could not run on any non-production project. The
+only way to make a dev project work was to install live Stripe credentials on
+it, which risks real cards being charged from a disposable environment.
+
+### What it does now
+
+The required key mode is derived from the project the function is running on,
+and the two must match:
+
+| Environment | Required key |
+| ----------- | ------------ |
+| A project ref listed in `NON_PRODUCTION_REFS` | `sk_test_` |
+| Anything else, including production and any unrecognised project | `sk_live_` |
+
+Note this is symmetric rather than merely permissive. A non-production project
+**requires** a test key, so it also blocks the opposite accident of live Stripe
+credentials being installed on a disposable environment.
+
+### Why the project ref and not a feature flag
+
+A flag such as `ALLOW_TEST_STRIPE=true` would have been a smaller change, but it
+puts production's safety behind a value that anyone with dashboard access can
+set, and nothing in code review would catch it being set on production.
+
+`SUPABASE_URL` is injected by the platform and contains the project ref, so the
+guard reads its own identity rather than being told what to believe.
+
+**This design depends on Supabase reserving the `SUPABASE_` prefix**, meaning
+`SUPABASE_URL` cannot be set or overridden through `supabase secrets set` or the
+dashboard. That is what makes the guard non-relaxable from outside the code.
+**Please confirm that reservation still holds on your CLI and platform version
+before relying on it.** If it has changed, the guard is still correct but is no
+longer tamper-proof, and the design should be revisited.
+
+The behaviour also fails closed. An unrecognised ref, a missing `SUPABASE_URL`
+or a malformed one all fall through to requiring `sk_live_`. A new environment
+has to be added to `NON_PRODUCTION_REFS` in a reviewed change before it can use
+test keys, rather than defaulting to permissive.
+
+### What it costs production
+
+Nothing. No new secret, no config change, no dashboard step. Production's
+behaviour is identical to the previous hardcoded guard, because an
+unrecognised-or-production ref still demands `sk_live_`. The change cannot be
+misapplied to production because it asks nothing of production.
+
+### An apparent contradiction, stated so you do not have to reconcile it
+
+This hardcodes a project ref in source, which is exactly what section 4d
+criticises. The distinction is direction. Section 4d hardcodes a **destination**
+that traffic is sent to, which is configuration and belongs in the database.
+This is an **assertion about which environment we are**, which is policy, and is
+safer in reviewed code than in a settable value.
+
+### Files touched
+
+New:
+
+- `supabase/functions/_shared/stripeMode.ts`
+
+Modified, one guard and one import each:
+
+- [supabase/functions/payment-page/index.ts](supabase/functions/payment-page/index.ts)
+- [supabase/functions/stripe-webhook/index.ts](supabase/functions/stripe-webhook/index.ts)
+- [supabase/functions/create-referral/index.ts](supabase/functions/create-referral/index.ts)
+
+The `// TEST MODE ONLY: refuses to run unless STRIPE_SECRET_KEY is an sk_test_
+key.` headers in `stripe-webhook` and `create-referral` were false in both
+directions and were corrected in the same change, along with a stale reference
+to a "test-mode Checkout Session" in `create-referral`.
+
+**Departure from the additive-only rule.** These are edits to existing tracked
+files, which section 1 says to avoid. They were made because the alternative is
+duplicating three functions, and they are deliberately small: an import line and
+a guard swap in each, with the response shape and status code of each guard left
+exactly as it was. They should merge cleanly unless live has since changed the
+same lines.
+
+**A note on line endings.** `payment-page/index.ts` and `stripe-webhook/index.ts`
+arrived in this working copy with a partial CRLF conversion already applied and
+uncommitted, which would have buried a 7-line change inside a 330-line
+whitespace diff. Both files were normalised back to LF, matching `HEAD` and the
+rest of the repo, so the commit shows only the real change. No other file was
+normalised.
+
+### How to verify it
+
+There is no Deno toolchain in this working copy, so the helper has **not** been
+type-checked. Please run `deno check supabase/functions/_shared/stripeMode.ts`
+before deploying. The decision logic was tested separately against this truth
+table, all of which passed:
+
+| `SUPABASE_URL` | Key | Result |
+| -------------- | --- | ------ |
+| production | `sk_live_` | allow, unchanged from before |
+| production | `sk_test_` | refuse |
+| dev | `sk_test_` | allow, this is the point of the change |
+| dev | `sk_live_` | refuse |
+| unrecognised project | `sk_test_` | refuse, fails closed |
+| unset or malformed | `sk_test_` | refuse, fails closed |
+| production | empty | refuse |
+
+---
+
+## 6. Open items for you
 
 Ordered by urgency, not by effort.
 
 | # | Item | Why it needs you |
 | - | ---- | ---------------- |
 | 1 | **Rotate the `REMINDERS_CRON_SECRET`** and remove the literal from [supabase/EXPIRY-REMINDERS.md:62](supabase/EXPIRY-REMINDERS.md#L62) | Section 4a. A real secret is committed and pushed to `origin/main`. This is an exposure in the live repo and is independent of anything done in this working copy. Rotating is the fix; deleting the line alone is not. |
-| 2 | Decide what to do about the `sk_live_` gates | Section 4b. Until this is resolved the payment path cannot be tested on the dev project at all, because a test key is rejected outright. |
+| 2 | Review the Stripe key mode change and confirm the `SUPABASE_` prefix reservation | Section 5. It is implemented, but it has not been type-checked here and its tamper-resistance rests on `SUPABASE_URL` being unsettable. Run `deno check` on the new helper. |
 | 3 | Decide whether the removed email redirect is intended | Section 4c. Thirteen modules now email real people. Safe only while no `RESEND_API_KEY` is set on the dev project, so **do not set one** until this is settled. |
 | 4 | Decide how to repoint the foreign project ref in migrations | Section 4d. Needs a **new** migration, not an edit. Applying the current set to dev installs a cron job that hits a foreign project every two minutes. |
 | 5 | Confirm edge function secrets on the dev project | Stripe secret key, Stripe webhook secret, PandaDoc API key and template id, Resend key. These live as Edge Function secrets, never in this repo. The dev project needs its own set pointed at **test/sandbox** credentials, subject to items 2 and 3. |
@@ -381,7 +495,7 @@ Ordered by urgency, not by effort.
 
 ---
 
-## 6. Environment reference
+## 7. Environment reference
 
 | Project ref | Name | Role |
 | ----------- | ---- | ---- |

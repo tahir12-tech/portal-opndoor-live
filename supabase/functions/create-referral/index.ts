@@ -3,18 +3,19 @@
 //
 // The "send" is the whole flow: create the application (Sent) via the
 // validated create_referral RPC (as the caller, so RLS + field validation
-// apply), open a Stripe test-mode Checkout Session for the guarantor fee,
-// store the payment refs, and email the tenant the branded payment email
-// (redirected to the review address in test mode). Graceful degradation: if
-// Resend is not configured the application and checkout still succeed and the
-// response reports emailSent = false with a reason.
+// apply), open a Stripe Checkout Session for the guarantor fee, store the
+// payment refs, and email the tenant the branded payment email. Graceful
+// degradation: if Resend is not configured the application and checkout still
+// succeed and the response reports emailSent = false with a reason.
 //
-// TEST MODE ONLY: refuses to run unless STRIPE_SECRET_KEY is an sk_test_ key.
+// Stripe key mode must match the project: sk_test_ on a non-production project,
+// sk_live_ everywhere else. See _shared/stripeMode.ts.
 // =====================================================================
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { paymentEmailTemplate, sendEmail } from "./email.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
+import { stripeKeyModeError } from "../_shared/stripeMode.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -32,8 +33,9 @@ Deno.serve(async (req) => {
     const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
     const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
-    if (!STRIPE_SECRET.startsWith("sk_live_")) {
-      return json({ ok: false, error: "Stripe is not configured for live mode. An sk_live_ key is required." }, 400);
+    const modeError = stripeKeyModeError(STRIPE_SECRET);
+    if (modeError) {
+      return json({ ok: false, error: modeError }, 400);
     }
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader) return json({ ok: false, error: "Not authenticated." }, 401);

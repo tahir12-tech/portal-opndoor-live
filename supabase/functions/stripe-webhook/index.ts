@@ -14,7 +14,8 @@
 // Failure / abandonment (payment_intent.payment_failed, checkout.session.expired)
 // leave status untouched. Refunds are recorded without reversing Sent -> Paid.
 //
-// TEST MODE ONLY: refuses to run unless STRIPE_SECRET_KEY is an sk_test_ key.
+// Stripe key mode must match the project: sk_test_ on a non-production project,
+// sk_live_ everywhere else. See _shared/stripeMode.ts.
 // =====================================================================
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -22,11 +23,13 @@ import { generateDeed, voidDocument } from "../_shared/pandadoc.ts";
 import { deliverRefund } from "../_shared/refundEmail.ts";
 import { deliverPaymentReceipt } from "../_shared/paymentReceiptEmail.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
+import { stripeKeyModeError } from "../_shared/stripeMode.ts";
 
 Deno.serve(async (req) => {
   const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
   const WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
-  if (!STRIPE_SECRET.startsWith("sk_live_")) return new Response("Live mode only (sk_live_ required).", { status: 400 });
+  const modeError = stripeKeyModeError(STRIPE_SECRET);
+  if (modeError) return new Response(modeError, { status: 400 });
   if (!WEBHOOK_SECRET) return new Response("Webhook secret not configured.", { status: 400 });
 
   const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });

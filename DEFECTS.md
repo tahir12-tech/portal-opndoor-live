@@ -246,7 +246,14 @@ git grep -n "TEST MODE ONLY" -- supabase/functions/
 
 Make the required key mode a function of the environment rather than a constant,
 so production keeps demanding `sk_live_` and non-production accepts `sk_test_`.
-A concrete proposal for the smallest such change is being prepared separately.
+
+**A working implementation of this already exists** in the dev tree this
+document came from, as `supabase/functions/_shared/stripeMode.ts` plus a
+one-line guard swap in each of the three functions. It derives the required mode
+from the project ref in `SUPABASE_URL`, fails closed on an unrecognised project,
+and requires no configuration change on production. See section 5 of
+`HANDOVER.md` in that tree. It is offered as a starting point, not as something
+already validated against live.
 
 Whatever shape it takes, two things should land with it:
 
