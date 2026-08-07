@@ -295,8 +295,8 @@ partner_api_keys
   id            uuid primary key
   partner_id    uuid not null references partners(id) on delete cascade
   name          text not null          -- human label, "Rightmove production"
-  key_prefix    text not null unique   -- first 12 chars, for identification
-  key_hash      text not null          -- Argon2id or scrypt of the full key
+  key_prefix    text not null unique   -- first 18 chars, for identification
+  key_hash      text not null          -- SHA-256 of the full key, lowercase hex
   scopes        text[] not null default '{}'
   created_at    timestamptz not null default now()
   created_by    uuid references users(id)
@@ -313,15 +313,39 @@ constraint on `partner_id`. Rotation is then: issue the new key, partner deploys
 it, confirm traffic has moved via `last_used_at`, revoke the old one. No
 coordinated cutover, no downtime window.
 
-### 4.2 Key format
+### 4.2 Key format and hashing
 
 ```
-opnd_live_<partner_slug>_<32 random base62 chars>
+opnd_live_<32 random base62 chars>
 ```
 
-The prefix is the first 12 characters and is stored in clear for
-identification. It is not a secret and must not be treated as one. `opnd_test_`
-distinguishes non-production keys.
+The prefix is the first **18** characters, `opnd_live_` plus 8 random, stored in
+clear as the lookup handle. It is not a secret. `opnd_test_` distinguishes
+non-production keys.
+
+**The partner slug is deliberately not in the key.** An earlier draft included
+it. Two reasons it came out: the prefix has to be unique, and slug-derived
+prefixes collide between any two partners whose slugs share a first letter; and
+a key fragment appearing in a log or a screenshot would otherwise name the
+partner.
+
+**Hashing is SHA-256, not Argon2id or scrypt.** Also a change from an earlier
+draft, and worth the explanation because it looks wrong at a glance.
+
+The key is 32 random base62 characters from a CSPRNG, roughly 190 bits. It is
+not a user-chosen password, so there is no dictionary, no reuse across sites and
+nothing to brute force. A deliberately slow KDF exists to make guessing
+expensive, and there is nothing here to guess.
+
+Against that it would cost two real things. It runs on **every** request,
+including unauthenticated ones, so a slow hash turns the auth path into a CPU
+exhaustion vector: an attacker sends garbage keys and each one costs the server
+far more than it costs them. And it would make the identical-cost miss path in
+4.3 expensive to honour, because the miss path has to do the same work as the
+hit path by construction.
+
+This is the same reasoning Stripe and GitHub apply to API keys. It would be the
+wrong choice for anything a human chooses.
 
 ### 4.3 The verification path, and why its shape matters
 
@@ -582,9 +606,28 @@ point: the tenant has paid and cannot be issued the thing they paid for.
 and `effective_contacts` falls back from branch to agency **only when the branch
 has no contacts at all**
 ([:31-35](supabase/migrations/20260702134358_access_rls_rpc.sql#L31)). So a
-branch with a non-primary contact and no primary resolves to nothing. Creating a
-contact is not sufficient; it must be primary, or the branch must have none so
-the agency's applies.
+branch holding a contact that is not primary resolves to nothing, and does
+**not** inherit the agency's.
+
+How reachable that state is was checked rather than assumed, and it is narrower
+than it first appears. Two triggers defend the invariant: on INSERT the first
+contact for an owner is forced primary
+([core_schema.sql:196](supabase/migrations/20260702134239_core_schema.sql#L196)),
+and on DELETE of a primary the next contact is promoted
+([:213-228](supabase/migrations/20260702134239_core_schema.sql#L213)). So it
+cannot be reached by adding or removing contacts.
+
+**It is reachable by UPDATE.** The maintaining trigger only acts
+`if new.is_primary`
+([:199](supabase/migrations/20260702134239_core_schema.sql#L199)), so clearing
+the flag on the only primary leaves the branch with a contact and no primary,
+and nothing puts it back. Confirmed empirically against a live schema: after
+such an update, `effective_primary_contact` returns nothing and the deed path
+would dead-end.
+
+That is why `has_agent_contact` is computed through the same function the deed
+path calls, rather than as "does a contact row exist". The two disagree exactly
+in this case, and it is the case that costs a tenant who has already paid.
 
 ### 7.4 Validating supplied IDs
 
