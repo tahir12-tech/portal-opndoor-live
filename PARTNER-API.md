@@ -204,30 +204,55 @@ All three run the full field validation in section 9. On top of that:
   application never reaches payment.
 - `opndoor_referenced`: the reference outcome, then payment.
 
-### 3.3 Criteria do not exist yet
+### 3.3 Criteria do not exist yet, and are not being built now
 
 There is **no acceptance criteria engine in this codebase**. No rules table, no
-scoring, no decline path, no `declined` status. `applications.status` is
-constrained to exactly three values
-([core_schema.sql:127](supabase/migrations/20260702134239_core_schema.sql#L127)):
+scoring, no decline path, no `declined` status.
+
+**The criteria themselves have not been written down anywhere.** That is an
+Opndoor business gap, not a codebase one, and it is the reason
+`pre_referenced_screened` is specified here in shape only.
+
+**Rightmove are `pre_referenced_open` and need no criteria at all**, so nothing
+in this section blocks the first partner. `pre_referenced_screened` is being
+specified now so the shape is settled, and built later.
+
+The status set is a moving target and has already been widened twice, so a
+`declined` value would follow an established pattern rather than break new
+ground:
+
+| Migration | Constrained set |
+| --------- | --------------- |
+| [core_schema.sql:127](supabase/migrations/20260702134239_core_schema.sql#L127) | `sent, paid, deed` |
+| [20260705095120:12](supabase/migrations/20260705095120_application_withdrawal_schema.sql#L12) | adds `withdrawn` |
+| [20260705115059:11](supabase/migrations/20260705115059_application_expiry_and_reinstate.sql#L11) | adds `expired`. **Current** |
+
+The current constraint is:
 
 ```sql
-status text not null default 'sent' check (status in ('sent','paid','deed'))
+check (status = any (array['sent','paid','deed','withdrawn','expired']))
 ```
 
-So `pre_referenced_screened` has nothing to call today. To make it real:
+There is a companion constraint, `applications_status_dates`
+([20260705115059:13-18](supabase/migrations/20260705115059_application_expiry_and_reinstate.sql#L13)),
+which ties each status to its timestamps and requires `paid_at is null` for both
+`withdrawn` and `expired`. Any new status must be added to **both** or inserts
+fail on the second one.
 
-1. A criteria store, per partner, versioned. Versioned because a decline must be
-   explainable months later against the rules in force at the time.
+To make `pre_referenced_screened` real, four things are needed:
+
+1. **The criteria themselves**, per partner, versioned. Versioned because a
+   decline must be explainable months later against the rules in force at the
+   time. This is the blocking item and it is a business decision, not a
+   technical one. See open question 2.
 2. An evaluator taking the payload and returning accept or decline plus Opndoor
    reason codes.
-3. A `declined` status, which means widening the CHECK constraint above, plus a
-   decision record storing the criteria version, the outcome and the reason
-   codes.
-4. A resulting webhook event, `application.declined`.
+3. A `declined` status added to both constraints above, plus a decision record
+   storing the criteria version, the outcome and the reason codes.
+4. The `application.declined` webhook event.
 
-Until those exist, a `pre_referenced_screened` partner behaves identically to
-`pre_referenced_open`. **The API should refuse to onboard one rather than
+Until those exist, a `pre_referenced_screened` partner would behave identically
+to `pre_referenced_open`. **The API should refuse to onboard one rather than
 silently accept everyone**, because silently accepting everyone is
 indistinguishable from working and would be discovered only commercially.
 
@@ -668,9 +693,11 @@ repeated two hundred times does not.
 ## 9. Validation and rejection
 
 An invalid payload is rejected outright. Nothing partial lands in the portal.
-There is no draft or incomplete state to land in: `status` is constrained to
-`('sent','paid','deed')`
-([core_schema.sql:127](supabase/migrations/20260702134239_core_schema.sql#L127)).
+There is no draft or incomplete state to land in: every value in the current
+status set is a live application
+([20260705115059:11](supabase/migrations/20260705115059_application_expiry_and_reinstate.sql#L11)),
+and the companion `applications_status_dates` constraint ties each one to its
+timestamps, so there is nowhere for a half-formed record to sit.
 
 ### 9.1 Rules, from the existing implementation
 
@@ -964,20 +991,51 @@ document the tolerance so partners implement verification correctly.
 
 ### 13.5 Events
 
-| Event | Fires when | Modes |
-| ----- | ---------- | ----- |
-| `application.created` | Created and accepted | all |
-| `application.declined` | Criteria decline | `pre_referenced_screened` |
-| `application.paid` | Payment settles | all |
-| `application.deed_issued` | Deed executed | all |
-| `application.expired` | Guarantee expires | all |
-| `application.withdrawn` | Withdrawn | all |
-| `reference.completed` | Reference concludes | `opndoor_referenced` |
+| Event | Fires when | Backed by a real status today |
+| ----- | ---------- | ----------------------------- |
+| `application.created` | Created and accepted | `sent` |
+| `application.paid` | Payment settles | `paid` |
+| `application.deed_issued` | Deed executed | `deed` |
+| `application.lapsed` | Unpaid application auto-expires 14 days after `sent_at` | `expired` |
+| `application.withdrawn` | Withdrawn by staff or tenant | `withdrawn` |
+| `application.declined` | Criteria decline | **No.** Needs the `declined` status |
+| `reference.completed` | Reference concludes | **No.** Needs the referencing integration |
 
 Statuses use the partner vocabulary of section 15, never internal values.
 
-`application.declined` and `reference.completed` cannot fire today: no
-`declined` status exists, and no referencing integration exists.
+**Naming note.** The event for the `expired` status is deliberately called
+`application.lapsed`, not `application.expired`, because the codebase uses
+"expiry" for two unrelated things and a partner-facing name must not inherit the
+ambiguity:
+
+- `status = 'expired'` means an **unpaid application** lapsed 14 days after
+  `sent_at` ([20260705115059:1-2](supabase/migrations/20260705115059_application_expiry_and_reinstate.sql#L1)).
+- `expiry_date` is the **guarantee's** expiry, a generated column equal to
+  tenancy start plus 12 months minus a day
+  ([core_schema.sql:132](supabase/migrations/20260702134239_core_schema.sql#L132)).
+
+These are months apart and mean opposite things commercially. If a guarantee
+expiry event is ever wanted, it is a separate event and must not reuse this name.
+
+### 13.6 Status is not monotonic
+
+An application can move **backwards** out of a terminal-looking state. A later
+payment reinstates both an expired application and a tenant-declined withdrawal
+to `paid`, described in the migration header as "late money wins"
+([20260705115059:3-5](supabase/migrations/20260705115059_application_expiry_and_reinstate.sql#L3)).
+A staff withdrawal does not reinstate.
+
+So `application.lapsed` followed by `application.paid` for the same application
+is **normal and correct**, not an error or a duplicate.
+
+Partners must be told this explicitly, because the natural implementation is to
+treat a lapse as terminal and stop listening. The webhook documentation should
+state that consumers must:
+
+- Handle any event arriving after a lapse or withdrawal.
+- Treat `status` in the payload as authoritative, not the event name.
+- Order by the event timestamp, not arrival order, since retries mean a later
+  event can arrive before an earlier one.
 
 ---
 
@@ -1140,10 +1198,15 @@ Rightmove applications are never declined by Opndoor. If Opndoor retains a veto
 for fraud or an unservable property, that is a decline path in a mode defined as
 having none, and it needs its own vocabulary.
 
-**2. What are the acceptance criteria, and who owns them?** Section 3.3 says
-`pre_referenced_screened` has nothing to call. Before it can be built we need
+**2. What are the acceptance criteria, and who owns them?** They have not been
+written down anywhere, in the codebase or outside it. This is an Opndoor
+business gap and it is the blocking item for `pre_referenced_screened`. We need
 the actual rules, whether they vary per partner, whether they are versioned, and
-who can change them. This is the largest unknown in the document.
+who can change them.
+
+It blocks nothing today. Rightmove are `pre_referenced_open` and need no
+criteria, and `pre_referenced_screened` is not being built now. It becomes
+urgent at the first partner who is not Rightmove.
 
 **3. Should a declined application be visible in the portal?** It has no
 `applications` row today because `status` has no `declined` value. Options are a
