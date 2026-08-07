@@ -1,0 +1,358 @@
+# Defects in the live system
+
+These were found while disconnecting a working copy of the portal from
+production. **They all exist in the live codebase.** None of them was introduced
+by that work, and none has been fixed here, because fixing them belongs on the
+live system rather than in a disposable dev tree.
+
+Written for someone with no context on the disconnect work. Each entry is what
+it is, what it costs the business, how to confirm it, and a suggested fix.
+
+Worst first. Severity is stated per defect so it can be re-prioritised.
+
+| # | Defect | Severity |
+| - | ------ | -------- |
+| 1 | Cron shared secret committed to the repo | Critical |
+| 2 | A foreign Supabase project is hardcoded in three migrations | High |
+| 3 | Stripe guards demand `sk_live_` while their headers claim test-only | High |
+| 4 | Test email redirect removed from all thirteen sending modules | Critical |
+
+If only two get attention, make them **1 and 4**. Defect 1 is an exposed
+credential and defect 4 is the one that reaches real tenants and agents.
+
+---
+
+## Defect 1: the cron shared secret is committed to the repo
+
+**Severity: critical. Exposed on `origin/main`.**
+
+### What it is
+
+[supabase/EXPIRY-REMINDERS.md:62](supabase/EXPIRY-REMINDERS.md#L62) contains a
+real 32-character secret as a literal, inside a runnable statement:
+
+```sql
+select vault.create_secret('<the actual secret is on this line>', 'reminders_cron_secret', 'expiry-reminders cron');
+```
+
+It is not a placeholder and not elided. It is the `REMINDERS_CRON_SECRET`: the
+value the pg_cron jobs send as an `x-reminders-secret` header, and that the ops
+migrations forward as `x-ops-secret`.
+
+The file is tracked, it is at `HEAD`, and it is on `origin/main`. Anyone with
+read access to the repository, now or historically, has the secret. So does
+anyone holding a clone.
+
+### Business impact
+
+The secret is the only thing authenticating the cron-driven Edge Functions.
+Holding it means being able to invoke them directly, on demand, without a portal
+account. That includes the call documented three lines further down the same
+file at
+[supabase/EXPIRY-REMINDERS.md:105](supabase/EXPIRY-REMINDERS.md#L105):
+
+```
+{"test":true,"reset":true}
+```
+
+which clears the windowed reminder ledger. Clearing it means the reminder
+schedule loses its record of what has already been sent. The visible outcome is
+tenants and agents receiving duplicate or wrongly-timed expiry and payment
+reminders, from the live system, with no obvious cause.
+
+### Confirm it
+
+```sh
+git grep -n "vault.create_secret" -- supabase/EXPIRY-REMINDERS.md
+git log --all -S "$(sed -n '62p' supabase/EXPIRY-REMINDERS.md | cut -d"'" -f2)" --oneline
+```
+
+### Suggested fix
+
+**Rotate the secret. Do not just delete the line.** Deleting text from a file
+does not retract a blob that has already been pushed; the value stays reachable
+in history, and in every existing clone, forever. Rotation is what actually ends
+the exposure. In order:
+
+1. Generate a new value.
+2. Update it in Vault and in the `REMINDERS_CRON_SECRET` Edge Function secret,
+   and reseed the `public.ops_secrets` row named `reminders_cron`.
+3. Only then replace the literal in the doc with a placeholder.
+
+The correct pattern is already used by the sibling runbook at
+[supabase/EXPIRY-COHORTS.md:31](supabase/EXPIRY-COHORTS.md#L31), which writes
+`'<REMINDERS_CRON_SECRET>'`. Copy that.
+
+Worth noting that the codebase already states this rule for itself.
+[20260705091511_ops_secrets_cron_auth.sql:8-13](supabase/migrations/20260705091511_ops_secrets_cron_auth.sql#L8)
+says the row "is seeded out-of-band (from the Vault secret, via SQL) so the
+secret value is never committed", and the migration honours it. This is a single
+slip in one runbook rather than a systemic habit, which is worth knowing before
+anyone audits the rest of the docs in a panic.
+
+Whether the pushed history also warrants a rewrite is a separate judgement.
+Rotation is required either way and does not depend on it.
+
+---
+
+## Defect 2: a foreign Supabase project is hardcoded in three migrations
+
+**Severity: high.**
+
+### What it is
+
+The project ref `pwftaqtrrqtilxlvwxjd` is written as a literal URL inside
+executable SQL, in three tracked migrations. It is not the live production
+project and not the dev project. It is a third project in the same organisation.
+
+| Location | What it does |
+| -------- | ------------ |
+| [20260705153000_hubspot_sync_cron_and_trigger.sql:21](supabase/migrations/20260705153000_hubspot_sync_cron_and_trigger.sql#L21) | `cron.schedule('hubspot-sync', '*/2 * * * *', ...)` posting to that project |
+| [20260705153000_hubspot_sync_cron_and_trigger.sql:37](supabase/migrations/20260705153000_hubspot_sync_cron_and_trigger.sql#L37) | `trigger_hubspot_sync()`, the admin "Sync HubSpot" button |
+| [20260705110300_ops_alert_trigger_defensive_guard.sql:9](supabase/migrations/20260705110300_ops_alert_trigger_defensive_guard.sql#L9) | `alert_ops_on_failure()`, fires after every insert on `activity_log` |
+| [20260705110300_ops_alert_trigger_defensive_guard.sql:39](supabase/migrations/20260705110300_ops_alert_trigger_defensive_guard.sql#L39) | `report_ops_incident()`, called from Edge Function catch blocks |
+| [20260705102238_ops_failure_alerting.sql:25](supabase/migrations/20260705102238_ops_failure_alerting.sql#L25) and [:62](supabase/migrations/20260705102238_ops_failure_alerting.sql#L62) | Earlier definitions of the same two functions, superseded by `110300` |
+
+The cron one is the most active. It is a top-level statement, so it executes at
+migration time and installs a recurring job. It begins firing every two minutes
+the moment the migration is applied, rather than waiting to be called.
+
+### Business impact
+
+Three separate costs.
+
+**Ops alerting may be going to the wrong place.** If the live project is running
+these function definitions, then failure alerts raised by `report_ops_incident`
+are being posted to a different project's `ops-alert` endpoint. The team would
+believe alerting is in place while incidents go unseen. Worth checking against
+the live database, because that is the difference between having monitoring and
+thinking you have monitoring.
+
+**Failures are invisible.** The side-effect block in both ops functions is
+wrapped in `exception when others then null`. A cross-project call that fails
+does so silently, with nothing in the logs. There is no signal that anything is
+wrong.
+
+**It contaminates any new environment.** Applying this migration set to a fresh
+project immediately schedules that project to call a foreign one every two
+minutes. Anyone standing up a staging or dev environment inherits the problem
+without knowing.
+
+There is one mitigating fact. All of these attach the `ops_secrets.reminders_cron`
+value as an `x-ops-secret` header. On a project where that row has not been
+seeded the header is null and the receiving function rejects the call. So on a
+brand new project this is inert. It activates the moment someone seeds the ops
+secret, which is a normal setup step.
+
+### Confirm it
+
+```sh
+git grep -n "pwftaqtrrqtilxlvwxjd" -- supabase/migrations/
+```
+
+Then, against the live database, check where the job actually points:
+
+```sql
+select jobname, schedule, command from cron.job where jobname = 'hubspot-sync';
+```
+
+### Suggested fix
+
+**Add a new migration. Do not edit the existing ones.** Migrations that have
+already been applied cannot be changed retroactively without the applied state
+and the source diverging, which is worse than the defect.
+
+The new migration should stop the URL being a literal at all. Two options:
+
+- Store the target base URL in the existing `ops_secrets` table, or a small
+  `ops_config` table, and have the functions read it. This keeps configuration
+  in the database where it can differ per environment.
+- Or derive it. `current_setting('app.settings.supabase_url', true)` is
+  available in some configurations and avoids a second source of truth.
+
+Either way the new migration should `create or replace` the two ops functions
+and re-`cron.schedule` the `hubspot-sync` job, so the final state is corrected
+without rewriting history.
+
+Also seeded, in the same area and worth deciding on at the same time:
+[20260705150500_hubspot_sync_seed.sql:26](supabase/migrations/20260705150500_hubspot_sync_seed.sql#L26)
+sets `app_base_url` to `https://app.opndoor.co` on the active row. It is read as
+`Deno.env.get("APP_URL") ?? env.app_base_url`, so on any environment where
+`APP_URL` is unset, deed deep links pushed into HubSpot point at the production
+portal.
+
+---
+
+## Defect 3: the Stripe guards demand `sk_live_` while their headers say test-only
+
+**Severity: high.**
+
+### What it is
+
+Three Edge Functions refuse to run unless `STRIPE_SECRET_KEY` starts with
+`sk_live_`:
+
+| Location | Effect when the key is `sk_test_` |
+| -------- | --------------------------------- |
+| [payment-page/index.ts:134](supabase/functions/payment-page/index.ts#L134) | Tenant checkout returns 400 |
+| [stripe-webhook/index.ts:29](supabase/functions/stripe-webhook/index.ts#L29) | 400 before signature verification, so Sent to Paid never settles |
+| [create-referral/index.ts:35](supabase/functions/create-referral/index.ts#L35) | The whole staff send path returns 400 |
+
+The documentation immediately above two of them states the exact opposite, and
+is now false:
+
+- [stripe-webhook/index.ts:17](supabase/functions/stripe-webhook/index.ts#L17):
+  `// TEST MODE ONLY: refuses to run unless STRIPE_SECRET_KEY is an sk_test_ key.`
+- [create-referral/index.ts:12](supabase/functions/create-referral/index.ts#L12):
+  the same line.
+
+[create-referral/index.ts:6](supabase/functions/create-referral/index.ts#L6)
+also still describes opening "a Stripe test-mode Checkout Session".
+
+### Business impact
+
+**The payment path cannot be tested anywhere except production.** A test key is
+rejected outright, so no dev or staging environment can exercise referral
+creation, checkout, or payment settlement. The only environment where the flow
+runs is the one handling real money. Changes to the payment path therefore ship
+either untested or tested against live cards.
+
+**The failure is silent about its cause.** The webhook returns a bare 400 before
+signature verification. In Stripe's dashboard this looks like a failing endpoint,
+not a configuration mismatch, which is a slow thing to diagnose under pressure.
+
+**The comments actively mislead.** A developer reading the header of
+`stripe-webhook/index.ts` will conclude the function is incapable of touching
+real money. It is currently incapable of anything else. That is the kind of
+wrong comment that causes an incident rather than merely wasting time.
+
+Related, and cheap to fix at the same time: the client-side mode badge is
+inverted. [src/data/paymentService.ts:16](src/data/paymentService.ts#L16) has
+`stripeTestMode()` returning true only for a `pk_live_` key, and the badge it
+drives at
+[ApplicationDetail.tsx:740](src/pages/ApplicationDetail/ApplicationDetail.tsx#L740)
+is labelled `Live Mode`. With a test publishable key the predicate is false and
+**no badge renders at all**, so staff get no visual signal of which mode they are
+in, in either direction.
+
+### Confirm it
+
+```sh
+git grep -n 'startsWith("sk_live_")' -- supabase/functions/
+git grep -n "TEST MODE ONLY" -- supabase/functions/
+```
+
+### Suggested fix
+
+Make the required key mode a function of the environment rather than a constant,
+so production keeps demanding `sk_live_` and non-production accepts `sk_test_`.
+A concrete proposal for the smallest such change is being prepared separately.
+
+Whatever shape it takes, two things should land with it:
+
+1. Correct the three stale header comments, so the file documentation matches
+   what the code does.
+2. Fix `stripeTestMode()` so the badge reflects reality. It is a one-line
+   predicate change plus a label that matches it.
+
+---
+
+## Defect 4: the test email redirect has been removed from all thirteen sending modules
+
+**Severity: critical.**
+
+### What it is
+
+Thirteen modules previously routed every outbound recipient to a single
+`EMAIL_REVIEW_ADDRESS` inbox, so no real person was contacted from a non-production
+build. All thirteen now send to the real address.
+
+In most of them the previous code is left commented out directly above the
+replacement, and the file header still promises the redirect is in force. For
+example
+[_shared/executedDeedEmail.ts:5](supabase/functions/_shared/executedDeedEmail.ts#L5)
+still reads "ALWAYS redirected to EMAIL_REVIEW_ADDRESS in this test build", while
+[line 43](supabase/functions/_shared/executedDeedEmail.ts#L43) sends to the
+tenant.
+
+Affected, with the line that now sends to the real recipient:
+
+| Module | Line | Note |
+| ------ | ---- | ---- |
+| `_shared/pandadoc.ts` | 321 | The PandaDoc signing link itself, on the legal path |
+| `_shared/deedEmail.ts` | 42 | |
+| `_shared/executedDeedEmail.ts` | 43 | |
+| `_shared/paymentReceiptEmail.ts` | 21 | Redirect stripped entirely, no commented version left |
+| `_shared/refundEmail.ts` | 20 | |
+| `create-referral/email.ts` | 69 | Tenant payment link |
+| `expiry-reminders/email.ts` | 61 | Fans out over a comma-separated recipient list |
+| `payment-reminders/email.ts` | 68 | Cron driven, fires unattended |
+| `resend-payment-email/email.ts` | 70 | |
+| `send-password-reset/email.ts` | 65 | |
+| `invite-user/email.ts` | 87 | |
+| `expiry-cohorts/index.ts` | 172 | Attaches a base64 CSV of tenant data |
+| `weekly-digest/index.ts` | 208 | Passes `redirected: false` as a literal, so its test-mode banner is permanently dead |
+
+### Business impact
+
+This is the defect with real people on the other end of it.
+
+**Real tenants and agents get contacted from non-production environments.** Any
+environment with a Resend key configured will email actual customers. Two of the
+thirteen are cron driven, `payment-reminders` and `expiry-cohorts`, so they fire
+unattended rather than waiting for someone to click something. Nobody has to make
+a mistake for this to happen.
+
+**One of them sends a legally operative document.** `_shared/pandadoc.ts:321`
+sends the Deed of Guarantee signing link. A tenant receiving and signing a deed
+generated from a test environment is a legal problem, not a support ticket.
+
+**One of them attaches tenant data.** `expiry-cohorts/index.ts` builds a base64
+CSV of tenant records and attaches it. Sent to an unintended recipient, that is a
+data protection incident with a reporting obligation.
+
+**The safety property is still documented as true.** Several runbooks tell the
+reader that emails are redirected and therefore safe:
+[supabase/DEEDS-TESTING.md:5](supabase/DEEDS-TESTING.md#L5),
+[supabase/PAYMENTS-TESTING.md:29](supabase/PAYMENTS-TESTING.md#L29),
+[VERIFICATION-SCRIPT.md:134](VERIFICATION-SCRIPT.md#L134). Someone following
+those documents will believe they are working in a safe environment while
+emailing customers. This is the mechanism by which the defect actually causes
+harm.
+
+The one thing currently holding it back: every module returns early unless
+`RESEND_API_KEY` is set. An environment with no Resend key emails nobody. That
+is the entire safety margin, and it is a single unset variable.
+
+### Confirm it
+
+```sh
+git grep -n "EMAIL_REVIEW_ADDRESS" -- supabase/functions/
+```
+
+Every hit will be in a comment or a header. None is in live code.
+
+### Suggested fix
+
+Decide first whether the removal was deliberate. If the live system is meant to
+email real customers, then the defect is only the stale comments and runbooks,
+and the fix is to correct them. That is a real possibility given the recent
+commits are titled things like "Live mode enable", so this should be confirmed
+rather than assumed.
+
+If it was not deliberate, or if any non-production environment will ever hold a
+Resend key, then restore the redirect as an explicit environment-driven switch
+rather than a commented-out block:
+
+- Reinstate the redirect behind a check on `EMAIL_REVIEW_ADDRESS` being set:
+  when it is set, all recipients go there, and when it is unset, mail goes to the
+  real recipient. That makes the safe behaviour the one you get by configuring
+  it, and production simply leaves it unset.
+- Put the logic in one shared helper that all thirteen modules call, rather than
+  reproducing it thirteen times. It was duplicated before, which is why removing
+  it took thirteen separate edits and why the headers drifted out of sync.
+- Delete the commented-out blocks once the helper exists. Commented-out code that
+  contradicts the live code below it is what made this hard to read.
+
+Whichever way it goes, the three runbooks above need correcting, because they
+currently assert a safety property that does not hold.
