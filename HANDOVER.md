@@ -476,7 +476,71 @@ table, all of which passed:
 
 ---
 
-## 6. Open items for you
+## 6. Standing a clean project up
+
+The dev project was reset and rebuilt from these migrations. **All 68 apply
+cleanly to an empty database and the local and remote histories now match
+exactly.** Getting there needed two new migrations, because the tree as it stood
+could not build a database from scratch.
+
+### 6.1 Two migrations were missing
+
+**`20260703153500_enable_pg_cron_pg_net.sql`.** No migration in this tree ran
+`create extension` for anything. A clean apply died at `20260703153600`, which
+calls `cron.schedule()` against a schema that does not exist. pg_cron is needed
+from that migration onward and pg_net from `20260705102238`. Nothing else is
+required: `gen_random_uuid()` is built in on PostgreSQL 13+, and the only
+`vault.` reference in the migrations is a comment.
+
+It is dated before its first consumer because a fresh project applies migrations
+in version order. Both statements are `if not exists`, so it is a no-op on a
+project where the extensions are already on by hand.
+
+**`20260705170500_drop_reconciliation_queue_for_signature_change.sql`.**
+`reconciliation_queue()` is created with nine OUT columns at
+[20260704130732:92](supabase/migrations/20260704130732_org_review_state_and_reconciliation.sql#L92)
+and then `create or replace`d with ten at
+[20260705171000:8](supabase/migrations/20260705171000_reconciliation_fold_head_office.sql#L8).
+PostgreSQL cannot change a return type that way (`SQLSTATE 42P13`) and the
+function is never dropped, so the chain failed on its final migration.
+
+Fixed with a drop ordered immediately before `20260705171000`, rather than by
+editing that migration, which is already applied to live.
+
+**Both of these mean the repo could not previously rebuild live's schema.** That
+is a disaster-recovery problem rather than a dev inconvenience, and it is
+recorded separately in `DEFECTS.md`.
+
+### 6.2 The dev project deliberately differs in one respect
+
+**The `hubspot-sync` cron job has been unscheduled on the dev project, directly,
+and no migration reflects that.**
+
+`20260705153000` schedules it every two minutes against
+`https://pwftaqtrrqtilxlvwxjd...`, a foreign project (section 4d). Rebuilding
+the dev project switched it on, which is exactly the trigger described there.
+
+Verified before removing it: the job targeted `pwftaqtrrqtilxlvwxjd`, and
+`public.ops_secrets` had **zero rows**, so the `x-ops-secret` header was null and
+the receiving function would have rejected the calls. It was inert, and it was
+removed anyway rather than left running against another project.
+
+```sql
+select cron.unschedule('hubspot-sync');
+```
+
+This was done as a direct statement, **not** as a migration, because it is
+dev-only housekeeping that should not travel to live. Live's own scheduling is a
+separate decision covered by section 4d.
+
+**Consequence for you:** the dev project's `cron.job` table does not match what
+the migration set would produce. `rate-limit-cleanup` is still scheduled and is
+harmless. If you reset the dev project again, `hubspot-sync` comes back and needs
+unscheduling again.
+
+---
+
+## 7. Open items for you
 
 Ordered by urgency, not by effort.
 
@@ -503,7 +567,7 @@ Ordered by urgency, not by effort.
 
 ---
 
-## 7. Environment reference
+## 8. Environment reference
 
 | Project ref | Name | Role |
 | ----------- | ---- | ---- |
