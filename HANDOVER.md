@@ -31,6 +31,14 @@ produce conflicts that have to be resolved by hand under time pressure.
 Where an existing file *was* modified, it is called out explicitly below with
 the reason. Treat every such case as something to check rather than assume.
 
+### The documents in this tree
+
+| File | What it is | Who it is for |
+| ---- | ---------- | ------------- |
+| `HANDOVER.md` | This file. What was changed here, why, and what needs you | You |
+| `DEFECTS.md` | Defects found in the **live** system, not introduced here and not fixed here | You, raised separately |
+| `PARTNER-API.md` | Specification for the partner API and outbound webhooks. Design only, nothing built | Whoever builds it |
+
 ---
 
 ## 2. Disconnecting this copy from production
