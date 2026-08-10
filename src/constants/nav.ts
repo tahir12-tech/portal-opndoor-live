@@ -33,6 +33,15 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    // Developers see this and nothing else. Management is included ONLY so a
+    // leaked API key can be revoked by whoever notices, rather than waiting for
+    // a developer who may have left; the screen shows them the keys panel alone.
+    group: 'Integration',
+    items: [
+      { id: 'devcentre', label: 'Dev Centre', to: '/dev-centre', icon: 'book', roles: ['developer', 'superadmin', 'management'] },
+    ],
+  },
+  {
     group: 'Organisation',
     items: [{ id: 'org', label: 'Agencies & branches', to: '/agencies', icon: 'org', roles: ['superadmin', 'management', 'referrer'] }],
   },

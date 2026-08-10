@@ -27,6 +27,7 @@ import { UserManagement } from '@/pages/UserManagement/UserManagement';
 import { Reconciliation } from '@/pages/Reconciliation/Reconciliation';
 import { Health } from '@/pages/Health/Health';
 import { Help } from '@/pages/Help/Help';
+import { DevCentre } from '@/pages/DevCentre/DevCentre';
 
 export function App() {
   return (
@@ -55,6 +56,13 @@ export function App() {
             which resources are listed. */}
         <Route path="/help" element={<Help />} />
 
+        {/* Dev Centre. Management is here only to revoke a leaked key; the page
+            renders them the keys panel alone. The RPCs scope themselves, so this
+            guard decides what renders, not what is permitted. */}
+        <Route element={<RequireRole roles={['developer', 'superadmin', 'management']} redirectTo="/help" />}>
+          <Route path="/dev-centre" element={<DevCentre />} />
+        </Route>
+
         {/* The commercial portal. These eight routes previously sat inside the
             shell with NO guard, so an empty sidebar hid nothing that typing a
             URL could not reveal: /league renders partner and agent commission
@@ -65,9 +73,9 @@ export function App() {
             has to be named here to get in. The server is the real boundary and
             was fixed first in 20260810210000; this is the front-end half. */}
         {/* redirectTo must be a route the REDIRECTED role can actually reach, or
-            the guard bounces into itself. /help is open to every role, so this
-            always terminates. It becomes /dev-centre once that exists. */}
-        <Route element={<RequireRole roles={['superadmin', 'management', 'referrer']} redirectTo="/help" />}>
+            the guard bounces into itself. Only a developer is turned away here,
+            and /dev-centre is exactly where they belong. */}
+        <Route element={<RequireRole roles={['superadmin', 'management', 'referrer']} redirectTo="/dev-centre" />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/league" element={<League />} />
           <Route path="/activity" element={<Activity />} />
