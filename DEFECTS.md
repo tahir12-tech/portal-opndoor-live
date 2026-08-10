@@ -31,6 +31,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 8 | A payment on a staff-withdrawn application is taken, and both the tenant and staff are told the opposite of the truth | High |
 | 9 | A failed deed void during a refund leaves a signable deed on a refunded application | High |
 | 10 | Reinstated applications keep their expired and withdrawn markers | Low |
+| 11 | `npm ci` fails, so there is no clean-room build and no CI | Medium |
 
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
@@ -1046,3 +1047,84 @@ Backfill first or the constraint will fail validation on existing rows.
 Do not fix this with a partial index or a tidy view. Both hide the contradiction
 rather than remove it, and the next person to write SQL against the base table
 falls into the same trap, which is the actual cost here.
+
+---
+
+## Defect 11: `npm ci` fails, so there is no clean-room build
+
+**Severity: medium. The same class as defect 5: the repo cannot rebuild itself.**
+
+### What it is
+
+`package.json` and `package-lock.json` are out of sync, so `npm ci` refuses to
+run at all:
+
+```
+npm error code EUSAGE
+npm error `npm ci` can only install packages when your package.json and
+npm error package-lock.json or npm-shrinkwrap.json are in sync.
+npm error Missing: @emnapi/core@1.11.3 from lock file
+npm error Missing: @emnapi/runtime@1.11.3 from lock file
+```
+
+`npm install` still works, because it resolves and rewrites the lockfile as it
+goes. `npm ci` deliberately will not: it installs strictly from the lock, which is
+the whole point of it.
+
+### Business impact
+
+**`npm ci` is the command a clean build uses.** Continuous integration, a
+container build, a fresh machine and a from-source rebuild all use it rather than
+`npm install`, precisely because it is reproducible and will not silently drift.
+None of those can run against this repo today.
+
+**Builds are not reproducible.** Two developers running `npm install` a month
+apart can resolve different transitive versions, because the lockfile is not
+being honoured as the source of truth. A bug that appears on one machine and not
+another has nowhere to be diagnosed from.
+
+**It blocks the fix for other defects.** There is no CI in this repository, which
+is part of why the `verify_jwt` drift and the migration failures in defect 5 went
+unnoticed. Adding CI is the obvious remedy for that class of problem, and CI
+begins with `npm ci`.
+
+**This is the same shape as defect 5.** That one is that the migrations cannot
+rebuild the database. This one is that the dependencies cannot rebuild the app.
+Together they mean the repository, on its own, cannot reconstruct a working
+system, which is worth seeing as one problem rather than two.
+
+### Confirm it
+
+```sh
+npm ci
+# expect: npm error code EUSAGE, listing packages missing from the lock file
+```
+
+### Suggested fix
+
+Run `npm install` once on a machine with a clean checkout, and **commit the
+updated `package-lock.json`**. That is the whole fix. It is deliberately not done
+here because it edits a tracked file, and the working rule for this tree is to
+add rather than edit.
+
+Two things worth doing at the same time:
+
+1. **Check the diff before committing it.** If `npm install` moves more than the
+   missing `@emnapi` entries, the lockfile has drifted further than this error
+   suggests and the rest of the change deserves reading rather than accepting.
+2. **Add `npm ci` to a CI job**, even a trivial one that only installs and type
+   checks. It is what stops the lockfile drifting again, and it would have caught
+   this the day it happened.
+
+### One related environment note, not a defect
+
+`node_modules` as shipped in this working copy was installed on **Windows**: the
+only native builds present were `@esbuild/win32-x64` and
+`@rollup/rollup-win32-x64-*`. On macOS nothing could run until the platform
+binaries were fetched. The Unix shims in `node_modules/.bin` also arrived without
+their execute bit, while the Windows `.cmd` files kept theirs.
+
+That is a property of how this copy was handed over rather than of the repository,
+so it is not a defect against live. It is recorded because it costs an hour to
+diagnose from scratch, and because the same zip-from-Windows route is what
+produced the partial CRLF conversion noted in `HANDOVER.md` section 5.
