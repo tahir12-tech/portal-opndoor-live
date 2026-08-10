@@ -105,7 +105,13 @@ export async function hydrateFromSupabase(userId: string, viewerRole: Role = LEA
       'id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, ' +
         'tenant_dob, tenant_email, tenant_phone, ' +
         'prop_addr1, prop_addr2, prop_city, prop_county, prop_postcode, ' +
-        'monthly_rent, partner_rate, agent_rate, status, beneficiary, tenancy_start, sent_at, paid_at, deed_issued_at, expiry_date, ' +
+        // applications carries its OWN snapshot of the commission rates, so
+        // narrowing the partners select alone was not enough: the rates would
+        // still have arrived on every application row. Same reasoning, and the
+        // same defence in depth: applications_select already returns nothing to
+        // an unentitled role, but a client that does not ask cannot receive.
+        (maySeeCommission(viewerRole) ? 'monthly_rent, partner_rate, agent_rate, ' : 'monthly_rent, ') +
+        'status, beneficiary, tenancy_start, sent_at, paid_at, deed_issued_at, expiry_date, ' +
         'payment_state, refunded_at, refunded_amount, paid_amount, refund_after_start, ' +
         'withdrawn_at, withdrawn_reason, withdrawn_note, ' +
         'deed_state, deed_sent_at, deed_viewed_at, expiry_reminders_sent, ' +
