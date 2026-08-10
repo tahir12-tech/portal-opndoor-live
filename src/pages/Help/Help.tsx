@@ -71,7 +71,13 @@ function servableHref(r: HelpResource): string | null {
 }
 // #110 Role gating. A resource with minRole is hidden from roles below it:
 // 'management' shows to management + opndoor admins; 'superadmin' to admins only.
-const ROLE_RANK: Record<Role, number> = { referrer: 1, management: 2, superadmin: 3 };
+// A seniority ladder: a resource with minRole is visible to that rank and above.
+// 'developer' is deliberately rank 0, below every gated resource. The ladder does
+// not model them, because a developer is orthogonal to this hierarchy rather than
+// junior to it, and several referrer-level guides describe commission. Rank 0
+// means they see only resources with no minRole at all, which is the honest
+// answer when a model does not fit.
+const ROLE_RANK: Record<Role, number> = { developer: 0, referrer: 1, management: 2, superadmin: 3 };
 function visibleTo(r: HelpResource, role: Role): boolean {
   return !r.minRole || ROLE_RANK[role] >= ROLE_RANK[r.minRole];
 }

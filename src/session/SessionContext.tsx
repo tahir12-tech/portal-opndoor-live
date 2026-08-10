@@ -13,7 +13,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   ALL_PARTNERS, authService, getSelectedPartner, homePartner, setHomePartner,
   setSelectedPartner as persistPartner, getSelectedPeriod, setSelectedPeriod as persistPeriod,
-  type PartnerScope, type Period, type Role,
+  LEAST_PRIVILEGED_ROLE, type PartnerScope, type Period, type Role,
 } from '@/data';
 import { KEYS, loadString, saveString } from '@/data/storage';
 import { ROLES, type RoleIdentity } from '@/constants/roles';
@@ -60,9 +60,23 @@ interface SessionValue {
 
 const SessionContext = createContext<SessionValue | null>(null);
 
+const KNOWN_ROLES: Role[] = ['superadmin', 'management', 'referrer', 'developer'];
+
+/**
+ * The role cached in localStorage, used before the profile loads.
+ *
+ * The membership test was never the bug. The FALLBACK was: an unrecognised value
+ * resolved to 'superadmin', so any role this list did not know about was
+ * promoted to the most privileged one. In mock, demo and test mode, where the
+ * session is ready immediately, that rendered the full opndoor-admin lens.
+ *
+ * Failing to the least privileged role is correct for any future role, not just
+ * 'developer'. Adding a role to KNOWN_ROLES is now the only thing that grants it
+ * anything, and forgetting to costs the user access rather than granting it.
+ */
 function initialRole(): Role {
   const r = loadString(KEYS.role);
-  return r === 'superadmin' || r === 'management' || r === 'referrer' ? r : 'superadmin';
+  return KNOWN_ROLES.includes(r as Role) ? (r as Role) : LEAST_PRIVILEGED_ROLE;
 }
 
 function initialsOf(name: string): string {

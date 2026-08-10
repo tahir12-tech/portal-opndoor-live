@@ -20,6 +20,7 @@
   background: var(--white-lilac);
   color: var(--heliotrope-deep);
 }
+.role-tag--dev   { background: #ede9fe; color: #5b21b6; border-color: #ddd6fe; }
 
 /* row action menu */
 .rowmenu {

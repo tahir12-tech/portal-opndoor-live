@@ -6,7 +6,26 @@
    ===================================================================== */
 
 /** The three portal roles. "superadmin" is opndoor admin in code. */
-export type Role = 'superadmin' | 'management' | 'referrer';
+/**
+ * Portal roles.
+ *
+ * 'developer' is a partner-side integrator: they belong to a partner the way
+ * management does, see the Dev Centre, and must never see commercial data
+ * (no commission, no league, no exports, no bordereau).
+ *
+ * When adding a role, prefer POSITIVE allowlists at every gate. A negative test
+ * such as `role !== 'referrer'` silently grants the new role whatever the
+ * negation implies, which is how the fourth role would have inherited the
+ * commission columns.
+ */
+export type Role = 'superadmin' | 'management' | 'referrer' | 'developer';
+
+/**
+ * The role to assume when a stored or supplied role cannot be recognised.
+ * Deliberately the LEAST privileged, never the most: an unparseable value must
+ * not become an escalation. See SessionContext.initialRole.
+ */
+export const LEAST_PRIVILEGED_ROLE: Role = 'referrer';
 
 /** A partner id, or the special "all partners combined" scope (opndoor admin only). */
 export type PartnerScope = string;

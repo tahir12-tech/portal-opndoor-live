@@ -35,6 +35,7 @@ const ROLE_META: Record<Role, [string, string]> = {
   superadmin: ['opndoor admin', 'role-tag--super'],
   management: ['Management', 'role-tag--mgmt'],
   referrer: ['Referrer', 'role-tag--ref'],
+  developer: ['Developer', 'role-tag--dev'],
 };
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
@@ -56,6 +57,7 @@ const ROLE_OPTIONS: RoleOption[] = [
   { id: 'superadmin', name: 'opndoor admin (Super-admin)', desc: "opndoor's internal admin. Full control of the portal: manages agencies, branches and users, syncs with HubSpot, edits help resources, and sees every referral." },
   { id: 'management', name: 'Management', desc: "Partner management. The same screens and tools as a referrer, but across the whole partner with full visibility of all tracking and analytics. Manages the partner's own agencies, branches and team, with edits applying straight away. Cannot change portal settings." },
   { id: 'referrer', name: 'Referrer', desc: 'Sees and tracks only their own referrals. Can add agencies and branches on the fly while referring.' },
+  { id: 'developer', name: 'Developer', desc: 'Partner-side integrator. Sees the Dev Centre only: API keys, webhook endpoints, delivery history and the documentation. Never sees commission, the league, exports or the bordereau.' },
 ];
 
 const initials = (n: string) => n.split(' ').map((p) => p[0]).slice(0, 2).join('');
