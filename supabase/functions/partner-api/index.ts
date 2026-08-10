@@ -33,6 +33,7 @@ import {
   hasScope,
   touchKey,
 } from "../_shared/partnerAuth.ts";
+import { createApplication, requestHash } from "../_shared/partnerApplications.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -105,7 +106,7 @@ Deno.serve(async (req) => {
     // Safe to disclose: the caller has already proved which partner they are.
     const { data: partner } = await service
       .from("partners")
-      .select("id, status")
+      .select("id, status, referencing_mode")
       .eq("id", auth.partnerId)
       .maybeSingle();
 
@@ -133,6 +134,18 @@ Deno.serve(async (req) => {
         return json(errorBody("insufficient_scope", "This key lacks the orgs:read scope."), 403, requestId);
       }
       return await getOrgs(service, auth.partnerId, requestId);
+    }
+
+    if (endpoint === "applications") {
+      if (req.method !== "POST") {
+        return json(errorBody("method_not_allowed", "Use POST."), 405, requestId, { Allow: "POST" });
+      }
+      if (!hasScope(auth, "applications:write")) {
+        return json(errorBody("insufficient_scope", "This key lacks the applications:write scope."), 403, requestId);
+      }
+      return await postApplication(
+        service, req, auth.partnerId, auth.apiKeyId, auth.scopes, partner.referencing_mode, requestId,
+      );
     }
 
     return json(errorBody("not_found", "Unknown endpoint."), 404, requestId);
@@ -193,4 +206,127 @@ async function getOrgs(service: any, partnerId: string, requestId: string): Prom
   // default-deny: partner_id, review_state, created_by and every other internal
   // column stay out by construction rather than by remembering to strip them.
   return json({ agencies: Array.from(byAgency.values()) }, 200, requestId);
+}
+
+/**
+ * POST /applications
+ *
+ * The idempotency claim is the first thing that happens and the recorded
+ * response is the last, so a retry can never double-create. See
+ * PARTNER-API.md section 11 for why this matters more here than on the form:
+ * retrying after a timeout is normal client behaviour, and without this a
+ * network blip bills a tenant twice.
+ */
+// deno-lint-ignore no-explicit-any
+async function postApplication(
+  // deno-lint-ignore no-explicit-any
+  service: any,
+  req: Request,
+  partnerId: string,
+  apiKeyId: string,
+  scopes: string[],
+  mode: string,
+  requestId: string,
+): Promise<Response> {
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return json(errorBody("malformed_request", "Body must be valid JSON."), 400, requestId);
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json(errorBody("malformed_request", "Body must be a JSON object."), 400, requestId);
+  }
+
+  const idemKey = req.headers.get("Idempotency-Key")?.trim() ||
+    (typeof body.idempotency_key === "string" ? body.idempotency_key.trim() : "");
+
+  if (!idemKey) {
+    return json(
+      errorBody("malformed_request", "An Idempotency-Key header or idempotency_key field is required."),
+      400,
+      requestId,
+    );
+  }
+
+  const hash = await requestHash(body);
+
+  // ---- claim the key ------------------------------------------------------
+  // The unique index on (partner_id, endpoint, idempotency_key) is what makes
+  // this a claim rather than a check-then-act: two concurrent retries race here
+  // and exactly one wins.
+  const { data: claim, error: claimErr } = await service
+    .from("partner_api_requests")
+    .insert({
+      partner_id: partnerId,
+      api_key_id: apiKeyId,
+      idempotency_key: idemKey,
+      endpoint: "POST /applications",
+      request_hash: hash,
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (claimErr) {
+    // 23505 is the unique violation: this key has been seen before.
+    if (claimErr.code !== "23505") {
+      console.log(JSON.stringify({ requestId, event: "idem_claim_failed", message: claimErr.message }));
+      return json(errorBody("internal_error", "Something went wrong."), 500, requestId);
+    }
+
+    const { data: prior } = await service
+      .from("partner_api_requests")
+      .select("request_hash, status_code, response_body")
+      .eq("partner_id", partnerId)
+      .eq("endpoint", "POST /applications")
+      .eq("idempotency_key", idemKey)
+      .maybeSingle();
+
+    if (!prior) return json(errorBody("internal_error", "Something went wrong."), 500, requestId);
+
+    // Same key, different body. Almost always a client bug: a key reused for a
+    // genuinely different application. Returning the first application's details
+    // would be worse than an error, because it would look like success.
+    if (prior.request_hash !== hash) {
+      return json(
+        errorBody("idempotency_key_reused", "This idempotency key was used for a different request."),
+        409,
+        requestId,
+      );
+    }
+
+    // Same key, same body, still running.
+    if (prior.status_code === null) {
+      return json(errorBody("request_in_progress", "This request is still being processed."), 409, requestId, {
+        "Retry-After": "2",
+      });
+    }
+
+    // Genuine retry: replay the stored response verbatim.
+    return json(prior.response_body, prior.status_code, requestId, { "Idempotent-Replay": "true" });
+  }
+
+  // ---- do the work --------------------------------------------------------
+  let outcome;
+  try {
+    outcome = await createApplication(service, partnerId, scopes, mode, body);
+  } catch (e) {
+    console.log(JSON.stringify({ requestId, event: "create_failed", message: String(e) }));
+    outcome = { status: 500, body: errorBody("internal_error", "Something went wrong.") };
+  }
+
+  // ---- record it ----------------------------------------------------------
+  // Failures are recorded too. A retry of a request that failed validation must
+  // replay that failure rather than re-running it, or the key means nothing.
+  await service
+    .from("partner_api_requests")
+    .update({
+      status_code: outcome.status,
+      response_body: outcome.body,
+      application_id: outcome.applicationId ?? null,
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", claim!.id);
+
+  return json(outcome.body, outcome.status, requestId);
 }
