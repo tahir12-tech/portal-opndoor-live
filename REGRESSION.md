@@ -19,7 +19,7 @@ the tagging.
 
 | Tag | Meaning |
 | --- | ------- |
-| `[D1]` … `[D7]` | Expected value is a known defect. See `DEFECTS.md` |
+| `[D1]` … `[D10]` | Expected value is a known defect. See `DEFECTS.md` |
 | `[AUTO]` | Automatable today |
 | `[SEMI]` | Automatable except for one external step |
 | `[HUMAN]` | Needs a person |
@@ -144,7 +144,7 @@ second payment will not retry it. Recovery is manual only.
 | A4.1 | Bad or absent HMAC signature | unchanged | unchanged | **none, not even a dedup row** | `[AUTO]` |
 | A4.2 | `document.viewed` | `paid` | unchanged | `deed_viewed` / business / "Deed viewed by the tenant." Only while `deed_viewed_at` is NULL | `[SEMI]` |
 | A4.3 | `document.completed` while `paid` | **`paid` → `deed`** | → **`executed`** | `deed_signed` / business, then the delivery rows | `[SEMI]` |
-| A4.4 | `document.completed` while **not** `paid` | **unchanged** | → **`executed` anyway** | `deed_signed` and the delivery rows still fire, **including on a withdrawn application** | `[AUTO]` `[D-new]` |
+| A4.4 | `document.completed` while **not** `paid` | **unchanged** | → **`executed` anyway** | `deed_signed` and the delivery rows still fire | `[AUTO]` |
 | A4.5 | `document.completed` for a superseded envelope | unchanged | unchanged | **none** | `[AUTO]` |
 | A4.6 | `document.declined` | **unchanged** `paid` | → `declined` | `deed_declined` / business (default) | `[SEMI]` |
 | A4.7 | `document.voided` | unchanged `paid` | → `voided` | `deed_voided` / business (default) | `[SEMI]` |
@@ -153,9 +153,21 @@ On A4.3 assert `deed_issued_at` and `deed_executed_at` are both set,
 `executed_pdf_path` is `<appId>/<ref>.pdf`, and **`issue_date` is unchanged** from
 generation time ([20260703101635:14-21](supabase/migrations/20260703101635_deed_executed_leave_issue_date.sql#L14)).
 
-**A4.4 is a real hole.** A withdrawn application can be pushed to
-`deed_state='executed'` and HubSpot to the deed-issued stage while the portal
-status stays `withdrawn`. Not currently in `DEFECTS.md`.
+**A4.4 is defence-in-depth written loosely, not a live hole.** The `else` branch
+of `apply_deed_executed` genuinely does write `deed_state='executed'` without
+transitioning status, and the webhook's `if (app)` guard tests only that a row
+matched the document id, never the status. But it is **unreachable**: no
+withdrawn or expired application can hold a PandaDoc document. An earlier draft
+of this plan claimed it could, and that was wrong.
+
+Test it anyway, because it is cheap and it is the guard that would matter if
+post-payment withdrawal were ever permitted. Assert the current behaviour so a
+future change that makes it reachable shows up here.
+
+**The reachable version of this is defect 9**, and it does not use this branch at
+all. A refund whose PandaDoc void fails leaves a live signing link on an
+application that is still `paid`, so the tenant signs and the deed issues through
+the ordinary path. Test that separately: `A6.3` with the void forced to fail.
 
 ## A5. Deed delivered to the agent
 
@@ -195,7 +207,8 @@ to assert.
 | - | ---- | ------ | ------------- | ------------ | ----- | ------- | ---- |
 | A6.1 | Full refund before tenancy start | **unchanged** `paid` or `deed` | → `refunded` | `refunded` / **business (default)** / "Payment refunded in Stripe.", then `refund_email_sent` / business | `_shared/refundEmail.ts`. **The real tenant only.** No copy to agent, referrer or ops | `payment_status='Refunded'` only; **stage untouched** | `[SEMI]` |
 | A6.2 | Refund on or after tenancy start | unchanged | `refunded` | A6.1's rows **plus** `refund_anomaly` / **business (default)** / "POLICY ANOMALY: refunded on or after the tenancy start date…" | tenant email plus an ops alert | `refund_anomaly` not mapped | `[SEMI]` `[D-new]` |
-| A6.3 | Refund while the deed is out | unchanged `paid` | `refunded` | `deed_voided` / business / "Outstanding deed signing link expired because the payment was refunded." | tenant refund email only | none for the void | `[SEMI]` |
+| A6.3 | Refund while the deed is out, void **succeeds** | unchanged `paid` | `refunded` | `deed_voided` / business / "Outstanding deed signing link expired because the payment was refunded." | tenant refund email only | none for the void | `[SEMI]` |
+| A6.3b | Refund while the deed is out, void **fails** | unchanged `paid` | `refunded` | **no `deed_voided` row.** `deed_state` stays `awaiting_tenant`, `pandadoc_document_id` stays set, **the signing link stays live** | tenant refund email only | none | `[SEMI]` `[D9]` |
 | A6.4 | **Partial** refund | unchanged | → `refunded` | identical rows to A6.1, **no amount in the message** | tenant email showing the partial amount | `payment_status='Refunded'` | `[AUTO]` `[D-new]` |
 | A6.5 | Second distinct `charge.refunded` | unchanged | `refunded` | **a second `refunded` row and a second `refund_email_sent` row** | **a second tenant refund email** | idempotent in effect | `[AUTO]` `[D-new]` |
 | A6.6 | Refund matching no application | no row touched | no row touched | **none. Invisible in the portal** | none, no ops alert | none | `[AUTO]` `[D-new]` |
@@ -255,9 +268,9 @@ monotonic and where most assumptions break.
 
 | # | Prior state | status | payment_state | activity_log | Tags |
 | - | ----------- | ------ | ------------- | ------------ | ---- |
-| A9.1 | `expired` | → **`paid`** | → `paid` | `payment_reinstated` / business / "Guarantor fee paid after expired; application reinstated to Paid.", then `payment_received`, then the deed and receipt rows | `[SEMI]` |
-| A9.2 | `withdrawn` **and** `withdrawn_by_tenant = true` | → **`paid`** | → `paid` | as A9.1, message says "after withdrawn" | `[SEMI]` `[D-new]` |
-| A9.3 | `withdrawn` **and** `withdrawn_by_tenant = false` (staff) | **stays `withdrawn`** | **stays `awaiting`** | one row only: `payment_anomaly` / business / "Guarantor fee paid on a WITHDRAWN application. Review and refund required." | `[SEMI]` `[D-new]` |
+| A9.1 | `expired` | → **`paid`** | → `paid` | `payment_reinstated` / business / "Guarantor fee paid after expired; application reinstated to Paid.", then `payment_received`, then the deed and receipt rows | `[SEMI]` `[D10]` |
+| A9.2 | `withdrawn` **and** `withdrawn_by_tenant = true` | → **`paid`** | → `paid` | as A9.1, message says "after withdrawn" | `[SEMI]` `[D10]` |
+| A9.3 | `withdrawn` **and** `withdrawn_by_tenant = false` (staff) | **stays `withdrawn`** | **stays `awaiting`** | one row only: `payment_anomaly` / business / "Guarantor fee paid on a WITHDRAWN application. Review and refund required." | `[SEMI]` `[D8]` |
 
 **A9.1 and A9.2: assert the stale columns are STILL SET.** `expired_at`,
 `withdrawn_at`, `withdrawn_reason` and `withdrawn_by_tenant` are never cleared. A
@@ -407,16 +420,26 @@ Built but **not yet exercised**. Treat this section as unverified until it is.
 | B7.7 | Endpoint returns `410 Gone` | dead-lettered **immediately** |
 | B7.8 | Signature | `X-Opndoor-Signature: t=…,v1=…` verifies as HMAC-SHA256 over `"<t>.<body>"` |
 | B7.9 | Application `expired` | event is **`application.lapsed`**, not `application.expired` |
+| B7.11 | `expired` then paid late | event is **`application.reinstated`**, not a second `application.paid` |
+| B7.12 | Tenant-declined `withdrawn` then paid late | also `application.reinstated`. Same branch, same shape |
+| B7.13 | **Staff**-withdrawn then paid late | **no event at all.** Status does not change, so the trigger never fires. See defect 8 |
 | B7.10 | Same event type twice for one application | **only one delivery**, by unique index |
 
 **B7.5 is the whole design.** It is the property `hubspot-sync` does not have,
 where one failing event blocks the entire feed for every partner. If B7.5 ever
 fails, the queue has regressed into a cursor.
 
-**B7.10 is a deliberate at-most-once guarantee, and it has a cost.** A partner
-who has already received `application.paid` will not receive it again if the
-application is reinstated after lapsing. Whether that is right is worth a
-decision; today it is the behaviour.
+**B7.10 is a deliberate at-most-once guarantee.** The cost it used to carry, a
+partner hearing `application.lapsed` and then nothing, is now covered by
+`application.reinstated` being a distinct event rather than a repeat of
+`application.paid`. That keeps at-most-once intact while ensuring a partner is
+never left with a permanently wrong record, and stops anyone treating
+`application.paid` as a first-payment signal from double counting.
+
+**B7.13 is the gap that remains.** A staff-withdrawn application paid late
+produces no webhook of any kind, because `apply_stripe_payment` does not change
+its status. The partner is never told money arrived. That is defect 8, not a
+webhook bug, and it should be fixed there.
 
 ---
 
@@ -473,15 +496,24 @@ Rows tagged `[D1]`–`[D7]` expect behaviour recorded in `DEFECTS.md`. Rows tagg
 | Where | Behaviour |
 | ----- | --------- |
 | A2.2 | Starting checkout is not logged anywhere |
-| A4.4 | `document.completed` executes a deed on a withdrawn or expired application |
 | A5.5 | "Save this contact" persists nothing; HubSpot records the wrong recipient |
 | A6.2 | `refund_anomaly` is partner-visible with raw internal wording |
 | A6.4 | A partial refund marks the application fully Refunded everywhere |
 | A6.5 | A second refund event sends the tenant a second refund email |
 | A6.6 | A refund matching no application is silently invisible |
 | A8.1 | `expired` produces no HubSpot event, so the CRM shows Referred for ever |
-| A9.2 | Stale `withdrawn_*` and `expired_at` columns survive reinstatement |
-| A9.3 | Payment on a staff-withdrawn application takes money with `payment_state='awaiting'` and sends nothing |
 
-Defect 7, the false "Redirected to … (test mode)" audit row at A1.4, **has** been
-added to `DEFECTS.md`.
+Four of the behaviours first listed here have since been promoted into
+`DEFECTS.md` as full entries, and are tagged in the tables above rather than
+listed as unrecorded:
+
+| Defect | Where | Note |
+| ------ | ----- | ---- |
+| 7 | A1.4 | The false "Redirected to … (test mode)" audit row |
+| 8 | A9.3 | Payment on a staff-withdrawn application. **Worse than first thought**: `/pay/confirmed` tells the tenant they paid, while staff are told no fee was collected |
+| 9 | A6.3 | A refund whose deed void fails leaves a signable deed on a refunded application |
+| 10 | A9.1, A9.2 | Stale `expired_at` and `withdrawn_*` columns survive reinstatement. Confirmed **low**: nothing reads these columns today |
+
+One claim in an earlier draft of this plan was **withdrawn** after checking: that
+A4.4 lets a deed execute on a withdrawn application. The branch is real but
+unreachable. Defect 9 is the reachable version and arrives by a different route.

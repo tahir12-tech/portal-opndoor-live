@@ -19,6 +19,9 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 5 | The repo cannot rebuild the live schema. Disaster recovery fails | High |
 | 6 | A branch can lose its primary contact, stranding a paid tenant | Medium |
 | 7 | The activity log states emails were redirected for testing when they were not | Medium |
+| 8 | A payment on a staff-withdrawn application is taken, and both the tenant and staff are told the opposite of the truth | High |
+| 9 | A failed deed void during a refund leaves a signable deed on a refunded application | High |
+| 10 | Reinstated applications keep their expired and withdrawn markers | Low |
 
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
@@ -711,3 +714,326 @@ Option 2 is correct if defect 4 is being fixed anyway. Option 1 is correct if th
 system is meant to email real tenants from now on. Either way the current text
 should not survive, because it is the one thing in the audit trail that is
 actively untrue.
+
+---
+
+## Defect 8: a payment on a staff-withdrawn application is taken, and both the tenant and staff are told the opposite of the truth
+
+**Severity: high. Real money, and two people each shown the wrong answer.**
+
+### What it is
+
+`apply_stripe_payment` has three outcomes. A payment landing on an application a
+member of staff withdrew (`withdrawn_by_tenant = false`) hits the third
+([20260705115059:77-85](supabase/migrations/20260705115059_application_expiry_and_reinstate.sql#L77)):
+
+```sql
+elsif a.status = 'withdrawn' then
+  -- Staff withdrawal: record the intent but do NOT flip to paid; flag for refund.
+  update public.applications set
+    stripe_payment_intent_id = coalesce(stripe_payment_intent_id, p_payment_intent),
+    stripe_checkout_session_id = coalesce(stripe_checkout_session_id, p_session_id)
+  where id = p_application_id;
+```
+
+The money has been taken by Stripe. The row keeps `status = 'withdrawn'` and
+`payment_state = 'awaiting'`, and `paid_at` and `paid_amount` are never written.
+Refusing to flip to `paid` is deliberate and correct. What follows is not.
+
+**The tenant is told they paid.** `payment-confirmation` computes
+([payment-confirmation/index.ts:84](supabase/functions/payment-confirmation/index.ts#L84)):
+
+```ts
+const paid = app.payment_state === "paid" || (!!app.status && app.status !== "sent");
+```
+
+`'withdrawn'` is not `'sent'`, so `paid` is **true**. The next line falls back to
+`monthly_rent` when `paid_amount` is null, so `/pay/confirmed` renders "Payment
+received", the full fee as the amount paid, and a promise that the Deed of
+Guarantee is on its way for signature.
+
+No deed is generated. No email is sent. The tenant has paid, been told it worked,
+been quoted the right amount, and been promised a document that will never
+arrive.
+
+**Staff are told the opposite.** The Payment card on that same application reads
+that it was withdrawn before payment so no guarantor fee was collected.
+
+One `payment_anomaly` activity row is written, and one ops alert fires, deduped
+to one per application per clock hour and only delivered if `OPS_ALERT_ADDRESS`
+or `EMAIL_REVIEW_ADDRESS` is set.
+
+### How a real tenant gets there
+
+Narrow, but not preventable by the tenant-facing gates, which is what makes it
+worth fixing rather than accepting.
+
+Every link path already refuses a staff-withdrawn application: `payment-page`
+computes `payable` as `sent` or `expired` and returns 409 otherwise,
+`fire_payment_reminders` requires `status = 'sent'`, and `resend-payment-email`
+returns 400 unless `status = 'sent'`. No new payable link can be issued.
+
+**The hole is a Checkout Session that already exists.** Neither `create-referral`
+nor `payment-page` sets `expires_at` on the session, so Stripe's 24 hour default
+applies and the hosted URL stays payable for that window no matter what the row
+does afterwards. `mark_withdrawn` checks only that the status is `sent`; it has
+no awareness of a live session and gives staff no warning.
+
+The most plausible sequence is the duplicate-referral one, and "duplicate
+referral" is one of the withdrawal reasons the picker offers:
+
+1. The tenant opens the payment page and clicks Pay. A session is minted; they
+   leave the tab open.
+2. Within 24 hours staff withdraw the application, as a duplicate or because the
+   tenancy fell through. Both surface on exactly that timescale.
+3. The tenant returns to the open tab and completes the payment.
+
+There is a wider variant: a tenant who cancels checkout lands on `/pay/retry`,
+which returns `payment_url`, the raw Stripe session URL. That URL is then in
+their history, outside the token gate, for the rest of the session's life.
+
+### Business impact
+
+**Money is taken for a service that will not be delivered, and nobody is told
+clearly.** The tenant believes they have a guarantee. They do not. They will find
+out when a letting agent asks for a deed that does not exist, which is the worst
+possible moment.
+
+**Both humans who could catch it are shown the wrong answer.** The tenant sees
+"Payment received". Staff see "no guarantor fee was collected". Neither has any
+reason to escalate, so the only signal is an internal ops alert that may not be
+configured to reach anyone.
+
+**A refund is not automatic.** There is no refund-initiation code anywhere in the
+repo, so somebody has to notice and act in the Stripe dashboard.
+
+### What makes it less bad
+
+Worth stating, so this is not overstated:
+
+- **The refund itself works fine.** `stripe_payment_intent_id` is written on this
+  branch, which is what a dashboard refund needs, and `apply_stripe_refund`
+  takes its amount from the Stripe event rather than from `paid_amount`. A refund
+  will land correctly on this row.
+- The deliberate refusal to flip to `paid` is right. It prevents a deed being
+  issued for a withdrawn application, which would be worse.
+- The `payment_anomaly` row and the ops alert mean the system knows. The problem
+  is who it tells.
+
+### Confirm it
+
+On a disposable project, with an application at `sent`:
+
+```sql
+select public.mark_withdrawn('GR-TEST1', 'duplicate', null);
+select public.apply_stripe_payment(
+         (select id from public.applications where guarantee_ref = 'GR-TEST1'),
+         'pi_test', 1500, 'cs_test');
+
+select status, payment_state, paid_at, paid_amount, stripe_payment_intent_id
+  from public.applications where guarantee_ref = 'GR-TEST1';
+-- expect: withdrawn / awaiting / null / null / pi_test
+```
+
+Then call `payment-confirmation` for that session id and observe that it reports
+the tenant as paid.
+
+### Suggested fix
+
+Three changes, in order of value.
+
+1. **Fix the tenant-facing lie first.** It is one line
+   ([payment-confirmation/index.ts:84](supabase/functions/payment-confirmation/index.ts#L84)).
+   `paid` should be `payment_state === 'paid'`, or should exclude `withdrawn` and
+   `expired` explicitly. The current `status !== 'sent'` test also reports an
+   expired application as paid, so this fix is worth making on its own.
+2. **Close the window.** Set `expires_at` on the Checkout Session at creation,
+   short enough to bound the exposure. Alternatively, have `mark_withdrawn` warn
+   or refuse when `payment_state = 'awaiting'` and a session was minted
+   recently, so staff know a payment may be in flight.
+3. **Make the anomaly visible where a person will see it.** The `payment_anomaly`
+   row exists; surfacing it on the application as a banner would mean staff see
+   the contradiction rather than the reassuring Payment card.
+
+---
+
+## Defect 9: a failed deed void during a refund leaves a signable deed on a refunded application
+
+**Severity: high. A legally operative document issued on a refunded application.**
+
+### What it is
+
+When a refund arrives and a deed is still out for signature, the webhook tries to
+void it. The void and the clearing of the document id both happen **only if the
+PandaDoc call succeeded** ([stripe-webhook/index.ts:116-127](supabase/functions/stripe-webhook/index.ts#L116)):
+
+```ts
+if (appRow.pandadoc_document_id && appRow.deed_state === "awaiting_tenant") {
+  const voidResult = await voidDocument(appRow.pandadoc_document_id);
+  if (voidResult.ok) {
+    await service.from("applications").update({ deed_state: "voided", pandadoc_document_id: null })...
+```
+
+There is no `else`. If PandaDoc is down, rate limits, or times out, the failure
+is discarded silently: `deed_state` stays `awaiting_tenant`, `pandadoc_document_id`
+stays set, and **the signing link the tenant already has stays live**.
+
+`apply_stripe_refund` never touches `status`, so the application is still `paid`.
+When the tenant signs, `apply_deed_executed` matches on `pandadoc_document_id`,
+finds a `paid` application, and takes its normal path: `status` becomes `deed`,
+`deed_state` becomes `executed`, the deed is delivered to the agent, the executed
+copy goes to the tenant, and HubSpot is pushed to the deed-issued stage.
+
+A full Deed of Guarantee is issued, and sent to the agent as valid, on an
+application whose fee has been refunded.
+
+### Why this is the version worth writing down
+
+An earlier reading of this suspected the `else` branch of `apply_deed_executed`
+([20260703101635:22-27](supabase/migrations/20260703101635_deed_executed_leave_issue_date.sql#L22)),
+which writes `deed_state = 'executed'` without transitioning status. That branch
+is real and permissive, but it is **unreachable**: no withdrawn or expired
+application can hold a PandaDoc document, so it never executes. It is
+defence-in-depth that happens to be written loosely.
+
+This defect is the reachable one, and it does not depend on that branch at all.
+It goes through the ordinary `paid` path, because the application really is still
+`paid`.
+
+### Business impact
+
+**Opndoor guarantees a tenancy it has not been paid for.** The deed is a legal
+instrument. It is delivered to the letting agent, who has every reason to rely on
+it, and there is nothing on its face to indicate the fee was refunded.
+
+**Nobody is alerted.** The void failure is discarded without a log line, without
+an activity row and without an ops incident. The only trace is the absence of the
+`deed_voided` row that would normally appear, which nobody is watching for.
+
+**HubSpot records it as a completed deal**, so the CRM shows a refunded
+application at the deed-issued stage.
+
+**The trigger is an external service having a bad minute.** It needs no user
+error and no unusual sequence, just a PandaDoc timeout during a refund. It will
+happen eventually.
+
+### Confirm it
+
+Simulate the void failure rather than waiting for one: point
+`PANDADOC_API_KEY` at an invalid value on a disposable project, or block the
+PandaDoc host, then refund an application whose deed is out for signature.
+
+```sql
+select deed_state, pandadoc_document_id, status, payment_state
+  from public.applications where guarantee_ref = 'GR-TEST1';
+-- after the refund, expect: awaiting_tenant / <still set> / paid / refunded
+```
+
+The signing link in the tenant's inbox still works. Completing it issues the deed.
+
+### Suggested fix
+
+**Handle the failure.** The minimum is an `else` that records it:
+
+- Write an activity row, `deed_void_failed`, at internal visibility, and make it
+  an ops-alert kind so somebody is told. The alerting mechanism already exists.
+- Clear `pandadoc_document_id` and set `deed_state` to `error` even when the
+  remote void fails, so the application cannot silently execute. The document is
+  still live at PandaDoc, but the portal will no longer accept its completion,
+  which is the half of the problem this codebase controls.
+- Better still, retry. A void that fails because PandaDoc was briefly unavailable
+  should be retried rather than abandoned on the first attempt.
+
+Consider also whether `apply_deed_executed` should refuse when
+`payment_state = 'refunded'`. It is a cheap guard, and it would make the
+outcome safe even if the void never happens.
+
+---
+
+## Defect 10: reinstated applications keep their expired and withdrawn markers
+
+**Severity: low. Certain to happen and permanent, but nothing reads these columns today.**
+
+### What it is
+
+`apply_stripe_payment` deliberately reinstates a closed application when a
+payment arrives late, from `expired` or from a tenant-declined `withdrawn`
+([20260705115059:66](supabase/migrations/20260705115059_application_expiry_and_reinstate.sql#L66)).
+The UPDATE that follows sets `status`, `paid_at`, the Stripe ids, `paid_amount`
+and `payment_state`, and nothing else.
+
+`expired_at`, `withdrawn_at`, `withdrawn_reason` and `withdrawn_by_tenant` are
+never cleared, by that branch or anywhere else in the tree. So a fully paid
+application permanently carries the markers of the state it was rescued from.
+
+The table constraint does not catch it: the `paid` arm of
+`applications_status_dates` asks only for `paid_at`
+([20260705115059:17](supabase/migrations/20260705115059_application_expiry_and_reinstate.sql#L17)).
+
+Precisely which columns survive, since this is narrower than it first looks: the
+expired route leaves only `expired_at`. The tenant-decline route leaves only
+`withdrawn_at`, `withdrawn_reason` and `withdrawn_by_tenant`. `withdrawn_by` is
+explicitly nulled by the tenant decline and `withdrawn_note` is never set by it,
+so neither ever survives. A staff withdrawal never reinstates at all.
+
+### Business impact
+
+**Nothing is misreported today**, and this should not be presented as though it
+were. Every current consumer keys on `status`: the client derives its flags from
+it, the CSV export filters on those derived booleans, and the League, the weekly
+digest and the climbers RPC all filter on `status not in ('withdrawn','expired')`.
+Neither stale column appears in the partner webhook payload. That claim is
+checkable in one grep, and it holds.
+
+What it costs is future-tense and it is a trap rather than a bug:
+
+- **Every late payment leaves a self-contradictory row.** Anyone reading the
+  table directly sees a paid application carrying an expiry timestamp and has to
+  reconcile it against `activity_log`.
+- **The obvious ad hoc query is wrong.** "How many lapsed last quarter?" written
+  as `where expired_at is not null` over-counts by every late payment. Because
+  reinstatement is the designed outcome of the expiry flow rather than a rarity,
+  the error is systematic and one-directional: it inflates churn and deflates
+  conversion.
+- **It becomes a real defect the first time a report keys on these columns**,
+  and worse if that report is partner-facing or drives commission.
+
+### Confirm it
+
+```sql
+update public.applications set sent_at = now() - interval '20 days'
+ where guarantee_ref = 'GR-TEST1';
+select public.expire_stale_applications(current_date);
+select public.apply_stripe_payment(
+         (select id from public.applications where guarantee_ref = 'GR-TEST1'),
+         'pi_test', 1500, 'cs_test');
+
+select status, paid_at, expired_at from public.applications where guarantee_ref = 'GR-TEST1';
+-- expect: paid / set / expired_at STILL SET
+```
+
+To size the exposure on live before changing anything:
+
+```sql
+select count(*) from public.applications
+ where status in ('paid','deed') and (expired_at is not null or withdrawn_at is not null);
+```
+
+That count is exactly how many reinstatements have already happened.
+
+### Suggested fix
+
+**Clear the columns in the reinstate branch.** Nothing is lost: the history is
+already in `activity_log` as the `expired` or `withdrawn` row plus the
+`payment_reinstated` row, and the partner is told separately via
+`application.reinstated`. If the prior state genuinely must live on the row, move
+it to `prior_expired_at` and `prior_withdrawn_at` so no filter on the live column
+can pick it up. Note `withdrawn_by_tenant` resets to `false`, not null.
+
+**Then make it unable to recur** by extending the `paid` and `deed` arms of
+`applications_status_dates` with `and expired_at is null and withdrawn_at is null`.
+Backfill first or the constraint will fail validation on existing rows.
+
+Do not fix this with a partial index or a tidy view. Both hide the contradiction
+rather than remove it, and the next person to write SQL against the base table
+falls into the same trap, which is the actual cost here.
