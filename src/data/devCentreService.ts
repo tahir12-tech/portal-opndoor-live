@@ -153,6 +153,19 @@ export async function updateWebhookEndpoint(
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Reveal one endpoint's signing secret.
+ *
+ * Deliberately a separate call rather than a field on the listing, so opening
+ * the endpoints page never puts secrets on the wire. There is no equivalent for
+ * an API key: only its hash is stored, so the key does not exist to return.
+ */
+export async function revealEndpointSecret(id: string): Promise<string> {
+  const { data, error } = await sb().rpc('dev_webhook_endpoint_secret', { p_id: id });
+  if (error) throw new Error(error.message);
+  return String(data ?? '');
+}
+
 export async function getDeliveries(opts: {
   partnerId?: string | null; endpointId?: string | null; eventType?: string | null; limit?: number;
 } = {}): Promise<DevDelivery[]> {
@@ -165,6 +178,83 @@ export async function getDeliveries(opts: {
   });
   if (error) throw new Error(error.message);
   return (data ?? []) as DevDelivery[];
+}
+
+export interface ApiStats {
+  total_requests: number; failed_requests: number; success_requests: number;
+  distinct_paths: number; avg_duration_ms: number | null;
+}
+export interface TimePoint { bucket: string; succeeded: number; failed: number }
+export interface ErrorSlice { method: string; error_code: string; errors: number }
+export interface WebhookStats {
+  sent: number; delivered: number; failed: number; dead: number;
+  min_ms: number | null; avg_ms: number | null; max_ms: number | null;
+}
+export interface ApiLogRow {
+  id: string; method: string; path: string; status_code: number;
+  error_code: string | null; duration_ms: number | null; created_at: string; key_name: string | null;
+}
+
+/** Period options for the monitoring counters. Days, because the log is per-request. */
+export const PERIODS = [
+  { id: 1, label: 'Last 24 hours' },
+  { id: 7, label: 'Last 7 days' },
+  { id: 30, label: 'Last 30 days' },
+  { id: 90, label: 'Last 90 days' },
+];
+
+export async function getApiStats(partnerId: string | null, days: number): Promise<ApiStats | null> {
+  if (!SUPABASE_ENABLED) return null;
+  const { data, error } = await sb().rpc('dev_api_stats', { p_partner: partnerId, p_days: days });
+  if (error) throw new Error(error.message);
+  return (Array.isArray(data) ? data[0] : data) ?? null;
+}
+
+export async function getApiTimeseries(partnerId: string | null, days: number): Promise<TimePoint[]> {
+  if (!SUPABASE_ENABLED) return [];
+  const { data, error } = await sb().rpc('dev_api_timeseries', { p_partner: partnerId, p_days: days });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as TimePoint[];
+}
+
+export async function getErrorsByMethod(partnerId: string | null, days: number): Promise<ErrorSlice[]> {
+  if (!SUPABASE_ENABLED) return [];
+  const { data, error } = await sb().rpc('dev_api_errors_by_method', { p_partner: partnerId, p_days: days });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ErrorSlice[];
+}
+
+export async function getWebhookStats(partnerId: string | null, days: number): Promise<WebhookStats | null> {
+  if (!SUPABASE_ENABLED) return null;
+  const { data, error } = await sb().rpc('dev_webhook_stats', { p_partner: partnerId, p_days: days });
+  if (error) throw new Error(error.message);
+  return (Array.isArray(data) ? data[0] : data) ?? null;
+}
+
+export async function getApiLogs(opts: {
+  partnerId: string | null; search?: string; days?: number; limit?: number;
+}): Promise<ApiLogRow[]> {
+  if (!SUPABASE_ENABLED) return [];
+  const { data, error } = await sb().rpc('dev_api_logs', {
+    p_partner: opts.partnerId, p_search: opts.search ?? null,
+    p_days: opts.days ?? 7, p_limit: opts.limit ?? 200,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ApiLogRow[];
+}
+
+/**
+ * Mask a secret for display.
+ *
+ * An API key can only ever be masked to its prefix, because only a hash is
+ * stored and the rest genuinely does not exist anywhere. A webhook signing
+ * secret IS stored, because signing needs it, so that one can be revealed.
+ * The difference is real and the UI says so rather than implying both work
+ * the same way.
+ */
+export function maskSecret(value: string, visibleChars = 6): string {
+  if (!value) return '';
+  return `${value.slice(0, visibleChars)}${'•'.repeat(Math.max(8, Math.min(24, value.length - visibleChars)))}`;
 }
 
 export async function getPartnerOptions(): Promise<DevPartnerOption[]> {

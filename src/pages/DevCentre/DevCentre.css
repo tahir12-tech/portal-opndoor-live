@@ -51,3 +51,62 @@
            overflow-x: auto; font-size: 12.5px; line-height: 1.55; margin: 0 0 12px; }
 .devdoc code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
 .devcode code { background: none; padding: 0; font-size: inherit; }
+
+/* ---- Monitoring ---- */
+.devcounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.devcount  { padding: 12px 14px; border: 1px solid var(--line, #e5e7eb); border-radius: 10px; background: #fff; }
+.devcount__label { font-size: 12px; color: var(--muted, #6b7280); text-transform: uppercase; letter-spacing: .04em; }
+.devcount__value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+.devcount__value.is-bad { color: #b91c1c; }
+.devcount__sub   { font-size: 12px; color: var(--muted, #6b7280); margin-top: 2px; }
+
+.devchart__bars { display: flex; align-items: flex-end; gap: 6px; height: 180px; padding-top: 8px; }
+.devbar { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.devbar__stack { flex: 1; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+.devbar__ok   { background: #34d399; border-radius: 0 0 3px 3px; min-height: 0; }
+.devbar__fail { background: #f87171; border-radius: 3px 3px 0 0; min-height: 0; }
+.devbar__label { font-size: 10px; color: var(--muted, #6b7280); margin-top: 6px; white-space: nowrap; }
+.devlegend { display: flex; gap: 16px; font-size: 12px; color: var(--muted, #6b7280); margin-top: 10px; }
+.devswatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; }
+.devswatch--ok { background: #34d399; } .devswatch--fail { background: #f87171; }
+
+.deverrs__group { margin-bottom: 14px; }
+.deverrs__method { font-size: 12px; font-weight: 700; color: var(--muted, #6b7280); margin-bottom: 6px; }
+.deverr { display: grid; grid-template-columns: 180px 1fr 44px; gap: 10px; align-items: center; margin-bottom: 5px; }
+.deverr__code  { font-size: 13px; }
+.deverr__track { background: #f3f4f6; border-radius: 999px; height: 8px; overflow: hidden; }
+.deverr__fill  { background: #f87171; height: 100%; }
+.deverr__n     { font-size: 13px; text-align: right; color: var(--muted, #6b7280); }
+
+/* ---- Logs / history ---- */
+.devfilters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.devfilters input { min-width: 230px; }
+.devmethod { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: #eef2ff; color: #3730a3; }
+.devstatus { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.devstatus--ok     { background: #ecfdf5; color: #065f46; }
+.devstatus--client { background: #fffbeb; color: #92400e; }
+.devstatus--server { background: #fef2f2; color: #991b1b; }
+.devid { font-size: 12px; color: var(--muted, #6b7280); }
+
+/* ---- Configuration ---- */
+.devlinks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.devlink  { display: flex; gap: 12px; align-items: center; text-align: left; padding: 14px;
+            border: 1px solid var(--line, #e5e7eb); border-radius: 10px; background: #fff; cursor: pointer; }
+.devlink:hover { border-color: var(--brand, #4f46e5); }
+.devlink__title { font-weight: 600; font-size: 14px; }
+.devlink__sub   { font-size: 12.5px; color: var(--muted, #6b7280); }
+.devlink > div  { flex: 1; }
+
+.devsecret { display: flex; align-items: center; gap: 6px; }
+.devsecret code { font-size: 12px; }
+.devsecret__note { font-size: 11px; margin-top: 2px; }
+.devicon { border: 0; background: none; cursor: pointer; color: var(--muted, #6b7280); padding: 2px; }
+.devicon:hover { color: var(--ink, #111827); }
+
+.devtoggle { width: 40px; height: 22px; border-radius: 999px; background: #d1d5db; border: 0; cursor: pointer;
+             position: relative; transition: background .15s; }
+.devtoggle.is-on { background: #34d399; }
+.devtoggle__knob { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%;
+                   background: #fff; transition: transform .15s; }
+.devtoggle.is-on .devtoggle__knob { transform: translateX(18px); }
+.devenv__note { margin-top: 6px; font-size: 13px; opacity: .85; }

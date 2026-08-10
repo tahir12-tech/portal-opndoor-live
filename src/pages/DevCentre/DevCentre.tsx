@@ -1,8 +1,18 @@
 /* =====================================================================
    Dev Centre — the partner integrator's screen.
 
-   Five panels: API keys, webhook endpoints, delivery history, the API
-   documentation generated from PARTNER-API.md, and a getting-started guide.
+   Four tabs, following PandaDoc's Dev Center: Monitoring (the landing tab),
+   Logs, Webhooks history, and Configuration. The getting-started guide and the
+   generated API documentation sit behind cards on Configuration rather than
+   being tabs of their own, as PandaDoc does.
+
+   ONE HONEST DIFFERENCE FROM PANDADOC. They list sandbox and production keys
+   side by side, because theirs is one system with two kinds of key. Ours are two
+   SEPARATE PROJECTS with separate databases, so this Dev Centre can only ever
+   see its own: there is no cross-project plumbing and deliberately so. The
+   banner says which environment this is and where the other set lives, because
+   the failure mode is somebody hunting for keys that were never going to be
+   here.
 
    WHO SEES WHAT. Developer and opndoor admin see everything. Management sees the
    API keys panel ONLY, and only so a leaked key can be killed by whoever notices
@@ -18,30 +28,29 @@
    separate keys and separate delivery history. A partner reading sandbox
    deliveries while debugging live is a long, confusing afternoon.
    ===================================================================== */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  API_SCOPES, WEBHOOK_EVENTS, createWebhookEndpoint, deliveryState, getApiKeys, getDeliveries,
+  API_SCOPES, WEBHOOK_EVENTS, createWebhookEndpoint, getApiKeys,
   getPartnerOptions, getWebhookEndpoints, mintApiKey, portalEnvironment, revokeApiKey,
   updateWebhookEndpoint,
-  type DevApiKey, type DevDelivery, type DevPartnerOption, type DevWebhookEndpoint,
+  type DevApiKey, type DevPartnerOption, type DevWebhookEndpoint,
 } from '@/data/devCentreService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import { Card, CardHead } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
-import { Pill } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 import { ApiDocsPanel } from './ApiDocsPanel';
+import { Configuration } from './Configuration';
+import { Logs } from './Logs';
+import { Monitoring } from './Monitoring';
+import { WebhookHistory } from './WebhookHistory';
 import { GettingStarted } from './GettingStarted';
 import './DevCentre.css';
 
-type Tab = 'keys' | 'endpoints' | 'deliveries' | 'docs' | 'start';
-
-const dt = (s: string | null | undefined) =>
-  s ? new Date(s).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : '--';
+type Tab = 'monitoring' | 'logs' | 'webhooks' | 'config';
 
 export function DevCentre() {
   const { role } = useSession();
@@ -54,18 +63,17 @@ export function DevCentre() {
   // Management reaches this screen for one reason only.
   const keysOnly = role === 'management';
 
-  const [tab, setTab] = useState<Tab>('keys');
+  // Monitoring is the landing tab: the first question is "is it working", and
+  // only then "what happened to this one call".
+  const [tab, setTab] = useState<Tab>(keysOnly ? 'config' : 'monitoring');
+  // Getting started and the docs open from Configuration rather than being tabs.
+  const [panel, setPanel] = useState<'none' | 'guide' | 'docs'>('none');
   const [partners, setPartners] = useState<DevPartnerOption[]>([]);
   const [partnerId, setPartnerId] = useState<string>('');
   const [keys, setKeys] = useState<DevApiKey[]>([]);
   const [endpoints, setEndpoints] = useState<DevWebhookEndpoint[]>([]);
-  const [deliveries, setDeliveries] = useState<DevDelivery[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  // delivery filters
-  const [fEndpoint, setFEndpoint] = useState('');
-  const [fEvent, setFEvent] = useState('');
 
   // mint modal
   const [mintOpen, setMintOpen] = useState(false);
@@ -92,23 +100,13 @@ export function DevCentre() {
   useEffect(() => { if (isAdmin) getPartnerOptions().then(setPartners).catch(() => setPartners([])); }, [isAdmin]);
   useEffect(() => { void load(); }, [load]);
 
-  useEffect(() => {
-    if (tab !== 'deliveries' || keysOnly) return;
-    getDeliveries({
-      partnerId: isAdmin ? (partnerId || null) : null,
-      endpointId: fEndpoint || null,
-      eventType: fEvent || null,
-    }).then(setDeliveries).catch((x) => setErr(String(x.message ?? x)));
-  }, [tab, fEndpoint, fEvent, partnerId, isAdmin, keysOnly]);
-
   const tabs: { id: Tab; label: string }[] = keysOnly
-    ? [{ id: 'keys', label: 'API keys' }]
+    ? [{ id: 'config', label: 'Configuration' }]
     : [
-        { id: 'keys', label: 'API keys' },
-        { id: 'endpoints', label: 'Webhook endpoints' },
-        { id: 'deliveries', label: 'Delivery history' },
-        { id: 'docs', label: 'API documentation' },
-        { id: 'start', label: 'Getting started' },
+        { id: 'monitoring', label: 'Monitoring' },
+        { id: 'logs', label: 'Logs' },
+        { id: 'webhooks', label: 'Webhooks history' },
+        { id: 'config', label: 'Configuration' },
       ];
 
   async function doMint() {
@@ -153,9 +151,9 @@ export function DevCentre() {
     finally { setBusy(false); }
   }
 
-  const endpointById = useMemo(
-    () => new Map(endpoints.map((e) => [e.id, e])), [endpoints],
-  );
+  // Developers are pinned to their own partner; an admin picks. One value, so no
+  // tab can accidentally query across partners.
+  const scopedPartner = isAdmin ? (partnerId || null) : null;
 
   return (
     <>
@@ -175,8 +173,14 @@ export function DevCentre() {
         <div>
           <strong>{env.label} environment.</strong>{' '}
           {env.id === 'live'
-            ? 'Keys minted here move real money and issue real deeds. Sandbox keys will not work against this portal, and these will not work against sandbox.'
-            : 'Keys minted here are sandbox keys and are separate from live. Nothing here moves real money. Sign in to the live portal for live keys.'}
+            ? 'Keys minted here move real money and issue real deeds. This Dev Centre shows LIVE keys, endpoints and history only.'
+            : 'Keys minted here are sandbox keys. Nothing here moves real money. This Dev Centre shows SANDBOX keys, endpoints and history only.'}
+          <div className="devenv__note">
+            Sandbox and live are separate projects with separate databases, so neither can show the other&rsquo;s
+            keys, endpoints or delivery history. For the {env.id === 'live' ? 'sandbox' : 'live'} set, sign in to
+            the {env.id === 'live' ? 'sandbox' : 'live'} portal. Nothing is missing here; it was never going to be
+            in one place.
+          </div>
         </div>
       </div>
 
@@ -208,124 +212,34 @@ export function DevCentre() {
 
       {err && <div className="devalert">{err}</div>}
 
-      {tab === 'keys' && (
-        <Card>
-          <CardHead
-            title="API keys"
-            sub="A key is shown once when it is created and cannot be recovered afterwards."
-            actions={(isDeveloper || isAdmin) && (
-              <Button variant="primary" size="sm" onClick={() => { setMintedKey(null); setMintOpen(true); }}>
-                <Icon name="plus" /> Mint a key
-              </Button>
-            )}
-          />
-          <table className="dt">
-            <thead>
-              <tr><th>Label</th><th>Prefix</th><th>Scopes</th><th>Created</th><th>Last used</th><th>Expires</th><th>Status</th><th /></tr>
-            </thead>
-            <tbody>
-              {keys.map((k) => (
-                <tr key={k.id} className={k.revoked_at ? 'is-revoked' : ''}>
-                  <td><strong>{k.name}</strong></td>
-                  <td><code>{k.key_prefix}…</code></td>
-                  <td className="soft">{k.scopes.join(', ') || '--'}</td>
-                  <td className="soft">{dt(k.created_at)}</td>
-                  <td className="soft">{k.last_used_at ? dt(k.last_used_at) : 'Never'}</td>
-                  <td className="soft">{k.expires_at ? dt(k.expires_at) : 'No expiry'}</td>
-                  <td>{k.revoked_at ? <Pill variant="muted">Revoked</Pill> : <Pill variant="deed">Live</Pill>}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    {!k.revoked_at && (
-                      <Button variant="ghost" size="sm" disabled={busy} onClick={() => void doRevoke(k)}>Revoke</Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {!keys.length && <tr><td colSpan={8} className="soft">No keys yet.</td></tr>}
-            </tbody>
-          </table>
-        </Card>
+      {tab === 'monitoring' && <Monitoring partnerId={scopedPartner} />}
+      {tab === 'logs' && <Logs partnerId={scopedPartner} />}
+      {tab === 'webhooks' && <WebhookHistory partnerId={scopedPartner} />}
+
+      {tab === 'config' && panel === 'none' && (
+        <Configuration
+          keys={keys}
+          endpoints={endpoints}
+          canManage={isDeveloper || isAdmin}
+          busy={busy}
+          onMint={() => { setMintedKey(null); setMintOpen(true); }}
+          onRevoke={(k) => void doRevoke(k)}
+          onCreateEndpoint={() => { setEpSecret(null); setEpOpen(true); }}
+          onToggleEndpoint={(e) => void toggleEndpoint(e)}
+          onOpenGuide={() => setPanel('guide')}
+          onOpenDocs={() => setPanel('docs')}
+        />
       )}
 
-      {tab === 'endpoints' && (
-        <Card>
-          <CardHead
-            title="Webhook endpoints"
-            sub="The signing secret is shown once, when the endpoint is created."
-            actions={<Button variant="primary" size="sm" onClick={() => { setEpSecret(null); setEpOpen(true); }}><Icon name="plus" /> Add endpoint</Button>}
-          />
-          <table className="dt">
-            <thead><tr><th>URL</th><th>Events</th><th>Last success</th><th>Failures</th><th>Status</th><th /></tr></thead>
-            <tbody>
-              {endpoints.map((e) => (
-                <tr key={e.id}>
-                  <td><code>{e.url}</code></td>
-                  <td className="soft">{e.events.length ? e.events.join(', ') : 'All events'}</td>
-                  <td className="soft">{dt(e.last_success_at)}</td>
-                  <td className="soft">{e.consecutive_failures || 0}</td>
-                  <td>{e.active ? <Pill variant="deed">Active</Pill> : <Pill variant="muted">Inactive</Pill>}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <Button variant="ghost" size="sm" disabled={busy} onClick={() => void toggleEndpoint(e)}>
-                      {e.active ? 'Deactivate' : 'Activate'}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {!endpoints.length && <tr><td colSpan={6} className="soft">No endpoints yet.</td></tr>}
-            </tbody>
-          </table>
-        </Card>
+      {tab === 'config' && panel !== 'none' && (
+        <>
+          <Button variant="ghost" size="sm" onClick={() => setPanel('none')}>
+            <Icon name="arrowLeft" /> Back to configuration
+          </Button>
+          <div style={{ height: 12 }} />
+          {panel === 'guide' ? <GettingStarted env={env.id} /> : <ApiDocsPanel />}
+        </>
       )}
-
-      {tab === 'deliveries' && (
-        <Card>
-          <CardHead
-            title="Delivery history"
-            sub="What was sent, where, and what happened. Start here when an event is not arriving."
-            actions={
-              <div style={{ display: 'flex', gap: 8 }}>
-                <select value={fEndpoint} onChange={(e) => setFEndpoint(e.target.value)}>
-                  <option value="">Every endpoint</option>
-                  {endpoints.map((e) => <option key={e.id} value={e.id}>{e.url}</option>)}
-                </select>
-                <select value={fEvent} onChange={(e) => setFEvent(e.target.value)}>
-                  <option value="">Every event</option>
-                  {WEBHOOK_EVENTS.map((e) => <option key={e.id} value={e.id}>{e.id}</option>)}
-                </select>
-              </div>
-            }
-          />
-          <table className="dt">
-            <thead><tr><th>When</th><th>Event</th><th>Reference</th><th>Endpoint</th><th>Attempts</th><th>Response</th><th>State</th></tr></thead>
-            <tbody>
-              {deliveries.map((d) => {
-                const s = deliveryState(d);
-                return (
-                  <tr key={d.id}>
-                    <td className="soft">{dt(d.created_at)}</td>
-                    <td><code>{d.event_type}</code></td>
-                    <td>{d.guarantee_ref ?? '--'}</td>
-                    <td className="soft">{endpointById.get(d.endpoint_id)?.url ?? d.endpoint_url}</td>
-                    <td className="soft">{d.attempts}</td>
-                    <td className="soft">
-                      {d.last_status ?? '--'}
-                      {d.last_error && <div className="devfail" title={d.last_error}>{d.last_error.slice(0, 80)}</div>}
-                    </td>
-                    <td><span className={`devstate devstate--${s.tone}`}>{s.label}</span></td>
-                  </tr>
-                );
-              })}
-              {!deliveries.length && (
-                <tr><td colSpan={7} className="soft">
-                  No deliveries. If you expected some, check that an endpoint is active and subscribed to that event.
-                </td></tr>
-              )}
-            </tbody>
-          </table>
-        </Card>
-      )}
-
-      {tab === 'docs' && <ApiDocsPanel />}
-      {tab === 'start' && <GettingStarted env={env.id} />}
 
       {/* ---- mint modal ---- */}
       <Modal

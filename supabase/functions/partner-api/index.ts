@@ -58,6 +58,40 @@ function json(body: unknown, status: number, requestId: string, extra: Record<st
   });
 }
 
+/**
+ * Observability log, one row per request.
+ *
+ * Deliberately NOT partner_api_requests: that is the idempotency ledger, keyed
+ * on an idempotency key that reads do not have, so every GET would be invisible.
+ * Monitoring built on it would under-report by however many reads a partner
+ * makes, which is worse than no monitoring because it looks authoritative.
+ *
+ * Fire and forget, and never awaited: an observability write must not be able to
+ * slow down or fail the request it is observing. The RPC swallows its own errors
+ * for the same reason.
+ */
+// deno-lint-ignore no-explicit-any
+function logRequest(service: any, fields: {
+  partnerId: string | null; apiKeyId: string | null; method: string; path: string;
+  status: number; errorCode: string | null; startedAt: number;
+}): void {
+  service.rpc("log_partner_api_request", {
+    p_partner: fields.partnerId,
+    p_api_key: fields.apiKeyId,
+    p_method: fields.method,
+    p_path: fields.path,
+    p_status: fields.status,
+    p_error_code: fields.errorCode,
+    p_duration_ms: Math.round(performance.now() - fields.startedAt),
+  }).then(() => {}).catch(() => {});
+}
+
+/** The error code out of a response envelope, for the error distribution chart. */
+function codeOf(body: unknown): string | null {
+  const e = (body as { error?: { code?: string } } | null)?.error;
+  return e?.code ?? null;
+}
+
 function errorBody(code: string, message: string) {
   return { error: { code, message } };
 }
@@ -66,11 +100,24 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   const requestId = crypto.randomUUID();
+  const startedAt = performance.now();
+  const reqUrl = new URL(req.url);
+  // The path as the partner sees it, with the function mount stripped.
+  const logPath = reqUrl.pathname.replace(/^.*\/partner-api/, "") || "/";
 
+  // Set inside run() once known. Logging happens at ONE exit point below rather
+  // than at each of the dozen returns, so a new endpoint cannot forget to log.
+  let logPartnerId: string | null = null;
+  let logKeyId: string | null = null;
+  // deno-lint-ignore no-explicit-any
+  let logService: any = null;
+
+  const run = async (): Promise<Response> => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const service = createClient(SUPABASE_URL, SERVICE);
+    logService = service;
 
     // ---- rate limit: unauthenticated tier, before any key work -------------
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
@@ -91,6 +138,8 @@ Deno.serve(async (req) => {
       return json(AUTH_FAILURE_BODY, 401, requestId);
     }
     const auth = result.auth;
+    logPartnerId = auth.partnerId;
+    logKeyId = auth.apiKeyId;
 
     // ---- rate limit: per key ----------------------------------------------
     const { data: keyOk } = await service.rpc("bump_rate_limit", {
@@ -222,6 +271,25 @@ Deno.serve(async (req) => {
     console.log(JSON.stringify({ requestId, event: "unhandled_error", message: String(e) }));
     return json(errorBody("internal_error", "Something went wrong."), 500, requestId);
   }
+  };
+
+  const res = await run();
+
+  // One log per request, whatever route it took. The body is cloned rather than
+  // read, so consuming it here cannot starve the response the caller receives.
+  if (logService) {
+    let errorCode: string | null = null;
+    if (res.status >= 400) {
+      try { errorCode = codeOf(await res.clone().json()); } catch { /* not JSON */ }
+    }
+    logRequest(logService, {
+      partnerId: logPartnerId, apiKeyId: logKeyId,
+      method: req.method, path: logPath,
+      status: res.status, errorCode, startedAt,
+    });
+  }
+
+  return res;
 });
 
 /**
