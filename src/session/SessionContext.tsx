@@ -208,7 +208,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // await the same promise. Critically, 'ready' is only set AFTER this
         // resolves, so the app never renders the mock working copies in live mode.
         if (hydration.current?.userId !== userId) {
-          hydration.current = { userId, promise: hydrateFromSupabase(userId) };
+          hydration.current = { userId, promise: hydrateFromSupabase(userId, prof.role) };
         }
         try {
           await hydration.current.promise;
@@ -270,7 +270,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (SUPABASE_ENABLED && hydratedFor.current) {
-      await hydrateFromSupabase(hydratedFor.current);
+      await hydrateFromSupabase(hydratedFor.current, role);
     }
     // #10 Always bump dataVersion so memoised derived views (e.g. the application
     // detail) recompute after a mutation. In mock/demo mode there is nothing to

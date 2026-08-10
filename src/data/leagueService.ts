@@ -49,6 +49,8 @@ export function getLeague(view: LeagueView, opts: LeagueOpts): LeagueRow[] {
 
   const inScope = (a: Agency): boolean => {
     const p = a.partner || HOME_PARTNER;
+    // Scoping, not permission: entitlement is decided by the caller and by
+    // referrer_league itself, which now refuses any role outside the allowlist.
     if (role !== 'superadmin') return p === homePartner();
     if (scope !== ALL_PARTNERS) return p === scope;
     if (partner) return p === partner;

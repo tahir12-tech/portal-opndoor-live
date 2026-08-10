@@ -171,7 +171,7 @@ export function countByStatus(opts: AppFilterOpts): { all: number; sent: number;
     if (r.refunded) counts.refunded++;
     if (r.awaitingSignature) counts.awaiting++;
     // #93 Delivery-failure is an ops surface: never counted for referrers.
-    if (opts.role !== 'referrer' && r.status === 'deed' && !contactForApplication(r.agency, r.branch).contact) counts.deliveryFailed++;
+    if ((opts.role === 'superadmin' || opts.role === 'management') && r.status === 'deed' && !contactForApplication(r.agency, r.branch).contact) counts.deliveryFailed++;
   });
   return counts;
 }
@@ -590,7 +590,8 @@ export function canAmendTenancyStart(role: Role, status: Status, ownedByReferrer
   // amend (the signed deed is archived and replaced). Before that - Sent, or
   // Paid-but-unexecuted - the owning Referrer may amend too.
   if (status === 'deed' || deedState === 'executed') return role === 'superadmin' || role === 'management';
-  return role === 'referrer' ? ownedByReferrer : true;
+  // Positive. The bare `true` granted this to every non-referrer role.
+  return role === 'referrer' ? ownedByReferrer : role === 'superadmin' || role === 'management';
 }
 
 /**
@@ -623,7 +624,8 @@ export function canReplaceDeed(role: Role): boolean {
  */
 export function canWithdraw(role: Role, status: Status, ownedByReferrer: boolean): boolean {
   if (status !== 'sent') return false;
-  return role === 'referrer' ? ownedByReferrer : true;
+  // Positive. The bare `true` granted this to every non-referrer role.
+  return role === 'referrer' ? ownedByReferrer : role === 'superadmin' || role === 'management';
 }
 
 /**

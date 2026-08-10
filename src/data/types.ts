@@ -21,6 +21,22 @@
 export type Role = 'superadmin' | 'management' | 'referrer' | 'developer';
 
 /**
+ * May this role see commission, fees and the league?
+ *
+ * The ONE place that answers the question. Every caller previously asked it as
+ * `role !== 'referrer'`, which is a negative test: it granted commission to any
+ * role that was not a referrer, so the developer role would have inherited it
+ * everywhere, and so will the next role somebody adds.
+ *
+ * Positive by construction. A new role sees no commission until it is named
+ * here, and being wrong costs a manager a column rather than showing a partner's
+ * rates to someone who should not have them.
+ */
+export function maySeeCommission(role: Role): boolean {
+  return role === 'superadmin' || role === 'management';
+}
+
+/**
  * The role to assume when a stored or supplied role cannot be recognised.
  * Deliberately the LEAST privileged, never the most: an unparseable value must
  * not become an escalation. See SessionContext.initialRole.

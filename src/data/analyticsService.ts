@@ -11,7 +11,7 @@
    ===================================================================== */
 import type { LeagueRow, Period, PartnerScope, Role } from './types';
 import { fmtRatePct } from '@/lib/format';
-import { ALL_PARTNERS } from './types';
+import { ALL_PARTNERS, maySeeCommission } from './types';
 import { KEYS, loadString, saveString } from './storage';
 import {
   ANNUAL, AVG_RENT, BASE_PAID_FULL, BASE_PAID_REF, BASE_SENT_FULL, BASE_SENT_REF,
@@ -124,7 +124,7 @@ export function getDashboardData(role: Role, period: PeriodDef | Period, scope: 
 
 /** Live dashboard: every figure summed from the hydrated application set. */
 function liveDashboard(role: Role, period: Period, scope: PartnerScope): DashboardModel {
-  const isRef = role === 'referrer';
+  const isRef = !maySeeCommission(role); // no commission model unless entitled
   const a: LiveAgg = liveAggregate(role, scope, period);
   const vol = liveVolume(role, scope, period);
   // Descriptor percentages are the EFFECTIVE rate implied by the actual snapshotted
@@ -192,7 +192,7 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
 
 /** Synthetic dashboard (mock/test mode): the deterministic parametric model. */
 function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerScope): DashboardModel {
-  const isRef = role === 'referrer';
+  const isRef = !maySeeCommission(role); // no commission model unless entitled
   const w = isRef ? 1 : weightFor(scope);
   const sent = isRef ? Math.max(1, Math.round(period.fSent * REF_FRACTION)) : Math.round(period.fSent * w);
   const paid = Math.round(sent * period.sp);

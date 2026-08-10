@@ -269,9 +269,15 @@ export function Dashboard() {
             />
           </RoleOnly>
           <PeriodSelect ariaLabel="Dashboard time period" value={period.id} onChange={setPeriod} options={periods.map((p) => ({ value: p.id, label: p.label }))} />
-          <Button variant="dark" size="sm" onClick={exportSummary} title="Downloads a structured CSV of the dashboard analytics for the selected time period">
-            <Icon name="download" /> Export summary
-          </Button>
+          {/* This was the only one of the four export controls with no RoleOnly.
+              The document it builds carries commission for every role entitled to
+              it, so the button has to be gated like its three siblings. The
+              builder now refuses for itself as well. */}
+          <RoleOnly roles={['superadmin', 'management', 'referrer']}>
+            <Button variant="dark" size="sm" onClick={exportSummary} title="Downloads a structured CSV of the dashboard analytics for the selected time period">
+              <Icon name="download" /> Export summary
+            </Button>
+          </RoleOnly>
           <RoleOnly roles={['superadmin', 'management']}>
             <Button variant="ghost" size="sm" onClick={() => setAppsOpen(true)} title="Downloads one row per application, pseudonymised by guarantee reference">
               <Icon name="apps" /> Application export
@@ -567,7 +573,16 @@ export function Dashboard() {
                 </CardFoot>
               </Card>
             );
-            if (key === 'referrer') return chart;
+            // Returned before the wrapper below, so this chart had no gate at
+            // all. It names referrers against fees collected, so it needs the
+            // same allowlist as its siblings rather than an early exit.
+            if (key === 'referrer') {
+              return (
+                <RoleOnly key={key} roles={['superadmin', 'management']}>
+                  {chart}
+                </RoleOnly>
+              );
+            }
             return (
               <RoleOnly key={key} roles={['superadmin', 'management']}>
                 {chart}

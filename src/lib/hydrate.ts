@@ -9,9 +9,9 @@
    data with no screen changes. Runs after AAL2 login; see SessionContext.
    ===================================================================== */
 import { sb } from '@/lib/supabase';
-import {
+import { LEAST_PRIVILEGED_ROLE, maySeeCommission,
   hydratePartners, hydrateUsers, hydrateOrg, hydrateApplications, hydrateUpcoming, hydrateFull, hydrateSettings,
-  type Agency, type AgentContact, type ApplicationSummary, type Branch, type FullApp, type ManagedUser,
+  type Agency, type AgentContact, type ApplicationSummary, type Branch, type FullApp, type ManagedUser, type Role,
   type Partner, type Status,
 } from '@/data';
 import type { AppRecord } from '@/data/mock/applications';
@@ -78,10 +78,20 @@ function toContact(c: any): AgentContact {
 }
 
 /** Load all RLS-scoped datasets and replace the service working copies. */
-export async function hydrateFromSupabase(userId: string): Promise<void> {
+export async function hydrateFromSupabase(userId: string, viewerRole: Role = LEAST_PRIVILEGED_ROLE): Promise<void> {
   const client = sb();
   const [partnersRes, usersRes, agenciesRes, branchesRes, contactsRes, appsRes] = await Promise.all([
-    client.from('partners').select('id, slug, name, status, live_from, partner_rate, agent_rate, is_primary, referrer_leaderboard_mode'),
+    // The rate columns are requested only when the caller is entitled to them.
+    // partners_select already refuses the whole row to a developer, so this is
+    // defence in depth rather than the control, but a client that does not ask
+    // cannot receive: the previous select pulled partner_rate and agent_rate
+    // into every browser at login, which meant hiding the figures in the UI was
+    // never going to be sufficient on its own.
+    client.from('partners').select(
+      maySeeCommission(viewerRole)
+        ? 'id, slug, name, status, live_from, partner_rate, agent_rate, is_primary, referrer_leaderboard_mode'
+        : 'id, slug, name, status, live_from, is_primary, referrer_leaderboard_mode',
+    ),
     // Admin user list via RPC: TRUTHFUL last-active (auth.users.last_sign_in_at)
     // and status/role, visibility-scoped like the users_select RLS policy.
     client.rpc('list_managed_users'),

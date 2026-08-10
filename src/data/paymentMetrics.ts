@@ -35,7 +35,11 @@ export function periodRange(period: Period): [Date, Date] {
 export function scopeFull(apps: FullApp[], role: Role, scope: PartnerScope): FullApp[] {
   let set = apps;
   if (scope !== ALL_PARTNERS) set = set.filter((a) => a.partner === scope);
+  // Positive allowlist. This scopes the set every downstream metric is built
+  // from, so an unrecognised role reaching it with no filter handed over the
+  // whole partner book. A role not named here gets nothing.
   if (role === 'referrer') set = set.filter((a) => a.owner === 1);
+  else if (role !== 'superadmin' && role !== 'management') set = [];
   return set;
 }
 
