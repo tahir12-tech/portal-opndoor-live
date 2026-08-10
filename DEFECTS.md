@@ -18,6 +18,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 4 | Test email redirect removed from all thirteen sending modules | Critical |
 | 5 | The repo cannot rebuild the live schema. Disaster recovery fails | High |
 | 6 | A branch can lose its primary contact, stranding a paid tenant | Medium |
+| 7 | The activity log states emails were redirected for testing when they were not | Medium |
 
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
@@ -618,3 +619,95 @@ Two things worth doing alongside it:
    API's `GET /orgs` already computes exactly this as `has_agent_contact`, using
    `effective_primary_contact` so it matches the deed path; the same check would
    work in the org management screen.
+
+---
+
+## Defect 7: the activity log claims emails were redirected for testing when they were not
+
+**Severity: medium. A false statement in an audit trail is worse than no statement.**
+
+### What it is
+
+`create-referral` writes a second activity row after every successfully sent
+tenant payment email
+([create-referral/index.ts:155-162](supabase/functions/create-referral/index.ts#L155)):
+
+```ts
+if (emailRes.ok && emailRes.to) {
+  await service.from("activity_log").insert({
+    application_id: appId,
+    kind: "payment_email_sent",
+    message: `Redirected to ${emailRes.to} (test mode).`,
+    actor: "System",
+    visibility: "internal",
+  });
+```
+
+That row was correct when every email was redirected to a review inbox. Defect 4
+removed the redirect, so `emailRes.to` is now the **real tenant's address**.
+
+The result is an audit entry that states an email was redirected for testing, and
+names as the redirect target the very person who actually received it. Every
+application created since the redirect was removed has one.
+
+The same mistake exists in `refundEmail.ts` but is **harmless there**: its guard
+is `res.to !== p.tenantEmail`, which can no longer be true, so the row never
+writes ([_shared/refundEmail.ts:87](supabase/functions/_shared/refundEmail.ts#L87)).
+`create-referral` has no such guard. That contrast is the clearest evidence this
+is an oversight rather than a decision.
+
+### Business impact
+
+**It tells the reader the opposite of the truth about a live safety property.**
+Anyone auditing whether real tenants were contacted, from the activity log,
+concludes they were not. The log says redirected. They were not redirected.
+
+**It is the most likely place someone would check.** If a tenant reports an
+unexpected email, the activity feed is the first thing anyone opens. It will
+appear to exonerate the system.
+
+**It is internal-visibility, which narrows but does not remove the harm.** Only
+Opndoor admins see it, so partners are not misled. But Opndoor admins are exactly
+the people who would be establishing what happened during an incident.
+
+**It compounds defect 4.** Defect 4 is that the redirect is gone while file
+headers and runbooks still claim it. This is the same false claim reaching the
+per-application audit trail, which is the most authoritative-looking place it
+could appear.
+
+### Confirm it
+
+```sh
+git grep -n "test mode" -- supabase/functions/
+```
+
+Then, on any project where an application has been created with a Resend key
+configured:
+
+```sql
+select message from public.activity_log
+where kind = 'payment_email_sent' and message like 'Redirected to%';
+```
+
+Any row returned names a real recipient.
+
+### Suggested fix
+
+Decide first what the row is for, because deleting it loses something real. It is
+the only place the **actual** delivery address is recorded; the sibling row says
+only "Payment email sent to the tenant."
+
+Two options:
+
+1. **Correct the wording, keep the record.** Change the message to
+   `Sent to <address>.` and keep it internal. The operational value survives and
+   the false claim goes. Smallest change, and it fixes the only real loss.
+2. **Restore the redirect and the row together.** If the redirect is reinstated
+   as an environment-driven switch (see defect 4), gate this insert on the
+   redirect having actually happened, mirroring the guard `refundEmail.ts`
+   already has: only write it when the recipient differs from the tenant.
+
+Option 2 is correct if defect 4 is being fixed anyway. Option 1 is correct if the
+system is meant to email real tenants from now on. Either way the current text
+should not survive, because it is the one thing in the audit trail that is
+actively untrue.
