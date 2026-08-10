@@ -6,6 +6,29 @@ that produced it.
 **Status:** in progress. This document is updated as work lands. See
 [Open items](#open-items-for-you) for what needs you.
 
+> ### ⚠️ Read this before deploying `partner-api`
+>
+> **The `partner-api` Edge Function must be deployed with `verify_jwt = false`.**
+>
+> ```sh
+> npx -y supabase@2.111.0 functions deploy partner-api --no-verify-jwt
+> ```
+>
+> It authenticates with a partner API key in the `Authorization` header, not a
+> Supabase JWT. With JWT verification left on, the platform rejects every request
+> before any of this code runs, so **every partner call fails with a 401 that
+> looks exactly like a bad API key**. Nothing in the logs distinguishes the two,
+> and the partner-facing error is deliberately identical for all auth failures,
+> so this is close to undiagnosable from the outside.
+>
+> **It is not versioned.** There is no `config.toml` in this repo, so `verify_jwt`
+> lives in the Supabase dashboard. A plain `functions deploy partner-api`, by
+> anyone, at any point, silently re-enables it. `stripe-webhook` and
+> `payment-page` carry the same exposure for the same reason.
+>
+> Verify after any deploy by calling the endpoint with a key you know is good and
+> confirming a `200`. See section 9.
+
 ---
 
 ## 1. What this working copy is
@@ -589,3 +612,101 @@ ready deploy commands ([EXPIRY-REMINDERS.md:138](supabase/EXPIRY-REMINDERS.md#L1
 overrides the local link, so running one of those deploys to the wrong project
 regardless of what `supabase/.temp/project-ref` says. Worth knowing before you
 follow any of those documents.
+
+---
+
+## 9. The partner API
+
+Specification is in [PARTNER-API.md](PARTNER-API.md). This section covers what is
+**built** and how to operate it. Design rationale lives in the spec, not here.
+
+### 9.1 What exists
+
+| Piece | Where |
+| ----- | ----- |
+| `partner_api_keys` table | `20260807130000_partner_api_keys.sql` |
+| Key verification | `supabase/functions/_shared/partnerAuth.ts` |
+| `partner_api_orgs()` read model | `20260807140000_partner_api_orgs.sql` |
+| `GET /orgs` | `supabase/functions/partner-api/index.ts` |
+
+Deployed to the dev project and tested end to end. Not deployed anywhere else.
+
+### 9.2 Deploying it
+
+**Always with `--no-verify-jwt`.** See the warning at the top of this document.
+
+```sh
+npx -y supabase@2.111.0 functions deploy partner-api --no-verify-jwt
+```
+
+Then confirm it actually works, because a wrong `verify_jwt` fails identically to
+a bad key:
+
+```sh
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer <a key you know is good>" \
+  https://<ref>.supabase.co/functions/v1/partner-api/orgs
+# expect 200. A 401 here with a known-good key means verify_jwt is on.
+```
+
+### 9.3 Issuing a key
+
+Manual, deliberately. Hashing cannot happen in Postgres: SHA-256 needs
+pgcrypto's `digest()`, and this schema does not enable pgcrypto. Adding an
+extension solely to mint credentials is a poor trade, so an admin endpoint is
+later work.
+
+Generate the key and its hash outside the database, then insert only the hash:
+
+```js
+const crypto = require("crypto");
+const ab = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const b = crypto.randomBytes(32);
+let r = ""; for (let i = 0; i < 32; i++) r += ab[b[i] % ab.length];
+const key = "opnd_live_" + r;                                   // give this to the partner, once
+console.log(key, key.slice(0, 18), crypto.createHash("sha256").update(key).digest("hex"));
+```
+
+```sql
+insert into public.partner_api_keys (partner_id, name, key_prefix, key_hash, scopes)
+values ('<partner uuid>', 'Rightmove production', '<prefix>', '<hash>',
+        array['applications:write','orgs:read']);
+```
+
+Use `opnd_test_` for non-production. **The plaintext is not recoverable**: only
+the hash is stored, by design. If a partner loses their key, issue a new one and
+revoke the old.
+
+### 9.4 Rotating and revoking
+
+Multiple live keys per partner are intentional and there is no unique constraint
+preventing them. Rotation needs no coordinated cutover:
+
+1. Issue a new key and give it to the partner.
+2. Partner deploys it.
+3. Watch `last_used_at` on the old key stop advancing.
+4. `update public.partner_api_keys set revoked_at = now() where id = '<old>';`
+
+Revocation takes effect on the next request. `last_used_at` is written
+fire-and-forget and is not in the request's critical path, so it can lag by a
+moment under load.
+
+### 9.5 The property most likely to be broken by accident
+
+**RLS does not protect this path.** Every table carries a restrictive AAL2 policy
+that an API-key request cannot satisfy, so the function runs as service role.
+Partner isolation is entirely the application's responsibility.
+
+Every partner-facing query must filter on the `partner_id` derived from the
+verified key, and never on anything from the request body. A single query that
+forgets is a cross-partner data leak that **no database policy will catch**.
+
+This is worth a specific look in any review of new endpoints. It is the one
+mistake here that is both easy to make and serious.
+
+### 9.6 Dev fixtures
+
+The dev project holds test fixtures created directly, not by any migration: two
+partners, three agencies, four branches and four API keys covering the valid,
+wrong-scope, revoked and other-partner cases. They exist to exercise the
+endpoint and are disposable. A reset removes them.
