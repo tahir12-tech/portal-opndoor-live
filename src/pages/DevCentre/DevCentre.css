@@ -34,12 +34,76 @@
 .devwarn { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #fffbeb;
            border: 1px solid #fde68a; color: #78350f; font-size: 13px; line-height: 1.5; }
 
+/* ---------------------------------------------------------------------
+   Option rows in the mint-key and add-endpoint modals.
+
+   These sit inside a Field, and each row is a <label>, so portal.css:446
+   `.field label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+   text-transform: uppercase }` was landing on every one of them. That rule is
+   for the small caps heading ABOVE a control, not for a row that is itself the
+   control. It produced both faults at once: the uppercase descriptions, and the
+   wrapping, because 0.12em of tracking at weight 700 inflates every word until
+   two of them fill the column.
+
+   SPECIFICITY MATTERS HERE. `.field label` is (0,1,1), so a bare `.devscope`
+   at (0,1,0) would lose no matter which stylesheet loads later. Hence
+   `.devscopes .devscope`, which is (0,2,0). Resetting inherited Field
+   typography is the established pattern: `.field .hint` on the next line of
+   portal.css does exactly the same thing.
+   --------------------------------------------------------------------- */
 .devscopes { display: grid; gap: 8px; }
-.devscope  { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border-radius: 8px;
-             border: 1px solid var(--line, #e5e7eb); cursor: pointer; }
-.devscope.is-sel { border-color: var(--brand, #4f46e5); background: #f5f3ff; }
-.devscope__name  { font-weight: 600; font-size: 14px; }
-.devscope__desc  { font-size: 13px; color: var(--muted, #6b7280); }
+
+.devscopes .devscope {
+  /* Fixed checkbox column, then everything else. The checkbox was previously a
+     flex item free to grow and shrink, which is what left the two fighting. */
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+
+  /* Undo the Field label heading style. */
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink, #111827);
+}
+.devscopes .devscope.is-sel { border-color: var(--brand, #4f46e5); background: #f5f3ff; }
+
+.devscopes .devscope input[type="checkbox"] {
+  /* Sized and pinned so it cannot participate in the width negotiation, and
+     nudged down to sit on the first line of the name rather than the box top. */
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  flex: none;
+  cursor: pointer;
+}
+
+.devscopes .devscope > div { min-width: 0; }   /* lets long text wrap instead of overflowing */
+
+.devscopes .devscope__name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink, #111827);
+  line-height: 1.35;
+}
+.devscopes .devscope__desc {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted, #6b7280);
+  line-height: 1.45;
+  margin-top: 2px;
+}
 
 .devdoc__section { margin-bottom: 26px; }
 .devdoc__title   { font-size: 16px; margin: 0 0 8px; }
