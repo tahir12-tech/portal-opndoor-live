@@ -55,6 +55,15 @@ export type PartnerAuth = {
   partnerId: string;
   apiKeyId: string;
   scopes: string[];
+  /**
+   * Live or sandbox, taken from the KEY ROW, never from the presented string.
+   *
+   * The prefix says opnd_live_ or opnd_test_ and it would be tempting to read
+   * the mode straight off it, since it is right there and already parsed. That
+   * would put a mode decision in caller-controlled input. The prefix is only an
+   * index into the table; the column is the fact.
+   */
+  livemode: boolean;
 };
 
 /** Why a request failed. Server-side only. Never returned to the caller. */
@@ -66,6 +75,7 @@ export type AuthFailure =
   | "revoked"
   | "expired"
   | "partner_inactive"
+  | "livemode_prefix_mismatch"
   | "lookup_error";
 
 export type AuthResult =
@@ -131,7 +141,7 @@ export async function authenticatePartner(
 
   const { data: row, error } = await service
     .from("partner_api_keys")
-    .select("id, partner_id, key_hash, scopes, revoked_at, expires_at")
+    .select("id, partner_id, key_hash, scopes, revoked_at, expires_at, livemode, key_prefix")
     .eq("key_prefix", prefix)
     .maybeSingle();
 
@@ -155,9 +165,27 @@ export async function authenticatePartner(
     return { ok: false, reason: "expired" };
   }
 
+  // The prefix and the column must agree. They are written together when a key
+  // is minted and nothing else touches either, so a disagreement means the row
+  // is corrupt or was inserted by hand. Refusing is the only safe reading: we
+  // cannot tell which of the two is wrong, and guessing either way risks a
+  // sandbox key behaving as live. This is not reachable in normal operation,
+  // which is exactly why it is worth checking rather than assuming.
+  const prefixSaysLive = String(row.key_prefix ?? "").startsWith("opnd_live_");
+  if (prefixSaysLive !== (row.livemode === true)) {
+    return { ok: false, reason: "livemode_prefix_mismatch" };
+  }
+
   return {
     ok: true,
-    auth: { partnerId: row.partner_id, apiKeyId: row.id, scopes: row.scopes ?? [] },
+    auth: {
+      partnerId: row.partner_id,
+      apiKeyId: row.id,
+      scopes: row.scopes ?? [],
+      // === rather than a truthiness test or a coalesce to true. A null here
+      // must not become live.
+      livemode: row.livemode === true,
+    },
   };
 }
 

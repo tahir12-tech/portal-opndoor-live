@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
       if (!hasScope(auth, "orgs:read")) {
         return json(errorBody("insufficient_scope", "This key lacks the orgs:read scope."), 403, requestId);
       }
-      return await getOrgs(service, auth.partnerId, requestId);
+      return await getOrgs(service, auth.partnerId, auth.livemode, requestId);
     }
 
     if (endpoint === "applications") {
@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
         if (!hasScope(auth, "applications:read")) {
           return json(errorBody("insufficient_scope", "This key lacks the applications:read scope."), 403, requestId);
         }
-        return await listApplications(service, req, auth.partnerId, requestId);
+        return await listApplications(service, req, auth.partnerId, auth.livemode, requestId);
       }
       if (req.method !== "POST") {
         return json(errorBody("method_not_allowed", "Use GET or POST."), 405, requestId, { Allow: "GET, POST" });
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
         return json(errorBody("insufficient_scope", "This key lacks the applications:write scope."), 403, requestId);
       }
       return await postApplication(
-        service, req, auth.partnerId, auth.apiKeyId, auth.scopes, partner.referencing_mode, requestId,
+        service, req, auth.partnerId, auth.livemode, auth.apiKeyId, auth.scopes, partner.referencing_mode, requestId,
       );
     }
 
@@ -241,7 +241,7 @@ Deno.serve(async (req) => {
         return json(errorBody("insufficient_scope", "This key lacks the applications:read scope."), 403, requestId);
       }
       return await getApplication(
-        service, auth.partnerId, endpoint.slice("applications/".length), requestId,
+        service, auth.partnerId, auth.livemode, endpoint.slice("applications/".length), requestId,
       );
     }
 
@@ -249,8 +249,8 @@ Deno.serve(async (req) => {
       if (!hasScope(auth, "webhooks:manage")) {
         return json(errorBody("insufficient_scope", "This key lacks the webhooks:manage scope."), 403, requestId);
       }
-      if (req.method === "GET") return await listWebhookEndpoints(service, auth.partnerId, requestId);
-      if (req.method === "POST") return await createWebhookEndpoint(service, req, auth.partnerId, requestId);
+      if (req.method === "GET") return await listWebhookEndpoints(service, auth.partnerId, auth.livemode, requestId);
+      if (req.method === "POST") return await createWebhookEndpoint(service, req, auth.partnerId, auth.livemode, requestId);
       return json(errorBody("method_not_allowed", "Use GET or POST."), 405, requestId, { Allow: "GET, POST" });
     }
 
@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
       if (req.method !== "DELETE") {
         return json(errorBody("method_not_allowed", "Use DELETE."), 405, requestId, { Allow: "DELETE" });
       }
-      return await deleteWebhookEndpoint(service, auth.partnerId, endpoint.slice("webhook-endpoints/".length), requestId);
+      return await deleteWebhookEndpoint(service, auth.partnerId, auth.livemode, endpoint.slice("webhook-endpoints/".length), requestId);
     }
 
     return json(errorBody("not_found", "Unknown endpoint."), 404, requestId);
@@ -300,8 +300,8 @@ Deno.serve(async (req) => {
  * header for why that is not the same as a contact row existing.
  */
 // deno-lint-ignore no-explicit-any
-async function getOrgs(service: any, partnerId: string, requestId: string): Promise<Response> {
-  const { data: rows, error } = await service.rpc("partner_api_orgs", { p_partner: partnerId });
+async function getOrgs(service: any, partnerId: string, livemode: boolean, requestId: string): Promise<Response> {
+  const { data: rows, error } = await service.rpc("partner_api_orgs", { p_partner: partnerId, p_livemode: livemode });
 
   if (error) {
     console.log(JSON.stringify({ requestId, event: "orgs_query_failed", message: error.message }));
@@ -358,6 +358,7 @@ async function postApplication(
   service: any,
   req: Request,
   partnerId: string,
+  livemode: boolean,
   apiKeyId: string,
   scopes: string[],
   mode: string,
@@ -397,6 +398,9 @@ async function postApplication(
       api_key_id: apiKeyId,
       idempotency_key: idemKey,
       endpoint: "POST /applications",
+      // Part of the unique key, so a sandbox rehearsal and a live request can
+      // share an Idempotency-Key without either replaying the other.
+      livemode,
       request_hash: hash,
     })
     .select("id")
@@ -413,6 +417,7 @@ async function postApplication(
       .from("partner_api_requests")
       .select("request_hash, status_code, response_body")
       .eq("partner_id", partnerId)
+      .eq("livemode", livemode)
       .eq("endpoint", "POST /applications")
       .eq("idempotency_key", idemKey)
       .maybeSingle();
@@ -444,7 +449,7 @@ async function postApplication(
   // ---- do the work --------------------------------------------------------
   let outcome;
   try {
-    outcome = await createApplication(service, partnerId, scopes, mode, body);
+    outcome = await createApplication(service, partnerId, livemode, scopes, mode, body);
   } catch (e) {
     console.log(JSON.stringify({ requestId, event: "create_failed", message: String(e) }));
     outcome = { status: 500, body: errorBody("internal_error", "Something went wrong.") };
@@ -474,11 +479,15 @@ async function postApplication(
  * signing secrets turns any read-scoped leak into a forgery capability.
  */
 // deno-lint-ignore no-explicit-any
-async function listWebhookEndpoints(service: any, partnerId: string, requestId: string): Promise<Response> {
+async function listWebhookEndpoints(service: any, partnerId: string, livemode: boolean, requestId: string): Promise<Response> {
   const { data, error } = await service
     .from("partner_webhook_endpoints")
     .select("id, url, events, active, description, created_at, last_success_at, last_failure_at, consecutive_failures")
     .eq("partner_id", partnerId)
+    // A sandbox key lists sandbox endpoints and a live key lists live ones. Two
+    // separate registries, deliberately: a partner rehearsing retries by pointing
+    // an endpoint at a broken URL must not be able to do that to their live one.
+    .eq("livemode", livemode)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -496,7 +505,7 @@ async function listWebhookEndpoints(service: any, partnerId: string, requestId: 
  * or register a new endpoint.
  */
 // deno-lint-ignore no-explicit-any
-async function createWebhookEndpoint(service: any, req: Request, partnerId: string, requestId: string): Promise<Response> {
+async function createWebhookEndpoint(service: any, req: Request, partnerId: string, livemode: boolean, requestId: string): Promise<Response> {
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -541,6 +550,8 @@ async function createWebhookEndpoint(service: any, req: Request, partnerId: stri
     .from("partner_webhook_endpoints")
     .insert({
       partner_id: partnerId,
+      // From the key, never from the body. The request has no say in this.
+      livemode,
       url,
       secret,
       events,
@@ -559,12 +570,13 @@ async function createWebhookEndpoint(service: any, req: Request, partnerId: stri
 
 /** DELETE /webhook-endpoints/{id}. Scoped to the caller's partner. */
 // deno-lint-ignore no-explicit-any
-async function deleteWebhookEndpoint(service: any, partnerId: string, id: string, requestId: string): Promise<Response> {
+async function deleteWebhookEndpoint(service: any, partnerId: string, livemode: boolean, id: string, requestId: string): Promise<Response> {
   const { data, error } = await service
     .from("partner_webhook_endpoints")
     .delete()
     .eq("id", id)
     .eq("partner_id", partnerId)   // never delete another partner's endpoint
+    .eq("livemode", livemode)      // and a sandbox key never deletes a live one
     .select("id")
     .maybeSingle();
 
@@ -585,7 +597,7 @@ async function deleteWebhookEndpoint(service: any, partnerId: string, id: string
  * it. The list endpoint deliberately does not: see partnerViews.ts.
  */
 // deno-lint-ignore no-explicit-any
-async function getApplication(service: any, partnerId: string, id: string, requestId: string): Promise<Response> {
+async function getApplication(service: any, partnerId: string, livemode: boolean, id: string, requestId: string): Promise<Response> {
   // A malformed id must not reach the RPC as a cast error. Same answer as a
   // genuine miss, so the shape of an id is not a probe either.
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
@@ -594,6 +606,7 @@ async function getApplication(service: any, partnerId: string, id: string, reque
 
   const { data, error } = await service.rpc("partner_api_applications", {
     p_partner: partnerId,
+    p_livemode: livemode,
     p_id: id,
     p_status: null,
     p_limit: 1,
@@ -626,7 +639,7 @@ async function getApplication(service: any, partnerId: string, id: string, reque
  * counting pages.
  */
 // deno-lint-ignore no-explicit-any
-async function listApplications(service: any, req: Request, partnerId: string, requestId: string): Promise<Response> {
+async function listApplications(service: any, req: Request, partnerId: string, livemode: boolean, requestId: string): Promise<Response> {
   const url = new URL(req.url);
   const rawLimit = Number(url.searchParams.get("limit") ?? 50);
   const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 100) : 50;
@@ -672,6 +685,7 @@ async function listApplications(service: any, req: Request, partnerId: string, r
   // which avoids a second count query purely to decide whether to paginate.
   const { data, error } = await service.rpc("partner_api_applications", {
     p_partner: partnerId,
+    p_livemode: livemode,
     p_id: null,
     p_status: status,
     p_limit: limit + 1,

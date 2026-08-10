@@ -158,6 +158,7 @@ async function resolveOrg(
   // deno-lint-ignore no-explicit-any
   service: any,
   partnerId: string,
+  livemode: boolean,
   referrerId: string,
   org: Record<string, unknown>,
   scopes: string[],
@@ -180,13 +181,20 @@ async function resolveOrg(
 
     const { data: branch } = await service
       .from("branches")
-      .select("id, agency_id, partner_id")
+      .select("id, agency_id, partner_id, livemode")
       .eq("id", branchId)
       .maybeSingle();
 
     // Same error whether the branch does not exist or belongs to another
     // partner, so the API cannot be used to probe for another partner's orgs.
-    if (!branch || branch.partner_id !== partnerId || branch.agency_id !== agencyId) {
+    // livemode is checked here alongside partner and agency, and reported with
+    // the same message, so a sandbox key naming a live branch cannot tell the two
+    // apart. create_referral_api repeats this check; this copy exists so the
+    // caller gets a field error rather than a 500 from a raised exception.
+    if (
+      !branch || branch.partner_id !== partnerId || branch.agency_id !== agencyId ||
+      (branch.livemode === true) !== livemode
+    ) {
       return {
         error: { field: "org.branch_id", code: "not_found", message: "Unknown branch for this partner." },
       };
@@ -243,6 +251,7 @@ async function resolveOrg(
 
   const { data: newBranchId, error } = await service.rpc("create_referral_target_api", {
     p_partner: partnerId,
+    p_livemode: livemode,
     p_actor: referrerId,
     p_agency: agencyName,
     p_branch: branchName,
@@ -278,6 +287,10 @@ export async function createApplication(
   // deno-lint-ignore no-explicit-any
   service: any,
   partnerId: string,
+  // Live or sandbox, from the authenticated key. Threaded rather than read from
+  // the body anywhere below: a partner cannot opt into sandbox by sending a
+  // flag, and cannot escape it either.
+  livemode: boolean,
   scopes: string[],
   mode: string,
   body: Record<string, unknown>,
@@ -341,7 +354,7 @@ export async function createApplication(
   let agencyId = "";
   let orgCreated = false;
   if (referrerId) {
-    const o = await resolveOrg(service, partnerId, referrerId, org, scopes);
+    const o = await resolveOrg(service, partnerId, livemode, referrerId, org, scopes);
     if ("error" in o) fields.push(o.error);
     else {
       branchId = o.branchId;
@@ -394,6 +407,7 @@ export async function createApplication(
   // ---- create ---------------------------------------------------------------
   const { data: app, error: createErr } = await service.rpc("create_referral_api", {
     p_partner: partnerId,
+    p_livemode: livemode,
     p_referrer: referrerId,
     p_branch: branchId,
     p_tenant_title: str(tenant.title),
