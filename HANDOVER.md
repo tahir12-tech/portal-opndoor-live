@@ -625,13 +625,43 @@ Specification is in [PARTNER-API.md](PARTNER-API.md). This section covers what i
 | Piece | Where |
 | ----- | ----- |
 | `partner_api_keys` table | `20260807130000_partner_api_keys.sql` |
-| Key verification | `supabase/functions/_shared/partnerAuth.ts` |
+| Key verification, timing-safe | `supabase/functions/_shared/partnerAuth.ts` |
 | `partner_api_orgs()` read model | `20260807140000_partner_api_orgs.sql` |
-| `GET /orgs` | `supabase/functions/partner-api/index.ts` |
+| `partners.referencing_mode` | `20260810100000_partner_referencing_mode.sql` |
+| `partner_api_requests` idempotency ledger | `20260810110000_partner_api_requests.sql` |
+| `referral_field_errors()` shared rules | `20260810120000_referral_field_errors.sql` |
+| `create_referral_api()` | `20260810130000_create_referral_api.sql` |
+| `create_referral_target_api()` | `20260810140000_create_referral_target_api.sql` |
+| `GET /orgs`, `POST /applications` | `supabase/functions/partner-api/index.ts` |
+| Create path | `supabase/functions/_shared/partnerApplications.ts` |
 
 Deployed to the dev project and tested end to end. Not deployed anywhere else.
 
-### 9.2 Deploying it
+**`POST /applications` works only for a partner in `pre_referenced_open` mode.**
+The other two modes return `501`, deliberately: with no acceptance criteria
+engine, treating a `pre_referenced_screened` partner as open would approve every
+applicant, which looks exactly like working software.
+
+### 9.2 The two touches to existing code, and why
+
+Everything else in this work is a new file. Two things were not:
+
+**`create_referral` was re-created twice**, by `20260807120000` and
+`20260810120000`. Both are refactors with no behaviour change: the first moved
+its validation into `assert_referral_valid`, the second rebuilt that on
+`referral_field_errors` so the API can read structured codes from the same rules.
+This was done rather than copying the rules, because two copies of fifteen field
+rules would drift and the portal would start accepting what the API rejects.
+
+Both were verified by execution, not inspection: every legacy error message and
+SQLSTATE is byte-identical to the original. If you change validation, change it
+in `referral_field_errors` and both doors follow.
+
+**`partner-api/index.ts` gained a route.** It is a new file from this work, so
+this is only worth noting because it is now the shared entry point for both
+endpoints.
+
+### 9.3 Deploying it
 
 **Always with `--no-verify-jwt`.** See the warning at the top of this document.
 
@@ -649,7 +679,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 # expect 200. A 401 here with a known-good key means verify_jwt is on.
 ```
 
-### 9.3 Issuing a key
+### 9.4 Issuing a key
 
 Manual, deliberately. Hashing cannot happen in Postgres: SHA-256 needs
 pgcrypto's `digest()`, and this schema does not enable pgcrypto. Adding an
@@ -677,7 +707,7 @@ Use `opnd_test_` for non-production. **The plaintext is not recoverable**: only
 the hash is stored, by design. If a partner loses their key, issue a new one and
 revoke the old.
 
-### 9.4 Rotating and revoking
+### 9.5 Rotating and revoking
 
 Multiple live keys per partner are intentional and there is no unique constraint
 preventing them. Rotation needs no coordinated cutover:
@@ -691,7 +721,7 @@ Revocation takes effect on the next request. `last_used_at` is written
 fire-and-forget and is not in the request's critical path, so it can lag by a
 moment under load.
 
-### 9.5 The property most likely to be broken by accident
+### 9.6 The property most likely to be broken by accident
 
 **RLS does not protect this path.** Every table carries a restrictive AAL2 policy
 that an API-key request cannot satisfy, so the function runs as service role.
@@ -704,7 +734,43 @@ forgets is a cross-partner data leak that **no database policy will catch**.
 This is worth a specific look in any review of new endpoints. It is the one
 mistake here that is both easy to make and serious.
 
-### 9.6 Dev fixtures
+### 9.7 What POST does, in the order it does it
+
+The order is load bearing and worth knowing before changing anything:
+
+1. **Idempotency claim**, before any work. The unique index on
+   `(partner_id, endpoint, idempotency_key)` makes this a claim rather than a
+   check-then-act, so two concurrent retries race and exactly one wins.
+2. **Referrer**, resolved by email within the caller's partner only.
+3. **Org**, by ID or by name.
+4. **Field validation**, via `referral_field_errors`.
+5. **Create**, via `create_referral_api`.
+6. **Payment link**, via `mint_payment_page_token`. No Stripe call happens here,
+   so this endpoint works on a project with no Stripe configuration. The Checkout
+   Session is created when the tenant opens the page.
+7. **Record the response**, so a retry replays it.
+
+Steps 2 and 3 come before 4 so a payload with both a bad postcode and an unknown
+branch reports both, rather than making the partner fix one per round trip.
+
+Failures are recorded in the ledger too. A retry of a request that failed
+validation replays that failure rather than re-running it, or the idempotency key
+would mean nothing.
+
+### 9.8 Two behaviours that will look like bugs and are not
+
+**A failed request can leave a pending user behind.** The referrer is resolved
+before validation, so a payload that then fails has already provisioned the user.
+It is a real user scoped to the caller's own partner, and the next request from
+the same address reuses it. Making it atomic would mean wrapping an Auth Admin
+API call and several statements in one transaction, which is not worth the
+complexity at this stage. Accepted deliberately.
+
+**`GR-` reference numbers have gaps.** `guarantee_ref` comes from a sequence, and
+a sequence does not roll back with a failed transaction. This is true of the
+portal path too.
+
+### 9.9 Dev fixtures
 
 The dev project holds test fixtures created directly, not by any migration: two
 partners, three agencies, four branches and four API keys covering the valid,

@@ -1,13 +1,34 @@
 # Partner API and webhooks
 
-Specification. No implementation exists yet.
-
 Partners POST an application from their own system instead of typing it into the
 portal, and receive webhooks as its status changes. Rightmove first, others
 after.
 
 Every claim about **existing** behaviour below carries a file and line
 reference. Everything else is proposed and open to challenge.
+
+## Build status
+
+Part of this is built and running on the dev project. The rest is specification.
+Each section says which it is, and this table is the summary.
+
+| Area | Status |
+| ---- | ------ |
+| Authentication, keys, scopes (§4) | **Built** |
+| `GET /orgs` (§7.5) | **Built** |
+| `POST /applications` (§6) | **Built** for `pre_referenced_open` |
+| Idempotency (§11) | **Built** |
+| Rate limiting (§12) | **Built**, two tiers |
+| Error contract (§14) | **Built** |
+| `referencing_mode` (§3) | Column **built**. Only `pre_referenced_open` is implemented; the other two return `501` |
+| `GET /applications/{id}` and list (§5) | Specified, not built |
+| Outbound webhooks (§13) | Specified, not built |
+| Acceptance criteria (§3.3) | Not specified. The rules do not exist yet, see open question 2 |
+| Provider masking (§15) | Specified, not built |
+
+Where the implementation taught us something the specification had wrong, the
+specification has been corrected and the correction is called out rather than
+quietly applied.
 
 ---
 
@@ -63,17 +84,19 @@ blocks machine callers in two independent ways:
 | [:71](supabase/migrations/20260705140347_snapshot_referrer_name.sql#L71) | `referrer_name` is `(select full_name from public.users where id = auth.uid())` | Same. |
 | [:60](supabase/migrations/20260705140347_snapshot_referrer_name.sql#L60) | `pid = public.app_partner()` | `app_partner()` reads the JWT claim. |
 
-**Consequence.** A new sibling RPC is required, provisionally
-`create_referral_api(p_partner uuid, p_referrer uuid, ...)`, taking the partner
-and referrer explicitly and omitting the AAL2 gate because the API key is the
-authentication. It must reproduce `create_referral`'s validation **exactly**, or
-the two doors diverge and the portal starts accepting things the API rejects and
-vice versa.
+**Consequence, now built.** `create_referral_api(p_partner, p_referrer, ...)`
+takes the partner and referrer explicitly and omits the AAL2 gate, because the
+API key is the authentication. Same for `create_referral_target_api`, which the
+on-the-fly org path needs for the same three reasons.
 
-Reproducing validation by copy-paste is how that divergence happens. The
-validation body should be extracted into one shared function that both RPCs
-call. That is an edit to an existing function, so it needs the usual approval,
-but the alternative is two drifting copies of eleven field rules.
+Validation is **shared, not copied**, which was the point. The rules live in
+`public.referral_field_errors` and both entry points are built on it:
+`assert_referral_valid` reconstructs `create_referral`'s exact legacy prose from
+them, and the API reads the structured codes. Two copies of fifteen rules would
+have drifted, and the portal would have started accepting what the API rejects.
+
+Verified rather than assumed: every legacy message and SQLSTATE is byte-identical
+to the pre-refactor definition.
 
 ### 2.2 What does not exist at all
 
@@ -94,8 +117,8 @@ Confirmed absent, each by exhaustive search:
   ([_shared/pandadoc.ts:392](supabase/functions/_shared/pandadoc.ts#L392)) and
   the ops secret checks
   ([hubspot-sync/index.ts:94](supabase/functions/hubspot-sync/index.ts#L94)).
-  This spec requires timing-safe comparison, which means introducing the first
-  such helper in the codebase.
+  The timing-safe comparison in `_shared/partnerAuth.ts` is now the first such
+  helper in this codebase. The others are worth revisiting separately.
 - **No schema validation library.** No zod, yup, joi or ajv. All validation is
   hand-written regex plus plpgsql, so there is no machine-readable schema to
   generate an API contract from.
@@ -439,18 +462,34 @@ tables, so that the filter cannot be forgotten one query at a time.
 
 ## 5. Endpoints
 
-| Method | Path | Scope | Purpose |
-| ------ | ---- | ----- | ------- |
-| `POST` | `/v1/applications` | `applications:write` | Create an application |
-| `GET` | `/v1/applications/{id}` | `applications:read` | Read one |
-| `GET` | `/v1/applications` | `applications:read` | List own, paginated |
-| `GET` | `/v1/orgs` | `orgs:read` | Agencies and branches with `has_agent_contact` |
-| `POST` | `/v1/webhook-endpoints` | `webhooks:manage` | Register an endpoint |
-| `GET` | `/v1/webhook-endpoints` | `webhooks:manage` | List own |
-| `DELETE` | `/v1/webhook-endpoints/{id}` | `webhooks:manage` | Remove one |
+| Method | Path | Scope | Purpose | Status |
+| ------ | ---- | ----- | ------- | ------ |
+| `POST` | `/applications` | `applications:write` | Create an application | **Built** |
+| `GET` | `/orgs` | `orgs:read` | Agencies and branches with `has_agent_contact` | **Built** |
+| `GET` | `/applications/{id}` | `applications:read` | Read one | Not built |
+| `GET` | `/applications` | `applications:read` | List own, paginated | Not built |
+| `POST` | `/webhook-endpoints` | `webhooks:manage` | Register an endpoint | Not built |
+| `GET` | `/webhook-endpoints` | `webhooks:manage` | List own | Not built |
+| `DELETE` | `/webhook-endpoints/{id}` | `webhooks:manage` | Remove one | Not built |
 
-Versioned under `/v1` from the first release. There is no versioning scheme in
-the repo today and retrofitting one is materially harder than starting with it.
+### The real URL, and the versioning gap
+
+**As built, the base is `/functions/v1/partner-api/`**, so the live path is
+`/functions/v1/partner-api/orgs`. The `/v1/orgs` form above assumes a gateway
+rewrite that does not exist.
+
+Note what that `v1` is: it is Supabase's Edge Function API version, not ours.
+Nothing in the built surface carries an Opndoor API version, so **there is
+currently no way to ship a breaking change to a partner without breaking them.**
+
+Fixing it later is materially harder than starting with it, and it should be
+settled before a partner integrates rather than after. The cheapest form is a
+path segment, `/functions/v1/partner-api/v1/orgs`, which needs one line in the
+router. A custom domain rewriting to the function is the tidier form and can come
+later without changing the contract, provided the version segment is there from
+the start.
+
+Raised as open question 11.
 
 ---
 
@@ -696,6 +735,19 @@ create the auth user first. A `pending` status already exists
 ([:59-62](supabase/migrations/20260702134239_core_schema.sql#L59)), so the row is
 `role = 'referrer'`, `status = 'pending'`, `partner_id` from the key.
 
+No email is sent. Provisioning uses `generateLink({type:'invite'})` because that
+is what creates the `auth.users` row and returns its id; the link it produces is
+discarded. The partner has not asked for anyone to be contacted.
+
+**Known and accepted: a failed request can leave a provisioned user behind.**
+The referrer is resolved before validation, so a payload that then fails
+validation has already created the user. It is a real user, scoped to the
+caller's own partner, and it will be reused by the next request from the same
+address, so the effect is untidy rather than unsafe. Making it atomic would mean
+wrapping an Admin API call and several statements in one transaction, which is
+not worth the complexity at this stage. Revisit if failed requests start
+accumulating users at volume.
+
 ### 8.2 Names, and why they cannot be backfilled
 
 Partners are **not** required to send a referrer name. Opndoor or the partner can
@@ -807,15 +859,44 @@ two doors drift.
 }
 ```
 
-**All** failures are returned at once, not the first. The existing RPC already
-accumulates into an array and reports them together
-([:26-28](supabase/migrations/20260705140347_snapshot_referrer_name.sql#L26)),
-so this matches existing behaviour rather than adding a requirement.
+**All** failures are returned at once, not the first. Verified: a payload with
+five bad fields returns all five.
 
-Note that the existing RPC raises **free text** with a SQLSTATE as the only
-machine-readable signal, and the four combined rules raise standalone sentences
-rather than joining the array. The API must not pass Postgres error text
-through. It needs its own per-field code mapping, which is new work.
+### 9.4 The field codes, as built
+
+`public.referral_field_errors` is the single source of truth. `create_referral`
+and the API are both built on it, so the portal and the API cannot start
+disagreeing about what a valid application is.
+
+| `field` | `code` |
+| ------- | ------ |
+| `tenant.title` | `invalid_value` |
+| `tenant.first_name`, `tenant.last_name` | `required` |
+| `tenant.date_of_birth` | `required`, `must_be_in_past`, `must_be_18_by_tenancy_start`, `implausible_age` |
+| `tenant.email` | `invalid_format` |
+| `tenant.phone` | `invalid_format` |
+| `property.address_line_1`, `property.city` | `required` |
+| `property.postcode` | `invalid_format` |
+| `tenancy.monthly_rent` | `must_be_positive` |
+| `tenancy.start_date` | `required`, `too_far_in_past`, `too_far_ahead` |
+| `org.agency_id`, `org.branch_id` | `required`, `not_found`, `no_agent_contact` |
+| `org.agency_name` | `insufficient_scope`, `could_not_create` |
+| `org.agent_contact_email` | `required` |
+| `referrer.email` | `required`, `not_available`, `could_not_provision` |
+
+Two of these are worth understanding rather than just handling.
+
+**`org.branch_id: no_agent_contact`** means the branch cannot resolve a primary
+agent contact, so a deed could not be issued for it. Rejecting at POST is the
+whole point: the alternative is accepting the application, taking the tenant's
+money, and failing at deed generation. `GET /orgs` exposes the same condition as
+`has_agent_contact` so a partner can fix their data before sending traffic.
+
+**`referrer.email: not_available`** means the address exists under a different
+partner. The message deliberately does not say which, or confirm that one exists.
+
+Postgres error text is never passed through. `create_referral`'s free-text
+messages stay on the portal path.
 
 ---
 
@@ -1096,6 +1177,7 @@ state that consumers must:
 | 422 | `validation_failed` | Field errors (section 9.3) |
 | 429 | `rate_limited` | With `Retry-After` |
 | 500 | `internal_error` | With an opaque `request_id`, no internals |
+| 501 | `not_implemented` | The partner's `referencing_mode` is not built. See below |
 | 503 | `service_unavailable` | Dependency down, retryable |
 
 Every response carries `X-Request-Id`, logged alongside the real reason, so
@@ -1103,6 +1185,13 @@ support can diagnose without the API disclosing anything.
 
 `404` for another partner's resource, rather than `403`, is deliberate: `403`
 confirms the resource exists.
+
+**`501` is how an unbuilt mode fails, and it is deliberate.** A partner on
+`pre_referenced_screened` or `opndoor_referenced` gets a flat refusal rather than
+being quietly treated as `pre_referenced_open`. Accepting them would mean
+approving every applicant with no criteria applied, which looks exactly like
+working software and would surface as a commercial problem long after the fact.
+The message does not name the mode, since that is internal vocabulary.
 
 ---
 
@@ -1291,3 +1380,12 @@ it. The repo's only scheduling mechanism is pg_cron calling Edge Functions, whic
 is minute-granularity and would make delivery latency up to a minute. Whether
 that is acceptable, or whether dispatch should be triggered on enqueue, is
 undecided.
+
+**11. How is this API versioned?** Noticed while documenting what was built, and
+it needs answering before a partner integrates rather than after. The live base
+is `/functions/v1/partner-api/`, where `v1` is Supabase's Edge Function API
+version, not ours. Nothing in the surface carries an Opndoor version, so there is
+currently no way to ship a breaking change without breaking every partner at
+once. The cheapest fix is a path segment added now, one line in the router. A
+custom domain is tidier and can follow later, provided the segment exists from
+the start. Cheap today, expensive after the first integration.
