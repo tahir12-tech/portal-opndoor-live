@@ -34,6 +34,7 @@ import {
   touchKey,
 } from "../_shared/partnerAuth.ts";
 import { createApplication, requestHash } from "../_shared/partnerApplications.ts";
+import { generateEndpointSecret } from "../_shared/webhookSigning.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -146,6 +147,25 @@ Deno.serve(async (req) => {
       return await postApplication(
         service, req, auth.partnerId, auth.apiKeyId, auth.scopes, partner.referencing_mode, requestId,
       );
+    }
+
+    if (endpoint === "webhook-endpoints") {
+      if (!hasScope(auth, "webhooks:manage")) {
+        return json(errorBody("insufficient_scope", "This key lacks the webhooks:manage scope."), 403, requestId);
+      }
+      if (req.method === "GET") return await listWebhookEndpoints(service, auth.partnerId, requestId);
+      if (req.method === "POST") return await createWebhookEndpoint(service, req, auth.partnerId, requestId);
+      return json(errorBody("method_not_allowed", "Use GET or POST."), 405, requestId, { Allow: "GET, POST" });
+    }
+
+    if (endpoint.startsWith("webhook-endpoints/")) {
+      if (!hasScope(auth, "webhooks:manage")) {
+        return json(errorBody("insufficient_scope", "This key lacks the webhooks:manage scope."), 403, requestId);
+      }
+      if (req.method !== "DELETE") {
+        return json(errorBody("method_not_allowed", "Use DELETE."), 405, requestId, { Allow: "DELETE" });
+      }
+      return await deleteWebhookEndpoint(service, auth.partnerId, endpoint.slice("webhook-endpoints/".length), requestId);
     }
 
     return json(errorBody("not_found", "Unknown endpoint."), 404, requestId);
@@ -329,4 +349,116 @@ async function postApplication(
     .eq("id", claim!.id);
 
   return json(outcome.body, outcome.status, requestId);
+}
+
+/**
+ * GET /webhook-endpoints
+ *
+ * The secret is NEVER returned. It is shown once at registration and is not
+ * retrievable, the same posture as an API key: a listing endpoint that returns
+ * signing secrets turns any read-scoped leak into a forgery capability.
+ */
+// deno-lint-ignore no-explicit-any
+async function listWebhookEndpoints(service: any, partnerId: string, requestId: string): Promise<Response> {
+  const { data, error } = await service
+    .from("partner_webhook_endpoints")
+    .select("id, url, events, active, description, created_at, last_success_at, last_failure_at, consecutive_failures")
+    .eq("partner_id", partnerId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.log(JSON.stringify({ requestId, event: "webhook_list_failed", message: error.message }));
+    return json(errorBody("internal_error", "Something went wrong."), 500, requestId);
+  }
+
+  return json({ endpoints: data ?? [] }, 200, requestId);
+}
+
+/**
+ * POST /webhook-endpoints
+ *
+ * Returns the signing secret exactly once. Partners must store it at this point
+ * or register a new endpoint.
+ */
+// deno-lint-ignore no-explicit-any
+async function createWebhookEndpoint(service: any, req: Request, partnerId: string, requestId: string): Promise<Response> {
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return json(errorBody("malformed_request", "Body must be valid JSON."), 400, requestId);
+  }
+
+  const url = typeof body.url === "string" ? body.url.trim() : "";
+  const fields: { field: string; code: string; message: string }[] = [];
+
+  // https only. The payload carries tenant PII and the signature; over plain
+  // http both are readable in transit. The database enforces this too, but a
+  // field error is a better answer than a constraint violation.
+  if (!url) {
+    fields.push({ field: "url", code: "required", message: "A url is required." });
+  } else if (!url.startsWith("https://")) {
+    fields.push({ field: "url", code: "must_be_https", message: "The url must use https." });
+  }
+
+  const events = Array.isArray(body.events) ? body.events.filter((e) => typeof e === "string") as string[] : [];
+  const KNOWN = [
+    "application.created", "application.paid", "application.deed_issued",
+    "application.lapsed", "application.withdrawn", "application.reinstated",
+  ];
+  for (const e of events) {
+    if (!KNOWN.includes(e)) {
+      fields.push({ field: "events", code: "unknown_event", message: `Unknown event type: ${e}` });
+    }
+  }
+
+  if (fields.length > 0) {
+    return json(
+      { error: { code: "validation_failed", message: "The endpoint was not created.", fields } },
+      422,
+      requestId,
+    );
+  }
+
+  const secret = generateEndpointSecret();
+
+  const { data, error } = await service
+    .from("partner_webhook_endpoints")
+    .insert({
+      partner_id: partnerId,
+      url,
+      secret,
+      events,
+      description: typeof body.description === "string" ? body.description.trim() : null,
+    })
+    .select("id, url, events, active, created_at")
+    .maybeSingle();
+
+  if (error) {
+    console.log(JSON.stringify({ requestId, event: "webhook_create_failed", message: error.message }));
+    return json(errorBody("internal_error", "Something went wrong."), 500, requestId);
+  }
+
+  return json({ endpoint: data, secret }, 201, requestId);
+}
+
+/** DELETE /webhook-endpoints/{id}. Scoped to the caller's partner. */
+// deno-lint-ignore no-explicit-any
+async function deleteWebhookEndpoint(service: any, partnerId: string, id: string, requestId: string): Promise<Response> {
+  const { data, error } = await service
+    .from("partner_webhook_endpoints")
+    .delete()
+    .eq("id", id)
+    .eq("partner_id", partnerId)   // never delete another partner's endpoint
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    console.log(JSON.stringify({ requestId, event: "webhook_delete_failed", message: error.message }));
+    return json(errorBody("internal_error", "Something went wrong."), 500, requestId);
+  }
+  // Same answer whether it does not exist or belongs to another partner.
+  if (!data) return json(errorBody("not_found", "Unknown endpoint."), 404, requestId);
+
+  return new Response(null, { status: 204, headers: { ...cors, "X-Request-Id": requestId } });
 }
