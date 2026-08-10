@@ -17,14 +17,21 @@ Each section says which it is, and this table is the summary.
 | Authentication, keys, scopes (§4) | **Built** |
 | `GET /orgs` (§7.5) | **Built** |
 | `POST /applications` (§6) | **Built** for `pre_referenced_open` |
+| `GET /applications/{id}` and list (§5) | **Built** |
 | Idempotency (§11) | **Built** |
 | Rate limiting (§12) | **Built**, two tiers |
 | Error contract (§14) | **Built** |
+| Outbound webhooks (§13) | **Built**: registry, queue, dispatcher, HMAC signing, endpoint CRUD |
 | `referencing_mode` (§3) | Column **built**. Only `pre_referenced_open` is implemented; the other two return `501` |
-| `GET /applications/{id}` and list (§5) | Specified, not built |
-| Outbound webhooks (§13) | Specified, not built |
 | Acceptance criteria (§3.3) | Not specified. The rules do not exist yet, see open question 2 |
-| Provider masking (§15) | Specified, not built |
+| Provider masking (§15) | Specified, not built. Needed only by `opndoor_referenced` |
+
+Everything built is deployed to the dev project and exercised end to end. Test
+expectations are in `REGRESSION.md` section B.
+
+**Not built, and worth knowing before a partner integrates:** the dispatcher has
+no schedule (deliberately, see §13.6), key issuance is manual (§4.8), and there
+is no API version segment (open question 11).
 
 Where the implementation taught us something the specification had wrong, the
 specification has been corrected and the correction is called out rather than
@@ -458,6 +465,17 @@ Mitigation worth considering: a single accessor module that takes `partner_id`
 as a required first argument and is the only thing permitted to touch these
 tables, so that the filter cannot be forgotten one query at a time.
 
+### 4.8 Issuing a key is manual, deliberately
+
+There is no key-minting endpoint. Hashing cannot happen in Postgres: SHA-256
+needs pgcrypto's `digest()`, and this schema enables only pg_cron and pg_net.
+Adding an extension solely to mint credentials is a poor trade.
+
+The key and its hash are generated outside the database and only the hash is
+inserted. The exact procedure is in `HANDOVER.md` section 9.4. An admin endpoint
+is later work, and should arrive before the number of partners makes the manual
+step a bottleneck rather than after.
+
 ---
 
 ## 5. Endpoints
@@ -465,12 +483,51 @@ tables, so that the filter cannot be forgotten one query at a time.
 | Method | Path | Scope | Purpose | Status |
 | ------ | ---- | ----- | ------- | ------ |
 | `POST` | `/applications` | `applications:write` | Create an application | **Built** |
+| `GET` | `/applications/{id}` | `applications:read` | Read one, **with `payment_url`** | **Built** |
+| `GET` | `/applications` | `applications:read` | List own, keyset paginated | **Built** |
 | `GET` | `/orgs` | `orgs:read` | Agencies and branches with `has_agent_contact` | **Built** |
-| `GET` | `/applications/{id}` | `applications:read` | Read one | Not built |
-| `GET` | `/applications` | `applications:read` | List own, paginated | Not built |
-| `POST` | `/webhook-endpoints` | `webhooks:manage` | Register an endpoint | Not built |
-| `GET` | `/webhook-endpoints` | `webhooks:manage` | List own | Not built |
-| `DELETE` | `/webhook-endpoints/{id}` | `webhooks:manage` | Remove one | Not built |
+| `POST` | `/webhook-endpoints` | `webhooks:manage` | Register an endpoint | **Built** |
+| `GET` | `/webhook-endpoints` | `webhooks:manage` | List own | **Built** |
+| `DELETE` | `/webhook-endpoints/{id}` | `webhooks:manage` | Remove one | **Built** |
+
+### Reading applications
+
+`GET /applications` is keyset paginated on `(created_at, id)`, newest first.
+`?limit=` is clamped to 100 and `?status=` takes the partner vocabulary. The
+response carries `next_cursor`, which is **null on the last page**: a client
+loops until it is null rather than counting pages.
+
+Keyset rather than offset deliberately. Offset silently skips rows when new
+applications are created during a walk, which for a partner reconciling their
+book means quietly missing records.
+
+**`payment_url` is returned by the single fetch and not by the list.** The
+payment token is a bearer credential for the tenant payment page, including the
+self-decline action, so returning a page of them to satisfy a reconciliation
+walk is more exposure than the job needs. A partner acting on one application
+fetches it individually.
+
+### The partner-facing status vocabulary
+
+Stored statuses are internal. Two read badly outside, so the API maps them, and
+the same mapping is used by REST responses and webhook payloads alike.
+
+| Stored | Partner-facing | Why |
+| ------ | -------------- | --- |
+| `sent` | `sent` | |
+| `paid` | `paid` | |
+| `deed` | `deed_issued` | `deed` names a column, not an outcome |
+| `withdrawn` | `withdrawn` | |
+| `expired` | `lapsed` | `expired` collides with the guarantee's own expiry |
+
+That last one matters. `status = 'expired'` means an **unpaid application lapsed
+after 14 days**. `expiry_date` is the **guarantee expiring 12 months after
+tenancy start**. They are months apart and mean opposite things commercially, so
+the partner-facing word for the first is `lapsed` and `expiry_date` keeps its
+name.
+
+The `?status=` filter takes the partner vocabulary too, so a caller filters with
+the same words the responses use.
 
 ### The real URL, and the versioning gap
 
@@ -1122,8 +1179,28 @@ document the tolerance so partners implement verification correctly.
 | `application.deed_issued` | Deed executed | `deed` |
 | `application.lapsed` | Unpaid application auto-expires 14 days after `sent_at` | `expired` |
 | `application.withdrawn` | Withdrawn by staff or tenant | `withdrawn` |
+| `application.reinstated` | A lapsed or tenant-declined application is paid late | `paid`, arrived from `expired` or `withdrawn` |
 | `application.declined` | Criteria decline | **No.** Needs the `declined` status |
 | `reference.completed` | Reference concludes | **No.** Needs the referencing integration |
+
+**`application.reinstated` is emitted instead of `application.paid`**, not in
+addition. Deliveries are unique per endpoint, application and event type, which
+gives at-most-once. Saying nothing would leave a partner who heard
+`application.lapsed` with a permanently wrong record; resending
+`application.paid` would be double counted by anyone treating it as a
+first-payment signal, and would be suppressed by the index anyway. A distinct
+event solves both.
+
+Both routes into it, a lapsed application paid late and a **tenant-declined**
+withdrawal paid late, are the same branch of `apply_stripe_payment`
+([20260705115059:66](supabase/migrations/20260705115059_application_expiry_and_reinstate.sql#L66)),
+so they behave identically.
+
+A **staff**-withdrawn application paid late emits **nothing at all**, because
+that branch never changes status. The partner is never told the money arrived.
+That is `DEFECTS.md` defect 8 and should be fixed there rather than papered over
+with an event, since the application was not reinstated and real money is sitting
+on a withdrawn row awaiting a refund.
 
 Statuses use the partner vocabulary of section 15, never internal values.
 
@@ -1160,6 +1237,26 @@ state that consumers must:
 - Treat `status` in the payload as authoritative, not the event name.
 - Order by the event timestamp, not arrival order, since retries mean a later
   event can arrive before an earlier one.
+
+### 13.7 The dispatcher has no schedule, deliberately
+
+Nothing in the migrations calls `cron.schedule` for it, and that is on purpose.
+`20260705153000` schedules `hubspot-sync` with a hardcoded project URL, which is
+why applying this repo to any new project immediately points it at a foreign
+project every two minutes (defect 2). **A migration cannot know which project it
+is being applied to**, so any URL it hardcodes is wrong somewhere.
+
+Scheduling is a deployment step instead, with the ref substituted for the project
+actually being deployed to. The statement is in the header of
+`20260810170000_partner_webhook_claim.sql`.
+
+Until it is scheduled, **deliveries queue and are never sent**. That is the
+correct failure mode, since the queue is the source of truth and nothing is lost,
+but it will look like the webhooks are broken.
+
+Minute granularity puts up to 60 seconds on the first attempt. If that matters,
+the enqueue path can additionally poke the dispatcher; the queue remains
+authoritative, so the poke is an optimisation and never a requirement.
 
 ---
 

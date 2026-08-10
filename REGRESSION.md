@@ -344,6 +344,29 @@ every new endpoint as needing B2.3 repeated against it.
 | B3.4 | Neither branch nor agency has any contact | `false` |
 | B3.5 | Response body | no `partner_id`, no `review_state`, no `created_by` |
 
+## B3a. Reading applications
+
+| # | Case | Expected |
+| - | ---- | -------- |
+| B3a.1 | `GET /applications` | newest first, `next_cursor` null on the last page |
+| B3a.2 | Response body | **none of** `partner_rate`, `agent_rate`, `paid_amount`, `refunded_amount`, `stripe_*`, `pandadoc_*`, `executed_pdf_path`, `payment_state`, `deed_state`, `partner_id`, `referrer_id`, `referrer_name`, `withdrawn_*`, `expired_at` |
+| B3a.3 | `payment_url` in the **list** | **absent** |
+| B3a.4 | `payment_url` in the **single fetch** | present while payable, null once paid or closed |
+| B3a.5 | Status of a lapsed application | **`lapsed`**, not `expired` |
+| B3a.6 | Status of an issued deed | **`deed_issued`**, not `deed` |
+| B3a.7 | `?status=lapsed` | filters correctly |
+| B3a.8 | `?status=expired` | `422`, listing the valid values |
+| B3a.9 | `?limit=9999` | clamped to 100 |
+| B3a.10 | Invalid cursor, and valid base64 of the wrong shape | both `400 malformed_request` |
+| B3a.11 | Another partner's application by id | `404`, same as unknown |
+| B3a.12 | Malformed id | `404`, not a 500 |
+| B3a.13 | Key without `applications:read` | `403 insufficient_scope` |
+
+**B3a.2 is the assertion that matters.** Assert against the raw response body
+rather than parsed fields, so a nested leak is caught too. The field list is
+enforced twice, in the SQL read model and in the serializer, and this test is
+what keeps both honest.
+
 **B3.3 is the subtle one.** `effective_contacts` falls back to the agency only
 when the branch has **no contacts at all**, so a branch holding a non-primary
 contact resolves to nothing and cannot produce a deed. Reaching that state needs
@@ -407,7 +430,8 @@ surface.
 
 ## B7. Outbound webhooks
 
-Built but **not yet exercised**. Treat this section as unverified until it is.
+Built and exercised on dev. The dispatcher needs the ops secret seeded and a
+schedule, neither of which a fresh project has: see `HANDOVER.md` 9.9.
 
 | # | Case | Expected |
 | - | ---- | -------- |

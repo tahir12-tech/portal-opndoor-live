@@ -60,7 +60,8 @@ the reason. Treat every such case as something to check rather than assume.
 | ---- | ---------- | ------------- |
 | `HANDOVER.md` | This file. What was changed here, why, and what needs you | You |
 | `DEFECTS.md` | Defects found in the **live** system, not introduced here and not fixed here | You, raised separately |
-| `PARTNER-API.md` | Specification for the partner API and outbound webhooks. Design only, nothing built | Whoever builds it |
+| `PARTNER-API.md` | The partner API and webhooks. Specification **and** what is built, with a status table at the top | Whoever extends it |
+| `REGRESSION.md` | Test plan for the whole platform, lifecycle and partner API. Written to pass on day one | You, and whoever tests |
 
 ---
 
@@ -632,10 +633,22 @@ Specification is in [PARTNER-API.md](PARTNER-API.md). This section covers what i
 | `referral_field_errors()` shared rules | `20260810120000_referral_field_errors.sql` |
 | `create_referral_api()` | `20260810130000_create_referral_api.sql` |
 | `create_referral_target_api()` | `20260810140000_create_referral_target_api.sql` |
-| `GET /orgs`, `POST /applications` | `supabase/functions/partner-api/index.ts` |
+| `partner_api_applications()` read model | `20260810200000_partner_api_applications.sql` |
+| `partner_status()` vocabulary mapping | same migration |
+| Webhook registry and delivery queue | `20260810150000_partner_webhook_schema.sql` |
+| Payload builder and enqueue trigger | `20260810160000_partner_webhook_enqueue.sql` |
+| Claim, settle, backoff, dead lettering | `20260810170000_partner_webhook_claim.sql` |
+| `application.reinstated` | `20260810190000_partner_webhook_reinstated_event.sql` |
+| All endpoints | `supabase/functions/partner-api/index.ts` |
 | Create path | `supabase/functions/_shared/partnerApplications.ts` |
+| Read serializer | `supabase/functions/_shared/partnerViews.ts` |
+| HMAC signing | `supabase/functions/_shared/webhookSigning.ts` |
+| Webhook dispatcher | `supabase/functions/partner-webhooks/index.ts` |
 
 Deployed to the dev project and tested end to end. Not deployed anywhere else.
+
+Endpoints: `POST /applications`, `GET /applications`, `GET /applications/{id}`,
+`GET /orgs`, and `POST`/`GET`/`DELETE /webhook-endpoints`.
 
 **`POST /applications` works only for a partner in `pre_referenced_open` mode.**
 The other two modes return `501`, deliberately: with no acceptance criteria
@@ -770,7 +783,35 @@ complexity at this stage. Accepted deliberately.
 a sequence does not roll back with a failed transaction. This is true of the
 portal path too.
 
-### 9.9 Dev fixtures
+### 9.9 Two things that are not wired up, and will look broken
+
+**The webhook dispatcher has no schedule.** Nothing in the migrations calls
+`cron.schedule` for it, deliberately: a migration cannot know which project it is
+being applied to, and `20260705153000` hardcoding a URL is exactly how this repo
+came to point every new project at a foreign one. Until it is scheduled,
+deliveries queue and are never sent. That is the safe failure mode, since the
+queue is the source of truth and nothing is lost, but it will look like the
+webhooks are broken. The statement to run is in the header of
+`20260810170000_partner_webhook_claim.sql`, with the project ref substituted.
+
+**The dispatcher needs the ops secret.** It authenticates on `x-ops-secret`
+against the `reminders_cron` row in `ops_secrets`, matching the other cron-driven
+functions. On a fresh project that table is empty and every dispatcher run
+returns 401.
+
+### 9.10 The one thing to check before a partner integrates
+
+**There is no API version segment.** The base path is
+`/functions/v1/partner-api/`, where `v1` is Supabase's Edge Function API version,
+not ours. Nothing in the surface carries an Opndoor version, so there is
+currently no way to ship a breaking change without breaking every partner at
+once.
+
+Adding one is a single line in the router today. After the first integration it
+requires a coordinated migration with the partner. This is open question 11 in
+`PARTNER-API.md` and it is the cheapest thing on this list to get wrong.
+
+### 9.11 Dev fixtures
 
 The dev project holds test fixtures created directly, not by any migration: two
 partners, three agencies, four branches and four API keys covering the valid,

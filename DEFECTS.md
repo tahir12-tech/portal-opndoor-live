@@ -8,6 +8,15 @@ live system rather than in a disposable dev tree.
 Written for someone with no context on the disconnect work. Each entry is what
 it is, what it costs the business, how to confirm it, and a suggested fix.
 
+Defects 8, 9 and 10 were **adversarially verified** before being written down:
+each was handed to a reviewer whose job was to prove it wrong. That process
+killed a fourth claim outright and corrected the severity of two of these, so
+what remains has survived a deliberate attempt at refutation. Where something
+partially mitigates a defect, the entry says so.
+
+`REGRESSION.md` tags the test steps that assert this behaviour, so the suite
+passes as it stands and a change to a tagged step reads as a deliberate fix.
+
 Worst first. Severity is stated per defect so it can be re-prioritised.
 
 | # | Defect | Severity |
