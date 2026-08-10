@@ -35,6 +35,7 @@ import {
 } from "../_shared/partnerAuth.ts";
 import { createApplication, requestHash } from "../_shared/partnerApplications.ts";
 import { generateEndpointSecret } from "../_shared/webhookSigning.ts";
+import { applicationView, decodeCursor, encodeCursor, type ApplicationRow } from "../_shared/partnerViews.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -138,14 +139,32 @@ Deno.serve(async (req) => {
     }
 
     if (endpoint === "applications") {
+      if (req.method === "GET") {
+        if (!hasScope(auth, "applications:read")) {
+          return json(errorBody("insufficient_scope", "This key lacks the applications:read scope."), 403, requestId);
+        }
+        return await listApplications(service, req, auth.partnerId, requestId);
+      }
       if (req.method !== "POST") {
-        return json(errorBody("method_not_allowed", "Use POST."), 405, requestId, { Allow: "POST" });
+        return json(errorBody("method_not_allowed", "Use GET or POST."), 405, requestId, { Allow: "GET, POST" });
       }
       if (!hasScope(auth, "applications:write")) {
         return json(errorBody("insufficient_scope", "This key lacks the applications:write scope."), 403, requestId);
       }
       return await postApplication(
         service, req, auth.partnerId, auth.apiKeyId, auth.scopes, partner.referencing_mode, requestId,
+      );
+    }
+
+    if (endpoint.startsWith("applications/")) {
+      if (req.method !== "GET") {
+        return json(errorBody("method_not_allowed", "Use GET."), 405, requestId, { Allow: "GET" });
+      }
+      if (!hasScope(auth, "applications:read")) {
+        return json(errorBody("insufficient_scope", "This key lacks the applications:read scope."), 403, requestId);
+      }
+      return await getApplication(
+        service, auth.partnerId, endpoint.slice("applications/".length), requestId,
       );
     }
 
@@ -461,4 +480,125 @@ async function deleteWebhookEndpoint(service: any, partnerId: string, id: string
   if (!data) return json(errorBody("not_found", "Unknown endpoint."), 404, requestId);
 
   return new Response(null, { status: 204, headers: { ...cors, "X-Request-Id": requestId } });
+}
+
+/**
+ * GET /applications/{id}
+ *
+ * Includes payment_url, because a partner fetching one application is acting on
+ * it. The list endpoint deliberately does not: see partnerViews.ts.
+ */
+// deno-lint-ignore no-explicit-any
+async function getApplication(service: any, partnerId: string, id: string, requestId: string): Promise<Response> {
+  // A malformed id must not reach the RPC as a cast error. Same answer as a
+  // genuine miss, so the shape of an id is not a probe either.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return json(errorBody("not_found", "Unknown application."), 404, requestId);
+  }
+
+  const { data, error } = await service.rpc("partner_api_applications", {
+    p_partner: partnerId,
+    p_id: id,
+    p_status: null,
+    p_limit: 1,
+    p_cursor_created_at: null,
+    p_cursor_id: null,
+  });
+
+  if (error) {
+    console.log(JSON.stringify({ requestId, event: "application_read_failed", message: error.message }));
+    return json(errorBody("internal_error", "Something went wrong."), 500, requestId);
+  }
+
+  const rows = (data ?? []) as ApplicationRow[];
+  // The RPC filters on partner_id, so another partner's application returns no
+  // rows and is indistinguishable from one that does not exist.
+  if (rows.length === 0) return json(errorBody("not_found", "Unknown application."), 404, requestId);
+
+  return json(
+    { application: applicationView(rows[0], { appUrl: Deno.env.get("APP_URL") ?? "", includePaymentUrl: true }) },
+    200,
+    requestId,
+  );
+}
+
+/**
+ * GET /applications
+ *
+ * Keyset paginated, newest first. `next_cursor` is null on the last page, which
+ * is the termination signal: a client loops until it is null rather than
+ * counting pages.
+ */
+// deno-lint-ignore no-explicit-any
+async function listApplications(service: any, req: Request, partnerId: string, requestId: string): Promise<Response> {
+  const url = new URL(req.url);
+  const rawLimit = Number(url.searchParams.get("limit") ?? 50);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 100) : 50;
+
+  // Filter by the PARTNER-FACING status, so a caller filters with the same
+  // vocabulary the responses use. 'lapsed' in, 'expired' to the query.
+  const partnerStatus = url.searchParams.get("status");
+  const INTERNAL: Record<string, string> = {
+    sent: "sent", paid: "paid", deed_issued: "deed", withdrawn: "withdrawn", lapsed: "expired",
+  };
+  let status: string | null = null;
+  if (partnerStatus) {
+    if (!(partnerStatus in INTERNAL)) {
+      return json(
+        {
+          error: {
+            code: "validation_failed",
+            message: "Unknown status filter.",
+            fields: [{
+              field: "status",
+              code: "unknown_value",
+              message: `status must be one of ${Object.keys(INTERNAL).join(", ")}`,
+            }],
+          },
+        },
+        422,
+        requestId,
+      );
+    }
+    status = INTERNAL[partnerStatus];
+  }
+
+  const rawCursor = url.searchParams.get("cursor");
+  let cursor: { createdAt: string; id: string } | null = null;
+  if (rawCursor) {
+    cursor = decodeCursor(rawCursor);
+    if (!cursor) {
+      return json(errorBody("malformed_request", "The cursor is not valid."), 400, requestId);
+    }
+  }
+
+  // Ask for one more than requested. If it comes back there is another page,
+  // which avoids a second count query purely to decide whether to paginate.
+  const { data, error } = await service.rpc("partner_api_applications", {
+    p_partner: partnerId,
+    p_id: null,
+    p_status: status,
+    p_limit: limit + 1,
+    p_cursor_created_at: cursor?.createdAt ?? null,
+    p_cursor_id: cursor?.id ?? null,
+  });
+
+  if (error) {
+    console.log(JSON.stringify({ requestId, event: "application_list_failed", message: error.message }));
+    return json(errorBody("internal_error", "Something went wrong."), 500, requestId);
+  }
+
+  const rows = (data ?? []) as ApplicationRow[];
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const last = page[page.length - 1];
+
+  return json(
+    {
+      applications: page.map((r) => applicationView(r)),
+      next_cursor: hasMore && last ? encodeCursor(last.created_at, last.id) : null,
+    },
+    200,
+    requestId,
+  );
 }
