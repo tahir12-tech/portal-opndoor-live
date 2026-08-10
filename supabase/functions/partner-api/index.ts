@@ -121,12 +121,40 @@ Deno.serve(async (req) => {
     }
 
     // ---- route -------------------------------------------------------------
-    // Path is /functions/v1/partner-api/<endpoint>. Take the segment after the
-    // function name so the function can be renamed or remounted without this
-    // breaking.
+    // Path is /functions/v1/partner-api/<api version>/<endpoint>. Segments are
+    // taken relative to the function name so it can be renamed or remounted
+    // without breaking this.
+    //
+    // NOTE THE TWO DIFFERENT v1s. The first is Supabase's Edge Function API
+    // version and is not ours to change. The second is THIS API's version, and
+    // it exists so a breaking change can ship without breaking every partner at
+    // once.
+    //
+    // THE VERSION IS REQUIRED, not defaulted. Treating a missing segment as v1
+    // would be friendlier today and useless later: the clients that never sent a
+    // version are exactly the ones a v2 would break, which is the problem the
+    // segment exists to solve. Nobody has integrated yet, so there is no
+    // compatibility to preserve and every client is explicit from the first call.
     const segments = new URL(req.url).pathname.split("/").filter(Boolean);
     const idx = segments.indexOf("partner-api");
-    const endpoint = idx >= 0 ? segments.slice(idx + 1).join("/") : "";
+    const rest = idx >= 0 ? segments.slice(idx + 1) : [];
+    const apiVersion = rest[0] ?? "";
+    const endpoint = rest.slice(1).join("/");
+
+    // Adding v2 means adding it here and branching per endpoint. Versions are
+    // public API surface, so naming the supported ones in the error is helpful
+    // to an integrator and discloses nothing.
+    const SUPPORTED_VERSIONS = ["v1"];
+    if (!SUPPORTED_VERSIONS.includes(apiVersion)) {
+      return json(
+        errorBody(
+          "unsupported_version",
+          `Prefix the path with an API version. Supported: ${SUPPORTED_VERSIONS.join(", ")}.`,
+        ),
+        404,
+        requestId,
+      );
+    }
 
     if (endpoint === "orgs") {
       if (req.method !== "GET") {

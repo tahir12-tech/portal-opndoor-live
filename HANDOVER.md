@@ -578,6 +578,8 @@ Ordered by urgency, not by effort.
 | 6 | Register a Stripe **test-mode** webhook against the dev project | The live webhook points at the live functions URL. Payment flows will not settle in dev without a test-mode endpoint and its own signing secret. |
 | 7 | Decide whether `origin/main` history needs a rewrite | Section 4e. The live project ref is in a pushed commit. A ref is a public identifier rather than a credential, so this may be acceptable; it is a judgement call, not a clear-cut fix. |
 | 8 | Rebuild `dist/` before using `npm run preview` | The committed-on-disk bundle is a stale build still pointing at a foreign project. |
+| 9 | **Schedule the partner webhook dispatcher** | Deliberately not scheduled by a migration, because a migration cannot know which project it is applied to and hardcoding a URL is how defect 2 happened. Until it is scheduled, deliveries queue and are never sent. The statement to run, with the ref substituted, is in the header of `20260810170000_partner_webhook_claim.sql`. It also needs the `reminders_cron` row seeded in `ops_secrets`, or every run returns 401. |
+| 10 | **Decide how partner API keys get issued** | Currently manual: the key and its hash are generated outside the database and only the hash is inserted, procedure in section 9.4. Hashing cannot happen in Postgres without adding pgcrypto, which is a poor trade for credential minting alone. An admin endpoint should arrive before the number of partners makes the manual step a bottleneck. |
 
 ### Deliberately not done
 
@@ -688,8 +690,10 @@ a bad key:
 ```sh
 curl -s -o /dev/null -w '%{http_code}\n' \
   -H "Authorization: Bearer <a key you know is good>" \
-  https://<ref>.supabase.co/functions/v1/partner-api/orgs
-# expect 200. A 401 here with a known-good key means verify_jwt is on.
+  https://<ref>.supabase.co/functions/v1/partner-api/v1/orgs
+# expect 200.
+#   401 with a known-good key  -> verify_jwt is on. Redeploy with --no-verify-jwt.
+#   404 unsupported_version    -> you dropped the /v1/ segment, not a deploy problem.
 ```
 
 ### 9.4 Issuing a key
@@ -799,17 +803,23 @@ against the `reminders_cron` row in `ops_secrets`, matching the other cron-drive
 functions. On a fresh project that table is empty and every dispatcher run
 returns 401.
 
-### 9.10 The one thing to check before a partner integrates
+### 9.10 The API is versioned, and the version is required
 
-**There is no API version segment.** The base path is
-`/functions/v1/partner-api/`, where `v1` is Supabase's Edge Function API version,
-not ours. Nothing in the surface carries an Opndoor version, so there is
-currently no way to ship a breaking change without breaking every partner at
-once.
+The base path is `/functions/v1/partner-api/v1/`. **Two different `v1`s**: the
+first is Supabase's Edge Function API version, the second is ours.
 
-Adding one is a single line in the router today. After the first integration it
-requires a coordinated migration with the partner. This is open question 11 in
-`PARTNER-API.md` and it is the cheapest thing on this list to get wrong.
+A request without a version segment, or with an unrecognised one, returns
+`404 unsupported_version` naming the supported versions. It is deliberately not
+defaulted to `v1`, because the clients that never send a version are exactly the
+ones a future v2 would break, which is the problem the segment exists to solve.
+Added before any partner integrated, so nothing had to be preserved.
+
+Idempotency keys are **not** version-qualified: the ledger records
+`POST /applications`, so the same key across a version migration replays rather
+than creating a second application.
+
+Adding v2 means extending `SUPPORTED_VERSIONS` in the router and branching per
+endpoint.
 
 ### 9.11 Dev fixtures
 

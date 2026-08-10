@@ -529,24 +529,40 @@ name.
 The `?status=` filter takes the partner vocabulary too, so a caller filters with
 the same words the responses use.
 
-### The real URL, and the versioning gap
+### The real URL, and how it is versioned
 
-**As built, the base is `/functions/v1/partner-api/`**, so the live path is
-`/functions/v1/partner-api/orgs`. The `/v1/orgs` form above assumes a gateway
-rewrite that does not exist.
+**As built, the base is `/functions/v1/partner-api/v1/`**, so the live path is
+`/functions/v1/partner-api/v1/orgs`.
 
-Note what that `v1` is: it is Supabase's Edge Function API version, not ours.
-Nothing in the built surface carries an Opndoor API version, so **there is
-currently no way to ship a breaking change to a partner without breaking them.**
+**There are two different `v1`s in that path and they are unrelated.** The first
+is Supabase's Edge Function API version and is not ours to change. The second is
+this API's version.
 
-Fixing it later is materially harder than starting with it, and it should be
-settled before a partner integrates rather than after. The cheapest form is a
-path segment, `/functions/v1/partner-api/v1/orgs`, which needs one line in the
-router. A custom domain rewriting to the function is the tidier form and can come
-later without changing the contract, provided the version segment is there from
-the start.
+**The version segment is required, not defaulted.** A request without it, or with
+an unrecognised one, gets:
 
-Raised as open question 11.
+```
+HTTP 404
+{"error":{"code":"unsupported_version",
+          "message":"Prefix the path with an API version. Supported: v1."}}
+```
+
+Treating a missing segment as `v1` would be friendlier today and useless later:
+the clients that never sent a version are exactly the ones a v2 would break,
+which is the problem the segment exists to solve. It was added before any partner
+integrated, so there was no compatibility to preserve and every client is
+explicit from its first call.
+
+Adding v2 means adding it to `SUPPORTED_VERSIONS` and branching per endpoint.
+A custom domain rewriting to the function is the tidier long-term form and can
+arrive later without changing the contract, because the version segment is
+already there.
+
+**Idempotency keys are deliberately not version-qualified.** The ledger records
+`POST /applications`, not `POST /v1/applications`, so the same key sent to v1 and
+then to v2 with the same body replays rather than creating a second application.
+Version-qualifying it would turn a version migration into a duplicate-application
+risk.
 
 ---
 
@@ -1269,6 +1285,7 @@ authoritative, so the poke is an optimisation and never a requirement.
 | 403 | `insufficient_scope` | Key lacks the scope |
 | 403 | `partner_inactive` | Partner not `active` |
 | 404 | `not_found` | Unknown, or belongs to another partner. Indistinguishable by design |
+| 404 | `unsupported_version` | The path carries no API version, or one that is not supported |
 | 409 | `idempotency_key_reused` | Same key, different body |
 | 409 | `request_in_progress` | Same key, still processing |
 | 422 | `validation_failed` | Field errors (section 9.3) |
@@ -1478,11 +1495,8 @@ is minute-granularity and would make delivery latency up to a minute. Whether
 that is acceptable, or whether dispatch should be triggered on enqueue, is
 undecided.
 
-**11. How is this API versioned?** Noticed while documenting what was built, and
-it needs answering before a partner integrates rather than after. The live base
-is `/functions/v1/partner-api/`, where `v1` is Supabase's Edge Function API
-version, not ours. Nothing in the surface carries an Opndoor version, so there is
-currently no way to ship a breaking change without breaking every partner at
-once. The cheapest fix is a path segment added now, one line in the router. A
-custom domain is tidier and can follow later, provided the segment exists from
-the start. Cheap today, expensive after the first integration.
+**11. ~~How is this API versioned?~~ RESOLVED.** A required `/v1/` path segment
+was added before any partner integrated, so the base is now
+`/functions/v1/partner-api/v1/`. See section 5. What remains is a decision rather
+than a question: whether to put a custom domain in front of it, which can happen
+later without changing the contract.

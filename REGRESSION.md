@@ -298,6 +298,24 @@ because it is hard to reach by accident.
 Everything here is `[AUTO]`: HTTP in, JSON out, assertable with `curl` and a
 database query. This section should be automated first.
 
+Base path: `/functions/v1/partner-api/v1/`.
+
+## B0. Versioning
+
+The base path is `/functions/v1/partner-api/v1/`. Every case below uses it.
+
+| # | Case | Expected |
+| - | ---- | -------- |
+| B0.1 | Any endpoint under `/v1/` | routes normally |
+| B0.2 | Same endpoint with **no** version segment | `404 unsupported_version` |
+| B0.3 | `/v2/orgs` | `404 unsupported_version`, naming the supported versions |
+| B0.4 | Unknown endpoint under `/v1/` | `404 not_found`, a **different** code from B0.2 |
+| B0.5 | Same idempotency key across versions, same body | replays; the ledger is not version-qualified |
+
+B0.2 must not quietly succeed. If a future change defaults a missing version to
+`v1`, the segment stops protecting anyone, because unversioned clients are
+exactly the ones a v2 breaks.
+
 ## B1. Key authentication
 
 | # | Case | Expected |
