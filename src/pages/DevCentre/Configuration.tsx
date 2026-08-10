@@ -90,7 +90,7 @@ export function Configuration(props: {
                   <div className="devsecret">
                     <code>{k.key_prefix}{'•'.repeat(20)}</code>
                     <button className="devicon" title="Copy the prefix" onClick={() => copy(k.key_prefix, 'Prefix')}>
-                      <Icon name="file" size={14} />
+                      <Icon name="file" />
                     </button>
                   </div>
                   <div className="soft devsecret__note">Prefix only. The key itself is not stored.</div>
@@ -131,11 +131,11 @@ export function Configuration(props: {
                     <div className="devsecret">
                       <code>{shown[e.id] ? shown[e.id] : maskSecret('whsec_', 6)}</code>
                       <button className="devicon" title={shown[e.id] ? 'Hide' : 'Show'} onClick={() => void reveal(e)}>
-                        <Icon name={shown[e.id] ? 'x' : 'search'} size={14} />
+                        <Icon name={shown[e.id] ? 'x' : 'search'} />
                       </button>
                       {shown[e.id] && (
                         <button className="devicon" title="Copy" onClick={() => copy(shown[e.id], 'Signing secret')}>
-                          <Icon name="file" size={14} />
+                          <Icon name="file" />
                         </button>
                       )}
                     </div>

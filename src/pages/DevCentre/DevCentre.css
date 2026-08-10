@@ -110,3 +110,35 @@
                    background: #fff; transition: transform .15s; }
 .devtoggle.is-on .devtoggle__knob { transform: translateX(18px); }
 .devenv__note { margin-top: 6px; font-size: 13px; opacity: .85; }
+
+/* ---------------------------------------------------------------------
+   Icon sizing.
+
+   Icon renders an SVG with a viewBox and NO width or height unless a size prop
+   is passed, and portal.css sets only `img, svg { display: block; max-width:
+   100% }`. An unsized SVG therefore expands to fill whatever box it is in.
+
+   The app's convention is a per-container rule, one per place icons appear:
+   `.btn svg`, `.sb__link svg`, `.rolenote svg`, `.iconbtn svg` and so on. Icons
+   inside a Button were already correct here because `.btn svg` covers them; the
+   ones that broke were the bare icons in containers with no rule of their own.
+
+   Following that convention rather than passing size props, so these behave like
+   the rest of the portal and a future icon added to any of these containers is
+   sized without anyone having to remember.
+
+   flex-shrink: 0 matters as much as the dimensions: every one of these sits in a
+   flex row beside text that would otherwise squash the icon narrower than it is
+   tall. `.sb__link svg` and `.rolenote svg` both do the same.
+   --------------------------------------------------------------------- */
+.devenv    > svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+.devpartner  svg { width: 16px; height: 16px; flex-shrink: 0; }
+.devlink   > svg { width: 20px; height: 20px; flex-shrink: 0; }
+.devicon     svg { width: 14px; height: 14px; flex-shrink: 0; }
+.devnote     svg { width: 15px; height: 15px; flex-shrink: 0; }
+.devalert    svg { width: 16px; height: 16px; flex-shrink: 0; }
+.devfilters  svg { width: 15px; height: 15px; flex-shrink: 0; }
+.devcount    svg { width: 14px; height: 14px; flex-shrink: 0; }
+.devkeybox   svg { width: 15px; height: 15px; flex-shrink: 0; }
+.devwarn     svg { width: 15px; height: 15px; flex-shrink: 0; }
+.devscope    svg { width: 15px; height: 15px; flex-shrink: 0; }
