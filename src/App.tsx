@@ -51,14 +51,31 @@ export function App() {
       {/* authenticated shell (RequireAuth is a passthrough in mock/test mode) */}
       <Route element={<RequireAuth />}>
       <Route element={<AppShell />}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/league" element={<League />} />
-        <Route path="/activity" element={<Activity />} />
-        <Route path="/applications" element={<Applications />} />
-        <Route path="/applications/:ref" element={<ApplicationDetail />} />
-        <Route path="/new-application" element={<NewApplication />} />
-        <Route path="/agencies" element={<OrgManagement />} />
+        {/* Help is the only screen every role reaches. Its own ROLE_RANK gates
+            which resources are listed. */}
         <Route path="/help" element={<Help />} />
+
+        {/* The commercial portal. These eight routes previously sat inside the
+            shell with NO guard, so an empty sidebar hid nothing that typing a
+            URL could not reveal: /league renders partner and agent commission
+            columns, /applications the whole partner book, /new-application
+            creates live fee-bearing referrals.
+
+            Guarded positively, so a role added later is excluded by default and
+            has to be named here to get in. The server is the real boundary and
+            was fixed first in 20260810210000; this is the front-end half. */}
+        {/* redirectTo must be a route the REDIRECTED role can actually reach, or
+            the guard bounces into itself. /help is open to every role, so this
+            always terminates. It becomes /dev-centre once that exists. */}
+        <Route element={<RequireRole roles={['superadmin', 'management', 'referrer']} redirectTo="/help" />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/league" element={<League />} />
+          <Route path="/activity" element={<Activity />} />
+          <Route path="/applications" element={<Applications />} />
+          <Route path="/applications/:ref" element={<ApplicationDetail />} />
+          <Route path="/new-application" element={<NewApplication />} />
+          <Route path="/agencies" element={<OrgManagement />} />
+        </Route>
 
         {/* Users: opndoor admin + Management */}
         <Route element={<RequireRole roles={['superadmin', 'management']} />}>
