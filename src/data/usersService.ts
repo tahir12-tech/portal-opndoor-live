@@ -79,7 +79,7 @@ export function getUsers(opts: GetUsersOpts): ManagedUser[] {
    in mock mode). Every rule (role wall, self/last-admin guard) is enforced
    server-side in the RPC; the client mirrors it for a clean UX. ---- */
 
-export type UserAction = 'status' | 'role' | 'reset_mfa';
+export type UserAction = 'status' | 'role' | 'reset_mfa' | 'name';
 export interface UserAuditEntry {
   action: UserAction | string;
   oldValue: string;
@@ -106,6 +106,33 @@ export async function updateUserRole(id: string, role: Role): Promise<void> {
   const old = u.role;
   if (old !== role) recordUserAudit(id, 'role', old, role);
   u.role = role;
+}
+
+/**
+ * Set a user's display name.
+ *
+ * Exists mainly for users the partner API auto-provisions: a partner is not asked
+ * to send a referrer name, so an unmatched referrer email creates a user whose
+ * full_name is that email. Naming them matters early, because
+ * applications.referrer_name is snapshotted at creation and never backfilled, so
+ * every application referred before the rename keeps the email for good.
+ *
+ * Same permission model as updateUserRole: management within their own partner,
+ * opndoor admin anywhere. Enforced in admin_update_user_name, not here.
+ */
+export async function updateUserName(id: string, fullName: string): Promise<void> {
+  const u = USERS.find((x) => x.id === id);
+  if (!u) throw new Error('User not found.');
+  const name = fullName.trim();
+  if (!name) throw new Error('A name is required.');
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('admin_update_user_name', { p_user: id, p_full_name: name });
+    if (error) throw new Error(error.message);
+    return; // caller re-hydrates
+  }
+  const old = u.name;
+  if (old !== name) recordUserAudit(id, 'name', old, name);
+  u.name = name;
 }
 
 /** Deactivate or reactivate a user (ban/unban + revoke sessions in live mode). */

@@ -16,7 +16,7 @@ import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
   getPartner, getPartners, getUserAudit, getUsers, homePartner, inviteUser, partnerName,
-  resendInvite, resetUserMfa, resetUserPassword, setUserStatus, updateUserRole, userEmail, userPartnerName,
+  resendInvite, resetUserMfa, resetUserPassword, setUserStatus, updateUserName, updateUserRole, userEmail, userPartnerName,
   type ManagedUser, type Role, type UserAuditEntry,
 } from '@/data';
 import { ALL_PARTNERS } from '@/data';
@@ -120,6 +120,11 @@ export function UserManagement() {
   const [editRole, setEditRole] = useState<Role>('referrer');
   const [editAudit, setEditAudit] = useState<UserAuditEntry[]>([]);
   const [showAllUserAudit, setShowAllUserAudit] = useState(false); // #113 cap Recent changes at 6
+  // edit-name modal. Separate from edit-role because the two are granted the same
+  // way but done at different times: a partner-API-provisioned user is named once,
+  // then their role is set, and neither should force the other.
+  const [nameUser, setNameUser] = useState<ManagedUser | null>(null);
+  const [nameVal, setNameVal] = useState('');
 
   useEffect(() => {
     const close = () => setMenuOpenId(null);
@@ -211,8 +216,17 @@ export function UserManagement() {
     getUserAudit(u.id).then(setEditAudit).catch(() => setEditAudit([]));
   }
 
+  function openEditName(u: ManagedUser) {
+    setNameUser(u);
+    // A user auto-provisioned by the partner API has their email as their name.
+    // Offering that back as the starting value just invites them to keep it, so
+    // start empty and let them type the real name.
+    setNameVal(u.name === userEmail(u) ? '' : u.name);
+  }
+
   function handleAction(action: string, u: ManagedUser) {
     if (action === 'edit-role') { openEditRole(u); return; }
+    if (action === 'edit-name') { openEditName(u); return; }
     if (action === 'reset-password') {
       void doDirect(() => resetUserPassword(u.id), `Password reset link sent to ${userEmail(u)}.`);
       return;
@@ -274,12 +288,14 @@ export function UserManagement() {
       return (
         <>
           <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('resend', u); }}><Icon name="send" />Resend invite</button>
+          {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-name', u); }}><Icon name="edit" />Edit name</button>}
           {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-role', u); }}><Icon name="edit" />Edit role</button>}
         </>
       );
     }
     return (
       <>
+        {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-name', u); }}><Icon name="edit" />Edit name</button>}
         {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-role', u); }}><Icon name="edit" />Edit role</button>}
         <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-password', u); }}><Icon name="lock" />Reset password</button>
         <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-2fa', u); }}><Icon name="phone" />Reset 2FA</button>
@@ -330,6 +346,22 @@ export function UserManagement() {
       confirmLabel: 'Change role',
       success: `${u.name}’s role updated to ${to}.`,
       run: () => updateUserRole(u.id, editRole),
+    });
+  }
+
+  // Save-name confirms like save-role does, so the two read the same way.
+  function requestSaveName() {
+    if (!nameUser) return;
+    const next = nameVal.trim();
+    const u = nameUser;
+    if (!next || next === u.name) { setNameUser(null); return; }
+    setNameUser(null);
+    setConfirm({
+      title: `Rename ${u.name}?`,
+      body: <>They will appear as <b>{next}</b> across the portal. Referrals they have already made keep the name recorded at the time, so rename before they refer rather than after.</>,
+      confirmLabel: 'Save name',
+      success: `Renamed to ${next}.`,
+      run: () => updateUserName(u.id, next),
     });
   }
 
@@ -462,6 +494,28 @@ export function UserManagement() {
       </Modal>
 
       {/* EDIT ROLE */}
+      <Modal
+        open={nameUser !== null}
+        onClose={() => setNameUser(null)}
+        title={<>Edit name · {nameUser?.name ?? 'User'}</>}
+        sub={nameUser ? userEmail(nameUser) : ''}
+        footer={<><Button variant="ghost" onClick={() => setNameUser(null)}>Cancel</Button><Button variant="primary" onClick={requestSaveName} disabled={!nameVal.trim()}>Save name</Button></>}
+      >
+        <Field label="Full name">
+          <input
+            type="text"
+            value={nameVal}
+            maxLength={120}
+            placeholder="Jane Smith"
+            onChange={(e) => setNameVal(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && nameVal.trim()) requestSaveName(); }}
+          />
+        </Field>
+        <p className="soft" style={{ fontSize: 13, marginTop: 8 }}>
+          Referrals already made keep the name recorded at the time, so this changes how they appear from here on rather than retrospectively.
+        </p>
+      </Modal>
+
       <Modal
         open={editUser !== null}
         onClose={() => setEditUser(null)}
