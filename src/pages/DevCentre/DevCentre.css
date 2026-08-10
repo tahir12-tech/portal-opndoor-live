@@ -9,11 +9,6 @@
 .devpartner { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 14px; }
 .devnote    { margin-bottom: 14px; font-size: 14px; }
 
-.devtabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line, #e5e7eb); }
-.devtab  { padding: 9px 14px; border: 0; background: none; cursor: pointer; font-size: 14px;
-           color: var(--muted, #6b7280); border-bottom: 2px solid transparent; }
-.devtab.is-sel { color: var(--ink, #111827); border-bottom-color: var(--brand, #4f46e5); font-weight: 600; }
-
 .devalert { padding: 10px 12px; border-radius: 8px; background: #fef2f2; border: 1px solid #fecaca;
             color: #7f1d1d; margin-bottom: 14px; font-size: 14px; }
 
@@ -133,14 +128,6 @@
 .devlegend { display: flex; gap: 16px; font-size: 12px; color: var(--muted, #6b7280); margin-top: 10px; }
 .devswatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; }
 .devswatch--ok { background: #34d399; } .devswatch--fail { background: #f87171; }
-
-.deverrs__group { margin-bottom: 14px; }
-.deverrs__method { font-size: 12px; font-weight: 700; color: var(--muted, #6b7280); margin-bottom: 6px; }
-.deverr { display: grid; grid-template-columns: 180px 1fr 44px; gap: 10px; align-items: center; margin-bottom: 5px; }
-.deverr__code  { font-size: 13px; }
-.deverr__track { background: #f3f4f6; border-radius: 999px; height: 8px; overflow: hidden; }
-.deverr__fill  { background: #f87171; height: 100%; }
-.deverr__n     { font-size: 13px; text-align: right; color: var(--muted, #6b7280); }
 
 /* ---- Logs / history ---- */
 .devfilters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

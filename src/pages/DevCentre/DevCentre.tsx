@@ -39,6 +39,9 @@ import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { Eyebrow } from '@/components/ui/Eyebrow';
+import { FilterTabs } from '@/components/ui/FilterTabs';
+import { PartnerSelect } from '@/components/ui/Select';
 import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
@@ -159,7 +162,7 @@ export function DevCentre() {
     <>
       <div className="page-head">
         <div>
-          <div className="eyebrow"><span className="eyebrow__dot" /><span>Integration</span></div>
+          <Eyebrow>Integration</Eyebrow>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>Dev Centre</h1>
           <p className="page-head__sub">
             API keys, webhook endpoints, delivery history and the documentation for the partner API.
@@ -187,10 +190,12 @@ export function DevCentre() {
       {isAdmin && (
         <div className="devpartner">
           <Icon name="shield" /> Partner:{' '}
-          <select value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
-            <option value="">All partners</option>
-            {partners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <PartnerSelect
+            ariaLabel="Partner"
+            value={partnerId}
+            onChange={setPartnerId}
+            options={[{ value: '', label: 'All partners' }, ...partners.map((p) => ({ value: p.id, label: p.name }))]}
+          />
           {!partnerId && <span className="soft"> Choose one to mint a key or add an endpoint.</span>}
         </div>
       )}
@@ -202,12 +207,10 @@ export function DevCentre() {
         </p>
       )}
 
-      <div className="devtabs">
-        {tabs.map((t) => (
-          <button key={t.id} className={`devtab${tab === t.id ? ' is-sel' : ''}`} onClick={() => setTab(t.id)}>
-            {t.label}
-          </button>
-        ))}
+      {/* The app's own tab component, so these look and behave like the filter
+          tabs on Applications rather than a second bespoke tab strip. */}
+      <div style={{ marginBottom: 16 }}>
+        <FilterTabs tabs={tabs} active={tab} onChange={(id) => setTab(id as Tab)} />
       </div>
 
       {err && <div className="devalert">{err}</div>}

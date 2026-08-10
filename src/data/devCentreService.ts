@@ -13,6 +13,7 @@
    recoverable afterwards.
    ===================================================================== */
 import { SUPABASE_ENABLED, supabase } from '@/lib/supabase';
+import { NON_PRODUCTION_REFS } from '@/config/environment.generated';
 
 function sb() {
   if (!supabase) throw new Error('Supabase is not configured.');
@@ -267,19 +268,30 @@ export async function getPartnerOptions(): Promise<DevPartnerOption[]> {
 /**
  * Which environment this portal is.
  *
- * Sandbox and live are separate projects with separate Dev Centres and separate
- * keys, so the banner has to be unmistakable: a partner reading sandbox delivery
- * history while debugging live is a long and confusing afternoon.
+ * DERIVED FROM THE PROJECT, NOT CONFIGURED. The Supabase URL contains the
+ * project ref, and the ref is checked against the same NON_PRODUCTION_REFS list
+ * the Stripe key guard uses (supabase/functions/_shared/stripeMode.ts, extracted
+ * into src/config by scripts/generate-environment.mjs). So the banner and the
+ * requirement for a live Stripe key can never disagree about which project is
+ * production, and deploying this to live shows the live banner with no
+ * configuration change at all.
  *
- * Derived from the Stripe publishable key rather than a dedicated flag, because
- * that key is already the thing that decides whether real money moves, so the two
- * can never disagree.
+ * UNRECOGNISED MEANS LIVE. Same direction as the Stripe guard: an unknown
+ * project, a missing URL or a malformed one all resolve to live. Being wrongly
+ * warned that you are in production is a moment's confusion; being wrongly
+ * reassured that you are in sandbox is how somebody mints a live key believing
+ * it is a test one.
+ *
+ * The earlier version keyed on the Stripe publishable key. That was one config
+ * value away from lying: a project with no VITE_STRIPE_PUBLISHABLE_KEY set would
+ * have shown "Sandbox" whatever it actually was.
  */
-export function portalEnvironment(): { id: 'live' | 'sandbox'; label: string } {
-  const k = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? '';
-  return String(k).startsWith('pk_live_')
-    ? { id: 'live', label: 'Live' }
-    : { id: 'sandbox', label: 'Sandbox' };
+export function portalEnvironment(): { id: 'live' | 'sandbox'; label: string; ref: string } {
+  const url = String(import.meta.env.VITE_SUPABASE_URL ?? '');
+  const ref = /https:\/\/([a-z]{20})\./.exec(url)?.[1] ?? '';
+  return NON_PRODUCTION_REFS.includes(ref)
+    ? { id: 'sandbox', label: 'Sandbox', ref }
+    : { id: 'live', label: 'Live', ref };
 }
 
 /** A delivery's state, for display. */

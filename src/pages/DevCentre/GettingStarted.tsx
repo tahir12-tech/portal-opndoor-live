@@ -8,7 +8,7 @@
    branch with no agent contact, and treating application.reinstated as a second
    payment) are called out where they bite.
    ===================================================================== */
-import { Card, CardHead } from '@/components/ui/Card';
+import { Card, CardBody, CardHead } from '@/components/ui/Card';
 
 const BASE = '/functions/v1/partner-api/v1';
 
@@ -19,6 +19,7 @@ export function GettingStarted({ env }: { env: 'live' | 'sandbox' }) {
   return (
     <Card>
       <CardHead title="Getting started" sub="Five steps, in the order that works" />
+      <CardBody>
       <div className="devdoc">
 
         <section className="devdoc__section">
@@ -120,6 +121,7 @@ function verify(rawBody, header, secret) {
         </section>
 
       </div>
+      </CardBody>
     </Card>
   );
 }

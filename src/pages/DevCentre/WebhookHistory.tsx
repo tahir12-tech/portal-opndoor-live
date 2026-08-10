@@ -12,7 +12,8 @@ import {
 } from '@/data/devCentreService';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import { Card, CardHead } from '@/components/ui/Card';
+import { Card, CardBody, CardHead } from '@/components/ui/Card';
+import { PeriodSelect } from '@/components/ui/Select';
 
 const when = (s: string | null) => (s ? new Date(s).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'medium' }) : '--');
 
@@ -70,26 +71,36 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
         sub={`${shown.length} of ${rows.length} shown`}
         actions={
           <div className="devfilters">
-            <select value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} aria-label="Status">
-              <option value="all">Every status</option>
-              <option value="dead">Dead lettered</option>
-              <option value="retrying">Retrying or queued</option>
-              <option value="delivered">Delivered</option>
-            </select>
-            <select value={event} onChange={(e) => setEvent(e.target.value)} aria-label="Event type">
-              <option value="">Every event</option>
-              {WEBHOOK_EVENTS.map((e) => <option key={e.id} value={e.id}>{e.id}</option>)}
-            </select>
-            <select value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label="Date range">
-              {PERIODS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-            </select>
+            <PeriodSelect
+              ariaLabel="Status"
+              value={status}
+              onChange={(v) => setStatus(v as StatusFilter)}
+              options={[
+                { value: 'all', label: 'Every status' },
+                { value: 'dead', label: 'Dead lettered' },
+                { value: 'retrying', label: 'Retrying or queued' },
+                { value: 'delivered', label: 'Delivered' },
+              ]}
+            />
+            <PeriodSelect
+              ariaLabel="Event type"
+              value={event}
+              onChange={setEvent}
+              options={[{ value: '', label: 'Every event' }, ...WEBHOOK_EVENTS.map((e) => ({ value: e.id, label: e.id }))]}
+            />
+            <PeriodSelect
+              ariaLabel="Date range"
+              value={String(days)}
+              onChange={(v) => setDays(Number(v))}
+              options={PERIODS.map((p) => ({ value: String(p.id), label: p.label }))}
+            />
             <Button variant="ghost" size="sm" onClick={() => void load()} disabled={busy}>
               <Icon name="check" /> Refresh
             </Button>
           </div>
         }
       />
-      {err && <div className="devalert">{err}</div>}
+      {err && <CardBody style={{ paddingBottom: 0 }}><div className="devalert">{err}</div></CardBody>}
       <table className="dt">
         <thead>
           <tr><th>Event id</th><th>Event</th><th>Endpoint</th><th>Sent</th><th>Delivery time</th><th>Attempts</th><th>Status</th></tr>

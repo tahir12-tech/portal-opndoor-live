@@ -12,7 +12,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { PERIODS, getApiLogs, type ApiLogRow } from '@/data/devCentreService';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import { Card, CardHead } from '@/components/ui/Card';
+import { Card, CardBody, CardHead } from '@/components/ui/Card';
+import { PeriodSelect } from '@/components/ui/Select';
 
 const when = (s: string) => new Date(s).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'medium' });
 
@@ -46,22 +47,30 @@ export function Logs({ partnerId }: { partnerId: string | null }) {
         sub={`${rows.length} request${rows.length === 1 ? '' : 's'}`}
         actions={
           <div className="devfilters">
-            <input
-              type="text"
-              placeholder="Search path, method, status or error"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+            {/* The app's search pattern: .toolbar__search with a leading icon,
+                as Applications, League and Users all use. */}
+            <div className="toolbar__search">
+              <Icon name="search" />
+              <input
+                type="text"
+                placeholder="Search path, method, status or error"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <PeriodSelect
+              ariaLabel="Date range"
+              value={String(days)}
+              onChange={(v) => setDays(Number(v))}
+              options={PERIODS.map((p) => ({ value: String(p.id), label: p.label }))}
             />
-            <select value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label="Date range">
-              {PERIODS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-            </select>
             <Button variant="ghost" size="sm" onClick={() => void load()} disabled={busy}>
               <Icon name="check" /> Refresh
             </Button>
           </div>
         }
       />
-      {err && <div className="devalert">{err}</div>}
+      {err && <CardBody style={{ paddingBottom: 0 }}><div className="devalert">{err}</div></CardBody>}
       <table className="dt">
         <thead>
           <tr><th>Time</th><th>Method</th><th>Path</th><th>Status</th><th>Error</th><th>Duration</th><th>Key</th></tr>

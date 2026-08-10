@@ -7,7 +7,7 @@
    after its data module.
    Extraction and sanitising live in apiDocs.ts; this is only presentation.
    ===================================================================== */
-import { Card, CardHead } from '@/components/ui/Card';
+import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { parseBlocks, partnerDocSections, specAvailable, type Block } from './apiDocs';
 
 function Inline({ text }: { text: string }) {
@@ -52,11 +52,13 @@ export function ApiDocsPanel() {
     return (
       <Card>
         <CardHead title="API documentation" sub="Generated from the specification" />
+        <CardBody>
         <p className="soft">
           The documentation could not be generated from the specification. That means the section headings
           it looks for have been renamed, so the extraction list needs updating rather than the docs
           being rewritten here.
         </p>
+        </CardBody>
       </Card>
     );
   }
@@ -67,6 +69,7 @@ export function ApiDocsPanel() {
         title="API documentation"
         sub="Generated from the specification, so it cannot drift from what is built"
       />
+      <CardBody>
       <div className="devdoc">
         {sections.map((s) => (
           <section key={s.id} className="devdoc__section">
@@ -75,6 +78,7 @@ export function ApiDocsPanel() {
           </section>
         ))}
       </div>
+      </CardBody>
     </Card>
   );
 }

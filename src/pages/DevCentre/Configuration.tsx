@@ -17,7 +17,7 @@ import {
 } from '@/data/devCentreService';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import { Card, CardHead } from '@/components/ui/Card';
+import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 
@@ -160,10 +160,12 @@ export function Configuration(props: {
               )}
             </tbody>
           </table>
-          <p className="soft" style={{ fontSize: 13, marginTop: 10 }}>
+          <CardBody style={{ paddingTop: 0 }}>
+          <p className="soft" style={{ fontSize: 13, margin: 0 }}>
             Subscribing to nothing means every event. The full list is on the API documentation card above.
             {WEBHOOK_EVENTS.length > 0 && ` There are ${WEBHOOK_EVENTS.length} event types.`}
           </p>
+          </CardBody>
         </Card>
       )}
 

@@ -18,7 +18,9 @@ import {
   PERIODS, getApiStats, getApiTimeseries, getErrorsByMethod, getWebhookStats,
   type ApiStats, type ErrorSlice, type TimePoint, type WebhookStats,
 } from '@/data/devCentreService';
-import { Card, CardHead } from '@/components/ui/Card';
+import { Card, CardBody, CardHead } from '@/components/ui/Card';
+import { BarChart } from '@/components/ui/BarChart';
+import { PeriodSelect } from '@/components/ui/Select';
 
 const ms = (v: number | null) => (v == null ? '--' : v >= 1000 ? `${(v / 1000).toFixed(1)}s` : `${Math.round(v)}ms`);
 const day = (s: string) => new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
@@ -61,31 +63,23 @@ function RequestsChart({ points }: { points: TimePoint[] }) {
   );
 }
 
-/** Errors grouped by method, then by code, because "which call is failing" is
-    the first question and "why" is the second. */
+/**
+ * Errors by method then code.
+ *
+ * Uses the portal BarChart rather than a bespoke one: label, track, value is
+ * exactly its shape, and it already carries the app's bar styling and the
+ * is-top emphasis. The method goes in `sub`, so "which call is failing" and
+ * "why" read on one line.
+ */
 function ErrorChart({ slices }: { slices: ErrorSlice[] }) {
-  if (!slices.length) return <p className="soft">No errors in this period. </p>;
-  const max = Math.max(...slices.map((s) => Number(s.errors)));
-  const byMethod = new Map<string, ErrorSlice[]>();
-  for (const s of slices) byMethod.set(s.method, [...(byMethod.get(s.method) ?? []), s]);
-  return (
-    <div className="deverrs">
-      {[...byMethod.entries()].map(([method, rows]) => (
-        <div key={method} className="deverrs__group">
-          <div className="deverrs__method">{method}</div>
-          {rows.map((r) => (
-            <div key={r.error_code} className="deverr">
-              <div className="deverr__code">{r.error_code}</div>
-              <div className="deverr__track">
-                <div className="deverr__fill" style={{ width: `${(Number(r.errors) / max) * 100}%` }} />
-              </div>
-              <div className="deverr__n">{r.errors}</div>
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
+  if (!slices.length) return <p className="soft">No errors in this period.</p>;
+  const rows = slices.map((s) => ({
+    label: s.error_code,
+    sub: s.method,
+    value: Number(s.errors),
+    display: String(s.errors),
+  }));
+  return <BarChart rows={rows} topIndex={0} />;
 }
 
 export function Monitoring({ partnerId }: { partnerId: string | null }) {
@@ -111,9 +105,12 @@ export function Monitoring({ partnerId }: { partnerId: string | null }) {
   }, [partnerId, days]);
 
   const period = (
-    <select value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label="Period">
-      {PERIODS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-    </select>
+    <PeriodSelect
+      ariaLabel="Period"
+      value={String(days)}
+      onChange={(v) => setDays(Number(v))}
+      options={PERIODS.map((p) => ({ value: String(p.id), label: p.label }))}
+    />
   );
 
   const failed = Number(stats?.failed_requests ?? 0);
@@ -125,45 +122,49 @@ export function Monitoring({ partnerId }: { partnerId: string | null }) {
 
       <Card>
         <CardHead title="API requests" sub="Every request to the partner API, including reads" actions={period} />
-        <div className="devcounts">
-          <Counter label="Total requests" value={String(total)} />
-          <Counter label="Errors" value={String(failed)} tone={failed ? 'bad' : undefined}
-                   sub={total ? `${((failed / total) * 100).toFixed(1)}% of requests` : undefined} />
-          <Counter label="Endpoints used" value={String(stats?.distinct_paths ?? 0)} />
-          <Counter label="Average response" value={ms(stats?.avg_duration_ms ?? null)} />
-        </div>
+        <CardBody>
+          <div className="devcounts">
+            <Counter label="Total requests" value={String(total)} />
+            <Counter label="Errors" value={String(failed)} tone={failed ? 'bad' : undefined}
+                     sub={total ? `${((failed / total) * 100).toFixed(1)}% of requests` : undefined} />
+            <Counter label="Endpoints used" value={String(stats?.distinct_paths ?? 0)} />
+            <Counter label="Average response" value={ms(stats?.avg_duration_ms ?? null)} />
+          </div>
+        </CardBody>
       </Card>
 
       <Card>
         <CardHead title="Requests over time" sub="Successful and failed, by day" />
-        <RequestsChart points={points} />
+        <CardBody><RequestsChart points={points} /></CardBody>
       </Card>
 
       <Card>
         <CardHead title="Error distribution" sub="By method, then by error code" />
-        <ErrorChart slices={errors} />
+        <CardBody><ErrorChart slices={errors} /></CardBody>
       </Card>
 
       <Card>
         <CardHead title="Webhooks" sub="Events sent to your endpoints, and how long they took to arrive" />
-        <div className="devcounts">
-          <Counter label="Events sent" value={String(hooks?.sent ?? 0)} />
+        <CardBody>
+          <div className="devcounts">
+            <Counter label="Events sent" value={String(hooks?.sent ?? 0)} />
           <Counter label="Delivered" value={String(hooks?.delivered ?? 0)} />
           <Counter label="Retrying" value={String(hooks?.failed ?? 0)}
                    tone={Number(hooks?.failed ?? 0) ? 'bad' : undefined} />
           <Counter label="Dead lettered" value={String(hooks?.dead ?? 0)}
-                   tone={Number(hooks?.dead ?? 0) ? 'bad' : undefined} />
-        </div>
-        <div className="devcounts" style={{ marginTop: 12 }}>
-          <Counter label="Fastest delivery" value={ms(hooks?.min_ms ?? null)} />
-          <Counter label="Average delivery" value={ms(hooks?.avg_ms ?? null)} />
-          <Counter label="Slowest delivery" value={ms(hooks?.max_ms ?? null)} />
-        </div>
-        <p className="soft" style={{ fontSize: 13, marginTop: 10 }}>
+                     tone={Number(hooks?.dead ?? 0) ? 'bad' : undefined} />
+          </div>
+          <div className="devcounts" style={{ marginTop: 12 }}>
+            <Counter label="Fastest delivery" value={ms(hooks?.min_ms ?? null)} />
+            <Counter label="Average delivery" value={ms(hooks?.avg_ms ?? null)} />
+            <Counter label="Slowest delivery" value={ms(hooks?.max_ms ?? null)} />
+          </div>
+          <p className="soft" style={{ fontSize: 13, marginTop: 10 }}>
           Delivery time is measured from the event happening to your endpoint accepting it, so it includes the
           dispatcher&rsquo;s polling interval as well as your own response. It is the number that answers
-          &ldquo;how long after the event did it actually arrive&rdquo;.
-        </p>
+            &ldquo;how long after the event did it actually arrive&rdquo;.
+          </p>
+        </CardBody>
       </Card>
     </>
   );
