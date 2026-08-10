@@ -29,6 +29,24 @@ that produced it.
 > Verify after any deploy by calling the endpoint with a key you know is good and
 > confirming a `200`. See section 9.
 
+> ### ⚠️ `tsc -p tsconfig.json` checks nothing
+>
+> `tsconfig.json` has `"files": []` and only project references, so:
+>
+> ```sh
+> npx tsc --noEmit -p tsconfig.json     # exit 0, ZERO files checked. Meaningless.
+> npx tsc --noEmit -p tsconfig.app.json # 98 files. This is the real one.
+> npx tsc -b                            # follows the references. Also real.
+> ```
+>
+> Measured, not assumed: `--listFiles` reports **0** project files for the first
+> and **98** for the second.
+>
+> This matters because the vacuous command **exits 0 and prints nothing**, which
+> is exactly what a passing check looks like. It was used during this work and
+> reported as clean; switching to the real one immediately surfaced two type
+> errors it had waved through. If you add CI, use `tsc -b`.
+
 ---
 
 ## 1. What this working copy is
@@ -62,6 +80,7 @@ the reason. Treat every such case as something to check rather than assume.
 | `DEFECTS.md` | Defects found in the **live** system, not introduced here and not fixed here | You, raised separately |
 | `PARTNER-API.md` | The partner API and webhooks. Specification **and** what is built, with a status table at the top | Whoever extends it |
 | `REGRESSION.md` | Test plan for the whole platform, lifecycle and partner API. Written to pass on day one | You, and whoever tests |
+| `scripts/generate-partner-docs.mjs` | Regenerates the Dev Centre docs from `PARTNER-API.md`. Re-run after editing the spec | Whoever edits the spec |
 
 ---
 
@@ -827,3 +846,106 @@ The dev project holds test fixtures created directly, not by any migration: two
 partners, three agencies, four branches and four API keys covering the valid,
 wrong-scope, revoked and other-partner cases. They exist to exercise the
 endpoint and are disposable. A reset removes them.
+
+---
+
+## 10. The Dev Centre and the developer role
+
+### 10.1 What was added
+
+A fourth role, `developer`, and a Dev Centre screen for partner integrators.
+
+A developer belongs to a partner the way management does, sees the Dev Centre,
+and sees nothing commercially sensitive: no commission, no league, no exports, no
+bordereau, and no applications.
+
+### 10.2 Why the migration is bigger than "add a role"
+
+Adding the value to the CHECK constraint was one line. The other 200 were closing
+gates that would have granted it something, and they shipped in the same
+migration deliberately: separating them leaves a window where the role exists and
+is over-privileged.
+
+The cause is that this schema mixes two idioms. A **positive** allowlist
+(`app_role() in ('management','referrer')`) excludes a new role automatically. A
+**negative** test, or a test on partner membership with no role component, grants
+it whatever the negation implies.
+
+One constraint makes every partner-membership test fire:
+`users_partner_by_role` requires a non-superadmin to have a `partner_id`, so a
+developer always has one, and every check shaped `x = public.app_partner()`
+admits them the moment the role is legal.
+
+**If you add a fifth role, that is the thing to know.** Search for
+`app_partner()` with no adjacent role test, and for `<>`, `!==` and `else true`
+in anything role-shaped.
+
+The worst single find: `referrer_league` was `security definer`, granted to
+`authenticated`, and gated only by MFA and a non-null partner, with no role test
+anywhere in its body. A developer would have received the whole partner league
+including fees per referrer. Hiding the nav item would have done nothing.
+
+### 10.3 Who reaches the Dev Centre
+
+| Role | Sees |
+| ---- | ---- |
+| `developer` | Everything, own partner only |
+| `superadmin` | Everything, any partner, with a partner picker |
+| `management` | **The API keys panel only** |
+
+Management is included deliberately, and it departs from the original "developer
+and opndoor admin". A leaked key has to be killable by whoever notices, and a
+developer who has left cannot revoke their own key. They get revoke and nothing
+else.
+
+The tab is not the boundary. Every RPC scopes itself and the Edge Function
+re-checks the role with a caller-scoped client, so RLS and the AAL2 gate apply to
+the read that decides.
+
+### 10.4 Keys and secrets are shown once
+
+A key and a webhook signing secret are returned exactly once, at creation, and
+are not recoverable: only a hash is stored. No listing returns either.
+
+Minting needs a CSPRNG and SHA-256, so it lives in the `dev-centre` Edge
+Function. Postgres has no `digest()` without pgcrypto and this schema
+deliberately does not enable it (`20260703153500` enables only pg_cron and
+pg_net).
+
+Unlike `partner-api`, `dev-centre` runs with **`verify_jwt = true`**. It is a
+portal screen authenticated by the user's own session, not by an API key.
+
+### 10.5 The documentation is generated, and why that is a build step
+
+The Dev Centre's API documentation comes from `PARTNER-API.md`, so it cannot
+drift from the specification.
+
+It is generated by `node scripts/generate-partner-docs.mjs` into
+`src/pages/DevCentre/partnerDocs.generated.ts`, **not** imported with `?raw`.
+
+That distinction is load bearing. `?raw` inlines the whole file into the bundle,
+so filtering it in the component filters what is *rendered* but not what *ships*:
+the entire internal specification, with its defect references and open questions,
+was readable in devtools by any partner developer. It was caught by grepping the
+built bundle, not by review.
+
+**Re-run the generator when the spec changes.** The output is committed, so a
+stale generated file shows up in a diff. A leaked specification does not show up
+at all, which is why the trade goes this way. The generator refuses to write if
+an internal marker survives sanitising.
+
+### 10.6 Still to do on the client
+
+The server is closed and the routes are guarded, so these are defence in depth
+rather than live holes. They remain because they are the same negative-test shape
+and will grant the next role added:
+
+- `exportsService.ts`, eleven `role !== 'referrer'` tests gating commission
+  columns and both settlement sections
+- `Dashboard.tsx`, the "Export summary" button has no `RoleOnly` where its three
+  siblings do
+- `hydrate.ts`, still requests `partner_rate, agent_rate`; now refused by the
+  narrowed policy, but it should stop asking
+- `applicationsService.ts`, `canAmendTenancyStart` and `canWithdraw` both end
+  `: true`
+- `paymentMetrics.ts`, `analyticsService.ts`, `leagueService.ts`, same shape
