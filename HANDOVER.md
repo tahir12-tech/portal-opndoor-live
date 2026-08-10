@@ -47,6 +47,28 @@ that produced it.
 > reported as clean; switching to the real one immediately surfaced two type
 > errors it had waved through. If you add CI, use `tsc -b`.
 
+> ### ⚠️ Grep the built bundle, not just the source
+>
+> **This belongs in CI the moment `npm ci` works** (defect 11). It found two
+> leaks in a single day that neither `tsc` nor `npm run build` would ever flag,
+> because a leaked string is perfectly valid TypeScript that compiles and bundles
+> without complaint.
+>
+> 1. The entire `PARTNER-API.md` was inlined into the bundle by a `?raw` import.
+>    The component filtered it at render time, which filters what is rendered and
+>    not what ships, so the whole internal specification was readable in devtools.
+> 2. After the `partners` select was narrowed to keep commission rates away from
+>    developers, the grep showed a **second** select still carrying them:
+>    `applications` holds its own rate snapshot.
+>
+> Neither was visible in a review of the diff. The full script and the two
+> expected non-leak hits are in `REGRESSION.md`, section "The built-artefact
+> grep".
+>
+> The general rule this is an instance of: **check the artefact you ship, not the
+> source you wrote.** A bundler inlines, minifies and tree-shakes, and what
+> survives is not always what you intended.
+
 ---
 
 ## 1. What this working copy is

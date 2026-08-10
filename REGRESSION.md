@@ -487,6 +487,56 @@ webhook bug, and it should be fixed there.
 
 # Section C: what to automate
 
+## The built-artefact grep: automate this one first
+
+**`[AUTO]`. It has caught two leaks that neither `tsc` nor `npm run build` would
+ever flag, because a leaked string is perfectly valid TypeScript.**
+
+Build, then grep the emitted bundle. Not the source: the source was correct both
+times, and the leak was in what the bundler inlined.
+
+```sh
+npm run build
+python3 - <<'EOF'
+import glob
+blob = "".join(open(f, encoding='utf-8', errors='ignore').read()
+               for f in glob.glob('dist/assets/*.js') + glob.glob('dist/assets/*.css'))
+BANNED = [
+  # internal documents
+  'DEFECTS.md', 'REGRESSION.md', 'HANDOVER.md', 'PARTNER-API.md', 'HANDOVER-MACHINE.md',
+  # repo structure
+  'supabase/migrations', 'supabase/functions', 'node_modules',
+  # any project ref that is not this one
+  'xogpsaoyprgmxdkmcype', 'pwftaqtrrqtilxlvwxjd', 'updniardvylhsiavtncw',
+  # credentials of every shape
+  'sk_live_', 'sk_test_', 'service_role', 'SUPABASE_SERVICE_ROLE_KEY', 'whsec_',
+  # server internals
+  'security definer', 'app_partner()', 'is_aal2()', 'key_hash',
+  # ops
+  'reminders_cron', 'x-ops-secret', 'ops_secrets',
+]
+hits = [b for b in BANNED if b in blob]
+print('LEAKED:', hits or 'none')
+raise SystemExit(1 if hits else 0)
+EOF
+```
+
+Also assert **zero JWT-shaped strings**: `eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+`.
+
+**Two expected hits that are not leaks**, so the check does not cry wolf:
+
+| Hit | Why it is fine |
+| --- | -------------- |
+| `opnd_live_`, `opnd_test_` | The documented key **format** and a literal `"opnd_live_..."` example in Getting started. Assert no string matching the full 32-character key shape |
+| `partner_rate`, `agent_rate` | Column **names** in select strings and a label map, never values. Assert no numeric rate literal |
+
+### What it caught
+
+1. **The whole of `PARTNER-API.md` shipped in the bundle.** The docs panel imported it with `?raw` and filtered at render time, which filters what is *rendered*, not what is *shipped*. Defect references, migration citations and open questions were readable in devtools by any partner developer.
+2. **A second commission leak.** After narrowing the `partners` select, the grep showed **two** select strings carrying the rate columns: `applications` carries its own snapshot, and only one had been narrowed.
+
+Neither is visible in a code review of the diff, which is the argument for the check.
+
 ## Automate first, highest value per hour
 
 **All of Section B.** HTTP in, JSON out, no external services. A shell script
