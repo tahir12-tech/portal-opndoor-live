@@ -17,6 +17,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 3 | Stripe guards demand `sk_live_` while their headers claim test-only | High |
 | 4 | Test email redirect removed from all thirteen sending modules | Critical |
 | 5 | The repo cannot rebuild the live schema. Disaster recovery fails | High |
+| 6 | A branch can lose its primary contact, stranding a paid tenant | Medium |
 
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
@@ -492,3 +493,128 @@ Worth noting for the future: `create or replace function` silently accepts many
 changes but refuses a return type change. Any migration that alters a function's
 OUT columns, argument types or return type needs an explicit `drop function`
 first, and that is the pattern that produced cause 2.
+
+---
+
+## Defect 6: a branch can be left with no primary contact, and nothing repairs it
+
+**Severity: medium. Narrow to reach, expensive when reached.**
+
+### What it is
+
+`public.agent_contacts` is supposed to hold exactly one primary contact per owner
+(agency or branch). Deed generation depends on it: the agent email is resolved
+through `effective_primary_contact`, and a branch with no primary resolves to
+nothing.
+
+The invariant is maintained in **five** places, and broken in a sixth.
+
+Maintained:
+
+| Where | What it does |
+| ----- | ------------ |
+| [core_schema.sql:196](supabase/migrations/20260702134239_core_schema.sql#L196) | INSERT trigger: the first contact for an owner is forced primary |
+| [core_schema.sql:213-228](supabase/migrations/20260702134239_core_schema.sql#L213) | DELETE trigger: removing a primary promotes the next |
+| [20260704145218:226](supabase/migrations/20260704145218_entity_consistency_org_rpcs.sql#L226) | `org_add_contact` forces primary when it is the first |
+| [20260704145218:275-285](supabase/migrations/20260704145218_entity_consistency_org_rpcs.sql#L275) | `org_update_contact` re-checks after the edit and promotes the oldest if none is primary |
+| `org_remove_contact` | Promotes on removal |
+
+Broken:
+
+| Where | What is missing |
+| ----- | --------------- |
+| [core_schema.sql:199](supabase/migrations/20260702134239_core_schema.sql#L199) | The UPDATE trigger only acts `if new.is_primary`. Clearing the flag on the only primary is not repaired |
+
+So the invariant is enforced by **application code**, not by the schema. Any
+write that does not go through the RPCs escapes it.
+
+One such route exists today. [20260702134358:108](supabase/migrations/20260702134358_access_rls_rpc.sql#L108)
+grants direct UPDATE on `agent_contacts` to any admin, or any `management` user
+within their own partner:
+
+```sql
+create policy contacts_update on public.agent_contacts for update to authenticated
+  using  (public.is_admin() or (public.app_role() = 'management' and partner_id = public.app_partner()))
+```
+
+A PostgREST call such as `PATCH /rest/v1/agent_contacts?id=eq.<uuid>` with
+`{"is_primary": false}` therefore succeeds, bypasses `org_update_contact`, and
+leaves the branch holding a contact with no primary. Nothing puts it back.
+
+**The portal UI is not the route.** It calls `org_update_contact`, which repairs
+correctly. This needs a direct API call, an integration, a script, or a manual
+fix-up in the dashboard.
+
+### Business impact
+
+The failure is silent at the point it is caused and expensive at the point it
+surfaces, and those are far apart.
+
+Nothing breaks when the flag is cleared. The branch keeps working. Applications
+can still be created against it, the tenant still receives a payment link, and
+the tenant still pays.
+
+**It fails at deed generation, after the money has been taken.**
+[_shared/pandadoc.ts:414-418](supabase/functions/_shared/pandadoc.ts#L414):
+
+```ts
+const agentEmail = c?.email ?? null;
+if (!agentEmail) {
+  await service.from("applications").update({ deed_state: "error" }).eq("id", appId);
+  ...
+}
+```
+
+The application lands in `deed_state = 'error'` and the activity row explaining
+why is written with `visibility: 'internal'`, so the referrer sees a stalled
+application without the reason. The tenant has paid for a Deed of Guarantee that
+cannot be issued until somebody notices and re-flags a contact as primary.
+
+At partner-API volumes this matters more than it does today, because a partner
+sending applications in bulk against one branch would generate a batch of paid
+applications that all fail the same way.
+
+There is a related reporting gap: nothing surfaces "branches that cannot issue a
+deed" anywhere in the portal. The condition is only visible once an application
+has already failed.
+
+### Confirm it
+
+Against a **disposable** project, on a branch whose only contact is primary:
+
+```sql
+update public.agent_contacts set is_primary = false where id = '<the only primary>';
+select (public.effective_primary_contact('<branch uuid>')).email;  -- expect: null
+```
+
+The second statement returning null is the deed path's exact test.
+
+### Suggested fix
+
+**Move the invariant into the schema, where the other four guards already are.**
+Extend the existing UPDATE trigger at
+[core_schema.sql:199](supabase/migrations/20260702134239_core_schema.sql#L199)
+so that clearing the last primary promotes another contact, mirroring what the
+DELETE trigger already does at
+[:213-228](supabase/migrations/20260702134239_core_schema.sql#L213) and what
+`org_update_contact` already does at
+[20260704145218:275-285](supabase/migrations/20260704145218_entity_consistency_org_rpcs.sql#L275).
+The logic is already written twice; this is a third call site, not new
+behaviour.
+
+As a new migration, `create or replace function public.contacts_maintain_primary()`,
+since the trigger itself does not need redefining.
+
+Two things worth doing alongside it:
+
+1. **Consider whether direct UPDATE on `agent_contacts` should be granted at
+   all.** Every legitimate edit path goes through `org_update_contact`, which is
+   `security definer` and enforces more than RLS does. The table-level grant is
+   what allows the RPC to be bypassed. Narrowing it would close this and any
+   similar gap in one move, but needs checking against whatever else writes to
+   the table.
+2. **Surface the condition.** A branch that cannot issue a deed is worth showing
+   in the portal before an application fails against it, not after. The partner
+   API's `GET /orgs` already computes exactly this as `has_agent_contact`, using
+   `effective_primary_contact` so it matches the deed path; the same check would
+   work in the org management screen.
