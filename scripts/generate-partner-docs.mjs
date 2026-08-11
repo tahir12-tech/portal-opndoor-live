@@ -17,7 +17,7 @@
    ===================================================================== */
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const SPEC   = 'PARTNER-API.md';
+const SPEC   = 'PARTNER-DOCS.md';
 const OUT    = 'src/pages/DevCentre/partnerDocs.generated.ts';
 const CONFIG = 'src/config/partnerApi.ts';
 
@@ -49,35 +49,69 @@ if (!CANONICAL || !CONFIGURED) {
   process.exit(1);
 }
 
-/** Sections shown to partners, by exact heading text. A new section does NOT
-    appear automatically: somebody has to decide it is partner-facing. */
-const PARTNER_FACING = [
-  'The partner-facing status vocabulary',
-  'The real URL, and how it is versioned',
-  'Reading applications',
-  '4.2 Key format and hashing',
-  '4.4 Identical failures',
-  '4.5 Scopes',
-  '6.1 Payload',
-  '9.4 The field codes, as built',
-  '13.4 Signing',
-  '13.5 Events',
-  '13.6 Status is not monotonic',
-  '14. Error contract',
+/* WHY THERE IS NO LONGER AN ALLOWLIST OF SECTIONS.
+   The source used to be PARTNER-API.md, the internal design record, and the
+   allowlist was what kept the rest of it out. That was the wrong shape: every
+   partner-facing section still carried migration citations, internal function
+   names and drafting history, so the allowlist chose WHICH internal document to
+   publish rather than whether to publish one.
+   The source is now PARTNER-DOCS.md, which is partner-facing in its entirety, so
+   every section ships and a new one needs no registration. The refusal rules
+   below stay as a backstop against something internal being pasted in. */
+
+/** Anything matching these must never reach a partner. The generator REFUSES to
+    write when one survives, rather than stripping the line and shipping the rest:
+    a rule that silently deletes content is a rule nobody notices is wrong. */
+const INTERNAL = [
+  // Repo and infrastructure
+  [/DEFECTS\.md|REGRESSION\.md|HANDOVER\.md|PARTNER-API\.md/i, 'internal document reference'],
+  [/supabase|postgres|postgrest|vercel|cloudflare|deno|edge function/i, 'hosting or infrastructure detail'],
+  [/\bsrc\/|supabase\/|migrations?\//i, 'file path'],
+  [/\d{14}_|\.sql\b|index\.ts|\.tsx\b/i, 'migration or source filename'],
+  [/:\d{1,4}(?:-\d{1,4})?\)/, 'line citation'],
+
+  // Internal identifiers
+  [/\bpublic\.[a-z_]+/i, 'schema-qualified identifier'],
+  [/referral_field_errors|create_referral|apply_stripe|partner_api_\w+|activity_log|guarantee_ref_seq/i,
+   'internal table or function name'],
+  [/\breferencing_mode\b|pre_referenced_\w+|opndoor_referenced/i, 'internal configuration vocabulary'],
+
+  // Internal status values. The partner vocabulary is published; the stored
+  // values are ours, and publishing the mapping publishes both.
+  [/stored status|internal status|`deed`\s*\||\|\s*`expired`\s*\|/i, 'internal status value or mapping'],
+
+  // Roadmap and drafting history
+  [/not yet built|not built yet|does not exist yet|roadmap|needs the .* status|coming soon/i, 'roadmap note'],
+  // Narrowed from a bare /previously/, which tripped on ordinary prose
+  // ("whatever you previously believed"). The rule is meant to catch the
+  // DOCUMENT talking about its own past, not the reader's. A rule that fires on
+  // legitimate wording gets loosened by whoever hits it next, so it is better to
+  // aim it properly than to leave it broad and be overridden later.
+  [/earlier draft|first draft|used to (be|say|read)|an earlier version|was added before|in the original (spec|design)|we previously|this previously/i,
+   'drafting history'],
+
+  // Our own weaknesses
+  [/replayable|no timestamp|constant.time comparison is not|uses ===/i, 'disclosure of an internal weakness'],
+
+  // Cross-references that do not resolve in the rendered output
+  [/\bsee section \d|\bsection \d+(\.\d+)?\b/i, 'numbered cross-reference'],
 ];
 
-/** Anything matching these must never reach a partner. */
-const INTERNAL = /DEFECTS\.md|REGRESSION\.md|HANDOVER\.md|supabase\/|src\/|migrations?\/|open question|\d{14}_/i;
+/** The first rule a string trips, or null. */
+function tripped(text) {
+  for (const [re, label] of INTERNAL) {
+    const m = re.exec(text);
+    if (m) return { label, sample: m[0] };
+  }
+  return null;
+}
 
 function sanitise(md) {
   return md
-    // Configured base URL, before anything else, so a partner never reads a
-    // host we cannot change.
+    // Configured base URL first, so a partner never reads a host we cannot change.
     .split(CANONICAL).join(CONFIGURED)
+    .replace(/<!--[\s\S]*?-->/g, '')                        // maintainer notes never ship
     .replace(/\[([^\]]+)\]\((?!https?:)[^)]+\)/g, '$1')   // keep link text, drop repo paths
-    .split('\n')
-    .filter((l) => !INTERNAL.test(l))
-    .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -85,27 +119,41 @@ function sanitise(md) {
 const lines = readFileSync(SPEC, 'utf8').split('\n');
 const sections = [];
 
-for (const wanted of PARTNER_FACING) {
-  const start = lines.findIndex((l) => /^#{2,4}\s/.test(l) && l.replace(/^#{2,4}\s+/, '').trim() === wanted);
-  if (start === -1) { console.warn(`  ! section not found, skipping: ${wanted}`); continue; }
-  const level = (lines[start].match(/^#+/) ?? ['##'])[0].length;
+// Every `##` section, in document order. Sub-headings stay inside their parent
+// so the panel's contents list matches the document's own shape.
+for (let i = 0; i < lines.length; i++) {
+  if (!/^##\s/.test(lines[i])) continue;
+  const title = lines[i].replace(/^##\s+/, '').trim();
 
   let end = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
-    const m = lines[i].match(/^(#{1,6})\s/);
-    if (m && m[1].length <= level) { end = i; break; }
+  for (let j = i + 1; j < lines.length; j++) {
+    if (/^##\s/.test(lines[j])) { end = j; break; }
   }
 
-  const body = sanitise(lines.slice(start + 1, end).join('\n'));
-  if (body) {
-    sections.push({ id: wanted.toLowerCase().replace(/[^a-z0-9]+/g, '-'), title: wanted.replace(/^[\d.]+\s*/, ''), body });
-  }
+  const body = sanitise(lines.slice(i + 1, end).join('\n'));
+  if (body) sections.push({ id: title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), title, body });
 }
 
-// Fail loudly rather than shipping a leak.
-const leaked = sections.filter((s) => INTERNAL.test(s.body));
+if (!sections.length) {
+  console.error(`REFUSING to write: no sections found in ${SPEC}.`);
+  process.exit(1);
+}
+
+// Fail loudly rather than shipping a leak. Checked per section AND on the title,
+// and it reports what tripped so the fix is obvious rather than a hunt.
+const leaked = [];
+for (const s of sections) {
+  const hit = tripped(s.body) ?? tripped(s.title);
+  if (hit) leaked.push({ title: s.title, ...hit });
+}
 if (leaked.length) {
-  console.error('REFUSING to write: internal markers survived sanitising in:', leaked.map((s) => s.title));
+  console.error('REFUSING to write. Internal detail survived sanitising:\n');
+  for (const l of leaked) {
+    console.error(`  section: ${l.title}`);
+    console.error(`  problem: ${l.label}`);
+    console.error(`  matched: ${JSON.stringify(l.sample)}\n`);
+  }
+  console.error('Fix it in the source, not by loosening the rule.');
   process.exit(1);
 }
 
@@ -115,10 +163,10 @@ writeFileSync(OUT, `/* GENERATED FILE. Do not edit.
    Source: ${SPEC}
    Regenerate: node scripts/generate-partner-docs.mjs
 
-   Only the partner-facing sections are extracted, and repo paths, defect
-   references and open questions are stripped. The full specification is NOT
-   bundled: importing it raw would ship the whole internal document to every
-   browser, where filtering at render time does not help. */
+   The source is partner-facing in its entirety. The internal design record is a
+   different document and is deliberately NOT the source: importing it raw would
+   ship the whole internal specification to every browser, and filtering at
+   render time filters what renders, not what ships. */
 export interface DocSection { id: string; title: string; body: string }
 
 export const PARTNER_DOCS: DocSection[] = ${JSON.stringify(sections, null, 2)};

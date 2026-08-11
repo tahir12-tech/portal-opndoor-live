@@ -34,6 +34,8 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 11 | `npm ci` fails, so there is no clean-room build and no CI | Medium |
 | 12 | The Stripe mode guard on the payment page only covers checkout, so decline runs on a deployment already judged unsafe | Medium |
 | 13 | Every caught error in the portal renders as a green success toast | High |
+| 14 | The PandaDoc webhook signature has no timestamp, no tolerance and a non-constant-time comparison, so a captured callback is replayable for ever | High |
+| 15 | Applications lapse on day 15, but the activity log and the documentation both say 14 | Low |
 
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
@@ -1359,3 +1361,162 @@ grep -rn "toast(" src --include=*.tsx | grep -iE "err|fail|could not|cannot"
 
 Do not reapply the component change from scratch. Take it, then sweep the call
 sites.
+
+---
+
+## Defect 14: the PandaDoc webhook signature is replayable for ever
+
+**Severity: high. A captured callback can be replayed at any point in the future to mark a deed executed, and the comparison also leaks timing.**
+
+### What it is
+
+PandaDoc callbacks are verified by HMAC-SHA256 over the raw body with a shared
+key ([_shared/pandadoc.ts](supabase/functions/_shared/pandadoc.ts)). Three things are
+missing, and they compound.
+
+**No timestamp is signed, so nothing binds a callback to a moment.** The
+signature covers the body alone. A body that verified once verifies for ever.
+
+**There is therefore no tolerance to enforce.** Compare with the Stripe path in
+the same codebase, which signs `"<timestamp>.<body>"` and rejects anything
+outside a window. That difference is not stylistic: it is the whole of replay
+protection.
+
+**The comparison is `===`.** String equality on a secret-derived value short
+circuits on the first differing character, which is a timing oracle. It is the
+weakest of the three problems and the easiest to fix.
+
+The function is reached with `verify_jwt = false`, because PandaDoc cannot send
+a Supabase JWT. The signature is the entire security boundary on that endpoint.
+
+### Business impact
+
+Anyone who obtains one valid `document.completed` callback body and its signature
+can replay it. What that achieves depends on the application it names, and the
+useful case for an attacker is the one where it changes money:
+
+`apply_deed_executed` matches on the document id and moves the application to
+`deed`. Combined with the void-failure path in Defect 9, a replayed completion
+can mark a deed executed on an application that should not have one.
+
+The realistic acquisition routes are a proxy log, an error report containing
+request headers, or anyone with sight of an inbound request. That is a narrow
+audience, which is why this is high rather than critical. It is high rather than
+medium because the window never closes: a callback captured today works next
+year, and rotating the shared key is the only remedy.
+
+### Confirm it
+
+Capture any real callback and its `signature` query parameter, then send it
+again, unchanged, a week later. It is accepted.
+
+Or note the absence directly: the signed message is the raw body with no
+timestamp component, and there is no window check anywhere in the function.
+
+### Suggested fix
+
+Three changes, in order of value.
+
+1. **Sign a timestamp.** If PandaDoc can be configured to include one, verify
+   over `"<t>.<body>"` and reject outside a five minute window, matching the
+   Stripe path and our own outbound webhook signing, which already does this.
+2. **If it cannot, deduplicate on the event.** `pandadoc_events` already stores
+   `${docId}:${status}` as a primary key and rejects duplicates, which blocks a
+   naive replay of an event already processed. It does not block the first replay
+   of an event that was never delivered successfully, so it is a mitigation
+   rather than a fix. **Verify this table's dedup is actually reached before any
+   state change** on the replay path.
+3. **Use a constant-time comparison.** `partnerAuth.ts` already contains one
+   written for the partner API. Reuse it rather than writing a second.
+
+### Why this is recorded here rather than in the partner documentation
+
+It was previously described, accurately, in the partner-facing API
+documentation, which published a live weakness in our own verification to every
+partner developer who opened the Dev Centre. It has been removed from there. A
+known weakness belongs on the list of things to fix, not in a document handed to
+people outside the company.
+
+---
+
+## Defect 15: applications lapse on day 15, but everything that describes it says 14
+
+**Severity: low. Nothing is broken; three descriptions of correct behaviour are wrong by a day.**
+
+### What it is
+
+`expire_stale_applications` lapses an unpaid application when:
+
+```sql
+where status = 'sent'
+  and sent_at is not null
+  and sent_at < (p_today::timestamptz - interval '14 days')
+```
+
+`p_today` is a date, so casting it to `timestamptz` gives **midnight** of that
+day. An application therefore lapses once midnight of the current day is more
+than fourteen days after `sent_at`, which is the sixteenth day: an application
+sent at any time on the 1st lapses on the 16th, **fifteen days after it was
+sent**.
+
+The time of day is irrelevant because the comparison is against midnight, so one
+sent at 00:01 and one sent at 23:59 on the same day lapse together.
+
+Four places say fourteen:
+
+- the activity log entry the same function writes: *"Application expired:
+  guarantor fee unpaid 14 days after referral"*
+- the portal itself, in two places on the application detail screen
+  ([ApplicationDetail.tsx:643](src/pages/ApplicationDetail/ApplicationDetail.tsx#L643)
+  and [ApplicationDetail.tsx:283](src/pages/ApplicationDetail/ApplicationDetail.tsx#L283))
+- the partner-facing API documentation, until this change
+- the internal specification
+
+Note the portal's *other* fourteen-day figures are unrelated and correct:
+"guarantees lapsing within 14 days" on the Dashboard and Activity screens is the
+guarantee approaching its twelve-month expiry, not an application lapsing. Do not
+change those while fixing this.
+
+### Business impact
+
+Small but real, and it lands on support rather than engineering. A tenant or an
+agent told they have fourteen days sees the application still live on day
+fifteen; someone chasing a lapse on day fourteen finds it has not happened and
+reasonably concludes the job is broken. The activity log is the version staff
+read, and it is the wrong one.
+
+There is no commercial harm: tenants get a day longer than advertised, which is
+the safe direction to be wrong in.
+
+### Confirm it
+
+```sql
+select sent_at, expired_at, (expired_at::date - sent_at::date) as days
+from public.applications
+where status = 'expired' and sent_at is not null
+order by expired_at desc limit 20;
+```
+
+Expect 15, not 14.
+
+### Suggested fix
+
+Decide which is intended, then make the other two match. **The behaviour is the
+thing that has been running,** so changing the code changes when real
+applications lapse and shortens the window for tenants mid-flight. Changing the
+words costs nothing.
+
+If fourteen days is the intended policy, the predicate wants
+`sent_at::date <= p_today - 15` or a comparison against `sent_at` directly rather
+than midnight, and it should ship with a note that the window is shortening.
+
+The partner documentation now states fifteen, matching the code. The portal copy
+and the activity log message are **unchanged**, deliberately: they are live code
+that predates this work, and which of the two versions is correct is a policy
+decision rather than a typo. Fixing the words before that decision is made would
+just move the inconsistency.
+
+The built-artefact check in REGRESSION.md greps the bundle for `14 days after`
+and will match `ApplicationDetail.tsx` until this is resolved. That hit is
+**expected and tracked here**, and is not a partner-documentation leak: it is the
+portal's own staff-facing copy.

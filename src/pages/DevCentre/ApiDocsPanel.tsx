@@ -1,5 +1,5 @@
 /* =====================================================================
-   The API documentation panel, rendered from PARTNER-API.md.
+   The API documentation panel, rendered from PARTNER-DOCS.md.
 
    Named ApiDocsPanel, not ApiDocs, because macOS and Windows filesystems are
    case-insensitive: ApiDocs.tsx and apiDocs.ts are the SAME FILE there, and

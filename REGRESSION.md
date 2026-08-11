@@ -492,6 +492,18 @@ webhook bug, and it should be fixed there.
 
 ## The built-artefact grep: automate this one first
 
+**Source change, 2026-08-11.** The partner documentation is now generated from
+`PARTNER-DOCS.md`, a partner-facing document, rather than by filtering
+`PARTNER-API.md`, the internal design record. The allowlist of "partner-facing
+sections" is gone: every section of the new source ships. The generator's refusal
+rules stay as a backstop and now report which rule tripped and on what, and it
+exits non-zero rather than stripping the line and shipping the rest.
+
+**One expected hit.** Grepping the bundle for `14 days after` matches
+`ApplicationDetail.tsx`, which is the portal's own staff-facing copy and not a
+documentation leak. It is Defect 15 and is tracked there. Every other category
+below must return zero.
+
 **`[AUTO]`. It has caught two leaks that neither `tsc` nor `npm run build` would
 ever flag, because a leaked string is perfectly valid TypeScript.**
 

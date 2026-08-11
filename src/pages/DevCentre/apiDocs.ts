@@ -2,7 +2,7 @@
    API documentation for the Dev Centre.
 
    The content comes from partnerDocs.generated.ts, which is produced from
-   PARTNER-API.md by scripts/generate-partner-docs.mjs. The specification is the
+   PARTNER-DOCS.md by scripts/generate-partner-docs.mjs. That document is the
    source of truth, so the docs cannot be written twice and drift.
 
    IT IS A BUILD STEP RATHER THAN A RAW IMPORT ON PURPOSE. Importing the spec
