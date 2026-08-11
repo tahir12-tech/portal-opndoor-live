@@ -132,10 +132,10 @@ export function PartnerManagement() {
       await setReferrerLeaderboardMode(editingId, next);
       await refreshData();
       getPartnerAudit(editingId).then(setAudit).catch(() => { /* keep prior */ });
-      toast('Referrer leaderboard visibility updated.');
+      toast('Referrer leaderboard visibility updated.', 'error');
     } catch (e) {
       setLbMode(prev);
-      toast(e instanceof Error ? e.message : 'Could not update the setting.');
+      toast(e instanceof Error ? e.message : 'Could not update the setting.', 'error');
     }
   }
 
@@ -159,7 +159,7 @@ export function PartnerManagement() {
       setOpen(false);
       refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not save the partner.');
+      toast(e instanceof Error ? e.message : 'Could not save the partner.', 'error');
     } finally {
       setSaving(false);
     }

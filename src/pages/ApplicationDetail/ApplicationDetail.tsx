@@ -188,7 +188,7 @@ export function ApplicationDetail() {
       setNoteBody('');
       await loadNotes();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not add the note.');
+      toast(e instanceof Error ? e.message : 'Could not add the note.', 'error');
     } finally {
       setNoteBusy(false);
     }
@@ -202,7 +202,7 @@ export function ApplicationDetail() {
       setTimeout(() => setCopied(false), 1500);
       toast('Payment link copied.');
     } catch {
-      toast('Could not copy the link.');
+      toast('Could not copy the link.', 'error');
     }
   };
 
@@ -212,7 +212,7 @@ export function ApplicationDetail() {
     setResendBusy(false);
     // Partner-safe confirmation; the test-mode redirect detail is opndoor-admin-only.
     if (r.ok) { toast(role === 'superadmin' ? 'Payment email resent (test mode) to the review address.' : 'Payment email resent to the tenant.'); void loadPayment(); }
-    else toast(r.error || 'Could not resend the email.');
+    else toast(r.error || 'Could not resend the email.', 'error');
   };
 
   const doResendDeed = async () => {
@@ -220,7 +220,7 @@ export function ApplicationDetail() {
     const r = await resendDeed(d.ref);
     setDeedBusy(false);
     if (r.ok) { toast(r.message || 'Reminder sent to the tenant.'); void loadPayment(); }
-    else toast(r.error || 'Could not send the deed.');
+    else toast(r.error || 'Could not send the deed.', 'error');
   };
 
   const doWithdraw = async () => {
@@ -246,7 +246,7 @@ export function ApplicationDetail() {
       await refresh();
       void loadPayment();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not withdraw the application.');
+      toast(e instanceof Error ? e.message : 'Could not withdraw the application.', 'error');
     } finally {
       setWithdrawBusy(false);
     }
@@ -257,7 +257,7 @@ export function ApplicationDetail() {
     if (!SUPABASE_ENABLED) return;
     const r = await deedDownloadUrl(d.ref);
     if (r.ok && r.url) window.open(r.url, '_blank', 'noopener');
-    else toast(r.error || 'Could not open the deed.');
+    else toast(r.error || 'Could not open the deed.', 'error');
   };
 
   // #105 Withdrawn/Expired are terminal pre-payment exits: only Sent was reached,
@@ -453,7 +453,7 @@ export function ApplicationDetail() {
     } catch (err) {
       // Defence in depth: if the server still asks for confirmation, prompt for it.
       if (err && typeof err === 'object' && (err as { needsConfirm?: boolean }).needsConfirm) { setConfirmReissueOpen(true); return; }
-      toast(err instanceof Error ? err.message : 'Could not amend the tenancy start date.');
+      toast(err instanceof Error ? err.message : 'Could not amend the tenancy start date.', 'error');
       return;
     }
     setConfirmReissueOpen(false);
@@ -500,7 +500,7 @@ export function ApplicationDetail() {
   //   } catch (err) {
   //     // Defence in depth: if the server still asks for confirmation, prompt for it.
   //     if (err && typeof err === 'object' && (err as { needsConfirm?: boolean }).needsConfirm) { setConfirmReissueOpen(true); return; }
-  //     toast(err instanceof Error ? err.message : 'Could not amend the tenancy start date.');
+  //     toast(err instanceof Error ? err.message : 'Could not amend the tenancy start date.', 'error');
   //     return;
   //   }
   //   setConfirmReissueOpen(false);
@@ -579,7 +579,7 @@ export function ApplicationDetail() {
       if (isReferrer) await sendDeedToAgent(d.ref);
       else await sendDeedToAgent(d.ref, c.email, sendSel === 'other' ? soSave : false);
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not send the deed.');
+      toast(err instanceof Error ? err.message : 'Could not send the deed.', 'error');
       return;
     } finally {
       setSendBusy(false);

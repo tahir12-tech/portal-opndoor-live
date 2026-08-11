@@ -38,7 +38,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 10 | Reinstated applications keep their expired and withdrawn markers | Low |
 | 11 | `npm ci` fails, so there is no clean-room build and no CI | Medium |
 | 12 | The Stripe mode guard on the payment page sits inside the checkout branch, not at the top like its two siblings | Low |
-| 13 | Error toasts render with the success icon and colour. Partly fixed: the component only, the sweep is not done | Medium |
+| 13 | ~~Error toasts render with the success icon and colour~~ **Fixed here**, component and all 35 call sites | — |
 | 14 | The PandaDoc webhook signature has no timestamp binding and a non-constant-time comparison; replay is blocked only by the event ledger | Low |
 | 15 | Applications lapse on day 15, but the activity log and the documentation both say 14 | Low |
 | 16 | A test in the suite has been failing since 22 July, and `npm test` is not the command that runs it | Medium |

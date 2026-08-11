@@ -149,7 +149,7 @@ export function NewApplication() {
     } catch (e2) {
       const msg = e2 instanceof Error ? e2.message : 'Could not send the application.';
       setFormError(msg);
-      toast(msg);
+      toast(msg, 'error');
     } finally {
       setBusy(false);
     }

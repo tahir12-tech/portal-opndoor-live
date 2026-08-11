@@ -197,7 +197,7 @@
 //       after?.();
 //       toast(success);
 //     } catch (e) {
-//       toast(e instanceof Error ? e.message : 'Something went wrong.');
+//       toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
 //     } finally {
 //       setBusy(false);
 //     }
@@ -214,7 +214,7 @@
 //       if (spec.success) toast(spec.success);
 //       setCtConfirm(null);
 //     } catch (e) {
-//       toast(e instanceof Error ? e.message : 'Something went wrong.');
+//       toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
 //     } finally {
 //       setBusy(false);
 //     }
@@ -834,7 +834,7 @@ export function OrgManagement() {
       after?.();
       toast(success);
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Something went wrong.');
+      toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
     } finally {
       setBusy(false);
     }
@@ -851,7 +851,7 @@ export function OrgManagement() {
       if (spec.success) toast(spec.success);
       setCtConfirm(null);
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Something went wrong.');
+      toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
     } finally {
       setBusy(false);
     }
