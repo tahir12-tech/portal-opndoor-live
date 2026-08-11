@@ -1024,10 +1024,32 @@ Exemptions live in `public.livemode_audit_exemptions` with a written reason.
 and decide whether it can return a sandbox row to somebody who should not see
 one. The reason column is where the argument goes.
 
-Note the audit checks exactly one table. Three of the leaks found while building
-this were in functions that never touch `applications` at all (`partner_api_orgs`,
-`create_referral_target_api`, the idempotency ledger). A green audit is not a
-clean bill of health.
+### The audit's blind spot, which is the thing to remember
+
+`livemode_audit()` checks functions that read `public.applications`. That is
+exactly one table, and a green audit is not a clean bill of health.
+
+**Six leaks were found outside it**, across the key-chain and credentials work,
+and every one of them fell into one of two shapes:
+
+- **service-role paths**, where RLS is off and the definer audit does not look:
+  `partner_api_orgs`, `create_referral_target_api`, `expiry-cohorts`'s direct
+  `from("applications")` read, `resend-payment-email` resolving its own row.
+- **things scoped by partner rather than by application**, where the mode was
+  simply not part of the key: the idempotency ledger's unique index, and the
+  webhook endpoint registry.
+
+So the rule to carry forward is not "run the audit". It is:
+
+> Anything new that runs as service_role, or that is scoped by partner rather
+> than by application, needs its own thought about livemode. The audit will pass
+> and say nothing.
+
+The two shapes are worth naming because they are not obscure corners. Every
+Edge Function runs as service_role, and partner scoping is the default habit in
+this codebase because it was the only tenancy boundary that existed before
+sandbox. The audit covers the case that is easy to check, not the case that is
+easy to get wrong.
 
 ### 11.3 Secrets you must set on production
 

@@ -32,6 +32,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 9 | A failed deed void during a refund leaves a signable deed on a refunded application | High |
 | 10 | Reinstated applications keep their expired and withdrawn markers | Low |
 | 11 | `npm ci` fails, so there is no clean-room build and no CI | Medium |
+| 12 | The Stripe mode guard on the payment page only covers checkout, so decline runs on a deployment already judged unsafe | Medium |
 
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
@@ -1128,3 +1129,121 @@ That is a property of how this copy was handed over rather than of the repositor
 so it is not a defect against live. It is recorded because it costs an hour to
 diagnose from scratch, and because the same zip-from-Windows route is what
 produced the partial CRLF conversion noted in `HANDOVER.md` section 5.
+
+---
+
+## Defect 12: the payment page's Stripe mode guard only covers checkout, so a decline is accepted on a deployment already judged unsafe
+
+**Severity: medium. A state-changing tenant action runs on a deployment the code has already decided must not take money, and the misconfiguration is not discovered until a tenant is standing in front of it.**
+
+### What it is
+
+`payment-page` is the tokenised public function a tenant lands on. It handles
+three actions: `view`, `decline` and `checkout`. It reads the Stripe secret once
+at the top of the handler, but the mode guard is not there. It sits inside the
+checkout branch alone
+([payment-page/index.ts:138](supabase/functions/payment-page/index.ts#L138) before this
+work):
+
+```ts
+const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY") ?? "";   // top of handler
+...
+if (action === "checkout") {
+  ...
+  const modeError = stripeKeyModeError(STRIPE_SECRET);           // only here
+  if (modeError) return json({ ok: false, error: modeError }, 400);
+```
+
+Compare `create-referral` and `stripe-webhook`, which both call the same guard as
+the first thing they do, before any body parsing. The placement here is the
+outlier.
+
+`stripeKeyModeError` exists to stop a deployment operating when its Stripe key
+does not match its project: an `sk_live_` key on a dev project, or an `sk_test_`
+key on production. It is a statement that this deployment must not be trusted
+with money.
+
+Guarding only checkout means the other two actions ignore that statement.
+`decline` is the one that matters, because it is not a read. It resolves the
+token, marks the application declined, and writes an activity entry. So on a
+deployment the guard has already judged unsafe, a tenant can still permanently
+decline a real guarantee.
+
+This function is `verify_jwt = false`. The tokenised link is the entire
+authorisation, so there is no second gate behind this one.
+
+### Business impact
+
+Two costs, and the second is the larger.
+
+**A real state change on a deployment that must not be trusted.** The most likely
+way this bites is a dev or staging copy pointed at production data with a live
+key installed. Checkout refuses, which is the guard working. Decline does not,
+and a declined application is not a draft: the tenant is told their guarantee is
+off, the referrer sees it closed, and reinstating it is a manual job.
+
+**Detection is deferred to the worst possible moment.** With the guard on the
+whole handler, a misconfigured deployment fails on the first page load and
+somebody notices in testing. With it on checkout alone, the page renders, the
+tenant reads it, decides to pay, clicks, and only then gets a flat 400. The
+person who discovers the misconfiguration is a tenant part-way through paying,
+and what they see is a dead end with no route forward.
+
+It does not charge a card in the wrong mode: that path is guarded. This is about
+where the failure surfaces and what is allowed to happen before it does.
+
+### Confirm it
+
+On any non-production project, set an `sk_live_` key:
+
+```
+supabase secrets set STRIPE_SECRET_KEY=sk_live_... --project-ref <non-prod-ref>
+```
+
+Then, against a valid payment token:
+
+```bash
+# view: expect 200 and the full application payload, no mode error
+curl -s -X POST "$URL/functions/v1/payment-page" \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<token>","action":"view"}'
+
+# decline: expect 200 and the application actually declined in the DB
+curl -s -X POST "$URL/functions/v1/payment-page" \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<token>","action":"decline"}'
+
+# checkout: expect 400 "This is a non-production project and requires an sk_test_ key."
+curl -s -X POST "$URL/functions/v1/payment-page" \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<token>","action":"checkout"}'
+```
+
+The first two succeeding while the third refuses is the defect.
+
+### Suggested fix
+
+Move the guard to the top of the handler, beside the other two functions that
+already do it:
+
+```ts
+const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+const modeError = stripeKeyModeError(STRIPE_SECRET);
+if (modeError) return json({ ok: false, error: modeError }, 400);
+```
+
+One caveat worth stating rather than discovering: this makes a misconfigured
+deployment return 400 for `view` as well, so the tenant sees an error page
+instead of their application. That is the intended behaviour, and it is better
+than the alternative, but it means the misconfiguration becomes loudly visible to
+tenants rather than quietly visible to staff. Fix the key, not the guard.
+
+### Note on this working copy
+
+This one is **already fixed here**, unlike the other eleven, because sandbox mode
+had to move the key resolution below the application fetch anyway: the key is now
+chosen by the application's `livemode` rather than by the project, so it has to be
+resolved after the row is known. Moving it also closed this gap as a side effect.
+It is recorded here because it predates that work and is present in live, and
+because the fix in this tree is entangled with sandbox and is not a clean
+cherry-pick. See HANDOVER.md section 11.4.
