@@ -43,6 +43,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 15 | Applications lapse on day 15, but the activity log and the documentation both say 14 | Low |
 | 16 | A test in the suite has been failing since 22 July, and `npm test` is not the command that runs it | Medium |
 | 17 | A renamed HubSpot property makes the sync silently stop recording that field, and reports success | High |
+| 18 | ~~Postgres error text was returned to partners on the create path~~ **Fixed here** | — |
 
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
@@ -1762,3 +1763,57 @@ Three decisions inside it worth knowing:
 changes on a human edit. It is not scheduled here for the same reason nothing
 else is: a migration cannot know which project it is applied to, and hardcoding a
 URL is how defect 2 happened.
+
+---
+
+## Defect 18: Postgres error text was returned to partners on the create path. Fixed here
+
+**Not a live-system defect, and listed only so the fix is not mistaken for a refactor. It was introduced by this work and is closed by it.**
+
+### What it was
+
+`PARTNER-API.md` section 10.2 promises that internal errors are never returned to
+a partner. The create path did not honour it:
+
+```ts
+fields: [{ field: "", code: "rejected", message: createErr?.message ?? "…" }]
+```
+
+`createErr` is whatever Postgres returned. For `create_referral_api`'s own
+refusals that is fine and intended, because those messages are written for a
+partner to read: *"Selected branch not found"*, *"Referrer not found for this
+partner."* But any **unexpected** error went the same way: a unique violation
+names the table, the column and the constraint; a permission error names the
+role; a type error names the function and argument.
+
+This was the single path most likely to hit an unexpected error, because it is
+the one doing the write.
+
+### How it was found
+
+Not by review. It was found by a verification pass over `PARTNER-API.md`, which
+compared each section's claims against the code: section 9 asserted the text was
+never passed through, and the code said otherwise. **The document caught the
+code.** That is worth noting, because the usual direction is the reverse and it
+is the argument for the documents being specific enough to be checkable.
+
+### The fix
+
+`create_referral_api` raises its own refusals with SQLSTATE `22023`. So the code
+now distinguishes:
+
+```ts
+const ours = createErr?.code === "22023";
+```
+
+Ours passes through unchanged. Anything else returns *"The application could not
+be created. Quote the request id if this persists."* and writes the real error to
+the server log, where the request id ties it back.
+
+### Why it is on this list at all
+
+Because "fixed before anyone saw it" is how a class of bug becomes invisible.
+The same shape exists anywhere an error object is interpolated into a partner
+response, and the next person adding an endpoint will reach for
+`error.message` because it is the obvious thing to do. It is on the list so the
+pattern is on the list.
