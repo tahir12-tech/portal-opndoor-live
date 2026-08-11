@@ -6,6 +6,89 @@ that produced it.
 **Status:** in progress. This document is updated as work lands. See
 [Open items](#open-items-for-you) for what needs you.
 
+**If you read one thing before deploying, read the first box below.** It is the
+difference between the partner API working and it refusing every request while
+appearing healthy.
+
+> ### 🚨 WATCH THE OUTPUT OF THE RIGHTMOVE MIGRATION ON PRODUCTION
+>
+> Migration `20260811090000_rightmove_referencing_mode.sql` is what **turns the
+> partner API on**. Until it applies successfully to a real Rightmove partner row,
+> `POST /v1/applications` returns `501 not_implemented` **for every partner**, and
+> nothing else about the request fails: the key authenticates, the scopes pass,
+> the payload validates, and then it refuses.
+>
+> **It matches on slug and name, because no migration has ever inserted a partner
+> and this repo does not know Rightmove's id.** If the name in production is not
+> what it expects, it matches nothing, and the push still succeeds. Everything
+> will look fine. The API will be off.
+>
+> **When you run `db push` on production, read the output.** You are looking for
+> either of these:
+>
+> ```
+> NOTICE:  Rightmove partner "..." (slug ...): referencing_mode
+>          pre_referenced_screened -> pre_referenced_open.
+>          The partner API is now live for them.
+> ```
+>
+> ```
+> WARNING:  NO RIGHTMOVE PARTNER MATCHED.
+> ```
+>
+> **If you see the warning, or see neither**, the API is still refusing every
+> request. Fix it by hand:
+>
+> ```sql
+> -- 1. find them
+> select id, slug, name, referencing_mode from public.partners order by name;
+>
+> -- 2. set the one that is Rightmove
+> update public.partners
+>    set referencing_mode = 'pre_referenced_open'
+>  where slug = '<their-slug>';
+>
+> -- 3. record it, so the change is on their audit history rather than invisible
+> insert into public.partner_audit(partner_id, field, old_value, new_value, actor)
+> select id, 'referencing_mode', 'pre_referenced_screened', 'pre_referenced_open',
+>        'set by hand after migration 20260811090000 matched nothing'
+>   from public.partners where slug = '<their-slug>';
+> ```
+>
+> **Then verify, rather than assuming:**
+>
+> ```sql
+> select slug, name, referencing_mode from public.partners
+>  where referencing_mode = 'pre_referenced_open';
+> -- Rightmove must appear. If this returns no rows, the API is off.
+> ```
+>
+> and end to end, with a real key:
+>
+> ```sh
+> curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+>   -H "Authorization: Bearer <a good key>" \
+>   -H "Idempotency-Key: watchpoint-$(date +%s)" \
+>   -H "Content-Type: application/json" \
+>   -d '{}' https://api.opndoor.co/v1/applications
+> # 422  -> the API is ON. It got as far as validating an empty body.
+> # 501  -> still refusing. referencing_mode is not set. Go back to step 1.
+> ```
+>
+> A `422` is the good outcome here: it means the request reached validation,
+> which is past the mode check. Do not read it as a failure.
+>
+> **Why the migration warns rather than fails.** A disposable dev project may
+> genuinely have no Rightmove row, and raising there would block every later
+> migration for no reason. That trade puts the burden on whoever runs the
+> production push, which is why this is at the top of the document.
+>
+> `pre_referenced_screened` and `opndoor_referenced` are specified but not built,
+> and every other partner stays on `pre_referenced_screened` and continues to get
+> `501`. That is the correct refusal: accepting them would approve every applicant
+> with no criteria applied, look exactly like working software, and surface as a
+> commercial problem months later.
+
 > ### ⚠️ Read this before deploying `partner-api`
 >
 > **The `partner-api` Edge Function must be deployed with `verify_jwt = false`.**

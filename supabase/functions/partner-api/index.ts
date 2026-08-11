@@ -44,13 +44,36 @@ const cors = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
-/** Rate limits. Reuses bump_rate_limit (20260703150645), as payment-confirmation does. */
+/**
+ * Rate limit headers, set once the per-key window is known and then attached to
+ * every response including errors.
+ *
+ * Module-scope would be wrong: this runs per request and a module variable would
+ * leak one caller's remaining count to the next. It is threaded through the
+ * request closure instead.
+ */
+type RateHeaders = Record<string, string>;
+
+/** Rate limits. */
 const LIMITS = {
   // Applied BEFORE key verification. Without this the auth path is itself the
   // attack surface: every attempt costs a hash and a database lookup.
   anonPerIp: { limit: 60, windowSecs: 60 },
   perKey: { limit: 600, windowSecs: 60 },
 };
+
+/**
+ * Seconds until the window resets, for Retry-After.
+ *
+ * Floored at 1 rather than 0: `Retry-After: 0` invites an immediate retry, which
+ * arrives inside the same window and is refused again. A client obeying it
+ * would hot-loop.
+ */
+function retryAfterSecs(resetAt: string | null | undefined): number {
+  if (!resetAt) return 60;
+  const secs = Math.ceil((new Date(resetAt).getTime() - Date.now()) / 1000);
+  return Number.isFinite(secs) ? Math.min(Math.max(secs, 1), 3600) : 60;
+}
 
 function json(body: unknown, status: number, requestId: string, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -147,6 +170,12 @@ Deno.serve(async (req) => {
     ? req.clone()
     : null;
 
+  // Filled once the per-key window is known, then attached to whatever run()
+  // returns. Declared here rather than at module scope: this file handles many
+  // requests in one isolate, and a module variable would show one caller their
+  // predecessor's remaining count.
+  let rateHeaders: RateHeaders = {};
+
   const run = async (): Promise<Response> => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -156,13 +185,20 @@ Deno.serve(async (req) => {
 
     // ---- rate limit: unauthenticated tier, before any key work -------------
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    const { data: ipOk } = await service.rpc("bump_rate_limit", {
+    const { data: ipRows } = await service.rpc("bump_rate_limit_state", {
       p_key: `papi:anon:${ip}`,
       p_limit: LIMITS.anonPerIp.limit,
       p_window_secs: LIMITS.anonPerIp.windowSecs,
     });
-    if (ipOk === false) {
-      return json(errorBody("rate_limited", "Too many requests."), 429, requestId, { "Retry-After": "60" });
+    const ipState = Array.isArray(ipRows) ? ipRows[0] : ipRows;
+    if (ipState?.allowed === false) {
+      // The ANONYMOUS tier's numbers are deliberately not published in headers.
+      // Telling an unauthenticated caller exactly how many attempts remain
+      // before the pre-auth limiter stops them is a gift to whoever is probing
+      // for valid key prefixes. Retry-After is enough to be well behaved.
+      return json(errorBody("rate_limited", "Too many requests."), 429, requestId, {
+        "Retry-After": String(retryAfterSecs(ipState?.reset_at)),
+      });
     }
 
     // ---- authenticate ------------------------------------------------------
@@ -177,13 +213,32 @@ Deno.serve(async (req) => {
     logKeyId = auth.apiKeyId;
 
     // ---- rate limit: per key ----------------------------------------------
-    const { data: keyOk } = await service.rpc("bump_rate_limit", {
+    const { data: keyRows } = await service.rpc("bump_rate_limit_state", {
       p_key: `papi:key:${auth.apiKeyId}`,
       p_limit: LIMITS.perKey.limit,
       p_window_secs: LIMITS.perKey.windowSecs,
     });
-    if (keyOk === false) {
-      return json(errorBody("rate_limited", "Too many requests."), 429, requestId, { "Retry-After": "60" });
+    const keyState = Array.isArray(keyRows) ? keyRows[0] : keyRows;
+
+    // Set for the rest of the request, so every response below carries them and
+    // a partner learns where they stand from a successful call rather than only
+    // from being refused.
+    if (keyState) {
+      rateHeaders = {
+        "X-RateLimit-Limit": String(keyState.limit_count),
+        "X-RateLimit-Remaining": String(keyState.remaining),
+        // Seconds, matching Retry-After's unit and the convention most clients
+        // expect. An ISO timestamp here reads as a date to a human and as an
+        // error to a parser expecting a number.
+        "X-RateLimit-Reset": String(Math.max(0, Math.floor(new Date(keyState.reset_at).getTime() / 1000))),
+      };
+    }
+
+    if (keyState?.allowed === false) {
+      return json(errorBody("rate_limited", "Too many requests."), 429, requestId, {
+        ...rateHeaders,
+        "Retry-After": String(retryAfterSecs(keyState?.reset_at)),
+      });
     }
 
     touchKey(service, auth.apiKeyId);
@@ -335,6 +390,18 @@ Deno.serve(async (req) => {
       status: res.status, errorCode, startedAt,
       requestBody, responseBody,
     });
+  }
+
+  // Attached to EVERY response, not just 429s. A partner who only learns their
+  // remaining budget when they are refused cannot self-regulate; that is the
+  // whole point of the headers. Applied here rather than in json() so no handler
+  // has to remember to pass them, which is the version that goes wrong.
+  //
+  // res.body is still unread: the logging above clones rather than consuming.
+  if (Object.keys(rateHeaders).length) {
+    const headers = new Headers(res.headers);
+    for (const [k, v] of Object.entries(rateHeaders)) headers.set(k, v);
+    return new Response(res.body, { status: res.status, headers });
   }
 
   return res;

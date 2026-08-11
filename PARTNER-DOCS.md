@@ -385,20 +385,34 @@ Going live is swapping the key for an `opnd_live_` one. Nothing else changes.
 
 ## Rate limits
 
-**600 requests per minute per key.** Unauthenticated requests are limited
-separately and more tightly, by origin address, so a wrong key costs you far less
-than a right one.
+**600 requests per minute per key.** Every authenticated response tells you where
+you stand:
 
-Exceeding either returns:
+```
+X-RateLimit-Limit: 600
+X-RateLimit-Remaining: 597
+X-RateLimit-Reset: 1735689660
+```
+
+`X-RateLimit-Reset` is a Unix timestamp in seconds, the moment the current window
+ends and `Remaining` returns to `Limit`. Read these on successful calls and slow
+down before you run out, rather than discovering the limit by hitting it.
+
+Exceeding it returns:
 
 ```
 HTTP 429
-Retry-After: 60
+Retry-After: 43
 {"error":{"code":"rate_limited","message":"Too many requests."}}
 ```
 
-`Retry-After` is in seconds. Wait for it rather than retrying immediately: a
-retry inside the window consumes budget without succeeding.
+`Retry-After` is in seconds and is never zero. Wait for it: a retry inside the
+window is refused again and consumes budget without succeeding.
+
+Unauthenticated requests are limited separately and more tightly, by origin
+address. Those responses carry `Retry-After` but **no** `X-RateLimit` headers,
+deliberately: before a key is verified we will not report how much of an
+allowance remains.
 
 A retryable `503 service_unavailable` also carries `Retry-After`.
 

@@ -57,7 +57,7 @@ export const PARTNER_DOCS: DocSection[] = [
   {
     "id": "rate-limits",
     "title": "Rate limits",
-    "body": "**600 requests per minute per key.** Unauthenticated requests are limited\nseparately and more tightly, by origin address, so a wrong key costs you far less\nthan a right one.\n\nExceeding either returns:\n\n```\nHTTP 429\nRetry-After: 60\n{\"error\":{\"code\":\"rate_limited\",\"message\":\"Too many requests.\"}}\n```\n\n`Retry-After` is in seconds. Wait for it rather than retrying immediately: a\nretry inside the window consumes budget without succeeding.\n\nA retryable `503 service_unavailable` also carries `Retry-After`."
+    "body": "**600 requests per minute per key.** Every authenticated response tells you where\nyou stand:\n\n```\nX-RateLimit-Limit: 600\nX-RateLimit-Remaining: 597\nX-RateLimit-Reset: 1735689660\n```\n\n`X-RateLimit-Reset` is a Unix timestamp in seconds, the moment the current window\nends and `Remaining` returns to `Limit`. Read these on successful calls and slow\ndown before you run out, rather than discovering the limit by hitting it.\n\nExceeding it returns:\n\n```\nHTTP 429\nRetry-After: 43\n{\"error\":{\"code\":\"rate_limited\",\"message\":\"Too many requests.\"}}\n```\n\n`Retry-After` is in seconds and is never zero. Wait for it: a retry inside the\nwindow is refused again and consumes budget without succeeding.\n\nUnauthenticated requests are limited separately and more tightly, by origin\naddress. Those responses carry `Retry-After` but **no** `X-RateLimit` headers,\ndeliberately: before a key is verified we will not report how much of an\nallowance remains.\n\nA retryable `503 service_unavailable` also carries `Retry-After`."
   },
   {
     "id": "errors",
