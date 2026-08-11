@@ -32,6 +32,10 @@ export function Configuration(props: {
   busy: boolean;
   onMint: () => void;
   onRevoke: (k: DevApiKey) => void;
+  /** False for an opndoor admin: no key list, no endpoint registry, no secrets. */
+  canSeeCredentials: boolean;
+  isAdmin: boolean;
+  onBreakGlass: () => void;
   onDeleteKey: (k: DevApiKey) => void;
   onDeleteEndpoint: (e: DevWebhookEndpoint) => void;
   onCreateEndpoint: () => void;
@@ -75,6 +79,42 @@ export function Configuration(props: {
         </div>
       )}
 
+      {/* An opndoor admin gets this instead of the panels. It is deliberately
+          not a disabled key table: an empty or greyed inventory still tells you
+          how many keys a partner has, and the point is that we do not know. */}
+      {props.isAdmin && (
+        <Card>
+          <CardHead title="Credentials" sub="Not visible to opndoor" />
+          <CardBody>
+            <p>
+              <strong>You cannot see this partner&rsquo;s API keys or webhook endpoints.</strong> Not the
+              list, not the prefixes, not how many there are, and never a signing secret. Their developers
+              manage their own credentials.
+            </p>
+            <p className="soft">
+              This is deliberate rather than an oversight. A key inventory is a target, and after an
+              exposure the question &ldquo;who could have seen this&rdquo; should have a one-name answer.
+              It is enforced in the database, not by this screen: the queries behind these panels refuse
+              an opndoor caller outright.
+            </p>
+            <p className="soft">
+              Everything diagnostic is still yours: Monitoring, Logs with request and response bodies,
+              Webhooks history including replay, and live application metadata.
+            </p>
+            <div style={{ marginTop: 14 }}>
+              <Button variant="primary" className="btn--danger" size="sm" onClick={props.onBreakGlass}>
+                <Icon name="alert" /> Break glass: revoke a key
+              </Button>
+              <div className="soft" style={{ marginTop: 8, fontSize: 12.5 }}>
+                For an exposed credential that cannot wait for the partner. You will need the key prefix
+                from wherever it was exposed, and a reason. Both are recorded against your name.
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
+      {props.canSeeCredentials && (
       <Card>
         <CardHead
           title="API keys"
@@ -134,10 +174,11 @@ export function Configuration(props: {
                 </td>
               </tr>
             ))}
-            {!props.keys.length && <tr><td colSpan={7} className="soft">No keys yet.</td></tr>}
+            {!props.keys.length && <tr><td colSpan={8} className="soft">No keys yet.</td></tr>}
           </tbody>
         </table>
       </Card>
+      )}
 
       {props.canManage && (
         <Card>

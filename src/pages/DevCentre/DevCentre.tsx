@@ -30,7 +30,7 @@
    ===================================================================== */
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
-  API_SCOPES, WEBHOOK_EVENTS, createWebhookEndpoint, deleteApiKey, deleteWebhookEndpoint,
+  API_SCOPES, WEBHOOK_EVENTS, breakGlassRevoke, createWebhookEndpoint, deleteApiKey, deleteWebhookEndpoint,
   endpointDeleteBlockedReason, getApiKeys, keyDeleteBlockedReason,
   getPartnerOptions, getWebhookEndpoints, mintApiKey, portalEnvironment, revokeApiKey,
   updateWebhookEndpoint,
@@ -65,6 +65,23 @@ export function DevCentre() {
 
   const env = portalEnvironment();
   const isAdmin = role === 'superadmin';
+
+  /*
+   * AN OPNDOOR ADMIN HAS NO CREDENTIAL ACCESS.
+   *
+   * Not the key list, not prefixes, not the endpoint registry, and never a
+   * signing secret. A key inventory is a target, and "who could have seen this
+   * key" should have a one-name answer.
+   *
+   * They keep everything diagnostic: Monitoring, Logs with the redacted bodies,
+   * Webhooks history including replay, and live application metadata.
+   *
+   * This flag hides the panels. It is NOT the enforcement: every dev_ RPC
+   * touching keys or endpoints had its is_admin() arm removed
+   * (20260811160000), so an admin calling them with fetch gets zero rows or a
+   * refusal. Hiding is the courtesy; the SQL is the rule.
+   */
+  const canSeeCredentials = !isAdmin;
   const isDeveloper = role === 'developer';
   // Management reaches this screen for one reason only.
   const keysOnly = role === 'management';
@@ -105,6 +122,27 @@ export function DevCentre() {
      convention the rest of the app already has. It also cannot be styled,
      cannot show a count, and on some browsers is suppressed entirely, which
      would have made revoke silently do nothing. */
+  // Break-glass revoke. Deliberately its own modal rather than a row action:
+  // there is no row to attach it to, because an admin cannot see the keys.
+  const [bgOpen, setBgOpen] = useState(false);
+  const [bgPrefix, setBgPrefix] = useState('');
+  const [bgReason, setBgReason] = useState('');
+  const [bgResult, setBgResult] = useState<{ ok: boolean; partner: string | null; key: string | null } | null>(null);
+
+  async function doBreakGlass() {
+    if (bgPrefix.trim().length < 10) { toast('Paste the full key prefix.', 'error'); return; }
+    if (bgReason.trim().length < 10) { toast('Give a reason. It is recorded against your name.', 'error'); return; }
+    setBusy(true);
+    try {
+      const r = await breakGlassRevoke(bgPrefix.trim(), bgReason.trim());
+      setBgResult(r);
+      if (r.ok) toast(`Revoked. Recorded against your name.`);
+      else toast('No matching active key. The attempt has been recorded.', 'error');
+    } catch (x) {
+      toast(String((x as Error).message ?? x), 'error');
+    } finally { setBusy(false); }
+  }
+
   const [confirmAsk, setConfirmAsk] = useState<{
     title: string;
     body: ReactNode;
@@ -130,11 +168,16 @@ export function DevCentre() {
     setErr(null);
     try {
       const scope = isAdmin ? (partnerId || null) : null;
-      const [k, e] = await Promise.all([getApiKeys(scope), keysOnly ? Promise.resolve([]) : getWebhookEndpoints(scope)]);
+      // An admin fetches neither. The server would return nothing anyway; not
+      // asking keeps the intent visible in the client too.
+      const [k, e] = await Promise.all([
+        canSeeCredentials ? getApiKeys(scope) : Promise.resolve([]),
+        canSeeCredentials && !keysOnly ? getWebhookEndpoints(scope) : Promise.resolve([]),
+      ]);
       setKeys(k);
       setEndpoints(e as DevWebhookEndpoint[]);
     } catch (x) { setErr(String((x as Error).message ?? x)); }
-  }, [isAdmin, partnerId, keysOnly]);
+  }, [isAdmin, partnerId, keysOnly, canSeeCredentials]);
 
   useEffect(() => { if (isAdmin) getPartnerOptions().then(setPartners).catch(() => setPartners([])); }, [isAdmin]);
   useEffect(() => { void load(); }, [load]);
@@ -325,7 +368,10 @@ export function DevCentre() {
         <Configuration
           keys={keys}
           endpoints={endpoints}
-          canManage={isDeveloper || isAdmin}
+          canManage={isDeveloper}
+          canSeeCredentials={canSeeCredentials}
+          onBreakGlass={() => { setBgResult(null); setBgOpen(true); }}
+          isAdmin={isAdmin}
           busy={busy}
           onMint={() => { setMintedKey(null); setMintOpen(true); }}
           onRevoke={(k) => doRevoke(k)}
@@ -347,6 +393,79 @@ export function DevCentre() {
           {panel === 'guide' ? <GettingStarted /> : <ApiDocsPanel />}
         </>
       )}
+
+      {/* ---- break glass ---- */}
+      <Modal
+        open={bgOpen}
+        onClose={() => { setBgOpen(false); setBgResult(null); setBgPrefix(''); setBgReason(''); }}
+        title="Break glass: revoke a partner's API key"
+        sub="Exceptional. Recorded against your name."
+        width={640}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => { setBgOpen(false); setBgResult(null); }} disabled={busy}>
+              Cancel
+            </Button>
+            <Button variant="primary" className="btn--danger" onClick={() => void doBreakGlass()} disabled={busy}>
+              {busy ? 'Revoking…' : 'Revoke this key'}
+            </Button>
+          </>
+        }
+      >
+        <div className="sbxwarn sbxwarn--tight">
+          <Icon name="alert" />
+          <div>
+            <strong>This stops a partner's integration immediately.</strong>
+            <p>
+              Use it when a key has been exposed and the partner's own developers cannot act quickly
+              enough. They can mint a replacement themselves; you cannot do it for them.
+            </p>
+          </div>
+        </div>
+
+        <p className="soft">
+          You cannot see this partner&rsquo;s keys, deliberately, so there is nothing to browse. Paste the
+          prefix from wherever the key was exposed: the ticket, the scanner alert, or the partner&rsquo;s
+          message. It is the first 18 characters, like <code>opnd_live_XXXXXXXX</code>.
+        </p>
+
+        <Field label="Key prefix">
+          <input
+            type="text"
+            placeholder="opnd_live_XXXXXXXX"
+            autoComplete="off"
+            value={bgPrefix}
+            onChange={(e) => setBgPrefix(e.target.value)}
+          />
+        </Field>
+
+        <Field label="Reason">
+          <input
+            type="text"
+            placeholder="Posted in a public repository, reported by the partner at 14:20"
+            value={bgReason}
+            onChange={(e) => setBgReason(e.target.value)}
+          />
+        </Field>
+
+        {bgResult && (
+          <div className={`devtest__verdict devtest__verdict--${bgResult.ok ? 'ok' : 'bad'}`}>
+            <Icon name={bgResult.ok ? 'check' : 'alert'} />
+            <div>
+              <strong>
+                {bgResult.ok
+                  ? `Revoked "${bgResult.key}" for ${bgResult.partner}.`
+                  : 'No matching active key.'}
+              </strong>
+              <div className="soft">
+                {bgResult.ok
+                  ? 'Their integration is failing now. Tell them to mint a replacement.'
+                  : 'Either the prefix is wrong or the key was already revoked. The attempt has been recorded either way.'}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* ---- one confirmation modal for every destructive action ---- */}
       <Modal

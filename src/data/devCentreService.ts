@@ -488,6 +488,31 @@ export function endpointDeleteBlockedReason(e: DevWebhookEndpoint): string | nul
   return null;
 }
 
+/**
+ * Break-glass revoke, by key prefix.
+ *
+ * An opndoor admin cannot see a partner's keys, so there is nothing to browse
+ * and no id to pass. They supply a prefix they already have, from wherever the
+ * key was exposed. That shape is the safeguard: it is a targeted act on a
+ * credential somebody told you about, not the last step of an inventory, and no
+ * prefix can be obtained through it that you did not already hold.
+ *
+ * A reason is mandatory and is recorded against the caller's name in
+ * security_events. A miss is recorded too: an admin trying prefixes is exactly
+ * what that table exists to surface.
+ */
+export async function breakGlassRevoke(
+  keyPrefix: string, reason: string,
+): Promise<{ ok: boolean; partner: string | null; key: string | null }> {
+  const { data, error } = await sb().rpc('admin_break_glass_revoke_key', {
+    p_key_prefix: keyPrefix,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return { ok: row?.revoked === true, partner: row?.partner_name ?? null, key: row?.key_name ?? null };
+}
+
 export async function replayDelivery(id: string): Promise<{ replayCount: number }> {
   const { data, error } = await sb().rpc('dev_replay_webhook_delivery', { p_delivery: id });
   if (error) throw new Error(error.message);
