@@ -700,7 +700,19 @@ function ContactSummary({ agency, branch, canManage, onManage }: { agency: Agenc
     <button className="contact-manage" onClick={(e) => { e.stopPropagation(); onManage(); }}>Manage</button>
   ) : null;
   if (!ep.contact) {
-    return <div className="contact-line"><Icon name="mail" /><span className="cl-none">No agent contact</span>{manageBtn}</div>;
+    // DEFECTS.md 6. This is not a cosmetic gap: a branch with no resolvable
+    // primary contact CANNOT ISSUE A DEED, and the failure happens after the
+    // tenant has paid. It used to read as a neutral "not filled in yet".
+    return (
+      <div className="contact-line contact-line--none">
+        <Icon name="alert" />
+        <span className="cl-none">
+          <b>No agent contact.</b> A deed cannot be issued for this branch, and an application against
+          it will fail after the tenant has paid.
+        </span>
+        {manageBtn}
+      </div>
+    );
   }
   return (
     <div className="contact-line">
@@ -756,6 +768,17 @@ export function OrgManagement() {
   const pool = getAgencies(partnerScope);
 
   const partnerPoolForBranch = getAgencies(partnerScope);
+
+  /* DEFECTS.md 6. Branches that cannot issue a deed, surfaced BEFORE an
+     application fails against one rather than after.
+     effectivePrimary is the client-side twin of effective_primary_contact, which
+     is the exact call the deed path makes and the same one GET /v1/orgs reports
+     as has_agent_contact, so this cannot disagree with either. */
+  const deedBlocked = pool.flatMap((a) =>
+    a.branches
+      .filter((b) => !effectivePrimary(a, b).contact)
+      .map((b) => ({ agency: a.name, branch: b.name })),
+  );
 
   // Resolve the contacts-modal owner fresh each render (reflects mutations + re-hydration).
   const ctAgency = ctOpen ? findAgency(ctAgencyName) ?? null : null;
@@ -1062,6 +1085,28 @@ function requestCloseContacts() {
 
   return (
     <>
+      {/* DEFECTS.md 6. Visible before an application fails, which is the whole
+          point: the condition was previously only discoverable by opening each
+          branch, or by a tenant paying for a deed that could not be issued. */}
+      {deedBlocked.length > 0 && (
+        <div className="org-blocked">
+          <Icon name="alert" />
+          <div>
+            <strong>
+              {deedBlocked.length} branch{deedBlocked.length === 1 ? '' : 'es'} cannot issue a deed
+            </strong>
+            <p>
+              No agent contact resolves for them. An application against one of these will be accepted,
+              the tenant will pay, and the deed will then fail. Add a contact, or set one as primary.
+            </p>
+            <p className="org-blocked__list">
+              {deedBlocked.slice(0, 8).map((b) => `${b.agency} \u00b7 ${b.branch}`).join(', ')}
+              {deedBlocked.length > 8 && ` and ${deedBlocked.length - 8} more`}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="page-head">
         <div>
           <Eyebrow>{eyebrow}</Eyebrow>

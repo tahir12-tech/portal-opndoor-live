@@ -459,3 +459,17 @@ mark.hl {
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
+/* DEFECTS.md 6: branches that cannot issue a deed. Red, at the top, and counted,
+   because the condition used to be discoverable only by opening each branch in
+   turn or by a tenant paying for a deed that could not be issued. */
+.org-blocked { display: flex; gap: 11px; align-items: flex-start; margin-bottom: 18px;
+               padding: 13px 15px; border-radius: 10px; background: #fef2f2;
+               border: 1px solid #fecaca; color: #7f1d1d; font-size: 13px; line-height: 1.55; }
+.org-blocked strong { display: block; margin-bottom: 3px; }
+.org-blocked p { margin: 0; }
+.org-blocked__list { margin-top: 6px !important; opacity: .8; font-size: 12.5px; }
+.org-blocked svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }
+
+/* The per-row line, now a warning rather than a neutral "not filled in". */
+.contact-line--none { color: #b91c1c; }
+.contact-line--none .cl-none { color: inherit; }
