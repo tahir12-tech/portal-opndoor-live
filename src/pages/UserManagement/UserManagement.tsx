@@ -57,7 +57,11 @@ const ROLE_OPTIONS: RoleOption[] = [
   { id: 'superadmin', name: 'opndoor admin (Super-admin)', desc: "opndoor's internal admin. Full control of the portal: manages agencies, branches and users, syncs with HubSpot, edits help resources, and sees every referral." },
   { id: 'management', name: 'Management', desc: "Partner management. The same screens and tools as a referrer, but across the whole partner with full visibility of all tracking and analytics. Manages the partner's own agencies, branches and team, with edits applying straight away. Cannot change portal settings." },
   { id: 'referrer', name: 'Referrer', desc: 'Sees and tracks only their own referrals. Can add agencies and branches on the fly while referring.' },
-  { id: 'developer', name: 'Developer', desc: 'Partner-side integrator. Sees the Dev Centre only: API keys, webhook endpoints, delivery history and the documentation. Never sees commission, the league, exports or the bordereau.' },
+  // "Sees the Dev Centre only" read as seeing nothing, which made the role look
+  // useless and led to it being handed out as management instead. It says what a
+  // developer CAN do first, and is specific about the line: references, status
+  // and timing, never the tenant or the money.
+  { id: 'developer', name: 'Developer', desc: 'Partner-side integrator, for whoever builds against the API. Manages their own API keys and webhook endpoints, sees request logs and delivery history, replays failed deliveries, and can drive a whole rehearsal in sandbox. For live applications they see the reference, the status, when it moved and which of their keys created it. They never see tenant names or contact details, the property, the rent, commission, the league, exports or the bordereau.' },
 ];
 
 const initials = (n: string) => n.split(' ').map((p) => p[0]).slice(0, 2).join('');

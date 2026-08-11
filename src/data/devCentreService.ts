@@ -317,6 +317,56 @@ export interface SandboxApplication {
   referrer_name: string | null;
 }
 
+/* ---------------------------------------------------------------------------
+   Live applications, metadata only.
+
+   A developer cannot verify a live integration without seeing whether their POST
+   produced an application and what happened to it. This is deliberately NOT an
+   RLS arm on applications: RLS grants rows, not columns, so it would hand over
+   tenant PII, the rent and the commission snapshots. It is a projection on a
+   written-down allowlist, and the allowlist lives in the migration.
+   --------------------------------------------------------------------------- */
+
+export interface LiveApplication {
+  id: string;
+  guarantee_ref: string;
+  status: string;
+  created_at: string;
+  sent_at: string | null;
+  paid_at: string | null;
+  deed_issued_at: string | null;
+  /** The developer's own idempotency string, echoed back. Null if not API-created. */
+  idempotency_key: string | null;
+  api_key_name: string | null;
+  request_at: string | null;
+  request_status: number | null;
+}
+
+export interface LiveCounts {
+  total: number; from_api: number; sent: number; paid: number; deed: number; closed: number;
+}
+
+export async function getLiveApplications(opts: {
+  partnerId?: string | null; search?: string | null; limit?: number;
+} = {}): Promise<LiveApplication[]> {
+  if (!SUPABASE_ENABLED) return [];
+  const { data, error } = await sb().rpc('dev_live_applications', {
+    p_partner: opts.partnerId ?? null,
+    p_search: opts.search ?? null,
+    p_limit: opts.limit ?? 100,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as LiveApplication[];
+}
+
+export async function getLiveCounts(partnerId?: string | null): Promise<LiveCounts | null> {
+  if (!SUPABASE_ENABLED) return null;
+  const { data, error } = await sb().rpc('dev_live_application_counts', { p_partner: partnerId ?? null });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row ?? null) as LiveCounts | null;
+}
+
 export interface SandboxCounts {
   total: number; sent: number; paid: number; deed: number; closed: number;
 }

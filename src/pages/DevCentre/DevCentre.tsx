@@ -50,12 +50,13 @@ import { ApiDocsPanel } from './ApiDocsPanel';
 import { Configuration } from './Configuration';
 import { Logs } from './Logs';
 import { Monitoring } from './Monitoring';
+import { LiveApplications } from './LiveApplications';
 import { Sandbox } from './Sandbox';
 import { WebhookHistory } from './WebhookHistory';
 import { GettingStarted } from './GettingStarted';
 import './DevCentre.css';
 
-type Tab = 'monitoring' | 'logs' | 'webhooks' | 'sandbox' | 'config';
+type Tab = 'monitoring' | 'logs' | 'webhooks' | 'applications' | 'sandbox' | 'config';
 
 export function DevCentre() {
   const { role } = useSession();
@@ -144,9 +145,11 @@ export function DevCentre() {
         { id: 'monitoring', label: 'Monitoring' },
         { id: 'logs', label: 'Logs' },
         { id: 'webhooks', label: 'Webhooks history' },
-        // Sandbox sits before Configuration because it is where a developer
-        // spends the integration, and after the three observability tabs because
-        // it is data rather than diagnosis.
+        // Applications and Sandbox sit together, after the three observability
+        // tabs, because they are data rather than diagnosis. Live comes first:
+        // once an integration is live, "did my POST land" is asked far more often
+        // than anything about sandbox.
+        { id: 'applications', label: 'Applications' },
         { id: 'sandbox', label: 'Sandbox' },
         { id: 'config', label: 'Configuration' },
       ];
@@ -315,6 +318,7 @@ export function DevCentre() {
       {tab === 'monitoring' && <Monitoring partnerId={scopedPartner} />}
       {tab === 'logs' && <Logs partnerId={scopedPartner} />}
       {tab === 'webhooks' && <WebhookHistory partnerId={scopedPartner} />}
+      {tab === 'applications' && <LiveApplications partnerId={scopedPartner} />}
       {tab === 'sandbox' && <Sandbox partnerId={scopedPartner} />}
 
       {tab === 'config' && panel === 'none' && (
