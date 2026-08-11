@@ -36,7 +36,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 8 | A payment on a staff-withdrawn application is taken, and both the tenant and staff are told the opposite of the truth | High |
 | 9 | A failed deed void during a refund leaves a signable deed on a refunded application | High |
 | 10 | Reinstated applications keep their expired and withdrawn markers | Low |
-| 11 | `npm ci` fails, so there is no clean-room build and no CI | Medium |
+| 11 | ~~`npm ci` fails~~ **Fixed here.** Lockfile regenerated; CI still needs adding | Low |
 | 12 | The Stripe mode guard on the payment page sits inside the checkout branch, not at the top like its two siblings | Low |
 | 13 | ~~Error toasts render with the success icon and colour~~ **Fixed here**, component and all 35 call sites | — |
 | 14 | The PandaDoc webhook signature has no timestamp binding and a non-constant-time comparison; replay is blocked only by the event ledger | Low |
