@@ -39,7 +39,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 11 | ~~`npm ci` fails~~ **Fixed here.** Lockfile regenerated; CI still needs adding | Low |
 | 12 | The Stripe mode guard on the payment page sits inside the checkout branch, not at the top like its two siblings | Low |
 | 13 | ~~Error toasts render with the success icon and colour~~ **Fixed here**, component and all 35 call sites | — |
-| 14 | The PandaDoc webhook signature has no timestamp binding and a non-constant-time comparison; replay is blocked only by the event ledger | Low |
+| 14 | The PandaDoc webhook signature has no timestamp binding; replay is blocked only by the event ledger. **Comparison fixed here**; the timestamp needs an answer from PandaDoc | Low |
 | 15 | Applications lapse on day 15, but the activity log and the documentation both say 14 | Low |
 | 16 | A test in the suite has been failing since 22 July, and `npm test` is not the command that runs it | Medium |
 | 17 | A renamed HubSpot property makes the sync silently stop recording that field, and reports success | High |
@@ -1463,21 +1463,35 @@ again, unchanged, a week later. It is accepted.
 Or note the absence directly: the signed message is the raw body with no
 timestamp component, and there is no window check anywhere in the function.
 
-### Suggested fix
+### What is fixed here, and what is not
 
-Three changes, in order of value.
+**Fixed: the constant-time comparison.** `verifyWebhook` used `===`, which short
+circuits at the first differing character and leaks the expected HMAC by timing,
+a nibble at a time. It now uses `timingSafeEqual` from `partnerAuth.ts`, which is
+the one written for the partner API rather than a second implementation. Two
+constant-time comparisons in one codebase is one more than can be reviewed
+properly, and the second is always the weaker.
 
-1. **Sign a timestamp.** If PandaDoc can be configured to include one, verify
-   over `"<t>.<body>"` and reject outside a five minute window, matching the
-   Stripe path and our own outbound webhook signing, which already does this.
-2. **If it cannot, deduplicate on the event.** `pandadoc_events` already stores
-   `${docId}:${status}` as a primary key and rejects duplicates, which blocks a
-   naive replay of an event already processed. It does not block the first replay
-   of an event that was never delivered successfully, so it is a mitigation
-   rather than a fix. **Verify this table's dedup is actually reached before any
-   state change** on the replay path.
-3. **Use a constant-time comparison.** `partnerAuth.ts` already contains one
-   written for the partner API. Reuse it rather than writing a second.
+**Not done, and it needs an answer from outside this codebase: can PandaDoc be
+configured to sign a timestamp?**
+
+That is the real fix and it cannot be built speculatively. If PandaDoc will
+include a timestamp in the signed payload, verify over `"<t>.<body>"` and reject
+outside a five minute window, matching the Stripe path and our own outbound
+signing, which already does exactly this. If it will not, then the event ledger
+is the only replay defence available and it should be documented as load-bearing
+rather than incidental, which is the state described in the banner above.
+
+**Somebody has to ask PandaDoc.** Their webhook configuration exposes a shared
+key and a payload selection; whether a timestamp can be added to the signed
+content is a question for their documentation or their support, and nobody
+working from this repository can answer it. Until it is answered, the ledger is
+what is holding the line.
+
+**Third option if the answer is no:** sign our own timestamp by putting a nonce
+or a received-at marker in the callback URL as a query parameter and verifying it
+alongside. That works without PandaDoc's cooperation, but it changes the endpoint
+URL, so it is a bigger change than it looks and should wait for the answer.
 
 ### Why this is recorded here rather than in the partner documentation
 

@@ -22,6 +22,7 @@
 // =====================================================================
 import { titleCaseAddress } from "./text.ts";
 import { pandadocConfigFor, pandadocConfiguredFor, pandadocWebhookKeys } from "./livemodeCredentials.ts";
+import { timingSafeEqual } from "./partnerAuth.ts";
 import { resolveRecipients } from "./emailRecipients.ts";
 
 const API = "https://api.pandadoc.com/public/v1";
@@ -387,7 +388,15 @@ export async function verifyWebhook(
     const k = await crypto.subtle.importKey("raw", enc.encode(candidate.secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
     const mac = await crypto.subtle.sign("HMAC", k, enc.encode(rawBody));
     const hex = [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, "0")).join("");
-    if (hex === signature.toLowerCase()) return { ok: true, livemode: candidate.livemode };
+    // timingSafeEqual, not ===. String equality on a secret-derived value short
+    // circuits at the first differing character, which is a timing oracle: an
+    // attacker can recover the expected HMAC one nibble at a time by measuring
+    // how long the comparison takes.
+    //
+    // The helper is the one written for the partner API rather than a second
+    // implementation. Two constant-time comparisons in one codebase is one more
+    // than can be reviewed properly, and the second is always the weaker.
+    if (timingSafeEqual(hex, signature.toLowerCase())) return { ok: true, livemode: candidate.livemode };
   }
   return { ok: false, livemode: null };
 }
