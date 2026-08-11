@@ -305,7 +305,7 @@ export function PartnerManagement() {
         sub={editingId ? "Adjust this partner’s details and commission. Rate changes apply to new applications from now on." : 'Onboard a new partner company. Users, agencies and branches can be added under it afterwards.'}
         footer={<><Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button variant="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create partner'}</Button></>}
       >
-        <Field label="Partner company name" htmlFor="pm-name"><input id="pm-name" type="text" placeholder="e.g. PrimeLocation" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <Field label="Partner company name" htmlFor="pm-name"><input id="pm-name" type="text" placeholder="e.g. Acme Property Group" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Live from" htmlFor="pm-since" hint="Optional"><input id="pm-since" type="month" value={since} onChange={(e) => setSince(e.target.value)} /></Field>
         <Field label="Status" htmlFor="pm-status">
           <select id="pm-status" value={status} onChange={(e) => setStatus(e.target.value as PartnerStatus)}>

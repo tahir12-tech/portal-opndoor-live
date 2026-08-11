@@ -41,7 +41,7 @@ export function getPayPageState(status: string | null | undefined, paymentState:
 }
 
 const DEMO: PayPageData = {
-  ok: true, ref: 'GR-20608', partnerName: 'Rightmove', tenantName: 'Mr Alex Turner', tenantTitle: 'Mr',
+  ok: true, ref: 'GR-20608', partnerName: 'Acme Property Group', tenantName: 'Mr Alex Turner', tenantTitle: 'Mr',
   addr1: '12 Sydney Street', postcode: 'SW3 6PU', propFull: '12 Sydney Street, London, SW3 6PU',
   tenancyStart: '01/09/2026', guaranteeExpiry: '31/08/2027', monthlyRent: 2200, feeGBP: '£2,200',
   status: 'sent', isPaid: false, isExpired: false, isClosed: false, payable: true,

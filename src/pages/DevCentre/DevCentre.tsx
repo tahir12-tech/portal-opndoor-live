@@ -537,7 +537,11 @@ export function DevCentre() {
                 </label>
               </div>
             </Field>
-            <Field label="Label"><input type="text" placeholder="Rightmove production" value={mintName} onChange={(e) => setMintName(e.target.value)} /></Field>
+            {/* NEVER a real or potential partner's name. This placeholder said
+                "Rightmove production", which told any other partner's developer
+                who our customers are. Invented names only, here and everywhere a
+                partner can see. */}
+            <Field label="Label"><input type="text" placeholder="Production integration" value={mintName} onChange={(e) => setMintName(e.target.value)} /></Field>
             <Field label="Scopes">
               <div className="devscopes">
                 {API_SCOPES.map((s) => (

@@ -770,6 +770,7 @@ Ordered by urgency, not by effort.
 | 13 | **Stand up `api.opndoor.co`** | Section 12. A DNS record and a rewrite mapping `/v1/*` to the function path. **No partner should be given a key until this exists**, because whatever they are given first is what gets hardcoded. Section 12.2 lists the three ways a proxy silently breaks this specific API. |
 | 14 | **Finish Defect 13: sweep the toast call sites** | The `Toast.tsx` change carried here is a prerequisite that **changes nothing users see on its own**. 34 error paths still render green until each passes the tone. Defect 13 has the grep that finds them. |
 | 15 | **Point the test-mode Stripe and sandbox PandaDoc webhooks at the same URLs as the live ones** | Section 11.3. Inbound mode is derived from which signing secret verifies, so both must arrive at the same endpoint. |
+| 16 | **Rename the mock dataset off real partner names** | `src/data/mock/partners.ts` and `applications.ts` use Rightmove, Zoopla and OnTheMarket, and they ship in the bundle. The three places a partner could actually see a name are swept; this is the dataset behind mock mode. It needs care because several tests assert on the `rightmove` and `zoopla` slugs, so it is a rename plus a test update, not a find and replace. |
 
 ### Deliberately not done
 
