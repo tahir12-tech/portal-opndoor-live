@@ -65,6 +65,29 @@ wrong assumption in this codebase.
 
 # Section A: the referral lifecycle
 
+## A0. Section A and mode: read this first
+
+**Section A is the portal walkthrough, and the portal cannot create a sandbox
+application.** `create_referral` writes `livemode` true unconditionally, and the
+restrictive policy means no portal screen shows a sandbox row to anybody. So
+**A1 is live-only by construction**: there is no sandbox variant of it to run.
+
+**A2 onward is different.** A sandbox application created through the API
+(section B4) then travels the same machinery: the same Stripe webhook, the same
+deed generation, the same cron. Those steps ARE reachable in sandbox, and a
+tester watches them from the Dev Centre's Sandbox tab rather than from
+Applications.
+
+Each step below carries a **Sandbox** block saying what differs. Where a step is
+unreachable in sandbox it says so and why, which is as useful as knowing what
+changes.
+
+**The general rule, if you remember one thing:** sandbox exercises Stripe and
+PandaDoc against their sandbox credentials, and opndoor sends no email of its
+own. Every difference below is an instance of that.
+
+---
+
 ## A1. Create
 
 | # | Action, actor | status | payment_state | deed_state | activity_log | Email, actual recipient | HubSpot | Tags |
@@ -78,6 +101,13 @@ wrong assumption in this codebase.
 was redirected for testing and names the address. The redirect no longer exists,
 so the address named is the real tenant who really received it. The audit trail
 asserts a safety property that is not in force. See defect 7.
+
+> ### Sandbox
+> **Not reachable.** `create_referral` sets `livemode` true unconditionally, so
+> the portal cannot produce a sandbox application. The equivalent is **B4**,
+> `POST /v1/applications` with an `opnd_test_` key, which goes through
+> `create_referral_api` instead. A sandbox row takes `GR-TEST-n` from its own
+> sequence, so the `^GR-\d+$` assertion below is the live case only.
 
 Assert: `guarantee_ref` matches `^GR-\d+$`, `referrer_name` equals the creating
 user's `full_name` at that instant, `expiry_date` equals tenancy start plus 12
@@ -96,7 +126,23 @@ months minus a day, and exactly one `payment_page_tokens` row exists with
 
 ## A2. Tenant pays
 
-> **Mode.** Sandbox differs here: test card, no settlement, no opndoor receipt. See **B, and the mode dimension**.
+> ### Sandbox
+> **Reachable, and this is the main thing to rehearse.** The tenant pays with a
+> Stripe **test card** against `STRIPE_SECRET_KEY_TEST`; no money moves and no
+> settlement is created. The inbound webhook is verified by
+> `STRIPE_WEBHOOK_SECRET_TEST`, and **which secret verifies is what tells us the
+> mode** — nothing is read from the event body. `apply_stripe_payment` then runs
+> identically, so every state transition below is the same.
+>
+> **Different:** no payment receipt email is sent. `deliverPaymentReceipt` is
+> skipped, so the `payment_receipt_sent` activity row does not appear.
+>
+> **If the receipt DOES arrive, stop.** A real address is being emailed about a
+> rehearsal.
+>
+> **If you get a 500 and an ops alert** reading `stripe_livemode_mismatch`, a
+> live event reached a sandbox application or the reverse. That is refused rather
+> than reconciled, deliberately.
 
 | # | Action, actor | status | payment_state | deed_state | activity_log | Email | HubSpot | Tags |
 | - | ------------- | ------ | ------------- | ---------- | ------------ | ----- | ------- | ---- |
@@ -118,7 +164,23 @@ separately; not currently in `DEFECTS.md`.
 
 ## A3. Deed generates
 
-> **Mode.** Sandbox differs here: sandbox PandaDoc account, watermarked document, and its signing email IS still sent to the tenant address. See **B, and the mode dimension**.
+> ### Sandbox
+> **Reachable.** `generateDeed` reads `livemode` off the application row it
+> already fetches, so its four callers are unchanged and none can pass the wrong
+> one. It resolves `PANDADOC_API_KEY_TEST` and `PANDADOC_TEMPLATE_ID_TEST`, and
+> the template is per mode too: a sandbox key cannot see a production template, so
+> sharing one id fails at document creation with a 404 that reads like a broken
+> integration rather than a missing secret.
+>
+> **THE ONE THING SANDBOX REALLY SENDS.** PandaDoc emails its signing link to
+> whatever address was supplied as `tenant_email`, watermarked as a developer
+> document. That is deliberate: rehearsing the tenant's signing journey is most of
+> the point. **Use an address you own.** The Dev Centre surfaces the same link with
+> this warning, and names the address, so a developer running several test
+> payloads can see exactly who received it.
+>
+> **Different:** nothing else. There is no opndoor email at this step in either
+> mode.
 
 | # | Action, actor | status | deed_state | activity_log | Email, actual recipient | Tags |
 | - | ------------- | ------ | ---------- | ------------ | ----------------------- | ---- |
@@ -142,6 +204,19 @@ the regression to protect.
 second payment will not retry it. Recovery is manual only.
 
 ## A4. Deed signed
+
+> ### Sandbox
+> **Reachable.** The callback is verified against `PANDADOC_WEBHOOK_SHARED_KEY_TEST`,
+> and again **the secret that verifies is what identifies the mode**. Both keys are
+> tried; nothing is read from the body, because a webhook is unauthenticated until
+> the signature checks out, so every field in it is a claim rather than a fact.
+> `apply_deed_executed` then runs identically and A4.1 to A4.4 all behave the same.
+>
+> **Different:** neither Opndoor email at A5 is sent. See A5.
+>
+> **A mismatch is refused**, not reconciled: a sandbox callback naming a live
+> application returns 500 with a `pandadoc_livemode_mismatch` ops alert, and the
+> dedup row is deleted so a corrected redelivery is not swallowed.
 
 | # | Action | status | deed_state | activity_log | Tags |
 | - | ------ | ------ | ---------- | ------------ | ---- |
@@ -175,7 +250,20 @@ the ordinary path. Test that separately: `A6.3` with the void forced to fail.
 
 ## A5. Deed delivered to the agent
 
-> **Mode.** Sandbox does NOT do this at all: no email reaches the agent contact. See **B, and the mode dimension**.
+> ### Sandbox
+> **Does not happen at all.** Neither `deliverDeedToAgent` nor
+> `deliverExecutedDeedToTenant` runs, so no `deed_delivered` or
+> `tenant_deed_email_sent` row appears and no email leaves.
+>
+> This is the sharpest edge in the whole design and is why it is suppressed: the
+> agent contact on a sandbox application is a **real letting agent's address** if
+> the branch is a real branch, which it now always is, since organisations are
+> resolved rather than created and sandbox applications reference the partner's
+> real orgs. An executed Deed of Guarantee arriving at a real agent for a tenancy
+> that does not exist is the worst outcome available here.
+>
+> **Assert the absence**, and assert it deliberately: an absence also happens when
+> something is broken, so check the deed itself reached `executed` at A4 first.
 
 | # | Action | activity_log | Email, actual recipient | HubSpot | Tags |
 | - | ------ | ------------ | ----------------------- | ------- | ---- |
@@ -205,7 +293,17 @@ the printed deed and the delivery disagree. Assert both values.
 
 ## A6. Refund
 
-> **Mode.** Sandbox differs here: test-mode refund, and no refund email. See **B, and the mode dimension**.
+> ### Sandbox
+> **Reachable.** Refund the test charge in Stripe test mode. `apply_stripe_refund`
+> runs identically, and `voidDocument` uses the sandbox PandaDoc account, so the
+> watermarked document is voided there.
+>
+> **Different:** no refund email. The `refund_email_sent` row does not appear.
+>
+> **Defect 9 applies in both modes** and is worth exercising here rather than
+> live: if the void fails, `deed_state` stays `awaiting_tenant`, the document id
+> stays set, and the signing link the tenant already has stays live on a refunded
+> application. Sandbox is the safe place to reproduce that.
 
 **There is no in-portal refund action.** No code anywhere calls Stripe to create
 one. An operator refunds in the Stripe dashboard. `[HUMAN]` to trigger, `[AUTO]`
@@ -233,7 +331,19 @@ everywhere. Only `refunded_amount` versus `paid_amount` shows partiality.
 
 ## A7. Withdraw
 
-| # | Action, actor | status | payment_state | activity_log | Email | HubSpot | Tags |
+> ### Sandbox
+> **Staff withdrawal (A7.1, A7.2) is not reachable.** A sandbox application does
+> not appear on any portal screen, so there is no button to press, and
+> `applications_sandbox_write_guard` refuses the write anyway for any session
+> carrying a portal identity other than a developer's. There is no withdraw
+> endpoint on the partner API, so a partner cannot do it either.
+>
+> **Tenant self-decline (A7.3) IS reachable**, and is worth rehearsing: it runs on
+> the tokenised payment page with no login and no role, through `service_role`,
+> which the guard deliberately allows. It is also the route into A9.
+>
+> **Different:** nothing. No email is sent in either mode at this step, which is
+> itself the point of A7.1's "the tenant is not told" note.
 | - | ------------- | ------ | ------------- | ------------ | ----- | ------- | ---- |
 | A7.1 | **Staff** withdrawal. Superadmin, management in-partner, or the owning referrer | `sent` → `withdrawn` | **unchanged** `awaiting` | one row: `withdrawn` / business / "Application withdrawn (`<label>`)…" | **none. The tenant is not told and their payment token stays live** | `stage_withdrawn` | `[AUTO]` |
 | A7.2 | Staff withdrawal on `paid`, `deed`, `expired` or already withdrawn | unchanged | unchanged | **none** | none | none | `[AUTO]` |
@@ -249,6 +359,21 @@ though the column permits `duplicate`.
 decline it.** The tenant has a closure route the staff do not.
 
 ## A8. Expire
+
+> ### Sandbox
+> **Reachable, and deliberately so.** `expire_stale_applications` is one of the
+> twelve definer functions exempted from the livemode audit **on purpose**: it
+> expires sandbox applications too, so a developer can rehearse the lapse path and
+> the `application.lapsed` webhook it emits. The exemption is recorded in
+> `livemode_audit_exemptions` with that reason.
+>
+> **Different:** A8.3 and A8.4 do not happen. `fire_payment_reminders` carries a
+> livemode predicate, so a sandbox application never appears in a reminder run, no
+> `payment_reminder` row is written and no email is attempted. The expiry itself
+> still fires.
+>
+> That split is the point: expiry is a **state transition** a partner needs to see;
+> a reminder is an **email to a tenant**, which sandbox never sends.
 
 | # | Action | status | payment_state | activity_log | HubSpot | Tags |
 | - | ------ | ------ | ------------- | ------------ | ------- | ---- |
@@ -273,6 +398,24 @@ superadmin.
 
 The single most valuable section, because it is where the lifecycle stops being
 monotonic and where most assumptions break.
+
+> ### Sandbox
+> **Reachable, and this is the one a partner most needs to rehearse**, because it
+> is the case their integration is most likely to get wrong. A9.1 and A9.2 emit
+> `application.reinstated` **instead of** `application.paid`, so a handler that
+> counted `application.paid` as a first payment must not count this again, and a
+> handler that stopped listening after `application.lapsed` needs this to correct
+> its record.
+>
+> Getting here in sandbox: create with a test key, let it lapse (A8) or decline it
+> as the tenant (A7.3), then pay with a test card.
+>
+> **Different:** the receipt email at A9.1/A9.2 is not sent. The
+> `payment_reinstated` and `payment_received` rows still appear, and the deed still
+> generates against the sandbox PandaDoc account.
+>
+> **A9.3 emits nothing in either mode**, which is the point of defect 8: real
+> money sits on a withdrawn application and the partner is never told.
 
 | # | Prior state | status | payment_state | activity_log | Tags |
 | - | ----------- | ------ | ------------- | ------------ | ---- |

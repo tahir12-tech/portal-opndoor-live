@@ -20,8 +20,17 @@ appearing healthy.
 | `PARTNER-API.md` | **Internal** design record for the partner API. Cites migrations, names internal functions, discusses our own weaknesses. | Us only |
 | `PARTNER-DOCS.md` | **Partner-facing** reference. This is what the Dev Centre publishes. | Partner developers |
 | `SANDBOX-MODE-SCOPE.md` | Superseded. A record of the decision point before sandbox was built. | Historical |
-| `HANDOVER-MACHINE.md` | The **original** handover, 6 July 2026, pre go-live. Partly stale; its own banner says what was checked. §5, §6 and §9 still worth reading | Historical, plus estate detail |
-| `HUBSPOT-SYNC-SPEC.md` | The HubSpot sync specification. **Built**, not a plan. Predates sandbox and the partner API; its banner says how | Whoever touches the sync |
+| `HANDOVER-MACHINE.md` | The **original** handover, 6 July 2026, pre go-live. Partly stale; its own banner says what was checked. §5, §6 and §9 still worth reading. **§2 and §8 need your own verification** | Historical, plus estate detail |
+| `HUBSPOT-SYNC-SPEC.md` | The HubSpot sync specification. **Built**, not a plan. Predates sandbox and the partner API. **§2's constants need your own verification** | Whoever touches the sync |
+
+**Two things in that list nobody here could check**, because they describe
+infrastructure and a third-party account this working copy cannot see:
+`HANDOVER-MACHINE.md` §2 (the operational estate) and §8 (the teardown census),
+and `HUBSPOT-SYNC-SPEC.md` §2 (the HubSpot constants). Each carries a checklist
+at the point of use rather than a general caution. Both failure modes are quiet:
+an account nobody can sign into is found during an incident, and a renamed
+HubSpot property makes the sync stop recording a field while still returning
+success.
 | `PARTNER-DOCS.md` also generates `public/openapi.json` | OpenAPI 3.1, from the same source, validated on every build | Partner developers |
 
 The last two names are similar and the difference matters: **`-DOCS` goes out,
@@ -129,6 +138,36 @@ refuses to build if internal detail appears in it.
 >
 > Verify after any deploy by calling the endpoint with a key you know is good and
 > confirming a `200`. See section 9.
+
+> ### ⚠️ `npm test` does not exist. The suite runs under `npm run smoke`
+>
+> ```sh
+> npm run smoke     # vitest run --environment jsdom.  127 tests, 126 pass.
+> npx vitest run    # 14 of 15 FILES fail. Missing jsdom, not broken code.
+> ```
+>
+> There is no `test` script in `package.json`. Running vitest directly gives it no
+> DOM, so every file touching `localStorage` or `window` dies on import, and the
+> output looks like the tree is in pieces. It is one missing flag.
+>
+> **We ran the wrong command and drew the wrong conclusion**, which is the whole
+> reason this box exists. It is the same shape as the `tsc` trap below: the
+> obvious command reports something untrue.
+>
+> **One test genuinely fails, and it is not from this work.**
+> `src/data/applications-filters.test.ts`, "counts respect partner, agency, branch
+> and referrer filters", added **22 July 2026** in commit `b9e227d` by another
+> developer. Its fixture builds two rows that match all four filters while the
+> assertion expects one. The expectation looks wrong rather than the code, but
+> which of the two is a judgement about intent, so it is recorded as **Defect 16**
+> rather than changed here.
+>
+> Everything this work added passes. The Edge Function helpers are a **separate**
+> suite and do not run under vitest at all:
+>
+> ```sh
+> deno test supabase/functions/_shared/     # 11 tests, redaction rules
+> ```
 
 > ### ⚠️ `tsc -p tsconfig.json` checks nothing
 >

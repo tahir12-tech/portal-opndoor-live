@@ -27,6 +27,41 @@
 >
 > For anything about how the system works **now**, HANDOVER.md is the current
 > document.
+>
+> ---
+>
+> ### 🔍 §2, the operational estate: NOBODY HERE CAN VERIFY THIS. Balal must.
+>
+> This section describes infrastructure that cannot be seen from this working
+> copy: dashboards, accounts, DNS, billing, third-party consoles. Checking it
+> from here would produce more unverified claims dressed as verified ones, which
+> is worse than leaving it marked.
+>
+> **Do not rely on any of the following until you have checked it yourself.**
+> Each is load-bearing: something breaks quietly if it is wrong.
+>
+> | Check | Why it matters if wrong |
+> | ----- | ----------------------- |
+> | Every account listed still exists, and **we still hold the credentials** | An account nobody can sign into is discovered during an incident |
+> | Who owns each account, and whether it is a personal login | A personal login leaves with the person. This is the single most common estate failure |
+> | The Stripe account is the one the live keys belong to, and its webhook endpoints point at the **current** functions URL | A moved endpoint means payments settle and nothing downstream fires |
+> | The PandaDoc account, its template id, and that the template still has one Signature field and no Date field | A changed template breaks deed generation with a provider error, after the tenant has paid |
+> | The Resend domain is still verified, and SPF/DKIM still pass | Silent delivery failure. Nothing in the portal reports it |
+> | The Supabase project ref matches what the code expects, and the plan/quota is what you think | See defect 2 |
+> | The HubSpot Hub id, and that the token still has the scopes the sync needs | The sync 401s and the CRM quietly stops updating |
+> | Any DNS you did not set up yourself, including who controls the zone | You will need this for `api.opndoor.co`. See HANDOVER.md section 12 |
+> | Billing: card on file, expiry, and who receives the invoices | The most boring failure and the one that takes a service down without warning |
+>
+> ### 🔍 §8, the teardown census, is also unverified
+>
+> It lists demo and test data to remove before production. It was accurate on
+> 6 July. A month of work has happened since, including this one, which created
+> test partners, test users, sandbox applications and API keys on the **dev**
+> project. Re-derive the census against the real production database rather than
+> trusting the list.
+>
+> `dev_purge_sandbox()` clears sandbox applications and orgs, which is a subset of
+> what §8 covers and does not touch anything live.
 
 Engineering handover for the **opndoor Guarantee Referral Portal**.
 

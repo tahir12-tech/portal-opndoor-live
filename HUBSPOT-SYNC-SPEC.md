@@ -18,8 +18,35 @@ specification it was built from, not a plan.
 > reads the activity log rather than the create path, but the volume assumption
 > in §1 was written when every application was typed by a human.
 >
-> Constants were verified against the live Hub on 5 July 2026 and have **not**
-> been re-verified since. Check them before trusting a property name.
+> ---
+>
+> ### 🔍 §2's constants: NOBODY HERE CAN VERIFY THESE. Balal must.
+>
+> They were checked against the live Hub on **5 July 2026** and not since. Nobody
+> working on this copy can see that HubSpot account, so re-checking from here
+> would produce more unverified claims dressed as verified ones.
+>
+> **The failure mode is silent.** HubSpot accepts a write to a property that does
+> not exist by ignoring it, and returns success. So a renamed property does not
+> break the sync: it makes the sync stop recording that field, with nothing in the
+> portal or the logs saying so. It is found weeks later by someone asking why a
+> report is empty.
+>
+> **Check each of these in the Hub before relying on this document:**
+>
+> | Constant | How it fails if stale |
+> | -------- | --------------------- |
+> | Hub id `144519077` and that it is the **EU** instance | Wrong region means every call 404s, which at least fails loudly |
+> | Every **internal name** in §3's applicant field mapping | Silent. The field stops being written and nobody is told |
+> | The pipeline and stage ids in §2 | A deal lands in the wrong pipeline, or none |
+> | The association type ids in §7 | Attribution silently breaks: records exist but are not linked |
+> | The **never-touch** list in §5 | If a field left that list, the sync starts overwriting something a human maintains |
+> | The access token's scopes | 401s, which surface as failures in `cron_health` |
+> | That the company fixture for the partner still exists (§3/§7) | Company resolution falls back or fails per event |
+>
+> A property rename is a **config edit**, not a deploy: the mapping is stored in
+> a table, which is the whole point of §1's design. So this is cheap to fix and
+> expensive to leave.
 **Hub:** 144519077 (EU). **Direction:** portal → HubSpot, one-way. The portal is the system of record for applications and org structure; HubSpot builds everything on top.
 
 ---
