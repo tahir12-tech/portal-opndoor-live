@@ -30,6 +30,7 @@ export interface DevApiKey {
   expires_at: string | null;
   revoked_at: string | null;
   last_used_at: string | null;
+  livemode: boolean;
 }
 
 export interface DevWebhookEndpoint {
@@ -43,6 +44,7 @@ export interface DevWebhookEndpoint {
   last_success_at: string | null;
   last_failure_at: string | null;
   consecutive_failures: number;
+  livemode: boolean;
 }
 
 export interface DevDelivery {
@@ -102,7 +104,7 @@ export async function revokeApiKey(id: string): Promise<void> {
 
 /** Returns the plaintext key. It is shown once and is not recoverable. */
 export async function mintApiKey(input: {
-  partnerId: string; name: string; scopes: string[]; expiresAt?: string | null;
+  partnerId: string; name: string; scopes: string[]; livemode: boolean; expiresAt?: string | null;
 }): Promise<{ key: string; record: Partial<DevApiKey> }> {
   const { data, error } = await sb().functions.invoke('dev-centre', {
     body: {
@@ -110,6 +112,9 @@ export async function mintApiKey(input: {
       partner_id: input.partnerId,
       name: input.name,
       scopes: input.scopes,
+      // Required, not defaulted. The server rejects a missing value rather than
+      // guessing, and this type makes the caller state it.
+      livemode: input.livemode,
       expires_at: input.expiresAt ?? null,
     },
   });
@@ -127,7 +132,7 @@ export async function getWebhookEndpoints(partnerId?: string | null): Promise<De
 
 /** Returns the signing secret. Shown once, not recoverable. */
 export async function createWebhookEndpoint(input: {
-  partnerId: string; url: string; events: string[]; description?: string;
+  partnerId: string; url: string; events: string[]; livemode: boolean; description?: string;
 }): Promise<{ secret: string; record: Partial<DevWebhookEndpoint> }> {
   const { data, error } = await sb().functions.invoke('dev-centre', {
     body: {
@@ -135,6 +140,7 @@ export async function createWebhookEndpoint(input: {
       partner_id: input.partnerId,
       url: input.url,
       events: input.events,
+      livemode: input.livemode,
       description: input.description ?? '',
     },
   });
@@ -253,6 +259,103 @@ export async function getApiLogs(opts: {
  * The difference is real and the UI says so rather than implying both work
  * the same way.
  */
+/* ---------------------------------------------------------------------------
+   Sandbox.
+
+   A developer sees sandbox applications ONLY here. The restrictive policy on
+   applications has no developer arm, so PostgREST returns nothing to anybody and
+   there is no second route to fall back on. Every field below therefore comes
+   from dev_sandbox_applications, which carries the livemode predicate and the
+   partner scope in SQL.
+   --------------------------------------------------------------------------- */
+
+export interface SandboxApplication {
+  id: string;
+  guarantee_ref: string;
+  status: string;
+  deed_state: string | null;
+  created_at: string;
+  sent_at: string | null;
+  paid_at: string | null;
+  deed_issued_at: string | null;
+  tenant_first_name: string | null;
+  tenant_last_name: string | null;
+  tenant_email: string | null;
+  prop_addr1: string | null;
+  prop_postcode: string | null;
+  monthly_rent: number | null;
+  tenancy_start: string | null;
+  agency_name: string | null;
+  branch_name: string | null;
+  pandadoc_document_id: string | null;
+  payment_url: string | null;
+  referrer_name: string | null;
+}
+
+export interface SandboxCounts {
+  total: number; sent: number; paid: number; deed: number; closed: number;
+}
+
+export async function getSandboxApplications(opts: {
+  partnerId?: string | null; search?: string | null; limit?: number;
+} = {}): Promise<SandboxApplication[]> {
+  if (!SUPABASE_ENABLED) return [];
+  const { data, error } = await sb().rpc('dev_sandbox_applications', {
+    p_partner: opts.partnerId ?? null,
+    p_search: opts.search ?? null,
+    p_limit: opts.limit ?? 100,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as SandboxApplication[];
+}
+
+export async function getSandboxCounts(partnerId?: string | null): Promise<SandboxCounts | null> {
+  if (!SUPABASE_ENABLED) return null;
+  const { data, error } = await sb().rpc('dev_sandbox_counts', { p_partner: partnerId ?? null });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row ?? null) as SandboxCounts | null;
+}
+
+/**
+ * A fresh PandaDoc signing session for a sandbox deed.
+ *
+ * Returns the tenant email alongside the link so the warning can name the exact
+ * address that received the document, rather than saying "the address you sent",
+ * which a developer running several test payloads cannot resolve from memory.
+ */
+export async function getSandboxSigningLink(applicationId: string): Promise<{
+  link: string; tenantEmail: string | null; guaranteeRef: string | null;
+}> {
+  const { data, error } = await sb().functions.invoke('dev-centre', {
+    body: { action: 'signing_link', application_id: applicationId },
+  });
+  if (error) throw new Error(error.message);
+  if (!data?.ok) throw new Error(data?.error ?? 'Could not get a signing link.');
+  return { link: data.link, tenantEmail: data.tenant_email ?? null, guaranteeRef: data.guarantee_ref ?? null };
+}
+
+/**
+ * Delete every sandbox row for the partner.
+ *
+ * Needed because the restrictive policy means not even a superadmin can delete a
+ * sandbox application through PostgREST, so without this they accumulate for
+ * ever. The function's where clause is `not livemode` and never an id list, so
+ * it cannot reach a live row whatever it is passed.
+ */
+export async function purgeSandbox(partnerId?: string | null): Promise<{
+  applications: number; agencies: number; branches: number;
+}> {
+  const { data, error } = await sb().rpc('dev_purge_sandbox', { p_partner: partnerId ?? null });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    applications: Number(row?.applications_deleted ?? 0),
+    agencies: Number(row?.agencies_deleted ?? 0),
+    branches: Number(row?.branches_deleted ?? 0),
+  };
+}
+
 export function maskSecret(value: string, visibleChars = 6): string {
   if (!value) return '';
   return `${value.slice(0, visibleChars)}${'•'.repeat(Math.max(8, Math.min(24, value.length - visibleChars)))}`;

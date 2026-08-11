@@ -6,13 +6,12 @@
    generated API documentation sit behind cards on Configuration rather than
    being tabs of their own, as PandaDoc does.
 
-   ONE HONEST DIFFERENCE FROM PANDADOC. They list sandbox and production keys
-   side by side, because theirs is one system with two kinds of key. Ours are two
-   SEPARATE PROJECTS with separate databases, so this Dev Centre can only ever
-   see its own: there is no cross-project plumbing and deliberately so. The
-   banner says which environment this is and where the other set lives, because
-   the failure mode is somebody hunting for keys that were never going to be
-   here.
+   SANDBOX AND LIVE ARE ONE SYSTEM, as PandaDoc and Stripe do it. An earlier
+   version of this file said the opposite, because the plan was two Supabase
+   projects; that was abandoned in favour of a livemode flag inside the live
+   system, so keys, endpoints and applications for both modes are listed side by
+   side here and each says which it is. A developer rehearses against a sandbox
+   key and then swaps it for a live one with nothing else changing.
 
    WHO SEES WHAT. Developer and opndoor admin see everything. Management sees the
    API keys panel ONLY, and only so a leaked key can be killed by whoever notices
@@ -49,11 +48,12 @@ import { ApiDocsPanel } from './ApiDocsPanel';
 import { Configuration } from './Configuration';
 import { Logs } from './Logs';
 import { Monitoring } from './Monitoring';
+import { Sandbox } from './Sandbox';
 import { WebhookHistory } from './WebhookHistory';
 import { GettingStarted } from './GettingStarted';
 import './DevCentre.css';
 
-type Tab = 'monitoring' | 'logs' | 'webhooks' | 'config';
+type Tab = 'monitoring' | 'logs' | 'webhooks' | 'sandbox' | 'config';
 
 export function DevCentre() {
   const { role } = useSession();
@@ -82,12 +82,19 @@ export function DevCentre() {
   const [mintOpen, setMintOpen] = useState(false);
   const [mintName, setMintName] = useState('');
   const [mintScopes, setMintScopes] = useState<string[]>(['applications:write', 'orgs:read']);
+  // Sandbox is the default for a NEW key, which is the opposite of the default
+  // for the livemode column and deliberately so. A column default protects data
+  // already in flight, so it fails towards live; a form default is a suggestion
+  // to a human starting an integration, and the safe suggestion there is the one
+  // that cannot charge anybody. The server accepts no default either way.
+  const [mintLive, setMintLive] = useState(false);
   const [mintedKey, setMintedKey] = useState<string | null>(null);
 
   // endpoint modal
   const [epOpen, setEpOpen] = useState(false);
   const [epUrl, setEpUrl] = useState('');
   const [epEvents, setEpEvents] = useState<string[]>([]);
+  const [epLive, setEpLive] = useState(false);
   const [epSecret, setEpSecret] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -109,6 +116,10 @@ export function DevCentre() {
         { id: 'monitoring', label: 'Monitoring' },
         { id: 'logs', label: 'Logs' },
         { id: 'webhooks', label: 'Webhooks history' },
+        // Sandbox sits before Configuration because it is where a developer
+        // spends the integration, and after the three observability tabs because
+        // it is data rather than diagnosis.
+        { id: 'sandbox', label: 'Sandbox' },
         { id: 'config', label: 'Configuration' },
       ];
 
@@ -119,7 +130,7 @@ export function DevCentre() {
     if (!mintScopes.length) { toast('Choose at least one scope.'); return; }
     setBusy(true);
     try {
-      const r = await mintApiKey({ partnerId: isAdmin ? partnerId : '', name: mintName.trim(), scopes: mintScopes });
+      const r = await mintApiKey({ partnerId: isAdmin ? partnerId : '', name: mintName.trim(), scopes: mintScopes, livemode: mintLive });
       setMintedKey(r.key);          // shown once, right here, and never again
       setMintName('');
       await load();
@@ -139,7 +150,7 @@ export function DevCentre() {
     if (!epUrl.startsWith('https://')) { toast('The URL must use https.'); return; }
     setBusy(true);
     try {
-      const r = await createWebhookEndpoint({ partnerId: isAdmin ? partnerId : '', url: epUrl.trim(), events: epEvents });
+      const r = await createWebhookEndpoint({ partnerId: isAdmin ? partnerId : '', url: epUrl.trim(), events: epEvents, livemode: epLive });
       setEpSecret(r.secret);        // shown once
       setEpUrl('');
       await load();
@@ -218,6 +229,7 @@ export function DevCentre() {
       {tab === 'monitoring' && <Monitoring partnerId={scopedPartner} />}
       {tab === 'logs' && <Logs partnerId={scopedPartner} />}
       {tab === 'webhooks' && <WebhookHistory partnerId={scopedPartner} />}
+      {tab === 'sandbox' && <Sandbox partnerId={scopedPartner} />}
 
       {tab === 'config' && panel === 'none' && (
         <Configuration
@@ -268,6 +280,35 @@ export function DevCentre() {
           </>
         ) : (
           <>
+            {/* Mode first, above the label and the scopes. It is the decision
+                with consequences: a live key charges real cards, and it is the
+                one thing about a key that cannot be changed afterwards. Reusing
+                the .devscope styling so this reads as the same kind of choice as
+                the scope list below it rather than a stray pair of radios. */}
+            <Field label="Mode">
+              <div className="devscopes">
+                <label className={`devscope${!mintLive ? ' is-sel' : ''}`}>
+                  <input type="radio" name="mintmode" checked={!mintLive} onChange={() => setMintLive(false)} />
+                  <div>
+                    <div className="devscope__name">Sandbox</div>
+                    <div className="devscope__desc">
+                      Prefix opnd_test_. Test cards, watermarked deeds, no HubSpot and no opndoor email.
+                      Nothing it creates is visible outside the Dev Centre.
+                    </div>
+                  </div>
+                </label>
+                <label className={`devscope${mintLive ? ' is-sel' : ''}`}>
+                  <input type="radio" name="mintmode" checked={mintLive} onChange={() => setMintLive(true)} />
+                  <div>
+                    <div className="devscope__name">Live</div>
+                    <div className="devscope__desc">
+                      Prefix opnd_live_. Real cards, real deeds, real email to tenants and agents, and real
+                      commission.
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </Field>
             <Field label="Label"><input type="text" placeholder="Rightmove production" value={mintName} onChange={(e) => setMintName(e.target.value)} /></Field>
             <Field label="Scopes">
               <div className="devscopes">
@@ -310,6 +351,28 @@ export function DevCentre() {
           </>
         ) : (
           <>
+            {/* Sandbox and live are separate endpoint registries. Pointing both
+                at the SAME url is fine and expected: each endpoint gets its own
+                signing secret, so a receiver tells them apart by which secret
+                verifies, or by the livemode field in the payload. */}
+            <Field label="Mode">
+              <div className="devscopes">
+                <label className={`devscope${!epLive ? ' is-sel' : ''}`}>
+                  <input type="radio" name="epmode" checked={!epLive} onChange={() => setEpLive(false)} />
+                  <div>
+                    <div className="devscope__name">Sandbox</div>
+                    <div className="devscope__desc">Receives events from sandbox applications only.</div>
+                  </div>
+                </label>
+                <label className={`devscope${epLive ? ' is-sel' : ''}`}>
+                  <input type="radio" name="epmode" checked={epLive} onChange={() => setEpLive(true)} />
+                  <div>
+                    <div className="devscope__name">Live</div>
+                    <div className="devscope__desc">Receives events from real applications.</div>
+                  </div>
+                </label>
+              </div>
+            </Field>
             <Field label="URL"><input type="text" placeholder="https://your-system.example/opndoor/webhooks" value={epUrl} onChange={(e) => setEpUrl(e.target.value)} /></Field>
             <Field label="Events">
               <div className="devscopes">

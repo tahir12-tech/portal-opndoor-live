@@ -81,7 +81,7 @@ export function Configuration(props: {
           )}
         />
         <table className="dt">
-          <thead><tr><th>Label</th><th>Key</th><th>Scopes</th><th>Created</th><th>Last used</th><th>Status</th><th /></tr></thead>
+          <thead><tr><th>Label</th><th>Key</th><th>Scopes</th><th>Created</th><th>Last used</th><th>Status</th><th>Mode</th><th /></tr></thead>
           <tbody>
             {props.keys.map((k) => (
               <tr key={k.id} className={k.revoked_at ? 'is-revoked' : ''}>
@@ -98,7 +98,16 @@ export function Configuration(props: {
                 <td className="soft">{k.scopes.join(', ') || '--'}</td>
                 <td className="soft">{dt(k.created_at)}</td>
                 <td className="soft">{k.last_used_at ? dt(k.last_used_at) : 'Never'}</td>
-                <td>{k.revoked_at ? <Pill variant="muted">Revoked</Pill> : <Pill variant="deed">Live</Pill>}</td>
+                {/* Two different questions that used to share one column. "Live" here meant
+    "not revoked", which now collides with live vs sandbox mode, so the state
+    column says active or revoked and the mode column says which credentials it
+    carries. */}
+                <td>{k.revoked_at ? <Pill variant="muted">Revoked</Pill> : <Pill variant="deed">Active</Pill>}</td>
+                <td>
+                  <span className={`devmode devmode--${k.livemode ? 'live' : 'sandbox'}`}>
+                    {k.livemode ? 'Live' : 'Sandbox'}
+                  </span>
+                </td>
                 <td style={{ textAlign: 'right' }}>
                   {!k.revoked_at && (
                     <Button variant="ghost" size="sm" disabled={props.busy} onClick={() => props.onRevoke(k)}>Revoke</Button>
@@ -119,7 +128,7 @@ export function Configuration(props: {
             actions={<Button variant="primary" size="sm" onClick={props.onCreateEndpoint}><Icon name="plus" /> Add endpoint</Button>}
           />
           <table className="dt">
-            <thead><tr><th>Name</th><th>URL</th><th>Signing secret</th><th>Events</th><th>Enabled</th></tr></thead>
+            <thead><tr><th>Name</th><th>URL</th><th>Mode</th><th>Signing secret</th><th>Events</th><th>Enabled</th></tr></thead>
             <tbody>
               {props.endpoints.map((e) => (
                 <tr key={e.id}>
@@ -127,6 +136,15 @@ export function Configuration(props: {
                     {e.consecutive_failures > 0 && <div className="devfail">{e.consecutive_failures} consecutive failures</div>}
                   </td>
                   <td><code>{e.url}</code></td>
+                  {/* Pointing sandbox and live at the same URL is expected: each
+                      endpoint has its own signing secret, so a receiver tells
+                      them apart by which secret verifies. Without this column the
+                      two rows would be indistinguishable. */}
+                  <td>
+                    <span className={`devmode devmode--${e.livemode ? 'live' : 'sandbox'}`}>
+                      {e.livemode ? 'Live' : 'Sandbox'}
+                    </span>
+                  </td>
                   <td>
                     <div className="devsecret">
                       <code>{shown[e.id] ? shown[e.id] : maskSecret('whsec_', 6)}</code>

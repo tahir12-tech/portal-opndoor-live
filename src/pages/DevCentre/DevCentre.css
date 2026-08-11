@@ -193,3 +193,48 @@
 .devkeybox   svg { width: 15px; height: 15px; flex-shrink: 0; }
 .devwarn     svg { width: 15px; height: 15px; flex-shrink: 0; }
 .devscope    svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* ---------------------------------------------------------------------
+   Sandbox tab.
+
+   The warning is amber and permanent rather than red and dismissable. Red is
+   this file's error colour (.devalert) and nothing here is broken; amber is
+   .devwarn's "this is true and you need to know it", which is exactly what
+   "PandaDoc really sends" is. It cannot be dismissed because it is true on
+   every visit, and a notice that can be dismissed is one that will be.
+   --------------------------------------------------------------------- */
+.sbxwarn { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 16px;
+           padding: 12px 14px; border-radius: 10px; background: #fffbeb;
+           border: 1px solid #fde68a; color: #78350f; font-size: 13px; line-height: 1.55; }
+.sbxwarn strong { display: block; margin-bottom: 3px; }
+.sbxwarn p { margin: 0; }
+.sbxwarn code { background: rgba(120, 53, 15, 0.09); padding: 1px 5px; border-radius: 4px; }
+.sbxwarn--tight { margin-bottom: 12px; }
+
+.sbxhead { display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+           justify-content: space-between; margin-bottom: 14px; }
+.sbxcounts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sbxacts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Buttons in a table cell, kept on one line so the column does not grow a row
+   in height the moment an application has both a payment link and a deed. */
+.sbxrowacts { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+
+/* The signing link. Dark like .devkeybox because it is the same kind of thing:
+   a bearer credential the developer is about to copy. Wraps rather than
+   scrolls, since a PandaDoc session URL is long and the whole of it matters. */
+.sbxlink { margin-top: 10px; padding: 12px; border-radius: 8px; background: #0f172a;
+           color: #e2e8f0; word-break: break-all; }
+.sbxlink code { font-size: 12.5px; line-height: 1.5; }
+
+/* Per-container icon sizing, following the convention at the foot of this file
+   rather than adding one-off widths at the call sites. */
+.sbxwarn     svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }
+.sbxrowacts  svg { width: 14px; height: 14px; flex-shrink: 0; }
+.sbxacts     svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* The live/sandbox marker on a key or endpoint row. */
+.devmode { display: inline-block; padding: 2px 8px; border-radius: 999px;
+           font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
+.devmode--live    { background: #ecfdf5; color: #065f46; }
+.devmode--sandbox { background: #eef2ff; color: #3730a3; }
