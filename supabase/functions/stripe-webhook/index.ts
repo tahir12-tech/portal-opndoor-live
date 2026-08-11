@@ -208,6 +208,40 @@ Deno.serve(async (req) => {
                 actor: "System",
                 visibility: "business",
               });
+            } else {
+              // DEFECTS.md 9. There was no else. A PandaDoc timeout during a
+              // refund left deed_state at awaiting_tenant with the document id
+              // still set, so the signing link already in the tenant's inbox
+              // stayed live. apply_stripe_refund never touches status, so the
+              // application was still 'paid': signing it took the ORDINARY path
+              // and issued a full Deed of Guarantee, delivered to the agent as
+              // valid, on an application whose fee had been refunded.
+              //
+              // The document is still live at PandaDoc and we cannot change that
+              // from here. What we can do is make sure this portal will not
+              // ACCEPT its completion, which is the half we control.
+              await service.from("applications")
+                .update({ deed_state: "error", pandadoc_document_id: null })
+                .eq("id", appRow.id);
+
+              await service.from("activity_log").insert({
+                application_id: appRow.id,
+                kind: "deed_void_failed",
+                message: `Could not void the outstanding deed after a refund: ${voidResult.error ?? "no detail"}. `
+                  + "The signing link may still work at PandaDoc. Void it there by hand.",
+                actor: "System",
+                visibility: "internal",
+              });
+
+              // Raised where operational failures already surface. Previously
+              // this failure produced no log line, no activity row and no
+              // incident: the only trace was the ABSENCE of the deed_voided row
+              // above, which nobody was watching for.
+              await service.rpc("report_ops_incident", {
+                p_type: "deed_void_failed",
+                p_detail: `Refund on ${appRow.guarantee_ref}: PandaDoc void failed (${voidResult.error ?? "no detail"}). `
+                  + "Void the document in PandaDoc manually. The application has been set to deed_state=error.",
+              }).then(() => {}, () => {});
             }
           }
           // Branded refund confirmation to the tenant (redirected to the review
