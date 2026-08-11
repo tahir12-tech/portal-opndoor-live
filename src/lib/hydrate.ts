@@ -80,7 +80,7 @@ function toContact(c: any): AgentContact {
 /** Load all RLS-scoped datasets and replace the service working copies. */
 export async function hydrateFromSupabase(userId: string, viewerRole: Role = LEAST_PRIVILEGED_ROLE): Promise<void> {
   const client = sb();
-  const [partnersRes, usersRes, agenciesRes, branchesRes, contactsRes, appsRes] = await Promise.all([
+  const [partnersRes, usersRes, ratesRes, agenciesRes, branchesRes, contactsRes, appsRes] = await Promise.all([
     // The rate columns are requested only when the caller is entitled to them.
     // partners_select already refuses the whole row to a developer, so this is
     // defence in depth rather than the control, but a client that does not ask
@@ -95,6 +95,10 @@ export async function hydrateFromSupabase(userId: string, viewerRole: Role = LEA
     // Admin user list via RPC: TRUTHFUL last-active (auth.users.last_sign_in_at)
     // and status/role, visibility-scoped like the users_select RLS policy.
     client.rpc('list_managed_users'),
+    // The commission snapshot, for the roles entitled to it. Returns nothing for
+    // everyone else, enforced in the function rather than by not calling it: a
+    // client that skipped the call would be back to a TypeScript decision.
+    client.rpc('application_commission_rates', { p_partner: null }),
     client.from('agencies').select('id, name, group_name, review_state, partner_id, partner:partners(slug)'),
     client.from('branches').select('id, name, area, review_state, agency_id, partner_id'),
     // Ordered oldest-first so the on-screen contact order matches the server's
@@ -105,12 +109,15 @@ export async function hydrateFromSupabase(userId: string, viewerRole: Role = LEA
       'id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, ' +
         'tenant_dob, tenant_email, tenant_phone, ' +
         'prop_addr1, prop_addr2, prop_city, prop_county, prop_postcode, ' +
-        // applications carries its OWN snapshot of the commission rates, so
-        // narrowing the partners select alone was not enough: the rates would
-        // still have arrived on every application row. Same reasoning, and the
-        // same defence in depth: applications_select already returns nothing to
-        // an unentitled role, but a client that does not ask cannot receive.
-        (maySeeCommission(viewerRole) ? 'monthly_rent, partner_rate, agent_rate, ' : 'monthly_rent, ') +
+        // The rates are NO LONGER SELECTABLE HERE BY ANYONE. partner_rate and
+        // agent_rate came off the table grant for `authenticated` entirely
+        // (20260811180000), because narrowing this string was never enforcement:
+        // it decided what the client ASKED for, and PostgREST answers whatever it
+        // is asked. Any signed-in user could request them directly. They now
+        // arrive through application_commission_rates() below, for the roles
+        // entitled to them, and Postgres refuses the columns to everyone else
+        // whatever they ask.
+        'monthly_rent, ' +
         'status, beneficiary, tenancy_start, sent_at, paid_at, deed_issued_at, expiry_date, ' +
         'payment_state, refunded_at, refunded_amount, paid_amount, refund_after_start, ' +
         'withdrawn_at, withdrawn_reason, withdrawn_note, ' +
@@ -120,6 +127,9 @@ export async function hydrateFromSupabase(userId: string, viewerRole: Role = LEA
     ),
   ]);
 
+  // ratesRes is deliberately absent from this list. It returns nothing for a
+  // referrer or a developer by design, and treating that as a hydration failure
+  // would break login for two roles to protect a figure they are not shown.
   for (const res of [partnersRes, usersRes, agenciesRes, branchesRes, contactsRes, appsRes]) {
     if (res.error) throw new Error(`Failed to load data: ${res.error.message}`);
   }
@@ -130,6 +140,13 @@ export async function hydrateFromSupabase(userId: string, viewerRole: Role = LEA
   const branches = (branchesRes.data ?? []) as any[];
   const contacts = (contactsRes.data ?? []) as any[];
   const apps = (appsRes.data ?? []) as any[];
+
+  // Keyed by application id. Empty for a referrer or a developer, which is the
+  // point: every commission figure computed downstream then comes out zero
+  // rather than wrong.
+  const rateById = new Map<string, { partner: number; agent: number }>(
+    ((ratesRes.data ?? []) as any[]).map((r) => [r.application_id, { partner: num(r.partner_rate), agent: num(r.agent_rate) }]),
+  );
 
   const partnerSlug = new Map<string, string>(partners.map((p) => [p.id, p.slug]));
   // Fallback rates by partner (only used if a row somehow lacks its snapshot;
@@ -286,8 +303,13 @@ export async function hydrateFromSupabase(userId: string, viewerRole: Role = LEA
     owner: ownerFlag(a),
     status: a.status as Status,
     rent: num(a.monthly_rent),
-    partnerRate: a.partner_rate != null ? num(a.partner_rate) : (partnerRateById.get(a.partner_id) ?? 0),
-    agentRate: a.agent_rate != null ? num(a.agent_rate) : (agentRateById.get(a.partner_id) ?? 0),
+    // From the RPC when entitled, otherwise the partner's current rate as the
+    // display fallback, which is what this did before for rows with no snapshot.
+    // A role with no entitlement gets zero and every commission figure computed
+    // from it is zero, which is the correct answer to "what commission may you
+    // see" rather than a wrong number.
+    partnerRate: rateById.get(a.id)?.partner ?? (partnerRateById.get(a.partner_id) ?? 0),
+    agentRate: rateById.get(a.id)?.agent ?? (agentRateById.get(a.partner_id) ?? 0),
     sentAt: toDate(a.sent_at),
     paidAt: toDate(a.paid_at),
     deedAt: toDate(a.deed_issued_at),

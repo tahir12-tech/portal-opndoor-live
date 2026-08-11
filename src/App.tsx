@@ -73,14 +73,24 @@ export function App() {
             has to be named here to get in. The server is the real boundary and
             was fixed first in 20260810210000; this is the front-end half. */}
         {/* redirectTo must be a route the REDIRECTED role can actually reach, or
-            the guard bounces into itself. Only a developer is turned away here,
-            and /dev-centre is exactly where they belong. */}
-        <Route element={<RequireRole roles={['superadmin', 'management', 'referrer']} redirectTo="/dev-centre" />}>
+            the guard bounces into itself. */}
+        {/* A developer reads these four, partner-scoped. The server is the
+            boundary: applications_select, agencies_select, branches_select and
+            partners_select each gained a developer arm (20260811190000), and the
+            commission columns are off the table grant entirely so no route can
+            surface them. */}
+        <Route element={<RequireRole roles={['superadmin', 'management', 'referrer', 'developer']} redirectTo="/dev-centre" />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/league" element={<League />} />
-          <Route path="/activity" element={<Activity />} />
           <Route path="/applications" element={<Applications />} />
           <Route path="/applications/:ref" element={<ApplicationDetail />} />
+        </Route>
+
+        {/* Still closed to a developer. /new-application creates fee-bearing
+            referrals and create_referral refuses them in SQL; /agencies and
+            /activity are staff tools for people who work the book. */}
+        <Route element={<RequireRole roles={['superadmin', 'management', 'referrer']} redirectTo="/dev-centre" />}>
+          <Route path="/activity" element={<Activity />} />
           <Route path="/new-application" element={<NewApplication />} />
           <Route path="/agencies" element={<OrgManagement />} />
         </Route>

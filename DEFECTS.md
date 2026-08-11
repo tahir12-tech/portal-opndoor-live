@@ -44,6 +44,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 16 | A test in the suite has been failing since 22 July, and `npm test` is not the command that runs it | Medium |
 | 17 | A renamed HubSpot property makes the sync silently stop recording that field, and reports success | High |
 | 18 | ~~Postgres error text was returned to partners on the create path~~ **Fixed here** | — |
+| 19 | Commission rates were readable by any signed-in user through PostgREST, whatever their role | Medium |
 
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
@@ -1817,3 +1818,99 @@ The same shape exists anywhere an error object is interpolated into a partner
 response, and the next person adding an endpoint will reach for
 `error.message` because it is the obvious thing to do. It is on the list so the
 pattern is on the list.
+
+---
+
+## Defect 19: commission rates were readable by any signed-in user through PostgREST, whatever their role
+
+**Severity: medium. Commercial terms, not personal data, and it needed someone to go looking. But the control that was supposed to prevent it was in the wrong language, and it had been for as long as the columns have existed.**
+
+### What it is
+
+`applications.partner_rate` and `agent_rate` are the commission snapshot: what
+Opndoor pays the partner and what the partner pays the agent, frozen per
+application. The whole role model is built around who may see them.
+
+The control was `maySeeCommission()`, in TypeScript:
+
+```ts
+export function maySeeCommission(role: Role): boolean {
+  return role === 'superadmin' || role === 'management';
+}
+```
+
+It is used to narrow the select string in `hydrate.ts`, so a referrer's browser
+never asks for the columns. That is a real improvement over asking and hiding,
+and the comments around it say so.
+
+**But it decides what the client asks for. It has no bearing on what the server
+will answer.** RLS filters rows, not columns, so a referrer whose policy arm
+returns their own applications could always request:
+
+```
+GET /rest/v1/applications?select=guarantee_ref,partner_rate,agent_rate
+```
+
+and receive the commission terms for every application they own. Management could
+do the same for their whole partner. Nothing in the database prevented it: the
+`authenticated` role held table-level `SELECT`, which means every column.
+
+### Business impact
+
+An agent knowing what their agency is paid, or a partner's staff knowing the
+Opndoor side of the split, is a commercial exposure rather than a data-protection
+one. Nobody's personal data was reachable that was not already reachable.
+
+The reason it is medium rather than low is what it says about the control. Every
+comment in the codebase describes `maySeeCommission` as defence in depth over an
+RLS boundary, and there was no RLS boundary underneath it for these columns.
+Reading the code would leave you confident about something that was not true.
+
+It also predates this work entirely. It was found while widening the developer
+role, because that required asking what actually stops a role seeing the rates,
+and the answer turned out to be nothing.
+
+### Confirm it
+
+As any non-admin user with an application visible to them, against a project
+before migration `20260811180000`:
+
+```bash
+curl -s "$SUPABASE_URL/rest/v1/applications?select=guarantee_ref,partner_rate,agent_rate&limit=1" \
+  -H "apikey: $ANON" -H "Authorization: Bearer $USER_JWT"
+```
+
+Returns the rates. The portal shows a referrer no commission anywhere.
+
+### Suggested fix, implemented here
+
+Column-level privileges, which are independent of RLS. Note the statement that
+looks right and does nothing:
+
+```sql
+-- Accepted without error. Changes NOTHING: a column-level REVOKE cannot subtract
+-- from a table-level grant.
+revoke select (partner_rate, agent_rate) on public.applications from authenticated;
+```
+
+The table grant has to go first, then per-column:
+
+```sql
+revoke select on public.applications from authenticated;
+grant select (<every column except the two>) on public.applications to authenticated;
+```
+
+Migration `20260811180000` generates that from the catalogue with the two names
+as a denylist, then asserts the outcome with `has_column_privilege` rather than
+assuming it. Admin and management get the rates through
+`application_commission_rates()`, a definer function whose entitlement test is a
+role check in SQL.
+
+**One consequence to know about:** a column added to `public.applications` after
+that migration is not in the grant and will be invisible to the client until
+somebody grants it. That fails closed, which is right, but it will confuse
+someone. Any migration adding a client-visible column to that table must end with
+`grant select (new_column) on public.applications to authenticated;`.
+
+HANDOVER open item 18 proposes the cleaner long-term shape, which is to move the
+snapshot to a sibling table and remove the need for the per-column grant.

@@ -59,9 +59,9 @@ const ROLE_OPTIONS: RoleOption[] = [
   { id: 'referrer', name: 'Referrer', desc: 'Sees and tracks only their own referrals. Can add agencies and branches on the fly while referring.' },
   // "Sees the Dev Centre only" read as seeing nothing, which made the role look
   // useless and led to it being handed out as management instead. It says what a
-  // developer CAN do first, and is specific about the line: references, status
-  // and timing, never the tenant or the money.
-  { id: 'developer', name: 'Developer', desc: 'Partner-side integrator, for whoever builds against the API. Manages their own API keys and webhook endpoints, sees request logs and delivery history, replays failed deliveries, and can drive a whole rehearsal in sandbox. For live applications they see the reference, the status, when it moved and which of their keys created it. They never see tenant names or contact details, the property, the rent, commission, the league, exports or the bordereau.' },
+  // developer CAN do first, and is specific about the line: the whole partner's
+  // book read-only, never the money.
+  { id: 'developer', name: 'Developer', desc: "Partner-side integrator, for whoever builds against the API. Sees the applications list and detail, the dashboard and the league for the whole partner, read-only, plus the Dev Centre: their own API keys and webhook endpoints, request logs, delivery history with replay, and a full sandbox to rehearse in. They cannot create a referral or change an application, and they never see commission, settlement, exports or the bordereau." },
 ];
 
 const initials = (n: string) => n.split(' ').map((p) => p[0]).slice(0, 2).join('');
