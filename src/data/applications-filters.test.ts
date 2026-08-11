@@ -28,7 +28,13 @@ describe('countByStatus + refunded chip (item 9)', () => {
     const rows: ApplicationSummary[] = [
       { ref: 'GR-10', tenant: 'T GR-10', prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status: 'sent', date: '2026-06-01', owner: 1, partner: 'northwind', referrer: 'Alice' },
       { ref: 'GR-11', tenant: 'T GR-11', prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status: 'paid', date: '2026-06-01', owner: 1, partner: 'northwind', referrer: null },
-      { ref: 'GR-12', tenant: 'T GR-12', prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status: 'deed', date: '2026-06-01', owner: 1, partner: 'northwind', referrer: 'Alice' },
+      // Bob, not Alice. DEFECTS.md 16: this row carried 'Alice' and therefore
+      // matched all four filters, so the assertion below, which expects one
+      // match, asserted that a matching row is NOT counted. The fixture was
+      // wrong rather than countByStatus: a row differing only by referrer is
+      // what gives the referrer filter something to exclude, which is the whole
+      // point of the test.
+      { ref: 'GR-12', tenant: 'T GR-12', prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status: 'deed', date: '2026-06-01', owner: 1, partner: 'northwind', referrer: 'Bob' },
       { ref: 'GR-13', tenant: 'T GR-13', prop: '1 St', branch: 'B2', agency: 'A2', ben: '', rent: 1000, status: 'paid', date: '2026-06-01', owner: 1, partner: 'other', referrer: 'Alice' },
     ];
     hydrateApplications(rows, []);

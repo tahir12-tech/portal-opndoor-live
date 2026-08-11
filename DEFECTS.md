@@ -41,7 +41,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 13 | ~~Error toasts render with the success icon and colour~~ **Fixed here**, component and all 35 call sites | — |
 | 14 | The PandaDoc webhook signature has no timestamp binding; replay is blocked only by the event ledger. **Comparison fixed here**; the timestamp needs an answer from PandaDoc | Low |
 | 15 | ~~Applications lapse on day 15, but everything says 14~~ **Fixed here**, wording only; the predicate is deliberately unchanged | — |
-| 16 | A test in the suite has been failing since 22 July, and `npm test` is not the command that runs it | Medium |
+| 16 | ~~A failing test since 22 July, and `npm test` does not run the suite~~ **Fixed here.** 127/127 pass | — |
 | 17 | A renamed HubSpot property makes the sync silently stop recording that field, and reports success | High |
 | 18 | ~~Postgres error text was returned to partners on the create path~~ **Fixed here** | — |
 | 19 | Commission rates were readable by any signed-in user through PostgREST, whatever their role | Medium |

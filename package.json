@@ -3,12 +3,13 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "opndoor Guarantee Referral Portal — production-ready React front end. A back end replaces the src/data service layer.",
+  "description": "opndoor Guarantee Referral Portal \u2014 production-ready React front end. A back end replaces the src/data service layer.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
+    "test": "vitest run --environment jsdom",
     "smoke": "vitest run --environment jsdom"
   },
   "dependencies": {

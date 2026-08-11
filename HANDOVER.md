@@ -140,35 +140,23 @@ refuses to build if internal detail appears in it.
 > Verify after any deploy by calling the endpoint with a key you know is good and
 > confirming a `200`. See section 9.
 
-> ### ⚠️ `npm test` does not exist. The suite runs under `npm run smoke`
+> ### ⚠️ Two test suites, and `npx vitest run` alone is not either of them
 >
 > ```sh
-> npm run smoke     # vitest run --environment jsdom.  127 tests, 126 pass.
+> npm test          # 127 tests, all passing. Same as npm run smoke.
 > npx vitest run    # 14 of 15 FILES fail. Missing jsdom, not broken code.
+> deno test supabase/functions/_shared/     # the Edge Function helpers, separate
 > ```
 >
-> There is no `test` script in `package.json`. Running vitest directly gives it no
-> DOM, so every file touching `localStorage` or `window` dies on import, and the
-> output looks like the tree is in pieces. It is one missing flag.
+> `npm test` did not exist and now does. Running vitest directly still gives it no
+> DOM, so every file touching `localStorage` dies on import and the output looks
+> like the tree is in pieces. It is one missing flag, and it is the same shape as
+> the `tsc` trap below: the obvious command reports something untrue.
 >
-> **We ran the wrong command and drew the wrong conclusion**, which is the whole
-> reason this box exists. It is the same shape as the `tsc` trap below: the
-> obvious command reports something untrue.
->
-> **One test genuinely fails, and it is not from this work.**
-> `src/data/applications-filters.test.ts`, "counts respect partner, agency, branch
-> and referrer filters", added **22 July 2026** in commit `b9e227d` by another
-> developer. Its fixture builds two rows that match all four filters while the
-> assertion expects one. The expectation looks wrong rather than the code, but
-> which of the two is a judgement about intent, so it is recorded as **Defect 16**
-> rather than changed here.
->
-> Everything this work added passes. The Edge Function helpers are a **separate**
-> suite and do not run under vitest at all:
->
-> ```sh
-> deno test supabase/functions/_shared/     # 11 tests, redaction rules
-> ```
+> The suite passed 126 of 127 when this work started, failing on a fixture added
+> 22 July by another developer. That is Defect 16 and it is fixed: the row it
+> built matched all four filters, so the assertion expected one match while two
+> existed, and the referrer filter had nothing to exclude. **127 of 127 now.**
 
 > ### ⚠️ `tsc -p tsconfig.json` checks nothing
 >
