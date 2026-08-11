@@ -499,10 +499,37 @@ sections" is gone: every section of the new source ships. The generator's refusa
 rules stay as a backstop and now report which rule tripped and on what, and it
 exits non-zero rather than stripping the line and shipping the rest.
 
-**One expected hit.** Grepping the bundle for `14 days after` matches
-`ApplicationDetail.tsx`, which is the portal's own staff-facing copy and not a
-documentation leak. It is Defect 15 and is tracked there. Every other category
-below must return zero.
+**Two categories, and only one of them must be zero.**
+
+The grep exists to catch **the internal specification reaching the documentation
+panel**. It cannot distinguish that from **ordinary admin UI strings**, which are
+in the bundle because any single-page app ships all of its own screens. Judge a
+hit by where it comes from:
+
+```sh
+# always the first question: is it in the generated docs, or elsewhere?
+grep -c "<the match>" src/pages/DevCentre/partnerDocs.generated.ts
+```
+
+Non-zero there is a real leak. Zero there, and it is admin UI.
+
+**Two expected hits today, both admin UI, both tracked:**
+
+| Match | Source | Why it is not a docs leak |
+| ----- | ------ | ------------------------- |
+| `14 days after` | `ApplicationDetail.tsx` | The portal's own staff-facing copy. Defect 15. |
+| `pre_referenced_*` | `REFERENCING_MODES` in `src/data/types.ts` | The Partner Management screen, superadmin only. |
+
+**The second one carries a residual exposure worth stating rather than waving
+through.** Those labels include "Not yet available: applications are refused",
+which is roadmap information, and the bundle is readable by anyone with a portal
+login including a partner's developer. It is mild, it is not credentials, and
+removing it would mean moving the mode list server side behind an RPC, which is
+a lot of machinery for one dropdown. Recorded here so the decision is visible
+rather than accidental. **If a fourth mode or a dated roadmap ever goes in that
+list, revisit it.**
+
+Every other category below must return zero.
 
 **`[AUTO]`. It has caught two leaks that neither `tsc` nor `npm run build` would
 ever flag, because a leaked string is perfectly valid TypeScript.**
