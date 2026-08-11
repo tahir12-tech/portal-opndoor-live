@@ -200,6 +200,12 @@ export interface WebhookStats {
 export interface ApiLogRow {
   id: string; method: string; path: string; status_code: number;
   error_code: string | null; duration_ms: number | null; created_at: string; key_name: string | null;
+  /**
+   * Redacted at WRITE time by the Edge Function, not here. Field names are
+   * preserved and values are masked unless allowlisted, so the shape of what was
+   * sent survives while the tenant's details never entered the table.
+   */
+  request_body: unknown; response_body: unknown;
 }
 
 /** Period options for the monitoring counters. Days, because the log is per-request. */

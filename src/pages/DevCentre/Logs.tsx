@@ -8,7 +8,7 @@
    the four things somebody actually types. "422" and "validation_failed" and
    "/orgs" all work.
    ===================================================================== */
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { PERIODS, getApiLogs, type ApiLogRow } from '@/data/devCentreService';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
@@ -16,6 +16,12 @@ import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { PeriodSelect } from '@/components/ui/Select';
 
 const when = (s: string) => new Date(s).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'medium' });
+
+/** Bodies arrive already redacted from the server; this only formats them. */
+function pretty(v: unknown): string {
+  if (v === null || v === undefined) return 'No body.';
+  try { return JSON.stringify(v, null, 2); } catch { return String(v); }
+}
 
 function statusTone(code: number): string {
   if (code >= 500) return 'devstatus--server';
@@ -29,6 +35,17 @@ export function Logs({ partnerId }: { partnerId: string | null }) {
   const [days, setDays] = useState(7);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // A set, not a single id. Comparing a failing call against the one before it
+  // is the main thing anybody does here, and an accordion that closes the
+  // previous row makes exactly that impossible.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
 
   const load = useCallback(async () => {
     setBusy(true); setErr(null);
@@ -73,11 +90,28 @@ export function Logs({ partnerId }: { partnerId: string | null }) {
       {err && <CardBody style={{ paddingBottom: 0 }}><div className="devalert">{err}</div></CardBody>}
       <table className="dt">
         <thead>
-          <tr><th>Time</th><th>Method</th><th>Path</th><th>Status</th><th>Error</th><th>Duration</th><th>Key</th></tr>
+          <tr><th /><th>Time</th><th>Method</th><th>Path</th><th>Status</th><th>Error</th><th>Duration</th><th>Key</th></tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
+          {rows.map((r) => {
+            const hasBodies = r.request_body != null || r.response_body != null;
+            const isOpen = expanded.has(r.id);
+            return (
+            <Fragment key={r.id}>
+            <tr>
+              <td>
+                {hasBodies && (
+                  <button
+                    className="devicon"
+                    aria-expanded={isOpen}
+                    title={isOpen ? 'Hide bodies' : 'Show bodies'}
+                    aria-label={isOpen ? 'Hide bodies' : 'Show bodies'}
+                    onClick={() => toggle(r.id)}
+                  >
+                    <Icon name={isOpen ? 'minus' : 'plus'} />
+                  </button>
+                )}
+              </td>
               <td className="soft">{when(r.created_at)}</td>
               <td><span className="devmethod">{r.method}</span></td>
               <td><code>{r.path}</code></td>
@@ -86,9 +120,33 @@ export function Logs({ partnerId }: { partnerId: string | null }) {
               <td className="soft">{r.duration_ms == null ? '--' : `${r.duration_ms}ms`}</td>
               <td className="soft">{r.key_name ?? 'unauthenticated'}</td>
             </tr>
-          ))}
+            {isOpen && (
+              <tr className="devbodies">
+                <td colSpan={8}>
+                  <div className="devbodies__grid">
+                    <div>
+                      <div className="devbodies__label">Request</div>
+                      <pre className="devcode"><code>{pretty(r.request_body)}</code></pre>
+                    </div>
+                    <div>
+                      <div className="devbodies__label">Response</div>
+                      <pre className="devcode"><code>{pretty(r.response_body)}</code></pre>
+                    </div>
+                  </div>
+                  <p className="devbodies__note">
+                    Field names are kept, values are masked. A field showing{' '}
+                    <code>&quot;[redacted]&quot;</code> <strong>was</strong> sent, so this shows you the
+                    shape of your payload without us holding anyone&rsquo;s details. Masking happens
+                    before the row is written, so the real values were never stored.
+                  </p>
+                </td>
+              </tr>
+            )}
+            </Fragment>
+            );
+          })}
           {!rows.length && !busy && (
-            <tr><td colSpan={7} className="soft">
+            <tr><td colSpan={8} className="soft">
               No requests match. Requests appear here as soon as they are made, including ones that failed
               authentication, which show as unauthenticated with no key.
             </td></tr>

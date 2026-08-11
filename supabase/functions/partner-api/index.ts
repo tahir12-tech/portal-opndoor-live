@@ -34,6 +34,7 @@ import {
   touchKey,
 } from "../_shared/partnerAuth.ts";
 import { createApplication, requestHash } from "../_shared/partnerApplications.ts";
+import { redactRawBody } from "../_shared/redact.ts";
 import { generateEndpointSecret } from "../_shared/webhookSigning.ts";
 import { applicationView, decodeCursor, encodeCursor, type ApplicationRow } from "../_shared/partnerViews.ts";
 
@@ -74,6 +75,7 @@ function json(body: unknown, status: number, requestId: string, extra: Record<st
 function logRequest(service: any, fields: {
   partnerId: string | null; apiKeyId: string | null; method: string; path: string;
   status: number; errorCode: string | null; startedAt: number;
+  requestBody: unknown; responseBody: unknown;
 }): void {
   service.rpc("log_partner_api_request", {
     p_partner: fields.partnerId,
@@ -83,7 +85,32 @@ function logRequest(service: any, fields: {
     p_status: fields.status,
     p_error_code: fields.errorCode,
     p_duration_ms: Math.round(performance.now() - fields.startedAt),
+    p_request_body: fields.requestBody ?? null,
+    p_response_body: fields.responseBody ?? null,
   }).then(() => {}).catch(() => {});
+}
+
+/**
+ * Bodies are capped before they are parsed, not after.
+ *
+ * A 10MB body redacts to a small object, so capping afterwards would still mean
+ * parsing it, holding it, and doing it on the logging path of a request that has
+ * already been answered. The cap is generous next to a real application payload,
+ * which is around 700 bytes.
+ */
+const MAX_LOGGED_BODY = 64 * 1024;
+
+async function bodyForLog(source: Request | Response): Promise<unknown> {
+  try {
+    const raw = await source.text();
+    if (!raw) return null;
+    if (raw.length > MAX_LOGGED_BODY) {
+      return { "[oversized]": `${raw.length} bytes, not logged` };
+    }
+    return redactRawBody(raw);
+  } catch {
+    return null;
+  }
 }
 
 /** The error code out of a response envelope, for the error distribution chart. */
@@ -111,6 +138,14 @@ Deno.serve(async (req) => {
   let logKeyId: string | null = null;
   // deno-lint-ignore no-explicit-any
   let logService: any = null;
+
+  // Cloned BEFORE run(), which consumes the body. Cloning afterwards returns a
+  // request whose stream is already drained and yields an empty string rather
+  // than an error, so every POST would quietly log as having sent nothing.
+  // Only methods that carry a body: cloning a GET is work on every read.
+  const reqForLog = (req.method === "POST" || req.method === "PATCH" || req.method === "PUT")
+    ? req.clone()
+    : null;
 
   const run = async (): Promise<Response> => {
   try {
@@ -273,6 +308,10 @@ Deno.serve(async (req) => {
   }
   };
 
+  // Cloned BEFORE run(), because run() consumes the body. Cloning afterwards
+  // returns a request whose stream is already drained, which yields an empty
+  // string rather than an error, so the log would quietly show every POST as
+  // having sent nothing.
   const res = await run();
 
   // One log per request, whatever route it took. The body is cloned rather than
@@ -282,10 +321,19 @@ Deno.serve(async (req) => {
     if (res.status >= 400) {
       try { errorCode = codeOf(await res.clone().json()); } catch { /* not JSON */ }
     }
+
+    // Redacted here, before the insert, so the unredacted value never reaches
+    // Postgres, the WAL or a backup. See _shared/redact.ts.
+    const [requestBody, responseBody] = await Promise.all([
+      reqForLog ? bodyForLog(reqForLog) : Promise.resolve(null),
+      bodyForLog(res.clone()),
+    ]);
+
     logRequest(logService, {
       partnerId: logPartnerId, apiKeyId: logKeyId,
       method: req.method, path: logPath,
       status: res.status, errorCode, startedAt,
+      requestBody, responseBody,
     });
   }
 
