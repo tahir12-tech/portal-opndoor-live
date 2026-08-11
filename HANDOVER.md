@@ -1413,3 +1413,88 @@ information was never recorded, so they stay null and null honestly means
 "created before we tracked this" rather than "created by no key".
 
 Do it before the second partner integrates, not after.
+
+---
+
+## 14. Organisations are resolved, never created
+
+The API used to create an agency and branch by name when it did not recognise
+them, behind an `orgs:write` scope and a required contact email. That is gone.
+Partners create organisations in the portal first; the API resolves what they
+name and rejects what it cannot match.
+
+### 14.1 What was removed
+
+- The create-by-name path in `_shared/partnerApplications.ts`
+- `create_referral_target_api()`, **both** signatures, dropped rather than left
+  unused so nothing can call it by accident
+- The `orgs:write` scope, from the Dev Centre's list and the API's
+- `agent_contact_email`, `agent_contact_name` and `agent_contact_phone` from the
+  payload
+- `org.created` from the response. It could only be `false` now, and a field with
+  one possible value is one somebody eventually branches on
+- The field codes `org.agency_name: insufficient_scope` / `could_not_create` and
+  `org.agent_contact_email: required`
+
+Keys minted earlier that still carry `orgs:write` are harmless. Nothing checks
+for it. They do not need reissuing.
+
+### 14.2 What it broke, which is the part worth reading
+
+`create_referral_target_api` was **the only writer that could produce a sandbox
+agency or branch.** Every other org-creating function is a portal RPC that never
+sets `livemode`, so it makes live rows, and the restrictive policies
+`agencies_live_only` and `branches_live_only` carry `with check (livemode)`,
+which refuses a sandbox insert from any authenticated session including a
+developer's.
+
+So removing it means **no sandbox org can ever exist again**. And
+`create_referral_api` refused a branch whose `livemode` differed from the key's,
+which would then have made **every sandbox application impossible to create**.
+Sandbox would have been dead, silently, and the only symptom would have been a
+`Selected branch not found` that reads like a bad id.
+
+**The fix is that the org is not the thing being sandboxed.** A developer
+rehearsing wants to send a test application against a branch that really exists,
+which is their real one. So:
+
+- the cross-mode branch guard in `create_referral_api` is removed
+- `partner_api_orgs` no longer filters by mode, and no longer takes `p_livemode`.
+  A sandbox key that could not *see* the partner's branches could never name one,
+  and `GET /v1/orgs` would have returned an empty list with no explanation
+
+Nothing leaks by allowing it. The **application** is still sandbox and still
+invisible outside the Dev Centre; `reconciliation_queue` counts only applications
+with `livemode` true; no opndoor email is sent for sandbox, so the branch's real
+agent contact is never written to; and the deed goes to the tenant address the
+developer supplied, through PandaDoc's sandbox account.
+
+### 14.3 Vestigial columns, deliberately not dropped
+
+`agencies.livemode`, `branches.livemode` and `agent_contacts.livemode`, and the
+three restrictive policies on them, no longer do anything: every org is live.
+
+They are **left in place on purpose**. They hold real data on any project where
+sandbox orgs were already created, dropping a column is not reversible, and
+leaving them costs nothing but a line in this document. `dev_purge_sandbox` still
+deletes sandbox orgs, which is now a no-op that will simply find none.
+
+If the decision holds for a release or two, they can go. Do it as its own
+migration, not folded into something else.
+
+### 14.4 Name matching
+
+`normalise_org_name()` lowercases, trims, collapses internal whitespace and
+strips a trailing `Ltd` or `Limited` with an optional preceding comma and
+trailing full stop. Only at the end, so "Limited Lettings Group" keeps its first
+word.
+
+`partner_api_resolve_org()` returns an **outcome** rather than raising, so each
+case becomes its own field error: `agency_not_found`, `agency_ambiguous`,
+`branch_not_found`, `branch_ambiguous`, `branch_required`. A partner told only
+"not found" when the real problem is that we hold two branches with the same name
+will spend an hour checking their spelling.
+
+Ambiguity is **rejected, never guessed**. Two agencies normalising the same is a
+data problem on our side, and picking one attaches real money to an arbitrary
+record. The error says so and points at `GET /v1/orgs`.

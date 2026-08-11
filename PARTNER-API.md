@@ -447,9 +447,10 @@ deliberately in exchange for an unprobeable surface.
 | `applications:write` | POST an application |
 | `applications:read` | Read own applications |
 | `orgs:read` | List agencies and branches |
-| `orgs:write` | Create agencies and branches implicitly on POST |
+| ~~`orgs:write`~~ | **Retired.** The API no longer creates organisations. Keys still carrying it are harmless: nothing checks for it. |
 | `webhooks:manage` | Register and modify own endpoints |
 
+*(Historical, retained for context: this described the create-by-name design.)*
 A key without `orgs:write` that sends names instead of IDs is rejected rather
 than quietly creating an org. This lets Opndoor issue a key that can only
 reference existing orgs, which is the sane end state for a mature partner.

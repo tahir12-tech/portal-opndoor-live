@@ -302,7 +302,7 @@ Deno.serve(async (req) => {
       if (!hasScope(auth, "orgs:read")) {
         return json(errorBody("insufficient_scope", "This key lacks the orgs:read scope."), 403, requestId);
       }
-      return await getOrgs(service, auth.partnerId, auth.livemode, requestId);
+      return await getOrgs(service, auth.partnerId, requestId);
     }
 
     if (endpoint === "applications") {
@@ -415,8 +415,12 @@ Deno.serve(async (req) => {
  * header for why that is not the same as a contact row existing.
  */
 // deno-lint-ignore no-explicit-any
-async function getOrgs(service: any, partnerId: string, livemode: boolean, requestId: string): Promise<Response> {
-  const { data: rows, error } = await service.rpc("partner_api_orgs", { p_partner: partnerId, p_livemode: livemode });
+// livemode is not a parameter here any more. Orgs are not per mode: a sandbox
+// application references the partner's real branch, so a sandbox key must be able
+// to see and name it. Filtering would have returned an empty list to every
+// sandbox key with no explanation.
+async function getOrgs(service: any, partnerId: string, requestId: string): Promise<Response> {
+  const { data: rows, error } = await service.rpc("partner_api_orgs", { p_partner: partnerId });
 
   if (error) {
     console.log(JSON.stringify({ requestId, event: "orgs_query_failed", message: error.message }));

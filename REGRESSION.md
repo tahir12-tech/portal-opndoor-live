@@ -399,9 +399,14 @@ See defect 6. `[D6]`
 | # | Case | Expected |
 | - | ---- | -------- |
 | B4.1 | Valid payload, org by id | `201`, `status: sent`, a `payment_url` |
-| B4.2 | Valid payload, org by name with contact email, `orgs:write` | `201`, `org.created: true`, org lands `pending_review` and appears in Reconciliation with `org_audit` rows |
-| B4.3 | Org by name, no contact email | `422`, `org.agent_contact_email: required`, **and no partial agency created** |
-| B4.4 | Org by name without `orgs:write` | `422`, `org.agency_name: insufficient_scope` |
+| B4.2 | Valid payload, org **by name**, names match exactly | `201`. `org.agency_id` and `org.branch_id` returned so the partner can store them |
+| B4.3 | Org by name with formatting drift: `"  FOO LETTINGS LTD "` against a stored `Foo Lettings` | `201`. Case, surrounding whitespace and a trailing `Ltd`/`Limited` are normalised away before matching |
+| B4.4 | Org by name that matches nothing | `422`, `org.agency_name: not_found`. **Nothing is created and nothing is queued for reconciliation.** Check `agencies` gained no row |
+| B4.4a | Branch name matches nothing under a matched agency | `422`, `org.branch_name: not_found`, and the message lists the branches we do hold |
+| B4.4b | `branch_name` omitted, agency has exactly one branch | `201`, using that branch |
+| B4.4c | `branch_name` omitted, agency has several | `422`, `org.branch_name: required`, message lists them |
+| B4.4d | Two branches in one agency normalising to the same name | `422`, `org.branch_name: ambiguous`. **Not a guess and not the first match** |
+| B4.4e | A key that still carries the retired `orgs:write` scope | Behaves exactly as one without it. The scope grants nothing and is not checked |
 | B4.5 | Unmatched referrer email | `201`, user auto-provisioned `pending` with `full_name` = the email |
 | B4.6 | Branch with no primary contact | `422`, `org.branch_id: no_agent_contact` |
 | B4.7 | Five bad fields | `422`, **all five reported at once**, each with `field` and `code` |

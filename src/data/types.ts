@@ -91,11 +91,11 @@ export type ReferencingMode = 'pre_referenced_open' | 'pre_referenced_screened' 
 /** Labels for the three modes. The stored value is what goes in the audit trail. */
 export const REFERENCING_MODES: { id: ReferencingMode; label: string; desc: string }[] = [
   { id: 'pre_referenced_screened', label: 'Pre-referenced, screened',
-    desc: 'The partner references first and opndoor applies its own criteria. Not yet available: applications are refused.' },
+    desc: 'The partner references first and opndoor applies its own criteria. Applications are refused.' },
   { id: 'pre_referenced_open', label: 'Pre-referenced, open',
     desc: 'The partner references first and opndoor applies no criteria at all. A commercial position, granted deliberately.' },
   { id: 'opndoor_referenced', label: 'opndoor referenced',
-    desc: 'opndoor completes the reference. Not yet available: applications are refused.' },
+    desc: 'opndoor completes the reference. Applications are refused.' },
 ];
 
 export type LeaderboardMode = 'full' | 'rankings' | 'private';

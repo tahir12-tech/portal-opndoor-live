@@ -148,141 +148,175 @@ async function resolveReferrer(
 }
 
 /**
- * Resolve the org to a branch id.
+ * Resolve the org to a branch id. RESOLVE ONLY: this never creates anything.
  *
- * By ID is the intended form. By name is for first contact only, needs the
- * orgs:write scope, and requires a contact email because an org without one
- * produces applications that fail at the deed after the tenant has paid.
+ * Partners create the agency and branch in the portal first, with a contact
+ * email, and only then send applications against it. The API previously created
+ * orgs by name on the fly, which meant a typo in a partner's CRM produced a real
+ * agency in our reconciliation queue that a human then had to merge by hand.
+ *
+ * Two accepted forms, and names are the expected one:
+ *   { agency_name, branch_name }   resolved by normalised name
+ *   { agency_id, branch_id }       our ids, from GET /v1/orgs
  */
 async function resolveOrg(
   // deno-lint-ignore no-explicit-any
   service: any,
   partnerId: string,
-  livemode: boolean,
-  referrerId: string,
   org: Record<string, unknown>,
-  scopes: string[],
-): Promise<{ branchId: string; agencyId: string; created: boolean } | { error: FieldError }> {
+): Promise<{ branchId: string; agencyId: string } | { error: FieldError }> {
   const agencyId = str(org.agency_id);
   const branchId = str(org.branch_id);
   const agencyName = str(org.agency_name);
   const branchName = str(org.branch_name);
 
+  // ---- by id -------------------------------------------------------------
   if (agencyId || branchId) {
     if (!agencyId || !branchId) {
       return {
         error: {
           field: !agencyId ? "org.agency_id" : "org.branch_id",
           code: "required",
-          message: "Send both agency_id and branch_id, or send names instead.",
+          message: "Send both agency_id and branch_id, or send agency_name and branch_name instead.",
         },
       };
     }
 
     const { data: branch } = await service
       .from("branches")
-      .select("id, agency_id, partner_id, livemode")
+      .select("id, agency_id, partner_id")
       .eq("id", branchId)
       .maybeSingle();
 
     // Same error whether the branch does not exist or belongs to another
     // partner, so the API cannot be used to probe for another partner's orgs.
-    // livemode is checked here alongside partner and agency, and reported with
-    // the same message, so a sandbox key naming a live branch cannot tell the two
-    // apart. create_referral_api repeats this check; this copy exists so the
-    // caller gets a field error rather than a 500 from a raised exception.
-    if (
-      !branch || branch.partner_id !== partnerId || branch.agency_id !== agencyId ||
-      (branch.livemode === true) !== livemode
-    ) {
+    //
+    // livemode is NOT checked. Orgs are no longer per mode: a sandbox
+    // application references the partner's real branch, because the org is not
+    // the thing being rehearsed.
+    if (!branch || branch.partner_id !== partnerId || branch.agency_id !== agencyId) {
       return {
         error: { field: "org.branch_id", code: "not_found", message: "Unknown branch for this partner." },
       };
     }
 
-    // A branch that cannot resolve a primary contact cannot produce a deed. Fail
-    // here rather than after the tenant has paid. GET /orgs exposes exactly this
-    // as has_agent_contact so a partner can fix it before sending traffic.
-    const { data: contactOk } = await service.rpc("effective_primary_contact", { p_branch: branchId });
-    const contact = Array.isArray(contactOk) ? contactOk[0] : contactOk;
-    if (!contact?.email) {
-      return {
-        error: {
-          field: "org.branch_id",
-          code: "no_agent_contact",
-          message: "This branch has no primary agent contact, so a deed could not be issued.",
-        },
-      };
-    }
-
-    return { branchId, agencyId, created: false };
+    return await withContact(service, branchId, agencyId, "org.branch_id");
   }
 
+  // ---- by name -----------------------------------------------------------
   if (!agencyName) {
     return {
       error: {
-        field: "org.agency_id",
-        code: "required",
-        message: "Send agency_id and branch_id, or agency_name with a contact email.",
-      },
-    };
-  }
-
-  if (!scopes.includes("orgs:write")) {
-    return {
-      error: {
         field: "org.agency_name",
-        code: "insufficient_scope",
-        message: "This key may only reference existing organisations by id.",
-      },
-    };
-  }
-
-  const contactEmail = str(org.agent_contact_email);
-  if (!contactEmail) {
-    return {
-      error: {
-        field: "org.agent_contact_email",
         code: "required",
-        message: "A contact email is required when creating an organisation.",
+        message: "Send agency_name and branch_name, or agency_id and branch_id from GET /v1/orgs.",
       },
     };
   }
 
-  const { data: newBranchId, error } = await service.rpc("create_referral_target_api", {
+  const { data: rows, error: resolveErr } = await service.rpc("partner_api_resolve_org", {
     p_partner: partnerId,
-    p_livemode: livemode,
-    p_actor: referrerId,
-    p_agency: agencyName,
-    p_branch: branchName,
-    p_contact_email: contactEmail,
-    p_contact_name: str(org.agent_contact_name),
-    p_contact_phone: str(org.agent_contact_phone),
+    p_agency_name: agencyName,
+    p_branch_name: branchName,
   });
-
-  if (error || !newBranchId) {
-    return {
-      error: {
-        field: "org.agency_name",
-        code: "could_not_create",
-        message: error?.message ?? "Could not resolve the organisation.",
-      },
-    };
+  if (resolveErr) {
+    return { error: { field: "org.agency_name", code: "not_found", message: "Could not resolve the organisation." } };
   }
+  const r = Array.isArray(rows) ? rows[0] : rows;
 
-  const { data: b } = await service
-    .from("branches").select("id, agency_id").eq("id", newBranchId).maybeSingle();
+  // Each outcome gets its own message. Collapsing them into "not found" is what
+  // makes a partner spend an hour checking their spelling when the real problem
+  // is that we hold two branches with the same name.
+  switch (r?.outcome) {
+    case "ok":
+      return await withContact(service, r.branch_id, r.agency_id, "org.branch_name");
 
-  return { branchId: newBranchId, agencyId: b?.agency_id ?? "", created: true };
+    case "agency_required":
+      return {
+        error: { field: "org.agency_name", code: "required", message: "An agency name is required." },
+      };
+
+    case "agency_not_found":
+      return {
+        error: {
+          field: "org.agency_name",
+          code: "not_found",
+          message: "No agency of that name exists for your account. Create it in the opndoor portal first, with a contact email, then send applications against it. Names are matched ignoring case, surrounding spaces and a trailing Ltd or Limited.",
+        },
+      };
+
+    case "branch_not_found":
+      return {
+        error: {
+          field: "org.branch_name",
+          code: "not_found",
+          // The branches we DO hold are named. This is our data, already
+          // disclosed by GET /v1/orgs to this same key, so listing it here
+          // reveals nothing new and turns a guess into a correction.
+          message: `No branch of that name exists under that agency. Create it in the opndoor portal first. Branches we hold: ${r.detail || "none"}.`,
+        },
+      };
+
+    case "branch_required":
+      return {
+        error: {
+          field: "org.branch_name",
+          code: "required",
+          message: `That agency has more than one branch, so name the one you mean: ${r.detail || ""}.`,
+        },
+      };
+
+    case "agency_ambiguous":
+      return {
+        error: {
+          field: "org.agency_name",
+          code: "ambiguous",
+          // Our data problem, not theirs, and said so. Picking one would attach
+          // real money to an arbitrary record.
+          message: `That name matches more than one agency on your account (${r.detail}), so it is not clear which you mean. Send agency_id and branch_id from GET /v1/orgs, or contact opndoor to have the duplicates merged.`,
+        },
+      };
+
+    case "branch_ambiguous":
+      return {
+        error: {
+          field: "org.branch_name",
+          code: "ambiguous",
+          message: "That agency has more than one branch with that name, so it is not clear which you mean. Send branch_id from GET /v1/orgs, or contact opndoor to have the duplicates merged.",
+        },
+      };
+
+    default:
+      return { error: { field: "org.agency_name", code: "not_found", message: "Could not resolve the organisation." } };
+  }
 }
 
 /**
- * The create path.
+ * A branch that cannot resolve a primary agent contact cannot produce a deed.
  *
- * Returns the outcome rather than a Response so the caller can record it in the
- * idempotency ledger before sending it. A replayed request must return the same
- * body, which means the body has to be a value first and a Response second.
+ * Checked at POST rather than at deed generation, because the alternative is
+ * accepting the application, taking the tenant's money, and failing afterwards.
+ * GET /v1/orgs exposes the same condition as has_agent_contact so a partner can
+ * fix their data before sending any traffic.
  */
+// deno-lint-ignore no-explicit-any
+async function withContact(
+  service: any, branchId: string, agencyId: string, field: string,
+): Promise<{ branchId: string; agencyId: string } | { error: FieldError }> {
+  const { data: contactOk } = await service.rpc("effective_primary_contact", { p_branch: branchId });
+  const contact = Array.isArray(contactOk) ? contactOk[0] : contactOk;
+  if (!contact?.email) {
+    return {
+      error: {
+        field,
+        code: "no_agent_contact",
+        message: "That branch has no primary agent contact, so a deed could not be issued. Add one in the opndoor portal.",
+      },
+    };
+  }
+  return { branchId, agencyId };
+}
+
 export async function createApplication(
   // deno-lint-ignore no-explicit-any
   service: any,
@@ -352,14 +386,12 @@ export async function createApplication(
   // ---- org ------------------------------------------------------------------
   let branchId = "";
   let agencyId = "";
-  let orgCreated = false;
   if (referrerId) {
-    const o = await resolveOrg(service, partnerId, livemode, referrerId, org, scopes);
+    const o = await resolveOrg(service, partnerId, org);
     if ("error" in o) fields.push(o.error);
     else {
       branchId = o.branchId;
       agencyId = o.agencyId;
-      orgCreated = o.created;
     }
   }
 
@@ -483,7 +515,11 @@ export async function createApplication(
           monthly_rent: created.monthly_rent,
           start_date: created.tenancy_start,
         },
-        org: { agency_id: agencyId, branch_id: branchId, created: orgCreated },
+        // `created` is gone from this object. It was always false now, and a
+        // field that can only take one value is a field somebody eventually
+        // branches on. The ids are returned so a partner who sent NAMES can store
+        // them against their own records and send ids from then on.
+        org: { agency_id: agencyId, branch_id: branchId },
         referrer: { email: referrerEmail },
       },
       payment_url: paymentUrl,

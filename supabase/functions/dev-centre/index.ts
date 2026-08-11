@@ -53,7 +53,10 @@ const KNOWN_EVENTS = [
 ];
 
 const KNOWN_SCOPES = [
-  "applications:write", "applications:read", "orgs:read", "orgs:write", "webhooks:manage",
+  // orgs:write is GONE. The API no longer creates organisations: partners create
+  // them in the portal first. A scope that grants nothing is worse than no scope,
+  // because a partner grants it and believes it did something.
+  "applications:write", "applications:read", "orgs:read", "webhooks:manage",
 ];
 
 Deno.serve(async (req) => {

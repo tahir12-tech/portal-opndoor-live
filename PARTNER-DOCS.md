@@ -91,7 +91,6 @@ lacks returns `403 insufficient_scope`.
 | `applications:write` | Create applications |
 | `applications:read` | Read applications |
 | `orgs:read` | List agencies and branches |
-| `orgs:write` | Create an agency or branch by name |
 | `webhooks:manage` | Manage webhook endpoints |
 
 Scopes are independent of everything else about your account. No scope is implied
@@ -139,16 +138,74 @@ tenant who took longer than a fortnight.
 
 ## Organisations
 
-Send ids, not names. Names create duplicate agencies over time; ids do not.
+Every application belongs to one of your branches. **Create your agencies and
+branches in the opndoor portal first**, each with a contact email. The API
+resolves what you name; it never creates an organisation for you.
+
+### Naming them
+
+The straightforward way is to send the names you already hold:
+
+```jsonc
+"org": {
+  "agency_name": "Foo Lettings",
+  "branch_name": "Camden"
+}
+```
+
+Names are matched **ignoring case, surrounding whitespace, and a trailing `Ltd`
+or `Limited`**, so `"  FOO LETTINGS LTD "` matches a stored `Foo Lettings`. You do
+not need to normalise anything before sending.
+
+If the agency has exactly one branch you may omit `branch_name` and we will use
+it. If it has several, name the one you mean.
+
+**If a name does not match, the application is rejected and nothing is created.**
+Create the organisation in the portal, then send again. The error names the
+branches we do hold under that agency, so a near miss is usually obvious:
+
+```json
+{ "field": "org.branch_name", "code": "not_found",
+  "message": "No branch of that name exists under that agency. Create it in the
+              opndoor portal first. Branches we hold: Camden, Islington." }
+```
+
+If a name matches more than one of your organisations, the application is
+rejected as `ambiguous` rather than guessed at. That is a duplicate on our side:
+send ids instead, or contact opndoor to have them merged.
+
+### Using our ids instead
+
+`GET /v1/orgs` returns every agency and branch on your account with our ids.
 
 ```
 GET /v1/orgs
 ```
 
-Every branch carries `has_agent_contact`. **If it is `false`, do not create
-applications against that branch.** It means no agent contact can be resolved, so
-a Deed of Guarantee could not be issued: the tenant would pay and the deed would
-then fail. Fix the branch first.
+**You do not need this to get started.** It is worth doing once, storing our
+`agency_id` and `branch_id` against your own records, and sending those from then
+on:
+
+```jsonc
+"org": {
+  "agency_id": "…",
+  "branch_id": "…"
+}
+```
+
+Ids are exact, so they cannot be affected by a rename or by two branches ending
+up with similar names. Send both or neither: an id and a name together is not a
+valid combination.
+
+### `has_agent_contact`
+
+Every branch in `GET /v1/orgs` carries `has_agent_contact`. **If it is `false`,
+do not send applications against that branch.** No agent contact can be resolved
+for it, so a Deed of Guarantee could not be issued: the tenant would pay and the
+deed would then fail. Add a contact in the portal first.
+
+An application naming such a branch is rejected at creation, with
+`code: "no_agent_contact"`, rather than accepted and failed later.
 
 ## Creating an application
 
@@ -183,9 +240,9 @@ Content-Type: application/json
     "start_date":   "2026-09-01"       // required
   },
 
-  "org": {                             // ids, or names: see Organisations
-    "agency_id": "uuid",
-    "branch_id": "uuid"
+  "org": {                             // names, or our ids: see Organisations
+    "agency_name": "Foo Lettings",
+    "branch_name":  "Camden"
   },
 
   "referrer": {
@@ -241,17 +298,21 @@ Match on `field` and `code`. The `message` is written for humans and may change.
 | `property.postcode` | `invalid_format` |
 | `tenancy.monthly_rent` | `must_be_positive` |
 | `tenancy.start_date` | `required`, `too_far_in_past`, `too_far_ahead` |
+| `org.agency_name` | `required`, `not_found`, `ambiguous` |
+| `org.branch_name` | `required`, `not_found`, `ambiguous`, `no_agent_contact` |
 | `org.agency_id`, `org.branch_id` | `required`, `not_found`, `no_agent_contact` |
-| `org.agency_name` | `insufficient_scope`, `could_not_create` |
-| `org.agent_contact_email` | `required` |
 | `referrer.email` | `required`, `not_available`, `could_not_provision` |
 
 Two are worth understanding rather than just handling.
 
-**`org.branch_id: no_agent_contact`** means that branch cannot resolve an agent
-contact, so no deed could be issued for it. It is rejected at creation rather
-than after the tenant has paid. `GET /v1/orgs` reports the same condition as
+**`no_agent_contact`** means that branch cannot resolve an agent contact, so no
+deed could be issued for it. It is rejected at creation rather than after the
+tenant has paid. `GET /v1/orgs` reports the same condition as
 `has_agent_contact`, so you can find these before sending traffic.
+
+**`ambiguous`** means the name you sent matches more than one of your
+organisations. That is a duplicate on our side rather than an error in your
+request. Send ids, or contact opndoor to have them merged.
 
 **`referrer.email: not_available`** means the address is already in use under a
 different account. It deliberately does not say which.

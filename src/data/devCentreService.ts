@@ -93,8 +93,9 @@ export interface DevPartnerOption {
 export const API_SCOPES: { id: string; label: string; desc: string }[] = [
   { id: 'applications:write', label: 'Create applications', desc: 'POST /v1/applications' },
   { id: 'applications:read', label: 'Read applications', desc: 'GET /v1/applications and /v1/applications/{id}' },
+  // orgs:write was removed with API org creation. Existing keys that still
+  // carry it are harmless: nothing checks for it any more.
   { id: 'orgs:read', label: 'Read organisations', desc: 'GET /v1/orgs, to look up agency and branch ids' },
-  { id: 'orgs:write', label: 'Create organisations', desc: 'Allows POSTing an application with agency and branch NAMES instead of ids, creating them on the fly' },
   { id: 'webhooks:manage', label: 'Manage webhooks', desc: 'Register and remove webhook endpoints over the API' },
 ];
 
