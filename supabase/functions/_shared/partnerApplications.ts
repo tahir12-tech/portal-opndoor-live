@@ -195,6 +195,18 @@ async function resolveOrg(
     // application references the partner's real branch, because the org is not
     // the thing being rehearsed.
     if (!branch || branch.partner_id !== partnerId || branch.agency_id !== agencyId) {
+      // A branch that exists and belongs to somebody else is a different event
+      // from one that does not exist, and the caller must not be able to tell
+      // them apart. The response below is identical either way; this only
+      // decides whether we hear about it. Fire and forget.
+      if (branch && branch.partner_id !== partnerId) {
+        service.rpc("record_security_event", {
+          p_kind: "cross_partner_access",
+          p_severity: "warn",
+          p_partner: partnerId,
+          p_detail: "A key for this partner referenced a branch belonging to another partner when creating an application. Refused with the standard not-found response.",
+        }).then(() => {}, () => {});
+      }
       return {
         error: { field: "org.branch_id", code: "not_found", message: "Unknown branch for this partner." },
       };

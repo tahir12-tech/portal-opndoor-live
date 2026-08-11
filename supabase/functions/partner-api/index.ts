@@ -149,6 +149,34 @@ async function bodyForLog(source: Request | Response): Promise<unknown> {
   }
 }
 
+/**
+ * Did this miss name something real that belongs to somebody else?
+ *
+ * Called only after a request has already been refused, and it cannot change the
+ * refusal. Fire and forget, and it swallows its own errors: a detection that
+ * breaks the request it is observing is worse than no detection.
+ */
+// deno-lint-ignore no-explicit-any
+async function crossPartnerCheck(
+  service: any, kind: "application" | "branch", id: string, partnerId: string, requestId: string,
+): Promise<void> {
+  try {
+    const table = kind === "application" ? "applications" : "branches";
+    const { data } = await service.from(table).select("partner_id").eq("id", id).maybeSingle();
+    if (!data || data.partner_id === partnerId) return;   // genuinely unknown, or ours after all
+
+    console.log(JSON.stringify({ requestId, event: "cross_partner_attempt", kind }));
+    await service.rpc("record_security_event", {
+      p_kind: "cross_partner_access",
+      p_severity: "warn",
+      p_partner: partnerId,
+      p_detail: `A key for this partner requested a ${kind} belonging to another partner. Refused with the standard not-found response.`,
+    });
+  } catch {
+    // deliberately silent
+  }
+}
+
 /** The error code out of a response envelope, for the error distribution chart. */
 function codeOf(body: unknown): string | null {
   const e = (body as { error?: { code?: string } } | null)?.error;
@@ -224,11 +252,33 @@ Deno.serve(async (req) => {
       // Count the failure. This is what the pre-auth check above reads, so
       // repeated guessing from one origin stops being free after 60 tries a
       // minute, while a partner making 600 good calls is never touched by it.
-      await service.rpc("bump_rate_limit_state", {
+      const { data: failRows } = await service.rpc("bump_rate_limit_state", {
         p_key: `papi:authfail:${ip}`,
         p_limit: LIMITS.authFailuresPerIp.limit,
         p_window_secs: LIMITS.authFailuresPerIp.windowSecs,
-      }).then(() => {}, () => {});
+      });
+      const failState = Array.isArray(failRows) ? failRows[0] : failRows;
+
+      // A security event, not a log line, once failures from one origin stop
+      // looking like a misconfigured integration and start looking like guessing.
+      //
+      // The threshold is deliberately not 1. A partner who deploys with the wrong
+      // key generates a burst of failures and that is a support question, not an
+      // attack. Ten in a window is past the point where a human would have
+      // noticed and fixed it.
+      //
+      // record_security_event aggregates within the hour, so this writes ONE row
+      // that counts up rather than one row per attempt, which is what stops an
+      // attacker filling the table by continuing.
+      const failuresSoFar = LIMITS.authFailuresPerIp.limit - Number(failState?.remaining ?? 0);
+      if (failuresSoFar >= 10) {
+        await service.rpc("record_security_event", {
+          p_kind: "repeated_auth_failure",
+          p_severity: failuresSoFar >= LIMITS.authFailuresPerIp.limit ? "critical" : "warn",
+          p_origin: ip,
+          p_detail: `${failuresSoFar} failed authentications from this origin within the window. Last reason: ${result.reason}.`,
+        }).then(() => {}, () => {});
+      }
 
       // The reason is logged and never returned. Every failure looks the same.
       console.log(JSON.stringify({ requestId, event: "auth_failed", reason: result.reason }));
@@ -767,7 +817,24 @@ async function getApplication(service: any, partnerId: string, livemode: boolean
   const rows = (data ?? []) as ApplicationRow[];
   // The RPC filters on partner_id, so another partner's application returns no
   // rows and is indistinguishable from one that does not exist.
-  if (rows.length === 0) return json(errorBody("not_found", "Unknown application."), 404, requestId);
+  if (rows.length === 0) {
+    // THE RESPONSE IS UNCHANGED. What follows never alters what the caller sees:
+    // same status, same body. It only decides whether WE hear about it.
+    //
+    // A well-formed uuid that misses is either a genuinely unknown id, which is
+    // ordinary, or one belonging to another partner, which is not. Distinguishing
+    // them requires a lookup the caller cannot see the result of, which is
+    // exactly what service_role is for here.
+    //
+    // Worth being clear about why this is not paranoia: application ids are
+    // returned in our own API responses and webhook payloads, so a partner who
+    // integrates with two systems, or a developer testing with a colleague's
+    // copied id, can hold one legitimately. One attempt is a mistake. A pattern
+    // is the thing we want to see, and the aggregation in record_security_event
+    // is what turns the second into a single row that counts up.
+    await crossPartnerCheck(service, "application", id, partnerId, requestId);
+    return json(errorBody("not_found", "Unknown application."), 404, requestId);
+  }
 
   return json(
     { application: applicationView(rows[0], { appUrl: Deno.env.get("APP_URL") ?? "", includePaymentUrl: true }) },
