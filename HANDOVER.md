@@ -1232,3 +1232,66 @@ Change `PARTNER_API_BASE_URL` in `src/config/partnerApi.ts`, or set
 `node scripts/generate-partner-docs.mjs` and commit the regenerated file. The
 getting-started tab and the API documentation panel both follow it. There is no
 other place the URL is written.
+
+---
+
+## 13. Two things to know before the partner work
+
+### 13.1 The partner API is currently off for everyone
+
+`partners.referencing_mode` defaults to `pre_referenced_screened`, and **no
+migration anywhere sets any partner to `pre_referenced_open`**. The create path
+dispatches on it:
+
+```ts
+// _shared/partnerApplications.ts
+if (mode !== "pre_referenced_open") {
+  ... { error: { code: "not_implemented",
+                 message: "This partner's referencing mode is not yet available." } }
+```
+
+`pre_referenced_open` is the only mode implemented. The other two are specified
+and return **501** by design until they are built. Put together: **every
+`POST /v1/applications` returns 501 for every partner in the database today.**
+
+This is not a defect, it is configuration that has never been done, and it is
+easy to misread as a broken API because nothing else about the request fails. The
+key authenticates, the scopes pass, the payload validates, and then it 501s.
+
+So when the partner configuration work lands, **the Rightmove backfill is the
+first step, not the tidying-up step.** Setting Rightmove to
+`pre_referenced_open` is what turns the API on. Everything else in that work
+(capability flags, the create screen, the audit trail) can follow.
+
+`pre_referenced_open` means no Opndoor criteria are applied at all, which is a
+commercial position granted to Rightmove specifically. It is deliberately not the
+column default, so no partner inherits it by existing.
+
+### 13.2 An application cannot be traced to the API key that created it
+
+`partner_api_requests` (the idempotency ledger) carries `partner_id`,
+`application_id`, `endpoint`, `idempotency_key`, `request_hash` and the response,
+but **no `api_key_id`**. `partner_api_request_log` carries `api_key_id` but no
+`application_id`. So the two halves of the question never meet: nothing joins a
+created application to the key that created it.
+
+Two consequences, one immediate and one to plan for.
+
+**Immediate.** The Dev Centre's "delete this key" rule cannot ask "did this key
+create any applications", so it asks **"did this key make any requests at all"**,
+using `partner_api_request_log`. That is strictly stronger, and therefore safe: a
+key that made no requests certainly created nothing. It is also more
+conservative than intended, so a key that only ever made a failed `GET /orgs`
+cannot be deleted. That trade is deliberate, and it is recorded here because the
+rule reads oddly without knowing why.
+
+**To plan for.** Once more than one partner is live, key-level attribution will be
+wanted: which integration created this application, which key to revoke after an
+incident, which of a partner's three keys is actually in use. Adding
+`api_key_id uuid references public.partner_api_keys(id)` to
+`partner_api_requests` is a small change and worth doing before there is a
+backlog to leave un-attributed. Existing rows cannot be backfilled: the
+information was never recorded, so they stay null and null honestly means
+"created before we tracked this" rather than "created by no key".
+
+Do it before the second partner integrates, not after.

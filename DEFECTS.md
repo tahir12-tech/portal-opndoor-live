@@ -33,9 +33,13 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 10 | Reinstated applications keep their expired and withdrawn markers | Low |
 | 11 | `npm ci` fails, so there is no clean-room build and no CI | Medium |
 | 12 | The Stripe mode guard on the payment page only covers checkout, so decline runs on a deployment already judged unsafe | Medium |
+| 13 | Every caught error in the portal renders as a green success toast | High |
 
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
+
+Defect 13 is the cheapest to fix and the one most likely to be hiding the
+others: while every failure looks like a success, no user report is reliable.
 
 Defect 5 is different in kind from the others. It costs nothing while everything
 is working, and everything if it is not.
@@ -1247,3 +1251,111 @@ resolved after the row is known. Moving it also closed this gap as a side effect
 It is recorded here because it predates that work and is present in live, and
 because the fix in this tree is entangled with sandbox and is not a clean
 cherry-pick. See HANDOVER.md section 11.4.
+
+---
+
+## Defect 13: every caught error in the portal renders as a green success toast
+
+**Severity: high. Not because of what it breaks, but because of what it hides. While a failure is indistinguishable from a success, no user report about anything else can be trusted.**
+
+### What it is
+
+`useToast()` returns a function taking one argument, a message. The renderer has
+no notion of failure and hardcodes a tick
+([Toast.tsx](src/components/ui/Toast.tsx), before this work):
+
+```tsx
+const ToastContext = createContext<(message: string) => void>(() => {});
+...
+<div className={`toast${t.shown ? ' is-in' : ''}`}>
+  <Icon name="check" strokeWidth={2.4} />
+  <span>{t.message}</span>
+</div>
+```
+
+So the near-universal error-handling pattern in this codebase:
+
+```tsx
+catch (e) {
+  toast(e instanceof Error ? e.message : 'Could not withdraw the application.');
+}
+```
+
+renders "Could not withdraw the application." in the dark confirmation pill with
+a **green tick** beside it, in exactly the same position, colour and duration as
+"Application withdrawn."
+
+There are **34 error-carrying toast calls outside the Dev Centre**, across
+Reconciliation, UserManagement, ApplicationDetail, OrgManagement, PartnerManagement
+and others. Every one of them is affected. The toast auto-dismisses after 3.2
+seconds, which is short for reading an error you were not expecting to be one.
+
+### Business impact
+
+The direct cost is that a user believes an action succeeded when it did not, and
+does not retry. Withdrawing an application, resending a payment email, confirming
+a reconciliation record, sending a deed to an agent: each has a failure path that
+reports itself with a tick.
+
+The larger cost is diagnostic. Two Dev Centre bugs found while testing this week
+both presented as "the button does nothing" rather than "the operation failed",
+because the error toast looked like a confirmation and was read as one. Both had
+clear server-side error messages that were displayed to the user and dismissed as
+success. **While this defect exists, "it did nothing" and "it failed loudly" are
+the same observation**, and every bug report from staff is degraded accordingly.
+
+It also affects screen reader users more sharply: the toast has no `role="alert"`,
+so an error is announced politely, queued behind whatever is being read, or not at
+all.
+
+### Confirm it
+
+Any error path will do. The quickest with no setup:
+
+1. Sign in as management and open an application.
+2. Withdraw it, then withdraw it again from a second tab so the second call finds
+   it already withdrawn.
+
+The second attempt fails server side and shows the failure message with a green
+tick. Alternatively, open devtools, block requests to `/rest/v1/`, and press
+almost any action button.
+
+### Suggested fix
+
+Already done in this tree, and it is small: the tone is an optional second
+argument defaulting to success, so no existing call site had to change to keep
+working.
+
+```tsx
+export type ToastTone = 'ok' | 'error';
+const toast = useCallback((message: string, tone: ToastTone = 'ok') => { ... });
+...
+<div className={`toast toast--${t.tone}...`}
+     role={t.tone === 'error' ? 'alert' : 'status'}
+     aria-live={t.tone === 'error' ? 'assertive' : 'polite'}>
+  <Icon name={t.tone === 'error' ? 'alert' : 'check'} strokeWidth={2.4} />
+```
+
+Errors also get a red background and a 6 second dismiss rather than 3.2.
+
+### What is and is not fixed here, precisely
+
+**The mechanism is fixed. Most of the call sites are not.**
+
+- `Toast.tsx` and `Toast.css` carry the fix, and it is backward compatible.
+- Every call site **in the Dev Centre** passes `'error'` on failure paths.
+- The **34 error-carrying calls elsewhere in the portal still pass no tone, so
+  they still render green.** They are unchanged on purpose: they are live code
+  that predates this work, and the standing rule here was not to edit live files
+  beyond what the task required.
+
+So this is a two-part fix and only the first part is done. Carrying the
+`Toast.tsx` change across gets you the capability; the defect is not closed until
+the call sites pass the tone. Finding them is mechanical:
+
+```sh
+grep -rn "toast(" src --include=*.tsx | grep -iE "err|fail|could not|cannot"
+```
+
+Do not reapply the component change from scratch. Take it, then sweep the call
+sites.
