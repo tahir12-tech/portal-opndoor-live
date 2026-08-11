@@ -47,6 +47,19 @@ specification it was built from, not a plan.
 > A property rename is a **config edit**, not a deploy: the mapping is stored in
 > a table, which is the whole point of §1's design. So this is cheap to fix and
 > expensive to leave.
+>
+> **There is now a check for exactly this**, because the failure is silent:
+>
+> ```sh
+> curl -X POST "$URL/functions/v1/hubspot-sync" \
+>   -H "x-ops-secret: $SECRET" -H "Content-Type: application/json" \
+>   -d '{"action":"verify_map"}'
+> ```
+>
+> It compares every active row in `hubspot_field_map` against the properties that
+> actually exist in the Hub and reports the ones that do not, raising an
+> `ops_alerts` row of type `hubspot_map_drift` if any are missing. **Run it after
+> any change to the Hub, and schedule it weekly.** See DEFECTS.md 17.
 **Hub:** 144519077 (EU). **Direction:** portal → HubSpot, one-way. The portal is the system of record for applications and org structure; HubSpot builds everything on top.
 
 ---

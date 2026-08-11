@@ -140,7 +140,73 @@ Deno.serve(async (req) => {
     if (!cur) return json({ ok: false, error: "Cursor not initialised." }, 500);
 
     const summaryWarn: string[] = [];
-    const LIMIT = Number((await req.json().catch(() => ({})))?.limit ?? 200);
+    const body = await req.json().catch(() => ({}));
+
+    // ---- map verification ---------------------------------------------------
+    //
+    // WHY THIS EXISTS. HubSpot's batch upsert accepts a write to a property that
+    // does not exist by IGNORING IT and returning success. So renaming or
+    // deleting a property in the Hub does not break the sync: it makes the sync
+    // silently stop recording that field, with nothing in the response, the
+    // logs, cron_health or the portal saying so. It is found weeks later by
+    // somebody asking why a report is empty, and by then the gap has no floor.
+    //
+    // The mapping is config in hubspot_field_map, and HubSpot will tell us what
+    // actually exists, so the drift is directly checkable rather than something
+    // to be discovered. One call per object type.
+    //
+    // Deliberately a separate action rather than part of every sync run: it is
+    // two extra API calls and the answer changes only when somebody edits the
+    // Hub, so running it hourly would spend quota to learn nothing.
+    if (body?.action === "verify_map") {
+      const { data: mapped } = await service
+        .from("hubspot_field_map")
+        .select("object, hs_property")
+        .eq("active", true);
+
+      const byObject = new Map<string, string[]>();
+      for (const row of (mapped ?? []) as { object: string; hs_property: string }[]) {
+        const objectType = row.object === "company" ? COMPANIES : OBJ;
+        byObject.set(objectType, [...(byObject.get(objectType) ?? []), row.hs_property]);
+      }
+
+      const missing: { object: string; property: string }[] = [];
+      const checked: string[] = [];
+
+      for (const [objectType, props] of byObject) {
+        const res = await hs(`/crm/v3/properties/${objectType}`);
+        // A failure to READ the property list is not evidence that a property is
+        // missing. Report it as unchecked rather than reporting every mapped
+        // property as absent, which would be a false alarm at the worst scale.
+        if (!res?.results) {
+          summaryWarn.push(`could not read the property list for ${objectType}; not checked`);
+          continue;
+        }
+        const exists = new Set((res.results as { name: string }[]).map((p) => p.name));
+        checked.push(objectType);
+        for (const prop of props) if (!exists.has(prop)) missing.push({ object: objectType, property: prop });
+      }
+
+      if (missing.length) {
+        await service.from("ops_alerts").insert({
+          alert_type: "hubspot_map_drift",
+          detail:
+            `${missing.length} mapped HubSpot propert${missing.length === 1 ? "y does" : "ies do"} not exist: `
+            + missing.map((m) => `${m.object}.${m.property}`).join(", ")
+            + `. Writes to ${missing.length === 1 ? "it are" : "them are"} being accepted and discarded.`,
+        }).then(() => {}, () => {});
+      }
+
+      return json({
+        ok: missing.length === 0,
+        checked,
+        mapped_count: (mapped ?? []).length,
+        missing,
+        warnings: summaryWarn,
+      });
+    }
+
+    const LIMIT = Number(body?.limit ?? 200);
     const { data: events, error: evErr } = await service.rpc("hubspot_pending_events", {
       p_last_at: cur.last_at, p_last_id: cur.last_id, p_kinds: Object.keys(KIND_TO_EVENT), p_limit: LIMIT,
     });

@@ -37,6 +37,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 14 | The PandaDoc webhook signature has no timestamp, no tolerance and a non-constant-time comparison, so a captured callback is replayable for ever | High |
 | 15 | Applications lapse on day 15, but the activity log and the documentation both say 14 | Low |
 | 16 | A test in the suite has been failing since 22 July, and `npm test` is not the command that runs it | Medium |
+| 17 | A renamed HubSpot property makes the sync silently stop recording that field, and reports success | High |
 
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
@@ -1630,3 +1631,102 @@ The `jsdom` environment was deliberately **not** moved into that block, because
 it changes how the existing suite is invoked and that is a decision for whoever
 owns the live repo. The failing test is untouched for the same reason: which of
 the two is wrong is a judgement about intent.
+
+---
+
+## Defect 17: a renamed HubSpot property makes the sync stop recording that field, silently, while reporting success
+
+**Severity: high. Not because it breaks the sync, but because it does not: the failure is indistinguishable from working, and the data loss is unbounded until somebody notices by accident.**
+
+### What it is
+
+The sync writes to HubSpot with a batch upsert, sending a property bag built from
+`hubspot_field_map`, which stores the portal-fact to HubSpot-internal-name mapping
+as config:
+
+```ts
+hs(`/crm/v3/objects/${OBJ}/batch/upsert`, "POST",
+   { inputs: [{ idProperty: "applicant_id", id: gref, properties }] })
+```
+
+**HubSpot accepts a write to a property that does not exist by ignoring it and
+returning `200`.** It does not error, it does not warn, and it does not report
+which properties it applied.
+
+So if somebody renames or deletes a property in the Hub, and the mapping is not
+updated to match:
+
+- the sync keeps running and keeps reporting success
+- every other field on that record continues to update
+- **that one field silently stops being recorded**
+- `cron_health` shows green, because nothing failed
+- no ops alert fires, because nothing raised
+
+There is no floor to the loss. It continues until a person asks why a report is
+empty, and by then the affected records are however many were synced in between.
+
+The mapping being config rather than code is the right design and is what makes
+the fix cheap, but it also means the two halves can drift with nothing checking:
+the map lives in our database and the properties live in HubSpot, and neither
+knows about the other.
+
+### Business impact
+
+The properties at risk are the ones the mapping exists to carry: commission rate,
+guarantee reference, status, deed dates. A silently-stale HubSpot field is worse
+than a missing one, because it still holds its **last correct value**, so a report
+reads as plausible rather than obviously broken.
+
+It also degrades trust in the sync generally. Once one field has been found stale
+weeks after the fact, every figure from HubSpot has to be checked against the
+portal, which is the opposite of what the integration is for.
+
+### Confirm it
+
+In a sandbox Hub, or carefully in the real one on a disposable property:
+
+1. Note a property name in `hubspot_field_map` that is currently syncing.
+2. Rename it in HubSpot.
+3. Trigger a sync for an application that would write it.
+4. The sync returns success. The record updates every other field. That one
+   keeps its old value.
+5. Nothing appears in `ops_alerts`, `activity_log` or `cron_health`.
+
+### Suggested fix, and it is implemented here
+
+**Ask HubSpot what exists and compare.** The properties API returns every
+property with its internal name, so the drift is directly checkable rather than
+something to be discovered:
+
+```
+GET /crm/v3/properties/{objectType}
+```
+
+`hubspot-sync` now takes an action:
+
+```sh
+curl -X POST "$URL/functions/v1/hubspot-sync" \
+  -H "x-ops-secret: $SECRET" -H "Content-Type: application/json" \
+  -d '{"action":"verify_map"}'
+```
+
+It reads every active row in `hubspot_field_map`, fetches the real property list
+per object type, and returns the mapped properties that do not exist. If any are
+missing it writes an `ops_alerts` row of type `hubspot_map_drift`, so it surfaces
+where operational problems already surface rather than needing a new screen.
+
+Three decisions inside it worth knowing:
+
+- **It is a separate action, not part of every run.** Two extra API calls, and the
+  answer only changes when somebody edits the Hub, so running it hourly spends
+  quota to learn nothing.
+- **A failure to read the property list is reported as unchecked**, not as every
+  property being missing. The alternative raises a false alarm at the worst
+  possible scale, which is how an alert gets muted.
+- **It does not attempt to auto-correct.** A renamed property might be a rename or
+  might be a deliberate removal, and guessing writes data into the wrong field.
+
+**What still needs doing:** schedule it. Weekly is enough given the answer only
+changes on a human edit. It is not scheduled here for the same reason nothing
+else is: a migration cannot know which project it is applied to, and hardcoding a
+URL is how defect 2 happened.
