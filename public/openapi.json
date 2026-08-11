@@ -1,0 +1,1195 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Opndoor Partner API",
+    "version": "v1",
+    "contact": {
+      "name": "opndoor support",
+      "url": "https://opndoor.co"
+    },
+    "description": "Create guarantee applications from your own system and receive webhooks as they progress. Organisations must already exist: create them in the opndoor portal, then send names or ids. The API key prefix decides the mode: opnd_test_ creates sandbox applications, opnd_live_ creates real ones."
+  },
+  "servers": [
+    {
+      "url": "https://api.opndoor.co/v1",
+      "description": "Production"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/orgs": {
+      "get": {
+        "summary": "List your agencies and branches",
+        "description": "Call once, store the ids against your own records, and send them from then on if you want precision. You can also send names on POST /applications instead.",
+        "operationId": "get_orgs",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scope": "orgs:read",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed per window for this key."
+              },
+              "X-RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "X-RateLimit-Reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix timestamp when the window resets."
+              },
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Quote this to support."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "malformed_request: Not valid JSON, or a missing idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized: Any authentication failure. Always identical",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "insufficient_scope: The key lacks the required scope; partner_inactive: The account is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found: Unknown, or not yours; unsupported_version: No API version in the path, or one not supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_key_reused: Same key, different body; request_in_progress: Same key, still processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "validation_failed: Field errors, listed in fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited: Too many requests. Retry-After says when",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error: Something went wrong our end",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "service_unavailable: Temporarily unavailable, safe to retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/applications": {
+      "get": {
+        "summary": "List applications",
+        "description": "Keyset paginated, newest first. next_cursor is null on the last page; there is no has_more field.",
+        "operationId": "get_applications",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scope": "applications:read",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sent",
+                "paid",
+                "deed_issued",
+                "lapsed",
+                "withdrawn"
+              ],
+              "description": "lapsed means an unpaid application closed automatically 15 days after it was sent. It is not the guarantee expiring."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed per window for this key."
+              },
+              "X-RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "X-RateLimit-Reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix timestamp when the window resets."
+              },
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Quote this to support."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "malformed_request: Not valid JSON, or a missing idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized: Any authentication failure. Always identical",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "insufficient_scope: The key lacks the required scope; partner_inactive: The account is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found: Unknown, or not yours; unsupported_version: No API version in the path, or one not supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_key_reused: Same key, different body; request_in_progress: Same key, still processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "validation_failed: Field errors, listed in fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited: Too many requests. Retry-After says when",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error: Something went wrong our end",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "service_unavailable: Temporarily unavailable, safe to retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create an application",
+        "description": "Idempotency-Key is required. The organisation must already exist: send names or ids, never both.",
+        "operationId": "post_applications",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scope": "applications:write",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique to the application on your side. The same key with the same body replays the first response."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApplication"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed per window for this key."
+              },
+              "X-RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "X-RateLimit-Reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix timestamp when the window resets."
+              },
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Quote this to support."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateApplicationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "malformed_request: Not valid JSON, or a missing idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized: Any authentication failure. Always identical",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "insufficient_scope: The key lacks the required scope; partner_inactive: The account is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found: Unknown, or not yours; unsupported_version: No API version in the path, or one not supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_key_reused: Same key, different body; request_in_progress: Same key, still processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "validation_failed: Field errors, listed in fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited: Too many requests. Retry-After says when",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error: Something went wrong our end",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "service_unavailable: Temporarily unavailable, safe to retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/applications/{id}": {
+      "get": {
+        "summary": "Read one application",
+        "operationId": "get_applications_id",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scope": "applications:read",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests allowed per window for this key."
+              },
+              "X-RateLimit-Remaining": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Requests left in the current window."
+              },
+              "X-RateLimit-Reset": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Unix timestamp when the window resets."
+              },
+              "X-Request-Id": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Quote this to support."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "malformed_request: Not valid JSON, or a missing idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized: Any authentication failure. Always identical",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "insufficient_scope: The key lacks the required scope; partner_inactive: The account is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found: Unknown, or not yours; unsupported_version: No API version in the path, or one not supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_key_reused: Same key, different body; request_in_progress: Same key, still processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "validation_failed: Field errors, listed in fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited: Too many requests. Retry-After says when",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error: Something went wrong our end",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "service_unavailable: Temporarily unavailable, safe to retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "application.created": {
+      "post": {
+        "operationId": "onApplicationCreated",
+        "summary": "An application is created and accepted",
+        "description": "Signed with HMAC-SHA256 over \"<t>.<raw body>\" using your endpoint secret, sent as X-Opndoor-Signature: t=<unix>,v1=<hex>. Verify against the RAW body before parsing. Respond 2xx to accept; anything else is retried. Dedupe on X-Opndoor-Event-Id.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted. Any 2xx is treated as delivered."
+          }
+        }
+      }
+    },
+    "application.paid": {
+      "post": {
+        "operationId": "onApplicationPaid",
+        "summary": "The guarantor fee is paid",
+        "description": "Signed with HMAC-SHA256 over \"<t>.<raw body>\" using your endpoint secret, sent as X-Opndoor-Signature: t=<unix>,v1=<hex>. Verify against the RAW body before parsing. Respond 2xx to accept; anything else is retried. Dedupe on X-Opndoor-Event-Id.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted. Any 2xx is treated as delivered."
+          }
+        }
+      }
+    },
+    "application.deed_issued": {
+      "post": {
+        "operationId": "onApplicationDeed_issued",
+        "summary": "The Deed of Guarantee is executed",
+        "description": "Signed with HMAC-SHA256 over \"<t>.<raw body>\" using your endpoint secret, sent as X-Opndoor-Signature: t=<unix>,v1=<hex>. Verify against the RAW body before parsing. Respond 2xx to accept; anything else is retried. Dedupe on X-Opndoor-Event-Id.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted. Any 2xx is treated as delivered."
+          }
+        }
+      }
+    },
+    "application.lapsed": {
+      "post": {
+        "operationId": "onApplicationLapsed",
+        "summary": "An unpaid application closes automatically",
+        "description": "Signed with HMAC-SHA256 over \"<t>.<raw body>\" using your endpoint secret, sent as X-Opndoor-Signature: t=<unix>,v1=<hex>. Verify against the RAW body before parsing. Respond 2xx to accept; anything else is retried. Dedupe on X-Opndoor-Event-Id.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted. Any 2xx is treated as delivered."
+          }
+        }
+      }
+    },
+    "application.withdrawn": {
+      "post": {
+        "operationId": "onApplicationWithdrawn",
+        "summary": "An application is withdrawn before payment",
+        "description": "Signed with HMAC-SHA256 over \"<t>.<raw body>\" using your endpoint secret, sent as X-Opndoor-Signature: t=<unix>,v1=<hex>. Verify against the RAW body before parsing. Respond 2xx to accept; anything else is retried. Dedupe on X-Opndoor-Event-Id.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted. Any 2xx is treated as delivered."
+          }
+        }
+      }
+    },
+    "application.reinstated": {
+      "post": {
+        "operationId": "onApplicationReinstated",
+        "summary": "A lapsed or declined application is paid late. Sent INSTEAD OF application.paid, not in addition",
+        "description": "Signed with HMAC-SHA256 over \"<t>.<raw body>\" using your endpoint secret, sent as X-Opndoor-Signature: t=<unix>,v1=<hex>. Verify against the RAW body before parsing. Respond 2xx to accept; anything else is retried. Dedupe on X-Opndoor-Event-Id.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted. Any 2xx is treated as delivered."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Your API key. Shown once when created and not retrievable afterwards."
+      }
+    },
+    "schemas": {
+      "Tenant": {
+        "type": "object",
+        "required": [
+          "title",
+          "first_name",
+          "last_name",
+          "date_of_birth",
+          "email",
+          "phone"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "enum": [
+              "Mr",
+              "Mrs",
+              "Miss",
+              "Ms",
+              "Mx",
+              "Dr"
+            ]
+          },
+          "first_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "last_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "date_of_birth": {
+            "type": "string",
+            "format": "date",
+            "description": "Must be in the past, and 18 by the tenancy start date."
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Must contain at least one digit."
+          }
+        }
+      },
+      "Property": {
+        "type": "object",
+        "required": [
+          "address_line_1",
+          "city",
+          "postcode"
+        ],
+        "properties": {
+          "address_line_1": {
+            "type": "string",
+            "minLength": 1
+          },
+          "address_line_2": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1
+          },
+          "county": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "postcode": {
+            "type": "string",
+            "description": "UK format."
+          }
+        }
+      },
+      "Tenancy": {
+        "type": "object",
+        "required": [
+          "monthly_rent",
+          "start_date"
+        ],
+        "properties": {
+          "monthly_rent": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "Application": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "guarantee_ref": {
+            "type": "string",
+            "description": "Sandbox references are prefixed GR-TEST-."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "sent",
+              "paid",
+              "deed_issued",
+              "lapsed",
+              "withdrawn"
+            ],
+            "description": "lapsed means an unpaid application closed automatically 15 days after it was sent. It is not the guarantee expiring."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sent_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "paid_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deed_issued_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expiry_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "The guarantee's own expiry, twelve months after the tenancy start."
+          },
+          "tenant": {
+            "$ref": "#/components/schemas/Tenant"
+          },
+          "property": {
+            "$ref": "#/components/schemas/Property"
+          },
+          "tenancy": {
+            "$ref": "#/components/schemas/Tenancy"
+          },
+          "org": {
+            "type": "object",
+            "properties": {
+              "agency_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "agency_name": {
+                "type": "string"
+              },
+              "branch_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "branch_name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/FieldError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "example": "tenant.email"
+          },
+          "code": {
+            "type": "string",
+            "example": "invalid_format"
+          },
+          "message": {
+            "type": "string",
+            "description": "Written for humans and may change. Match on field and code."
+          }
+        }
+      },
+      "OrgList": {
+        "type": "object",
+        "properties": {
+          "agencies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "has_agent_contact": {
+                  "type": "boolean"
+                },
+                "branches": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "has_agent_contact": {
+                        "type": "boolean",
+                        "description": "False means no deed could be issued for this branch. Do not send applications against it."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "CreateApplication": {
+        "type": "object",
+        "required": [
+          "tenant",
+          "property",
+          "tenancy",
+          "org",
+          "referrer"
+        ],
+        "properties": {
+          "tenant": {
+            "$ref": "#/components/schemas/Tenant"
+          },
+          "property": {
+            "$ref": "#/components/schemas/Property"
+          },
+          "tenancy": {
+            "$ref": "#/components/schemas/Tenancy"
+          },
+          "org": {
+            "type": "object",
+            "description": "Send NAMES or our IDS, never a mix. Names are matched ignoring case, surrounding whitespace and a trailing Ltd or Limited.",
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "agency_name"
+                ],
+                "properties": {
+                  "agency_name": {
+                    "type": "string"
+                  },
+                  "branch_name": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "agency_id",
+                  "branch_id"
+                ],
+                "properties": {
+                  "agency_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "branch_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            ]
+          },
+          "referrer": {
+            "type": "object",
+            "required": [
+              "email"
+            ],
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email"
+              }
+            }
+          }
+        }
+      },
+      "CreateApplicationResponse": {
+        "type": "object",
+        "properties": {
+          "application": {
+            "$ref": "#/components/schemas/Application"
+          },
+          "payment_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Give this to the tenant. Present while the application is payable."
+          }
+        }
+      },
+      "ApplicationList": {
+        "type": "object",
+        "properties": {
+          "applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Application"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null on the last page. This is the signal to stop; there is no has_more field."
+          }
+        }
+      },
+      "WebhookEvent": {
+        "type": "object",
+        "properties": {
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "application.created",
+              "application.paid",
+              "application.deed_issued",
+              "application.lapsed",
+              "application.withdrawn",
+              "application.reinstated"
+            ]
+          },
+          "livemode": {
+            "type": "boolean",
+            "description": "False for sandbox. Branch on this if one handler serves both."
+          },
+          "application": {
+            "$ref": "#/components/schemas/Application"
+          }
+        }
+      }
+    }
+  }
+}

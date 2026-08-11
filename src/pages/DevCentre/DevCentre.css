@@ -295,3 +295,13 @@
 
 .sbxpurge { margin: 6px 0 12px; padding-left: 20px; line-height: 1.6; }
 .sbxpurge li { margin-bottom: 4px; }
+
+/* The OpenAPI callout at the top of the documentation panel. Blue rather than
+   amber or red: this is an offer, not a warning. */
+.devopenapi { display: flex; gap: 11px; align-items: flex-start; margin-bottom: 20px;
+              padding: 13px 15px; border-radius: 10px; background: #eff6ff;
+              border: 1px solid #bfdbfe; color: #1e3a8a; font-size: 13px; line-height: 1.55; }
+.devopenapi strong { display: block; margin-bottom: 3px; }
+.devopenapi p { margin: 0; }
+.devopenapi code { background: rgba(30, 58, 138, 0.1); padding: 1px 5px; border-radius: 4px; }
+.devopenapi svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }

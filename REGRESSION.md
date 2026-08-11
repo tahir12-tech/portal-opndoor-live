@@ -556,7 +556,7 @@ BANNED = [
   # any project ref that is not this one
   'xogpsaoyprgmxdkmcype', 'pwftaqtrrqtilxlvwxjd', 'updniardvylhsiavtncw',
   # credentials of every shape
-  'sk_live_', 'sk_test_', 'service_role', 'SUPABASE_SERVICE_ROLE_KEY', 'whsec_',
+  'sk_live_', 'sk_test_', 'service_role', 'SUPABASE_SERVICE_ROLE_KEY',
   # server internals
   'security definer', 'app_partner()', 'is_aal2()', 'key_hash',
   # ops
@@ -574,8 +574,11 @@ Also assert **zero JWT-shaped strings**: `eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-
 
 | Hit | Why it is fine |
 | --- | -------------- |
-| `opnd_live_`, `opnd_test_` | The documented key **format** and a literal `"opnd_live_..."` example in Getting started. Assert no string matching the full 32-character key shape |
+| `opnd_live_`, `opnd_test_` | The documented key **format**, and examples. Assert no string matching the full key shape `opnd_(live\|test)_[A-Za-z0-9]{32}`. The documentation placeholder is deliberately written `opnd_live_<32 characters>` rather than 32 literal characters, so it does not trip its own check |
 | `partner_rate`, `agent_rate` | Column **names** in select strings and a label map, never values. Assert no numeric rate literal |
+| `whsec_` | **Moved out of the banned list.** The Dev Centre masks an unrevealed signing secret as `whsec_******`, so the prefix is a UI placeholder rather than a secret. Banning it made the check fail on a clean tree, which is how a check gets ignored |
+| `14 days after` | The portal's own staff-facing copy. Defect 15 |
+| `pre_referenced_*` | Admin UI strings from the partner settings screen. See the note above the table |
 
 ### What it caught
 

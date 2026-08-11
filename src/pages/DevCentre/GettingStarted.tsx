@@ -42,7 +42,7 @@ export function GettingStarted() {
           <p>
             The prefix is the mode: <code>opnd_test_</code> keys create sandbox applications and{' '}
             <code>opnd_live_</code> keys create real ones. Nothing else changes between them, so when you are
-            ready to go live you swap the key and change nothing in your code. The mode is never read from
+            ready to go live you swap the key. Nothing else in your request changes: same endpoints, same payloads, same organisation ids. The mode is never read from
             the request body.
           </p>
           <pre className="devcode"><code>{`Authorization: Bearer ${keyExample}`}</code></pre>

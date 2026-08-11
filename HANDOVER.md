@@ -152,7 +152,10 @@ refuses to build if internal detail appears in it.
 > because a leaked string is perfectly valid TypeScript that compiles and bundles
 > without complaint.
 >
-> 1. The entire `PARTNER-API.md` was inlined into the bundle by a `?raw` import.
+> 1. The entire internal specification was inlined into the bundle by a `?raw`
+>    import. (The generator has since been repointed at `PARTNER-DOCS.md`, which
+>    is partner-facing in its entirety, so the class of bug is gone as well as
+>    the instance.)
 >    The component filtered it at render time, which filters what is rendered and
 >    not what ships, so the whole internal specification was readable in devtools.
 > 2. After the `partners` select was narrowed to keep commission rates away from
@@ -198,9 +201,10 @@ the reason. Treat every such case as something to check rather than assume.
 | ---- | ---------- | ------------- |
 | `HANDOVER.md` | This file. What was changed here, why, and what needs you | You |
 | `DEFECTS.md` | Defects found in the **live** system, not introduced here and not fixed here | You, raised separately |
-| `PARTNER-API.md` | The partner API and webhooks. Specification **and** what is built, with a status table at the top | Whoever extends it |
+| `PARTNER-API.md` | **Internal** design record for the partner API. Not published, not the docs source | Whoever extends it |
+| `PARTNER-DOCS.md` | **Partner-facing** reference. The generator's only source | Partner developers |
 | `REGRESSION.md` | Test plan for the whole platform, lifecycle and partner API. Written to pass on day one | You, and whoever tests |
-| `scripts/generate-partner-docs.mjs` | Regenerates the Dev Centre docs from `PARTNER-API.md`. Re-run after editing the spec | Whoever edits the spec |
+| `scripts/generate-partner-docs.mjs` | Regenerates the Dev Centre docs from `PARTNER-DOCS.md`. Re-run after editing it | Whoever edits the partner docs |
 
 ---
 
@@ -859,31 +863,39 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 ### 9.4 Issuing a key
 
-Manual, deliberately. Hashing cannot happen in Postgres: SHA-256 needs
-pgcrypto's `digest()`, and this schema does not enable pgcrypto. Adding an
-extension solely to mint credentials is a poor trade, so an admin endpoint is
-later work.
+**Use the Dev Centre.** Configuration tab, "Mint a key". Choose the mode, name
+it, pick the narrowest scopes that do the job. The key is shown once and is not
+recoverable, because only a hash is stored.
 
-Generate the key and its hash outside the database, then insert only the hash:
+> **The manual `INSERT` that used to be documented here has been removed, and it
+> is worth knowing why rather than just that it went.**
+>
+> It predated the `livemode` column. Its `INSERT` set `key_prefix` and `key_hash`
+> but not `livemode`, which defaults to `true`. So following those instructions
+> with the documented `opnd_test_` prefix produced a row whose prefix said
+> sandbox and whose column said live.
+>
+> `partnerAuth.ts` refuses exactly that combination, and every authentication
+> failure in this API returns an identical `401` with an identical body by
+> design. So a key minted from the old instructions failed on every request, and
+> the response told whoever followed them nothing at all. Only the server-side
+> log said `livemode_prefix_mismatch`.
+>
+> That is a trap rather than a stale paragraph, which is why it is gone rather
+> than corrected.
 
-```js
-const crypto = require("crypto");
-const ab = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-const b = crypto.randomBytes(32);
-let r = ""; for (let i = 0; i < 32; i++) r += ab[b[i] % ab.length];
-const key = "opnd_live_" + r;                                   // give this to the partner, once
-console.log(key, key.slice(0, 18), crypto.createHash("sha256").update(key).digest("hex"));
-```
+If you ever do need to mint one by hand, the two columns must agree:
 
 ```sql
-insert into public.partner_api_keys (partner_id, name, key_prefix, key_hash, scopes)
+-- livemode MUST match the prefix. opnd_test_ -> false, opnd_live_ -> true.
+insert into public.partner_api_keys
+  (partner_id, name, key_prefix, key_hash, scopes, livemode)
 values ('<partner uuid>', 'Rightmove production', '<prefix>', '<hash>',
-        array['applications:write','orgs:read']);
+        array['applications:write','orgs:read'], true);
 ```
 
-Use `opnd_test_` for non-production. **The plaintext is not recoverable**: only
-the hash is stored, by design. If a partner loses their key, issue a new one and
-revoke the old.
+The partner must also have `api_access_enabled` set, or every request with the
+key returns the same `401`. Section 11 and the partner settings screen.
 
 ### 9.5 Rotating and revoking
 
@@ -1072,7 +1084,7 @@ portal screen authenticated by the user's own session, not by an API key.
 
 ### 10.5 The documentation is generated, and why that is a build step
 
-The Dev Centre's API documentation comes from `PARTNER-API.md`, so it cannot
+The Dev Centre's API documentation comes from `PARTNER-DOCS.md`, so it cannot
 drift from the specification.
 
 It is generated by `node scripts/generate-partner-docs.mjs` into
@@ -1089,21 +1101,30 @@ stale generated file shows up in a diff. A leaked specification does not show up
 at all, which is why the trade goes this way. The generator refuses to write if
 an internal marker survives sanitising.
 
-### 10.6 Still to do on the client
+### 10.6 Client role tests: done
 
-The server is closed and the routes are guarded, so these are defence in depth
-rather than live holes. They remain because they are the same negative-test shape
-and will grant the next role added:
+This section previously listed five outstanding negative role tests that "will
+grant the next role added". **All five have since been converted**, and the list
+is kept only so nobody hunts for work that is finished:
 
-- `exportsService.ts`, eleven `role !== 'referrer'` tests gating commission
-  columns and both settlement sections
-- `Dashboard.tsx`, the "Export summary" button has no `RoleOnly` where its three
-  siblings do
-- `hydrate.ts`, still requests `partner_rate, agent_rate`; now refused by the
-  narrowed policy, but it should stop asking
-- `applicationsService.ts`, `canAmendTenancyStart` and `canWithdraw` both end
-  `: true`
-- `paymentMetrics.ts`, `analyticsService.ts`, `leagueService.ts`, same shape
+- `exportsService.ts` now has **zero** `role !== 'referrer'` tests and twelve
+  uses of the `maySeeCommission` allowlist
+- `Dashboard.tsx`'s "Export summary" button is wrapped in `RoleOnly`
+- `hydrate.ts` requests `partner_rate, agent_rate` only when
+  `maySeeCommission(viewerRole)`
+- `applicationsService.ts`'s `canAmendTenancyStart` and `canWithdraw` are
+  positive: `role === 'referrer' ? ownedByReferrer : role === 'superadmin' || role === 'management'`
+
+Two negative tests remain, and they are deliberately left because they fail
+**closed** rather than open:
+
+- `paymentMetrics.ts:42`, `else if (role !== 'superadmin' && role !== 'management') set = []`.
+  A new role gets an empty set.
+- `leagueService.ts:54`, `if (role !== 'superadmin') return p === homePartner()`.
+  A new role gets scoped to its own partner.
+
+Both admit a new role to the *safe* branch, which is the opposite of the shape
+this work was closing. Converting them is tidiness, not a fix.
 
 ---
 
@@ -1357,8 +1378,11 @@ other place the URL is written.
 
 ### 13.1 The partner API is currently off for everyone
 
-`partners.referencing_mode` defaults to `pre_referenced_screened`, and **no
-migration anywhere sets any partner to `pre_referenced_open`**. The create path
+`partners.referencing_mode` defaults to `pre_referenced_screened`. **Migration
+`20260811090000` sets Rightmove to `pre_referenced_open`, and that migration is
+the only thing that turns the API on** — see the box at the top of this document,
+which is where the production watch point lives. What follows describes why that
+matters and remains true for every other partner. The create path
 dispatches on it:
 
 ```ts
@@ -1369,17 +1393,19 @@ if (mode !== "pre_referenced_open") {
 ```
 
 `pre_referenced_open` is the only mode implemented. The other two are specified
-and return **501** by design until they are built. Put together: **every
-`POST /v1/applications` returns 501 for every partner in the database today.**
+and return **501** by design until they are built. So **every partner still on
+the default gets a 501 on every `POST /v1/applications`**, and only the partners
+that migration explicitly set are live.
 
-This is not a defect, it is configuration that has never been done, and it is
-easy to misread as a broken API because nothing else about the request fails. The
-key authenticates, the scopes pass, the payload validates, and then it 501s.
+That is not a defect, it is configuration, and it is easy to misread as a broken
+API because nothing else about the request fails: the key authenticates, the
+scopes pass, the payload validates, and then it 501s.
 
-So when the partner configuration work lands, **the Rightmove backfill is the
-first step, not the tidying-up step.** Setting Rightmove to
-`pre_referenced_open` is what turns the API on. Everything else in that work
-(capability flags, the create screen, the audit trail) can follow.
+The partner configuration work has landed. Capability flags, the create screen
+and the audit trail are built (sections 11 and the partner settings screen), and
+`referencing_mode` is editable there. **The remaining risk is the production
+push**, which is covered by the box at the top: if the migration matches no
+Rightmove row, everything above stays true for everyone.
 
 `pre_referenced_open` means no Opndoor criteria are applied at all, which is a
 commercial position granted to Rightmove specifically. It is deliberately not the

@@ -39,13 +39,13 @@ export const PARTNER_API_BASE_URL: string =
   'https://api.opndoor.co/v1';
 
 /**
- * The canonical literal as it is written in PARTNER-API.md.
+ * The canonical literal as it is written in PARTNER-DOCS.md, the partner-facing
+ * document the documentation generator reads.
  *
- * The documentation generator rewrites this string to PARTNER_API_BASE_URL when
- * it extracts the partner-facing sections, so the markdown stays readable to a
- * human while the rendered documentation follows configuration. Keeping the
- * markdown canonical rather than templated means Balal reads a real URL rather
- * than a placeholder.
+ * The generator rewrites this string to PARTNER_API_BASE_URL as it extracts,
+ * so the markdown stays readable to a human while the rendered documentation
+ * follows configuration. Keeping the markdown canonical rather than templated
+ * means a reader sees a real URL rather than a placeholder.
  */
 export const PARTNER_API_CANONICAL_BASE = 'https://api.opndoor.co/v1';
 

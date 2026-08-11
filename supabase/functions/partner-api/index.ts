@@ -17,8 +17,13 @@
 // partner API is a multi-endpoint surface that shares authentication, scope
 // checks, rate limiting and an error contract. Splitting it per endpoint would
 // duplicate the key-verification path, which is the one piece of this that most
-// needs to exist exactly once. The URL is /functions/v1/partner-api/orgs; the
-// /v1/orgs form in the spec assumes a gateway rewrite that does not exist yet.
+// needs to exist exactly once.
+//
+// PARTNERS ARE GIVEN https://api.opndoor.co/v1/..., which rewrites to this
+// function's /functions/v1/partner-api/v1/... path. The hostname and the rewrite
+// are configuration that has to be set up; see HANDOVER.md section 12. Use the
+// function URL for internal testing only: whatever a partner is handed gets
+// hardcoded, so it has to be a host and path we can change.
 //
 // SCOPING: RLS DOES NOT PROTECT THIS PATH. Every table carries a restrictive
 // AAL2 policy an API-key request can never satisfy, so this runs as service

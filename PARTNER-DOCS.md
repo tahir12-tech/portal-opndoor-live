@@ -52,7 +52,7 @@ versions with the same body replays rather than creating a second application.
 Send your key as a bearer token on every request:
 
 ```
-Authorization: Bearer opnd_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Authorization: Bearer opnd_live_<32 characters>
 ```
 
 Keys are shown once, when they are created, and cannot be retrieved afterwards.
@@ -502,3 +502,61 @@ us find the exact request without you having to reproduce it.
 
 A resource that is not yours returns `404`, not `403`, so the API cannot be used
 to discover what exists.
+
+<!--
+  ===========================================================================
+  MACHINE-READABLE DESCRIPTION. Stripped before publication.
+
+  The OpenAPI document is generated from THIS block by the same script that
+  renders the prose above, so the two cannot drift: one file, one run, two
+  outputs. Editing the prose without editing this block is the drift risk, and
+  the generator reports the endpoint and schema count on every run so a
+  divergence shows up as a number that stopped changing.
+
+  It is YAML-ish JSON on purpose: a literal JSON object, so the generator parses
+  it rather than templating strings together, and a malformed edit fails the
+  build instead of producing a spec that does not open.
+  ===========================================================================
+```openapi-source
+{
+  "servers": [{ "url": "https://api.opndoor.co/v1", "description": "Production" }],
+  "rateLimit": { "perKey": 600, "windowSecs": 60 },
+  "paths": {
+    "/orgs": {
+      "get": {
+        "summary": "List your agencies and branches",
+        "description": "Call once, store the ids against your own records, and send them from then on if you want precision. You can also send names on POST /applications instead.",
+        "scope": "orgs:read",
+        "responseSchema": "OrgList"
+      }
+    },
+    "/applications": {
+      "get": {
+        "summary": "List applications",
+        "description": "Keyset paginated, newest first. next_cursor is null on the last page; there is no has_more field.",
+        "scope": "applications:read",
+        "query": ["status", "limit", "cursor"],
+        "responseSchema": "ApplicationList"
+      },
+      "post": {
+        "summary": "Create an application",
+        "description": "Idempotency-Key is required. The organisation must already exist: send names or ids, never both.",
+        "scope": "applications:write",
+        "idempotent": true,
+        "requestSchema": "CreateApplication",
+        "responseSchema": "CreateApplicationResponse",
+        "created": true
+      }
+    },
+    "/applications/{id}": {
+      "get": {
+        "summary": "Read one application",
+        "scope": "applications:read",
+        "pathParam": "id",
+        "responseSchema": "Application"
+      }
+    }
+  }
+}
+```
+-->

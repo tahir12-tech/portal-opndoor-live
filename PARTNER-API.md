@@ -34,7 +34,10 @@ Each section says which it is, and this table is the summary.
 | `POST /applications` (§6) | **Built** for `pre_referenced_open` |
 | `GET /applications/{id}` and list (§5) | **Built** |
 | Idempotency (§11) | **Built** |
-| Rate limiting (§12) | **Built**, two tiers |
+| Rate limiting (§12) | **Built**, two tiers, with `X-RateLimit-*` headers on authenticated responses |
+| Sandbox (`livemode`) | **Built.** One project, mode decided by the API key prefix |
+| Organisations | **Built**, resolve-only. Creation by name was removed; partners create orgs in the portal |
+| Partner capabilities | **Built**: `portal_referrals_enabled`, `api_access_enabled` |
 | Error contract (§14) | **Built** |
 | Outbound webhooks (§13) | **Built**: registry, queue, dispatcher, HMAC signing, endpoint CRUD |
 | `referencing_mode` (§3) | Column **built**. Only `pre_referenced_open` is implemented; the other two return `501` |
@@ -44,9 +47,19 @@ Each section says which it is, and this table is the summary.
 Everything built is deployed to the dev project and exercised end to end. Test
 expectations are in `REGRESSION.md` section B.
 
-**Not built, and worth knowing before a partner integrates:** the dispatcher has
-no schedule (deliberately, see §13.6), key issuance is manual (§4.8), and there
-is no API version segment (open question 11).
+**Not built, and worth knowing before a partner integrates:**
+
+- the dispatcher has **no schedule** (deliberately, see §13.6). Until it is
+  scheduled, deliveries queue and are never sent
+- `api.opndoor.co` does not exist yet. No partner should be given a key until it
+  does, because whatever they are given first is what gets hardcoded
+- `pre_referenced_screened` and `opndoor_referenced` return `501`
+
+**Corrected from an earlier version of this table**, which said key issuance was
+manual and that there was no API version segment. Both are wrong now: the Dev
+Centre mints keys, and `/v1/` has been required since before any partner
+integrated. An OpenAPI description is generated from `PARTNER-DOCS.md` alongside
+the rendered documentation.
 
 Where the implementation taught us something the specification had wrong, the
 specification has been corrected and the correction is called out rather than
@@ -537,7 +550,7 @@ the same mapping is used by REST responses and webhook payloads alike.
 | `expired` | `lapsed` | `expired` collides with the guarantee's own expiry |
 
 That last one matters. `status = 'expired'` means an **unpaid application lapsed
-after 14 days**. `expiry_date` is the **guarantee expiring 12 months after
+after 15 days**. `expiry_date` is the **guarantee expiring 12 months after
 tenancy start**. They are months apart and mean opposite things commercially, so
 the partner-facing word for the first is `lapsed` and `expiry_date` keeps its
 name.
@@ -1215,7 +1228,7 @@ document the tolerance so partners implement verification correctly.
 | `application.created` | Created and accepted | `sent` |
 | `application.paid` | Payment settles | `paid` |
 | `application.deed_issued` | Deed executed | `deed` |
-| `application.lapsed` | Unpaid application auto-expires 14 days after `sent_at` | `expired` |
+| `application.lapsed` | Unpaid application auto-expires 15 days after `sent_at` | `expired` |
 | `application.withdrawn` | Withdrawn by staff or tenant | `withdrawn` |
 | `application.reinstated` | A lapsed or tenant-declined application is paid late | `paid`, arrived from `expired` or `withdrawn` |
 | `application.declined` | Criteria decline | **No.** Needs the `declined` status |
@@ -1247,7 +1260,7 @@ Statuses use the partner vocabulary of section 15, never internal values.
 "expiry" for two unrelated things and a partner-facing name must not inherit the
 ambiguity:
 
-- `status = 'expired'` means an **unpaid application** lapsed 14 days after
+- `status = 'expired'` means an **unpaid application** lapsed 15 days after
   `sent_at` ([20260705115059:1-2](supabase/migrations/20260705115059_application_expiry_and_reinstate.sql#L1)).
 - `expiry_date` is the **guarantee's** expiry, a generated column equal to
   tenancy start plus 12 months minus a day
