@@ -91,8 +91,28 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!app) return json({ found: false });
 
-    const paid = app.payment_state === "paid" || (!!app.status && app.status !== "sent");
-    const amount = app.paid_amount != null ? Number(app.paid_amount) : Number(app.monthly_rent ?? 0);
+    // WAS: app.payment_state === "paid" || (app.status && app.status !== "sent")
+    //
+    // The second arm is what made this wrong. It reads "any status other than
+    // sent means paid", which is true of 'paid' and 'deed' and false of the two
+    // that matter: a staff-WITHDRAWN application whose payment landed anyway
+    // reported as paid, and so did an EXPIRED one. So the tenant was shown
+    // "Payment received", the full fee, and a promise that their Deed of
+    // Guarantee was on its way, for an application that will never produce one.
+    //
+    // payment_state is the column that actually records payment.
+    // apply_stripe_payment deliberately does NOT set it on the withdrawn branch,
+    // which is the whole point of that branch, so keying on it alone tells the
+    // truth in every case.
+    const paid = app.payment_state === "paid";
+
+    // Only fall back to monthly_rent when the application really is paid. On the
+    // withdrawn branch paid_amount is never written, so the old fallback quoted
+    // the full fee as "paid" for money that is sitting on a withdrawn row
+    // awaiting a refund.
+    const amount = app.paid_amount != null
+      ? Number(app.paid_amount)
+      : (paid ? Number(app.monthly_rent ?? 0) : 0);
     const deedReady = app.deed_state === "awaiting_tenant" && !!app.pandadoc_document_id;
     const deedSigned = app.deed_state === "executed";
     const deedError = app.deed_state === "error";

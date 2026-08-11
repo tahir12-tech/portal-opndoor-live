@@ -568,3 +568,14 @@
   flex-shrink: 0;
   margin-top: 1px;
 }
+
+/* DEFECTS.md 8: a payment taken on a withdrawn application. Red rather than
+   amber, and above the state line rather than beside it, because the card would
+   otherwise say "no guarantor fee was collected" over the top of a real charge. */
+.pay-anomaly { border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px;
+               padding: 12px 14px; margin-bottom: 12px; color: #7f1d1d; font-size: 13px;
+               line-height: 1.55; }
+.pay-anomaly strong { display: block; margin-bottom: 4px; }
+.pay-anomaly p { margin: 0 0 6px; }
+.pay-anomaly p:last-child { margin-bottom: 0; }
+.pay-anomaly code { background: rgba(127, 29, 29, 0.09); padding: 1px 5px; border-radius: 4px; }

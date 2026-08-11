@@ -150,6 +150,14 @@ Deno.serve(async (req) => {
       const utm = typeof body.utm_source === "string" ? body.utm_source.slice(0, 40) : "confirmation_page";
       const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
       const session = await stripe.checkout.sessions.create({
+        // Bounds the window in DEFECTS.md 8. Without it a session stays payable
+        // for Stripe's 24 hour default, so an application withdrawn after the
+        // tenant opened checkout can still be paid from the open tab. 30 minutes
+        // is long enough for a tenant to find their card and short enough that a
+        // same-day withdrawal is not racing a live session.
+        //
+        // Stripe requires between 30 minutes and 24 hours, so this is the floor.
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
         mode: "payment",
         line_items: [{
           price_data: {

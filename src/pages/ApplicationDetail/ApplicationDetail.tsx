@@ -343,6 +343,17 @@ export function ApplicationDetail() {
   const withdrawnReason = d.withdrawnReason;
   // A withdrawn/expired application collects no payment: neither Paid nor Awaiting.
   const payWithdrawn = pi?.status === 'withdrawn' || pi?.status === 'expired' || isTerminal;
+  // DEFECTS.md 8. A Stripe payment intent on a WITHDRAWN application means money
+  // was taken after the withdrawal: apply_stripe_payment writes the intent on
+  // that branch but deliberately leaves status and payment_state alone. So the
+  // combination is the signal, and it cannot occur any other way.
+  //
+  // Expired is excluded: a late payment there reinstates to paid by design, which
+  // is not an anomaly.
+  const paymentAnomaly = pi?.status === 'withdrawn'
+    && !!pi?.paymentRef
+    && pi?.paymentState !== 'paid'
+    && pi?.paymentState !== 'refunded';
   const payRefunded = pi?.paymentState === 'refunded';
   const payPaid = !!pi && !payRefunded && !payWithdrawn && (pi.paymentState === 'paid' || (pi.status !== 'sent' && pi.status !== 'withdrawn' && pi.status !== 'expired'));
   const payAwaiting = !!pi && !payPaid && !payRefunded && !payWithdrawn;
@@ -739,7 +750,28 @@ export function ApplicationDetail() {
             <Card>
               <CardHead title="Payment" actions={stripeTestMode() ? <span className="pay-badge">Live Mode</span> : undefined} />
               <CardBody style={{ paddingTop: 6, paddingBottom: 12 }}>
-                {payWithdrawn && (
+                {/* DEFECTS.md 8. A payment CAN land on a staff-withdrawn
+                    application: the Checkout Session outlives the withdrawal.
+                    apply_stripe_payment deliberately refuses to flip it to paid,
+                    but it does write the payment intent, so the money is real and
+                    sitting there. Without this the card said "no guarantor fee
+                    was collected" over the top of a real charge, which is the
+                    exact contradiction that let it go unnoticed. */}
+                {paymentAnomaly && (
+                  <div className="pay-anomaly">
+                    <strong>A payment was taken on this withdrawn application.</strong>
+                    <p>
+                      The tenant was charged after it was withdrawn, so no guarantee was issued and no
+                      deed exists. <strong>This needs refunding in Stripe.</strong> Nothing refunds it
+                      automatically.
+                    </p>
+                    <p className="soft">
+                      Payment intent <code>{pi.paymentRef}</code>. The tenant may have been shown a
+                      confirmation page at the time.
+                    </p>
+                  </div>
+                )}
+                {payWithdrawn && !paymentAnomaly && (
                   <>
                     <div className="pay-state pay-state--refunded"><span className="pay-dot" />{isExpired ? 'Expired' : 'Withdrawn'}</div>
                     <div className="pay-note">{isExpired
