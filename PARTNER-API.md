@@ -531,12 +531,19 @@ the same words the responses use.
 
 ### The real URL, and how it is versioned
 
-**As built, the base is `/functions/v1/partner-api/v1/`**, so the live path is
-`/functions/v1/partner-api/v1/orgs`.
+**The base is `https://api.opndoor.co/v1`**, so the live path is
+`https://api.opndoor.co/v1/orgs`.
 
-**There are two different `v1`s in that path and they are unrelated.** The first
-is Supabase's Edge Function API version and is not ours to change. The second is
-this API's version.
+Whatever a partner is given gets hardcoded into their system and then outlives
+several of our decisions, so both the host and the path have to be ours to
+change. That rules out the project URL, `<ref>.supabase.co`, which would break
+every integration at once if the project ever moved, and it rules out exposing
+the hosting path, which leaks the arrangement into the contract and contains a
+second `v1` that is Supabase's Edge Function API version rather than ours. Two
+unrelated `v1`s in one URL is a support conversation waiting to happen.
+
+`api.opndoor.co/v1` says what it is, is ours, and puts the version where a
+partner expects it.
 
 **The version segment is required, not defaulted.** A request without it, or with
 an unrecognised one, gets:
@@ -554,9 +561,8 @@ integrated, so there was no compatibility to preserve and every client is
 explicit from its first call.
 
 Adding v2 means adding it to `SUPPORTED_VERSIONS` and branching per endpoint.
-A custom domain rewriting to the function is the tidier long-term form and can
-arrive later without changing the contract, because the version segment is
-already there.
+The version segment was there from the first call any partner made, so a v2 costs
+a branch rather than a migration.
 
 **Idempotency keys are deliberately not version-qualified.** The ledger records
 `POST /applications`, not `POST /v1/applications`, so the same key sent to v1 and
@@ -1495,8 +1501,10 @@ is minute-granularity and would make delivery latency up to a minute. Whether
 that is acceptable, or whether dispatch should be triggered on enqueue, is
 undecided.
 
-**11. ~~How is this API versioned?~~ RESOLVED.** A required `/v1/` path segment
-was added before any partner integrated, so the base is now
-`/functions/v1/partner-api/v1/`. See section 5. What remains is a decision rather
-than a question: whether to put a custom domain in front of it, which can happen
-later without changing the contract.
+**11. ~~How is this API versioned, and on what host?~~ RESOLVED.** A required
+`/v1/` path segment was added before any partner integrated, and the base is
+`https://api.opndoor.co/v1`. See section 5. The custom domain is no longer a
+"can happen later": it is the contract, and the Supabase function path is an
+implementation detail behind a rewrite. The DNS record and the rewrite rule are
+listed in HANDOVER.md as configuration that has to exist before a partner is
+given a key.

@@ -9,11 +9,14 @@
    payment) are called out where they bite.
    ===================================================================== */
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
-
-const BASE = '/functions/v1/partner-api/v1';
+import { PARTNER_API_BASE_URL } from '@/config/partnerApi';
 
 export function GettingStarted({ env }: { env: 'live' | 'sandbox' }) {
-  const host = `https://<your-project>.supabase.co`;
+  // One configured value, rendered rather than written out. It used to be a
+  // literal '/functions/v1/partner-api/v1' against a '<your-project>.supabase.co'
+  // placeholder, which asked a partner to hardcode both our hosting arrangement
+  // and a project ref we may need to move.
+  const base = PARTNER_API_BASE_URL;
   const keyExample = env === 'live' ? 'opnd_live_...' : 'opnd_test_...';
 
   return (
@@ -31,7 +34,10 @@ export function GettingStarted({ env }: { env: 'live' | 'sandbox' }) {
             exist.
           </p>
           <p>
-            You are in the <strong>{env}</strong> environment. A {env} key only works against the {env} portal.
+            The prefix is the mode: <code>opnd_test_</code> keys create sandbox applications and{' '}
+            <code>opnd_live_</code> keys create real ones. Nothing else changes between them, so when you are
+            ready to go live you swap the key and change nothing in your code. The mode is never read from
+            the request body.
           </p>
           <pre className="devcode"><code>{`Authorization: Bearer ${keyExample}`}</code></pre>
         </section>
@@ -41,7 +47,7 @@ export function GettingStarted({ env }: { env: 'live' | 'sandbox' }) {
           <p>
             Send ids, not names. Names create duplicate agencies over time; ids do not.
           </p>
-          <pre className="devcode"><code>{`curl -s "${host}${BASE}/orgs" \\
+          <pre className="devcode"><code>{`curl -s "${base}/orgs" \\
   -H "Authorization: Bearer ${keyExample}"`}</code></pre>
           <p>
             Every branch carries <code>has_agent_contact</code>. <strong>If it is false, do not post against that
@@ -56,7 +62,7 @@ export function GettingStarted({ env }: { env: 'live' | 'sandbox' }) {
             <code>Idempotency-Key</code> is required. Send the same key with the same body and you get the same
             application back rather than a second one, which is what makes a retry after a timeout safe.
           </p>
-          <pre className="devcode"><code>{`curl -s -X POST "${host}${BASE}/applications" \\
+          <pre className="devcode"><code>{`curl -s -X POST "${base}/applications" \\
   -H "Authorization: Bearer ${keyExample}" \\
   -H "Idempotency-Key: your-unique-id" \\
   -H "Content-Type: application/json" \\

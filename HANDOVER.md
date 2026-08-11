@@ -732,6 +732,8 @@ a bad key:
 curl -s -o /dev/null -w '%{http_code}\n' \
   -H "Authorization: Bearer <a key you know is good>" \
   https://<ref>.supabase.co/functions/v1/partner-api/v1/orgs
+# The project URL is used here deliberately: this checks the FUNCTION, before and
+# independently of the rewrite. Partners get https://api.opndoor.co/v1/orgs.
 # expect 200.
 #   401 with a known-good key  -> verify_jwt is on. Redeploy with --no-verify-jwt.
 #   404 unsupported_version    -> you dropped the /v1/ segment, not a deploy problem.
@@ -846,8 +848,21 @@ returns 401.
 
 ### 9.10 The API is versioned, and the version is required
 
-The base path is `/functions/v1/partner-api/v1/`. **Two different `v1`s**: the
-first is Supabase's Edge Function API version, the second is ours.
+**What partners are given is `https://api.opndoor.co/v1`.** It resolves to
+`/functions/v1/partner-api/v1/` through a rewrite. See 9.11 for the DNS and
+rewrite you have to set up; until they exist, no partner can be given a key.
+
+The value is configured in `src/config/partnerApi.ts` and nowhere else. The
+getting-started snippets and the generated API documentation both render it, so
+changing the domain is one line plus a re-run of
+`node scripts/generate-partner-docs.mjs`.
+
+Do not hand anybody the `<ref>.supabase.co` URL or the `/functions/v1/` path.
+Whatever a partner is given gets hardcoded and outlives several of our decisions,
+so the host and the path both have to be ours to change. The function path also
+contains a **second `v1`** which is Supabase's Edge Function API version rather
+than ours, and two unrelated `v1`s in one URL is a support conversation waiting
+to happen.
 
 A request without a version segment, or with an unrecognised one, returns
 `404 unsupported_version` naming the supported versions. It is deliberately not
@@ -1128,3 +1143,92 @@ policy is in place not even a superadmin can delete a sandbox row through
 PostgREST, so without this they would accumulate for ever. Its where clause is
 `not livemode` and never an id list, so a mistyped argument cannot delete real
 money.
+
+---
+
+## 12. The api.opndoor.co hostname (you have to set this up)
+
+The partner API contract says the base is `https://api.opndoor.co/v1`. That
+hostname does not exist yet. Until it does, the API works only on the raw
+function URL, and **no partner should be given a key**, because whatever they are
+given first is what gets hardcoded.
+
+### 12.1 What has to exist
+
+**A DNS record for `api.opndoor.co`**, pointing at whatever fronts the rewrite.
+
+**A rewrite mapping `/v1/*` to `/functions/v1/partner-api/v1/*`** on the Supabase
+project. Note both `v1`s survive: the one the partner sends is ours, and the one
+in the target is Supabase's Edge Function API version. It is not a typo.
+
+```
+https://api.opndoor.co/v1/orgs
+  -> https://<ref>.supabase.co/functions/v1/partner-api/v1/orgs
+```
+
+Two ways to do it, and either is fine:
+
+- **Vercel**, a project bound to the hostname with a rewrite in `vercel.json`.
+  The portal already deploys there, so this needs no new vendor. Use a separate
+  project rather than adding the hostname to the portal's, so a portal deploy
+  cannot take the API down.
+- **Cloudflare**, a transform or redirect rule, if DNS is already there. Fewer
+  moving parts if the zone is already on Cloudflare.
+
+### 12.2 The three things the rewrite must not do
+
+These are the ways a proxy silently breaks this specific API:
+
+1. **It must forward `Authorization` unchanged.** Some platforms strip or rewrite
+   it by default as a security measure. If it is stripped, every request returns
+   the same `401` with the same body as a wrong key, because the auth path is
+   deliberately indistinguishable across every failure. You will not be able to
+   tell a stripped header from a bad key by looking at the response.
+
+2. **It must forward `Idempotency-Key` unchanged.** It is a custom header, and
+   custom headers are exactly what an allowlist-style proxy drops. Dropping it
+   turns `POST /applications` into a `400 idempotency_key_required` on every
+   call. Less obviously, if it were dropped *after* validation, a retry after a
+   timeout would create a second real application for the same tenant.
+
+3. **It must not modify the body.** No re-encoding, no minifying, no charset
+   rewriting. The idempotency ledger stores a hash of the body to detect the same
+   key being reused with different content, so a proxy that normalises JSON makes
+   a legitimate retry look like a key reused for a different application, which
+   is a `422` rather than the replay the partner expects.
+
+Also keep the response body untouched: the error contract is a JSON envelope
+partners match on `error.code`.
+
+### 12.3 Confirming it
+
+```sh
+# 1. the function itself, bypassing the rewrite
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer <good key>" \
+  https://<ref>.supabase.co/functions/v1/partner-api/v1/orgs      # expect 200
+
+# 2. the same thing through the hostname
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer <good key>" \
+  https://api.opndoor.co/v1/orgs                                   # expect 200
+
+# 3. the Authorization header really arrives (401 here but 200 above means stripped)
+curl -s https://api.opndoor.co/v1/orgs                             # expect 401
+
+# 4. Idempotency-Key really arrives: send the SAME key twice with the same body.
+#    The second response must be identical to the first, including the id.
+#    Two different ids means the header is being dropped.
+```
+
+Step 4 is the one worth doing properly. Steps 1 to 3 fail loudly; a dropped
+idempotency key fails quietly and creates duplicate applications for real
+tenants.
+
+### 12.4 When it lands
+
+Change `PARTNER_API_BASE_URL` in `src/config/partnerApi.ts`, or set
+`VITE_PARTNER_API_BASE_URL` on the deployment, then re-run
+`node scripts/generate-partner-docs.mjs` and commit the regenerated file. The
+getting-started tab and the API documentation panel both follow it. There is no
+other place the URL is written.

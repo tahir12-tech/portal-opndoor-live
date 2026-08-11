@@ -17,8 +17,37 @@
    ===================================================================== */
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const SPEC = 'PARTNER-API.md';
-const OUT  = 'src/pages/DevCentre/partnerDocs.generated.ts';
+const SPEC   = 'PARTNER-API.md';
+const OUT    = 'src/pages/DevCentre/partnerDocs.generated.ts';
+const CONFIG = 'src/config/partnerApi.ts';
+
+/* ---------------------------------------------------------------------
+   The base URL is configured in one place and rendered here, rather than
+   living as a literal in the markdown that somebody has to remember to
+   update. PARTNER-API.md keeps the canonical URL written out in full so it
+   stays readable to a human; this rewrites it to whatever is configured.
+
+   Reading the .ts file with a regex rather than importing it, for the same
+   reason generate-environment.mjs does: this is a plain node script with no
+   TypeScript loader, and the alternative is a build dependency to read one
+   string.
+   --------------------------------------------------------------------- */
+function literal(src, name) {
+  // Requires an http(s) URL specifically. Matching any quoted string instead
+  // picked up the empty string inside `.replace(/\/+$/, '')` on the
+  // PARTNER_API_BASE_URL declaration and silently produced a blank base.
+  const m = new RegExp(name + "[\\s\\S]{0,240}?'(https?://[^']+)'").exec(src);
+  return m ? m[1] : null;
+}
+
+const cfg = readFileSync(CONFIG, 'utf8');
+const CANONICAL = literal(cfg, 'PARTNER_API_CANONICAL_BASE');
+const CONFIGURED = (process.env.VITE_PARTNER_API_BASE_URL || literal(cfg, 'PARTNER_API_BASE_URL') || '').replace(/\/+$/, '');
+
+if (!CANONICAL || !CONFIGURED) {
+  console.error(`REFUSING to write: could not read the base URL from ${CONFIG}.`);
+  process.exit(1);
+}
 
 /** Sections shown to partners, by exact heading text. A new section does NOT
     appear automatically: somebody has to decide it is partner-facing. */
@@ -42,6 +71,9 @@ const INTERNAL = /DEFECTS\.md|REGRESSION\.md|HANDOVER\.md|supabase\/|src\/|migra
 
 function sanitise(md) {
   return md
+    // Configured base URL, before anything else, so a partner never reads a
+    // host we cannot change.
+    .split(CANONICAL).join(CONFIGURED)
     .replace(/\[([^\]]+)\]\((?!https?:)[^)]+\)/g, '$1')   // keep link text, drop repo paths
     .split('\n')
     .filter((l) => !INTERNAL.test(l))
@@ -76,6 +108,8 @@ if (leaked.length) {
   console.error('REFUSING to write: internal markers survived sanitising in:', leaked.map((s) => s.title));
   process.exit(1);
 }
+
+console.log(`  base URL: ${CONFIGURED}${CONFIGURED === CANONICAL ? '' : ` (overriding ${CANONICAL})`}`);
 
 writeFileSync(OUT, `/* GENERATED FILE. Do not edit.
    Source: ${SPEC}

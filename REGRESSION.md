@@ -298,7 +298,10 @@ because it is hard to reach by accident.
 Everything here is `[AUTO]`: HTTP in, JSON out, assertable with `curl` and a
 database query. This section should be automated first.
 
-Base path: `/functions/v1/partner-api/v1/`.
+Base path: `/functions/v1/partner-api/v1/`. **This is the function path, used
+here deliberately so these tests exercise the API independently of the
+api.opndoor.co rewrite.** Partners are given `https://api.opndoor.co/v1`; see
+HANDOVER.md section 12, which has its own checks for the rewrite itself.
 
 ## B0. Versioning
 
