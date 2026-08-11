@@ -1,5 +1,20 @@
 # Partner API and webhooks
 
+> ## 🔒 INTERNAL. Do not publish this document or paste from it to a partner.
+>
+> This is the design record: why the API is shaped the way it is. It cites
+> migration filenames and line numbers, names internal functions and tables,
+> records what earlier drafts did, and discusses weaknesses in our own systems.
+>
+> **The partner-facing document is `PARTNER-DOCS.md`**, and it is what the Dev
+> Centre publishes. The names are similar and that is a real hazard, so the rule
+> is simple: `-DOCS` goes out, `-API` does not.
+>
+> The generator reads `PARTNER-DOCS.md` only. It used to read this file through a
+> section allowlist, which shipped internal detail inside every allowed section;
+> that is why the two documents are now separate. If you find yourself adding a
+> partner-facing explanation here, it belongs in the other file.
+
 Partners POST an application from their own system instead of typing it into the
 portal, and receive webhooks as its status changes. Rightmove first, others
 after.

@@ -1,5 +1,29 @@
 # SCOPE REPORT: `live` / `sandbox` mode, one Supabase project
 
+> ## ⚠️ SUPERSEDED. This is a record of a decision point, not a description of the system.
+>
+> Written **before** sandbox mode was built, to scope it. The decision it was
+> written to inform has since been made and the work is done, so several
+> statements below are now false by design:
+>
+> - "There is **no** `mode`, `livemode`, `environment` or `env` column on
+>   `public.applications` anywhere in the tree today" — there is now:
+>   `applications.livemode`.
+> - "This tree is currently built around **two Supabase projects**" — it is not.
+>   One project, with `livemode` deciding the mode per row and per API key.
+> - The 79 surfaces and 51 file edits are the estimate for a shape that was not
+>   the one built. The delivered shape was narrower: nobody sees sandbox through
+>   PostgREST at all, so the portal client needed no changes.
+>
+> **What is still worth reading here:** the reasoning about why RLS alone cannot
+> carry the guarantee, why the failure direction inverts between reads and
+> writes, and the trade between one project and two. Those held up and shaped
+> what was built.
+>
+> **For how the system actually works, read HANDOVER.md section 11.** Kept
+> unedited below rather than corrected, because a scoping document rewritten
+> after the fact stops being evidence of what was known at the time.
+
 Read-only pass over 86 migrations, 23 Edge Functions and the full client. Every line number below was re-derived with `grep -n` / direct read in this session. There is **no** `mode`, `livemode`, `environment` or `env` column on `public.applications` anywhere in the tree today: this is greenfield, and nothing currently breaks. Every "would leak" verdict describes what happens once sandbox rows exist.
 
 ---

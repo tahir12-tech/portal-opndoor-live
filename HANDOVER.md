@@ -10,6 +10,21 @@ that produced it.
 difference between the partner API working and it refusing every request while
 appearing healthy.
 
+### The documents, and which is which
+
+| File | What it is | Audience |
+| ---- | ---------- | -------- |
+| `HANDOVER.md` | This. What changed, why, and what needs you. | You |
+| `DEFECTS.md` | 15 defects in the **live** system, worst first. None introduced by this work. | You |
+| `REGRESSION.md` | A walk-through of the platform, written to pass on day one. Defect-tagged rows read as deliberate fixes. | You |
+| `PARTNER-API.md` | **Internal** design record for the partner API. Cites migrations, names internal functions, discusses our own weaknesses. | Us only |
+| `PARTNER-DOCS.md` | **Partner-facing** reference. This is what the Dev Centre publishes. | Partner developers |
+| `SANDBOX-MODE-SCOPE.md` | Superseded. A record of the decision point before sandbox was built. | Historical |
+
+The last two names are similar and the difference matters: **`-DOCS` goes out,
+`-API` does not.** The documentation panel generates from `PARTNER-DOCS.md` and
+refuses to build if internal detail appears in it.
+
 > ### 🚨 WATCH THE OUTPUT OF THE RIGHTMOVE MIGRATION ON PRODUCTION
 >
 > Migration `20260811090000_rightmove_referencing_mode.sql` is what **turns the
@@ -695,7 +710,7 @@ Ordered by urgency, not by effort.
 | # | Item | Why it needs you |
 | - | ---- | ---------------- |
 | 1 | **Rotate the `REMINDERS_CRON_SECRET`** and remove the literal from [supabase/EXPIRY-REMINDERS.md:62](supabase/EXPIRY-REMINDERS.md#L62) | Section 4a. A real secret is committed and pushed to `origin/main`. This is an exposure in the live repo and is independent of anything done in this working copy. Rotating is the fix; deleting the line alone is not. |
-| 2 | Review the Stripe key mode change and confirm the `SUPABASE_` prefix reservation | Section 5. It is implemented, but it has not been type-checked here and its tamper-resistance rests on `SUPABASE_URL` being unsettable. Run `deno check` on the new helper. |
+| 2 | Confirm the `SUPABASE_` prefix reservation actually holds | Section 5. `deno check` has since been run across all 23 Edge Functions and is clean, so the earlier "not type-checked" caveat is gone. What remains is the assumption underneath it: the guard's tamper-resistance rests on `SUPABASE_URL` being unsettable via `supabase secrets set`. Confirm that with Supabase rather than taking this document's word for it. |
 | 3 | Decide whether the removed email redirect is intended | Section 4c. Thirteen modules now email real people. Safe only while no `RESEND_API_KEY` is set on the dev project, so **do not set one** until this is settled. |
 | 4 | Decide how to repoint the foreign project ref in migrations | Section 4d. Needs a **new** migration, not an edit. Applying the current set to dev installs a cron job that hits a foreign project every two minutes. |
 | 5 | Confirm edge function secrets on the dev project | Stripe secret key, Stripe webhook secret, PandaDoc API key and template id, Resend key. These live as Edge Function secrets, never in this repo. The dev project needs its own set pointed at **test/sandbox** credentials, subject to items 2 and 3. |
@@ -703,7 +718,12 @@ Ordered by urgency, not by effort.
 | 7 | Decide whether `origin/main` history needs a rewrite | Section 4e. The live project ref is in a pushed commit. A ref is a public identifier rather than a credential, so this may be acceptable; it is a judgement call, not a clear-cut fix. |
 | 8 | Rebuild `dist/` before using `npm run preview` | The committed-on-disk bundle is a stale build still pointing at a foreign project. |
 | 9 | **Schedule the partner webhook dispatcher** | Deliberately not scheduled by a migration, because a migration cannot know which project it is applied to and hardcoding a URL is how defect 2 happened. Until it is scheduled, deliveries queue and are never sent. The statement to run, with the ref substituted, is in the header of `20260810170000_partner_webhook_claim.sql`. It also needs the `reminders_cron` row seeded in `ops_secrets`, or every run returns 401. |
-| 10 | **Decide how partner API keys get issued** | Currently manual: the key and its hash are generated outside the database and only the hash is inserted, procedure in section 9.4. Hashing cannot happen in Postgres without adding pgcrypto, which is a poor trade for credential minting alone. An admin endpoint should arrive before the number of partners makes the manual step a bottleneck. |
+| 10 | ~~Decide how partner API keys get issued~~ **Done.** | The Dev Centre mints them through the `dev-centre` Edge Function, with the mode chosen explicitly and the key shown once. No longer manual. Section 10. |
+| 11 | 🚨 **Watch the Rightmove migration output on the production push** | See the box at the top of this document. If it matches nothing, the partner API stays off for everyone and nothing else looks wrong. This is the highest-risk item on the list because its failure mode is silence. |
+| 12 | **Set the five sandbox secrets on production** | Section 11.3. `STRIPE_SECRET_KEY_TEST`, `STRIPE_WEBHOOK_SECRET_TEST`, `PANDADOC_API_KEY_TEST`, `PANDADOC_TEMPLATE_ID_TEST`, `PANDADOC_WEBHOOK_SHARED_KEY_TEST`. Sandbox does not work on production until these exist, and a missing one is a hard error rather than a fallback to the live credential, deliberately. |
+| 13 | **Stand up `api.opndoor.co`** | Section 12. A DNS record and a rewrite mapping `/v1/*` to the function path. **No partner should be given a key until this exists**, because whatever they are given first is what gets hardcoded. Section 12.2 lists the three ways a proxy silently breaks this specific API. |
+| 14 | **Finish Defect 13: sweep the toast call sites** | The `Toast.tsx` change carried here is a prerequisite that **changes nothing users see on its own**. 34 error paths still render green until each passes the tone. Defect 13 has the grep that finds them. |
+| 15 | **Point the test-mode Stripe and sandbox PandaDoc webhooks at the same URLs as the live ones** | Section 11.3. Inbound mode is derived from which signing secret verifies, so both must arrive at the same endpoint. |
 
 ### Deliberately not done
 
@@ -749,8 +769,23 @@ Specification is in [PARTNER-API.md](PARTNER-API.md). This section covers what i
 
 ### 9.1 What exists
 
-| Piece | Where |
-| ----- | ----- |
+**Where a function was FIRST created, which is not always where it is now.**
+Several of these were replaced later by the livemode and partner-capability work,
+and a `create or replace` leaves no trace at the original site. The current
+definition of any function is the LAST migration that names it:
+
+```sh
+grep -ln "function public.<name>" supabase/migrations/*.sql | tail -1
+```
+
+The ones that moved: `create_referral_api`, `create_referral_target_api`,
+`partner_api_orgs`, `partner_api_applications`, `enqueue_partner_webhook` and
+`partner_webhook_payload` all gained a mandatory `p_livemode` or a livemode
+predicate in `20260810280000` / `20260810290000`, and `create_referral_api`
+changed again in `20260811100000` to snapshot `referencing_mode`.
+
+| Piece | First created in |
+| ----- | ---------------- |
 | `partner_api_keys` table | `20260807130000_partner_api_keys.sql` |
 | Key verification, timing-safe | `supabase/functions/_shared/partnerAuth.ts` |
 | `partner_api_orgs()` read model | `20260807140000_partner_api_orgs.sql` |
