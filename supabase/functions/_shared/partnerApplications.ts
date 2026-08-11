@@ -470,13 +470,35 @@ export async function createApplication(
   });
 
   if (createErr || !app) {
+    // ONLY OUR OWN MESSAGES REACH THE PARTNER.
+    //
+    // This used to return createErr.message unconditionally. create_referral_api
+    // raises its own refusals with SQLSTATE 22023 and those messages are written
+    // for a partner to read, so passing those through is right. Anything else is
+    // Postgres talking: a constraint violation naming a table and a column, a
+    // type error naming a function, a permission error naming a role. That is
+    // exactly what section 10.2 of the spec promises is never returned, and it
+    // was being returned on the one path most likely to hit an unexpected error.
+    //
+    // Unknown codes get a flat message and the detail goes to the server log,
+    // where the request id ties it back.
+    const ours = createErr?.code === "22023";
+    if (!ours && createErr) {
+      console.log(JSON.stringify({ event: "create_failed_internal", code: createErr.code, message: createErr.message }));
+    }
     return {
       status: 422,
       body: {
         error: {
           code: "validation_failed",
           message: "The application was not created.",
-          fields: [{ field: "", code: "rejected", message: createErr?.message ?? "Could not create the application." }],
+          fields: [{
+            field: "",
+            code: "rejected",
+            message: ours && createErr?.message
+              ? createErr.message
+              : "The application could not be created. Quote the request id if this persists.",
+          }],
         },
       },
     };

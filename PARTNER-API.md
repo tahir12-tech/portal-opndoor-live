@@ -26,10 +26,28 @@
 > re-derives it or repeats the mistake. Where a section is only partly stale, the
 > block says which part.
 >
-> Currently superseded: **4.1** (livemode on keys), **4.5** (`orgs:write`
-> retired), **4.8** (key issuance, *do not follow it*), **6.2** (livemode and the
-> mode snapshot), **7** (org creation removed), **9.4** (org field codes), **11**
-> (livemode in the idempotency key), **12** (rate limit tiers).
+> ### The whole document has been verified, once, and here is what that means
+>
+> On 11 August 2026 every section was checked against the code by a reviewer
+> whose only job was to find claims that no longer hold. The outcome:
+>
+> | | Sections |
+> | --- | --- |
+> | Verified current | 38 |
+> | Superseded, wholly or in part | 25 |
+> | Not verifiable, because the thing does not exist | 2 |
+>
+> **So "no banner means current" is a claim that was tested, not an assumption.**
+> An earlier version of this block asserted the same rule across thirty sections
+> nobody had checked, which turned every miss into a false statement of currency.
+> Seventeen of those thirty turned out to be partly stale.
+>
+> That verification is a snapshot of one day. It does not survive the next change,
+> so **if you change behaviour, banner the section that described it** rather than
+> relying on somebody repeating the exercise.
+>
+> The two unverifiable sections are 15.3 and 15.4: provider masking has no
+> implementation, so there is nothing to check them against.
 
 Partners POST an application from their own system instead of typing it into the
 portal, and receive webhooks as its status changes. Rightmove first, others
@@ -105,6 +123,8 @@ log described in section 11, so nothing downstream can accidentally branch on it
 
 ## 2. What already exists, and what that forces
 
+> **SUPERSEDED IN PART.** `create_referral_target_api` no longer exists: org creation was removed from the API, and the create path resolves an agency and branch by name or id through `partner_api_resolve_org` instead. See section 7.
+
 The portal is already multi-tenant on `partner_id`. This is the single most
 important existing fact for this design.
 
@@ -128,6 +148,8 @@ is therefore consistent with how the database already behaves, not a new idea
 imposed on it.
 
 ### 2.1 The create path cannot be reused as-is
+
+> **CITATIONS STALE, ARGUMENT INTACT.** All four blockers are still true of `create_referral`, but the line numbers point at a definition replaced three times since, most recently to snapshot `referencing_mode`. Find the current one with the rule at the top of this document.
 
 `create_referral` is the RPC the portal form calls. Its current definition
 ([20260705140347_snapshot_referrer_name.sql:16-79](supabase/migrations/20260705140347_snapshot_referrer_name.sql#L16))
@@ -155,6 +177,8 @@ Verified rather than assumed: every legacy message and SQLSTATE is byte-identica
 to the pre-refactor definition.
 
 ### 2.2 What does not exist at all
+
+> **SUPERSEDED IN PART, the last bullet only.** The portal still posts free-text org names, but the API no longer creates orgs from them.
 
 Confirmed absent, each by exhaustive search:
 
@@ -186,6 +210,8 @@ Confirmed absent, each by exhaustive search:
   section 7 requires IDs.
 
 ### 2.3 Two reusable precedents
+
+> **SUPERSEDED IN PART.** Section 12 no longer calls `bump_rate_limit`. It calls `bump_rate_limit_state`, which returns the window so the API can emit `X-RateLimit` headers, and takes `p_peek` to read a window without consuming it. The original function is untouched and still used by `payment-confirmation`.
 
 **Rate limiting exists and is reusable.** `public.rate_limit` plus
 `bump_rate_limit(p_key text, p_limit int, p_window_secs int)`
@@ -336,6 +362,8 @@ silently accept everyone**, because silently accepting everyone is
 indistinguishable from working and would be discovered only commercially.
 
 ### 3.4 Adding a fourth mode
+
+> **SUPERSEDED IN PART.** There is no longer one CHECK to widen. `applications.referencing_mode` carries its own constraint as a snapshot, and `create_partner` and `update_partner_settings` each validate the value independently. A fourth mode is four places, not one.
 
 The shape is deliberately additive. To add one:
 
@@ -643,6 +671,8 @@ risk.
 
 ## 6. POST /v1/applications
 
+> **SUPERSEDED IN PART.** The "Required by DB" column describes `core_schema.sql` before it was tightened: several fields became NOT NULL in a later migration. The payload itself is current apart from the org block, which section 7 covers.
+
 ### 6.1 Payload
 
 Mirrors the New Application form. Field names are the API's own, in snake_case,
@@ -763,6 +793,8 @@ Edge Function's PostgREST query and case-insensitive inside
 
 ### 7.1 Two accepted forms
 
+> **SUPERSEDED.** The by-id form is still accurate. The by-name form no longer creates anything, carries no `agent_contact_*` fields, and needs no `orgs:write` scope. Current behaviour is in PARTNER-DOCS.md under Organisations.
+
 **By ID, strongly preferred:**
 
 ```json
@@ -789,6 +821,8 @@ form.
 
 ### 7.2 IDs are always returned
 
+> **SUPERSEDED IN PART.** The ids are still returned on both forms. `created` is gone: the API creates nothing, so it could only ever be false.
+
 Both forms return the resolved IDs:
 
 ```json
@@ -799,6 +833,8 @@ The partner is expected to store these and send IDs thereafter. `created` tells
 them whether they just made a new org, which is the signal to reconcile.
 
 ### 7.3 Why the contact email is mandatory
+
+> **SUPERSEDED.** No contact email reaches the API any more. The dependency is real and still enforced, but as a rejection: a branch that cannot resolve an agent contact is refused with `no_agent_contact`, and the partner fixes it in the portal.
 
 Not policy. A hard dependency.
 
@@ -968,6 +1004,8 @@ repeated two hundred times does not.
 ---
 
 ## 9. Validation and rejection
+
+> **SUPERSEDED IN PART.** This section said Postgres error text is never passed through. It was being passed through on the create path until it was found by the verification pass behind this banner and fixed: only our own SQLSTATE 22023 messages now reach a partner, and anything else returns a flat message with the detail in the server log.
 
 An invalid payload is rejected outright. Nothing partial lands in the portal.
 There is no draft or incomplete state to land in: every value in the current
@@ -1221,9 +1259,13 @@ client can burst at a boundary. Acceptable at these volumes, worth knowing.
 
 ## 13. Outbound webhooks
 
+> **BUILT, and it has a livemode dimension the design below predates.** An endpoint is registered live or sandbox and receives only its own mode's events, and the payload carries `livemode`. Everything else here describes the implementation accurately.
+
 Nothing exists. This is the largest new component.
 
 ### 13.1 Endpoint registry
+
+> **SUPERSEDED IN PART.** The shipped table also carries `livemode` and `description`. `livemode` is not incidental: it is what decides which endpoints an event reaches.
 
 ```
 partner_webhook_endpoints
@@ -1278,6 +1320,8 @@ later must deliver what was true when the event happened, not the current state.
 Re-rendering would make retries deliver out-of-order snapshots.
 
 ### 13.3 Backoff and dead lettering
+
+> **SUPERSEDED IN PART.** The schedule, jitter, dead lettering and the twenty-failure deactivation are all as described, but **no ops alert is raised** when an endpoint is deactivated. It stops silently.
 
 Exponential with jitter, 8 attempts:
 
@@ -1366,6 +1410,8 @@ expiry event is ever wanted, it is a separate event and must not reuse this name
 
 ### 13.6 Status is not monotonic
 
+> **SUPERSEDED IN PART.** A late payment on a lapsed or tenant-declined application now emits `application.reinstated` **instead of** `application.paid`, so the sequence described below is not the one a partner sees.
+
 An application can move **backwards** out of a terminal-looking state. A later
 payment reinstates both an expired application and a tenant-declined withdrawal
 to `paid`, described in the migration header as "late money wins"
@@ -1407,6 +1453,8 @@ authoritative, so the poke is an optimisation and never a requirement.
 ---
 
 ## 14. Error contract
+
+> **SUPERSEDED IN PART.** `503 service_unavailable` is documented but not implemented: no path emits it. `405 method_not_allowed` is emitted and is missing from the table.
 
 | Status | Code | Meaning |
 | ------ | ---- | ------- |
@@ -1486,6 +1534,8 @@ vocabulary one value at a time.
 
 ### 15.3 Storage
 
+> **NOT VERIFIABLE.** Provider masking has no implementation, so there is no code to check this against. It is specification, not a description of anything that exists.
+
 The raw provider payload **is stored**, for audit, dispute resolution and
 debugging:
 
@@ -1506,6 +1556,8 @@ partner-facing surface reads. Anything partner-facing that reads `raw_payload`
 is a defect, and that is a cheap review rule: grep for the column name.
 
 ### 15.4 Reason codes
+
+> **NOT VERIFIABLE.** Provider masking has no implementation, so there is no code to check this against. It is specification, not a description of anything that exists.
 
 Opndoor's own, stable, documented for partners:
 
@@ -1546,6 +1598,8 @@ tokenised `payment-page` pattern.
 
 ## 16. New database objects
 
+> **SUPERSEDED.** This inventory predates livemode, partner capabilities, the Dev Centre and security events. The work is also no longer purely additive: `applications` gained `livemode` and a NOT NULL `referencing_mode`, and several functions were dropped and recreated.
+
 All additive. No existing table is altered except `partners`, which gains one
 column.
 
@@ -1565,6 +1619,8 @@ record, and widening `applications.status` to include `declined`.
 ---
 
 ## 17. Open questions
+
+> **SUPERSEDED IN PART.** Question 8 is resolved: `referencing_mode` is snapshotted at creation by both create paths and never re-read, so a partner's mode change cannot restate work in flight. Question 11 is resolved by the `/v1/` segment.
 
 These need answering before this could be built. They are ordered by how much
 they change the design.

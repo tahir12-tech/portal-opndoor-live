@@ -8,10 +8,15 @@ live system rather than in a disposable dev tree.
 Written for someone with no context on the disconnect work. Each entry is what
 it is, what it costs the business, how to confirm it, and a suggested fix.
 
-Defects 8, 9 and 10 were **adversarially verified** before being written down:
-each was handed to a reviewer whose job was to prove it wrong. That process
-killed a fourth claim outright and corrected the severity of two of these, so
-what remains has survived a deliberate attempt at refutation. Where something
+Defects 8, 9 and 10, and later 12 to 16, were **adversarially verified**: each was
+handed to reviewers whose job was to prove it wrong, across three lenses
+(reachability, accuracy, severity) with a majority verdict.
+
+That process has now killed one claim outright and **corrected the severity of
+five**. Defects 12 and 14 came down from medium and high to low, and 13 from high
+to medium. In each case the mechanism was real and the consequence was
+overstated, which is the failure mode this pass exists to catch: a defect written
+by whoever found it reads worse than it is. Where something
 partially mitigates a defect, the entry says so.
 
 `REGRESSION.md` tags the test steps that assert this behaviour, so the suite
@@ -32,9 +37,9 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 9 | A failed deed void during a refund leaves a signable deed on a refunded application | High |
 | 10 | Reinstated applications keep their expired and withdrawn markers | Low |
 | 11 | `npm ci` fails, so there is no clean-room build and no CI | Medium |
-| 12 | The Stripe mode guard on the payment page only covers checkout, so decline runs on a deployment already judged unsafe | Medium |
-| 13 | Every caught error in the portal renders as a green success toast. Partly fixed: the mechanism only, 34 call sites still green | High |
-| 14 | The PandaDoc webhook signature has no timestamp, no tolerance and a non-constant-time comparison, so a captured callback is replayable for ever | High |
+| 12 | The Stripe mode guard on the payment page sits inside the checkout branch, not at the top like its two siblings | Low |
+| 13 | Error toasts render with the success icon and colour. Partly fixed: the component only, the sweep is not done | Medium |
+| 14 | The PandaDoc webhook signature has no timestamp binding and a non-constant-time comparison; replay is blocked only by the event ledger | Low |
 | 15 | Applications lapse on day 15, but the activity log and the documentation both say 14 | Low |
 | 16 | A test in the suite has been failing since 22 July, and `npm test` is not the command that runs it | Medium |
 | 17 | A renamed HubSpot property makes the sync silently stop recording that field, and reports success | High |
@@ -42,8 +47,10 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
 
-Defect 13 is the cheapest to fix and the one most likely to be hiding the
-others: while every failure looks like a success, no user report is reliable.
+Defect 13 is the cheapest to fix. It does not hide the others as completely as
+an earlier version of this document claimed, since the error text itself is
+correct, but it makes a failure read as a success at a glance and three seconds
+is all the glance most people give a toast.
 
 Defect 5 is different in kind from the others. It costs nothing while everything
 is working, and everything if it is not.
@@ -1142,7 +1149,14 @@ produced the partial CRLF conversion noted in `HANDOVER.md` section 5.
 
 ## Defect 12: the payment page's Stripe mode guard only covers checkout, so a decline is accepted on a deployment already judged unsafe
 
-**Severity: medium. A state-changing tenant action runs on a deployment the code has already decided must not take money, and the misconfiguration is not discovered until a tenant is standing in front of it.**
+**Severity: low. A guard-placement inconsistency. On a wrong-mode deployment `view` and `decline` still run, and the failure surfaces at the pay click rather than at page load. No application can be declined through this that is not declinable on a correctly configured deployment.**
+
+> **Downgraded from medium after adversarial review.** The original entry argued
+> that a state change ran on a deployment "already judged unsafe". That reads as a
+> security property and is not one: a tenant declining their own application is
+> legitimate whatever Stripe key is installed, and the guard is about which key
+> may take money. What remains is real but smaller: the guard is in a different
+> place from its two siblings, and the failure surfaces later than it should.
 
 ### What it is
 
@@ -1260,7 +1274,13 @@ cherry-pick. See HANDOVER.md section 11.4.
 
 ## Defect 13: every caught error in the portal renders as a green success toast
 
-**Severity: high. Not because of what it breaks, but because of what it hides. While a failure is indistinguishable from a success, no user report about anything else can be trusted.**
+**Severity: medium. The message text is correct on every affected path; the icon, the pill colour and the 3.2 second dismiss are not. A failure reads as a success at a glance, rather than on reading.**
+
+> **Downgraded from high after adversarial review.** The original entry said a
+> failure was "indistinguishable" from a success. It is not: the message itself
+> is the real error text, so a user who reads it learns what went wrong. What is
+> wrong is everything around the words, which is what people actually go on when
+> a toast appears for three seconds.
 
 > **This is not fixed. Read "What is and is not fixed here" before deciding
 > priority.** The component change carried in this tree is a prerequisite and
@@ -1295,7 +1315,7 @@ renders "Could not withdraw the application." in the dark confirmation pill with
 a **green tick** beside it, in exactly the same position, colour and duration as
 "Application withdrawn."
 
-There are **34 error-carrying toast calls outside the Dev Centre**, across
+There are **33 error-carrying toast calls outside the Dev Centre**, across
 Reconciliation, UserManagement, ApplicationDetail, OrgManagement, PartnerManagement
 and others. Every one of them is affected. The toast auto-dismisses after 3.2
 seconds, which is short for reading an error you were not expecting to be one.
@@ -1361,7 +1381,7 @@ the sweep.
 
 - `Toast.tsx` and `Toast.css` carry the fix, and it is backward compatible.
 - Every call site **in the Dev Centre** passes `'error'` on failure paths.
-- The **34 error-carrying calls elsewhere in the portal still pass no tone, so
+- The **33 error-carrying calls elsewhere in the portal still pass no tone, so
   they still render green.** They are unchanged on purpose: they are live code
   that predates this work, and the standing rule here was not to edit live files
   beyond what the task required.
@@ -1382,7 +1402,19 @@ lands.**
 
 ## Defect 14: the PandaDoc webhook signature is replayable for ever
 
-**Severity: high. A captured callback can be replayed at any point in the future to mark a deed executed, and the comparison also leaks timing.**
+**Severity: low. Defence in depth. The signature has no timestamp binding and is compared with `===`, but no replay reaches a state change today: the `pandadoc_events` ledger blocks it before anything happens, and the document id is inside the signed body.**
+
+> **Downgraded from high after adversarial review, and this was the largest
+> correction of the three.** The original entry claimed a captured callback could
+> be replayed to mark a deed executed. It cannot, in practice: to hold a valid
+> signature you must have captured a real delivered callback, and a real delivered
+> callback has a `pandadoc_events` row keyed `${docId}:${status}`, so the replay
+> is refused before any state change. The narrow remaining window is a delivery
+> that failed after the dedup row was deleted, which PandaDoc itself retries.
+>
+> It stays on the list because the ledger is doing a job the signature should be
+> doing, and nothing says so at the signature. Remove the ledger, or change its
+> key, and this becomes the original entry.
 
 ### What it is
 
