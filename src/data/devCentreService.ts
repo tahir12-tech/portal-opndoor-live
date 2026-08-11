@@ -47,6 +47,16 @@ export interface DevWebhookEndpoint {
   livemode: boolean;
 }
 
+export interface PriorAttempt {
+  attempts: number; last_status: number | null; last_error: string | null;
+  dead_at: string | null; ended_at: string;
+}
+
+export interface TestEventResult {
+  request: { url: string; headers: Record<string, string>; body: unknown };
+  response: { status: number; ok: boolean; duration_ms: number; body: string };
+}
+
 export interface DevDelivery {
   id: string;
   endpoint_id: string;
@@ -62,6 +72,10 @@ export interface DevDelivery {
   dead_at: string | null;
   created_at: string;
   payload: unknown;
+  /** Replay history. prior_attempts is append-only: one entry per replayed round. */
+  replay_count: number;
+  last_replay_at: string | null;
+  prior_attempts: PriorAttempt[];
 }
 
 export interface DevPartnerOption {
@@ -360,6 +374,40 @@ export async function purgeSandbox(partnerId?: string | null): Promise<{
     agencies: Number(row?.agencies_deleted ?? 0),
     branches: Number(row?.branches_deleted ?? 0),
   };
+}
+
+/**
+ * Put a failed or dead-lettered delivery back on the queue.
+ *
+ * Not a new send: the queue, the dispatcher, the rendered payload and the retry
+ * schedule all already exist, so this resets the live attempt columns and lets
+ * the normal machinery run. The previous round is pushed onto prior_attempts
+ * first, because "it 500ed eight times" is the evidence that prompted the
+ * replay and erasing it makes the second failure indistinguishable from the
+ * first.
+ */
+export async function replayDelivery(id: string): Promise<{ replayCount: number }> {
+  const { data, error } = await sb().rpc('dev_replay_webhook_delivery', { p_delivery: id });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return { replayCount: Number(row?.replay_count ?? 0) };
+}
+
+/**
+ * Fire a signed dummy event at an endpoint and return the response inline.
+ *
+ * Deliberately bypasses the queue. The queue is right for real events but it is
+ * asynchronous, and the whole value here is seeing the response next to the
+ * payload that produced it. It signs with the same helper the dispatcher uses,
+ * because a test signed any other way would prove nothing about the real one.
+ */
+export async function sendTestEvent(endpointId: string, eventType: string): Promise<TestEventResult> {
+  const { data, error } = await sb().functions.invoke('dev-centre', {
+    body: { action: 'test_event', endpoint_id: endpointId, event_type: eventType },
+  });
+  if (error) throw new Error(error.message);
+  if (!data?.ok) throw new Error(data?.error ?? 'Could not send the test event.');
+  return { request: data.request, response: data.response };
 }
 
 export function maskSecret(value: string, visibleChars = 6): string {

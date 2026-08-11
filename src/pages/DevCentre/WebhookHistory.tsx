@@ -8,11 +8,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   PERIODS, WEBHOOK_EVENTS, deliveryState, getDeliveries, getWebhookEndpoints,
+  replayDelivery, sendTestEvent, type TestEventResult,
   type DevDelivery, type DevWebhookEndpoint,
 } from '@/data/devCentreService';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
+import { Field } from '@/components/ui/Field';
+import { Modal } from '@/components/ui/Modal';
+import { useToast } from '@/components/ui/Toast';
 import { PeriodSelect } from '@/components/ui/Select';
 
 const when = (s: string | null) => (s ? new Date(s).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'medium' }) : '--');
@@ -34,6 +38,39 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
   const [days, setDays] = useState(7);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const toast = useToast();
+
+  // Test-event modal.
+  const [testOpen, setTestOpen] = useState(false);
+  const [testEndpoint, setTestEndpoint] = useState('');
+  const [testEvent, setTestEvent] = useState(WEBHOOK_EVENTS[0]?.id ?? 'application.created');
+  const [testResult, setTestResult] = useState<TestEventResult | null>(null);
+
+  async function doReplay(id: string) {
+    setBusy(true);
+    try {
+      const r = await replayDelivery(id);
+      toast(r.replayCount === 1 ? 'Queued for delivery.' : `Queued again, replay ${r.replayCount}.`);
+      await load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doTest() {
+    if (!testEndpoint) { toast('Choose an endpoint.'); return; }
+    setBusy(true);
+    setTestResult(null);
+    try {
+      setTestResult(await sendTestEvent(testEndpoint, testEvent));
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const load = useCallback(async () => {
     setBusy(true); setErr(null);
@@ -94,6 +131,9 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
               onChange={(v) => setDays(Number(v))}
               options={PERIODS.map((p) => ({ value: String(p.id), label: p.label }))}
             />
+            <Button variant="ghost" size="sm" onClick={() => setTestOpen(true)} disabled={busy}>
+              <Icon name="send" /> Send test event
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => void load()} disabled={busy}>
               <Icon name="check" /> Refresh
             </Button>
@@ -103,7 +143,7 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
       {err && <CardBody style={{ paddingBottom: 0 }}><div className="devalert">{err}</div></CardBody>}
       <table className="dt">
         <thead>
-          <tr><th>Event id</th><th>Event</th><th>Endpoint</th><th>Sent</th><th>Delivery time</th><th>Attempts</th><th>Status</th></tr>
+          <tr><th>Event id</th><th>Event</th><th>Endpoint</th><th>Sent</th><th>Delivery time</th><th>Attempts</th><th>Status</th><th /></tr>
         </thead>
         <tbody>
           {shown.map((d) => {
@@ -120,18 +160,125 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
                   <span className={`devstate devstate--${s.tone}`}>{s.label}</span>
                   {d.last_error && <div className="devfail" title={d.last_error}>{d.last_error.slice(0, 60)}</div>}
                   {d.last_status != null && !d.delivered_at && <div className="soft">HTTP {d.last_status}</div>}
+                  {/* Replays are shown rather than hidden. A row on its third
+                      attempt after two replays reads very differently from a
+                      fresh failure, and that distinction is the whole reason the
+                      history is appended to rather than overwritten. */}
+                  {d.replay_count > 0 && (
+                    <div className="soft" title={`Last replayed ${when(d.last_replay_at ?? '')}`}>
+                      replayed {d.replay_count}&times;, {d.prior_attempts.reduce((t, p) => t + (p.attempts ?? 0), 0)} earlier attempts
+                    </div>
+                  )}
+                </td>
+                <td>
+                  {/* Offered only where there is something to replay. A delivered
+                      row is excluded here and refused by the RPC as well:
+                      resending a success fixes nothing, and the button would
+                      eventually be pressed on the wrong row. */}
+                  {!d.delivered_at && (
+                    <Button variant="ghost" size="sm" onClick={() => void doReplay(d.id)} disabled={busy}>
+                      <Icon name="refresh" /> Replay
+                    </Button>
+                  )}
                 </td>
               </tr>
             );
           })}
           {!shown.length && !busy && (
-            <tr><td colSpan={7} className="soft">
+            <tr><td colSpan={8} className="soft">
               No deliveries match. If you expected some, check on Configuration that an endpoint is enabled and
               subscribed to that event.
             </td></tr>
           )}
         </tbody>
       </table>
+
+      {/* ---- send a test event ---- */}
+      <Modal
+        open={testOpen}
+        onClose={() => { setTestOpen(false); setTestResult(null); }}
+        title="Send a test event"
+        sub="Signed exactly like a real one, delivered straight to your endpoint"
+        width={720}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => { setTestOpen(false); setTestResult(null); }} disabled={busy}>
+              Close
+            </Button>
+            <Button variant="primary" onClick={() => void doTest()} disabled={busy || !testEndpoint}>
+              {busy ? 'Sending…' : testResult ? 'Send again' : 'Send'}
+            </Button>
+          </>
+        }
+      >
+        <p className="soft">
+          This bypasses the retry queue and posts once, so you see the response here rather than having to
+          find it in this table. It is signed with the same code path a real delivery uses, so if your
+          verification accepts this it will accept the real thing. The payload carries{' '}
+          <code>&quot;test&quot;: true</code> so your handler can drop it without a human deciding later
+          which rows were tests.
+        </p>
+
+        {/* The app's own select, not a bare <select>. A native one here would
+            miss the chevron, the focus ring and the sizing every other dropdown
+            in the portal has. */}
+        <Field label="Endpoint">
+          <PeriodSelect
+            ariaLabel="Endpoint"
+            value={testEndpoint}
+            onChange={setTestEndpoint}
+            options={[
+              { value: '', label: 'Choose an endpoint' },
+              ...endpoints.filter((e) => e.active).map((e) => ({
+                value: e.id,
+                label: `${e.livemode ? 'Live' : 'Sandbox'} - ${e.url}`,
+              })),
+            ]}
+          />
+        </Field>
+
+        <Field label="Event type">
+          <PeriodSelect
+            ariaLabel="Event type"
+            value={testEvent}
+            onChange={setTestEvent}
+            options={WEBHOOK_EVENTS.map((e) => ({ value: e.id, label: e.id }))}
+          />
+        </Field>
+
+        {testResult && (
+          <div className="devtest">
+            <div className={`devtest__verdict devtest__verdict--${testResult.response.ok ? 'ok' : 'bad'}`}>
+              <Icon name={testResult.response.ok ? 'check' : 'alert'} />
+              <div>
+                <strong>
+                  {testResult.response.ok
+                    ? `Accepted, HTTP ${testResult.response.status}`
+                    : testResult.response.status
+                      ? `Rejected, HTTP ${testResult.response.status}`
+                      : 'No response'}
+                </strong>
+                <div className="soft">
+                  {testResult.response.duration_ms}ms.{' '}
+                  {testResult.response.ok
+                    ? 'A real delivery would be marked delivered and never retried.'
+                    : 'A real delivery would be retried on the backoff schedule, then dead-lettered.'}
+                </div>
+              </div>
+            </div>
+
+            <div className="devbodies__label">Signature headers we sent</div>
+            <pre className="devcode"><code>{Object.entries(testResult.request.headers)
+              .map(([k, v]) => `${k}: ${v}`).join('\n')}</code></pre>
+
+            <div className="devbodies__label">Body we signed</div>
+            <pre className="devcode"><code>{JSON.stringify(testResult.request.body, null, 2)}</code></pre>
+
+            <div className="devbodies__label">Your response</div>
+            <pre className="devcode"><code>{testResult.response.body || '(empty)'}</code></pre>
+          </div>
+        )}
+      </Modal>
     </Card>
   );
 }

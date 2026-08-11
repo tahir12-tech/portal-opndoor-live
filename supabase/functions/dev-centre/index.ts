@@ -21,7 +21,7 @@
 // recoverable. The listing RPCs do not return it.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { generateEndpointSecret } from "../_shared/webhookSigning.ts";
+import { generateEndpointSecret, signedHeaders } from "../_shared/webhookSigning.ts";
 import { getSigningLink } from "../_shared/pandadoc.ts";
 
 const cors = {
@@ -221,6 +221,131 @@ Deno.serve(async (req) => {
         tenant_email: row.tenant_email,
         guarantee_ref: row.guarantee_ref,
       });
+    }
+
+    // ---- send a test event to an endpoint -----------------------------------
+    //
+    // A newly registered endpoint should be verifiable before real traffic
+    // arrives, and the thing a developer most needs to prove is that their
+    // signature verification works. Getting that wrong is silent: their handler
+    // rejects everything, we see 401s and retry, and they see nothing at all.
+    //
+    // This does NOT go through the queue. The queue is the right mechanism for
+    // real events, but it is asynchronous, and the whole value here is seeing the
+    // response inline: status, headers, body, in front of you, next to the
+    // payload that produced it. So this signs and posts directly, with the SAME
+    // signedHeaders the dispatcher uses, because a test signed any other way
+    // would prove nothing about the real one.
+    if (action === "test_event") {
+      if (!isAdmin && !isDeveloper) return json({ ok: false, error: "Not permitted." }, 403);
+
+      const endpointId = String(body.endpoint_id ?? "");
+      const eventType = String(body.event_type ?? "");
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(endpointId)) {
+        return json({ ok: false, error: "An endpoint is required." }, 400);
+      }
+      if (!KNOWN_EVENTS.includes(eventType)) {
+        return json({ ok: false, error: `Unknown event type: ${eventType}` }, 400);
+      }
+
+      // Secret fetched server side and never returned. Revealing it is a
+      // different action with a different purpose, and a test-send is not a
+      // reason for the signing secret to travel to a browser.
+      const { data: eps, error: epErr } = await service
+        .rpc("dev_endpoint_for_test", { p_endpoint: endpointId, p_actor: me.id });
+      if (epErr) return json({ ok: false, error: epErr.message }, 400);
+      const ep = Array.isArray(eps) ? eps[0] : eps;
+      if (!ep) return json({ ok: false, error: "Endpoint not found." }, 404);
+
+      // The payload is shaped exactly like a real one, with obviously fake
+      // values. A test event carrying realistic-looking data is how a partner
+      // ends up with a fictional tenant in their CRM, so every string says so.
+      const eventId = crypto.randomUUID();
+      const payload = {
+        event_type: eventType,
+        livemode: ep.livemode === true,
+        // The one field a real payload does not have. A handler that writes to a
+        // database should be able to drop these without a human deciding which
+        // rows were tests, and it is additive so it cannot break a strict parser
+        // that ignores unknown fields.
+        test: true,
+        application: {
+          id: "00000000-0000-0000-0000-000000000000",
+          guarantee_ref: "GR-TEST-EVENT",
+          status: eventType === "application.deed_issued" ? "deed_issued"
+                : eventType === "application.paid" ? "paid"
+                : eventType === "application.withdrawn" ? "withdrawn"
+                : eventType === "application.lapsed" ? "lapsed"
+                : "awaiting_payment",
+          created_at: new Date().toISOString(),
+          sent_at: new Date().toISOString(),
+          paid_at: null, deed_issued_at: null, expiry_date: null,
+          tenant: {
+            title: "Mr", first_name: "Test", last_name: "Event",
+            date_of_birth: "1990-01-01",
+            email: "test.event@example.invalid",   // .invalid is reserved and undeliverable
+            phone: "00000000000",
+          },
+          property: {
+            address_line_1: "1 Test Street", address_line_2: null,
+            city: "Testville", county: null, postcode: "TE5 T1N",
+          },
+          tenancy: { monthly_rent: 1000, start_date: "2026-01-01" },
+          org: {
+            agency_id: "00000000-0000-0000-0000-000000000000",
+            agency_name: "Test Agency",
+            branch_id: "00000000-0000-0000-0000-000000000000",
+            branch_name: "Test Branch",
+          },
+        },
+      };
+
+      const raw = JSON.stringify(payload);
+      const headers = await signedHeaders(ep.secret, raw, eventId, eventType);
+
+      // Timeout, so a partner endpoint that accepts the connection and never
+      // answers does not hold this function open until the platform kills it.
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 10_000);
+      const startedAt = Date.now();
+      try {
+        const res = await fetch(ep.url, { method: "POST", headers, body: raw, signal: ctrl.signal });
+        const text = await res.text().catch(() => "");
+        return json({
+          ok: true,
+          request: {
+            url: ep.url,
+            // Returned so a developer can see the exact signature header their
+            // code has to verify, which is the thing being tested.
+            headers,
+            body: payload,
+          },
+          response: {
+            status: res.status,
+            // 2xx is what the dispatcher treats as delivered, so the verdict
+            // shown here is the same judgement a real delivery would make.
+            ok: res.status >= 200 && res.status < 300,
+            duration_ms: Date.now() - startedAt,
+            body: text.slice(0, 4000),
+          },
+        });
+      } catch (e) {
+        const aborted = (e as Error)?.name === "AbortError";
+        return json({
+          ok: true,
+          request: { url: ep.url, headers, body: payload },
+          response: {
+            status: 0,
+            ok: false,
+            duration_ms: Date.now() - startedAt,
+            body: aborted
+              ? "No response within 10 seconds. The connection was accepted but nothing came back."
+              : `Could not reach the endpoint: ${e instanceof Error ? e.message : String(e)}`,
+          },
+        });
+      } finally {
+        clearTimeout(timer);
+      }
     }
 
     return json({ ok: false, error: "Unknown action." }, 400);
