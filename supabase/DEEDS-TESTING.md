@@ -1,7 +1,8 @@
 # Deed of Guarantee (PandaDoc sandbox) - setup and test runbook
 
 Strictly sandbox/test. The Edge Functions only act when `PANDADOC_API_KEY` and
-`PANDADOC_TEMPLATE_ID` are set, and every recipient is redirected to
+`PANDADOC_TEMPLATE_ID` are set, and **`EMAIL_REVIEW_ADDRESS` is set on this
+environment**, which is what redirects every recipient to
 `EMAIL_REVIEW_ADDRESS`, so no real tenant is ever emailed. Do not point this at a
 production PandaDoc workspace or a live API key.
 
@@ -41,7 +42,7 @@ dashboard: Project > Edge Functions > Secrets. Add:
 | `PANDADOC_API_KEY` | sandbox `API-Key` | From the PandaDoc **sandbox** workspace (Settings > API). Sandbox key only. |
 | `PANDADOC_TEMPLATE_ID` | template uuid | The Deed of Guarantee template (step 3). Swapping templates is config-only, no code change, as long as the token names and Tenant role match. |
 | `PANDADOC_WEBHOOK_SHARED_KEY` | shared secret | The shared key you set on the PandaDoc webhook (step 4). Verifies the signature. |
-| `EMAIL_REVIEW_ADDRESS` | mdwyer@opndoor.co | TEST SAFETY: every deed recipient is redirected here. Shared with the payments runbook. |
+| `EMAIL_REVIEW_ADDRESS` | your email | **TEST SAFETY, AND IT IS THE ONLY THING PROVIDING IT.** Set this or every recipient, including the tenant who receives and signs the deed, is the real one. Production deliberately leaves it unset. Shared with the payments runbook. |
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected
 automatically; do not set them. Secrets take effect on the next function call, no
@@ -116,7 +117,8 @@ the payments and deeds env above are set.
    "Sandbox" badge, "Deed sent for signature, awaiting tenant" and the signing
    journey: **Sent** [date/time] then **Not yet viewed**. The activity feed shows
    "Deed of Guarantee sent to the tenant for signature". Your `EMAIL_REVIEW_ADDRESS`
-   inbox receives the PandaDoc signing email (redirected from the tenant).
+   inbox receives the PandaDoc signing email, redirected from the tenant
+   **because `EMAIL_REVIEW_ADDRESS` is set**. With it unset the tenant receives it.
 3. **View (not yet signing).** Open the signing link so the document reaches
    `document.viewed`, but do not sign yet. The journey row flips to **Viewed by
    tenant** [date/time], the activity feed gains "Deed viewed by the tenant", and

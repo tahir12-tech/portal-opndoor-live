@@ -15,6 +15,7 @@
 // Columns are kept identical to the on-demand buildExpiriesCsv (exportsService).
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveRecipients } from "../_shared/emailRecipients.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -173,9 +174,11 @@ Deno.serve(async (req) => {
       const csv = toCSV(rows);
       const filename = `opndoor-expiries-${cohortMonth}.csv`;
 
-      // const dest = REVIEW_ADDRESS ? [REVIEW_ADDRESS] : recipients; // test build redirects to review
-      const dest = recipients;
-      const intended = recipients.join(", ");
+      // This one attaches a base64 CSV of tenant records, so an unintended
+      // recipient here is a data-protection incident rather than a stray email.
+      const routed = resolveRecipients(recipients);
+      const dest = routed.to;
+      const intended = routed.intended.join(", ");
       const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;"><tr><td align="center">
         <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:92%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(39,29,95,0.4);">

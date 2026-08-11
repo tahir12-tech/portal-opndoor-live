@@ -2,12 +2,7 @@
 // Branded email module for expiry reminders (Resend). Same layout() shell and
 // sendEmail() pattern as the payment email module.
 //
-// TEST SAFETY: every message is redirected to EMAIL_REVIEW_ADDRESS so real
-// referrer/management addresses are never emailed while the domain is
-// unverified. The template shows who it was intended for. sendEmail returns a
-// structured result so the caller can log failures honestly (no raw 403s reach
-// partners - they still get the in-app activity reminder).
-// =====================================================================
+import { resolveRecipients } from "../_shared/emailRecipients.ts";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <noreply@opndoor.co>";
 const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
@@ -15,50 +10,16 @@ const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
 
 export interface SendResult { ok: boolean; error?: string; to?: string; }
 
-/** Send a message. Always redirects to the review address in this test build. */
-// export async function sendEmail(opts: { subject: string; html: string }): Promise<SendResult> {
-//   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
-//   if (!REVIEW_ADDRESS) return { ok: false, error: "Test review address (EMAIL_REVIEW_ADDRESS) is not set." };
-//   try {
-//     const res = await fetch("https://api.resend.com/emails", {
-//       method: "POST",
-//       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-//       body: JSON.stringify({ from: EMAIL_FROM, to: [REVIEW_ADDRESS], reply_to: REPLY_TO, subject: opts.subject, html: opts.html }),
-//     });
-//     if (!res.ok) return { ok: false, error: `Resend responded ${res.status}: ${(await res.text()).slice(0, 200)}`, to: REVIEW_ADDRESS };
-//     return { ok: true, to: REVIEW_ADDRESS };
-//   } catch (e) {
-//     return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: REVIEW_ADDRESS };
-//   }
-// }
+/** Send a message. Recipients are resolved by resolveRecipients: the real
+    address, or EMAIL_REVIEW_ADDRESS when this environment sets one. */
 
-//email for both review and user
-// export async function sendEmail(opts: { subject: string; html: string; to?: string }): Promise<SendResult> {
-//   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
-//   if (!REVIEW_ADDRESS) return { ok: false, error: "Test review address (EMAIL_REVIEW_ADDRESS) is not set." };
-//   const recipients = [REVIEW_ADDRESS];
-//   if (opts.to && opts.to !== REVIEW_ADDRESS) recipients.push(opts.to);
-//   try {
-//     const res = await fetch("https://api.resend.com/emails", {
-//       method: "POST",
-//       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-//       body: JSON.stringify({ from: EMAIL_FROM, to: recipients, reply_to: REPLY_TO, subject: opts.subject, html: opts.html }),
-//     });
-//     if (!res.ok) {
-//       const detail = await res.text();
-//       return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", ") };
-//     }
-//     return { ok: true, to: recipients.join(", ") };
-//   } catch (e) {
-//     return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: recipients.join(", ") };
-//   }
-// }
 
 //email for only user
 export async function sendEmail(opts: { subject: string; html: string; to?: string }): Promise<SendResult> {
   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
   if (!opts.to) return { ok: false, error: "No recipient email provided." };
-  const recipients = opts.to.split(",").map((email) => email.trim()).filter(Boolean);
+  const routed = resolveRecipients(opts.to);
+  const recipients = routed.to;
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -67,9 +28,9 @@ export async function sendEmail(opts: { subject: string; html: string; to?: stri
     });
     if (!res.ok) {
       const detail = await res.text();
-      return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", ") };
+      return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", "), redirected: routed.redirected, intended: routed.intended.join(", ") };
     }
-    return { ok: true, to: recipients.join(", ") };
+    return { ok: true, to: recipients.join(", "), redirected: routed.redirected, intended: routed.intended.join(", ") };
   } catch (e) {
     return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: recipients.join(", ") };
   }

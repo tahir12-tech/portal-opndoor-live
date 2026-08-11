@@ -1,45 +1,17 @@
-// =====================================================================
-// Deed-to-agent delivery, shared by the automatic path (pandadoc-webhook, on
-// execution) and the manual path (send-deed-to-agent). Sends the branded deed
-// email to the resolved claim contact with a short-lived signed download link,
-// and writes the activity log. In this test build every message is redirected to
-// EMAIL_REVIEW_ADDRESS; the business activity entry names the intended recipient
-// and the test-mode redirect is a separate opndoor-admin-only internal entry.
-// =====================================================================
-// deno-lint-ignore-file no-explicit-any
+import { resolveRecipients } from "./emailRecipients.ts";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <noreply@opndoor.co>";
 const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
-// const REVIEW_ADDRESS = Deno.env.get("EMAIL_REVIEW_ADDRESS");
 
-interface SendResult { ok: boolean; error?: string; to?: string }
+interface SendResult { ok: boolean; error?: string; to?: string; redirected?: boolean; intended?: string }
 
-// export async function sendEmail(opts: { subject: string; html: string; to?: string }): Promise<SendResult> {
-//   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
-//   if (!REVIEW_ADDRESS) return { ok: false, error: "Test review address (EMAIL_REVIEW_ADDRESS) is not set." };
-//   const recipients = [REVIEW_ADDRESS];
-//   if (opts.to && opts.to !== REVIEW_ADDRESS) recipients.push(opts.to);
-//   try {
-//     const res = await fetch("https://api.resend.com/emails", {
-//       method: "POST",
-//       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-//       body: JSON.stringify({ from: EMAIL_FROM, to: recipients, reply_to: REPLY_TO, subject: opts.subject, html: opts.html }),
-//     });
-//     if (!res.ok) {
-//       const detail = await res.text();
-//       return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", ") };
-//     }
-//     return { ok: true, to: recipients.join(", ") };
-//   } catch (e) {
-//     return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: recipients.join(", ") };
-//   }
-// }
 
 
 export async function sendEmail(opts: { subject: string; html: string; to: string }): Promise<SendResult> {
   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
   if (!opts.to) return { ok: false, error: "No recipient email provided." };
-  const recipients = [opts.to];
+  const routed = resolveRecipients(opts.to);
+  const recipients = routed.to;
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -48,9 +20,9 @@ export async function sendEmail(opts: { subject: string; html: string; to: strin
     });
     if (!res.ok) {
       const detail = await res.text();
-      return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", ") };
+      return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", "), redirected: routed.redirected, intended: routed.intended.join(", ") };
     }
-    return { ok: true, to: recipients.join(", ") };
+    return { ok: true, to: recipients.join(", "), redirected: routed.redirected, intended: routed.intended.join(", ") };
   } catch (e) {
     return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: recipients.join(", ") };
   }

@@ -3,69 +3,33 @@
 // paymentEmailTemplate now; expiry-reminder templates slot in next using the
 // same layout() shell and sendEmail().
 //
-// TEST SAFETY: in this build every message is redirected to EMAIL_REVIEW_ADDRESS
-// so real tenant addresses from seed/demo data are never emailed. The template
-// shows who the message was intended for.
-// =====================================================================
+import { resolveRecipients } from "../_shared/emailRecipients.ts";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <noreply@opndoor.co>";
 const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
-// const REVIEW_ADDRESS = Deno.env.get("EMAIL_REVIEW_ADDRESS");
 
 export interface SendResult {
   ok: boolean;
   error?: string;
+  /** Who it was actually delivered to. */
   to?: string;
+  /** True when EMAIL_REVIEW_ADDRESS redirected it. */
+  redirected?: boolean;
+  /** Who it was addressed to before any redirect. */
+  intended?: string;
 }
 
-/** Send a message. Always redirects to the review address in this test build. */
-// export async function sendEmail(opts: { subject: string; html: string }): Promise<SendResult> {
-//   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
-//   if (!REVIEW_ADDRESS) return { ok: false, error: "Test review address (EMAIL_REVIEW_ADDRESS) is not set." };
-//   try {
-//     const res = await fetch("https://api.resend.com/emails", {
-//       method: "POST",
-//       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-//       body: JSON.stringify({ from: EMAIL_FROM, to: [REVIEW_ADDRESS], reply_to: REPLY_TO, subject: opts.subject, html: opts.html }),
-//     });
-//     if (!res.ok) {
-//       const detail = await res.text();
-//       return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: REVIEW_ADDRESS };
-//     }
-//     return { ok: true, to: REVIEW_ADDRESS };
-//   } catch (e) {
-//     return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: REVIEW_ADDRESS };
-//   }
-// }
+/** Send a message. Recipients are resolved by resolveRecipients: the real
+    address, or EMAIL_REVIEW_ADDRESS when this environment sets one. */
 
-//email for both
-// export async function sendEmail(opts: { subject: string; html: string; to?: string }): Promise<SendResult> {
-//   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
-//   if (!REVIEW_ADDRESS) return { ok: false, error: "Test review address (EMAIL_REVIEW_ADDRESS) is not set." };
-//   const recipients = [REVIEW_ADDRESS];
-//   if (opts.to && opts.to !== REVIEW_ADDRESS) recipients.push(opts.to);
-//   try {
-//     const res = await fetch("https://api.resend.com/emails", {
-//       method: "POST",
-//       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-//       body: JSON.stringify({ from: EMAIL_FROM, to: recipients, reply_to: REPLY_TO, subject: opts.subject, html: opts.html }),
-//     });
-//     if (!res.ok) {
-//       const detail = await res.text();
-//       return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", ") };
-//     }
-//     return { ok: true, to: recipients.join(", ") };
-//   } catch (e) {
-//     return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: recipients.join(", ") };
-//   }
-// }
 
 
 //email for only user
 export async function sendEmail(opts: { subject: string; html: string; to?: string }): Promise<SendResult> {
   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
   if (!opts.to) return { ok: false, error: "No recipient email provided." };
-  const recipients = [opts.to];
+  const routed = resolveRecipients(opts.to);
+  const recipients = routed.to;
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -74,9 +38,9 @@ export async function sendEmail(opts: { subject: string; html: string; to?: stri
     });
     if (!res.ok) {
       const detail = await res.text();
-      return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", ") };
+      return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", "), redirected: routed.redirected, intended: routed.intended.join(", ") };
     }
-    return { ok: true, to: recipients.join(", ") };
+    return { ok: true, to: recipients.join(", "), redirected: routed.redirected, intended: routed.intended.join(", ") };
   } catch (e) {
     return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: recipients.join(", ") };
   }
@@ -90,29 +54,6 @@ const HELIOTROPE_DEEP = "#b54de0";
 const INK_SOFT = "#5b4d86";
 const LILAC = "#f8eff9";
 
-// function layout(title: string, inner: string, intendedFor?: string): string {
-//   const testBanner = intendedFor
-//     ? `<tr><td style="padding:10px 16px;background:${LILAC};border-bottom:1px solid rgba(39,29,95,0.1);font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};">Test mode. This email was intended for ${intendedFor} and redirected to you for review.</td></tr>`
-//     : "";
-//   return `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
-//   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;">
-//     <tr><td align="center">
-//       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:92%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(39,29,95,0.4);">
-//         <tr><td style="background:${VALHALLA};padding:22px 28px;">
-//           <span style="font:800 22px 'Sora',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:-0.04em;color:#ffffff;">opndoor</span>
-//           <span style="font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:rgba(255,255,255,0.7);margin-left:10px;">Guarantee Referral Portal</span>
-//         </td></tr>
-//         ${testBanner}
-//         <tr><td style="padding:28px;font:400 15px/1.6 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${VALHALLA};">
-//           ${inner}
-//         </td></tr>
-//         <tr><td style="padding:18px 28px;background:${LILAC};font:400 12px/1.5 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};">
-//           opndoor. Questions? Reply to this email or contact ${REPLY_TO}.
-//         </td></tr>
-//       </table>
-//     </td></tr>
-//   </table></body></html>`;
-// }
 
 
 

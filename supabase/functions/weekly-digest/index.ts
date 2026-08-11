@@ -16,6 +16,7 @@
 // prior 7 days to report) so it can be verified without waiting.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveRecipients } from "../_shared/emailRecipients.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -205,10 +206,12 @@ Deno.serve(async (req) => {
       if (sentSet.has(d.partner_id)) { skipped += 1; continue; }
       if (d.sent + d.paid + d.deeds === 0) { skipped += 1; continue; }
 
-       const dest = recipients;
-
-      // const dest = REVIEW_ADDRESS ? [REVIEW_ADDRESS] : recipients; // test build redirects to review
-        const tpl = digestEmail({ partnerName: d.partner_name, rangeLabel, d, intended: recipients.join(", "), redirected: false });
+      const routed = resolveRecipients(recipients);
+      const dest = routed.to;
+      // `redirected` was hardcoded false, so the banner three functions up was
+      // dead code that could never render. It now reflects what actually
+      // happened.
+      const tpl = digestEmail({ partnerName: d.partner_name, rangeLabel, d, intended: routed.intended.join(", "), redirected: routed.redirected });
       if (!RESEND_API_KEY || dest.length === 0) { failed += 1; continue; }
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",

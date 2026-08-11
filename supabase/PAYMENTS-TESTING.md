@@ -26,7 +26,7 @@ Functions). Add:
 | `STRIPE_SECRET_KEY` | `sk_test_xxx` | Required for the New Application flow and the webhook. |
 | `STRIPE_WEBHOOK_SECRET` | `whsec_xxx` | From the Stripe webhook endpoint (step 3). |
 | `RESEND_API_KEY` | `re_xxx` | Optional. Without it, creation still works and the email is reported as not sent. |
-| `EMAIL_REVIEW_ADDRESS` | your email | TEST SAFETY: every tenant email is redirected here. Required for any email to send. |
+| `EMAIL_REVIEW_ADDRESS` | your email | **TEST SAFETY, AND IT IS THE ONLY THING PROVIDING IT.** Set this or every tenant email goes to the real tenant. Production deliberately leaves it unset. |
 | `EMAIL_FROM` | `opndoor <payments@opndoor.co>` | Optional; this is the default. |
 | `EMAIL_REPLY_TO` | `hello@opndoor.co` | Optional; this is the default. |
 

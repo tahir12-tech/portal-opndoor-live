@@ -1,23 +1,16 @@
-// =====================================================================
-// Tenant refund confirmation email, sent from the Stripe charge.refunded
-// webhook. Branded shell shared with the rest of the portal's emails; ALWAYS
-// redirected to EMAIL_REVIEW_ADDRESS in this test build (the real recipient
-// appears only in the "intended for" banner). Idempotency is owned by the
-// caller (the stripe_events dedup means charge.refunded runs once per event).
-// =====================================================================
-// deno-lint-ignore-file no-explicit-any
+import { resolveRecipients } from "./emailRecipients.ts";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <noreply@opndoor.co>";
 const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
-// const REVIEW_ADDRESS = Deno.env.get("EMAIL_REVIEW_ADDRESS");
 
-interface SendResult { ok: boolean; error?: string; to?: string }
+interface SendResult { ok: boolean; error?: string; to?: string; redirected?: boolean; intended?: string }
 
 //email for only user
 export async function sendEmail(opts: { subject: string; html: string; to: string }): Promise<SendResult> {
   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
   if (!opts.to) return { ok: false, error: "No recipient email provided." };
-  const recipients = [opts.to];
+  const routed = resolveRecipients(opts.to);
+  const recipients = routed.to;
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -26,9 +19,9 @@ export async function sendEmail(opts: { subject: string; html: string; to: strin
     });
     if (!res.ok) {
       const detail = await res.text();
-      return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", ") };
+      return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", "), redirected: routed.redirected, intended: routed.intended.join(", ") };
     }
-    return { ok: true, to: recipients.join(", ") };
+    return { ok: true, to: recipients.join(", "), redirected: routed.redirected, intended: routed.intended.join(", ") };
   } catch (e) {
     return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: recipients.join(", ") };
   }

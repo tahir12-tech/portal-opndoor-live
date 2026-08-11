@@ -5,7 +5,9 @@ Work top to bottom; every step is written as **Do X -> Expect Y**. Log anything 
 does not match in the findings table at the end. Budget 2-4 hours.
 
 Strictly sandbox/test throughout: Stripe test keys, PandaDoc sandbox, every outbound
-email redirected to the review address. Do not enter real card or tenant data.
+email redirected to the review address, **which requires `EMAIL_REVIEW_ADDRESS`
+to be set on the environment you are testing.** If it is unset, mail goes to the
+real recipient. Check it before you start. Do not enter real card or tenant data.
 
 ## Before you start
 

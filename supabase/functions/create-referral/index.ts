@@ -156,11 +156,20 @@ Deno.serve(async (req) => {
       actor: "System",
       visibility: emailRes.ok ? "business" : "internal",
     });
-    if (emailRes.ok && emailRes.to) {
+    // GATED ON THE REDIRECT ACTUALLY HAVING HAPPENED. This row used to be written
+    // whenever the send succeeded, saying "Redirected to <address> (test mode)".
+    // Once the redirect was removed, emailRes.to was the REAL TENANT, so every
+    // application carried an audit entry asserting a safety property that was not
+    // in force and naming the person who actually received the mail as the
+    // redirect target. See DEFECTS.md 7.
+    //
+    // refundEmail.ts already had this guard, which is why the same row was
+    // harmless there. Now they match.
+    if (emailRes.ok && emailRes.redirected && emailRes.to) {
       await service.from("activity_log").insert({
         application_id: appId,
         kind: "payment_email_sent",
-        message: `Redirected to ${emailRes.to} (test mode).`,
+        message: `Redirected to ${emailRes.to} (EMAIL_REVIEW_ADDRESS is set on this environment). Intended recipient: ${emailRes.intended ?? "unknown"}.`,
         actor: "System",
         visibility: "internal",
       });
