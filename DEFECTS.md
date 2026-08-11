@@ -33,7 +33,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 10 | Reinstated applications keep their expired and withdrawn markers | Low |
 | 11 | `npm ci` fails, so there is no clean-room build and no CI | Medium |
 | 12 | The Stripe mode guard on the payment page only covers checkout, so decline runs on a deployment already judged unsafe | Medium |
-| 13 | Every caught error in the portal renders as a green success toast | High |
+| 13 | Every caught error in the portal renders as a green success toast. Partly fixed: the mechanism only, 34 call sites still green | High |
 | 14 | The PandaDoc webhook signature has no timestamp, no tolerance and a non-constant-time comparison, so a captured callback is replayable for ever | High |
 | 15 | Applications lapse on day 15, but the activity log and the documentation both say 14 | Low |
 
@@ -1260,6 +1260,12 @@ cherry-pick. See HANDOVER.md section 11.4.
 
 **Severity: high. Not because of what it breaks, but because of what it hides. While a failure is indistinguishable from a success, no user report about anything else can be trusted.**
 
+> **This is not fixed. Read "What is and is not fixed here" before deciding
+> priority.** The component change carried in this tree is a prerequisite and
+> **changes nothing users see on its own**: every one of the 34 error paths still
+> renders green until its call site passes the tone. The work is the call sites,
+> not the component.
+
 ### What it is
 
 `useToast()` returns a function taking one argument, a message. The renderer has
@@ -1342,7 +1348,14 @@ Errors also get a red background and a 6 second dismiss rather than 3.2.
 
 ### What is and is not fixed here, precisely
 
-**The mechanism is fixed. Most of the call sites are not.**
+**The mechanism is fixed. None of the behaviour outside the Dev Centre is.**
+
+Be blunt about what that means: if you take the `Toast.tsx` change and stop
+there, **no user sees any difference at all**. The component gains the ability to
+render an error; nothing asks it to. Every one of the 34 error paths still passes
+a message and no tone, still defaults to success, and still shows a green tick.
+The component change is maybe a tenth of the job and the visible nine tenths is
+the sweep.
 
 - `Toast.tsx` and `Toast.css` carry the fix, and it is backward compatible.
 - Every call site **in the Dev Centre** passes `'error'` on failure paths.
@@ -1360,7 +1373,8 @@ grep -rn "toast(" src --include=*.tsx | grep -iE "err|fail|could not|cannot"
 ```
 
 Do not reapply the component change from scratch. Take it, then sweep the call
-sites.
+sites. **The defect is closed when the sweep is done, not when the component
+lands.**
 
 ---
 

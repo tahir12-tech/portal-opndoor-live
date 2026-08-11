@@ -76,7 +76,27 @@ export interface Partner {
       full = peers ranked with fees + counts; rankings = counts only; private =
       own performance only. Commission is never shown to referrers. Default full. */
   referrerLeaderboard?: LeaderboardMode;
+  /** What happens to an application after it arrives. Snapshotted onto each
+      application at creation, so changing this never rewrites work in flight. */
+  referencingMode?: ReferencingMode;
+  /** Capabilities. Two flags rather than one partner "type": an agency is portal
+      only, a CRM is API only, and some partners are both, so a type would need a
+      value per combination. */
+  portalReferralsEnabled?: boolean;
+  apiAccessEnabled?: boolean;
 }
+
+export type ReferencingMode = 'pre_referenced_open' | 'pre_referenced_screened' | 'opndoor_referenced';
+
+/** Labels for the three modes. The stored value is what goes in the audit trail. */
+export const REFERENCING_MODES: { id: ReferencingMode; label: string; desc: string }[] = [
+  { id: 'pre_referenced_screened', label: 'Pre-referenced, screened',
+    desc: 'The partner references first and opndoor applies its own criteria. Not yet available: applications are refused.' },
+  { id: 'pre_referenced_open', label: 'Pre-referenced, open',
+    desc: 'The partner references first and opndoor applies no criteria at all. A commercial position, granted deliberately.' },
+  { id: 'opndoor_referenced', label: 'opndoor referenced',
+    desc: 'opndoor completes the reference. Not yet available: applications are refused.' },
+];
 
 export type LeaderboardMode = 'full' | 'rankings' | 'private';
 

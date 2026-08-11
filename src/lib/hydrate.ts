@@ -89,8 +89,8 @@ export async function hydrateFromSupabase(userId: string, viewerRole: Role = LEA
     // never going to be sufficient on its own.
     client.from('partners').select(
       maySeeCommission(viewerRole)
-        ? 'id, slug, name, status, live_from, partner_rate, agent_rate, is_primary, referrer_leaderboard_mode'
-        : 'id, slug, name, status, live_from, is_primary, referrer_leaderboard_mode',
+        ? 'id, slug, name, status, live_from, partner_rate, agent_rate, is_primary, referrer_leaderboard_mode, referencing_mode, portal_referrals_enabled, api_access_enabled'
+        : 'id, slug, name, status, live_from, is_primary, referrer_leaderboard_mode, referencing_mode, portal_referrals_enabled, api_access_enabled',
     ),
     // Admin user list via RPC: TRUTHFUL last-active (auth.users.last_sign_in_at)
     // and status/role, visibility-scoped like the users_select RLS policy.
@@ -178,6 +178,12 @@ export async function hydrateFromSupabase(userId: string, viewerRole: Role = LEA
     partnerRate: num(p.partner_rate),
     agentRate: num(p.agent_rate),
     referrerLeaderboard: (p.referrer_leaderboard_mode ?? 'full') as Partner['referrerLeaderboard'],
+    referencingMode: (p.referencing_mode ?? 'pre_referenced_screened') as Partner['referencingMode'],
+    // === true, not a coalesce to true. A missing column or an unresolved select
+    // must not read as "this partner may hold API keys": the whole point of the
+    // default being false is that enabling the API is deliberate.
+    portalReferralsEnabled: p.portal_referrals_enabled !== false,
+    apiAccessEnabled: p.api_access_enabled === true,
   }));
 
   /* ---- org (agencies -> branches -> contacts + derived metrics) ---- */

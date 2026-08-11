@@ -75,6 +75,7 @@ export type AuthFailure =
   | "revoked"
   | "expired"
   | "partner_inactive"
+  | "partner_api_disabled"
   | "livemode_prefix_mismatch"
   | "lookup_error";
 
@@ -141,7 +142,7 @@ export async function authenticatePartner(
 
   const { data: row, error } = await service
     .from("partner_api_keys")
-    .select("id, partner_id, key_hash, scopes, revoked_at, expires_at, livemode, key_prefix")
+    .select("id, partner_id, key_hash, scopes, revoked_at, expires_at, livemode, key_prefix, partners(api_access_enabled)")
     .eq("key_prefix", prefix)
     .maybeSingle();
 
@@ -161,6 +162,21 @@ export async function authenticatePartner(
   // Lifecycle checks come AFTER the comparison so a revoked or expired key costs
   // the same as a live one.
   if (row.revoked_at !== null) return { ok: false, reason: "revoked" };
+
+  // The partner's API capability, checked here rather than only when a key is
+  // minted. Gating minting alone would mean an admin who turns the API off for a
+  // partner changes nothing at all: every key already issued keeps working, which
+  // is the opposite of what unticking a capability means.
+  //
+  // The consequence is worth being clear about: unticking it takes a live
+  // integration down immediately. That is correct for a capability switch, and
+  // the edit screen names the number of active keys before it saves.
+  //
+  // Reads as a positive test. `!== false` would admit a null from a join that did
+  // not resolve, which is the case where we know least.
+  const partnerRel = (row as { partners?: { api_access_enabled?: boolean } | { api_access_enabled?: boolean }[] }).partners;
+  const partnerRow = Array.isArray(partnerRel) ? partnerRel[0] : partnerRel;
+  if (partnerRow?.api_access_enabled !== true) return { ok: false, reason: "partner_api_disabled" };
   if (row.expires_at !== null && new Date(row.expires_at).getTime() <= Date.now()) {
     return { ok: false, reason: "expired" };
   }

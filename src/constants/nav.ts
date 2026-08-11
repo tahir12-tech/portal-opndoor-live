@@ -12,6 +12,20 @@ export interface NavItem {
   to: string;
   icon: IconName;
   roles: Role[];
+  /**
+   * A partner capability this item also requires.
+   *
+   * Separate from `roles` because they answer different questions: the role says
+   * whether this PERSON may use the screen, the capability says whether their
+   * PARTNER has the thing the screen is about. A developer at a portal-only
+   * partner passes the role test and should still not see a Dev Centre, because
+   * there is no API for them to develop against.
+   *
+   * Hiding is not the enforcement. Every Dev Centre RPC scopes itself and key
+   * minting refuses when the capability is off. This keeps a dead item out of
+   * the sidebar; it is not what stops anybody doing anything.
+   */
+  requiresCapability?: 'api';
   /** Set on the reconciliation item; the sidebar fills the count from the queue. */
   badge?: 'reconcile';
 }
@@ -38,7 +52,10 @@ export const NAV: NavGroup[] = [
     // a developer who may have left; the screen shows them the keys panel alone.
     group: 'Integration',
     items: [
-      { id: 'devcentre', label: 'Dev Centre', to: '/dev-centre', icon: 'book', roles: ['developer', 'superadmin', 'management'] },
+      // superadmin is deliberately NOT capability-gated below: an opndoor admin
+      // needs to reach the Dev Centre for a partner they are about to enable,
+      // which is the moment the capability is still off.
+      { id: 'devcentre', label: 'Dev Centre', to: '/dev-centre', icon: 'book', roles: ['developer', 'superadmin', 'management'], requiresCapability: 'api' },
     ],
   },
   {

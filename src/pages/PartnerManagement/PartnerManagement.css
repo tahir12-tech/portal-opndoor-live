@@ -125,3 +125,15 @@
 .pm-confirm__to {
   color: var(--heliotrope-deep);
 }
+
+/* Capability rows in the partner modal. Each row IS the control, so the
+   uppercase small-caps `.field label` rule must not reach it: these live outside
+   a Field for exactly that reason, which is the same trap the Dev Centre scope
+   rows hit. */
+.pmcap { display: flex; gap: 10px; align-items: flex-start; padding: 11px 12px;
+         border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px;
+         cursor: pointer; }
+.pmcap:has(input:checked) { border-color: var(--valhalla); background: #faf9ff; }
+.pmcap input { margin-top: 2px; flex-shrink: 0; }
+.pmcap__name { font-weight: 700; font-size: 13.5px; margin-bottom: 2px; }
+.pmcap__desc { font-size: 12.5px; color: var(--ink-mute); line-height: 1.5; }

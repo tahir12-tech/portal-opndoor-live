@@ -6,7 +6,7 @@
    ===================================================================== */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { addPartner, getPartner, getPartners, getReferrerLeaderboardMode, orgCounts, setReferrerLeaderboardMode, updatePartnerSettings, getPartnerAudit, type LeaderboardMode, type PartnerAuditEntry, type PartnerSettingsInput, type PartnerStatus } from '@/data';
+import { addPartner, getPartner, getPartners, getReferrerLeaderboardMode, orgCounts, setReferrerLeaderboardMode, updatePartnerSettings, getPartnerAudit, type LeaderboardMode, type PartnerAuditEntry, type PartnerSettingsInput, type PartnerStatus, partnerActiveKeyCount, REFERENCING_MODES, type ReferencingMode } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { fmtRatePct } from '@/lib/format';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -65,6 +65,12 @@ export function PartnerManagement() {
   const [status, setStatus] = useState<PartnerStatus>('active');
   const [partnerRate, setPartnerRate] = useState('25');
   const [agentRate, setAgentRate] = useState('10');
+  const [refMode, setRefMode] = useState<ReferencingMode>('pre_referenced_screened');
+  const [portalOn, setPortalOn] = useState(true);
+  const [apiOn, setApiOn] = useState(false);
+  // How many keys stop working if API access is turned off. Fetched when the
+  // edit opens, so the confirmation can name a number rather than a warning.
+  const [activeKeys, setActiveKeys] = useState(0);
   const [lbMode, setLbMode] = useState<LeaderboardMode>('full'); // #88 referrer leaderboard visibility
   const [audit, setAudit] = useState<PartnerAuditEntry[]>([]);
   const [showAllAudit, setShowAllAudit] = useState(false); // #89 cap Recent changes at 5
@@ -83,6 +89,13 @@ export function PartnerManagement() {
     setStatus('active');
     setPartnerRate('25');
     setAgentRate('10');
+    // New partners default to screened and portal-only. Screened refuses
+    // applications until that mode is built, which is the safe place to start:
+    // open means no criteria at all and is a commercial decision, not a default.
+    setRefMode('pre_referenced_screened');
+    setPortalOn(true);
+    setApiOn(false);
+    setActiveKeys(0);
     setAudit([]);
     setConfirm(null);
     setOpen(true);
@@ -96,6 +109,11 @@ export function PartnerManagement() {
     setStatus(p.status || 'active');
     setPartnerRate(String(asPct(p.partnerRate, 0.25)));
     setAgentRate(String(asPct(p.agentRate, 0.1)));
+    setRefMode(p.referencingMode ?? 'pre_referenced_screened');
+    setPortalOn(p.portalReferralsEnabled !== false);
+    setApiOn(p.apiAccessEnabled === true);
+    setActiveKeys(0);
+    void partnerActiveKeyCount(id).then(setActiveKeys).catch(() => setActiveKeys(0));
     setLbMode(getReferrerLeaderboardMode(id));
     setConfirm(null);
     setAudit([]);
@@ -120,6 +138,9 @@ export function PartnerManagement() {
       toast(e instanceof Error ? e.message : 'Could not update the setting.');
     }
   }
+
+  const modeLabel = (m: ReferencingMode): string =>
+    REFERENCING_MODES.find((x) => x.id === m)?.label ?? m;
 
   function readRate(v: string, fallback: number): number {
     const n = parseFloat(v);
@@ -151,22 +172,60 @@ export function PartnerManagement() {
     if (editingId) {
       const cur = getPartner(editingId);
       if (!cur) return;
-      const input: PartnerSettingsInput = { name: name.trim(), status, since, partnerRate: pr, agentRate: ar };
+      const input: PartnerSettingsInput = {
+        name: name.trim(), status, since, partnerRate: pr, agentRate: ar,
+        referencingMode: refMode, portalReferralsEnabled: portalOn, apiAccessEnabled: apiOn,
+      };
       // A rate change needs explicit confirmation (current -> new), since it sets
       // the rate for new applications going forward.
       const changes: RateChange[] = [];
       if (cur.partnerRate !== pr) changes.push({ label: 'Partner commission', from: fmtRatePct(cur.partnerRate ?? 0.25), to: fmtRatePct(pr) });
       if (cur.agentRate !== ar) changes.push({ label: 'Agent commission', from: fmtRatePct(cur.agentRate ?? 0.1), to: fmtRatePct(ar) });
+      if ((cur.referencingMode ?? 'pre_referenced_screened') !== refMode) {
+        changes.push({
+          label: 'Referencing mode',
+          from: modeLabel(cur.referencingMode ?? 'pre_referenced_screened'),
+          to: modeLabel(refMode),
+        });
+      }
+      if ((cur.portalReferralsEnabled !== false) !== portalOn) {
+        changes.push({ label: 'Portal referrals', from: cur.portalReferralsEnabled !== false ? 'On' : 'Off', to: portalOn ? 'On' : 'Off' });
+      }
+      // Named separately and last, because turning it OFF is the one change here
+      // that breaks something already running.
+      if ((cur.apiAccessEnabled === true) !== apiOn) {
+        changes.push({
+          label: 'API access',
+          from: cur.apiAccessEnabled ? 'On' : 'Off',
+          to: apiOn
+            ? 'On'
+            : activeKeys > 0
+              ? `Off. ${activeKeys} active key${activeKeys === 1 ? '' : 's'} stop working immediately`
+              : 'Off',
+        });
+      }
       if (changes.length) {
         setConfirm({ input, changes });
         return;
       }
       void applyUpdate(editingId, input);
     } else {
-      const rec = addPartner({ name: name.trim(), since: since || undefined, status, partnerRate: pr, agentRate: ar });
-      toast(`Partner "${rec.name}" created at ${Math.round(pr * 100)}% partner / ${Math.round(ar * 100)}% agent. Add users, agencies and branches under it next.`);
-      setOpen(false);
-      refresh();
+      // Awaited now. It used to be a synchronous localStorage write that reported
+      // success without persisting anything, so the toast below is only reached
+      // if the server actually created the row.
+      setSaving(true);
+      addPartner({
+        name: name.trim(), since: since || undefined, status, partnerRate: pr, agentRate: ar,
+        referencingMode: refMode, portalReferralsEnabled: portalOn, apiAccessEnabled: apiOn,
+      })
+        .then(async (rec) => {
+          await refreshData();
+          toast(`Partner "${rec.name}" created at ${Math.round(pr * 100)}% partner / ${Math.round(ar * 100)}% agent. Add users, agencies and branches under it next.`);
+          setOpen(false);
+          refresh();
+        })
+        .catch((e) => toast(e instanceof Error ? e.message : 'Could not create the partner.', 'error'))
+        .finally(() => setSaving(false));
     }
   }
 
@@ -256,6 +315,61 @@ export function PartnerManagement() {
           </select>
         </Field>
         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 2 }}>
+          <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Referencing</div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginBottom: 12 }}>
+            What happens to an application after it arrives. Each application records the mode in force
+            when it was created, so changing this never rewrites the basis of applications already in flight.
+          </div>
+          <Field label="Referencing mode" htmlFor="pm-refmode">
+            <select id="pm-refmode" value={refMode} onChange={(e) => setRefMode(e.target.value as ReferencingMode)}>
+              {REFERENCING_MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          </Field>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginTop: -6, marginBottom: 4 }}>
+            {REFERENCING_MODES.find((m) => m.id === refMode)?.desc}
+          </div>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 16 }}>
+          <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Capabilities</div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginBottom: 12 }}>
+            What this partner can do. Two independent settings rather than one partner type: an agency is
+            portal only, a CRM is API only, and some partners are both.
+          </div>
+
+          <label className="pmcap">
+            <input type="checkbox" checked={portalOn} onChange={(e) => setPortalOn(e.target.checked)} />
+            <div>
+              <div className="pmcap__name">Portal referrals</div>
+              <div className="pmcap__desc">
+                Their staff can create referrals in the portal. Turning this off refuses new referrals for
+                this partner, including ones an opndoor admin makes on their behalf. Existing applications
+                are untouched.
+              </div>
+            </div>
+          </label>
+
+          <label className="pmcap">
+            <input type="checkbox" checked={apiOn} onChange={(e) => setApiOn(e.target.checked)} />
+            <div>
+              <div className="pmcap__name">API access</div>
+              <div className="pmcap__desc">
+                They can hold API keys and reach the partner API, and the Dev Centre appears for their
+                developers.{' '}
+                {!apiOn && activeKeys > 0 ? (
+                  <b>
+                    Turning this off stops {activeKeys} active key{activeKeys === 1 ? '' : 's'} working
+                    immediately, not just new ones. A live integration will start failing as soon as you save.
+                  </b>
+                ) : (
+                  <>Off by default, so enabling the API is always a deliberate act.</>
+                )}
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 16 }}>
           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Commission</div>
           <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginBottom: 12 }}>
             Each a share of the guarantor fee (one month's rent). These are the rates for <b>new applications from now on</b>. Applications already created keep the rate recorded when they were created, so past settlements and reports never change.

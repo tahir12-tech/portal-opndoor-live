@@ -9,7 +9,7 @@
    GET/POST/PATCH /partners. getSelected/setSelected stay client-side
    (a UI preference). scopeFor mirrors the server's partner-isolation rule.
    ===================================================================== */
-import type { CommissionRates, LeaderboardMode, Partner, PartnerScope, PartnerStatus, Role } from './types';
+import type { CommissionRates, LeaderboardMode, Partner, PartnerScope, PartnerStatus, ReferencingMode, Role } from './types';
 import { fmtRatePct } from '@/lib/format';
 import { ALL_PARTNERS } from './types';
 import { KEYS, clone, loadJSON, loadString, saveJSON, saveString } from './storage';
@@ -62,9 +62,62 @@ export interface AddPartnerInput {
   since?: string;
   partnerRate?: number;
   agentRate?: number;
+  referencingMode?: ReferencingMode;
+  portalReferralsEnabled?: boolean;
+  apiAccessEnabled?: boolean;
 }
 
-export function addPartner(input: AddPartnerInput): Partner {
+/**
+ * Create a partner.
+ *
+ * THIS USED TO WRITE TO localStorage AND NOTHING ELSE. There was no
+ * SUPABASE_ENABLED branch and no create_partner RPC anywhere in the schema for
+ * it to call, so creating a partner through the product had never worked, and
+ * the screen still reported success and told the admin to add users and
+ * agencies underneath it.
+ *
+ * The slug is no longer minted here. The server derives it inside the same
+ * transaction as the insert, so the uniqueness check and the insert cannot race.
+ */
+export async function addPartner(input: AddPartnerInput): Promise<Partner> {
+  if (SUPABASE_ENABLED) {
+    const { data, error } = await sb().rpc('create_partner', {
+      p_name: input.name,
+      p_status: input.status ?? 'onboarding',
+      p_live_from: input.since ? `${input.since}-01` : null,
+      p_partner_rate: input.partnerRate ?? DEFAULT_PARTNER_RATE,
+      p_agent_rate: input.agentRate ?? DEFAULT_AGENT_RATE,
+      p_referencing_mode: input.referencingMode ?? 'pre_referenced_screened',
+      p_portal_referrals: input.portalReferralsEnabled ?? true,
+      p_api_access: input.apiAccessEnabled ?? false,
+    });
+    if (error) throw new Error(error.message);
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error('The partner was not created.');
+    const rec: Partner = {
+      id: row.slug,
+      name: row.name,
+      status: row.status,
+      since: row.live_from ? String(row.live_from).slice(0, 7) : '',
+      weight: 0.05,
+      users: 0,
+      apps: 0,
+      partnerRate: Number(row.partner_rate),
+      agentRate: Number(row.agent_rate),
+      referencingMode: row.referencing_mode,
+      portalReferralsEnabled: row.portal_referrals_enabled !== false,
+      apiAccessEnabled: row.api_access_enabled === true,
+    };
+    // Keep the working copy in step so the list updates before the next hydrate.
+    PARTNERS.push(rec);
+    persist();
+    return rec;
+  }
+  return addPartnerLocal(input);
+}
+
+/** Mock-mode creation. Unchanged behaviour, now clearly labelled as such. */
+function addPartnerLocal(input: AddPartnerInput): Partner {
   const base = (input.name || 'partner').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 18) || 'partner';
   let id = base;
   let n = 2;
@@ -110,6 +163,9 @@ export interface PartnerSettingsInput {
   since: string; // 'YYYY-MM' or ''
   partnerRate: number; // fraction of one month's rent
   agentRate: number;
+  referencingMode: ReferencingMode;
+  portalReferralsEnabled: boolean;
+  apiAccessEnabled: boolean;
 }
 
 export interface PartnerAuditEntry {
@@ -142,6 +198,9 @@ export async function updatePartnerSettings(id: string, next: PartnerSettingsInp
       p_live_from: next.since ? `${next.since}-01` : null,
       p_partner_rate: next.partnerRate,
       p_agent_rate: next.agentRate,
+      p_referencing_mode: next.referencingMode,
+      p_portal_referrals: next.portalReferralsEnabled,
+      p_api_access: next.apiAccessEnabled,
     });
     if (error) throw new Error(error.message);
     return; // caller re-hydrates (session.refresh) to pick up the new live rate
@@ -156,13 +215,39 @@ export async function updatePartnerSettings(id: string, next: PartnerSettingsInp
   if (cur.status !== next.status) add('status', cur.status, next.status);
   if ((cur.since || '') !== (next.since || '')) add('live_from', cur.since || '—', next.since || '—');
   if (cur.name !== next.name) add('name', cur.name, next.name);
+  if ((cur.referencingMode ?? 'pre_referenced_screened') !== next.referencingMode) {
+    add('referencing_mode', cur.referencingMode ?? 'pre_referenced_screened', next.referencingMode);
+  }
+  if ((cur.portalReferralsEnabled !== false) !== next.portalReferralsEnabled) {
+    add('portal_referrals_enabled', cur.portalReferralsEnabled !== false ? 'on' : 'off', next.portalReferralsEnabled ? 'on' : 'off');
+  }
+  if ((cur.apiAccessEnabled === true) !== next.apiAccessEnabled) {
+    add('api_access_enabled', cur.apiAccessEnabled ? 'on' : 'off', next.apiAccessEnabled ? 'on' : 'off');
+  }
   if (entries.length) PARTNER_AUDIT[id] = [...entries, ...(PARTNER_AUDIT[id] ?? [])];
   // Pass since as-is (not `|| undefined`) so clearing Live-from actually clears it
   // and matches the audit entry recorded above.
   updatePartner(id, {
     name: next.name, status: next.status, since: next.since,
     partnerRate: next.partnerRate, agentRate: next.agentRate,
+    referencingMode: next.referencingMode,
+    portalReferralsEnabled: next.portalReferralsEnabled,
+    apiAccessEnabled: next.apiAccessEnabled,
   });
+}
+
+/**
+ * How many of a partner's API keys are live right now.
+ *
+ * Read before turning API access off, so the confirmation names a number. The
+ * capability gates AUTHENTICATION, not just minting, so unticking it stops every
+ * one of these working the moment it saves.
+ */
+export async function partnerActiveKeyCount(slug: string): Promise<number> {
+  if (!SUPABASE_ENABLED) return 0;
+  const { data, error } = await sb().rpc('partner_active_key_count', { p_slug: slug });
+  if (error) return 0;
+  return Number(data ?? 0);
 }
 
 /** #79 The referrer-leaderboard visibility mode for a partner (default full). */

@@ -121,6 +121,16 @@ Deno.serve(async (req) => {
       }
       const livemode = body.livemode as boolean;
 
+      // A partner without the API capability cannot be given keys. Checked with
+      // the SERVICE client against the partner row rather than trusting the
+      // screen: the button is hidden for such a partner, and a hidden button is
+      // a suggestion.
+      const { data: cap } = await service
+        .from("partners").select("api_access_enabled").eq("id", partnerId).maybeSingle();
+      if (cap?.api_access_enabled !== true) {
+        return json({ ok: false, error: "This partner does not have API access enabled. Turn it on in Partner settings first." }, 403);
+      }
+
       const key = generateApiKey(livemode ? "live" : "test");
       const { data, error } = await service.from("partner_api_keys").insert({
         partner_id: partnerId,
