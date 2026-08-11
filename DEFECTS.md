@@ -40,7 +40,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 12 | The Stripe mode guard on the payment page sits inside the checkout branch, not at the top like its two siblings | Low |
 | 13 | ~~Error toasts render with the success icon and colour~~ **Fixed here**, component and all 35 call sites | — |
 | 14 | The PandaDoc webhook signature has no timestamp binding; replay is blocked only by the event ledger. **Comparison fixed here**; the timestamp needs an answer from PandaDoc | Low |
-| 15 | Applications lapse on day 15, but the activity log and the documentation both say 14 | Low |
+| 15 | ~~Applications lapse on day 15, but everything says 14~~ **Fixed here**, wording only; the predicate is deliberately unchanged | — |
 | 16 | A test in the suite has been failing since 22 July, and `npm test` is not the command that runs it | Medium |
 | 17 | A renamed HubSpot property makes the sync silently stop recording that field, and reports success | High |
 | 18 | ~~Postgres error text was returned to partners on the create path~~ **Fixed here** | — |

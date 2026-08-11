@@ -280,7 +280,7 @@ export function ApplicationDetail() {
   // #105 On a terminal pre-payment exit the second node shows the termination
   // (greyed via the timeline's 'terminated' state), not "Awaiting payment".
   const paidStep = timelineTerminated
-    ? { label: 'Paid', date: d.status === 'withdrawn' ? 'Withdrawn' : 'Expired', note: d.status === 'withdrawn' ? 'Withdrawn before payment' : 'Expired, unpaid after 14 days' }
+    ? { label: 'Paid', date: d.status === 'withdrawn' ? 'Withdrawn' : 'Expired', note: d.status === 'withdrawn' ? 'Withdrawn before payment' : 'Expired, unpaid after 15 days' }
     : { label: 'Paid', date: d.paidStr || 'Awaiting payment', note: d.paidStr ? `Guarantor fee paid · ${d.rent}` : 'Guarantor fee not yet paid' };
   const steps = [
     { label: 'Sent', date: d.sentStr, note: `Referral sent to tenant by ${d.referrer}` },
@@ -651,7 +651,7 @@ export function ApplicationDetail() {
         <div className="rec-withdrawn">
           <Icon name="clock" strokeWidth={2.2} />
           <div>
-            <b>This application expired (guarantor fee unpaid 14 days after referral).</b>{' '}
+            <b>This application expired (guarantor fee unpaid 15 days after referral).</b>{' '}
             It is excluded from conversion figures and Leagues, and receives no further reminders. A late payment automatically reinstates it to Paid.
           </div>
         </div>

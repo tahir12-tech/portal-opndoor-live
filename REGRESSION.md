@@ -377,7 +377,7 @@ decline it.** The tenant has a closure route the staff do not.
 
 | # | Action | status | payment_state | activity_log | HubSpot | Tags |
 | - | ------ | ------ | ------------- | ------------ | ------- | ---- |
-| A8.1 | `expire_stale_applications`, service role, invoked only from `payment-reminders` | `sent` → `expired` | **unchanged** `awaiting` | `expired` / business / "Application expired: guarantor fee unpaid 14 days after referral." | **nothing. `expired` is not mapped, so the CRM still shows Referred** | `[AUTO]` `[D-new]` |
+| A8.1 | `expire_stale_applications`, service role, invoked only from `payment-reminders` | `sent` → `expired` | **unchanged** `awaiting` | `expired` / business / "Application expired: guarantor fee unpaid 15 days after referral." | **nothing. `expired` is not mapped, so the CRM still shows Referred** | `[AUTO]` `[D-new]` |
 | A8.2 | Sweep re-run | no further change | unchanged | **no second row.** `expired_at` not rewritten | none | `[AUTO]` |
 | A8.3 | Payment reminders, same run | never changed | unchanged | `payment_reminder` / business, written **before** the send is attempted | none | `[AUTO]` |
 | A8.4 | Reminder email fails | unchanged | unchanged | **two rows**: `payment_reminder` / business **and** `payment_reminder_email_failed` / internal. The ledger row is kept, so the threshold is burnt | none | `[AUTO]` |
@@ -775,7 +775,6 @@ Also assert **zero JWT-shaped strings**: `eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-
 | `opnd_live_`, `opnd_test_` | The documented key **format**, and examples. Assert no string matching the full key shape `opnd_(live\|test)_[A-Za-z0-9]{32}`. The documentation placeholder is deliberately written `opnd_live_<32 characters>` rather than 32 literal characters, so it does not trip its own check |
 | `partner_rate`, `agent_rate` | Column **names** in select strings and a label map, never values. Assert no numeric rate literal |
 | `whsec_` | **Moved out of the banned list.** The Dev Centre masks an unrevealed signing secret as `whsec_******`, so the prefix is a UI placeholder rather than a secret. Banning it made the check fail on a clean tree, which is how a check gets ignored |
-| `14 days after` | The portal's own staff-facing copy. Defect 15 |
 | `pre_referenced_*` | Admin UI strings from the partner settings screen. See the note above the table |
 
 ### What it caught
