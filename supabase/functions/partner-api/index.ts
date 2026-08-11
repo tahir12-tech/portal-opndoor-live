@@ -56,9 +56,17 @@ type RateHeaders = Record<string, string>;
 
 /** Rate limits. */
 const LIMITS = {
-  // Applied BEFORE key verification. Without this the auth path is itself the
-  // attack surface: every attempt costs a hash and a database lookup.
-  anonPerIp: { limit: 60, windowSecs: 60 },
+  // FAILED authentications per origin. This is the auth-path protection: without
+  // it, key guessing is free, because every attempt costs us a hash and a
+  // database lookup.
+  //
+  // It counts FAILURES, not requests. The previous version counted every request
+  // before verification and capped an origin at 60/min, which protected the auth
+  // path and also silently capped a legitimate partner at a tenth of their
+  // per-key allowance. Nothing surfaced that: they saw 429s while
+  // X-RateLimit-Remaining still read in the hundreds, because the header
+  // reported the per-key window and the refusal came from the other limiter.
+  authFailuresPerIp: { limit: 60, windowSecs: 60 },
   perKey: { limit: 600, windowSecs: 60 },
 };
 
@@ -185,25 +193,38 @@ Deno.serve(async (req) => {
 
     // ---- rate limit: unauthenticated tier, before any key work -------------
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    const { data: ipRows } = await service.rpc("bump_rate_limit_state", {
-      p_key: `papi:anon:${ip}`,
-      p_limit: LIMITS.anonPerIp.limit,
-      p_window_secs: LIMITS.anonPerIp.windowSecs,
+    // Refuse an origin that is ALREADY over its failure budget, before spending
+    // a hash on it. Checked with a zero-cost read rather than a bump, so a
+    // legitimate request does not consume failure budget just by arriving.
+    const { data: preRows } = await service.rpc("bump_rate_limit_state", {
+      p_key: `papi:authfail:${ip}`,
+      p_limit: LIMITS.authFailuresPerIp.limit,
+      p_window_secs: LIMITS.authFailuresPerIp.windowSecs,
+      p_peek: true,
     });
-    const ipState = Array.isArray(ipRows) ? ipRows[0] : ipRows;
-    if (ipState?.allowed === false) {
-      // The ANONYMOUS tier's numbers are deliberately not published in headers.
-      // Telling an unauthenticated caller exactly how many attempts remain
-      // before the pre-auth limiter stops them is a gift to whoever is probing
-      // for valid key prefixes. Retry-After is enough to be well behaved.
+    const preState = Array.isArray(preRows) ? preRows[0] : preRows;
+    if (preState?.allowed === false) {
+      // The failure tier's numbers are deliberately not published in headers.
+      // Telling an unauthenticated caller how many attempts remain helps whoever
+      // is probing for valid key prefixes. Retry-After is enough to be well
+      // behaved.
       return json(errorBody("rate_limited", "Too many requests."), 429, requestId, {
-        "Retry-After": String(retryAfterSecs(ipState?.reset_at)),
+        "Retry-After": String(retryAfterSecs(preState?.reset_at)),
       });
     }
 
     // ---- authenticate ------------------------------------------------------
     const result = await authenticatePartner(req, service);
     if (!result.ok) {
+      // Count the failure. This is what the pre-auth check above reads, so
+      // repeated guessing from one origin stops being free after 60 tries a
+      // minute, while a partner making 600 good calls is never touched by it.
+      await service.rpc("bump_rate_limit_state", {
+        p_key: `papi:authfail:${ip}`,
+        p_limit: LIMITS.authFailuresPerIp.limit,
+        p_window_secs: LIMITS.authFailuresPerIp.windowSecs,
+      }).then(() => {}, () => {});
+
       // The reason is logged and never returned. Every failure looks the same.
       console.log(JSON.stringify({ requestId, event: "auth_failed", reason: result.reason }));
       return json(AUTH_FAILURE_BODY, 401, requestId);

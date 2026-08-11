@@ -277,7 +277,7 @@ A rejected application returns `422` with one entry per problem:
   "error": {
     "code": "validation_failed",
     "message": "Some fields need attention.",
-    "errors": [
+    "fields": [
       { "field": "tenant.email", "code": "invalid_format",
         "message": "Enter a valid email address." }
     ]
@@ -330,8 +330,9 @@ Paging is by cursor. Pass the `next_cursor` from the previous response:
 GET /v1/applications?limit=50&cursor=<next_cursor>
 ```
 
-`has_more` tells you whether to continue. Walking with a cursor is stable while
-new applications are being created; walking by page number is not.
+**`next_cursor` is `null` on the last page.** That is the signal to stop; there
+is no separate `has_more` field. Walking with a cursor is stable while new
+applications are being created, which walking by page number is not.
 
 ## Webhooks
 
@@ -470,9 +471,11 @@ Retry-After: 43
 `Retry-After` is in seconds and is never zero. Wait for it: a retry inside the
 window is refused again and consumes budget without succeeding.
 
-Unauthenticated requests are limited separately and more tightly, by origin
-address. Those responses carry `Retry-After` but **no** `X-RateLimit` headers,
-deliberately: before a key is verified we will not report how much of an
+**Failed** authentications are limited separately and more tightly, by origin
+address, so repeated guessing is throttled. Successful calls never count against
+it, so a valid key gets its full allowance no matter how many requests it makes
+from one address. Those refusals carry `Retry-After` but **no** `X-RateLimit`
+headers, deliberately: before a key is verified we will not report how much of an
 allowance remains.
 
 A retryable `503 service_unavailable` also carries `Retry-After`.
@@ -489,7 +492,7 @@ A retryable `503 service_unavailable` also carries `Retry-After`.
 | 404 | `unsupported_version` | No API version in the path, or one not supported |
 | 409 | `idempotency_key_reused` | Same key, different body |
 | 409 | `request_in_progress` | Same key, still processing |
-| 422 | `validation_failed` | Field errors, listed in `errors` |
+| 422 | `validation_failed` | Field errors, listed in `fields` |
 | 429 | `rate_limited` | Too many requests. `Retry-After` says when |
 | 500 | `internal_error` | Something went wrong our end |
 | 503 | `service_unavailable` | Temporarily unavailable, safe to retry |

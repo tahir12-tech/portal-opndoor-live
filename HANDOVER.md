@@ -1385,34 +1385,38 @@ first step, not the tidying-up step.** Setting Rightmove to
 commercial position granted to Rightmove specifically. It is deliberately not the
 column default, so no partner inherits it by existing.
 
-### 13.2 An application cannot be traced to the API key that created it
+### 13.2 Deleting an API key: why the rule is what it is
 
-`partner_api_requests` (the idempotency ledger) carries `partner_id`,
-`application_id`, `endpoint`, `idempotency_key`, `request_hash` and the response,
-but **no `api_key_id`**. `partner_api_request_log` carries `api_key_id` but no
-`application_id`. So the two halves of the question never meet: nothing joins a
-created application to the key that created it.
+**Correcting an earlier version of this section, which was wrong.** It claimed
+`partner_api_requests` carries no `api_key_id`, that an application therefore
+could not be traced to the key that created it, and that the column should be
+added. All three are false. The column has been there since the table was
+created, alongside `application_id` in the same row, and the API writes it on
+every idempotency claim. Key-level attribution already works:
 
-Two consequences, one immediate and one to plan for.
+```sql
+select r.api_key_id, k.name, r.application_id
+from public.partner_api_requests r
+left join public.partner_api_keys k on k.id = r.api_key_id
+where r.application_id is not null;
+```
 
-**Immediate.** The Dev Centre's "delete this key" rule cannot ask "did this key
-create any applications", so it asks **"did this key make any requests at all"**,
-using `partner_api_request_log`. That is strictly stronger, and therefore safe: a
-key that made no requests certainly created nothing. It is also more
-conservative than intended, so a key that only ever made a failed `GET /orgs`
-cannot be deleted. That trade is deliberate, and it is recorded here because the
-rule reads oddly without knowing why.
+The Dev Centre offers **delete** only for a key that has never been used and has
+made no requests. That rule is right, but for a different reason than the one
+previously given here.
 
-**To plan for.** Once more than one partner is live, key-level attribution will be
-wanted: which integration created this application, which key to revoke after an
-incident, which of a partner's three keys is actually in use. Adding
-`api_key_id uuid references public.partner_api_keys(id)` to
-`partner_api_requests` is a small change and worth doing before there is a
-backlog to leave un-attributed. Existing rows cannot be backfilled: the
-information was never recorded, so they stay null and null honestly means
-"created before we tracked this" rather than "created by no key".
+It is not that we cannot tell what a key created. It is that
+`partner_api_request_log.api_key_id` is `on delete set null`, so **deleting a key
+silently anonymises its entire request history**: the rows survive, and the
+column saying which key made them becomes null. The audit trail is still there
+and no longer says who. `partner_api_requests.api_key_id` is the same.
 
-Do it before the second partner integrates, not after.
+So "made no requests at all" is the correct test, because a key with no requests
+has no history to anonymise. It is not an approximation of a question we could
+not ask.
+
+`revoke` remains the answer for anything that has been used: it stops the key
+working immediately and keeps every row's attribution intact.
 
 ---
 

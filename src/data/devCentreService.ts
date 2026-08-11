@@ -416,6 +416,13 @@ export async function deleteWebhookEndpoint(id: string): Promise<void> {
  * Returning a reason rather than hiding the button matters: a missing option
  * sends somebody hunting for a feature that is there, and an explanation tells
  * them what to do instead.
+ *
+ * WHY "no requests" IS THE TEST. Not because we cannot tell what a key created:
+ * partner_api_requests carries api_key_id and application_id in the same row, so
+ * we can. It is because both that table and the request log reference the key
+ * `on delete set null`, so deleting a key leaves its history in place with the
+ * column saying who did it set to null. A key with no requests has no history to
+ * anonymise; anything else should be revoked.
  */
 export function keyDeleteBlockedReason(k: DevApiKey): string | null {
   if (k.last_used_at || k.request_count > 0) {
