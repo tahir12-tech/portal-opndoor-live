@@ -856,3 +856,94 @@ listed as unrecorded:
 One claim in an earlier draft of this plan was **withdrawn** after checking: that
 A4.4 lets a deed execute on a withdrawn application. The branch is real but
 unreachable. Defect 9 is the reachable version and arrives by a different route.
+
+---
+
+# Section D: the defect fixes
+
+Every row here asserts a **fix**, so unlike section A these are not tagged with a
+defect number as "expected wrong". A failure in this section is a regression
+against work that was done deliberately.
+
+Run section D after A and B. Several rows need a disposable project and one needs
+a deliberately broken PandaDoc key.
+
+## D4/D7. Email redirect and the audit row
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| D4.1 | `EMAIL_REVIEW_ADDRESS` **unset**, create a referral | The tenant receives the payment email. One `payment_email_sent` row, business. **No** "Redirected to" row |
+| D4.2 | `EMAIL_REVIEW_ADDRESS` **set**, create a referral | The review inbox receives it and the tenant does **not**. Two rows: the business one, plus an internal one naming the review address AND the intended recipient |
+| D4.3 | Set, then generate a deed | PandaDoc's signing email arrives at the review address. **The tenant does not receive a deed to sign.** This is the one that matters |
+| D4.4 | Set, then run `expiry-cohorts` | The CSV attachment goes to the review inbox only |
+| D4.5 | Set, then run `weekly-digest` | The email carries the review banner naming the intended recipients. It was previously dead code |
+| D4.6 | Grep for the old shape | `grep -rn "EMAIL_REVIEW_ADDRESS" supabase/functions/` returns hits only in `_shared/emailRecipients.ts` and comments. No module reads it directly |
+
+**D4.2 is the assertion that proves the fix**, because the pre-fix code sent to
+the review address *and* the real recipient. Check the tenant's inbox is empty,
+not just that the review inbox is full.
+
+## D8. Payment on a withdrawn application
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| D8.1 | Withdraw a `sent` application as staff, then apply a payment | `status` stays `withdrawn`, `payment_state` stays `awaiting`, the payment intent is recorded |
+| D8.2 | Call `payment-confirmation` for that session | **`paid` is false.** Previously true, and the tenant was shown "Payment received" and the full fee |
+| D8.3 | Same, for an **expired** application | `paid` false. The old `status !== 'sent'` test reported this as paid too |
+| D8.4 | Open the application in the portal | The Payment card leads with a red banner naming the payment intent and saying it needs refunding. The old "no guarantor fee was collected" note does **not** show |
+| D8.5 | Create a referral, inspect the Stripe session | `expires_at` is 30 minutes out, not Stripe's 24 hour default |
+
+## D9. Failed deed void during a refund
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| D9.1 | Break `PANDADOC_API_KEY`, then refund an application whose deed is `awaiting_tenant` | `deed_state` becomes **`error`** and `pandadoc_document_id` is **cleared**, even though the remote void failed |
+| D9.2 | Same | An internal `deed_void_failed` activity row naming the provider error, and an `ops_alerts` row |
+| D9.3 | Then complete the PandaDoc document anyway | `apply_deed_executed` **refuses**. No status change, and a `deed_execution_refused` internal row |
+| D9.4 | Refund an application, then complete its deed with the id still set | Also refused, by the `payment_state = 'refunded'` guard |
+
+## D2. Ops base URL
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| D2.1 | `ops_secrets.functions_base_url` **unset**, trigger an alerting kind | The `ops_alerts` row is still written. No HTTP call, no error |
+| D2.2 | Unset, press "Sync HubSpot" | A clear error naming the missing configuration, not a silent success |
+| D2.3 | Set it, repeat both | The call goes to **this** project |
+| D2.4 | `select command from cron.job where jobname = 'hubspot-sync'` | Contains `ops_functions_base_url()`, not a literal project ref |
+
+## D6. Contact primary invariant
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| D6.1 | A branch with two contacts, one primary. `PATCH` the primary to `is_primary: false` | The other is promoted. `effective_primary_contact` still resolves |
+| D6.2 | A branch with **one** contact. Same PATCH | **Refused**, SQLSTATE 23514, with a message telling you to add another or delete this one |
+| D6.3 | Delete the only contact | **Allowed.** An owner with no contacts is honest; a contact that is primary for nobody is not |
+| D6.4 | Open Agencies and branches with such a branch | A red banner at the top counts and names the branches that cannot issue a deed |
+
+## D13. Toast tone
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| D13.1 | Withdraw an already-withdrawn application from a second tab | A **red** toast with an alert icon, 6 seconds |
+| D13.2 | Any successful action | Unchanged: dark pill, green tick, 3.2 seconds |
+| D13.3 | `grep -rn "toast(" src --include=*.tsx \| grep -iE "could not\|cannot\|failed" \| grep -v "'error'"` | No hits |
+
+## D10. Reinstated markers
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| D10.1 | Expire an application, then pay it | `status` paid and **`expired_at` null** |
+| D10.2 | Tenant-decline, then pay | `withdrawn_at`, `withdrawn_reason` and `withdrawn_by` null, `withdrawn_by_tenant` **false** |
+| D10.3 | Try to set `expired_at` on a paid application directly | Refused by `applications_no_stale_closure_markers` |
+
+## D3, D14, D15, D16
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| D3.1 | `VITE_STRIPE_PUBLISHABLE_KEY` = `pk_test_…` | An amber **Test mode** badge on the Payment card. Previously no badge at all |
+| D3.2 | `pk_live_…` | A quiet **Live mode** badge |
+| D3.3 | Unset | **No badge.** Three states, not two |
+| D14.1 | Send a PandaDoc callback with a signature differing in the first character, and one differing in the last | Both refused, in indistinguishable time |
+| D15.1 | Let an application lapse, read the activity row | "unpaid **15** days after referral" |
+| D15.2 | Dashboard and Activity | "within 14 days" unchanged: that is guarantee expiry, a different window |
+| D16.1 | `npm test` | 127 passed, 15 files |

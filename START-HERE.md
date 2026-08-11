@@ -81,8 +81,9 @@ referrals and API access, editable with an audit trail. Creating a partner
 through the product **never worked**: `addPartner` wrote to localStorage and
 there was no `create_partner` RPC for it to call. Now there is.
 
-**Eighteen defects found in the live system**, written up separately. None was
-introduced by this work, except one that was and is marked as such.
+**Nineteen defects found in the live system**, and **fifteen of them fixed here**,
+one commit each. `REGRESSION.md` section D asserts every fix. Three could only be
+done by you, and they are named below.
 
 ---
 
@@ -93,7 +94,7 @@ You do not need all of it. Stop when you have what you need.
 | # | Document | Why | Time |
 | - | -------- | --- | ---- |
 | 1 | **`HANDOVER.md`** | The current state of everything. Start with the boxes at the top, then section 7, Open items. | 40 min |
-| 2 | **`DEFECTS.md`** | Eighteen defects in the live system, worst first. Read 1 and 4 today. | 30 min |
+| 2 | **`DEFECTS.md`** | Nineteen defects, worst first, each saying whether it is fixed here. Read defect 1 today: it is the one still open and it is a live credential. | 30 min |
 | 3 | **`REGRESSION.md`** | A test plan written to pass on day one, so a failing row means a real change. | Reference |
 | 4 | **`PARTNER-DOCS.md`** | What partners are given. Also the source of the docs panel and `openapi.json`. | 15 min |
 | 5 | **`PARTNER-API.md`** | **Internal.** Why the API is shaped as it is. Sections carry SUPERSEDED banners where a decision was reversed. | As needed |
@@ -114,24 +115,26 @@ In this order. The first two are the boxes above.
 difference between the API working and it refusing everything while looking
 healthy.
 
-**2. Rotate `REMINDERS_CRON_SECRET`.** It is a real credential committed to your
-repo and pushed to `origin/main`. `DEFECTS.md` defect 1. Rotating is the fix;
-deleting the line is not, because the history keeps it. This is the only item on
-this list that is urgent independently of anything else here.
+**2. Rotate `REMINDERS_CRON_SECRET`.** A real credential, committed and pushed to
+`origin/main`. Defect 1. Rotating is the fix; deleting the line is not, because
+history keeps it. **This is the only defect on the list that is both urgent and
+still open**, and it is open because nobody working from a repository could close
+it.
 
-**3. Decide about the email redirect.** `DEFECTS.md` defect 4. Thirteen email
-modules had their test-redirect removed, so they now email real tenants and real
-agents. It is safe only while no `RESEND_API_KEY` is set on the dev project, so
-**do not set one** until you have decided. This is a live-system question, not
-ours.
+**3. Set `EMAIL_REVIEW_ADDRESS` on every non-production environment.** The test
+redirect is restored, as one switch in one shared helper, and that variable is
+the switch. Set: all mail goes to the review inbox, including the PandaDoc deed
+that a tenant would otherwise receive and sign. Unset: mail goes to the real
+recipient, which is what production wants. Defect 4.
 
 **4. Run the regression plan against a disposable project.** `REGRESSION.md`.
-It is written to pass, so anything failing is either a real regression or a row
-you need to argue with. Run section A first.
+Section A is the lifecycle, B the partner API, **D the defect fixes**. D is the
+one that tells you whether what was fixed here actually holds on your
+infrastructure.
 
-**5. Then, and only then, decide whether to take any of this.** Nothing here is
-pushed. If you want it, the branch is `partner-api` and it is 70-odd commits with
-one logical change each.
+**5. Then decide whether to take any of this.** Nothing is pushed. The branch is
+`partner-api`, one logical change per commit, so you can take or revert any
+single defect fix on its own.
 
 ---
 
@@ -140,22 +143,25 @@ one logical change each.
 These have different urgency and different owners, and mixing them is how the
 urgent thing waits behind the interesting thing.
 
-### Yours, on the live system, regardless of whether you take any of this code
+### Yours, on the live system, and only three of them
 
-These exist in production now and this work did not cause them.
+**Fifteen of the nineteen defects are fixed in this tree**, one commit each so any
+can be reverted independently, with `REGRESSION.md` section D asserting each fix.
+That leaves three, and they are three because nobody working from a repository
+could close them:
 
-| | What | Where |
-| - | ---- | ----- |
-| **Urgent** | The cron secret is committed and pushed | Defect 1 |
-| **Urgent** | Thirteen email modules lost their test redirect and email real people | Defect 4 |
-| | The repo cannot rebuild the live schema. Disaster recovery does not work | Defect 5 |
-| | A payment on a staff-withdrawn application is taken and both sides are told the opposite | Defect 8 |
-| | A failed deed void during a refund leaves a signable deed | Defect 9 |
-| | A branch can lose its primary contact, stranding a paid tenant | Defect 6 |
-| | Error toasts render as successes. Component fixed here, 33 call sites are not | Defect 13 |
-| | `npm ci` fails, so there is no clean-room build and no CI | Defect 11 |
-| | A test has been failing since 22 July | Defect 16 |
-| | A renamed HubSpot property silently stops a field syncing | Defect 17 |
+| | What | Why it had to wait for you |
+| - | ---- | -------------------------- |
+| **Urgent** | **Rotate `REMINDERS_CRON_SECRET`** | Defect 1. It is committed and pushed, so deleting the line retracts nothing: the value is in history and in every clone. Only rotation ends it, and that means Vault, the Edge Function secret and reseeding `ops_secrets`. All three are live infrastructure. |
+| | **Schedule the webhook dispatcher** | A migration cannot know which project it is applied to, and hardcoding a URL is exactly how defect 2 happened. The statement is in the header of `20260810170000`. |
+| | **Schedule the HubSpot map check** | Same reason. The check is built and is one call. Weekly is enough. Defect 17. |
+
+Two more need your eyes rather than your hands:
+
+| | What | What to do |
+| - | ---- | ---------- |
+| | **Defect 5**, the schema cannot be rebuilt | Fixed by two migrations that are no-ops where the work was already done by hand. Verify on production rather than assuming. |
+| | **Defect 14**, the PandaDoc signature has no timestamp | The unsafe comparison is fixed. Whether PandaDoc can sign a timestamp is a question for them, and the answer decides whether more is needed. |
 
 ### Ours to hand over, which only matters if you ship this
 
@@ -192,5 +198,11 @@ render time. `REGRESSION.md` has the script.
 
 ## If you read nothing else
 
-Rotate the cron secret. Decide about the email redirect. And when you push
-migrations to production, watch for the Rightmove line.
+**Rotate the cron secret.** It is the one thing on this list that nobody here
+could do for you, and it is exposed now.
+
+**Set `EMAIL_REVIEW_ADDRESS` on every non-production environment.** The redirect
+is restored as a switch, and that variable is the switch. Production leaves it
+unset and behaves exactly as it does today.
+
+**And when you push migrations to production, watch for the Rightmove line.**

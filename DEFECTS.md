@@ -46,8 +46,32 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 18 | ~~Postgres error text was returned to partners on the create path~~ **Fixed here** | — |
 | 19 | Commission rates were readable by any signed-in user through PostgREST, whatever their role | Medium |
 
+## What is fixed here, and what is not
+
+**Fifteen of the nineteen are fixed in this tree**, with one commit each so any
+single one can be reverted. Each entry below says so at the top.
+
+**Three are left for Balal deliberately, because they cannot be fixed from here:**
+
+| # | Why it is not fixed here |
+| - | ------------------------ |
+| 1 | **Rotating the committed cron secret.** Deleting the line does not retract a pushed blob; only rotation ends the exposure, and that means generating a value, updating Vault and the Edge Function secret, and reseeding `ops_secrets`. All three are actions on live infrastructure. |
+| — | **Scheduling the webhook dispatcher.** A migration cannot know which project it is applied to, and hardcoding a URL is how defect 2 happened. The statement to run is in the header of `20260810170000`. |
+| 17 | **Scheduling the HubSpot map check.** Same reason. The check itself is built and is one call: `{"action":"verify_map"}`. |
+
+**Defect 5 is fixed in the tree but needs verifying on production**, because both
+of its causes were manual actions that left no trace. The two migrations are
+no-ops where the work was already done by hand.
+
+**Defect 14 is half-fixed and half-blocked.** The timing-unsafe comparison is
+fixed; whether a timestamp can be signed needs an answer from PandaDoc.
+
+---
+
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
-credential and defect 4 is the one that reaches real tenants and agents.
+credential and is the one item on this list nobody here could close. Defect 4 is
+the one that reaches real tenants and agents, and it is now a single environment
+variable away from being safe.
 
 Defect 13 is the cheapest to fix. It does not hide the others as completely as
 an earlier version of this document claimed, since the error text itself is
