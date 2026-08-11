@@ -14,6 +14,22 @@
 > section allowlist, which shipped internal detail inside every allowed section;
 > that is why the two documents are now separate. If you find yourself adding a
 > partner-facing explanation here, it belongs in the other file.
+>
+> ### This document records decisions, including reversed ones
+>
+> Sections that describe a design later changed carry a **SUPERSEDED** block at
+> their own head, not just here, because nobody reading section 7 scrolls back to
+> the top first. If a section has no such block, it is current.
+>
+> Superseded sections are kept rather than deleted: the reasoning is usually why
+> the replacement is shaped the way it is, and deleting it means the next person
+> re-derives it or repeats the mistake. Where a section is only partly stale, the
+> block says which part.
+>
+> Currently superseded: **4.1** (livemode on keys), **4.5** (`orgs:write`
+> retired), **4.8** (key issuance, *do not follow it*), **6.2** (livemode and the
+> mode snapshot), **7** (org creation removed), **9.4** (org field codes), **11**
+> (livemode in the idempotency key), **12** (rate limit tiers).
 
 Partners POST an application from their own system instead of typing it into the
 portal, and receive webhooks as its status changes. Rightmove first, others
@@ -68,6 +84,11 @@ quietly applied.
 ---
 
 ## 1. The governing requirement
+
+> **STILL CURRENT, with one addition.** Everything below holds. Since it was
+> written, sandbox and live coexist in one project, decided per API key and
+> recorded on each application as `livemode`. Nothing in this section changes;
+> read every "an application" below as "an application in one of two modes".
 
 An application created through this API must appear in the portal **exactly** as
 a manually entered one does. Same table, same lifecycle, same activity feed,
@@ -348,6 +369,10 @@ mode dispatcher.
 
 ### 4.1 The key table
 
+> **SUPERSEDED IN PART.** The table now also carries `livemode`, set from the
+> prefix when the key is minted and cross-checked on every request: a key whose
+> prefix and column disagree is refused. See HANDOVER.md section 11.
+
 ```
 partner_api_keys
   id            uuid primary key
@@ -455,6 +480,10 @@ deliberately in exchange for an unprobeable surface.
 
 ### 4.5 Scopes
 
+> **SUPERSEDED IN PART.** `orgs:write` is retired. The API no longer creates
+> organisations, so the scope grants nothing and is not checked. Keys still
+> carrying it are harmless. The other four scopes are unchanged.
+
 | Scope | Grants |
 | ----- | ------ |
 | `applications:write` | POST an application |
@@ -495,6 +524,17 @@ as a required first argument and is the only thing permitted to touch these
 tables, so that the filter cannot be forgotten one query at a time.
 
 ### 4.8 Issuing a key is manual, deliberately
+
+> **SUPERSEDED. Do not follow the procedure in this section.**
+>
+> Keys are minted in the Dev Centre. The manual `INSERT` described below predates
+> the `livemode` column and does not set it, so a key created by these
+> instructions with an `opnd_test_` prefix is refused on every request, returning
+> the same identical `401` as every other auth failure. Following it produces a
+> key that cannot work and tells you nothing about why.
+>
+> Kept only for the reasoning about why hashing does not happen in Postgres,
+> which is still why the Edge Function mints them. HANDOVER.md section 9.4.
 
 There is no key-minting endpoint. Hashing cannot happen in Postgres: SHA-256
 needs pgcrypto's `digest()`, and this schema enables only pg_cron and pg_net.
@@ -647,6 +687,11 @@ mapped to columns internally.
 
 ### 6.2 Field mapping to existing columns
 
+> **SUPERSEDED IN PART.** Applications now also carry `livemode` and a
+> `referencing_mode` snapshot taken at creation. Sandbox references use a separate
+> sequence and are formatted `GR-TEST-n`, so the `guarantee_ref` description below
+> is the live-mode case only.
+
 | API field | Column | Required by DB |
 | --------- | ------ | -------------- |
 | `tenant.title` | `tenant_title` | nullable, but `create_referral` requires it |
@@ -678,6 +723,35 @@ support.
 ---
 
 ## 7. Org identity
+
+> ## SUPERSEDED. This section describes a design that was reversed.
+>
+> **The API no longer creates organisations.** Partners create the agency and
+> branch in the portal first, each with a contact email, and only then can their
+> system send applications against it. A name that matches nothing is rejected;
+> nothing is created and nothing is queued for reconciliation.
+>
+> What is true now:
+>
+> - `POST /v1/applications` accepts **either** `agency_name` + `branch_name`
+>   **or** `agency_id` + `branch_id`, never a mix
+> - names are matched ignoring case, surrounding whitespace and a trailing `Ltd`
+>   or `Limited`
+> - a name matching more than one org is rejected as **ambiguous**, never guessed
+> - `agent_contact_email`, `agent_contact_name` and `agent_contact_phone` are
+>   gone from the payload
+> - `org.created` is gone from the response
+> - `orgs:write` is retired
+>
+> **Everything in 7.1, 7.2 and 7.3 below describes the removed design.** 7.4 and
+> 7.5 are still accurate. The current behaviour is in PARTNER-DOCS.md under
+> Organisations, and the reasoning for the reversal is in HANDOVER.md section 14,
+> including what it broke in sandbox and why.
+>
+> Kept rather than deleted because 7.3's argument, that an org without a contact
+> produces applications which fail at the deed after the tenant has paid, is why
+> `has_agent_contact` exists and why a branch without one is still rejected at
+> POST.
 
 The problem being solved: today the form sends **names**, resolved by string
 matching, and an unmatched name silently creates a new agency or branch
@@ -972,6 +1046,13 @@ five bad fields returns all five.
 
 ### 9.4 The field codes, as built
 
+> **SUPERSEDED IN PART.** The org codes changed with the removal of org
+> creation: `org.agency_name` now takes `required`, `not_found` and `ambiguous`;
+> `org.branch_name` the same plus `no_agent_contact`; and
+> `org.agent_contact_email` is gone entirely, along with `insufficient_scope` and
+> `could_not_create`. The tenant, property and tenancy codes are unchanged.
+> PARTNER-DOCS.md has the current table.
+
 `public.referral_field_errors` is the single source of truth. `create_referral`
 and the API are both built on it, so the portal and the API cannot start
 disagreeing about what a valid application is.
@@ -1054,6 +1135,12 @@ fields explicitly. Never `select *`, never pass a row object through.
 
 ## 11. Idempotency
 
+> **SUPERSEDED IN PART.** The unique key is now
+> `(partner_id, livemode, endpoint, idempotency_key)`. Without `livemode` in it,
+> a developer who rehearsed with a key and then replayed the same request against
+> live received the sandbox response: a `GR-TEST-` reference and a sandbox
+> payment link, handed to a real tenant. Everything else below is unchanged.
+
 Nothing exists today. A repeated POST currently creates a second application, a
 second Stripe Checkout Session and a second tenant email. For an API where
 retries are normal, this is the highest-value safeguard in the spec.
@@ -1098,6 +1185,14 @@ full response bodies containing tenant PII. See open question 6.
 ---
 
 ## 12. Rate limiting
+
+> **SUPERSEDED.** The two tiers described below were per-key and per-origin, and
+> the per-origin one ran before authentication on every request, which capped a
+> legitimate partner at a tenth of their per-key allowance.
+>
+> It now counts **failed** authentications rather than requests, so key guessing
+> is still throttled and a valid key gets its full allowance. Responses to
+> authenticated requests carry `X-RateLimit-Limit`, `-Remaining` and `-Reset`.
 
 Reuse `bump_rate_limit(p_key, p_limit, p_window_secs)`
 ([20260703150645:16](supabase/migrations/20260703150645_public_rate_limit.sql#L16)),

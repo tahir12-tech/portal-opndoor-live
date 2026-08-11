@@ -1,6 +1,25 @@
 # HubSpot Sync Specification — Guarantee Referral Portal
 
-**Status:** ready to build (post-handover, Balal). All constants verified against the live Hub on 5 July 2026.
+**Status:** ~~ready to build~~ **BUILT.** The sync exists as an Edge Function with
+its own migrations, cron schedule and idempotency ledger. This document is the
+specification it was built from, not a plan.
+
+> ### Two things this specification predates
+>
+> **Sandbox.** Applications now carry `livemode`, and a sandbox application must
+> never reach HubSpot. That is enforced twice: `hubspot_pending_events` carries a
+> `livemode` predicate so a sandbox row never enters the cursor, and the sync
+> refuses and reports any that arrive anyway. A test contact and a test deal in
+> the production CRM is the most expensive leak in this system to undo by hand,
+> which is why it is belt and braces.
+>
+> **The partner API.** Applications can now be created by a partner's own system
+> rather than only through the portal. The event feed is unchanged, because it
+> reads the activity log rather than the create path, but the volume assumption
+> in §1 was written when every application was typed by a human.
+>
+> Constants were verified against the live Hub on 5 July 2026 and have **not**
+> been re-verified since. Check them before trusting a property name.
 **Hub:** 144519077 (EU). **Direction:** portal → HubSpot, one-way. The portal is the system of record for applications and org structure; HubSpot builds everything on top.
 
 ---

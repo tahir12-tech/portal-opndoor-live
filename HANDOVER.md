@@ -20,6 +20,9 @@ appearing healthy.
 | `PARTNER-API.md` | **Internal** design record for the partner API. Cites migrations, names internal functions, discusses our own weaknesses. | Us only |
 | `PARTNER-DOCS.md` | **Partner-facing** reference. This is what the Dev Centre publishes. | Partner developers |
 | `SANDBOX-MODE-SCOPE.md` | Superseded. A record of the decision point before sandbox was built. | Historical |
+| `HANDOVER-MACHINE.md` | The **original** handover, 6 July 2026, pre go-live. Partly stale; its own banner says what was checked. §5, §6 and §9 still worth reading | Historical, plus estate detail |
+| `HUBSPOT-SYNC-SPEC.md` | The HubSpot sync specification. **Built**, not a plan. Predates sandbox and the partner API; its banner says how | Whoever touches the sync |
+| `PARTNER-DOCS.md` also generates `public/openapi.json` | OpenAPI 3.1, from the same source, validated on every build | Partner developers |
 
 The last two names are similar and the difference matters: **`-DOCS` goes out,
 `-API` does not.** The documentation panel generates from `PARTNER-DOCS.md` and

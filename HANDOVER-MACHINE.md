@@ -1,5 +1,33 @@
 # HANDOVER-MACHINE.md
 
+> ## ⚠️ WRITTEN 6 JULY 2026, BEFORE GO-LIVE. Read HANDOVER.md first.
+>
+> This is the **original** engineering handover, written the morning after the
+> closing batch and aimed at a go-live of 15 July 2026. That date has passed and
+> a month of work has landed since, none of it reflected below.
+>
+> **It has not been line-by-line audited.** What follows is what was checked:
+>
+> | Claim | State today |
+> | ----- | ----------- |
+> | "125/125 tests" green | **127 tests, 126 passing, 1 failing.** See DEFECTS.md 16 |
+> | Go-live Wednesday 15 July 2026 | Passed |
+> | Tag `v1.0-handover` on `main` | Still there. A month of commits sits after it |
+> | The operational estate (§2) | Not re-verified. Treat as of 6 July |
+> | Teardown census (§8) | Not re-verified. Demo data may have changed |
+>
+> **What has landed since, which this document knows nothing about:** the partner
+> API and webhooks, sandbox mode (`livemode`), the Dev Centre and the `developer`
+> role, partner capabilities and org resolution by name, and fifteen recorded
+> defects in the live system.
+>
+> Still worth reading: §5 (gotchas and their lessons), §6 (environment truths)
+> and §9 (things not written anywhere else). Those are about the estate and the
+> team, not about code, and they have aged well.
+>
+> For anything about how the system works **now**, HANDOVER.md is the current
+> document.
+
 Engineering handover for the **opndoor Guarantee Referral Portal**.
 
 Written for **Balal**, picking this up the morning after the closing batch. You have

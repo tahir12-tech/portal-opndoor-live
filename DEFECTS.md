@@ -36,6 +36,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 13 | Every caught error in the portal renders as a green success toast. Partly fixed: the mechanism only, 34 call sites still green | High |
 | 14 | The PandaDoc webhook signature has no timestamp, no tolerance and a non-constant-time comparison, so a captured callback is replayable for ever | High |
 | 15 | Applications lapse on day 15, but the activity log and the documentation both say 14 | Low |
+| 16 | A test in the suite has been failing since 22 July, and `npm test` is not the command that runs it | Medium |
 
 If only two get attention, make them **1 and 4**. Defect 1 is an exposed
 credential and defect 4 is the one that reaches real tenants and agents.
@@ -1534,3 +1535,98 @@ The built-artefact check in REGRESSION.md greps the bundle for `14 days after`
 and will match `ApplicationDetail.tsx` until this is resolved. That hit is
 **expected and tracked here**, and is not a partner-documentation leak: it is the
 portal's own staff-facing copy.
+
+---
+
+## Defect 16: a failing test since 22 July, and `npm test` is not the command that runs the suite
+
+**Severity: medium. A suite with a known-failing test stops being read, and the command most people will try does not run it properly.**
+
+### What it is
+
+**Two problems that compound.**
+
+**One test has been failing since 22 July 2026.**
+`src/data/applications-filters.test.ts`, "counts respect partner, agency, branch
+and referrer filters", added in commit `b9e227d`. It builds four rows and filters
+by partner, agency, branch **and** referrer, then asserts:
+
+```ts
+expect(c).toMatchObject({ all: 1, sent: 1, paid: 0, deed: 0, refunded: 0 });
+```
+
+Two of the four rows match all four filters: `GR-10` (sent, Alice) and `GR-12`
+(deed, Alice) share `partner: 'rightmove'`, `agency: 'A'`, `branch: 'B'`. So
+`countByStatus` returns `{ all: 2, sent: 1, deed: 1 }` and the assertion fails.
+
+**The expectation looks wrong rather than the code.** The fixture most likely
+meant `GR-12` to carry a different referrer, which would make the assertion
+correct and the test meaningful. As written it asserts that a matching row is not
+counted.
+
+**And `npm test` does not exist.** There is no `test` script in `package.json`.
+The suite runs under:
+
+```sh
+npm run smoke        # vitest run --environment jsdom
+```
+
+Running `npx vitest run` without the environment flag fails **14 of 15 files**,
+because anything touching `localStorage` or `window` has no DOM. That looks like
+catastrophic breakage and is only a missing flag. This is the same shape as the
+`tsc -p tsconfig.json` trap in HANDOVER.md: the obvious command reports something
+untrue.
+
+### Business impact
+
+Small in itself, corrosive in effect. A suite that is red on a clean checkout
+trains everyone to ignore the result, so the next genuine regression lands
+unnoticed. And whoever tries `npm test` first sees 14 failing files and concludes
+the tree is broken, which costs an afternoon before anybody discovers the flag.
+
+It also makes the "125/125 tests green" claim in `HANDOVER-MACHINE.md`
+unverifiable by the obvious means, which is how that document came to be trusted
+past its date.
+
+### Confirm it
+
+```sh
+npm run smoke
+# Test Files  1 failed | 14 passed (15)
+#      Tests  1 failed | 126 passed (127)
+
+npx vitest run
+# Test Files 14 failed | 1 passed (15)   <- the flag, not the code
+```
+
+### Suggested fix
+
+1. **Decide which is wrong**, the assertion or `countByStatus`. Read the fixture:
+   if `GR-12` was meant to have a different referrer, fix the fixture and the
+   test becomes a real guard. If two matching rows really should count as one,
+   the bug is in `countByStatus` and the test is the only thing that noticed.
+2. **Add a `test` script** that is the same as `smoke`, so the conventional
+   command works. One line:
+   ```json
+   "test": "vitest run --environment jsdom"
+   ```
+   Better still, move `environment: 'jsdom'` into the `test` block of
+   `vite.config.ts` so no flag is needed at all and every invocation behaves.
+
+### Note on this working copy
+
+`vite.config.ts` gained a `test` block during this work, for a different reason:
+vitest's default glob was picking up the **Deno** tests under
+`supabase/functions/`, which import from `https://deno.land` and cannot load in
+Node. That was noise introduced by this work and is fixed. The two suites are
+separate and run separately:
+
+```sh
+npm run smoke                            # the client
+deno test supabase/functions/_shared/    # the Edge Function helpers
+```
+
+The `jsdom` environment was deliberately **not** moved into that block, because
+it changes how the existing suite is invoked and that is a decision for whoever
+owns the live repo. The failing test is untouched for the same reason: which of
+the two is wrong is a judgement about intent.

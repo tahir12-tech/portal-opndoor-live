@@ -96,6 +96,8 @@ months minus a day, and exactly one `payment_page_tokens` row exists with
 
 ## A2. Tenant pays
 
+> **Mode.** Sandbox differs here: test card, no settlement, no opndoor receipt. See **B, and the mode dimension**.
+
 | # | Action, actor | status | payment_state | deed_state | activity_log | Email | HubSpot | Tags |
 | - | ------------- | ------ | ------------- | ---------- | ------------ | ----- | ------- | ---- |
 | A2.1 | Open `/pay?token=`. No login; the token is the only authorisation | `sent` | unchanged | unchanged | first view only: `tenant_viewed_payment_page` / business / "Tenant viewed the payment page." | none | none | `[AUTO]` |
@@ -115,6 +117,8 @@ arrived, nothing in the portal records that they reached Stripe. Worth raising
 separately; not currently in `DEFECTS.md`.
 
 ## A3. Deed generates
+
+> **Mode.** Sandbox differs here: sandbox PandaDoc account, watermarked document, and its signing email IS still sent to the tenant address. See **B, and the mode dimension**.
 
 | # | Action, actor | status | deed_state | activity_log | Email, actual recipient | Tags |
 | - | ------------- | ------ | ---------- | ------------ | ----------------------- | ---- |
@@ -171,6 +175,8 @@ the ordinary path. Test that separately: `A6.3` with the void forced to fail.
 
 ## A5. Deed delivered to the agent
 
+> **Mode.** Sandbox does NOT do this at all: no email reaches the agent contact. See **B, and the mode dimension**.
+
 | # | Action | activity_log | Email, actual recipient | HubSpot | Tags |
 | - | ------ | ------------ | ----------------------- | ------- | ---- |
 | A5.1 | Automatic on signature, contact resolves | `deed_delivered` / business / "Deed sent to `<email>` · automatic" | `_shared/deedEmail.ts`. **`effective_primary_contact(branch)`, recomputed at signing time** | `delivered` | `[SEMI]` |
@@ -198,6 +204,8 @@ merged onto the deed at generation. If the primary contact changed in between,
 the printed deed and the delivery disagree. Assert both values.
 
 ## A6. Refund
+
+> **Mode.** Sandbox differs here: test-mode refund, and no refund email. See **B, and the mode dimension**.
 
 **There is no in-portal refund action.** No code anywhere calls Stripe to create
 one. An operator refunds in the Stripe dashboard. `[HUMAN]` to trigger, `[AUTO]`
@@ -302,6 +310,48 @@ Base path: `/functions/v1/partner-api/v1/`. **This is the function path, used
 here deliberately so these tests exercise the API independently of the
 api.opndoor.co rewrite.** Partners are given `https://api.opndoor.co/v1`; see
 HANDOVER.md section 12, which has its own checks for the rewrite itself.
+
+## B, and the mode dimension
+
+Everything in section B runs **twice**: once with an `opnd_live_` key and once
+with an `opnd_test_` key. Most rows behave identically, which is the point of
+sandbox and is itself the thing being tested. The table below is the complete
+list of where they differ, so a tester seeing a difference can tell a feature
+from a fault.
+
+**Run live first.** A sandbox run that passes proves less than it looks: several
+of the differences below are absences, and an absence also happens when something
+is broken.
+
+| Where | Live | Sandbox | If sandbox behaves like live |
+| ----- | ---- | ------- | ---------------------------- |
+| `guarantee_ref` | `GR-20604` | `GR-TEST-4`, from a separate sequence | The sandbox sequence is not being used. Real and test references become indistinguishable in support |
+| Visible in Applications, League, exports, bordereau | Yes | **Never**, for any role including superadmin | The restrictive policy is not applying. This is the leak the whole design exists to prevent |
+| Visible in the Dev Centre Sandbox tab | No | Yes | |
+| Stripe | Live keys, real card, real settlement | `STRIPE_SECRET_KEY_TEST`, test card, no money moves | **Stop.** A real card is being charged for a rehearsal |
+| Stripe webhook | Verified by the live signing secret | Verified by `STRIPE_WEBHOOK_SECRET_TEST` | |
+| PandaDoc | Live account, real deed | Sandbox account and template, watermarked document | |
+| PandaDoc signing email to the tenant | Sent | **Sent.** The one thing sandbox does send | If it is NOT sent, the sandbox PandaDoc key is missing or `silent` is set |
+| opndoor email: payment link, receipt, reminders, deed to agent, refund | Sent | **None at all** | A real agent or tenant is being emailed about a test |
+| HubSpot | Synced | **Never.** Filtered in SQL and refused again in the sync | A test contact and deal are in the production CRM |
+| Commission, settlement, weekly digest, climbers | Included | **Excluded** | A rehearsal is in a partner's commission figure |
+| Reconciliation queue | Counts the application | Not counted | |
+| Webhook delivery | To endpoints registered live | To endpoints registered sandbox | A partner's production handler is receiving test events |
+| `livemode` in the webhook payload | `true` | `false` | |
+| Idempotency key | Its own namespace | Its own namespace | The same key across modes replays the wrong response |
+| `GET /v1/orgs` | The partner's orgs | **The same orgs.** Orgs are not per mode | An empty list means the mode filter was reintroduced |
+| Rate limits | 600/min per key | Identical | |
+
+**Two rows are the ones to check first**, because they are the failures that look
+like success: opndoor email being sent for sandbox, and a sandbox application
+appearing anywhere in the portal. Both are silent from the API's point of view.
+
+**Cleaning up.** The Dev Centre's Sandbox tab clears sandbox applications. It
+cannot touch live data: the function filters on `not livemode` rather than taking
+a list of ids. Note it does not withdraw PandaDoc documents already created, so
+those remain in the sandbox account.
+
+---
 
 ## B0. Versioning
 
