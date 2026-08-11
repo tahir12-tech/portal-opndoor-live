@@ -758,8 +758,6 @@ BANNED = [
   # example, empty state or tooltip. A partner's developer reading "Rightmove
   # production" in the mint-a-key form learns who our other customers are.
   # Invented names only. Add any new partner here as they sign.
-  # NOTE: scope this check to UI strings, not the whole bundle, until the mock
-  # dataset is renamed. See the expected-hits table.
   'Rightmove', 'Zoopla', 'PrimeLocation', 'OnTheMarket',
 ]
 hits = [b for b in BANNED if b in blob]
@@ -779,7 +777,6 @@ Also assert **zero JWT-shaped strings**: `eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-
 | `whsec_` | **Moved out of the banned list.** The Dev Centre masks an unrevealed signing secret as `whsec_******`, so the prefix is a UI placeholder rather than a secret. Banning it made the check fail on a clean tree, which is how a check gets ignored |
 | `14 days after` | The portal's own staff-facing copy. Defect 15 |
 | `pre_referenced_*` | Admin UI strings from the partner settings screen. See the note above the table |
-| `Rightmove`, `Zoopla`, `OnTheMarket` | **The mock dataset**, `src/data/mock/*.ts`, which ships in the bundle and renders in mock mode. **Not yet renamed**, because several tests assert on those partner slugs and it predates this work. The three places a partner could actually see a name have been swept: the mint-a-key placeholder, the partner-name placeholder and the payment page's demo fallback. Renaming the dataset is an outstanding item |
 
 ### What it caught
 

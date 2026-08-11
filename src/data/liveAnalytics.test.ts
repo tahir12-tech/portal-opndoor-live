@@ -10,9 +10,9 @@ import { liveAggregate, liveLeague } from '@/data/liveAnalytics';
 
 const D = (s: string) => new Date(s);
 function app(o: Partial<FullApp> & Pick<FullApp, 'ref' | 'rent' | 'status'>): FullApp {
-  const rates = getRatesFor(o.partner ?? 'rightmove'); // snapshot = the partner's rate at creation
+  const rates = getRatesFor(o.partner ?? 'northwind'); // snapshot = the partner's rate at creation
   return {
-    partner: 'rightmove', partnerRate: rates.partner, agentRate: rates.agent,
+    partner: 'northwind', partnerRate: rates.partner, agentRate: rates.agent,
     agency: 'Foxglove', branch: 'South Kensington', referrer: 'Priya', owner: 0,
     sentAt: null, paidAt: null, deedAt: null, tenancyStart: null, expiry: null,
     refunded: false, refundedAt: null, refundedAmount: null, refundAfterStart: false,
@@ -32,7 +32,7 @@ hydrateFull(APPS);
 afterAll(() => hydrateFull([]));
 
 const allTime = getPeriods().find((p) => p.id === 'alltime')!;
-const rates = getRatesFor('rightmove');
+const rates = getRatesFor('northwind');
 
 describe('liveAggregate (event-in-period, net of refunds)', () => {
   const a = liveAggregate('superadmin', ALL_PARTNERS, allTime);

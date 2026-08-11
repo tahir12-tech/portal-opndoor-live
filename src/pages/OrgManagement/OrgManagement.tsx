@@ -28,7 +28,7 @@
 // import { PartnerSelect } from '@/components/ui/Select';
 // import './OrgManagement.css';
 
-// const agencyId = (a: Agency) => `${a.partner || 'rightmove'}:${a.name}`;
+// const agencyId = (a: Agency) => `${a.partner || 'northwind'}:${a.name}`;
 // const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 // /** An inline, consequence-aware confirmation rendered inside the contacts modal. */
@@ -641,7 +641,7 @@ import { Modal } from '@/components/ui/Modal';
 import { PartnerSelect } from '@/components/ui/Select';
 import './OrgManagement.css';
 
-const agencyId = (a: Agency) => `${a.partner || 'rightmove'}:${a.name}`;
+const agencyId = (a: Agency) => `${a.partner || 'northwind'}:${a.name}`;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /** An inline, consequence-aware confirmation rendered inside the contacts modal. */

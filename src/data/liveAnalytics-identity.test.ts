@@ -23,10 +23,10 @@ function app(o: Partial<FullApp> & Pick<FullApp, 'ref' | 'rent' | 'partner' | 'a
 // Two branches both called "City" under different agencies/partners; two agencies
 // both called "Prime" under different partners.
 const APPS: FullApp[] = [
-  app({ ref: 'X', rent: 1000, partner: 'rightmove', agency: 'Alpha Lettings', branch: 'City' }),
-  app({ ref: 'Y', rent: 2000, partner: 'zoopla', agency: 'Beta Homes', branch: 'City' }),
-  app({ ref: 'P', rent: 1500, partner: 'rightmove', agency: 'Prime', branch: 'North' }),
-  app({ ref: 'Q', rent: 2500, partner: 'zoopla', agency: 'Prime', branch: 'South' }),
+  app({ ref: 'X', rent: 1000, partner: 'northwind', agency: 'Alpha Lettings', branch: 'City' }),
+  app({ ref: 'Y', rent: 2000, partner: 'harbourside', agency: 'Beta Homes', branch: 'City' }),
+  app({ ref: 'P', rent: 1500, partner: 'northwind', agency: 'Prime', branch: 'North' }),
+  app({ ref: 'Q', rent: 2500, partner: 'harbourside', agency: 'Prime', branch: 'South' }),
 ];
 
 hydrateFull(APPS);
@@ -56,8 +56,8 @@ describe('trend carries real per-application net commission', () => {
     expect(feb.count).toBe(4); // all four sent in Feb
     // commission is real per-partner, not fees * a single scope rate
     const expected =
-      1000 * getRatesFor('rightmove').partner + 2000 * getRatesFor('zoopla').partner +
-      1500 * getRatesFor('rightmove').partner + 2500 * getRatesFor('zoopla').partner;
+      1000 * getRatesFor('northwind').partner + 2000 * getRatesFor('harbourside').partner +
+      1500 * getRatesFor('northwind').partner + 2500 * getRatesFor('harbourside').partner;
     expect(feb.comm).toBeCloseTo(Math.round(expected), 0);
   });
 });

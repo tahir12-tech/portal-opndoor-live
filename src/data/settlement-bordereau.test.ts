@@ -22,19 +22,19 @@ function full(o: Partial<FullApp> & Pick<FullApp, 'ref' | 'rent' | 'partner' | '
 
 describe('getCommissionSettlement (prior calendar month, net of refunds, payable 15th)', () => {
   const APPS: FullApp[] = [
-    full({ ref: 'P1', rent: 1000, partner: 'rightmove', status: 'paid', paidAt: D('2026-05-10') }),
-    full({ ref: 'P2', rent: 2000, partner: 'rightmove', status: 'paid', paidAt: D('2026-05-20') }),
-    full({ ref: 'P3', rent: 1500, partner: 'zoopla', status: 'paid', paidAt: D('2026-05-15') }),
-    full({ ref: 'P4', rent: 3000, partner: 'rightmove', status: 'paid', paidAt: D('2026-05-25'), refunded: true, refundedAt: D('2026-05-26'), refundedAmount: 3000 }),
-    full({ ref: 'P5', rent: 900, partner: 'rightmove', status: 'paid', paidAt: D('2026-06-05') }), // this month, not prior
-    full({ ref: 'P6', rent: 900, partner: 'rightmove', status: 'paid', paidAt: D('2026-04-30') }), // prior-prior
+    full({ ref: 'P1', rent: 1000, partner: 'northwind', status: 'paid', paidAt: D('2026-05-10') }),
+    full({ ref: 'P2', rent: 2000, partner: 'northwind', status: 'paid', paidAt: D('2026-05-20') }),
+    full({ ref: 'P3', rent: 1500, partner: 'harbourside', status: 'paid', paidAt: D('2026-05-15') }),
+    full({ ref: 'P4', rent: 3000, partner: 'northwind', status: 'paid', paidAt: D('2026-05-25'), refunded: true, refundedAt: D('2026-05-26'), refundedAmount: 3000 }),
+    full({ ref: 'P5', rent: 900, partner: 'northwind', status: 'paid', paidAt: D('2026-06-05') }), // this month, not prior
+    full({ ref: 'P6', rent: 900, partner: 'northwind', status: 'paid', paidAt: D('2026-04-30') }), // prior-prior
   ];
   hydrateFull(APPS);
   afterAll(() => hydrateFull([]));
 
   const st = getCommissionSettlement('superadmin', ALL_PARTNERS);
-  const rm = getRatesFor('rightmove').partner;
-  const zo = getRatesFor('zoopla').partner;
+  const rm = getRatesFor('northwind').partner;
+  const zo = getRatesFor('harbourside').partner;
 
   it('buckets the prior calendar month and settles on the 15th', () => {
     expect(st.monthLabel).toBe('May 2026');
@@ -44,10 +44,10 @@ describe('getCommissionSettlement (prior calendar month, net of refunds, payable
   });
   it('one figure per partner, net of refunds, with constituent apps', () => {
     const byName = Object.fromEntries(st.partners.map((p) => [p.partner, p]));
-    expect(byName.rightmove.commission).toBeCloseTo(3000 * rm, 6); // P1+P2; P4 refunded, P5/P6 wrong month
-    expect(byName.rightmove.apps.map((a) => a.ref).sort()).toEqual(['P1', 'P2']);
-    expect(byName.zoopla.commission).toBeCloseTo(1500 * zo, 6);
-    expect(byName.zoopla.apps.length).toBe(1);
+    expect(byName.northwind.commission).toBeCloseTo(3000 * rm, 6); // P1+P2; P4 refunded, P5/P6 wrong month
+    expect(byName.northwind.apps.map((a) => a.ref).sort()).toEqual(['P1', 'P2']);
+    expect(byName.harbourside.commission).toBeCloseTo(1500 * zo, 6);
+    expect(byName.harbourside.apps.length).toBe(1);
   });
 });
 
@@ -61,11 +61,11 @@ describe('buildLiveBordereau (tenancy-start anchored, live rows, frozen format)'
   // constructor here - this keeps the bordereau window/format timezone-robust.
   const LD = (y: number, m: number, d: number) => new Date(y, m - 1, d);
   const FULL: FullApp[] = [
-    full({ ref: 'GR-1', rent: 1200, partner: 'rightmove', status: 'deed', tenancyStart: LD(2026, 5, 10), deedAt: LD(2026, 4, 20), expiry: LD(2027, 5, 9) }),
-    full({ ref: 'GR-2', rent: 1500, partner: 'zoopla', status: 'deed', tenancyStart: LD(2026, 5, 25), deedAt: LD(2026, 4, 30), expiry: LD(2027, 5, 24) }),
-    full({ ref: 'GR-3', rent: 2000, partner: 'rightmove', status: 'deed', tenancyStart: LD(2026, 5, 5), deedAt: LD(2026, 4, 10), refunded: true }), // refunded -> excluded
-    full({ ref: 'GR-4', rent: 1000, partner: 'rightmove', status: 'deed', tenancyStart: LD(2026, 6, 1), deedAt: LD(2026, 5, 10) }), // wrong month
-    full({ ref: 'GR-5', rent: 1000, partner: 'rightmove', status: 'paid', tenancyStart: LD(2026, 5, 12) }), // not deed
+    full({ ref: 'GR-1', rent: 1200, partner: 'northwind', status: 'deed', tenancyStart: LD(2026, 5, 10), deedAt: LD(2026, 4, 20), expiry: LD(2027, 5, 9) }),
+    full({ ref: 'GR-2', rent: 1500, partner: 'harbourside', status: 'deed', tenancyStart: LD(2026, 5, 25), deedAt: LD(2026, 4, 30), expiry: LD(2027, 5, 24) }),
+    full({ ref: 'GR-3', rent: 2000, partner: 'northwind', status: 'deed', tenancyStart: LD(2026, 5, 5), deedAt: LD(2026, 4, 10), refunded: true }), // refunded -> excluded
+    full({ ref: 'GR-4', rent: 1000, partner: 'northwind', status: 'deed', tenancyStart: LD(2026, 6, 1), deedAt: LD(2026, 5, 10) }), // wrong month
+    full({ ref: 'GR-5', rent: 1000, partner: 'northwind', status: 'paid', tenancyStart: LD(2026, 5, 12) }), // not deed
   ];
   hydrateFull(FULL);
   hydrateApplications([], [rec('GR-1', {}), rec('GR-2', { firstName: 'Jane', lastName: 'Roe' }), rec('GR-3', {}), rec('GR-4', {}), rec('GR-5', {})]);

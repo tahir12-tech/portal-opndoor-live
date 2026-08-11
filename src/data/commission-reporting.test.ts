@@ -22,10 +22,10 @@ function app(o: Partial<FullApp> & Pick<FullApp, 'ref' | 'rent' | 'status' | 'pa
 
 // Two partners; a refund; some paid in the prior month (May 2026) for settlement.
 const APPS: FullApp[] = [
-  app({ ref: 'R1', partner: 'rightmove', agency: 'Foxglove', rent: 1000, status: 'paid', paidAt: D('2026-05-04') }),
-  app({ ref: 'R2', partner: 'rightmove', agency: 'Marylebone & Co', rent: 2000, status: 'paid', paidAt: D('2026-05-20') }),
-  app({ ref: 'R3', partner: 'rightmove', agency: 'Foxglove', rent: 1500, status: 'paid', paidAt: D('2026-05-10'), refunded: true, refundedAt: D('2026-05-12'), refundedAmount: 1500 }),
-  app({ ref: 'Z1', partner: 'zoopla', agency: 'Northbank Lettings', rent: 3000, status: 'paid', paidAt: D('2026-04-15') }),
+  app({ ref: 'R1', partner: 'northwind', agency: 'Foxglove', rent: 1000, status: 'paid', paidAt: D('2026-05-04') }),
+  app({ ref: 'R2', partner: 'northwind', agency: 'Marylebone & Co', rent: 2000, status: 'paid', paidAt: D('2026-05-20') }),
+  app({ ref: 'R3', partner: 'northwind', agency: 'Foxglove', rent: 1500, status: 'paid', paidAt: D('2026-05-10'), refunded: true, refundedAt: D('2026-05-12'), refundedAmount: 1500 }),
+  app({ ref: 'Z1', partner: 'harbourside', agency: 'Northbank Lettings', rent: 3000, status: 'paid', paidAt: D('2026-04-15') }),
 ];
 
 hydrateFull(APPS);
@@ -45,8 +45,8 @@ describe('livePartnerBreakdown reconciles to the blended summary', () => {
   });
 
   it('gross includes the refunded fee; net excludes it (per partner)', () => {
-    const rm = rows.find((r) => r.partner === 'rightmove')!;
-    const rr = getRatesFor('rightmove');
+    const rm = rows.find((r) => r.partner === 'northwind')!;
+    const rr = getRatesFor('northwind');
     // R1 + R2 + R3(refunded) gross = 4500; net excludes R3 = 3000.
     expect(rm.feesGross).toBe(4500);
     expect(rm.partnerCommGross).toBeCloseTo(4500 * rr.partner, 6);
@@ -60,11 +60,11 @@ describe('getAgentCommissionSettlement (prior month, agency level, net)', () => 
 
   it('settles May 2026 and aggregates by agency, excluding refunds and other months', () => {
     expect(st.monthLabel).toBe('May 2026');
-    // Only Rightmove R1 (Foxglove) and R2 (Marylebone & Co) qualify: R3 refunded,
+    // Only Northwind Property R1 (Foxglove) and R2 (Marylebone & Co) qualify: R3 refunded,
     // Z1 paid in April. So two agencies, no Foxglove double-count of R3.
     const agencies = st.agencies.map((a) => a.agency).sort();
     expect(agencies).toEqual(['Foxglove', 'Marylebone & Co']);
-    const rr = getRatesFor('rightmove');
+    const rr = getRatesFor('northwind');
     const fox = st.agencies.find((a) => a.agency === 'Foxglove')!;
     expect(fox.commission).toBeCloseTo(1000 * rr.agent, 6); // R1 only (R3 refunded)
     expect(fox.apps).toHaveLength(1);

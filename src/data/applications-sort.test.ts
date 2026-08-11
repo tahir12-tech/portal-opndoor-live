@@ -9,7 +9,7 @@ import type { ApplicationSummary } from '@/data';
 function row(ref: string, date: string, eventTs: number | undefined, extra: Partial<ApplicationSummary> = {}): ApplicationSummary {
   return {
     ref, tenant: `Tenant ${ref}`, prop: '1 Test St, SW1', branch: 'Test Branch', agency: 'Test Agency',
-    ben: '', rent: 1000, status: 'sent', date, eventTs, owner: 1, partner: 'rightmove', ...extra,
+    ben: '', rent: 1000, status: 'sent', date, eventTs, owner: 1, partner: 'northwind', ...extra,
   };
 }
 

@@ -3,7 +3,7 @@ import { fmtRatePct } from './format';
 
 // Money-path guard: commission rates must always render to one decimal place so a
 // stored 9.5% can never be rounded to, or mistaken for, 10% anywhere in the product
-// (the exact defect from Friday's Rightmove agent-rate mis-entry).
+// (the exact defect from Friday's Northwind Property agent-rate mis-entry).
 describe('fmtRatePct — commission-rate display precision', () => {
   it('always shows exactly one decimal place', () => {
     expect(fmtRatePct(0.095)).toBe('9.5%');

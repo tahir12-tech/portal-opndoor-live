@@ -19,8 +19,8 @@ function app(o: Partial<FullApp> & Pick<FullApp, 'ref' | 'rent' | 'partner' | 'a
 }
 
 const APPS: FullApp[] = [
-  app({ ref: 'A', rent: 1000, partner: 'rightmove', agency: 'Foxglove', branch: 'SK', referrer: 'Priya', referrerRole: 'referrer' }),
-  app({ ref: 'B', rent: 2000, partner: 'rightmove', agency: 'Foxglove', branch: 'SK', referrer: 'Maya', referrerRole: 'superadmin' }),
+  app({ ref: 'A', rent: 1000, partner: 'northwind', agency: 'Foxglove', branch: 'SK', referrer: 'Priya', referrerRole: 'referrer' }),
+  app({ ref: 'B', rent: 2000, partner: 'northwind', agency: 'Foxglove', branch: 'SK', referrer: 'Maya', referrerRole: 'superadmin' }),
 ];
 hydrateFull(APPS);
 afterAll(() => hydrateFull([]));
