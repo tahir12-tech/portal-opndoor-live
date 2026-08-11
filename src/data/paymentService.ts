@@ -11,9 +11,24 @@ import type { DeedState, PaymentState } from './types';
 
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
-/** True when a Stripe test publishable key is configured (drives the TEST MODE badge). */
-export function stripeTestMode(): boolean {
-  return typeof STRIPE_PK === 'string' && STRIPE_PK.startsWith('pk_live_');
+/**
+ * Which Stripe mode the client is configured for, or null when it cannot tell.
+ *
+ * DEFECTS.md 3. This was `stripeTestMode()` returning true for a `pk_live_` key,
+ * which is backwards, and it drove a badge labelled "Live Mode". So with a TEST
+ * key the predicate was false and NO badge rendered at all: staff got no signal
+ * in either direction, and with a LIVE key they got a badge whose name happened
+ * to match by accident rather than by logic.
+ *
+ * Three states rather than two, because "no key configured" is a real case and
+ * silently reporting it as either mode is how the original went wrong. A null
+ * renders no badge, which is honest: we do not know.
+ */
+export function stripeMode(): 'live' | 'test' | null {
+  if (typeof STRIPE_PK !== 'string') return null;
+  if (STRIPE_PK.startsWith('pk_live_')) return 'live';
+  if (STRIPE_PK.startsWith('pk_test_')) return 'test';
+  return null;
 }
 
 /** True when PandaDoc deed generation is running in sandbox (drives the badge). */

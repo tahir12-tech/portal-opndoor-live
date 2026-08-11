@@ -12,7 +12,7 @@
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, deedDownloadUrl, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, pandadocSandbox, resendDeed, resendPaymentEmail, sendDeedToAgent, stripeTestMode, withdrawApplication, type AppNote, type PaymentInfo, type WithdrawReason } from '@/data';
+import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, deedDownloadUrl, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, pandadocSandbox, resendDeed, resendPaymentEmail, sendDeedToAgent, stripeMode, withdrawApplication, type AppNote, type PaymentInfo, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
@@ -748,7 +748,16 @@ export function ApplicationDetail() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           {SUPABASE_ENABLED && pi && (
             <Card>
-              <CardHead title="Payment" actions={stripeTestMode() ? <span className="pay-badge">Live Mode</span> : undefined} />
+              {/* The label now follows the key rather than being a fixed string
+                  next to an inverted predicate. Test mode is the one worth
+                  seeing, so it is the one that stands out. */}
+              <CardHead title="Payment" actions={
+                stripeMode() === 'test'
+                  ? <span className="pay-badge pay-badge--test">Test mode</span>
+                  : stripeMode() === 'live'
+                    ? <span className="pay-badge">Live mode</span>
+                    : undefined
+              } />
               <CardBody style={{ paddingTop: 6, paddingBottom: 12 }}>
                 {/* DEFECTS.md 8. A payment CAN land on a staff-withdrawn
                     application: the Checkout Session outlives the withdrawal.

@@ -579,3 +579,7 @@
 .pay-anomaly p { margin: 0 0 6px; }
 .pay-anomaly p:last-child { margin-bottom: 0; }
 .pay-anomaly code { background: rgba(127, 29, 29, 0.09); padding: 1px 5px; border-radius: 4px; }
+
+/* DEFECTS.md 3. Test mode is the state worth noticing, so it is the one that is
+   coloured. Live mode is the normal case and reads quietly. */
+.pay-badge--test { background: #fffbeb; border-color: #fde68a; color: #78350f; }

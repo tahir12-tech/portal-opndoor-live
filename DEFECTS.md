@@ -28,7 +28,7 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | - | ------ | -------- |
 | 1 | Cron shared secret committed to the repo | Critical |
 | 2 | A foreign Supabase project is hardcoded in three migrations | High |
-| 3 | Stripe guards demand `sk_live_` while their headers claim test-only | High |
+| 3 | ~~Stripe guards demand `sk_live_`~~ **Fixed here**, guards and the inverted badge | — |
 | 4 | Test email redirect removed from all thirteen sending modules | Critical |
 | 5 | The repo cannot rebuild the live schema. Disaster recovery fails | High |
 | 6 | A branch can lose its primary contact, stranding a paid tenant | Medium |
