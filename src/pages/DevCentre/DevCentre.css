@@ -282,3 +282,16 @@
 .devtest .devbodies__label { margin-top: 4px; }
 
 .devtest__verdict svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }
+
+/* Actions sharing a table cell. Nowrap so a row does not grow in height the
+   moment a second action appears next to the first. */
+.devrowacts { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: nowrap; }
+.devrowacts svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Delete where there is history to lose. Shown rather than hidden, so nobody
+   hunts for a feature that is there, but visibly not the thing to press: the
+   click explains why instead of doing nothing. */
+.btn.is-unavailable { opacity: .45; }
+
+.sbxpurge { margin: 6px 0 12px; padding-left: 20px; line-height: 1.6; }
+.sbxpurge li { margin-bottom: 4px; }

@@ -31,6 +31,8 @@ export interface DevApiKey {
   revoked_at: string | null;
   last_used_at: string | null;
   livemode: boolean;
+  /** Requests this key has made. Zero plus a null last_used_at is what makes it deletable. */
+  request_count: number;
 }
 
 export interface DevWebhookEndpoint {
@@ -45,6 +47,8 @@ export interface DevWebhookEndpoint {
   last_failure_at: string | null;
   consecutive_failures: number;
   livemode: boolean;
+  /** Deliveries recorded against this endpoint. Zero is what makes it deletable. */
+  delivery_count: number;
 }
 
 export interface PriorAttempt {
@@ -386,6 +390,46 @@ export async function purgeSandbox(partnerId?: string | null): Promise<{
  * replay and erasing it makes the second failure indistinguishable from the
  * first.
  */
+/**
+ * Delete a key outright.
+ *
+ * Distinct from revoke, which keeps the row because the audit trail is the
+ * point: somebody will ask what a key did months later. Delete is only offered
+ * where there is nothing to lose, and the rule is enforced in SQL as well, so a
+ * hand-crafted call cannot skip it.
+ */
+export async function deleteApiKey(id: string): Promise<void> {
+  const { error } = await sb().rpc('dev_delete_api_key', { p_id: id });
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteWebhookEndpoint(id: string): Promise<void> {
+  const { error } = await sb().rpc('dev_delete_webhook_endpoint', { p_id: id });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Why delete is unavailable, in words a person can act on.
+ *
+ * Computed from data the listing already carries, so this needs no round trip.
+ * Returning a reason rather than hiding the button matters: a missing option
+ * sends somebody hunting for a feature that is there, and an explanation tells
+ * them what to do instead.
+ */
+export function keyDeleteBlockedReason(k: DevApiKey): string | null {
+  if (k.last_used_at || k.request_count > 0) {
+    return 'This key has been used, so deleting it would remove the record of what it did. Revoke it instead: it stops working immediately and the history is kept.';
+  }
+  return null;
+}
+
+export function endpointDeleteBlockedReason(e: DevWebhookEndpoint): string | null {
+  if (e.delivery_count > 0) {
+    return `This endpoint has ${e.delivery_count} deliver${e.delivery_count === 1 ? 'y' : 'ies'} on record, so deleting it would remove the history of what was sent and whether it arrived. Disable it instead.`;
+  }
+  return null;
+}
+
 export async function replayDelivery(id: string): Promise<{ replayCount: number }> {
   const { data, error } = await sb().rpc('dev_replay_webhook_delivery', { p_delivery: id });
   if (error) throw new Error(error.message);
@@ -433,7 +477,18 @@ export async function getPartnerOptions(): Promise<DevPartnerOption[]> {
  * production, and deploying this to live shows the live banner with no
  * configuration change at all.
  *
- * UNRECOGNISED MEANS LIVE. Same direction as the Stripe guard: an unknown
+ * WHAT THIS DOES AND DOES NOT MEAN. It answers "which Supabase project is this
+ * deployment pointed at", NOT "am I in sandbox mode". Those were the same
+ * question when sandbox was going to be a second project; they are unrelated
+ * now. Sandbox and live keys, endpoints and applications all live in this one
+ * database, side by side, told apart by livemode. A development project holds
+ * both too, its own copies of both.
+ *
+ * The naming is deliberate. It used to return 'sandbox' | 'live', which now
+ * collides head-on with the mode of a key, so it returns
+ * 'development' | 'production' and nothing reads the word sandbox off it.
+ *
+ * UNRECOGNISED MEANS PRODUCTION. Same direction as the Stripe guard: an unknown
  * project, a missing URL or a malformed one all resolve to live. Being wrongly
  * warned that you are in production is a moment's confusion; being wrongly
  * reassured that you are in sandbox is how somebody mints a live key believing
@@ -443,12 +498,12 @@ export async function getPartnerOptions(): Promise<DevPartnerOption[]> {
  * value away from lying: a project with no VITE_STRIPE_PUBLISHABLE_KEY set would
  * have shown "Sandbox" whatever it actually was.
  */
-export function portalEnvironment(): { id: 'live' | 'sandbox'; label: string; ref: string } {
+export function portalEnvironment(): { id: 'production' | 'development'; label: string; ref: string } {
   const url = String(import.meta.env.VITE_SUPABASE_URL ?? '');
   const ref = /https:\/\/([a-z]{20})\./.exec(url)?.[1] ?? '';
   return NON_PRODUCTION_REFS.includes(ref)
-    ? { id: 'sandbox', label: 'Sandbox', ref }
-    : { id: 'live', label: 'Live', ref };
+    ? { id: 'development', label: 'Development project', ref }
+    : { id: 'production', label: 'Production', ref };
 }
 
 /** A delivery's state, for display. */

@@ -13,6 +13,7 @@
 import { useState } from 'react';
 import {
   API_SCOPES, WEBHOOK_EVENTS, maskSecret, revealEndpointSecret,
+  endpointDeleteBlockedReason, keyDeleteBlockedReason,
   type DevApiKey, type DevWebhookEndpoint,
 } from '@/data/devCentreService';
 import { Button } from '@/components/ui/Button';
@@ -31,6 +32,8 @@ export function Configuration(props: {
   busy: boolean;
   onMint: () => void;
   onRevoke: (k: DevApiKey) => void;
+  onDeleteKey: (k: DevApiKey) => void;
+  onDeleteEndpoint: (e: DevWebhookEndpoint) => void;
   onCreateEndpoint: () => void;
   onToggleEndpoint: (e: DevWebhookEndpoint) => void;
   onOpenGuide: () => void;
@@ -44,7 +47,7 @@ export function Configuration(props: {
     try {
       const secret = await revealEndpointSecret(e.id);
       setShown((p) => ({ ...p, [e.id]: secret }));
-    } catch (x) { toast(String((x as Error).message ?? x)); }
+    } catch (x) { toast(String((x as Error).message ?? x), 'error'); }
   }
 
   const copy = (v: string, what: string) => { void navigator.clipboard?.writeText(v); toast(`${what} copied.`); };
@@ -109,9 +112,25 @@ export function Configuration(props: {
                   </span>
                 </td>
                 <td style={{ textAlign: 'right' }}>
-                  {!k.revoked_at && (
-                    <Button variant="ghost" size="sm" disabled={props.busy} onClick={() => props.onRevoke(k)}>Revoke</Button>
-                  )}
+                  <div className="devrowacts">
+                    {!k.revoked_at && (
+                      <Button variant="ghost" size="sm" disabled={props.busy} onClick={() => props.onRevoke(k)}>Revoke</Button>
+                    )}
+                    {/* Always rendered, never hidden. When delete is unavailable
+                        the button says why on click rather than vanishing, because
+                        a missing option sends somebody hunting for a feature that
+                        is there. title carries the reason for anyone hovering. */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={keyDeleteBlockedReason(k) ? 'is-unavailable' : undefined}
+                      title={keyDeleteBlockedReason(k) ?? 'Delete this key permanently'}
+                      disabled={props.busy}
+                      onClick={() => props.onDeleteKey(k)}
+                    >
+                      <Icon name="trash" /> Delete
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -160,14 +179,26 @@ export function Configuration(props: {
                   </td>
                   <td className="soft">{e.events.length ? e.events.join(', ') : 'All events'}</td>
                   <td>
-                    <button
-                      className={`devtoggle${e.active ? ' is-on' : ''}`}
-                      disabled={props.busy}
-                      aria-label={e.active ? 'Disable endpoint' : 'Enable endpoint'}
-                      onClick={() => props.onToggleEndpoint(e)}
-                    >
-                      <span className="devtoggle__knob" />
-                    </button>
+                    <div className="devrowacts">
+                      <button
+                        className={`devtoggle${e.active ? ' is-on' : ''}`}
+                        disabled={props.busy}
+                        aria-label={e.active ? 'Disable endpoint' : 'Enable endpoint'}
+                        onClick={() => props.onToggleEndpoint(e)}
+                      >
+                        <span className="devtoggle__knob" />
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={endpointDeleteBlockedReason(e) ? 'is-unavailable' : undefined}
+                        title={endpointDeleteBlockedReason(e) ?? 'Delete this endpoint permanently'}
+                        disabled={props.busy}
+                        onClick={() => props.onDeleteEndpoint(e)}
+                      >
+                        <Icon name="trash" /> Delete
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}

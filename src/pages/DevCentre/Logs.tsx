@@ -35,6 +35,7 @@ export function Logs({ partnerId }: { partnerId: string | null }) {
   const [days, setDays] = useState(7);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
   // A set, not a single id. Comparing a failing call against the one before it
   // is the main thing anybody does here, and an accordion that closes the
   // previous row makes exactly that impossible.
@@ -49,7 +50,7 @@ export function Logs({ partnerId }: { partnerId: string | null }) {
 
   const load = useCallback(async () => {
     setBusy(true); setErr(null);
-    try { setRows(await getApiLogs({ partnerId, search, days })); }
+    try { setRows(await getApiLogs({ partnerId, search, days })); setLoadedAt(new Date()); }
     catch (x) { setErr(String((x as Error).message ?? x)); }
     finally { setBusy(false); }
   }, [partnerId, search, days]);
@@ -61,7 +62,7 @@ export function Logs({ partnerId }: { partnerId: string | null }) {
     <Card>
       <CardHead
         title="API requests"
-        sub={`${rows.length} request${rows.length === 1 ? '' : 's'}`}
+        sub={`${rows.length} request${rows.length === 1 ? '' : 's'}${loadedAt ? ` · updated ${loadedAt.toLocaleTimeString('en-GB')}` : ''}`}
         actions={
           <div className="devfilters">
             {/* The app's search pattern: .toolbar__search with a leading icon,
@@ -81,8 +82,12 @@ export function Logs({ partnerId }: { partnerId: string | null }) {
               onChange={(v) => setDays(Number(v))}
               options={PERIODS.map((p) => ({ value: String(p.id), label: p.label }))}
             />
+            {/* A refresh icon, not a tick. The button was labelled Refresh and
+                showed a permanent green check, so a click that DID refetch looked
+                identical to one that did nothing. The stamp below is the actual
+                evidence the fetch happened, since the rows are usually unchanged. */}
             <Button variant="ghost" size="sm" onClick={() => void load()} disabled={busy}>
-              <Icon name="check" /> Refresh
+              <Icon name="refresh" /> {busy ? 'Refreshing…' : 'Refresh'}
             </Button>
           </div>
         }

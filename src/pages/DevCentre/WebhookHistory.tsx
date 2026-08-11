@@ -38,6 +38,7 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
   const [days, setDays] = useState(7);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
   const toast = useToast();
 
   // Test-event modal.
@@ -53,20 +54,20 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
       toast(r.replayCount === 1 ? 'Queued for delivery.' : `Queued again, replay ${r.replayCount}.`);
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e));
+      toast(e instanceof Error ? e.message : String(e), 'error');
     } finally {
       setBusy(false);
     }
   }
 
   async function doTest() {
-    if (!testEndpoint) { toast('Choose an endpoint.'); return; }
+    if (!testEndpoint) { toast('Choose an endpoint.', 'error'); return; }
     setBusy(true);
     setTestResult(null);
     try {
       setTestResult(await sendTestEvent(testEndpoint, testEvent));
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e));
+      toast(e instanceof Error ? e.message : String(e), 'error');
     } finally {
       setBusy(false);
     }
@@ -79,7 +80,7 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
         getDeliveries({ partnerId, eventType: event || null, limit: 300 }),
         getWebhookEndpoints(partnerId),
       ]);
-      setRows(d); setEndpoints(e);
+      setRows(d); setEndpoints(e); setLoadedAt(new Date());
     } catch (x) { setErr(String((x as Error).message ?? x)); }
     finally { setBusy(false); }
   }, [partnerId, event]);
@@ -105,7 +106,7 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
     <Card>
       <CardHead
         title="Webhook deliveries"
-        sub={`${shown.length} of ${rows.length} shown`}
+        sub={`${shown.length} of ${rows.length} shown${loadedAt ? ` · updated ${loadedAt.toLocaleTimeString('en-GB')}` : ''}`}
         actions={
           <div className="devfilters">
             <PeriodSelect
@@ -134,8 +135,12 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
             <Button variant="ghost" size="sm" onClick={() => setTestOpen(true)} disabled={busy}>
               <Icon name="send" /> Send test event
             </Button>
+            {/* A refresh icon, not a tick. The button was labelled Refresh and
+                showed a permanent green check, so a click that DID refetch looked
+                identical to one that did nothing. The stamp below is the actual
+                evidence the fetch happened, since the rows are usually unchanged. */}
             <Button variant="ghost" size="sm" onClick={() => void load()} disabled={busy}>
-              <Icon name="check" /> Refresh
+              <Icon name="refresh" /> {busy ? 'Refreshing…' : 'Refresh'}
             </Button>
           </div>
         }

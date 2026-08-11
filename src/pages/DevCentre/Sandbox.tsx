@@ -96,7 +96,7 @@ export function Sandbox({ partnerId }: { partnerId: string | null }) {
       const r = await getSandboxSigningLink(a.id);
       setSigning({ ref: a.guarantee_ref, link: r.link, tenantEmail: r.tenantEmail });
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e));
+      toast(e instanceof Error ? e.message : String(e), 'error');
     } finally {
       setBusy(false);
     }
@@ -113,7 +113,7 @@ export function Sandbox({ partnerId }: { partnerId: string | null }) {
       setPurgeOpen(false);
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e));
+      toast(e instanceof Error ? e.message : String(e), 'error');
     } finally {
       setBusy(false);
     }
@@ -163,12 +163,15 @@ export function Sandbox({ partnerId }: { partnerId: string | null }) {
           <Button variant="ghost" size="sm" onClick={() => void load()} disabled={busy}>
             <Icon name="refresh" /> Refresh
           </Button>
+          {/* Deliberately NOT disabled when the count is zero or unknown. It was,
+              and that made a click do nothing and say nothing, which is
+              indistinguishable from a broken button. It now opens and explains. */}
           <Button
             variant="primary"
             size="sm"
             className="btn--danger"
             onClick={() => setPurgeOpen(true)}
-            disabled={busy || !counts?.total}
+            disabled={busy}
           >
             <Icon name="trash" /> Clear sandbox
           </Button>
@@ -295,21 +298,52 @@ export function Sandbox({ partnerId }: { partnerId: string | null }) {
         footer={
           <>
             <Button variant="ghost" onClick={() => setPurgeOpen(false)} disabled={busy}>Cancel</Button>
-            <Button variant="primary" className="btn--danger" onClick={() => void doPurge()} disabled={busy}>
-              {busy ? 'Deleting…' : `Delete ${counts?.total ?? 0} sandbox application${counts?.total === 1 ? '' : 's'}`}
+            <Button
+              variant="primary"
+              className="btn--danger"
+              onClick={() => void doPurge()}
+              disabled={busy || !counts?.total}
+            >
+              {busy
+                ? 'Deleting…'
+                : `Delete ${counts?.total ?? 0} application${counts?.total === 1 ? '' : 's'}`}
             </Button>
           </>
         }
       >
-        <p>
-          This deletes every sandbox application for {partnerId ? 'this partner' : 'your partner'}, along
-          with the sandbox agencies and branches created by name, and their activity, notes, payment
-          tokens and webhook deliveries.
-        </p>
-        <p className="soft">
-          It cannot touch live data. The function filters on <code>not livemode</code> rather than taking a
-          list of ids, so there is no argument that would make it delete a real application.
-        </p>
+        {!counts?.total ? (
+          <p>
+            There are no sandbox applications to clear
+            {partnerId ? ' for this partner' : ''}. Nothing will be deleted.
+          </p>
+        ) : (
+          <>
+            <p><strong>This cannot be undone.</strong> There is no restore and no soft delete.</p>
+            <p>Deleting now removes:</p>
+            <ul className="sbxpurge">
+              <li>
+                <strong>{counts.total}</strong> sandbox application{counts.total === 1 ? '' : 's'}
+                {counts.deed > 0 && (
+                  <span className="soft">
+                    {' '}including {counts.deed} with a deed issued
+                  </span>
+                )}
+              </li>
+              <li>
+                every sandbox agency and branch created by name from the API, and their agent contacts
+              </li>
+              <li>
+                the activity log, notes, payment tokens and webhook deliveries belonging to those
+                applications, which cascade
+              </li>
+            </ul>
+            <p className="soft">
+              It cannot touch live data. The function filters on <code>not livemode</code> rather than
+              taking a list of ids, so there is no argument that would make it delete a real application.
+              PandaDoc documents already created are not withdrawn: this clears our records, not theirs.
+            </p>
+          </>
+        )}
       </Modal>
     </>
   );

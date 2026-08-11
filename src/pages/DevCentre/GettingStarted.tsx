@@ -11,13 +11,19 @@
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { PARTNER_API_BASE_URL } from '@/config/partnerApi';
 
-export function GettingStarted({ env }: { env: 'live' | 'sandbox' }) {
+/*
+ * No env prop. It used to take 'live' | 'sandbox' from the deployment, which was
+ * right when those were two projects. The mode is per KEY now, so the examples
+ * use a sandbox key throughout: somebody reading a getting-started guide is
+ * starting, and starting against live would be the wrong advice.
+ */
+export function GettingStarted() {
   // One configured value, rendered rather than written out. It used to be a
   // literal '/functions/v1/partner-api/v1' against a '<your-project>.supabase.co'
   // placeholder, which asked a partner to hardcode both our hosting arrangement
   // and a project ref we may need to move.
   const base = PARTNER_API_BASE_URL;
-  const keyExample = env === 'live' ? 'opnd_live_...' : 'opnd_test_...';
+  const keyExample = 'opnd_test_...';
 
   return (
     <Card>

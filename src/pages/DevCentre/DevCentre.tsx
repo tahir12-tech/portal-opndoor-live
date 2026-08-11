@@ -23,13 +23,15 @@
    and the Edge Function re-checks the role with a caller-scoped client. This
    file decides what to render, not what is permitted.
 
-   ENVIRONMENT IS SHOWN LOUDLY. Sandbox and live are separate projects with
-   separate keys and separate delivery history. A partner reading sandbox
-   deliveries while debugging live is a long, confusing afternoon.
+   THE BANNER SAYS WHICH PROJECT, NOT WHICH MODE. Those were the same question
+   when sandbox was going to be a second Supabase project. They are unrelated
+   now: sandbox and live sit side by side in one database, told apart by
+   livemode and by the key prefix, and both are listed on every tab here.
    ===================================================================== */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
-  API_SCOPES, WEBHOOK_EVENTS, createWebhookEndpoint, getApiKeys,
+  API_SCOPES, WEBHOOK_EVENTS, createWebhookEndpoint, deleteApiKey, deleteWebhookEndpoint,
+  endpointDeleteBlockedReason, getApiKeys, keyDeleteBlockedReason,
   getPartnerOptions, getWebhookEndpoints, mintApiKey, portalEnvironment, revokeApiKey,
   updateWebhookEndpoint,
   type DevApiKey, type DevPartnerOption, type DevWebhookEndpoint,
@@ -95,6 +97,32 @@ export function DevCentre() {
   const [epUrl, setEpUrl] = useState('');
   const [epEvents, setEpEvents] = useState<string[]>([]);
   const [epLive, setEpLive] = useState(false);
+
+  /* One confirmation model for every destructive action on this screen.
+     Previously revoke used the browser's native confirm(), which is the same
+     class of mistake as the bare selects: a new panel not picking up a
+     convention the rest of the app already has. It also cannot be styled,
+     cannot show a count, and on some browsers is suppressed entirely, which
+     would have made revoke silently do nothing. */
+  const [confirmAsk, setConfirmAsk] = useState<{
+    title: string;
+    body: ReactNode;
+    confirmLabel: string;
+    run: () => Promise<void>;
+  } | null>(null);
+
+  async function runConfirm() {
+    if (!confirmAsk) return;
+    setBusy(true);
+    try {
+      await confirmAsk.run();
+      setConfirmAsk(null);
+    } catch (x) {
+      toast(String((x as Error).message ?? x), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
   const [epSecret, setEpSecret] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -126,42 +154,97 @@ export function DevCentre() {
   async function doMint() {
     const target = isAdmin ? partnerId : 'self';
     if (isAdmin && !target) { toast('Choose a partner first.'); return; }
-    if (!mintName.trim()) { toast('Give the key a label.'); return; }
-    if (!mintScopes.length) { toast('Choose at least one scope.'); return; }
+    if (!mintName.trim()) { toast('Give the key a label.', 'error'); return; }
+    if (!mintScopes.length) { toast('Choose at least one scope.', 'error'); return; }
     setBusy(true);
     try {
       const r = await mintApiKey({ partnerId: isAdmin ? partnerId : '', name: mintName.trim(), scopes: mintScopes, livemode: mintLive });
       setMintedKey(r.key);          // shown once, right here, and never again
       setMintName('');
       await load();
-    } catch (x) { toast(String((x as Error).message ?? x)); }
+    } catch (x) { toast(String((x as Error).message ?? x), 'error'); }
     finally { setBusy(false); }
   }
 
-  async function doRevoke(k: DevApiKey) {
-    if (!confirm(`Revoke "${k.name}"? Any integration using it stops working immediately, and this cannot be undone.`)) return;
-    setBusy(true);
-    try { await revokeApiKey(k.id); toast(`Revoked ${k.name}.`); await load(); }
-    catch (x) { toast(String((x as Error).message ?? x)); }
-    finally { setBusy(false); }
+  function doRevoke(k: DevApiKey) {
+    setConfirmAsk({
+      title: `Revoke ${k.name}?`,
+      confirmLabel: 'Revoke key',
+      body: (
+        <>
+          <p>
+            Any integration using this key stops working <strong>immediately</strong>. If it is in
+            production, requests will start failing as soon as you confirm.
+          </p>
+          <p className="soft">
+            The key is kept, greyed out, so the record of what it did survives. It cannot be
+            un-revoked: mint a new one and swap it in.
+          </p>
+        </>
+      ),
+      run: async () => { await revokeApiKey(k.id); toast(`Revoked ${k.name}.`); await load(); },
+    });
+  }
+
+  function doDeleteKey(k: DevApiKey) {
+    const blocked = keyDeleteBlockedReason(k);
+    if (blocked) { toast(blocked, 'error'); return; }
+    setConfirmAsk({
+      title: `Delete ${k.name}?`,
+      confirmLabel: 'Delete key',
+      body: (
+        <>
+          <p>
+            This removes the key entirely. <strong>It cannot be undone.</strong>
+          </p>
+          <p className="soft">
+            Offered because this key has never been used and has made no requests, so there is no
+            history to lose. A key that has been used can only be revoked.
+          </p>
+        </>
+      ),
+      run: async () => { await deleteApiKey(k.id); toast(`Deleted ${k.name}.`); await load(); },
+    });
+  }
+
+  function doDeleteEndpoint(e: DevWebhookEndpoint) {
+    const blocked = endpointDeleteBlockedReason(e);
+    if (blocked) { toast(blocked, 'error'); return; }
+    setConfirmAsk({
+      title: 'Delete this endpoint?',
+      confirmLabel: 'Delete endpoint',
+      body: (
+        <>
+          <p>
+            <code>{e.url}</code> will be removed entirely, along with its signing secret.{' '}
+            <strong>It cannot be undone.</strong>
+          </p>
+          <p className="soft">
+            Offered because nothing has ever been delivered to it, so there is no history to lose.
+            An endpoint with deliveries can only be disabled.
+          </p>
+        </>
+      ),
+      run: async () => { await deleteWebhookEndpoint(e.id); toast('Endpoint deleted.'); await load(); },
+    });
   }
 
   async function doCreateEndpoint() {
-    if (!epUrl.startsWith('https://')) { toast('The URL must use https.'); return; }
+    if (!epUrl.startsWith('https://')) { toast('The URL must use https.', 'error'); return; }
     setBusy(true);
     try {
       const r = await createWebhookEndpoint({ partnerId: isAdmin ? partnerId : '', url: epUrl.trim(), events: epEvents, livemode: epLive });
       setEpSecret(r.secret);        // shown once
       setEpUrl('');
       await load();
-    } catch (x) { toast(String((x as Error).message ?? x)); }
+    } catch (x) { toast(String((x as Error).message ?? x), 'error'); }
     finally { setBusy(false); }
   }
 
   async function toggleEndpoint(e: DevWebhookEndpoint) {
     setBusy(true);
     try { await updateWebhookEndpoint(e.id, { active: !e.active }); await load(); }
-    catch (x) { toast(String((x as Error).message ?? x)); }
+    catch (x) { toast(String((x as Error).message ?? x), 'error'); }
     finally { setBusy(false); }
   }
 
@@ -181,19 +264,22 @@ export function DevCentre() {
         </div>
       </div>
 
-      {/* Environment. Deliberately the loudest thing on the page. */}
+      {/* Which project this deployment is. Deliberately loud, but it is no longer
+          the answer to "am I in sandbox": that is per key, per endpoint and per
+          application now, and it is shown on each row. */}
       <div className={`devenv devenv--${env.id}`}>
-        <Icon name={env.id === 'live' ? 'shield' : 'info'} />
+        <Icon name={env.id === 'production' ? 'shield' : 'info'} />
         <div>
-          <strong>{env.label} environment.</strong>{' '}
-          {env.id === 'live'
-            ? 'Keys minted here move real money and issue real deeds. This Dev Centre shows LIVE keys, endpoints and history only.'
-            : 'Keys minted here are sandbox keys. Nothing here moves real money. This Dev Centre shows SANDBOX keys, endpoints and history only.'}
+          <strong>{env.label}.</strong>{' '}
+          {env.id === 'production'
+            ? 'Live keys minted here move real money and issue real deeds.'
+            : 'A disposable project. Nothing here reaches a real tenant, an agent or a real card, whichever mode you use.'}
           <div className="devenv__note">
-            Sandbox and live are separate projects with separate databases, so neither can show the other&rsquo;s
-            keys, endpoints or delivery history. For the {env.id === 'live' ? 'sandbox' : 'live'} set, sign in to
-            the {env.id === 'live' ? 'sandbox' : 'live'} portal. Nothing is missing here; it was never going to be
-            in one place.
+            Sandbox and live are <strong>both here</strong>, in this one database. A key&rsquo;s prefix says which
+            it is: <code>opnd_test_</code> creates sandbox applications, <code>opnd_live_</code> creates real
+            ones. Sandbox uses sandbox Stripe and PandaDoc credentials, sends no opndoor email and never reaches
+            HubSpot, and its applications appear on the Sandbox tab and nowhere else in the portal. Going live is
+            swapping the key, and nothing else.
           </div>
         </div>
       </div>
@@ -238,7 +324,9 @@ export function DevCentre() {
           canManage={isDeveloper || isAdmin}
           busy={busy}
           onMint={() => { setMintedKey(null); setMintOpen(true); }}
-          onRevoke={(k) => void doRevoke(k)}
+          onRevoke={(k) => doRevoke(k)}
+          onDeleteKey={(k) => doDeleteKey(k)}
+          onDeleteEndpoint={(e) => doDeleteEndpoint(e)}
           onCreateEndpoint={() => { setEpSecret(null); setEpOpen(true); }}
           onToggleEndpoint={(e) => void toggleEndpoint(e)}
           onOpenGuide={() => setPanel('guide')}
@@ -252,9 +340,26 @@ export function DevCentre() {
             <Icon name="arrowLeft" /> Back to configuration
           </Button>
           <div style={{ height: 12 }} />
-          {panel === 'guide' ? <GettingStarted env={env.id} /> : <ApiDocsPanel />}
+          {panel === 'guide' ? <GettingStarted /> : <ApiDocsPanel />}
         </>
       )}
+
+      {/* ---- one confirmation modal for every destructive action ---- */}
+      <Modal
+        open={!!confirmAsk}
+        onClose={() => setConfirmAsk(null)}
+        title={confirmAsk?.title ?? ''}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirmAsk(null)} disabled={busy}>Cancel</Button>
+            <Button variant="primary" className="btn--danger" onClick={() => void runConfirm()} disabled={busy}>
+              {busy ? 'Working…' : confirmAsk?.confirmLabel ?? 'Confirm'}
+            </Button>
+          </>
+        }
+      >
+        {confirmAsk?.body}
+      </Modal>
 
       {/* ---- mint modal ---- */}
       <Modal
