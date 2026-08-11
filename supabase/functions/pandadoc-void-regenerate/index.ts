@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     // RLS-scoped read: the caller must be able to see the application.
     const { data: app, error } = await userClient
       .from("applications")
-      .select("id, status, deed_state, pandadoc_document_id")
+      .select("id, status, deed_state, pandadoc_document_id, livemode")
       .eq("guarantee_ref", ref)
       .maybeSingle();
     if (error) return json({ ok: false, error: error.message }, 400);
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
 
     // Step 1: void the outstanding document (if any) and log it.
     if (app.pandadoc_document_id) {
-      const voided = await voidDocument(app.pandadoc_document_id);
+      const voided = await voidDocument(app.pandadoc_document_id, app.livemode === true);
       if (!voided.ok) return json({ ok: false, error: `Could not void the outstanding deed: ${voided.error}` }, 200);
       const note = voided.alreadyGone ? "was already closed in PandaDoc" : "voided in PandaDoc";
       await service.from("activity_log").insert({

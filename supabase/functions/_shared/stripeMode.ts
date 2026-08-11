@@ -39,15 +39,37 @@ function projectRef(): string {
   return /https:\/\/([a-z]{20})\./.exec(url)?.[1] ?? "";
 }
 
+/**
+ * Whether this deployment is a non-production project.
+ *
+ * Exported because livemodeCredentials.ts needs it for one specific decision: a
+ * missing sandbox secret may fall back to the base secret ONLY here, where the
+ * base secret is itself a test credential. On production the same fallback would
+ * charge a real card for a sandbox rehearsal.
+ */
+export function isNonProductionProject(): boolean {
+  return NON_PRODUCTION_REFS.has(projectRef());
+}
+
 /** Which Stripe key prefix this project requires. */
 export function requiredStripePrefix(): "sk_test_" | "sk_live_" {
-  return NON_PRODUCTION_REFS.has(projectRef()) ? "sk_test_" : "sk_live_";
+  return isNonProductionProject() ? "sk_test_" : "sk_live_";
 }
 
 /**
  * Returns an error message when the configured Stripe key is the wrong mode for
  * this project, or null when it is correct. Callers keep their own response
  * shape; this only decides the message.
+ *
+ * SUPERSEDED FOR ANYTHING THAT HAS AN APPLICATION. This checks the project only,
+ * which was the whole story when a project was either live or test. Now that
+ * sandbox lives inside the live system, a live project legitimately holds an
+ * sk_test_ key as well, and the question "is this key right" has no answer
+ * without knowing which application is being charged. Use
+ * stripeSecretFor(livemode) in livemodeCredentials.ts, which composes this rule
+ * with the per-application one. This is kept for callers with no application in
+ * hand and for the environment banner generator, which reads NON_PRODUCTION_REFS
+ * out of this file.
  */
 export function stripeKeyModeError(secret: string): string | null {
   const want = requiredStripePrefix();

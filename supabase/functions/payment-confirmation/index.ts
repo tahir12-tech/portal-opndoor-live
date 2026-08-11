@@ -23,8 +23,18 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 // Minimal, self-contained PandaDoc signing-session minting (mirrors the shared
 // helper) so this public function bundles as a single file.
 const PANDADOC_API = "https://api.pandadoc.com/public/v1";
-async function signingLink(documentId: string, recipientEmail: string): Promise<string | null> {
-  const KEY = (Deno.env.get("PANDADOC_API_KEY") ?? "").trim();
+// livemode picks the PandaDoc account. This function deliberately does not
+// import _shared/livemodeCredentials.ts: the comment above says it bundles as a
+// single file on purpose, so the resolution rule is duplicated here rather than
+// the bundling property being quietly broken. The rule it duplicates is the
+// important one, so it is spelled out: sandbox reads PANDADOC_API_KEY_TEST and
+// NEVER falls back to the live key, because falling back would mint a signing
+// session against the production account for a test document.
+async function signingLink(documentId: string, recipientEmail: string, livemode: boolean): Promise<string | null> {
+  const KEY = livemode
+    ? (Deno.env.get("PANDADOC_API_KEY") ?? "").trim()
+    : (Deno.env.get("PANDADOC_API_KEY_TEST") ?? "").trim();
+  if (!KEY) return null;
   try {
     const res = await fetch(`${PANDADOC_API}/documents/${documentId}/session`, {
       method: "POST",
@@ -76,7 +86,7 @@ Deno.serve(async (req) => {
 
     const { data: app } = await service
       .from("applications")
-      .select("tenant_first_name, tenant_email, guarantee_ref, monthly_rent, paid_amount, payment_state, status, deed_state, pandadoc_document_id, payment_url")
+      .select("tenant_first_name, tenant_email, guarantee_ref, monthly_rent, paid_amount, payment_state, status, deed_state, pandadoc_document_id, payment_url, livemode")
       .eq("stripe_checkout_session_id", sessionId)
       .maybeSingle();
     if (!app) return json({ found: false });
@@ -97,7 +107,7 @@ Deno.serve(async (req) => {
       if (!deedReady) return json({ found: true, deedReady: false });
       const { data: mintOk } = await service.rpc("bump_rate_limit", { p_key: `paysign:${sessionId}`, p_limit: 10, p_window_secs: 3600 });
       if (mintOk === false) return json({ error: "Too many attempts, please try again later." }, 429);
-      const url = await signingLink(app.pandadoc_document_id as string, app.tenant_email as string);
+      const url = await signingLink(app.pandadoc_document_id as string, app.tenant_email as string, app.livemode === true);
       return json({ found: true, deedReady: true, signingUrl: url });
     }
 

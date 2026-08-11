@@ -12,6 +12,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { paymentEmailTemplate, sendEmail } from "./email.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
+import { maySendOpndoorEmail } from "../_shared/livemodeCredentials.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -44,11 +45,19 @@ Deno.serve(async (req) => {
     // RLS ensures only the owning Referrer / Management in-partner / admin can read it.
     const { data: app, error } = await userClient
       .from("applications")
-      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, monthly_rent, status, payment_url")
+      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, monthly_rent, status, payment_url, livemode")
       .eq("guarantee_ref", ref).maybeSingle();
     if (error) return json({ ok: false, error: error.message }, 400);
     if (!app) return json({ ok: false, error: "Application not found, or you do not have access to it." }, 404);
     if (app.status !== "sent") return json({ ok: false, error: "This application has already been paid; there is nothing to resend." }, 400);
+    // Belt and braces. The restrictive policy already means no portal user can
+    // load a sandbox application to press this button, but this function runs as
+    // service_role and resolves the row itself, so the policy is not what protects
+    // it. Refuse rather than silently no-op: a developer who somehow gets here
+    // should be told why nothing was sent.
+    if (!maySendOpndoorEmail(app.livemode === true)) {
+      return json({ ok: false, error: "This is a sandbox application. Opndoor does not send email for sandbox." }, 400);
+    }
     if (!app.payment_url) return json({ ok: false, error: "No payment link exists for this application yet." }, 400);
 
     const rent = Number(app.monthly_rent);

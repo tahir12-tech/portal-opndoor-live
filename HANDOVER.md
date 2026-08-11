@@ -971,3 +971,138 @@ and will grant the next role added:
 - `applicationsService.ts`, `canAmendTenancyStart` and `canWithdraw` both end
   `: true`
 - `paymentMetrics.ts`, `analyticsService.ts`, `leagueService.ts`, same shape
+
+---
+
+## 11. Sandbox mode (livemode)
+
+Sandbox is a mode inside the live system, the way Stripe does it. One project,
+one URL, one login. A partner developer rehearses the whole integration against a
+sandbox key and then swaps the key for a live one with nothing else changing.
+
+The guarantee is: no role except a developer ever sees a sandbox application, no
+sandbox row reaches a commission figure, a bordereau, a settlement, a league, a
+partner email or HubSpot, and no sandbox action touches a real third party.
+
+### 11.1 What decides the mode
+
+`applications.livemode`, a boolean, default true. It is copied from the API key
+that created the row and is never read from a request payload. A trigger makes it
+immutable after insert.
+
+The default is **live** on purpose, and the reasoning is worth keeping because it
+looks backwards at first. Reads must fail towards hiding sandbox: a developer
+seeing nothing is a bug, a partner seeing a test row in their commission is an
+incident. Writes must fail the other way: if the default were sandbox, any writer
+not yet updated would silently mint invisible rows, real referrals would vanish
+from the bordereau and partners would go unpaid with nothing raising a hand.
+
+### 11.2 Why RLS is not the guarantee, and what is
+
+A restrictive policy on `applications` subtracts sandbox from every existing
+permissive policy, including the unconditional `is_admin()` arm, without editing
+the original SQL. It has no developer arm: nobody sees sandbox through PostgREST,
+which is why the portal client needed no changes at all.
+
+That policy covers a minority of the reads in this system. No table sets FORCE
+ROW LEVEL SECURITY, so all 27 SECURITY DEFINER functions that read
+`applications` run with policies switched off, and 11 are callable straight from
+a browser. What actually holds the line is:
+
+- **one trigger** for writes, `applications_sandbox_write_guard`. A definer
+  function runs as its owner but the session still carries the caller's JWT, so
+  the trigger can tell a portal user from a machine caller and block only the
+  first. This covers functions nobody has written yet.
+- **explicit predicates** for reads, on nine reporting functions.
+- **`public.livemode_audit()`**, which lists every definer function reading
+  `applications` with no predicate and no exemption. Empty is the passing state.
+  Migration `20260810280000` asserts it, so a future function without a predicate
+  fails the deploy.
+
+Exemptions live in `public.livemode_audit_exemptions` with a written reason.
+**If the audit raises, do not add an exemption to silence it.** Read the function
+and decide whether it can return a sandbox row to somebody who should not see
+one. The reason column is where the argument goes.
+
+Note the audit checks exactly one table. Three of the leaks found while building
+this were in functions that never touch `applications` at all (`partner_api_orgs`,
+`create_referral_target_api`, the idempotency ledger). A green audit is not a
+clean bill of health.
+
+### 11.3 Secrets you must set on production
+
+Sandbox does not work on production until these exist. A missing one is a hard
+error, never a fallback to the live credential: falling back would charge a real
+card for a rehearsal.
+
+```
+STRIPE_SECRET_KEY_TEST              sk_test_... from the same Stripe account
+STRIPE_WEBHOOK_SECRET_TEST          the signing secret of a SECOND Stripe webhook
+                                    endpoint, pointed at the same URL, in test mode
+PANDADOC_API_KEY_TEST               PandaDoc sandbox API key
+PANDADOC_TEMPLATE_ID_TEST           the deed template as it exists in the sandbox
+                                    account (a sandbox key cannot see a
+                                    production template, so this is not optional)
+PANDADOC_WEBHOOK_SHARED_KEY_TEST    shared key of the sandbox webhook
+```
+
+The dev project needs none of them: there is only one credential set there, all
+of it test, and `livemodeCredentials.ts` falls back to the base name on
+non-production projects only.
+
+**Point the test-mode Stripe webhook and the sandbox PandaDoc webhook at the same
+URLs as the live ones.** Inbound events do not say which mode they are in, or
+rather they do and it cannot be trusted, so the mode is derived from *which
+signing secret verifies the signature*. Both secrets are tried; the one that
+matches identifies the mode. It is then cross-checked against the application's
+own `livemode`, and a mismatch is refused with a 500 and an ops alert rather than
+reconciled, because the only ways the two can disagree are a replay or a
+misconfiguration.
+
+### 11.4 Departures from the additive rule
+
+The standing rule for this work was to add, never edit. Sandbox could not be
+built additively: `livemode` has to be threaded from the key to the row, and a
+parameter cannot reach a module constant captured at import. Every edited file
+and why it was unavoidable:
+
+| File | Why it could not be additive |
+| --- | --- |
+| `_shared/pandadoc.ts` | The API key, template id and webhook key were module constants read at import (lines 18-20). No parameter can reach a module constant, so one deployment could only ever talk to one PandaDoc account. They had to become a resolver. |
+| `_shared/stripeMode.ts` | Its rule was per project, which was the whole story when a project was either live or test. A live project now legitimately holds an `sk_test_` key too, so `isNonProductionProject()` had to be exported for the credential resolver to compose with. The old function is kept and marked superseded; the environment-banner generator still reads `NON_PRODUCTION_REFS` from it. |
+| `_shared/partnerAuth.ts` | `PartnerAuth` is where the key's mode enters the system. Nothing downstream can know it if this does not carry it. |
+| `_shared/partnerApplications.ts` | The create path resolves orgs and calls `create_referral_api`; both now need the mode. |
+| `partner-api/index.ts` | Threads the mode from the authenticated key into every handler. Nine signatures, so the compiler finds a missed call site rather than a partner finding it. |
+| `stripe-webhook/index.ts` | Signature verification had to try both secrets to derive the mode, and the payment and refund paths needed the cross-check before the privileged RPC rather than after. |
+| `pandadoc-webhook/index.ts` | Same, for the PandaDoc HMAC. |
+| `payment-page/index.ts` | Chose the Stripe key from the project. It has to come from the application, so the key read moved below the row fetch. This also fixed a pre-existing gap: the mode guard sat inside the `checkout` branch, so `view` and `decline` ran with no check at all. |
+| `create-referral/index.ts` | Same key-selection change. The portal only makes live applications, so it now asks for the live key explicitly. |
+| `payment-confirmation/index.ts` | Has its own inline PandaDoc signing-link minter, deliberately, so the function bundles as a single file. The mode rule is duplicated there rather than breaking that property. |
+| `pandadoc-resend/index.ts`, `pandadoc-void-regenerate/index.ts`, `amend-tenancy-start/index.ts` | Call `remindSignature` / `voidDocument`, which now need the mode. Each already loads the application, so it comes from the row. |
+| `hubspot-sync/index.ts` | Sandbox is already excluded in SQL. This refuses any sandbox row that arrives anyway and reports it, because a test contact and a test deal in the production CRM is the most expensive leak here to undo by hand. |
+| `resend-payment-email/index.ts` | Runs as service_role and resolves the application itself, so the restrictive policy is not what protects it. |
+| `expiry-cohorts/index.ts`, `expiry-reminders/index.ts` | Two direct `from("applications")` reads under service_role, which RLS does not touch. The cohort list is emailed to partner management. |
+| `src/config/environment.generated.ts` | Regenerated, not hand-edited. |
+
+`create_referral`, `create_referral_api`, `partner_api_applications`,
+`partner_api_orgs`, `create_referral_target_api`, `enqueue_partner_webhook` and
+`partner_webhook_payload` were replaced in migrations rather than edited in
+place, so the original files are untouched. Where a mandatory argument was added
+the old signature is explicitly dropped: a defaulted argument would leave both
+signatures callable, old callers would resolve to the old one, and a sandbox key
+would silently mint live rows.
+
+### 11.5 Sandbox references
+
+Sandbox has its own sequence, `guarantee_ref_sandbox_seq`, formatted
+`GR-TEST-1`. It does not share `guarantee_ref_seq`, so a sandbox reference is
+unmistakable in a support conversation and the live sequence has no gaps
+proportional to rehearsal volume.
+
+### 11.6 Clearing sandbox data
+
+`public.dev_purge_sandbox(p_partner uuid default null)`. Once the restrictive
+policy is in place not even a superadmin can delete a sandbox row through
+PostgREST, so without this they would accumulate for ever. Its where clause is
+`not livemode` and never an id list, so a mistyped argument cannot delete real
+money.

@@ -14,12 +14,19 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { verifyWebhook, downloadPdf } from "../_shared/pandadoc.ts";
 import { deliverDeedToAgent } from "../_shared/deedEmail.ts";
 import { deliverExecutedDeedToTenant } from "../_shared/executedDeedEmail.ts";
+import { maySendOpndoorEmail } from "../_shared/livemodeCredentials.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 
 Deno.serve(async (req) => {
   const signature = new URL(req.url).searchParams.get("signature") ?? "";
   const body = await req.text();
-  if (!(await verifyWebhook(body, signature))) return new Response("Invalid signature", { status: 401 });
+  // The shared key that verifies the HMAC is what tells us which PandaDoc account
+  // sent this. Nothing in the body is trusted for that: a callback is an
+  // unauthenticated request until the signature checks out, so any field inside it
+  // is a claim rather than a fact.
+  const verified = await verifyWebhook(body, signature);
+  if (!verified.ok) return new Response("Invalid signature", { status: 401 });
+  const eventLivemode = verified.livemode === true;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let events: any[];
@@ -43,12 +50,30 @@ Deno.serve(async (req) => {
     if (insErr) continue; // duplicate delivery -> skip
 
     const { data: app } = await service.from("applications")
-      .select("id, guarantee_ref, branch_id, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, tenancy_start, agency:agencies(name)")
+      .select("id, guarantee_ref, branch_id, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, tenancy_start, livemode, agency:agencies(name)")
       .eq("pandadoc_document_id", docId).maybeSingle();
+
+    // Refuse a callback whose mode does not match the application it names. The
+    // two can only disagree if a sandbox event is replayed against a live
+    // application or the same shared key has been configured for both modes.
+    // Neither is recoverable by choosing one, and choosing the event's mode would
+    // let a forged sandbox callback mark a real deed executed.
+    //
+    // The dedup row is deleted so a corrected redelivery is not swallowed, and
+    // this returns 500 rather than 401 so PandaDoc keeps retrying and the
+    // misconfiguration stays visible instead of being silently dropped.
+    if (app && (app.livemode === true) !== eventLivemode) {
+      await service.from("ops_alerts").insert({
+        alert_type: "pandadoc_livemode_mismatch",
+        detail: `PandaDoc event ${evId} verified as ${eventLivemode ? "live" : "sandbox"} but application ${app.id} is ${app.livemode ? "live" : "sandbox"}. Refused.`,
+      }).then(() => {}, () => {});
+      await service.from("pandadoc_events").delete().eq("id", evId).then(() => {}, () => {});
+      return new Response("Event mode does not match the application.", { status: 500 });
+    }
 
     if (status === "document.completed") {
       let path: string | null = null;
-      const pdf = await downloadPdf(docId);
+      const pdf = await downloadPdf(docId, eventLivemode);
       if (pdf && app) {
         path = `${app.id}/${app.guarantee_ref}.pdf`;
         await service.storage.from("deeds").upload(path, pdf, { contentType: "application/pdf", upsert: true });
@@ -74,9 +99,15 @@ Deno.serve(async (req) => {
         // the same email the manual "Send deed to agent" button sends; if no
         // contact resolves we record it for the needs-attention surface, never
         // failing silently. The manual button is the recovery/resend path.
+        // Sandbox sends neither of the two Opndoor emails below. The agent one is
+        // the sharper edge: the agent contact on a sandbox application is a real
+        // letting agent's address if a developer used a real one in a test
+        // payload, and it would arrive carrying an executed Deed of Guarantee for
+        // a tenancy that does not exist.
+        const mayEmail = maySendOpndoorEmail(app.livemode === true);
         const { data: contact } = await service.rpc("effective_primary_contact", { p_branch: app.branch_id });
         const eff = Array.isArray(contact) ? contact[0] : contact;
-        if (eff?.email) {
+        if (eff?.email && mayEmail) {
           const agencyName = (Array.isArray(app.agency) ? app.agency[0]?.name : (app.agency as { name?: string } | null)?.name) ?? "";
           await deliverDeedToAgent(service, {
             appId: app.id,
@@ -101,7 +132,7 @@ Deno.serve(async (req) => {
         // #4 Email the tenant their own signed deed (download link), regardless of
         // whether the agent contact resolved. Idempotent via the pandadoc_events
         // dedup above (document.completed runs once).
-        await deliverExecutedDeedToTenant(service, {
+        if (mayEmail) await deliverExecutedDeedToTenant(service, {
           appId: app.id,
           ref: app.guarantee_ref,
           tenantEmail: app.tenant_email ?? "",

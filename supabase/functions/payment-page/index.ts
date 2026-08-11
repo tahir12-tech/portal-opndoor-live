@@ -17,7 +17,7 @@
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { titleCaseAddress } from "../_shared/text.ts";
-import { stripeKeyModeError } from "../_shared/stripeMode.ts";
+import { stripeSecretFor } from "../_shared/livemodeCredentials.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -47,7 +47,6 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
     const APP_URL = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
     const service = createClient(SUPABASE_URL, SERVICE);
 
@@ -64,9 +63,18 @@ Deno.serve(async (req) => {
     if (new Date(tok.expires_at).getTime() < Date.now()) return json({ ok: false, error: "This link has expired." }, 410);
 
     const { data: app } = await service.from("applications")
-      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, tenancy_start, status, payment_state, partner:partners(name)")
+      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, tenancy_start, status, payment_state, livemode, partner:partners(name)")
       .eq("id", tok.application_id).maybeSingle();
     if (!app) return json({ ok: false, error: "This link is not valid." }, 404);
+
+    // The Stripe key is chosen by the APPLICATION, not by the project. A sandbox
+    // application is charged with sk_test_ even on production, so a developer
+    // rehearsing the tenant's payment journey uses a test card and no real money
+    // moves. Resolved after the application is known, which is why the old
+    // module-scope read of STRIPE_SECRET_KEY had to go.
+    const stripeSecret = stripeSecretFor(app.livemode === true);
+    if (!stripeSecret.ok) return json({ ok: false, error: stripeSecret.error }, 400);
+    const STRIPE_SECRET = stripeSecret.value;
 
     // deno-lint-ignore no-explicit-any
     const partnerName = (Array.isArray(app.partner) ? (app.partner as any)[0]?.name : (app.partner as any)?.name) ?? "your letting agent";
@@ -135,8 +143,10 @@ Deno.serve(async (req) => {
         const canReinstate = full?.status === "withdrawn" && full?.withdrawn_by_tenant === true;
         if (!canReinstate) return json({ ok: false, error: isPaid ? "This fee has already been paid." : "This application is closed.", status: app.status }, 409);
       }
-      const modeError = stripeKeyModeError(STRIPE_SECRET);
-      if (modeError) return json({ ok: false, error: modeError }, 400);
+      // The mode check used to live here, inside the checkout branch only, so
+      // view and decline ran with no check at all. stripeSecretFor now resolves
+      // and validates once at the top of the handler, against the APPLICATION
+      // rather than the project, which covers all three actions.
       const utm = typeof body.utm_source === "string" ? body.utm_source.slice(0, 40) : "confirmation_page";
       const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
       const session = await stripe.checkout.sessions.create({

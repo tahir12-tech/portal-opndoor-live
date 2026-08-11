@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     // gives the OLD tenancy start for the activity message).
     const { data: app, error: readErr } = await userClient
       .from("applications")
-      .select("id, guarantee_ref, status, deed_state, pandadoc_document_id, executed_pdf_path, tenancy_start")
+      .select("id, guarantee_ref, status, deed_state, pandadoc_document_id, executed_pdf_path, tenancy_start, livemode")
       .eq("guarantee_ref", ref)
       .maybeSingle();
     if (readErr) return json({ ok: false, error: readErr.message }, 400);
@@ -129,7 +129,9 @@ Deno.serve(async (req) => {
       // void never blocks the amend, because the new deed supersedes the old one.
       const oldDocId = app.pandadoc_document_id;
       await service.from("applications").update({ pandadoc_document_id: null, deed_state: null, deed_viewed_at: null }).eq("id", app.id);
-      const voided = await voidDocument(oldDocId);
+      // livemode from the application row, so an amendment on a sandbox deed voids
+      // it in the sandbox PandaDoc account rather than 404ing against production.
+      const voided = await voidDocument(oldDocId, app.livemode === true);
       await service.from("activity_log").insert({
         application_id: app.id, kind: "deed_voided",
         message: voided.ok

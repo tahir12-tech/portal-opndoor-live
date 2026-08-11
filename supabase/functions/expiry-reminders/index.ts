@@ -93,7 +93,9 @@ Deno.serve(async (req) => {
     // the run can be repeated from scratch. Never available on the cron path.
     if (test && reset) {
       const { data: win } = await service.from("applications")
-        .select("id").eq("status", "deed").gte("expiry_date", pToday).lte("expiry_date", addDaysStr(pToday, 30));
+        // Matches the livemode filter now on fire_expiry_reminders, so the test
+        // reset clears exactly the set that function will re-fire and no more.
+        .select("id").eq("status", "deed").eq("livemode", true).gte("expiry_date", pToday).lte("expiry_date", addDaysStr(pToday, 30));
       const ids = (win ?? []).map((w: { id: string }) => w.id);
       if (ids.length) {
         await service.from("expiry_reminders").delete().in("application_id", ids);

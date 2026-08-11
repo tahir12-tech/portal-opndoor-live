@@ -33,6 +33,7 @@
 // -> x-hubspot-token header -> ops_secrets 'hubspot_access_token'.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { maySyncToHubspot } from "../_shared/livemodeCredentials.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -138,13 +139,26 @@ Deno.serve(async (req) => {
     const { data: cur } = await service.from("hubspot_sync_cursor").select("*").eq("id", true).maybeSingle();
     if (!cur) return json({ ok: false, error: "Cursor not initialised." }, 500);
 
+    const summaryWarn: string[] = [];
     const LIMIT = Number((await req.json().catch(() => ({})))?.limit ?? 200);
     const { data: events, error: evErr } = await service.rpc("hubspot_pending_events", {
       p_last_at: cur.last_at, p_last_id: cur.last_id, p_kinds: Object.keys(KIND_TO_EVENT), p_limit: LIMIT,
     });
     if (evErr) return json({ ok: false, error: `fetch events: ${evErr.message}` }, 500);
 
-    const summary: any = { ok: true, env: env.env, processed: 0, by: {}, warnings: [], errors: [], cursor_start: { at: cur.last_at, id: cur.last_id } };
+    // Sandbox rows must never reach HubSpot. They are already excluded in SQL, by
+    // the livemode predicate on hubspot_pending_events, so anything arriving here
+    // with livemode false means that predicate has been removed or the cursor is
+    // being fed from somewhere else. Drop it and say so loudly rather than
+    // trusting the layer below: a test contact and a test deal in the production
+    // CRM is the most expensive leak in this system to undo by hand.
+    const clean = (events ?? []).filter((e: any) => {
+      if (maySyncToHubspot(e?.app?.livemode !== false)) return true;
+      summaryWarn.push(`refused sandbox application ${e?.application_id} (event ${e?.event_id})`);
+      return false;
+    });
+
+    const summary: any = { ok: true, env: env.env, refused_sandbox: summaryWarn, processed: 0, by: {}, warnings: [], errors: [], cursor_start: { at: cur.last_at, id: cur.last_id } };
 
     // ---- idempotency ledger: check BEFORE, record AFTER success -------
     // Ledger id is the full key. Two families:
@@ -311,7 +325,7 @@ Deno.serve(async (req) => {
     };
 
     // ---- per-event processing ----------------------------------------
-    for (const ev of (events ?? [])) {
+    for (const ev of clean) {
       const app = ev.app;
       const eventType = KIND_TO_EVENT[ev.kind];
       try {

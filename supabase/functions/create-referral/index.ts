@@ -15,7 +15,7 @@ import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { paymentEmailTemplate, sendEmail } from "./email.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
-import { stripeKeyModeError } from "../_shared/stripeMode.ts";
+import { stripeSecretFor } from "../_shared/livemodeCredentials.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -32,11 +32,15 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
     const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
-    const modeError = stripeKeyModeError(STRIPE_SECRET);
-    if (modeError) {
-      return json({ ok: false, error: modeError }, 400);
+    // The portal only ever creates live applications (create_referral hardcodes
+    // livemode true), so this asks for the live key explicitly rather than
+    // reading the project. On a dev project that still resolves to sk_test_,
+    // because stripeSecretFor composes the project rule for live applications.
+    const stripeSecret = stripeSecretFor(true);
+    if (!stripeSecret.ok) {
+      return json({ ok: false, error: stripeSecret.error }, 400);
     }
+    const STRIPE_SECRET = stripeSecret.value;
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader) return json({ ok: false, error: "Not authenticated." }, 401);
 

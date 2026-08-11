@@ -119,7 +119,12 @@ Deno.serve(async (req) => {
     // fields the export needs. Refunded and already-expired rows are dropped below.
     const { data: apps, error: appErr } = await service.from("applications")
       .select("id, guarantee_ref, tenancy_start, expiry_date, monthly_rent, payment_state, partner_id, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name)")
-      .eq("status", "deed").gte("expiry_date", monthStart).lte("expiry_date", monthEnd);
+      // livemode: this list is emailed to each partner's management users as a
+      // cohort export. A sandbox rehearsal that reached 'deed' would appear in a
+      // real partner's expiring-guarantees report as a guarantee they believe is
+      // in force. service_role bypasses the restrictive policy, so the filter has
+      // to be here.
+      .eq("status", "deed").eq("livemode", true).gte("expiry_date", monthStart).lte("expiry_date", monthEnd);
     if (appErr) return json({ ok: false, error: appErr.message }, 500);
 
     // Management recipients per partner.

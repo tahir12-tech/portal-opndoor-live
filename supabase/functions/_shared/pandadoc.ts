@@ -1,7 +1,17 @@
 // =====================================================================
-// PandaDoc (sandbox) helpers. API key, template id and webhook shared key are
-// Edge Function secrets. Sandbox/test only: every recipient is routed to
-// EMAIL_REVIEW_ADDRESS so no real tenant is emailed.
+// PandaDoc helpers.
+//
+// CREDENTIALS ARE PER APPLICATION, NOT PER DEPLOYMENT. They used to be three
+// module constants captured at import, which meant no parameter could ever
+// reach them and one deployment could only ever talk to one PandaDoc account.
+// Now that sandbox lives inside the live system, every entry point takes a
+// livemode and resolves its credentials through livemodeCredentials.ts.
+//
+// A PandaDoc SANDBOX key produces real documents and really sends them,
+// watermarked with a developer prefix. That is deliberate: rehearsing the
+// tenant's signing journey is most of the point of sandbox. It also means
+// whatever address a developer POSTs as tenant_email genuinely receives an
+// email, which is why the Dev Centre surfaces the signing link with a warning.
 //
 // The tenant is the only live signer. The opndoor signature is a facsimile
 // image placed as static content in the template. The Issue Date is the deed's
@@ -11,25 +21,28 @@
 // Signature field (Tenant) and no Date field.
 // =====================================================================
 import { titleCaseAddress } from "./text.ts";
+import { pandadocConfigFor, pandadocConfiguredFor, pandadocWebhookKeys } from "./livemodeCredentials.ts";
 
 const API = "https://api.pandadoc.com/public/v1";
-// Trim: a stray space pasted into a secret (e.g. a leading space on the template
-// id) otherwise yields PandaDoc 404 "Template is not available".
-const KEY = (Deno.env.get("PANDADOC_API_KEY") ?? "").trim();
-const TEMPLATE_ID = (Deno.env.get("PANDADOC_TEMPLATE_ID") ?? "").trim();
-const WEBHOOK_KEY = (Deno.env.get("PANDADOC_WEBHOOK_SHARED_KEY") ?? "").trim();
 // const REVIEW = (Deno.env.get("EMAIL_REVIEW_ADDRESS") ?? "").trim();
 // For the fallback signing-link email (when PandaDoc's own reminder is unavailable).
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <payments@opndoor.co>";
 const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
 
-export function pandadocConfigured(): boolean {
-  return Boolean(KEY && TEMPLATE_ID);
+/**
+ * Whether PandaDoc is usable for this mode.
+ *
+ * Takes livemode rather than answering globally: on production, live may be
+ * configured while sandbox is not, and answering "yes" for both would turn a
+ * missing sandbox secret into a 404 from PandaDoc rather than a clear message.
+ */
+export function pandadocConfigured(livemode: boolean): boolean {
+  return pandadocConfiguredFor(livemode);
 }
 
-function headers(): Record<string, string> {
-  return { Authorization: `API-Key ${KEY}`, "Content-Type": "application/json" };
+function headers(key: string): Record<string, string> {
+  return { Authorization: `API-Key ${key}`, "Content-Type": "application/json" };
 }
 
 function fmtDate(iso: string): string {
@@ -88,19 +101,23 @@ export interface DeedResult {
 }
 
 /** Create the deed document from the template and send it to the tenant to sign. */
-export async function createAndSend(a: DeedApp): Promise<DeedResult> {
-  if (!pandadocConfigured()) return { ok: false, error: "PandaDoc is not configured (PANDADOC_API_KEY / PANDADOC_TEMPLATE_ID)." };
+export async function createAndSend(a: DeedApp, livemode: boolean): Promise<DeedResult> {
+  const cfg = pandadocConfigFor(livemode);
+  if (!cfg.ok) return { ok: false, error: cfg.error };
+  const { key, templateId } = cfg.value;
   try {
     // The deed is dated at generation (Europe/London). This same date becomes the
     // DB issue_date, so the printed date and the record always agree.
     const issue = londonToday();
     const createRes = await fetch(`${API}/documents`, {
       method: "POST",
-      headers: headers(),
+      headers: headers(key),
       body: JSON.stringify({
         name: `Deed of Guarantee - ${a.guarantee_ref}`,
-        template_uuid: TEMPLATE_ID,
-        // Sandbox: route the tenant recipient to the review address. i have chnaged it redirct to tenat
+        template_uuid: templateId,
+        // The tenant recipient is the real address on the application, in both
+        // modes. In sandbox that is whatever the developer POSTed, and PandaDoc
+        // will email it: see the header and the Dev Centre warning.
        recipients: [{ email: a.tenant_email, first_name: a.tenant_first_name, last_name: a.tenant_last_name, role: "Tenant" }],
         tokens: tokens(a, issue.dmy),
         metadata: { application_id: a.id, guarantee_ref: a.guarantee_ref },
@@ -112,7 +129,7 @@ export async function createAndSend(a: DeedApp): Promise<DeedResult> {
 
     // The document processes asynchronously to "document.draft" before it can be sent.
     for (let i = 0; i < 8; i++) {
-      const st = await fetch(`${API}/documents/${docId}`, { headers: headers() });
+      const st = await fetch(`${API}/documents/${docId}`, { headers: headers(key) });
       const doc = await st.json();
       if (doc.status === "document.draft") break;
       await new Promise((r) => setTimeout(r, 1500));
@@ -135,7 +152,7 @@ export async function createAndSend(a: DeedApp): Promise<DeedResult> {
       : `Dear ${a.tenant_first_name} ${a.tenant_last_name}, your opndoor guarantor fee has been received and your Deed of Guarantee is ready to sign. Please review and sign the document to put your guarantee in place. Reference ${a.guarantee_ref}.${alreadySigned}`;
     const sendRes = await fetch(`${API}/documents/${docId}/send`, {
       method: "POST",
-      headers: headers(),
+      headers: headers(key),
       body: JSON.stringify({ silent: false, subject, message }),
     });
    if (!sendRes.ok) return { ok: false, documentId: docId, error: `PandaDoc send ${sendRes.status}: ${(await sendRes.text()).slice(0, 300)}` };
@@ -200,10 +217,12 @@ export interface RemindResult {
  *  - if the reminder endpoint is unavailable, re-deliver a fresh signing-session
  *    link to the tenant via our own email module.
  */
-export async function remindSignature(documentId: string, ctx: RemindContext): Promise<RemindResult> {
-  if (!pandadocConfigured()) return { ok: false, error: "PandaDoc is not configured." };
+export async function remindSignature(documentId: string, ctx: RemindContext, livemode: boolean): Promise<RemindResult> {
+  const cfg = pandadocConfigFor(livemode);
+  if (!cfg.ok) return { ok: false, error: cfg.error };
+  const { key } = cfg.value;
   // Read the current status and recipient (the state is what makes this safe).
-  const docRes = await fetch(`${API}/documents/${documentId}`, { headers: headers() });
+  const docRes = await fetch(`${API}/documents/${documentId}`, { headers: headers(key) });
   if (!docRes.ok) return { ok: false, error: "Reminder could not be sent, please try again shortly.", technical: `Could not read the deed document (${docRes.status}).` };
   const doc = await docRes.json();
   const status: string = doc.status ?? "";
@@ -220,7 +239,7 @@ export async function remindSignature(documentId: string, ctx: RemindContext): P
   if (recipientId) {
     const remRes = await fetch(`${API}/documents/${documentId}/send-reminder`, {
       method: "POST",
-      headers: headers(),
+      headers: headers(key),
       body: JSON.stringify({
         reminders: [{
           recipient_id: recipientId,
@@ -237,7 +256,7 @@ export async function remindSignature(documentId: string, ctx: RemindContext): P
   }
 
   // Fallback: mint a fresh signing-session link and email it ourselves.
-  const { link, detail } = await signingLink(documentId, recipientEmail);
+  const { link, detail } = await signingLink(documentId, recipientEmail, key);
   if (!link) return { ok: false, error: "Reminder could not be sent, please try again shortly.", technical: detail ?? "Could not create a PandaDoc signing session for the tenant." };
   const em = await emailSigningLink(recipientEmail, link, ctx);
   // Email fallback unavailable (e.g. unverified Resend domain): honest copy for
@@ -251,7 +270,7 @@ export async function remindSignature(documentId: string, ctx: RemindContext): P
 //   try {
 //     const res = await fetch(`${API}/documents/${documentId}/session`, {
 //       method: "POST",
-//       headers: headers(),
+//       headers: headers(key),
 //       body: JSON.stringify({ recipient: recipientEmail, lifetime: 60 * 60 * 24 * 7 }),
 //     });
 //     if (!res.ok) return null;
@@ -262,11 +281,11 @@ export async function remindSignature(documentId: string, ctx: RemindContext): P
 //   }
 // }
 
-async function signingLink(documentId: string, recipientEmail: string): Promise<{ link: string | null; detail?: string }> {
+async function signingLink(documentId: string, recipientEmail: string, key: string): Promise<{ link: string | null; detail?: string }> {
   try {
     const res = await fetch(`${API}/documents/${documentId}/session`, {
       method: "POST",
-      headers: headers(),
+      headers: headers(key),
       body: JSON.stringify({ recipient: recipientEmail, lifetime: 60 * 60 * 24 * 7 }),
     });
     if (!res.ok) return { link: null, detail: `PandaDoc session ${res.status}: ${(await res.text()).slice(0, 300)}` };
@@ -354,12 +373,14 @@ async function emailSigningLink(tenantEmail: string, link: string, ctx: RemindCo
  * status Expired (11), allowed from Sent/Viewed. An already-terminal or missing
  * document is treated as effectively gone so regeneration can proceed.
  */
-export async function voidDocument(documentId: string): Promise<{ ok: boolean; alreadyGone?: boolean; error?: string }> {
-  if (!pandadocConfigured()) return { ok: false, error: "PandaDoc is not configured." };
+export async function voidDocument(documentId: string, livemode: boolean): Promise<{ ok: boolean; alreadyGone?: boolean; error?: string }> {
+  const cfg = pandadocConfigFor(livemode);
+  if (!cfg.ok) return { ok: false, error: cfg.error };
+  const { key } = cfg.value;
   try {
     const res = await fetch(`${API}/documents/${documentId}/status`, {
       method: "PATCH",
-      headers: headers(),
+      headers: headers(key),
       body: JSON.stringify({ status: 11, note: "Superseded by a regenerated deed.", notify_recipients: false }),
     });
     if (res.ok) return { ok: true };
@@ -373,9 +394,11 @@ export async function voidDocument(documentId: string): Promise<{ ok: boolean; a
 }
 
 /** Download the executed PDF (available once the document is completed). */
-export async function downloadPdf(documentId: string): Promise<Uint8Array | null> {
+export async function downloadPdf(documentId: string, livemode: boolean): Promise<Uint8Array | null> {
+  const cfg = pandadocConfigFor(livemode);
+  if (!cfg.ok) return null;
   try {
-    const res = await fetch(`${API}/documents/${documentId}/download`, { headers: { Authorization: `API-Key ${KEY}` } });
+    const res = await fetch(`${API}/documents/${documentId}/download`, { headers: { Authorization: `API-Key ${cfg.value.key}` } });
     if (!res.ok) return null;
     return new Uint8Array(await res.arrayBuffer());
   } catch {
@@ -383,13 +406,50 @@ export async function downloadPdf(documentId: string): Promise<Uint8Array | null
   }
 }
 
-/** PandaDoc signs webhooks with HMAC-SHA256 of the raw body using the shared key. */
-export async function verifyWebhook(rawBody: string, signature: string): Promise<boolean> {
-  if (!WEBHOOK_KEY || !signature) return false;
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(WEBHOOK_KEY), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
-  const hex = [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, "0")).join("");
-  return hex === signature.toLowerCase();
+/**
+ * PandaDoc signs webhooks with HMAC-SHA256 of the raw body using the shared key.
+ *
+ * THE SECRET THAT VERIFIES IS WHAT IDENTIFIES THE MODE. There is no field in a
+ * PandaDoc callback that says which account sent it, and if there were it would
+ * be attacker-controlled: anything read out of the body is a claim, not a fact.
+ * Trying each configured shared key in turn and reporting which one matched
+ * derives the mode from a cryptographic property instead. A caller that cannot
+ * forge the sandbox HMAC cannot make a live event look like a sandbox one.
+ *
+ * Both keys are always tried, even after the first succeeds is impossible here
+ * since a match returns. The loop does not short-circuit on a MISSING key: an
+ * unconfigured sandbox simply contributes no candidate.
+ */
+export async function verifyWebhook(
+  rawBody: string,
+  signature: string,
+): Promise<{ ok: boolean; livemode: boolean | null }> {
+  if (!signature) return { ok: false, livemode: null };
+
+  const enc = new TextEncoder();
+  for (const candidate of pandadocWebhookKeys()) {
+    const k = await crypto.subtle.importKey("raw", enc.encode(candidate.secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const mac = await crypto.subtle.sign("HMAC", k, enc.encode(rawBody));
+    const hex = [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    if (hex === signature.toLowerCase()) return { ok: true, livemode: candidate.livemode };
+  }
+  return { ok: false, livemode: null };
+}
+
+/**
+ * A fresh signing session link for a document. Exported for the Dev Centre,
+ * which shows a developer the link for their sandbox deed because they have no
+ * other way to reach it: sandbox applications are invisible everywhere else in
+ * the portal by design.
+ */
+export async function getSigningLink(
+  documentId: string,
+  recipientEmail: string,
+  livemode: boolean,
+): Promise<{ link: string | null; detail?: string }> {
+  const cfg = pandadocConfigFor(livemode);
+  if (!cfg.ok) return { link: null, detail: cfg.error };
+  return await signingLink(documentId, recipientEmail, cfg.value.key);
 }
 
 /**
@@ -404,7 +464,7 @@ export async function verifyWebhook(rawBody: string, signature: string): Promise
 export async function generateDeed(service: any, appId: string, reissue = false): Promise<DeedResult> {
   const { data: app } = await service
     .from("applications")
-    .select("id, guarantee_ref, tenant_first_name, tenant_last_name, tenant_email, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_postcode, branch_id")
+    .select("id, guarantee_ref, tenant_first_name, tenant_last_name, tenant_email, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_postcode, branch_id, livemode")
     .eq("id", appId)
     .maybeSingle();
   if (!app) return { ok: false, error: "Application not found." };
@@ -418,7 +478,10 @@ export async function generateDeed(service: any, appId: string, reissue = false)
     return { ok: false, error: "No agent contact for this branch. Add one, then retry." };
   }
 
-  const res = await createAndSend({ ...app, agent_email: agentEmail, reissue });
+  // livemode comes from the row rather than from an argument, so all four
+  // callers of generateDeed stay unchanged and none of them can pass the wrong
+  // one. === so a null never becomes live.
+  const res = await createAndSend({ ...app, agent_email: agentEmail, reissue }, app.livemode === true);
   if (!res.ok) {
     await service.from("applications").update({ deed_state: "error" }).eq("id", appId);
     await service.from("activity_log").insert({ application_id: appId, kind: "deed_error", message: `Deed generation failed: ${res.error}`, actor: "System", visibility: "internal" });

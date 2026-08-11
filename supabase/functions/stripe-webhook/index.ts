@@ -14,8 +14,18 @@
 // Failure / abandonment (payment_intent.payment_failed, checkout.session.expired)
 // leave status untouched. Refunds are recorded without reversing Sent -> Paid.
 //
-// Stripe key mode must match the project: sk_test_ on a non-production project,
-// sk_live_ everywhere else. See _shared/stripeMode.ts.
+// LIVE AND SANDBOX ARRIVE AT THE SAME URL. Stripe sends test-mode and live-mode
+// events to the same endpoint, and the mode is derived from WHICH SIGNING SECRET
+// VERIFIES THE SIGNATURE, never from anything in the body. livemode is a field in
+// a Stripe event, but reading it would mean trusting a value from a request whose
+// authenticity is the very thing being established, so it is deliberately
+// ignored. A caller who cannot forge the sandbox HMAC cannot make a live event
+// look like a sandbox one.
+//
+// The verified mode is then cross-checked against the application's own livemode.
+// They can only disagree if an event from one mode is replayed against an
+// application from the other, so a mismatch is refused outright and raises an ops
+// alert rather than being reconciled.
 // =====================================================================
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -23,25 +33,85 @@ import { generateDeed, voidDocument } from "../_shared/pandadoc.ts";
 import { deliverRefund } from "../_shared/refundEmail.ts";
 import { deliverPaymentReceipt } from "../_shared/paymentReceiptEmail.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
-import { stripeKeyModeError } from "../_shared/stripeMode.ts";
+import { stripeSecretFor, stripeWebhookSecrets, maySendOpndoorEmail } from "../_shared/livemodeCredentials.ts";
+
+/**
+ * Refuse an event whose mode does not match the application it names.
+ *
+ * The two can only disagree if an event verified with one mode's signing secret
+ * is processed against an application created in the other. That is either a
+ * replay of a captured sandbox event against a live application id, or a
+ * misconfiguration where the same secret has been set for both modes. Neither is
+ * recoverable by picking one, and picking the event's mode would let a forged
+ * sandbox event refund a real payment.
+ *
+ * Returns null when the check passes, or a Response to return immediately.
+ *
+ * 500 rather than 400, deliberately: 400 tells Stripe the event is permanently
+ * bad and it stops retrying, which would hide a misconfiguration. A 500 keeps it
+ * retrying and visible while the ops alert is dealt with.
+ */
+/**
+ * One construction site for the Stripe client.
+ *
+ * There are now two: a throwaway used only to verify the signature, and the real
+ * one built from the mode that verification established. The apiVersion is
+ * pinned and pinning it is deliberate, so it lives here rather than being
+ * repeated. (Note the pinned version does not match the types shipped by
+ * stripe@17.7.0, which is a pre-existing condition at HEAD and not touched here:
+ * changing it would change the wire behaviour of the live payment path.)
+ */
+function stripeClient(secret: string): Stripe {
+  return new Stripe(secret, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
+}
+
+// deno-lint-ignore no-explicit-any
+async function refuseOnModeMismatch(service: any, appId: string, eventLivemode: boolean, eventId: string): Promise<Response | null> {
+  const { data: row } = await service.from("applications").select("livemode").eq("id", appId).maybeSingle();
+  if (!row) return null;                       // unknown id is handled by the callers
+  if ((row.livemode === true) === eventLivemode) return null;
+
+  await service.from("ops_alerts").insert({
+    alert_type: "stripe_livemode_mismatch",
+    detail: `Stripe event ${eventId} verified as ${eventLivemode ? "live" : "sandbox"} but application ${appId} is ${row.livemode ? "live" : "sandbox"}. Refused.`,
+  }).then(() => {}, () => {});
+
+  // Drop the dedup row so a corrected redelivery is not swallowed as a duplicate.
+  await service.from("stripe_events").delete().eq("id", eventId).then(() => {}, () => {});
+
+  return new Response("Event mode does not match the application.", { status: 500 });
+}
 
 Deno.serve(async (req) => {
-  const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
-  const WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
-  const modeError = stripeKeyModeError(STRIPE_SECRET);
-  if (modeError) return new Response(modeError, { status: 400 });
-  if (!WEBHOOK_SECRET) return new Response("Webhook secret not configured.", { status: 400 });
+  const candidates = stripeWebhookSecrets();
+  if (candidates.length === 0) return new Response("Webhook secret not configured.", { status: 400 });
 
-  const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
   const sig = req.headers.get("stripe-signature");
   const body = await req.text();
 
-  let event: Stripe.Event;
-  try {
-    event = await stripe.webhooks.constructEventAsync(body, sig!, WEBHOOK_SECRET, undefined, Stripe.createSubtleCryptoProvider());
-  } catch (e) {
-    return new Response(`Signature verification failed: ${e instanceof Error ? e.message : String(e)}`, { status: 400 });
+  // Verification is pure HMAC over the body and the signing secret; the API key
+  // plays no part. So a throwaway client is enough to verify, and the real one is
+  // built afterwards from the mode the signature established.
+  const verifier = stripeClient("sk_unused_for_verification");
+  const provider = Stripe.createSubtleCryptoProvider();
+
+  let event: Stripe.Event | null = null;
+  let eventLivemode = false;
+  let lastErr = "no signing secret matched";
+  for (const c of candidates) {
+    try {
+      event = await verifier.webhooks.constructEventAsync(body, sig!, c.secret, undefined, provider);
+      eventLivemode = c.livemode;
+      break;
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : String(e);
+    }
   }
+  if (!event) return new Response(`Signature verification failed: ${lastErr}`, { status: 400 });
+
+  const secret = stripeSecretFor(eventLivemode);
+  if (!secret.ok) return new Response(secret.error, { status: 400 });
+  const stripe = stripeClient(secret.value);
 
   const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -64,6 +134,9 @@ Deno.serve(async (req) => {
         // Stripe retry re-processes rather than being deduped to a 200) and throw,
         // which the catch below turns into a 500 + ops alert. Never continue past a
         // failed transition to log/email a payment that did not actually apply.
+        const refusal = await refuseOnModeMismatch(service, appId, eventLivemode, event.id);
+        if (refusal) return refusal;
+
         const { error: payErr } = await service.rpc("apply_stripe_payment", { p_application_id: appId, p_payment_intent: pi, p_amount: amount, p_session_id: s.id });
         if (payErr) {
           await service.from("stripe_events").delete().eq("id", event.id);
@@ -71,7 +144,7 @@ Deno.serve(async (req) => {
         }
         await service.from("stripe_events").update({ application_id: appId }).eq("id", event.id);
         const { data: appRow } = await service.from("applications")
-          .select("status, deed_state, guarantee_ref, tenant_title, tenant_last_name, tenant_email, prop_addr1, prop_postcode")
+          .select("status, deed_state, guarantee_ref, tenant_title, tenant_last_name, tenant_email, prop_addr1, prop_postcode, livemode")
           .eq("id", appId).maybeSingle();
         // Idempotent post-payment side-effects, run only on the FIRST completed
         // payment for this application (a second DISTINCT Checkout event must not
@@ -83,7 +156,11 @@ Deno.serve(async (req) => {
           // Generate the deed (fresh or #13 reinstated) unless one already exists.
           if (!appRow.deed_state) await generateDeed(service, appId);
           // #3 Tenant payment receipt.
-          if (appRow.tenant_email) {
+          // Sandbox sends no Opndoor email. The deed above is different: that is
+          // PandaDoc's own watermarked document and rehearsing the tenant's
+          // signing journey is the point of sandbox. This is our receipt, to an
+          // address a developer typed into a test payload.
+          if (appRow.tenant_email && maySendOpndoorEmail(appRow.livemode === true)) {
             const amountGBP = `£${amount.toLocaleString("en-GB", { minimumFractionDigits: amount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`;
             await deliverPaymentReceipt(service, {
               appId,
@@ -104,9 +181,16 @@ Deno.serve(async (req) => {
       const refundId = c.refunds?.data?.[0]?.id ?? c.id;
       if (pi) {
         const refundAmount = (c.amount_refunded ?? 0) / 100;
+        // Resolve the application from the payment intent first, so the mode can
+        // be checked BEFORE the refund is applied rather than after.
+        const { data: pre } = await service.from("applications").select("id").eq("stripe_payment_intent_id", pi).maybeSingle();
+        if (pre?.id) {
+          const refusal = await refuseOnModeMismatch(service, pre.id, eventLivemode, event.id);
+          if (refusal) return refusal;
+        }
         await service.rpc("apply_stripe_refund", { p_payment_intent: pi, p_refund_id: refundId, p_amount: refundAmount });
         const { data: appRow } = await service.from("applications")
-          .select("id, guarantee_ref, refund_after_start, tenant_title, tenant_last_name, tenant_email, prop_addr1, prop_postcode, pandadoc_document_id, deed_state")
+          .select("id, guarantee_ref, refund_after_start, tenant_title, tenant_last_name, tenant_email, prop_addr1, prop_postcode, pandadoc_document_id, deed_state, livemode")
           .eq("stripe_payment_intent_id", pi).maybeSingle();
         if (appRow) {
           await service.from("activity_log").insert({ application_id: appRow.id, kind: "refunded", message: "Payment refunded in Stripe.", actor: "Stripe" });
@@ -114,7 +198,7 @@ Deno.serve(async (req) => {
             await service.from("activity_log").insert({ application_id: appRow.id, kind: "refund_anomaly", message: "POLICY ANOMALY: refunded on or after the tenancy start date, outside the refund policy. Review required.", actor: "System" });
           }
           if (appRow.pandadoc_document_id && appRow.deed_state === "awaiting_tenant") {
-            const voidResult = await voidDocument(appRow.pandadoc_document_id);
+            const voidResult = await voidDocument(appRow.pandadoc_document_id, appRow.livemode === true);
             if (voidResult.ok) {
               await service.from("applications").update({ deed_state: "voided", pandadoc_document_id: null }).eq("id", appRow.id);
               await service.from("activity_log").insert({
@@ -131,7 +215,7 @@ Deno.serve(async (req) => {
           // runs once per event via the stripe_events dedup above.
           // Whole pounds show no decimals; a partial refund shows exactly two.
           const amountGBP = `£${refundAmount.toLocaleString("en-GB", { minimumFractionDigits: refundAmount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`;
-          await deliverRefund(service, {
+          if (maySendOpndoorEmail(appRow.livemode === true)) await deliverRefund(service, {
             appId: appRow.id,
             tenantEmail: appRow.tenant_email,
             title: appRow.tenant_title ?? "",

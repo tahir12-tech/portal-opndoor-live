@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
 
     const { data: app, error } = await userClient
       .from("applications")
-      .select("id, status, deed_state, pandadoc_document_id, guarantee_ref, tenant_first_name, tenant_last_name,tenant_email")
+      .select("id, status, deed_state, pandadoc_document_id, guarantee_ref, tenant_first_name, tenant_last_name,tenant_email, livemode")
       .eq("guarantee_ref", ref)
       .maybeSingle();
     if (error) return json({ ok: false, error: error.message }, 400);
@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
         tenant_first_name: app.tenant_first_name,
         tenant_last_name: app.tenant_last_name,
         tenant_email: app.tenant_email,
-      });
+      }, app.livemode === true);
       if (!result.ok) {
         // Honest, partner-safe entry for everyone; the raw provider detail is
         // logged internal (opndoor-admin-only). No raw error reaches the partner.
