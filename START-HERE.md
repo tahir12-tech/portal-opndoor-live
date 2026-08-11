@@ -101,6 +101,7 @@ You do not need all of it. Stop when you have what you need.
 | 6 | **`HUBSPOT-SYNC-SPEC.md`** | The sync spec. Built, not a plan. Its constants need your verification. | As needed |
 | 7 | **`HANDOVER-MACHINE.md`** | The original 6 July handover. Partly stale; its estate section needs your verification. | As needed |
 | 8 | **`SANDBOX-MODE-SCOPE.md`** | Superseded. A record of a decision point, kept as evidence. | Skip |
+| — | **`CHANGES-AGAINST-HANDOVER.md`** | What is on the branch and what reviewing it involves. Read this **before** reviewing the diff, not after: about a fifth of the line count is line endings and generated output, and it says which parts matter. | 10 min |
 
 **`PARTNER-API.md` and `PARTNER-DOCS.md` have similar names and opposite
 audiences. `-DOCS` goes out. `-API` does not.**

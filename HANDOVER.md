@@ -15,6 +15,7 @@ appearing healthy.
 | File | What it is | Audience |
 | ---- | ---------- | -------- |
 | `START-HERE.md` | **Read first.** Ten minutes: what this is, what to read, what to do. | You |
+| `CHANGES-AGAINST-HANDOVER.md` | The diff against `main`, and what reviewing it actually involves. | You, before reviewing |
 | `HANDOVER.md` | This. What changed, why, and what needs you. | You |
 | `DEFECTS.md` | 15 defects in the **live** system, worst first. None introduced by this work. | You |
 | `REGRESSION.md` | A walk-through of the platform, written to pass on day one. Defect-tagged rows read as deliberate fixes. | You |
