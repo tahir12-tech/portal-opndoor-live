@@ -46,6 +46,23 @@ export function GettingStarted() {
             the request body.
           </p>
           <pre className="devcode"><code>{`Authorization: Bearer ${keyExample}`}</code></pre>
+          {/* Moved here from the environment banner, which had grown into three
+              stacked messages. A banner is read once before minting a key and
+              should carry the prefix rule alone; this is the detail somebody
+              wants afterwards, when they are deciding what a sandbox run proves. */}
+          <h4 className="devdoc__h">What a sandbox key does and does not touch</h4>
+          <p>
+            A sandbox run exercises the whole path end to end, so what you rehearse is what happens live. It uses
+            sandbox Stripe and PandaDoc credentials, so payments take test cards only and the deed it issues is
+            watermarked and has no legal effect. It sends <strong>no opndoor email to anyone</strong>: not the
+            tenant, not the agent, not you. It updates none of our internal records, so a rehearsal never appears
+            in any opndoor report.
+          </p>
+          <p>
+            Sandbox applications are visible on the <strong>Sandbox</strong> tab of the Dev Centre and nowhere
+            else in the portal. Nobody at your agency sees them in Applications, and nothing you create with a
+            test key can reach a real tenant.
+          </p>
         </section>
 
         <section className="devdoc__section">

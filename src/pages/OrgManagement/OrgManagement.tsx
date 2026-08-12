@@ -1070,8 +1070,12 @@ function requestCloseContacts() {
 
   const eyebrow = role === 'superadmin' ? 'opndoor admin' : role === 'management' ? 'Management' : 'Organisation';
   const roleNote: ReactNode =
-    role === 'superadmin' ? <>As an <b>opndoor admin</b> you have full control: add, edit and reorganise agencies and branches, and sync the hierarchy with HubSpot.</>
-      : role === 'management' ? <>You can view, add and edit your partner's agencies and branches, and your changes apply straight away. HubSpot sync is handled by <b>opndoor</b>.</>
+    // No supplier brand in either branch. Management is a partner user and this
+    // is none of their business, and the superadmin string is no safer: it ships
+    // in the same bundle any logged-in user can read. Route-gating a screen does
+    // not gate the strings on it. See REGRESSION.md section C.
+    role === 'superadmin' ? <>As an <b>opndoor admin</b> you have full control: add, edit and reorganise agencies and branches, and sync the hierarchy to the CRM.</>
+      : role === 'management' ? <>You can view, add and edit your partner's agencies and branches, and your changes apply straight away. Keeping opndoor's own records in step is handled by <b>opndoor</b>.</>
         : <>You can view every agency and branch. Adding and editing records is handled by your management team and <b>opndoor</b>.</>;
 
   // Filtered, with expand-all while searching (mirrors org-management.html).

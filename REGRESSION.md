@@ -759,6 +759,13 @@ BANNED = [
   # production" in the mint-a-key form learns who our other customers are.
   # Invented names only. Add any new partner here as they sign.
   'Rightmove', 'Zoopla', 'PrimeLocation', 'OnTheMarket',
+  # suppliers a partner has no business knowing. Same rule as partner names, and
+  # for the same reason: the bundle is readable by anyone with a portal login,
+  # so route-gating the admin screens that used to say "Sync HubSpot" gated the
+  # screen and not the string. Stripe and PandaDoc are deliberately NOT here: a
+  # partner's developer meets both in the payment and signing flows, so naming
+  # them describes their own integration rather than our purchasing.
+  'HubSpot', 'hubapi.com', 'HUBSPOT_', 'resend.com', 'RESEND_API_KEY',
 ]
 hits = [b for b in BANNED if b in blob]
 print('LEAKED:', hits or 'none')
@@ -776,6 +783,19 @@ Also assert **zero JWT-shaped strings**: `eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-
 | `partner_rate`, `agent_rate` | Column **names** in select strings and a label map, never values. Assert no numeric rate literal |
 | `whsec_` | **Moved out of the banned list.** The Dev Centre masks an unrevealed signing secret as `whsec_******`, so the prefix is a UI placeholder rather than a secret. Banning it made the check fail on a clean tree, which is how a check gets ignored |
 | `pre_referenced_*` | Admin UI strings from the partner settings screen. See the note above the table |
+| `Resend`, `resend` | **Deliberately not banned.** It is an ordinary English verb and the bundle has it 21 times: "Resend invite", "Resend payment email", "Resend signature request", plus `resend()` inside `supabase-js` and the `resend-payment-email` function name. Banning the word would fail on a clean tree and be ignored within a week, so the check bans `resend.com` and `RESEND_API_KEY`, which cannot be anything else |
+| `hubspot` **lowercase** | One hit, `trigger_hubspot_sync`, the RPC name. See the residual below |
+| `Vercel` | Two hits, both inside a vendored library's "Edge runtime detected" warning. Not us naming our host, and not removable without patching a dependency |
+
+**One residual, stated rather than waved through.** The brand spelling `HubSpot`
+is now zero in the bundle, but the RPC name `trigger_hubspot_sync` still is not,
+so a determined reader of the JavaScript can still infer the CRM. Closing it
+means renaming the function, which is a migration plus a client change plus a
+window where an old bundle calls a name that no longer exists. It was judged not
+worth that on the eve of a handover. **If the RPC is ever renamed for another
+reason, take the chance.** The ban is on the brand spelling and case-sensitive
+for exactly this reason: a case-insensitive ban would fail on a clean tree today,
+and a check that fails on a clean tree gets ignored.
 
 ### What it caught
 
@@ -801,7 +821,7 @@ triggering event has happened.
 | ---- | --- | ----------- |
 | Stripe event injection | `checkout.session.completed`, `charge.refunded` and the failure events drive most of the lifecycle | `stripe trigger`, or POST a signed fixture to `stripe-webhook`. The signature is real, so fixtures must be signed with the project's `STRIPE_WEBHOOK_SECRET` |
 | PandaDoc event injection | `document.completed`, `viewed`, `declined`, `voided` | POST to `pandadoc-webhook` with a `?signature=` HMAC over the raw body using `PANDADOC_WEBHOOK_SHARED_KEY` |
-| Email capture | Every email assertion needs a real inbox today | A catch-all inbox, or a Resend test key. **Do not** rely on the removed `EMAIL_REVIEW_ADDRESS` redirect; it is gone |
+| Email capture | Every email assertion needs a real inbox today | A catch-all inbox, or a test key from the email provider. `EMAIL_REVIEW_ADDRESS` is **restored** as of defect 4's fix: set it and every recipient is replaced by it, which is the cheapest capture there is. Section D4 asserts this |
 | Clock control | Expiry is day 15 and reminders are day 2, 5, 9 | Both take `p_today`, so pass a date rather than moving the clock |
 | A seeded fixture set | Every test needs a partner, agency, branch, contact and user | One SQL script. The build already has one covering the four `has_agent_contact` cases |
 
@@ -946,4 +966,94 @@ not just that the review inbox is full.
 | D14.1 | Send a PandaDoc callback with a signature differing in the first character, and one differing in the last | Both refused, in indistinguishable time |
 | D15.1 | Let an application lapse, read the activity row | "unpaid **15** days after referral" |
 | D15.2 | Dashboard and Activity | "within 14 days" unchanged: that is guarantee expiry, a different window |
-| D16.1 | `npm test` | 127 passed, 15 files |
+| D16.1 | `npm run smoke` | 127 passed, 15 files |
+
+---
+
+# Section E: the developer role sees its own screen
+
+**Why this section exists, and why it is not only a boundary test.**
+
+The developer role was reviewed twice for what it must **not** reach: commission,
+settlement, exports, the bordereau, and any write. Both reviews passed. Neither
+noticed that the role had lost the Dev Centre entirely, because nothing asserted
+the positive.
+
+The cause was a capability gate on the sidebar item, keyed on the partner's
+`api_access_enabled`. That column defaults false and is deliberately never
+backfilled, so "hide the Dev Centre from a developer whose partner has no API
+access" evaluated to "hide it from every developer at every partner". The role
+kept every restriction it was designed with and lost the only screen it exists
+for, and every negative test still passed.
+
+**So E1 comes first, before the boundary rows.** A role is defined by what it can
+do as much as by what it cannot, and a plan that only tests the second half
+reports a healthy role that is useless.
+
+E2 and E3 are the boundary. Run all three: E1 passing while E2 fails is a leak,
+E2 passing while E1 fails is the bug this section was written for.
+
+## E1. What a developer must SEE
+
+Sign in as a developer at a partner with **`api_access_enabled = false`**. That is
+the default for every partner, so it is also the ordinary case, not an edge one.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| E1.1 | Read the sidebar | **Dev Centre is present.** This is the regression. It is listed first because it is the row that was missing |
+| E1.2 | Read the rest of the sidebar | Dashboard, Applications and League as well. Four items, and no others |
+| E1.3 | Open Dev Centre | It renders, with an amber notice naming the partner and saying API access is off. Not a blank screen and not an error |
+| E1.4 | With the notice showing, open the documentation and the webhook catalogue | Both readable. Waiting for API access to be switched on is exactly when a developer reads them |
+| E1.5 | Set `api_access_enabled = true` on that partner, reload | Same nav item, **notice gone**. Minting is now offered |
+| E1.6 | Type `/dev-centre` directly with the capability off | Renders. The route guard is role-based, so a nav that hid this item would be hiding a door it does not lock |
+| E1.7 | `grep -n "requiresCapability" src/constants/nav.ts src/components/layout/Sidebar.tsx` | **No hits.** The gate is gone rather than defaulted to true, so it cannot be switched back on by a config change |
+
+E1.6 is the row that makes the case. A nav filter and a route guard disagreeing
+is not a security control, it is two answers to one question, and the visible one
+was the wrong one.
+
+## E2. What a developer must NOT see: commission
+
+Enforced by column privilege, not by the UI, so assert it in SQL as well as on
+screen. Run the SQL as the developer's own role.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| E2.1 | `select has_column_privilege('applications', 'partner_rate', 'select')` | **false** |
+| E2.2 | Same for `agent_rate`, and for both columns on `partners` | **false** in all four |
+| E2.3 | `select partner_rate from applications limit 1` | Refused. Not an empty column: a permission error |
+| E2.4 | Open an application as a developer | No commission figures anywhere on the detail page |
+| E2.5 | `select * from application_commission_rates(null)` | Zero rows. The function scopes itself rather than trusting the caller not to ask |
+
+E2.3 is the one worth doing by hand. A column-level `REVOKE` cannot subtract from
+a table-level `GRANT`; the table grant had to be revoked and re-granted column by
+column. A partial job leaves the column readable while the UI hides it, which
+looks identical on screen.
+
+## E3. What a developer must NOT do
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| E3.1 | Sidebar | **No New referral**, no Org, no Users, no Partners, no Reconciliation, no Health |
+| E3.2 | Type `/new` directly | Redirected. The guard, not the missing nav item, is what stops this |
+| E3.3 | Attempt any export or the bordereau by URL | Refused |
+| E3.4 | `insert into applications …` as the developer role | Refused by RLS. The role is read-only plus the Dev Centre |
+| E3.5 | Read another partner's application by id | Zero rows, not an error. Partner scoping is a row filter |
+
+## E4. What the Dev Centre tells a partner's developer
+
+The banner is read once, before minting a key, so it carries one fact. Everything
+it used to carry alongside that fact is now in the getting-started guide.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| E4.1 | Open the Dev Centre on **production** | Banner is **one line**: the prefix decides the mode, and going live is swapping the key. Nothing about disposable projects |
+| E4.2 | Open it on a **non-production** project | The same line, plus **one** more saying this project reaches nothing real. Two lines, not three |
+| E4.3 | Read the banner on either | **No supplier is named.** Not the CRM, not the email provider |
+| E4.4 | Open the getting-started guide | The detail cut from the banner is there in full: test cards, watermarked deeds, no opndoor email to anyone, and sandbox applications visible only on the Sandbox tab |
+| E4.5 | Mint-a-key modal, Sandbox option | Describes what sandbox does without naming an internal system |
+| E4.6 | The built-artefact grep in section C | `HubSpot` returns zero. It was in two Dev Centre strings and four admin ones |
+
+E4.6 is the row that generalises. The admin strings were reachable only by an
+opndoor admin **by route**, and shipped to every logged-in browser **by bundle**.
+Route-gating a screen does not gate the strings on it.

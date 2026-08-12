@@ -54,7 +54,7 @@ interface RoleOption {
   desc: string;
 }
 const ROLE_OPTIONS: RoleOption[] = [
-  { id: 'superadmin', name: 'opndoor admin (Super-admin)', desc: "opndoor's internal admin. Full control of the portal: manages agencies, branches and users, syncs with HubSpot, edits help resources, and sees every referral." },
+  { id: 'superadmin', name: 'opndoor admin (Super-admin)', desc: "opndoor's internal admin. Full control of the portal: manages agencies, branches and users, keeps opndoor's own records in step, edits help resources, and sees every referral." },
   { id: 'management', name: 'Management', desc: "Partner management. The same screens and tools as a referrer, but across the whole partner with full visibility of all tracking and analytics. Manages the partner's own agencies, branches and team, with edits applying straight away. Cannot change portal settings." },
   { id: 'referrer', name: 'Referrer', desc: 'Sees and tracks only their own referrals. Can add agencies and branches on the fly while referring.' },
   // "Sees the Dev Centre only" read as seeing nothing, which made the role look

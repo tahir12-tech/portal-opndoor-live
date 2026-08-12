@@ -23,18 +23,27 @@
    and the Edge Function re-checks the role with a caller-scoped client. This
    file decides what to render, not what is permitted.
 
-   THE BANNER SAYS WHICH PROJECT, NOT WHICH MODE. Those were the same question
-   when sandbox was going to be a second Supabase project. They are unrelated
-   now: sandbox and live sit side by side in one database, told apart by
-   livemode and by the key prefix, and both are listed on every tab here.
+   THE BANNER CARRIES ONE FACT: the key prefix decides the mode. Off production
+   it carries a second, that this project reaches nothing real. Everything else
+   it used to say is documentation and now lives in the getting-started guide.
+   "Which project is this" and "which mode am I in" were the same question when
+   sandbox was going to be a second Supabase project; they are unrelated now, and
+   a banner answering both at once read as two stacked messages.
+
+   NO SUPPLIER NAMES ON THIS SCREEN. A partner's developer sees Stripe and
+   PandaDoc in the payment and signing flows, so naming those is describing their
+   own integration. Our CRM and our email provider are not part of it, and naming
+   them tells a partner which tools we buy. Same rule as never showing one
+   partner another partner's name. The built-artefact check in REGRESSION.md
+   section C enforces this.
    ===================================================================== */
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   API_SCOPES, WEBHOOK_EVENTS, breakGlassRevoke, createWebhookEndpoint, deleteApiKey, deleteWebhookEndpoint,
-  endpointDeleteBlockedReason, getApiKeys, keyDeleteBlockedReason,
+  endpointDeleteBlockedReason, getApiKeys, keyDeleteBlockedReason, getMyPartner,
   getPartnerOptions, getWebhookEndpoints, mintApiKey, portalEnvironment, revokeApiKey,
   updateWebhookEndpoint,
-  type DevApiKey, type DevPartnerOption, type DevWebhookEndpoint,
+  type DevApiKey, type DevMyPartner, type DevPartnerOption, type DevWebhookEndpoint,
 } from '@/data/devCentreService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -93,6 +102,9 @@ export function DevCentre() {
   const [panel, setPanel] = useState<'none' | 'guide' | 'docs'>('none');
   const [partners, setPartners] = useState<DevPartnerOption[]>([]);
   const [partnerId, setPartnerId] = useState<string>('');
+  // The caller's own partner, for the roles with no picker. Null for an admin,
+  // who has no single home partner and reads the selected one from `partners`.
+  const [myPartner, setMyPartner] = useState<DevMyPartner | null>(null);
   const [keys, setKeys] = useState<DevApiKey[]>([]);
   const [endpoints, setEndpoints] = useState<DevWebhookEndpoint[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -180,6 +192,7 @@ export function DevCentre() {
   }, [isAdmin, partnerId, keysOnly, canSeeCredentials]);
 
   useEffect(() => { if (isAdmin) getPartnerOptions().then(setPartners).catch(() => setPartners([])); }, [isAdmin]);
+  useEffect(() => { if (!isAdmin) getMyPartner().then(setMyPartner).catch(() => setMyPartner(null)); }, [isAdmin]);
   useEffect(() => { void load(); }, [load]);
 
   const tabs: { id: Tab; label: string }[] = keysOnly
@@ -298,6 +311,29 @@ export function DevCentre() {
   // tab can accidentally query across partners.
   const scopedPartner = isAdmin ? (partnerId || null) : null;
 
+  /*
+   * WHETHER THIS PARTNER MAY HOLD API KEYS, AND WHY IT IS SAID RATHER THAN ACTED ON.
+   *
+   * api_access_enabled defaults false and is never backfilled, so for now this is
+   * every partner. The sidebar used to respond to that by hiding the Dev Centre,
+   * which took the only screen the developer role exists for away from every
+   * developer, and hid it without locking it: the route guard is role-based, so
+   * typing /dev-centre still worked. See constants/nav.ts.
+   *
+   * So the screen renders and states the position. Minting still refuses in SQL,
+   * which is where the rule lives; this is the sentence that turns that refusal
+   * from a confusing error into an expected one.
+   *
+   * === false, not a falsy test. Undefined means the flag did not load, and a
+   * banner announcing API access is off is worse than no banner when we do not
+   * actually know.
+   */
+  const selectedOption = isAdmin ? partners.find((p) => p.id === partnerId) : undefined;
+  const apiOff = isAdmin
+    ? (!!partnerId && selectedOption?.api_access_enabled === false)
+    : myPartner?.api_access_enabled === false;
+  const apiOffPartnerName = isAdmin ? selectedOption?.name : myPartner?.name;
+
   return (
     <>
       <div className="page-head">
@@ -310,23 +346,25 @@ export function DevCentre() {
         </div>
       </div>
 
-      {/* Which project this deployment is. Deliberately loud, but it is no longer
-          the answer to "am I in sandbox": that is per key, per endpoint and per
-          application now, and it is shown on each row. */}
+      {/* ONE THING, PLUS ONE MORE OFF PRODUCTION.
+          A banner is read once, before minting a key, so it carries the single
+          fact needed at that moment: the prefix decides the mode. It used to
+          stack that with a paragraph about this being a disposable project,
+          which is true for us and irrelevant to a partner's developer looking
+          at production, and then a third sentence listing what sandbox does not
+          touch. Two of those are documentation, and they now live in the
+          getting-started guide where they can be read in full. */}
       <div className={`devenv devenv--${env.id}`}>
         <Icon name={env.id === 'production' ? 'shield' : 'info'} />
         <div>
-          <strong>{env.label}.</strong>{' '}
-          {env.id === 'production'
-            ? 'Live keys minted here move real money and issue real deeds.'
-            : 'A disposable project. Nothing here reaches a real tenant, an agent or a real card, whichever mode you use.'}
-          <div className="devenv__note">
-            Sandbox and live are <strong>both here</strong>, in this one database. A key&rsquo;s prefix says which
-            it is: <code>opnd_test_</code> creates sandbox applications, <code>opnd_live_</code> creates real
-            ones. Sandbox uses sandbox Stripe and PandaDoc credentials, sends no opndoor email and never reaches
-            HubSpot, and its applications appear on the Sandbox tab and nowhere else in the portal. Going live is
-            swapping the key, and nothing else.
-          </div>
+          A key&rsquo;s prefix decides the mode: <code>opnd_test_</code> creates sandbox applications,{' '}
+          <code>opnd_live_</code> creates real ones. Going live is swapping the key, and nothing else changes.
+          {env.id !== 'production' && (
+            <div className="devenv__note">
+              This project reaches nothing real. No card is charged and no tenant or agent is contacted,
+              whichever key you use.
+            </div>
+          )}
         </div>
       </div>
 
@@ -340,6 +378,20 @@ export function DevCentre() {
             options={[{ value: '', label: 'All partners' }, ...partners.map((p) => ({ value: p.id, label: p.name }))]}
           />
           {!partnerId && <span className="soft"> Choose one to mint a key or add an endpoint.</span>}
+        </div>
+      )}
+
+      {/* Said, not hidden. The panels below stay visible so the documentation,
+          the webhook catalogue and the getting-started guide are readable while
+          somebody waits for API access to be switched on, which is exactly when
+          a developer needs to read them. */}
+      {apiOff && (
+        <div className="devwarn" style={{ marginTop: 0, marginBottom: 14 }}>
+          <strong>API access is off for {apiOffPartnerName ?? 'this partner'}.</strong>{' '}
+          Keys cannot be minted while it is off, and any key that already exists will be refused at
+          authentication rather than only at creation. Everything else here still works: read the
+          documentation, plan the integration, and ask an opndoor administrator to enable API access on the
+          partner record when you are ready to build.
         </div>
       )}
 
@@ -520,7 +572,7 @@ export function DevCentre() {
                   <div>
                     <div className="devscope__name">Sandbox</div>
                     <div className="devscope__desc">
-                      Prefix opnd_test_. Test cards, watermarked deeds, no HubSpot and no opndoor email.
+                      Prefix opnd_test_. Test cards, watermarked deeds, and no opndoor email to anyone.
                       Nothing it creates is visible outside the Dev Centre.
                     </div>
                   </div>
