@@ -931,6 +931,18 @@ values ('<partner uuid>', 'Rightmove production', '<prefix>', '<hash>',
 The partner must also have `api_access_enabled` set, or every request with the
 key returns the same `401`. Section 11 and the partner settings screen.
 
+**The flag gates the API, not the screen.** The Dev Centre sidebar item is gated
+on role alone. It briefly also required `api_access_enabled`, which sounds
+reasonable and was not: the column defaults false and is deliberately never
+backfilled, so the condition held for every partner and the developer role lost
+the only screen it exists for while every boundary test still passed. It also hid
+a door it did not lock, because the route guard is role-based and `/dev-centre`
+still rendered if you typed it. The Dev Centre now renders and states that API
+access is off, naming the partner, and `my_partner_summary()` carries the flag so
+it can say so. Enforcement stays where it means something: authentication and
+minting refuse in SQL. `REGRESSION.md` section E asserts both directions, the
+positive first.
+
 ### 9.5 Rotating and revoking
 
 Multiple live keys per partner are intentional and there is no unique constraint

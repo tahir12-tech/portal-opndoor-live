@@ -6,7 +6,6 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { reconciliationPendingCount } from '@/data';
-import { getPartner, homePartner } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { NAV } from '@/constants/nav';
 import { useOnClickOutside } from '@/hooks/useOnClickOutside';
@@ -18,18 +17,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   // reflects the current pending-review count after a confirm or a new referral.
   const { role, user, signOut } = useSession();
 
-  /**
-   * Whether this user's partner has API access.
-   *
-   * Read from the hydrated partner record via homePartner(), because the session
-   * carries scope rather than the capability, and the capability lives on the
-   * partner row. An opndoor admin is never gated: they need the Dev Centre for a
-   * partner they are about to enable, which is exactly when the capability is
-   * still off.
-   */
-  const partnerHasApi = role === 'superadmin'
-    ? true
-    : getPartner(homePartner())?.apiAccessEnabled === true;
+  // The sidebar filters on ROLE ONLY. A capability gate used to live here and
+  // hid the Dev Centre from every developer; see the note on the Dev Centre item
+  // in constants/nav.ts for why that was wrong and why it is not coming back.
   const navigate = useNavigate();
   const { active } = usePageMetaValue();
   const reconcileBadge = reconciliationPendingCount();
@@ -52,9 +42,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       <nav className="sb__nav">
         {NAV.map((grp) => {
-          const items = grp.items.filter((it) =>
-            it.roles.includes(role)
-            && (it.requiresCapability !== 'api' || partnerHasApi));
+          const items = grp.items.filter((it) => it.roles.includes(role));
           if (!items.length) return null;
           return (
             <div className="sb__group" key={grp.group}>

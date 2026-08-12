@@ -12,20 +12,6 @@ export interface NavItem {
   to: string;
   icon: IconName;
   roles: Role[];
-  /**
-   * A partner capability this item also requires.
-   *
-   * Separate from `roles` because they answer different questions: the role says
-   * whether this PERSON may use the screen, the capability says whether their
-   * PARTNER has the thing the screen is about. A developer at a portal-only
-   * partner passes the role test and should still not see a Dev Centre, because
-   * there is no API for them to develop against.
-   *
-   * Hiding is not the enforcement. Every Dev Centre RPC scopes itself and key
-   * minting refuses when the capability is off. This keeps a dead item out of
-   * the sidebar; it is not what stops anybody doing anything.
-   */
-  requiresCapability?: 'api';
   /** Set on the reconciliation item; the sidebar fills the count from the queue. */
   badge?: 'reconcile';
 }
@@ -58,7 +44,26 @@ export const NAV: NavGroup[] = [
       // superadmin is deliberately NOT capability-gated below: an opndoor admin
       // needs to reach the Dev Centre for a partner they are about to enable,
       // which is the moment the capability is still off.
-      { id: 'devcentre', label: 'Dev Centre', to: '/dev-centre', icon: 'book', roles: ['developer', 'superadmin', 'management'], requiresCapability: 'api' },
+      // ROLE ONLY, deliberately. This item briefly also required the partner's
+      // api_access_enabled capability, on the reasoning that a developer at a
+      // portal-only partner has no API to develop against. Three things were
+      // wrong with that:
+      //
+      //   1. The capability defaults FALSE and is never backfilled, so "a
+      //      developer at a portal-only partner" was every developer at every
+      //      partner. The role lost the only screen it exists for.
+      //   2. It hid the door without locking it. The route guard in App.tsx is
+      //      role-based, so /dev-centre still rendered if you typed it. Hiding
+      //      that enforces nothing costs usability and buys no safety.
+      //   3. The capability's own exemption disproved it: opndoor admin was
+      //      exempted because "they need the Dev Centre for a partner they are
+      //      about to enable, which is exactly when the capability is off". That
+      //      is the developer's situation too, and more often.
+      //
+      // api_access_enabled is enforced where it means something: it gates key
+      // AUTHENTICATION and minting in SQL. The Dev Centre reports that state
+      // rather than being hidden by it.
+      { id: 'devcentre', label: 'Dev Centre', to: '/dev-centre', icon: 'book', roles: ['developer', 'superadmin', 'management'] },
     ],
   },
   {

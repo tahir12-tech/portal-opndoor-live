@@ -87,6 +87,24 @@ export interface DevPartnerOption {
   slug: string;
   name: string;
   referencing_mode: string;
+  api_access_enabled: boolean;
+}
+
+/**
+ * The caller's own partner, for the roles that do not get a partner picker.
+ *
+ * dev_partner_options is admin-only, so a developer and a management user get
+ * an empty list from it and their partner is implicit in every other call. This
+ * is the one thing the screen needs to state rather than imply: whether API
+ * access is on.
+ */
+export interface DevMyPartner {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  referencing_mode: string;
+  api_access_enabled: boolean;
 }
 
 /** The scopes a key may carry. Kept in step with the Edge Function's allowlist. */
@@ -547,6 +565,21 @@ export async function getPartnerOptions(): Promise<DevPartnerOption[]> {
   const { data, error } = await sb().rpc('dev_partner_options');
   if (error) throw new Error(error.message);
   return (data ?? []) as DevPartnerOption[];
+}
+
+/**
+ * The caller's own partner record, or null when there is none to read.
+ *
+ * Returns null rather than throwing on error: this drives a notice, and a
+ * screen that fails to load because it could not decide whether to show an
+ * advisory banner is worse than the missing banner.
+ */
+export async function getMyPartner(): Promise<DevMyPartner | null> {
+  if (!SUPABASE_ENABLED) return null;
+  const { data, error } = await sb().rpc('my_partner_summary');
+  if (error) return null;
+  const row = (data ?? [])[0];
+  return (row as DevMyPartner) ?? null;
 }
 
 /**
