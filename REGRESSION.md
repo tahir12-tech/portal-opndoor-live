@@ -1242,3 +1242,54 @@ G1.3 is the row to run first and the one to run again after any policy change.
 | G3.6 | After a merge, relationships | Unioned, reasons OR-ed. A partner who reached either row reaches the survivor |
 | G3.7 | After a merge, contacts | Moved, and **`partner_id` unchanged on every one**. A merge is not a loophole in G1.3 |
 | G3.8 | After a merge, applications | `agency_id` repointed, **`partner_id` untouched**. Merging org records does not change how anything arrived |
+
+---
+
+# Section H: the new rails
+
+Verified live on 2026-08-12 where marked. The rest needs a seeded token, a
+tenant session, or a provider that answers.
+
+## H1. The inbound hand-over (rail 4)
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H1.1 | POST with no `Authorization` | 401, `{"status":"error"}` in **their** envelope, not ours. **Verified live** |
+| H1.2 | POST with a wrong secret | 401 `Not authorised.` Indistinguishable from a revoked token. **Verified live** |
+| H1.3 | Either of the above, then read `referencing_inbound_events` | **Zero rows.** A rejected call writes nothing. **Verified live** |
+| H1.4 | Valid token, `overall_status` anything but `Pass with guarantor` | 422, recorded with the status, no application |
+| H1.5 | Valid hand-over | 200, one application at **`sent`**, one `application_provider_links` row, reports in `reference-reports` |
+| H1.6 | Send the identical payload again | 200 `already sent`, and **still one** application |
+| H1.7 | Send a second payload with the same `table_id` but different tenant | Still one application. `table_id` is the provider's handle, not a nonce |
+| H1.8 | A report whose base64 is corrupt | The hand-over still succeeds. The failure is logged and `raw_payload` retains the base64 |
+| H1.9 | Read `agency_from_token` on the events | Tells you which seam answer is actually in force in production |
+
+## H2. The callback
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H2.1 | Call with no ops secret | 401. **Verified live** |
+| H2.2 | Call with `REFERENCING_API_*` unset | **503 listing exactly which are missing**, and **nothing marked notified** |
+| H2.3 | A due row whose deed is not executed | Not selected. `provider_callbacks_due` requires an executed deed |
+| H2.4 | Provider returns HTTP 200 carrying `{"response":"FAIL"}` | Counted as a failure. The body is trusted over the status |
+| H2.5 | After a success | `notified_at` set, `notify_error` cleared |
+
+## H3. Two payments never become one
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H3.1 | Checkout session with **no** `purpose` metadata | Treated as the guarantee fee. Exactly today's behaviour, which is what every in-flight session depends on |
+| H3.2 | `purpose: "eligibility"` | Eligibility recorded, `draft` moves to `referencing`, **no `paid_at`, no deed, no receipt** |
+| H3.3 | `purpose: "nonsense"` | Refused, not guessed. Guessing here means guessing whether to issue a deed |
+| H3.4 | An eligibility payment on a pre-referenced application | Refused: that rail takes no eligibility fee |
+| H3.5 | `update applications set status='referencing', paid_at=now()` | Refused, 23514. **Verified live** |
+
+## H4. Joint tenancies
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H4.1 | Two applications on one tenancy, shares 60 and 40 | Accepted |
+| H4.2 | Shares 60 and 30 | Refused at **commit**, not at insert. The trigger is deferred because applicants arrive one at a time |
+| H4.3 | Shares 100 and 0 | Accepted. A zero share is the case the group rule exists for |
+| H4.4 | `tenancy_group_prequalification` on H4.3 | `not_ruled_out`, provided the 100% holder clears their own share |
+| H4.5 | A referral-path application | `tenancy_id` null, existing per-application deed columns untouched |
