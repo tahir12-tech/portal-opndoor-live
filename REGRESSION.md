@@ -1072,6 +1072,21 @@ deliberate: run F first, on a tree with none of the new work, and record the
 result. A row that passes today and fails later is the whole point of the
 section. A row that fails today is a bug in the row.
 
+**Section F was first run on 2026-08-12**, against the dev project, immediately
+after the ten migrations `20260811260000` to `20260812090000` were applied.
+Thirty-one checks executed and passed:
+
+| Group | Executed | How |
+| ----- | -------- | --- |
+| F1.1 to F1.5, plus the new `referencing` arm | **7 PASS** | Against a real application. Each attempt runs inside a `BEGIN … EXCEPTION` block, so the failed update rolls its subtransaction back; the final row was verified unchanged |
+| Eligibility rules and the group test | **9 PASS** | Pure functions, no data written. Includes the carry case: one applicant covering the whole rent, another covering nothing |
+| Structural: route resolver, house routes, trigger conditionality, applicant tables and triggers, column grants, restrictive policies, partitioned cursor | **15 PASS** | Catalogue reads |
+
+**Not yet executed, and each needs something a read-only check cannot do:**
+F2.2 to F2.5 need the CRM feed deliberately poisoned; F3.1 to F3.4 need a live
+AAL1 and a live tenant session; F4.1 to F4.7 and F6.1 to F6.11 need applications
+created on each rail. Those are the rows that need the fixture and a person.
+
 **Section F needs the second-partner fixture**, `supabase/fixtures/second-partner.sql`.
 Nothing else in this plan uses more than one partner, which is exactly why the
 cross-partner properties below have never been executed.
