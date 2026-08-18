@@ -120,6 +120,70 @@ Deno.serve(async (req) => {
       return status === "draft" || status === "referencing";
     }
 
+    /* ---- claiming an agent's invite --------------------------------------
+       The only thing that attaches an existing application to this account.
+       The address check lives in SQL, so a forwarded email cannot hand over
+       somebody else's application even if this function is wrong. */
+    if (action === "claim_invite") {
+      const { data, error } = await service.rpc("claim_tenant_invite", {
+        p_token: String(body.token ?? ""), p_applicant: callerId,
+      });
+      if (error) {
+        // These messages are written for a tenant to read and say nothing about
+        // whose application it is.
+        const msg = /different email|already been used|expired|not valid/i.test(error.message)
+          ? error.message : "This link cannot be used.";
+        return json({ ok: false, error: msg }, 403);
+      }
+      const app = Array.isArray(data) ? data[0] : data;
+      return json({ ok: true, application_id: (app as any)?.id ?? null });
+    }
+
+    /* ---- starting a direct application ------------------------------------
+       Carries the prequalification answers straight in, so the first thing the
+       form does is NOT ask again for the four things they just typed. */
+    if (action === "start_application") {
+      const { data: existing } = await service
+        .from("applications").select("id").eq("applicant_id", callerId)
+        .in("status", ["draft", "referencing"]).limit(1).maybeSingle();
+      // One live application per account. Somebody who reloads the start page
+      // should land back in the one they have, not collect drafts.
+      if (existing) return json({ ok: true, application_id: existing.id, resumed: true });
+
+      const { data: app, error } = await service.rpc("create_direct_application", {
+        p_applicant: callerId,
+        p_rent: Number(body.monthly_rent) || 0,
+        p_tenancy_start: body.tenancy_start ?? null,
+        p_addr1: String(body.prop_addr1 ?? "").trim(),
+        p_addr2: String(body.prop_addr2 ?? "") || null,
+        p_city: String(body.prop_city ?? "").trim(),
+        p_county: String(body.prop_county ?? "") || null,
+        p_postcode: String(body.prop_postcode ?? "").trim(),
+      });
+      if (error) {
+        console.log(JSON.stringify({ event: "tenant_start_failed", message: error.message }));
+        return json({ ok: false, error: "Could not start your application." }, 500);
+      }
+      const appId = (app as any)?.id as string;
+
+      // Seed what the prequalification already asked, so the form does not.
+      const profilePatch: Record<string, unknown> = {
+        application_id: appId, updated_at: new Date().toISOString(),
+        first_name: applicant.first_name, last_name: applicant.last_name,
+      };
+      if (body.adverse_credit !== undefined) profilePatch.adverse_credit = body.adverse_credit === true || body.adverse_credit === "yes";
+      await service.from("application_profiles").upsert(profilePatch, { onConflict: "application_id" });
+
+      if (Number(body.annual_income) > 0) {
+        await service.from("application_incomes").upsert({
+          application_id: appId, seq: 0, is_additional: false,
+          income_type: body.is_student === true || body.is_student === "yes" ? "student" : "permanent",
+          pay_basis: "annual_salary", annual_salary: Number(body.annual_income),
+        }, { onConflict: "application_id,seq" });
+      }
+      return json({ ok: true, application_id: appId, resumed: false });
+    }
+
     if (action === "list_applications") {
       const { data, error } = await service.rpc("tenant_applications", { p_applicant: callerId });
       if (error) {
