@@ -1057,3 +1057,100 @@ it used to carry alongside that fact is now in the getting-started guide.
 E4.6 is the row that generalises. The admin strings were reachable only by an
 opndoor admin **by route**, and shipped to every logged-in browser **by bundle**.
 Route-gating a screen does not gate the strings on it.
+
+---
+
+# Section F: shared ground with the referral path
+
+**Why this section exists.** The four-rail work adds states, columns, payments
+and a tenant principal to a database the Rightmove referral path already stands
+on. Sections A to E assert what the referral path *does*. This section asserts
+that the new work has not moved the ground under it.
+
+Every row here is written to pass **before** any four-rail code exists. That is
+deliberate: run F first, on a tree with none of the new work, and record the
+result. A row that passes today and fails later is the whole point of the
+section. A row that fails today is a bug in the row.
+
+**Section F needs the second-partner fixture**, `supabase/fixtures/second-partner.sql`.
+Nothing else in this plan uses more than one partner, which is exactly why the
+cross-partner properties below have never been executed.
+
+## F1. The state machine cannot be widened by accident
+
+`applications_status_dates` is a positive OR-chain over named statuses, so it
+rejects an unknown status outright. That is the strongest single protection the
+referral path has, and widening the constraint means rewriting it, which is when
+an arm gets dropped by hand.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| F1.1 | `update applications set status = 'nonsense' where guarantee_ref = '<any>'` | Refused, SQLSTATE **23514**. Not 23503, not success |
+| F1.2 | Set `status='paid'` with `paid_at` NULL | Refused, 23514 |
+| F1.3 | Set `status='deed'` with `deed_issued_at` NULL | Refused, 23514 |
+| F1.4 | Set `status='withdrawn'` with `paid_at` non-NULL | Refused, 23514 |
+| F1.5 | Set `status='expired'` with `paid_at` non-NULL | Refused, 23514 |
+| F1.6 | After ANY migration that widens the status set, re-run F1.1 to F1.5 | All five still refused. **This is the row that catches an arm dropped while rewriting the constraint** |
+
+F1.6 is the one that matters. The other five are its fixtures.
+
+## F2. One rail cannot stall another's CRM feed
+
+`hubspot_pending_events` is a single FIFO with no partner predicate, and the sync
+loop breaks on the first error and holds a singleton cursor. One poisoned event
+from any rail stops every partner's CRM updates, silently, after one incident.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| F2.1 | Load the fixture. Create an application under `fixture-alpha` and one under `fixture-beta` | Both present |
+| F2.2 | Poison alpha's event (delete alpha's HubSpot company mapping so its upsert throws), then run `hubspot-sync` | **Beta's events still reach HubSpot.** Before the cursor is partitioned this FAILS: beta is blocked behind alpha |
+| F2.3 | Read `hubspot_sync_cursor` | Alpha's cursor held at last success; **beta's advanced**. One row per partner, not one row |
+| F2.4 | Leave alpha poisoned for longer than the staleness threshold | A staleness alert fires. Not silence after a single incident |
+| F2.5 | Repair alpha, run again | Alpha catches up from its own cursor with no gap and no replay of beta |
+
+## F3. A non-staff session reads nothing
+
+Tenant accounts introduce an authenticated principal that is not staff. Every
+application policy is written in terms of `app_role()` and `app_partner()`, and
+`require_aal2` is restrictive so it ANDs with all of them.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| F3.1 | Authenticated session at **AAL1** (no TOTP), `select * from applications` | **Zero rows.** Not an error, zero rows |
+| F3.2 | Same session, `insert into applications` | Refused |
+| F3.3 | A session whose `users` row has a NULL `partner_id` and a non-admin role | Zero rows. Confirms null-partner fails closed rather than matching |
+| F3.4 | After tenant accounts ship, repeat F3.1 with a tenant principal | Still zero rows. A tenant reaches their own data through a service-role function, never through PostgREST |
+| F3.5 | `select polname, polpermissive from pg_policy where polrelid = 'public.applications'::regclass and not polpermissive` | `require_aal2` and the livemode restrictive policy both still present |
+
+F3.5 is the cheap one to automate. A restrictive policy quietly becoming
+permissive is invisible in every functional test.
+
+## F4. Route attribution keeps a direct application away from Rightmove
+
+`applications.partner_id` is the route, and it drives commission **and**
+visibility. The same agency reached by two routes must give two answers.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| F4.1 | Create an application via `create_referral` as an alpha referrer against an alpha branch | `partner_id` = alpha. Unchanged from before route attribution |
+| F4.2 | Create one via `create_referral_api` with a beta key against a beta branch | `partner_id` = beta |
+| F4.3 | Create one against an **alpha** branch with an explicit route of the house direct partner | `partner_id` = **direct**, `agency_id` = alpha's agency. One agency, two routes |
+| F4.4 | Sign in as alpha management and list applications | F4.3's row is **absent**. This is the row that proves Rightmove cannot see a direct application at one of their agencies |
+| F4.5 | Read `partner_rate` / `agent_rate` on F4.3's row | The **direct** partner's rates, which are zero. Not alpha's |
+| F4.6 | Read the partner webhook queue for alpha | No delivery enqueued for F4.3 |
+| F4.7 | As an opndoor admin (NULL `partner_id`), create against an alpha branch with no explicit route | `partner_id` = alpha. The admin fallback, and the pre-migration behaviour |
+
+F4.7 is not a nicety. `app_partner()` is NULL for a superadmin by constraint, so
+a creator-only rule would raise NOT NULL here on a path `is_admin()` explicitly
+permits.
+
+## F5. New columns arrive invisible, not broken
+
+The table grant on `applications` was revoked and re-granted per column, so a new
+column has **no** grant until one is written.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| F5.1 | After any migration adding a column to `applications`, run `select has_column_privilege('authenticated','public.applications','<col>','SELECT')` | Matches intent. **False by accident is the default**, so this is an assertion of intent, not of correctness |
+| F5.2 | `select partner_rate from applications` as an authenticated non-admin | Refused. The revocation still holds |
+| F5.3 | Add a NOT NULL column with no default, then POST `/v1/applications` | Refused at insert. **A NOT NULL column with no default breaks `create_referral_api`'s explicit insert list and takes Rightmove's create path down on the next request.** Add nullable, backfill, then set NOT NULL, in one migration, as `referencing_mode` did |
