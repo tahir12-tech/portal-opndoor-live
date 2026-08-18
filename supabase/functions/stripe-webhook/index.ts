@@ -137,6 +137,53 @@ Deno.serve(async (req) => {
         const refusal = await refuseOnModeMismatch(service, appId, eventLivemode, event.id);
         if (refusal) return refusal;
 
+        // ---- WHAT IS THIS PAYMENT FOR? -----------------------------------
+        //
+        // Read BEFORE apply_stripe_payment, and ABSENCE MEANS GUARANTEE FEE.
+        //
+        // That default is load-bearing. Every session created before this code
+        // shipped, and every session currently in flight, carries no purpose,
+        // and all of them must keep behaving exactly as they did. Defaulting
+        // the other way, or requiring the field, would turn every in-flight
+        // referral payment into an error on deploy.
+        //
+        // The eligibility fee returns HERE and goes no further. Falling through
+        // would call apply_stripe_payment, which sets status 'paid', which
+        // generates a Deed of Guarantee and emails the tenant a receipt for it,
+        // on a GBP 20 payment, possibly before anyone has referenced them.
+        const purpose = typeof s.metadata?.purpose === "string" ? s.metadata.purpose : "guarantee";
+
+        if (purpose === "eligibility") {
+          const { error: eligErr } = await service.rpc("record_eligibility_payment", {
+            p_application: appId,
+            p_amount: amount,
+            p_session: s.id,
+            p_payment_intent: pi,
+            p_livemode: eventLivemode,
+          });
+          if (eligErr) {
+            await service.from("stripe_events").delete().eq("id", event.id);
+            throw new Error(`record_eligibility_payment failed: ${eligErr.message}`);
+          }
+          await service.from("stripe_events").update({ application_id: appId }).eq("id", event.id);
+          await service.from("activity_log").insert({
+            application_id: appId,
+            kind: "eligibility_paid",
+            message: `Eligibility fee paid (£${amount.toLocaleString("en-GB")}) via Stripe.`,
+            actor: "Stripe",
+          });
+          return new Response(JSON.stringify({ received: true, purpose: "eligibility" }), {
+            status: 200, headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        if (purpose !== "guarantee") {
+          // An unrecognised purpose is refused, not guessed. Guessing here means
+          // guessing whether to issue a deed.
+          await service.from("stripe_events").delete().eq("id", event.id);
+          throw new Error(`Unknown payment purpose "${purpose}" on session ${s.id}`);
+        }
+
         const { error: payErr } = await service.rpc("apply_stripe_payment", { p_application_id: appId, p_payment_intent: pi, p_amount: amount, p_session_id: s.id });
         if (payErr) {
           await service.from("stripe_events").delete().eq("id", event.id);
