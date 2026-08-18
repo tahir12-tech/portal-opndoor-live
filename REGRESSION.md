@@ -1293,3 +1293,22 @@ tenant session, or a provider that answers.
 | H4.3 | Shares 100 and 0 | Accepted. A zero share is the case the group rule exists for |
 | H4.4 | `tenancy_group_prequalification` on H4.3 | `not_ruled_out`, provided the 100% holder clears their own share |
 | H4.5 | A referral-path application | `tenancy_id` null, existing per-application deed columns untouched |
+
+## H5. The tenant journey
+
+Verified live on 2026-08-12 against the dev project with a real tenant session.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H5.1 | Sign in as a tenant, then `GET /rest/v1/applications` **directly** | **`[]`.** Not an error, an empty array. The tenant is invisible to every existing policy. **Verified live** |
+| H5.2 | `tenant-portal` `list_applications` with that session | Their own application. **Verified live** |
+| H5.3 | `get_application` with **another** id | `Not found.` Same message an unknown id gets. **Verified live** |
+| H5.4 | `save_profile`, `save_row` for an address, `save_row` for an income | All accepted, patches only. **Verified live** |
+| H5.5 | `get_application` again | Everything read back: profile, 1 address, 1 income. **This is resume. Verified live** |
+| H5.6 | `prequalify` | `not_ruled_out`, with the income, the monthly figure needed and the history months. **Verified live** |
+| H5.7 | `submit` with under three years of history | 422 naming the shortfall, nothing marked complete |
+| H5.8 | `save_property` with `partner_rate` in the patch | Ignored. The allowlist drops it; an unfiltered patch from a browser would otherwise reach commission and route columns |
+| H5.9 | Any write after submission and payment | 409. Answers cannot drift once a reference is in flight |
+| H5.10 | Type into a field, then close the tab before the debounce fires | The value is saved. `visibilitychange` and `pagehide` both flush |
+| H5.11 | Answer "yes" to adverse credit, fill the CCJ detail, switch to "no", switch back | The detail is still there. Hidden fields are not cleared |
+| H5.12 | Reload mid-form | Same tab, same step, every answer present |

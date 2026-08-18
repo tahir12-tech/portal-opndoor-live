@@ -7,6 +7,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireRole } from '@/components/guards/RequireRole';
+import { Apply } from '@/pages/Apply/Apply';
 import { RequireAuth } from '@/components/guards/RequireAuth';
 import { Login } from '@/pages/Login/Login';
 import { ForgotPassword } from '@/pages/ForgotPassword/ForgotPassword';
@@ -48,6 +49,10 @@ export function App() {
       <Route path="/pay/retry" element={<PaymentRetry />} />
       {/* Public: agent-reported tenancy-start correction, from the deed email (#81). */}
       <Route path="/tenancy-correction" element={<TenancyCorrection />} />
+      {/* The tenant journey. PUBLIC in the routing sense: a tenant is not a
+          staff principal and never passes RequireAuth, which reads public.users.
+          Its own data access is authenticated inside tenantApi. */}
+      <Route path="/apply" element={<Apply />} />
 
       {/* authenticated shell (RequireAuth is a passthrough in mock/test mode) */}
       <Route element={<RequireAuth />}>

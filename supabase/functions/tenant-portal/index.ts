@@ -94,34 +94,249 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? "list_applications");
 
+    /* -----------------------------------------------------------------------
+       Ownership, checked ONCE per request and never assumed afterwards.
+
+       Every action below that names an application passes through here first.
+       The applicant id comes from the verified token, so this cannot be
+       satisfied by sending somebody else's application id: the row simply will
+       not match. Returns the row so callers do not fetch it twice.
+       --------------------------------------------------------------------- */
+    async function ownedApplication(id: unknown) {
+      const appId = String(id ?? "");
+      if (!appId) return null;
+      const { data } = await service
+        .from("applications")
+        .select("id, status, guarantee_ref, monthly_rent, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_county, prop_postcode, tenant_title, tenant_first_name, tenant_last_name, tenant_dob, tenant_phone, tenant_email")
+        .eq("id", appId).eq("applicant_id", callerId).maybeSingle();
+      return data ?? null;
+    }
+
+    // Nothing may be edited once it has left the applicant's hands. Submitting
+    // is the boundary: after that the answers are what the reference was
+    // requested on, and letting them drift would change the basis of a decision
+    // already in flight.
+    function editable(status: string) {
+      return status === "draft" || status === "referencing";
+    }
+
     if (action === "list_applications") {
       const { data, error } = await service.rpc("tenant_applications", { p_applicant: callerId });
       if (error) {
         console.log(JSON.stringify({ event: "tenant_list_failed", message: error.message }));
-        // The tenant is told nothing about why. Postgres error text has leaked
-        // schema to an API caller once already in this codebase (defect 18).
         return json({ ok: false, error: "Could not load your applications." }, 500);
       }
       return json({
         ok: true,
-        applicant: {
-          email: applicant.email,
-          first_name: applicant.first_name,
-          last_name: applicant.last_name,
-        },
+        applicant: { email: applicant.email, first_name: applicant.first_name, last_name: applicant.last_name },
         applications: data ?? [],
       });
     }
 
     if (action === "me") {
+      return json({ ok: true, applicant: { email: applicant.email, first_name: applicant.first_name, last_name: applicant.last_name } });
+    }
+
+    /* ----- the whole form, in one round trip -------------------------------
+       Resume is the requirement, so the client asks once and gets everything:
+       profile, property, agent, every address and every income. A form that
+       fetched a tab at a time would show empty fields for a second on every
+       tab change, which reads as lost work. */
+    if (action === "get_application") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+
+      const [profile, addresses, incomes, docs, agent] = await Promise.all([
+        service.from("application_profiles").select("*").eq("application_id", app.id).maybeSingle(),
+        service.from("application_addresses").select("*").eq("application_id", app.id).order("seq"),
+        service.from("application_incomes").select("*").eq("application_id", app.id).order("seq"),
+        service.from("application_documents").select("id, kind, filename, bytes, income_id, address_id, created_at").eq("application_id", app.id),
+        service.from("application_delivery_contacts").select("*").eq("application_id", app.id).maybeSingle(),
+      ]);
+
       return json({
         ok: true,
-        applicant: {
-          email: applicant.email,
-          first_name: applicant.first_name,
-          last_name: applicant.last_name,
-        },
+        application: app,
+        editable: editable(app.status),
+        profile: profile.data ?? null,
+        addresses: addresses.data ?? [],
+        incomes: incomes.data ?? [],
+        documents: docs.data ?? [],
+        agent: agent.data ?? null,
       });
+    }
+
+    /* ----- partial saves, which is what makes resume work -------------------
+       Every one of these is an upsert of a PATCH, not a whole record. The form
+       autosaves a field at a time, so a save must never null a column the
+       client did not send. */
+    if (action === "save_profile") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      if (!editable(app.status)) return json({ ok: false, error: "This application can no longer be edited." }, 409);
+      const patch = { ...(body.patch ?? {}), application_id: app.id, updated_at: new Date().toISOString() };
+      const { error } = await service.from("application_profiles").upsert(patch, { onConflict: "application_id" });
+      if (error) {
+        console.log(JSON.stringify({ event: "tenant_save_profile_failed", message: error.message }));
+        return json({ ok: false, error: "Could not save." }, 500);
+      }
+      return json({ ok: true });
+    }
+
+    if (action === "save_property") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      if (!editable(app.status)) return json({ ok: false, error: "This application can no longer be edited." }, 409);
+      // An explicit allowlist. The applications table carries commission, route
+      // and status columns, and an unfiltered patch from a browser would reach
+      // all of them.
+      const allowed = ["monthly_rent", "tenancy_start", "prop_addr1", "prop_addr2", "prop_city", "prop_county", "prop_postcode"];
+      const patch: Record<string, unknown> = {};
+      for (const k of allowed) if (k in (body.patch ?? {})) patch[k] = (body.patch as any)[k];
+      if (!Object.keys(patch).length) return json({ ok: true });
+      const { error } = await service.from("applications").update(patch).eq("id", app.id);
+      if (error) return json({ ok: false, error: "Could not save." }, 500);
+      return json({ ok: true });
+    }
+
+    if (action === "save_agent") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      if (!editable(app.status)) return json({ ok: false, error: "This application can no longer be edited." }, 409);
+      const p = (body.patch ?? {}) as Record<string, unknown>;
+      // kind and email are NOT NULL on the table, so a partial patch that has
+      // not reached them yet is held client side rather than written half.
+      if (!p.kind || !p.email) return json({ ok: true, deferred: true });
+      const { error } = await service.from("application_delivery_contacts")
+        .upsert({ ...p, application_id: app.id }, { onConflict: "application_id" });
+      if (error) {
+        console.log(JSON.stringify({ event: "tenant_save_agent_failed", message: error.message }));
+        return json({ ok: false, error: "Could not save those details." }, 500);
+      }
+      return json({ ok: true });
+    }
+
+    if (action === "save_row") {
+      // Addresses and incomes share a shape: a list keyed by (application, seq).
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      if (!editable(app.status)) return json({ ok: false, error: "This application can no longer be edited." }, 409);
+      const table = body.table === "addresses" ? "application_addresses"
+                  : body.table === "incomes"   ? "application_incomes" : null;
+      if (!table) return json({ ok: false, error: "Unknown table." }, 400);
+      const seq = Number(body.seq);
+      if (!Number.isFinite(seq)) return json({ ok: false, error: "seq is required." }, 400);
+      const { data, error } = await service.from(table)
+        .upsert({ ...(body.patch ?? {}), application_id: app.id, seq }, { onConflict: "application_id,seq" })
+        .select("id").maybeSingle();
+      if (error) {
+        console.log(JSON.stringify({ event: "tenant_save_row_failed", table, message: error.message }));
+        return json({ ok: false, error: "Could not save." }, 500);
+      }
+      return json({ ok: true, id: data?.id ?? null });
+    }
+
+    if (action === "delete_row") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      if (!editable(app.status)) return json({ ok: false, error: "This application can no longer be edited." }, 409);
+      const table = body.table === "addresses" ? "application_addresses"
+                  : body.table === "incomes"   ? "application_incomes" : null;
+      if (!table) return json({ ok: false, error: "Unknown table." }, 400);
+      await service.from(table).delete().eq("application_id", app.id).eq("seq", Number(body.seq));
+      return json({ ok: true });
+    }
+
+    /* ----- uploads ---------------------------------------------------------
+       A signed upload URL, so the bytes go straight to Storage and never
+       through this function. An Edge Function is not a good file pipe, and
+       base64 through JSON triples the size of a bank statement. */
+    if (action === "upload_url") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      if (!editable(app.status)) return json({ ok: false, error: "This application can no longer be edited." }, 409);
+      const kind = String(body.kind ?? "");
+      const ALLOWED = ["bank_statement", "proof_of_address", "p60_or_pension_award", "tax_return", "other_upload"];
+      if (!ALLOWED.includes(kind)) return json({ ok: false, error: "Unknown document type." }, 400);
+
+      const safe = String(body.filename ?? "upload").replace(/[^A-Za-z0-9._-]/g, "_").slice(-80);
+      const path = `${app.id}/${kind}-${Date.now()}-${safe}`;
+      const { data, error } = await service.storage.from("applicant-docs").createSignedUploadUrl(path);
+      if (error || !data) return json({ ok: false, error: "Could not start the upload." }, 500);
+      return json({ ok: true, path, token: data.token, bucket: "applicant-docs" });
+    }
+
+    if (action === "confirm_upload") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      const { error } = await service.rpc("record_application_document", {
+        p_application: app.id, p_kind: String(body.kind ?? ""), p_bucket: "applicant-docs",
+        p_path: String(body.path ?? ""), p_filename: String(body.filename ?? ""),
+        p_content_type: String(body.content_type ?? "") || null,
+        p_bytes: Number(body.bytes ?? 0) || null, p_source: "applicant",
+        p_income: body.income_id ?? null, p_address: body.address_id ?? null,
+      });
+      if (error) {
+        console.log(JSON.stringify({ event: "tenant_confirm_upload_failed", message: error.message }));
+        return json({ ok: false, error: "Could not record the upload." }, 500);
+      }
+      return json({ ok: true });
+    }
+
+    if (action === "delete_document") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      const { data: doc } = await service.from("application_documents")
+        .select("id, bucket, path").eq("id", String(body.document_id ?? "")).eq("application_id", app.id).maybeSingle();
+      if (!doc) return json({ ok: false, error: "Not found." }, 404);
+      // Applicant uploads only. A provider report is evidence and is not the
+      // applicant's to remove.
+      if (doc.bucket !== "applicant-docs") return json({ ok: false, error: "Not permitted." }, 403);
+      await service.storage.from(doc.bucket).remove([doc.path]);
+      await service.from("application_documents").delete().eq("id", doc.id);
+      return json({ ok: true });
+    }
+
+    /* ----- the prequalification, and submission ---------------------------- */
+    if (action === "prequalify") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      const { data: income } = await service.rpc("application_annual_income", { p_application: app.id });
+      const { data: prof } = await service.from("application_profiles")
+        .select("*").eq("application_id", app.id).maybeSingle();
+      const { data: inc } = await service.from("application_incomes")
+        .select("income_type").eq("application_id", app.id);
+      const isStudent = (inc ?? []).some((r: any) => r.income_type === "student");
+      const { data: rows } = await service.rpc("assess_eligibility", {
+        p_monthly_rent: app.monthly_rent, p_share_amount: null,
+        p_credit_score: null, p_annual_income: income ?? 0, p_is_student: isStudent,
+      });
+      const r = Array.isArray(rows) ? rows[0] : rows;
+      const { data: months } = await service.rpc("address_history_months", { p_application: app.id });
+      return json({
+        ok: true,
+        // Never "you qualify". We cannot see a credit file, which is the most
+        // common reason a marginal applicant actually fails.
+        outcome: r?.outcome ?? null, reason: r?.reason ?? null,
+        annual_income: income ?? 0, income_needed_monthly: r?.income_needed ?? null,
+        history_months: months ?? 0,
+        adverse_credit: prof?.adverse_credit ?? null,
+      });
+    }
+
+    if (action === "submit") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      if (!editable(app.status)) return json({ ok: false, error: "This application has already been submitted." }, 409);
+      const { data: months } = await service.rpc("address_history_months", { p_application: app.id });
+      if ((months ?? 0) < 36) {
+        return json({ ok: false, error: "We need three years of address history before we can send this.", history_months: months ?? 0 }, 422);
+      }
+      const { error } = await service.from("application_profiles")
+        .upsert({ application_id: app.id, completed_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+                { onConflict: "application_id" });
+      if (error) return json({ ok: false, error: "Could not submit." }, 500);
+      return json({ ok: true });
     }
 
     return json({ ok: false, error: "Unknown action." }, 400);
