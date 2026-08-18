@@ -135,9 +135,21 @@ Deno.serve(async (req) => {
     const { data: pmapRaw } = await service.from("hubspot_partner_map").select("*").eq("active", true);
     const partnerMap = new Map((pmapRaw ?? []).map((p: any) => [p.partner_id, p]));
 
-    // ---- cursor -------------------------------------------------------
-    const { data: cur } = await service.from("hubspot_sync_cursor").select("*").eq("id", true).maybeSingle();
-    if (!cur) return json({ ok: false, error: "Cursor not initialised." }, 500);
+    // ---- cursors, ONE PER PARTNER -------------------------------------
+    //
+    // This used to be a singleton row, which made the whole sync a single queue:
+    // the loop below breaks on the first error and holds the cursor, so ONE
+    // poisoned event stopped EVERY partner's CRM updates until a human noticed.
+    // With one live partner that was survivable. With a direct rail and a LIB
+    // rail writing into the same activity_log it is not: a direct-signup event
+    // that throws would freeze the referral partner's feed, silently.
+    //
+    // Draining oldest-cursor-first (the RPC orders by last_at) means a partner
+    // that is behind is served before one that is current, so a stuck partner
+    // cannot be starved by chatty ones once it recovers.
+    const { data: partnerCursors, error: pcErr } = await service.rpc("hubspot_sync_partners");
+    if (pcErr) return json({ ok: false, error: `cursors: ${pcErr.message}` }, 500);
+    if (!partnerCursors?.length) return json({ ok: false, error: "No partner cursors initialised." }, 500);
 
     const summaryWarn: string[] = [];
     const body = await req.json().catch(() => ({}));
@@ -207,24 +219,11 @@ Deno.serve(async (req) => {
     }
 
     const LIMIT = Number(body?.limit ?? 200);
-    const { data: events, error: evErr } = await service.rpc("hubspot_pending_events", {
-      p_last_at: cur.last_at, p_last_id: cur.last_id, p_kinds: Object.keys(KIND_TO_EVENT), p_limit: LIMIT,
-    });
-    if (evErr) return json({ ok: false, error: `fetch events: ${evErr.message}` }, 500);
 
-    // Sandbox rows must never reach HubSpot. They are already excluded in SQL, by
-    // the livemode predicate on hubspot_pending_events, so anything arriving here
-    // with livemode false means that predicate has been removed or the cursor is
-    // being fed from somewhere else. Drop it and say so loudly rather than
-    // trusting the layer below: a test contact and a test deal in the production
-    // CRM is the most expensive leak in this system to undo by hand.
-    const clean = (events ?? []).filter((e: any) => {
-      if (maySyncToHubspot(e?.app?.livemode !== false)) return true;
-      summaryWarn.push(`refused sandbox application ${e?.application_id} (event ${e?.event_id})`);
-      return false;
-    });
-
-    const summary: any = { ok: true, env: env.env, refused_sandbox: summaryWarn, processed: 0, by: {}, warnings: [], errors: [], cursor_start: { at: cur.last_at, id: cur.last_id } };
+    const summary: any = {
+      ok: true, env: env.env, refused_sandbox: summaryWarn, processed: 0, by: {},
+      warnings: [], errors: [], partners: [] as any[],
+    };
 
     // ---- idempotency ledger: check BEFORE, record AFTER success -------
     // Ledger id is the full key. Two families:
@@ -390,51 +389,94 @@ Deno.serve(async (req) => {
       return (await q("branch_id", branchId)) ?? (await q("agency_id", agencyId));
     };
 
-    // ---- per-event processing ----------------------------------------
-    for (const ev of clean) {
-      const app = ev.app;
-      const eventType = KIND_TO_EVENT[ev.kind];
-      try {
-        // 1. Applicant property upsert (per-event idempotency). Config-driven props.
-        const rows = applicantRows.filter((r) => r.events.includes(eventType));
-        const ctx: any = { app, event: { at: ev.at } };
-        if (eventType === "referral") ctx.partnerHsId = partnerMap.get(app.partner_id)?.hs_partner_id ?? null;
-        if (eventType === "deed_issued") ctx.deedUrl = APP_BASE ? `${APP_BASE}/applications/${app.guarantee_ref}` : null;
-        if (eventType === "delivered") ctx.deliveredTo = await deliveredTo(app.branch_id, app.agency_id);
-        const props = buildApplicantProps(rows, ctx);
-        let applicantId: string | null = null;
-        if (Object.keys(props).length && !(await applied(`${ev.event_id}:applicant`))) {
-          applicantId = await upsertApplicant(app.guarantee_ref, props);
-          await record(`${ev.event_id}:applicant`, ev.event_id, "applicant", app.id);
-        }
-
-        // 2. Associations (partner PRIMARY + branch). Referral always ensures; other
-        //    events re-attempt only if an edge is still missing (e.g. the org was
-        //    confirmed after the referral). Per-application role ledger, idempotent.
-        const needAssoc = eventType === "referral"
-          || !(await applied(`assoc:${app.id}:partner`))
-          || !(await applied(`assoc:${app.id}:branch`));
-        if (needAssoc) {
-          if (!applicantId) applicantId = await findApplicantId(app.guarantee_ref);
-          if (!applicantId && eventType === "referral" && Object.keys(props).length)
-            applicantId = await upsertApplicant(app.guarantee_ref, props);
-          if (applicantId) await ensureAssoc(app, applicantId, ev.event_id);
-        }
-
-        // advance cursor to this event (last success)
-        await service.from("hubspot_sync_cursor").update({ last_at: ev.at, last_id: ev.event_id, updated_at: new Date().toISOString() }).eq("id", true);
-        summary.processed++;
-        summary.by[eventType] = (summary.by[eventType] ?? 0) + 1;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        summary.errors.push({ ref: app?.guarantee_ref, kind: ev.kind, error: msg });
-        try {
-          await service.rpc("report_ops_incident", { p_type: "hubspot_sync_error", p_detail: `hubspot-sync ${ev.kind} ${app?.guarantee_ref ?? ""}: ${msg}` });
-        } catch { /* never mask the original error */ }
-        break; // stop; cursor holds at last success; the batch retries next run
+    // ---- per-PARTNER, then per-event ----------------------------------
+    // The inner `break` on error is what makes this partitioning matter: it
+    // stops THIS partner at its own cursor and the outer loop moves on, so a
+    // partner that cannot sync no longer holds anybody else's feed.
+    for (const pc of partnerCursors) {
+      const partnerId = pc.partner_id;
+      const { data: events, error: evErr } = await service.rpc("hubspot_pending_events", {
+        p_partner: partnerId, p_last_at: pc.last_at, p_last_id: pc.last_id,
+        p_kinds: Object.keys(KIND_TO_EVENT), p_limit: LIMIT,
+      });
+      if (evErr) {
+        summary.errors.push({ partner: partnerId, error: `fetch events: ${evErr.message}` });
+        await service.rpc("hubspot_mark_stuck", { p_partner: partnerId, p_error: `fetch events: ${evErr.message}` });
+        continue;
       }
+
+      // Sandbox rows must never reach HubSpot. They are already excluded in SQL, by
+      // the livemode predicate on hubspot_pending_events, so anything arriving here
+      // with livemode false means that predicate has been removed or the cursor is
+      // being fed from somewhere else. Drop it and say so loudly rather than
+      // trusting the layer below: a test contact and a test deal in the production
+      // CRM is the most expensive leak in this system to undo by hand.
+      const clean = (events ?? []).filter((e: any) => {
+        if (maySyncToHubspot(e?.app?.livemode !== false)) return true;
+        summaryWarn.push(`refused sandbox application ${e?.application_id} (event ${e?.event_id})`);
+        return false;
+      });
+
+      let partnerProcessed = 0;
+      let partnerStuck = false;
+
+      for (const ev of clean) {
+        const app = ev.app;
+        const eventType = KIND_TO_EVENT[ev.kind];
+        try {
+          // 1. Applicant property upsert (per-event idempotency). Config-driven props.
+          const rows = applicantRows.filter((r) => r.events.includes(eventType));
+          const ctx: any = { app, event: { at: ev.at } };
+          if (eventType === "referral") ctx.partnerHsId = partnerMap.get(app.partner_id)?.hs_partner_id ?? null;
+          if (eventType === "deed_issued") ctx.deedUrl = APP_BASE ? `${APP_BASE}/applications/${app.guarantee_ref}` : null;
+          if (eventType === "delivered") ctx.deliveredTo = await deliveredTo(app.branch_id, app.agency_id);
+          const props = buildApplicantProps(rows, ctx);
+          let applicantId: string | null = null;
+          if (Object.keys(props).length && !(await applied(`${ev.event_id}:applicant`))) {
+            applicantId = await upsertApplicant(app.guarantee_ref, props);
+            await record(`${ev.event_id}:applicant`, ev.event_id, "applicant", app.id);
+          }
+
+          // 2. Associations (partner PRIMARY + branch). Referral always ensures; other
+          //    events re-attempt only if an edge is still missing (e.g. the org was
+          //    confirmed after the referral). Per-application role ledger, idempotent.
+          const needAssoc = eventType === "referral"
+            || !(await applied(`assoc:${app.id}:partner`))
+            || !(await applied(`assoc:${app.id}:branch`));
+          if (needAssoc) {
+            if (!applicantId) applicantId = await findApplicantId(app.guarantee_ref);
+            if (!applicantId && eventType === "referral" && Object.keys(props).length)
+              applicantId = await upsertApplicant(app.guarantee_ref, props);
+            if (applicantId) await ensureAssoc(app, applicantId, ev.event_id);
+          }
+
+          // advance THIS PARTNER's cursor to this event (last success). Also
+          // clears stuck_since, so recovery is recorded by the same call that
+          // records progress and the two can never disagree.
+          await service.rpc("hubspot_mark_cursor", { p_partner: partnerId, p_last_at: ev.at, p_last_id: ev.event_id });
+          summary.processed++;
+          partnerProcessed++;
+          summary.by[eventType] = (summary.by[eventType] ?? 0) + 1;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          summary.errors.push({ partner: partnerId, ref: app?.guarantee_ref, kind: ev.kind, error: msg });
+          // stuck_since keeps its FIRST value, so the staleness alert measures how
+          // long this partner has actually been stuck rather than resetting on
+          // every run that retries and fails again.
+          await service.rpc("hubspot_mark_stuck", { p_partner: partnerId, p_error: `${ev.kind} ${app?.guarantee_ref ?? ""}: ${msg}` });
+          try {
+            await service.rpc("report_ops_incident", { p_type: "hubspot_sync_error", p_detail: `hubspot-sync ${ev.kind} ${app?.guarantee_ref ?? ""}: ${msg}` });
+          } catch { /* never mask the original error */ }
+          partnerStuck = true;
+          break; // this partner only; its cursor holds and the next partner runs
+        }
+      }
+
+      summary.partners.push({ partner: partnerId, processed: partnerProcessed, stuck: partnerStuck });
     }
 
+    // A partner that failed is reported, but the run is only "not ok" in the
+    // 207 sense: the other partners drained, which is the entire point.
     summary.ok = summary.errors.length === 0;
     summary.ms = Date.now() - started;
     return json(summary, summary.ok ? 200 : 207);
