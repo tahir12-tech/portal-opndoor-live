@@ -8,6 +8,10 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireRole } from '@/components/guards/RequireRole';
 import { Apply } from '@/pages/Apply/Apply';
+import {
+  Forgot as TenantForgot, InviteLanding, Prequalify, Register,
+  ResetPassword as TenantResetPassword, SignIn as TenantSignIn, Verify as TenantVerify,
+} from '@/pages/Apply/FrontDoor';
 import { RequireAuth } from '@/components/guards/RequireAuth';
 import { Login } from '@/pages/Login/Login';
 import { ForgotPassword } from '@/pages/ForgotPassword/ForgotPassword';
@@ -52,6 +56,13 @@ export function App() {
       {/* The tenant journey. PUBLIC in the routing sense: a tenant is not a
           staff principal and never passes RequireAuth, which reads public.users.
           Its own data access is authenticated inside tenantApi. */}
+      <Route path="/apply/start" element={<Prequalify />} />
+      <Route path="/apply/register" element={<Register />} />
+      <Route path="/apply/signin" element={<TenantSignIn />} />
+      <Route path="/apply/forgot" element={<TenantForgot />} />
+      <Route path="/apply/reset" element={<TenantResetPassword />} />
+      <Route path="/apply/verify" element={<TenantVerify />} />
+      <Route path="/apply/invite" element={<InviteLanding />} />
       <Route path="/apply" element={<Apply />} />
 
       {/* authenticated shell (RequireAuth is a passthrough in mock/test mode) */}

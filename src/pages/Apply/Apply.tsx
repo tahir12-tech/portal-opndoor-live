@@ -34,6 +34,7 @@ import {
   addressFields, additionalIncomeFields, employmentFields, historyMonths,
 } from '@/tenant/formSpec';
 import * as api from '@/tenant/tenantApi';
+import { currentTenant, signOut } from '@/tenant/tenantAuth';
 import { useAutosave, type SaveStatus } from '@/tenant/useAutosave';
 import './Apply.css';
 
@@ -84,11 +85,21 @@ export function Apply() {
   const [busy, setBusy] = useState(false);
   const appId = bundle?.application.id ?? 'demo-application';
 
+  const [signedOut, setSignedOut] = useState(false);
+
   const load = useCallback(async () => {
     try {
+      // A tenant with no session gets the front door rather than an error. This
+      // page is reachable by URL and by an old bookmark, and "could not load"
+      // is the wrong answer to "you are not signed in".
+      const me = await currentTenant();
+      if (!me) { setSignedOut(true); return; }
       const list = await api.listApplications();
       const first = list.applications[0];
-      if (!first) { setErr('No application found for this account.'); return; }
+      // Signed in with nothing started. That is not an error, it is somebody
+      // who has an account and has not begun, so send them to the front of the
+      // journey rather than telling them their application is missing.
+      if (!first) { window.location.href = '/apply/start'; return; }
       const b = await api.getApplication(first.id);
       setBundle(b);
       setPre(await api.prequalify(first.id));
@@ -181,6 +192,21 @@ export function Apply() {
     setTab('id');
   };
 
+  if (signedOut) {
+    return (
+      <div className="ap ap--narrow">
+        <header className="ap-head"><div>
+          <div className="ap-brand">opndoor</div>
+          <h1>Sign in to continue</h1>
+          <p className="ap-sub">Your application is saved. Sign in and it will be exactly where you left it.</p>
+        </div></header>
+        <div className="ap-actions">
+          <Button variant="primary" onClick={() => { window.location.href = '/apply/signin'; }}>Sign in</Button>
+          <a className="ap-link" href="/apply/start">I have not started yet</a>
+        </div>
+      </div>
+    );
+  }
   if (err && !bundle) return <div className="ap"><div className="ap-alert">{err}</div></div>;
   if (!bundle) return <div className="ap"><p className="soft">Loading your application…</p></div>;
 
@@ -194,7 +220,12 @@ export function Apply() {
             {bundle.application.guarantee_ref} · Everything saves as you go, so you can stop and come back.
           </p>
         </div>
-        <SaveBadge status={status} />
+        <div className="ap-headright">
+          <SaveBadge status={status} />
+          <button type="button" className="ap-link" onClick={() => { void signOut().then(() => { window.location.href = '/apply/signin'; }); }}>
+            Sign out
+          </button>
+        </div>
       </header>
 
       <nav className="ap-tabs" aria-label="Application sections">
@@ -369,21 +400,40 @@ export function Apply() {
             {step === 'declaration' && (
               <Card><CardHead title="Declaration" /><CardBody>
                 {/* Asked once, on Property. The legacy form asked again here. */}
-                <p className="ap-p">
-                  Your tenancy starts <strong>{String(property.tenancy_start || 'not set yet')}</strong> at{' '}
-                  <strong>{String(property.prop_addr1 || 'the property above')}</strong>.
-                  Change it on the Property step if that is wrong.
-                </p>
+                {/* Asked once, on Property. This used to render "Your tenancy
+                    starts not set yet at the property above", which is a
+                    sentence nobody would write on purpose. */}
+                {property.tenancy_start && property.prop_addr1 ? (
+                  <p className="ap-p">
+                    Your tenancy starts <strong>{String(property.tenancy_start)}</strong> at{' '}
+                    <strong>{String(property.prop_addr1)}</strong>.
+                    Change it on the Property step if that is wrong.
+                  </p>
+                ) : (
+                  <p className="ap-p">
+                    Add the property and your tenancy start date on the{' '}
+                    <button type="button" className="ap-link" onClick={() => void goStep('property')}>Property step</button>
+                    {' '}and they will show here.
+                  </p>
+                )}
                 <FieldList fields={DECLARATION_FIELDS} values={profile} disabled={!editable}
                   onChange={(n, v) => { setProfile((p) => ({ ...p, [n]: v })); profileSave.set(n, v); }} />
 
-                {pre && (
+                {/* Only once there is something to assess. This used to render
+                    "Nothing here rules you out" with every field empty, which
+                    reassured about an assessment it had not made. */}
+                {pre && pre.outcome && Number(property.monthly_rent) > 0 && incomes.length > 0 ? (
                   <div className={`ap-pre ${pre.outcome === 'ruled_out' ? 'ap-pre--no' : 'ap-pre--ok'}`}>
                     {pre.outcome === 'ruled_out'
                       ? <>On what you have told us, the income here is under what this rent needs.
                           You can still send it, and our referencing partner makes the decision.</>
                       : <><strong>Nothing here rules you out.</strong> That is not a decision:
                           our referencing partner makes it, and they see things we cannot.</>}
+                  </div>
+                ) : (
+                  <div className="ap-pre ap-pre--wait">
+                    Once your rent and income are in, we will tell you whether anything obvious
+                    stands in the way. It is never a decision: our referencing partner makes that.
                   </div>
                 )}
 

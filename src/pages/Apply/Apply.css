@@ -67,3 +67,15 @@
 .ap-pre { margin-top: 18px; padding: 12px 14px; border-radius: 10px; font-size: 14px; line-height: 1.6; }
 .ap-pre--ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
 .ap-pre--no { background: #fffbeb; border: 1px solid #fde68a; color: #78350f; }
+
+/* The front door is a narrower column than the form: it is four questions or a
+   sign-in box, and a full-width card for that reads as an empty page. */
+.ap--narrow { max-width: 620px; }
+.ap-headright { display: flex; align-items: center; gap: 14px; }
+.ap-link { background: none; border: 0; padding: 0; font: inherit; color: #b54de0; cursor: pointer; text-decoration: underline; }
+.ap-foot { margin-top: 18px; font-size: 14px; color: #5b4d86; text-align: center; }
+.ap-pre--wait { background: #f8f7fb; border: 1px solid rgba(39,29,95,0.12); color: #5b4d86; }
+.ap-summary { display: grid; gap: 10px; margin: 0 0 16px; }
+.ap-summary > div { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid rgba(39,29,95,0.08); padding-bottom: 8px; }
+.ap-summary dt { color: #5b4d86; font-size: 13px; margin: 0; }
+.ap-summary dd { margin: 0; font-weight: 600; text-align: right; }

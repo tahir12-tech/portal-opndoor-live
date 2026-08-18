@@ -13,7 +13,8 @@
    whether it feels right, and a mock that forgets between tabs would answer a
    different question.
    ===================================================================== */
-import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import { SUPABASE_ENABLED } from '@/lib/supabase';
+import { tenantAccessToken, tsb } from './tenantAuth';
 
 export interface TenantApplication {
   id: string;
@@ -45,7 +46,16 @@ export interface ApplicationBundle {
    Supabase mode
    --------------------------------------------------------------------------- */
 async function callFn(action: string, payload: Record<string, unknown> = {}) {
-  const { data, error } = await sb().functions.invoke('tenant-portal', { body: { action, ...payload } });
+  // The TENANT client's token, never the staff one. They are separate sessions
+  // with separate storage keys, and invoking through the staff client here would
+  // send a member of staff's bearer to a tenant endpoint, which refuses it with
+  // a 403 that would look like a bug in the tenant's account.
+  const token = await tenantAccessToken();
+  if (!token) throw new Error('Your session has expired. Please sign in again.');
+  const { data, error } = await tsb().functions.invoke('tenant-portal', {
+    body: { action, ...payload },
+    headers: { Authorization: `Bearer ${token}` },
+  });
   if (error) throw new Error(error.message);
   if (data && (data as any).ok === false) throw new Error((data as any).error ?? 'Request failed.');
   return data as any;
@@ -164,7 +174,7 @@ export async function uploadDocument(
 ): Promise<void> {
   if (SUPABASE_ENABLED) {
     const r = await callFn('upload_url', { application_id: applicationId, kind, filename: file.name });
-    const { error } = await sb().storage.from(r.bucket).uploadToSignedUrl(r.path, r.token, file);
+    const { error } = await tsb().storage.from(r.bucket).uploadToSignedUrl(r.path, r.token, file);
     if (error) throw new Error(error.message);
     await callFn('confirm_upload', {
       application_id: applicationId, kind, path: r.path, filename: file.name,
@@ -254,4 +264,43 @@ export async function submitApplication(applicationId: string): Promise<{ ok: bo
   s.profile = { ...s.profile, completed_at: new Date().toISOString() };
   writeMock(s);
   return { ok: true };
+}
+
+/** Attach an application an agent created to this account. */
+export async function claimInvite(token: string): Promise<string> {
+  if (SUPABASE_ENABLED) {
+    const r = await callFn('claim_invite', { token });
+    return r.application_id as string;
+  }
+  return 'demo-application';
+}
+
+/** Create the draft, carrying the prequalification answers in with it. */
+export async function startApplication(input: Record<string, unknown>): Promise<string> {
+  if (SUPABASE_ENABLED) {
+    const r = await callFn('start_application', input);
+    return r.application_id as string;
+  }
+  const s = readMock();
+  s.application = {
+    ...s.application,
+    monthly_rent: Number(input.monthly_rent) || null,
+    tenancy_start: (input.tenancy_start as string) || null,
+    prop_addr1: (input.prop_addr1 as string) || null,
+    prop_addr2: (input.prop_addr2 as string) || null,
+    prop_city: (input.prop_city as string) || null,
+    prop_county: (input.prop_county as string) || null,
+    prop_postcode: (input.prop_postcode as string) || null,
+  };
+  // Seed what the prequalification already asked, so the form does not ask again.
+  if (input.adverse_credit !== undefined) s.profile = { ...s.profile, adverse_credit: input.adverse_credit === true };
+  if (Number(input.annual_income) > 0 && !s.incomes.length) {
+    s.incomes.push({
+      id: 'row-0-seed', seq: 0, is_additional: false,
+      income_type: input.is_student === true ? 'student' : 'permanent',
+      pay_basis: 'annual_salary', annual_salary: Number(input.annual_income),
+    });
+  }
+  writeMock(s);
+  return 'demo-application';
 }
