@@ -1312,3 +1312,43 @@ Verified live on 2026-08-12 against the dev project with a real tenant session.
 | H5.10 | Type into a field, then close the tab before the debounce fires | The value is saved. `visibilitychange` and `pagehide` both flush |
 | H5.11 | Answer "yes" to adverse credit, fill the CCJ detail, switch to "no", switch back | The detail is still there. Hidden fields are not cleared |
 | H5.12 | Reload mid-form | Same tab, same step, every answer present |
+
+## H6. The front door
+
+Verified live on 2026-08-12 against the dev project.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H6.1 | Prequalify, rent 1450, income 18000, not a student | `ruled_out`, `affordability_below_threshold`, needs 2175/month. **Verified live** |
+| H6.2 | Same rent, income 40000, adverse credit **yes** | `not_ruled_out`. **Adverse credit rules nobody out**, because there is no credit file to see. **Verified live** |
+| H6.3 | Student, income 0 | `not_ruled_out`. **Verified live** |
+| H6.4 | Rent 2400 with a share of 800 | Basis is **800**, needs 1200/month. The share, not the whole rent. **Verified live** |
+| H6.5 | Read any success copy | Never "you qualify". "Nothing here rules you out", or plainly that it is unlikely |
+| H6.6 | Register a new address | `{ok, sent}`, applicant row created, `email_confirmed_at` null. **Verified live** |
+| H6.7 | Register the **same** address again | Byte-identical response. No enumeration. **Verified live** |
+| H6.8 | Register a **staff** address | Same response again, and no applicant row is created |
+| H6.9 | `request_reset` for an unknown address | Same response as a known one |
+| H6.10 | Sign in with a wrong password, and with an unknown address | The same message for both |
+
+## H7. The agent handoff
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H7.1 | Agent refers on a `pre_referenced_open` partner | **Unchanged.** Stripe session, payment email, reminders, 15-day lapse. The referral path does not enter the fork |
+| H7.2 | Agent refers on an `opndoor_referenced` partner | **No Stripe session at all.** Status `draft`, an invite minted, the invite email sent |
+| H7.3 | The invited application at day 15 | **Not lapsed.** `expire_stale_applications` selects on `sent` and this is `draft` |
+| H7.4 | Open the invite link, signed out | The property, rent and start date. **No tenant name, no reference, no income.** Verified in SQL |
+| H7.5 | Claim it from a **different** account | Refused: the link was sent to a different address. **Verified live** |
+| H7.6 | Claim it from the invited account | Attached. **Verified live** |
+| H7.7 | Claim it again from a second device | Resumes, does not fail. **Verified live** |
+| H7.8 | Another account tries after the claim | Still refused. **Verified live** |
+| H7.9 | Re-send the invite | The old token stops working. One live invite per application |
+
+## H8. A draft may be incomplete
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H8.1 | Register with only a name, email and password, then start an application | Draft created. No title and no date of birth required yet. **This was broken before `20260812210000` and failed with a NOT NULL violation** |
+| H8.2 | Null the date of birth while in draft | Allowed. **Verified live** |
+| H8.3 | Move that application out of draft | Refused, naming what is missing. **Verified live** |
+| H8.4 | A referral or API create missing any of the three | Refused exactly as before. The referral path never enters draft |
