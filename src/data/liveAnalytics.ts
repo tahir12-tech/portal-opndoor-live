@@ -204,6 +204,12 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
     // Their applications remain fully real in every other surface (money,
     // settlements, agency/branch groupings, exports).
     if (app.referrerRole === 'superadmin') return null;
+    // Nor does an application that nobody referred. A direct signup has no
+    // referrer at all (applications.referrer_id is nullable as of 20260812090000),
+    // and without this it would rank as a referrer called "(unknown)" whose
+    // volume grows every time the direct rail is used. Tested by
+    // referrer-exclusion.test.ts alongside the superadmin case.
+    if (!app.referrer) return null;
     return { id: `${app.partner}${S}${app.referrer}`, name: app.referrer || '(unknown)', sub: roleLabel(app.referrerRole), partner: '' };
   }
   // month: bucket by the sent month (drives the referrer "monthly volume" chart)

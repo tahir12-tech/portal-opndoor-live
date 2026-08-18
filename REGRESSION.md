@@ -1154,3 +1154,26 @@ column has **no** grant until one is written.
 | F5.1 | After any migration adding a column to `applications`, run `select has_column_privilege('authenticated','public.applications','<col>','SELECT')` | Matches intent. **False by accident is the default**, so this is an assertion of intent, not of correctness |
 | F5.2 | `select partner_rate from applications` as an authenticated non-admin | Refused. The revocation still holds |
 | F5.3 | Add a NOT NULL column with no default, then POST `/v1/applications` | Refused at insert. **A NOT NULL column with no default breaks `create_referral_api`'s explicit insert list and takes Rightmove's create path down on the next request.** Add nullable, backfill, then set NOT NULL, in one migration, as `referencing_mode` did |
+
+## F6. Tenant identity is not staff identity
+
+A tenant is an applicant with no `public.users` row. The whole security case for
+tenant accounts is that this makes them invisible to every existing policy
+without any policy changing.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| F6.1 | Create an applicant, then try to insert a `public.users` row with the same id | Refused by `users_not_applicant`, SQLSTATE 23505 |
+| F6.2 | The reverse: staff user first, then applicant with the same id | Refused by `applicants_not_staff` |
+| F6.3 | Sign in as a tenant, call PostgREST directly: `select * from applications` | **Zero rows.** Four independent reasons; any one is sufficient |
+| F6.4 | Same session, `select * from applicants` | Zero rows. The table has **no policies at all**, deliberately |
+| F6.5 | `POST /functions/v1/tenant-portal` with a tenant JWT, action `list_applications` | Only that tenant's own applications |
+| F6.6 | Same call with **another** tenant's id in the body | Ignored. The identity comes from the token; the body has no id field to honour |
+| F6.7 | Same call with a **staff** JWT | 403, and the same 403 an unknown identity gets |
+| F6.8 | Inspect the payload of F6.5 | No `partner_rate`, no `agent_rate`, no referrer, no internal notes |
+| F6.9 | `select referrer_id from applications where applicant_id is not null` | NULL. A direct signup has no referrer |
+| F6.10 | Try to insert an application with neither `referrer_id` nor `applicant_id` | Refused by `applications_referrer_required` |
+| F6.11 | Referrer league, with a direct application present | The direct row is **absent** from referrer rankings and **present** in the agency total |
+
+F6.11 is the one that would otherwise go unnoticed: without it a direct signup
+ranks as a referrer called "(unknown)" whose volume grows with every use.
