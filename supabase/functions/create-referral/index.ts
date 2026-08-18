@@ -13,7 +13,7 @@
 // =====================================================================
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { paymentEmailTemplate, sendEmail } from "./email.ts";
+import { paymentEmailTemplate, sendEmail, tenantInviteTemplate } from "./email.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 import { stripeSecretFor } from "../_shared/livemodeCredentials.ts";
 
@@ -110,6 +110,52 @@ Deno.serve(async (req) => {
     // #8 Title-case the address line for display in the email; postcode left raw.
     const propertyAddr = [titleCaseAddress(app.prop_addr1), app.prop_postcode].filter(Boolean).join(", ");
     const amountGBP = `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+    // ---- THE FORK, and it happens before Stripe is touched ---------------
+    //
+    // On a rail where OPNDOOR arranges the reference, there is nothing to pay
+    // for yet: the tenant has a form to fill first, and a payment link is
+    // simply the wrong link. They get an invite into the application journey
+    // instead, and no Checkout session is created at all.
+    //
+    // GATED ON referencing_mode, which is snapshotted onto the row at creation.
+    // The referral path is pre_referenced_open and does not enter this branch,
+    // so its Stripe session, its payment email, its reminders and its 15-day
+    // lapse are all untouched. That is the whole reason the fork is on mode
+    // rather than on anything about who created the application.
+    if (app.referencing_mode === "opndoor_referenced") {
+      const service = createClient(SUPABASE_URL, SERVICE);
+
+      // draft, NOT sent. 'sent' means a payment link is out, and it is what
+      // expire_stale_applications selects on: leaving it there would lapse the
+      // application on day 15 while the tenant was still filling the form.
+      await service.from("applications").update({ status: "draft" }).eq("id", appId);
+
+      const { data: inviteToken, error: invErr } = await service.rpc("mint_tenant_invite", {
+        p_application: appId, p_days: 30,
+      });
+      if (invErr || !inviteToken) {
+        console.log(JSON.stringify({ event: "invite_mint_failed", appId, message: invErr?.message }));
+        return json({ ok: false, error: "Could not create the tenant's link." }, 500);
+      }
+
+      const inviteUrl = `${origin}/apply/invite?token=${inviteToken}`;
+      const tpl = tenantInviteTemplate({
+        title: tenantTitle, lastName: tenantLast, propertyAddr, inviteUrl,
+      });
+      const inviteRes = await sendEmail({ subject: tpl.subject, html: tpl.html, to: tenantEmail });
+
+      await service.from("activity_log").insert({ application_id: appId, kind: "referral_created", message: "Referral created. The tenant has been invited to complete their application.", actor });
+      await service.from("activity_log").insert({
+        application_id: appId,
+        kind: inviteRes.ok ? "tenant_invited" : "tenant_invite_failed",
+        message: inviteRes.ok ? "Application link sent to the tenant." : `Application link not sent: ${inviteRes.error}`,
+        actor: "System",
+        visibility: inviteRes.ok ? "business" : "internal",
+      });
+
+      return json({ ok: true, id: appId, ref, invited: true });
+    }
 
     // Stripe test-mode Checkout Session for the guarantor fee (one month's rent).
     const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });

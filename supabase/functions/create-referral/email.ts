@@ -100,3 +100,32 @@ export function paymentEmailTemplate(p: {
     <p style="margin:14px 0 0;font-size:12px;color:${INK_SOFT};">If the button does not work, copy this link into your browser:<br><span style="color:${HELIOTROPE_DEEP};word-break:break-all;">${p.payUrl}</span></p>`;
   return { subject, html: layout(inner) };
 }
+
+/**
+ * The invite a tenant gets when an agent refers them on a rail where OPNDOOR
+ * arranges the reference.
+ *
+ * Deliberately not the payment email. There is nothing to pay yet, and leading
+ * with money for a service they have not been accepted for is both wrong and
+ * the fastest way to lose them. It leads with what they have to do and how long
+ * it takes, and it says who asked, because an unexpected email about your own
+ * tenancy is otherwise indistinguishable from a scam.
+ */
+export function tenantInviteTemplate(p: {
+  title: string;
+  lastName: string;
+  propertyAddr: string;
+  inviteUrl: string;
+}): { subject: string; html: string } {
+  const subject = 'Complete your guarantor application';
+  const inner = `
+    <p style="margin:0 0 14px;">Dear ${p.title} ${p.lastName},</p>
+    <p style="margin:0 0 14px;">Your letting agent has asked opndoor to act as guarantor for your tenancy at ${p.propertyAddr}.</p>
+    <p style="margin:0 0 14px;">To get started we need some details from you: where you have lived for the last three years, your income, and a couple of documents. It takes about fifteen minutes and <strong>you can stop and come back at any point</strong>, so there is no need to find everything first.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 18px;"><tr><td>
+      <a href="${p.inviteUrl}" style="display:inline-block;background:${HELIOTROPE};color:#ffffff;text-decoration:none;font:700 15px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;padding:13px 28px;border-radius:999px;box-shadow:0 6px 18px -8px rgba(211,100,251,0.6);">Start my application</a>
+    </td></tr></table>
+    <p style="margin:0 0 8px;font-size:13px;color:${INK_SOFT};">There is nothing to pay to begin. We will tell you what any fees are before you are asked for anything.</p>
+    <p style="margin:14px 0 0;font-size:12px;color:${INK_SOFT};">If the button does not work, copy this link into your browser:<br><span style="color:${HELIOTROPE_DEEP};word-break:break-all;">${p.inviteUrl}</span></p>`;
+  return { subject, html: layout(inner) };
+}
