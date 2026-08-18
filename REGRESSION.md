@@ -1192,3 +1192,53 @@ without any policy changing.
 
 F6.11 is the one that would otherwise go unnoticed: without it a direct signup
 ranks as a referrer called "(unknown)" whose volume grows with every use.
+
+---
+
+# Section G: org sharing
+
+An agency is branched once and reached by several partners. The rule that makes
+this safe is narrow and absolute: **sharing an agency never shares a contact
+book.** Most of this section exists to assert that one sentence.
+
+Verified on 2026-08-12 after `20260812100000` to `20260812140000`: eleven checks,
+all passing, including that visibility was **unchanged** by the migration
+(every relationship introduced-only, one per agency) and that no contact
+changed hands.
+
+## G1. Reachability, and what it does not carry
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| G1.1 | Partner A introduced agency X. Partner B has neither a user there nor an application | B cannot see X. Reachability is not public |
+| G1.2 | Attach a B user to X, reload as B | B sees X **and its branches**. This is the bootstrap the whole design exists for |
+| G1.3 | As B, read X's contacts | **Only B's own.** A's contacts are invisible. The single most important row in this section |
+| G1.4 | As B, read applications at X | Only B's own route. `applications_select` is route-scoped and was not touched |
+| G1.5 | As B, read `partner_agency_relationships` | Only B's rows. Reading all of them would reveal which partners work with X, which is a client list |
+| G1.6 | As B, agency and branch league figures for X | B's own volume only, and it is correct **by construction**: the aggregate is built from applications B can already read |
+| G1.7 | Detach B's last user from X, B having never transacted | B loses X. The relationship row is deleted, not left with no reason |
+| G1.8 | Same, but B has transacted | B keeps X. `transacted` holds it up after the bootstrap goes |
+
+G1.3 is the row to run first and the one to run again after any policy change.
+
+## G2. Contact resolution on a shared agency
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| G2.1 | A and B both keep a primary contact at X. Issue a deed on an A-route application | Delivered to **A's** contact. `source` reports `route_contact` |
+| G2.2 | Same on a B-route application | B's contact |
+| G2.3 | A route partner with no contact book at X | Falls back to the unscoped primary, `source` reports `branch_contact`. Delivery still happens, and the difference is visible rather than silent |
+| G2.4 | A direct signup with a tenant-named agent | `source` reports `delivery_contact` and `verified` is false |
+
+## G3. Duplicates and merging
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| G3.1 | `select * from duplicate_agency_groups()` on a clean tree | **Zero rows.** The two house placeholders share a name and must not appear |
+| G3.2 | Create "Smith & Co" under A and "smith and co ltd" under B | One group, `cross_partner` true. Detected, not refused |
+| G3.3 | `merge_agencies(keep, merge)` as a non-admin | Refused |
+| G3.4 | Merge with a placeholder as either argument | Refused. A house row must never absorb a real agency |
+| G3.5 | Merge where both agencies have a branch of the same name | Both survive; the incoming one is suffixed and reported in `branches_renamed`. Nothing is lost to a unique constraint |
+| G3.6 | After a merge, relationships | Unioned, reasons OR-ed. A partner who reached either row reaches the survivor |
+| G3.7 | After a merge, contacts | Moved, and **`partner_id` unchanged on every one**. A merge is not a loophole in G1.3 |
+| G3.8 | After a merge, applications | `agency_id` repointed, **`partner_id` untouched**. Merging org records does not change how anything arrived |
