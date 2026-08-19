@@ -19,14 +19,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
-import { PeriodSelect } from '@/components/ui/Select';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import * as auth from '@/tenant/tenantAuth';
 import * as api from '@/tenant/tenantApi';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import './Apply.css';
-
-const PREQUAL_KEY = 'opndoor.tenant.prequal';
 
 function Shell({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
   return (
@@ -46,120 +43,20 @@ function Shell({ title, sub, children }: { title: string; sub?: string; children
 const money = (n: number) => `£${n.toLocaleString('en-GB', { maximumFractionDigits: 0 })}`;
 
 /* ---------------------------------------------------------------------------
-   1. Prequalification. No account, no payment, nothing stored server side.
-   --------------------------------------------------------------------------- */
-export function Prequalify() {
-  const nav = useNavigate();
-  const [a, setA] = useState({ monthly_rent: '', share: '', annual_income: '', is_student: '', adverse_credit: '' });
-  const [result, setResult] = useState<auth.PrequalResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+   1. Register. THE FRONT DOOR.
 
-  const ready = a.monthly_rent !== '' && a.annual_income !== '' && a.is_student !== '' && a.adverse_credit !== '';
+   WHAT WAS HERE BEFORE, AND WHY IT IS GONE. A standalone prequalification
+   screen sat in front of this: four questions, answered before any account, to
+   say "nothing here rules you out" early. It was the wrong shape for this
+   product. A tenant arrives from a link their agent or our site gave them,
+   having already decided to apply, and putting a quiz in front of the thing
+   they came to do adds a step without removing one. The judgement it made was
+   also weak, since it cannot see a credit file, so it spent a screen to say
+   very little.
 
-  const run = async () => {
-    setBusy(true); setErr(null);
-    try {
-      const r = await auth.prequalifyAnon({
-        monthly_rent: Number(a.monthly_rent),
-        share_amount: a.share ? Number(a.share) : null,
-        annual_income: Number(a.annual_income),
-        is_student: a.is_student === 'yes',
-        adverse_credit: a.adverse_credit === 'yes',
-      });
-      setResult(r);
-      // Carried forward so the form does not ask the same four things again.
-      sessionStorage.setItem(PREQUAL_KEY, JSON.stringify({ ...a, ...r }));
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not check that.');
-    } finally { setBusy(false); }
-  };
-
-  return (
-    <Shell title="Could opndoor be your guarantor?"
-      sub="Four questions, about thirty seconds. No account and nothing to pay.">
-      <Card><CardHead title="About the tenancy" /><CardBody>
-        <div className="ap-grid">
-          <Field label="Monthly rent for the whole property">
-            <div className="ap-money"><span aria-hidden="true">£</span>
-              <input className="input" type="number" min="0" inputMode="decimal" value={a.monthly_rent}
-                onChange={(e) => setA({ ...a, monthly_rent: e.target.value })} /></div>
-          </Field>
-          <Field label="Your share, if you are sharing" hint="Leave blank if you are responsible for all of it.">
-            <div className="ap-money"><span aria-hidden="true">£</span>
-              <input className="input" type="number" min="0" inputMode="decimal" value={a.share}
-                onChange={(e) => setA({ ...a, share: e.target.value })} /></div>
-          </Field>
-          <Field label="Your annual income before tax">
-            <div className="ap-money"><span aria-hidden="true">£</span>
-              <input className="input" type="number" min="0" inputMode="decimal" value={a.annual_income}
-                onChange={(e) => setA({ ...a, annual_income: e.target.value })} /></div>
-          </Field>
-          <Field label="Are you a student?">
-            <PeriodSelect ariaLabel="Are you a student?" value={a.is_student}
-              onChange={(v) => setA({ ...a, is_student: v })}
-              options={[{ value: '', label: 'Please choose' }, { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} />
-          </Field>
-          <Field label="Have you had adverse credit in the last six years?"
-            hint="CCJs, bankruptcy or an IVA. Answering yes does not rule you out.">
-            <PeriodSelect ariaLabel="Adverse credit" value={a.adverse_credit}
-              onChange={(v) => setA({ ...a, adverse_credit: v })}
-              options={[{ value: '', label: 'Please choose' }, { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} />
-          </Field>
-        </div>
-
-        {err && <div className="ap-alert" role="alert">{err}</div>}
-
-        {!result && (
-          <div className="ap-actions">
-            <Button variant="primary" disabled={!ready || busy} onClick={() => void run()}>
-              {busy ? 'Checking…' : 'Check'}
-            </Button>
-            {!ready && <span className="soft">Answer all four to check.</span>}
-          </div>
-        )}
-
-        {result && (
-          <>
-            <div className={`ap-pre ${result.outcome === 'ruled_out' ? 'ap-pre--no' : 'ap-pre--ok'}`}>
-              {result.outcome === 'ruled_out' ? (
-                <>
-                  <strong>On these numbers it is unlikely to work.</strong>{' '}
-                  For {money(result.rent_basis ?? 0)} a month we usually need income of about{' '}
-                  {money((result.income_needed_monthly ?? 0) * 12)} a year, and you have told us less than that.
-                  You can still apply, and our referencing partner makes the decision rather than us,
-                  but we would rather say so now than after an hour of forms.
-                </>
-              ) : (
-                <>
-                  <strong>Nothing here rules you out.</strong>{' '}
-                  That is not the same as being accepted: our referencing partner decides, and they see
-                  things we cannot, including your credit file.
-                  {result.declared_adverse_credit && (
-                    <> You told us about adverse credit, which we have noted. It does not rule you out on its own.</>
-                  )}
-                </>
-              )}
-            </div>
-            <div className="ap-actions">
-              <Button variant="primary" onClick={() => nav('/apply/register')}>
-                {result.outcome === 'ruled_out' ? 'Apply anyway' : 'Create my account'}
-              </Button>
-              <Button variant="ghost" onClick={() => { setResult(null); }}>Change my answers</Button>
-            </div>
-          </>
-        )}
-      </CardBody></Card>
-
-      <p className="ap-foot">
-        Already started? <a href="/apply/signin">Sign in</a>.
-      </p>
-    </Shell>
-  );
-}
-
-/* ---------------------------------------------------------------------------
-   2. Register.
+   The eligibility rules it used are NOT gone: they still gate the screened
+   partner rail in SQL, and they still tell a tenant inside the form whether
+   their income looks short. Only the screen went.
    --------------------------------------------------------------------------- */
 export function Register() {
   const nav = useNavigate();
@@ -203,7 +100,8 @@ export function Register() {
   }
 
   return (
-    <Shell title="Create your account" sub="So you can save your application and come back to it.">
+    <Shell title="Apply for an opndoor guarantee"
+      sub="Create an account first, so nothing you type is ever lost.">
       <Card><CardBody>
         <div className="ap-grid">
           <Field label="First name"><input className="input" value={f.first_name} onChange={(e) => setF({ ...f, first_name: e.target.value })} /></Field>
@@ -221,36 +119,35 @@ export function Register() {
           </Button>
         </div>
       </CardBody></Card>
+      <p className="ap-foot">
+        Next: a few details about the property, then a £20 application fee, then the longer part.
+        You can stop and come back at any point.
+      </p>
       <p className="ap-foot">Already have an account? <a href="/apply/signin">Sign in</a>.</p>
     </Shell>
   );
 }
 
-/** Shared landing after any successful authentication. */
+/**
+ * Shared landing after any successful authentication.
+ *
+ * An invite means an agent already created the application, so it is claimed
+ * rather than created and the property comes with it. Otherwise a fresh draft
+ * is opened, empty, and the Property step is the first thing they see.
+ */
 async function afterSignIn(nav: (to: string) => void, invite?: string) {
   try {
     if (invite) {
       await api.claimInvite(invite);
-      nav('/apply');
-      return;
+    } else {
+      await api.startApplication({});
     }
-    // Carry the prequalification straight into the draft, so the form's first
-    // act is not to ask the four things they answered two minutes ago.
-    const raw = sessionStorage.getItem(PREQUAL_KEY);
-    const pre = raw ? JSON.parse(raw) : null;
-    await api.startApplication({
-      monthly_rent: Number(pre?.monthly_rent) || 0,
-      annual_income: Number(pre?.annual_income) || 0,
-      is_student: pre?.is_student === 'yes',
-      adverse_credit: pre?.adverse_credit === 'yes',
-    });
-    sessionStorage.removeItem(PREQUAL_KEY);
   } catch { /* a failure here must not strand somebody who just signed in */ }
   nav('/apply');
 }
 
 /* ---------------------------------------------------------------------------
-   3. Sign in.
+   2. Sign in.
    --------------------------------------------------------------------------- */
 export function SignIn() {
   const nav = useNavigate();
@@ -287,13 +184,13 @@ export function SignIn() {
           <a className="ap-link" href="/apply/forgot">I have forgotten my password</a>
         </div>
       </CardBody></Card>
-      <p className="ap-foot">No account yet? <a href="/apply/start">Start here</a>.</p>
+      <p className="ap-foot">No account yet? <a href="/apply/register">Create one</a>.</p>
     </Shell>
   );
 }
 
 /* ---------------------------------------------------------------------------
-   4. Forgot, and 5. Reset.
+   3. Forgot, and 4. Reset.
    --------------------------------------------------------------------------- */
 export function Forgot() {
   const [email, setEmail] = useState('');
@@ -359,7 +256,7 @@ export function ResetPassword() {
 }
 
 /* ---------------------------------------------------------------------------
-   6. Verify, which is also where a new account lands.
+   5. Verify, which is also where a new account lands.
    --------------------------------------------------------------------------- */
 export function Verify() {
   const nav = useNavigate();
@@ -386,7 +283,7 @@ export function Verify() {
 }
 
 /* ---------------------------------------------------------------------------
-   7. The agent's invite. Same journey, different entry.
+   6. The agent's invite. Same journey, different entry.
    --------------------------------------------------------------------------- */
 export function InviteLanding() {
   const nav = useNavigate();

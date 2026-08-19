@@ -9,7 +9,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { RequireRole } from '@/components/guards/RequireRole';
 import { Apply } from '@/pages/Apply/Apply';
 import {
-  Forgot as TenantForgot, InviteLanding, Prequalify, Register,
+  Forgot as TenantForgot, InviteLanding, Register,
   ResetPassword as TenantResetPassword, SignIn as TenantSignIn, Verify as TenantVerify,
 } from '@/pages/Apply/FrontDoor';
 import { RequireAuth } from '@/components/guards/RequireAuth';
@@ -56,7 +56,7 @@ export function App() {
       {/* The tenant journey. PUBLIC in the routing sense: a tenant is not a
           staff principal and never passes RequireAuth, which reads public.users.
           Its own data access is authenticated inside tenantApi. */}
-      <Route path="/apply/start" element={<Prequalify />} />
+      <Route path="/apply/start" element={<Navigate to="/apply/register" replace />} />
       <Route path="/apply/register" element={<Register />} />
       <Route path="/apply/signin" element={<TenantSignIn />} />
       <Route path="/apply/forgot" element={<TenantForgot />} />

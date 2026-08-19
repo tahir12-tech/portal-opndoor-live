@@ -1352,3 +1352,23 @@ Verified live on 2026-08-12 against the dev project.
 | H8.2 | Null the date of birth while in draft | Allowed. **Verified live** |
 | H8.3 | Move that application out of draft | Refused, naming what is missing. **Verified live** |
 | H8.4 | A referral or API create missing any of the three | Refused exactly as before. The referral path never enters draft |
+
+## H9. The fee sits between the basics and the rest
+
+The order is register, basic details, fee, the rest of the form, then sent. The
+fee is not the same event as going to the referencing partner, and conflating
+them was the bug `20260812220000` fixes.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H9.1 | New account, open the journey | Lands on **Property**. There is no prequalification screen |
+| H9.2 | Try to open Address history before paying | Sent to the **Application fee** step. Locked steps redirect rather than doing nothing |
+| H9.3 | Try to pay with Property or About you unfinished | Refused, naming which. We do not take money for an application that is missing something |
+| H9.4 | `submit` with the fee unpaid, **called directly against the API** | `The application fee has not been paid.` **Verified live.** The lock that matters is in SQL, not the browser |
+| H9.5 | Pay the fee | Application stays **`draft`**. Paying unlocks the form; it sends nothing |
+| H9.6 | Read the status after paying | Still `draft`, never `referencing`. `referencing` means with the provider |
+| H9.7 | Submit with the fee paid but under three years of history | Refused, naming the months given |
+| H9.8 | Submit with the fee paid and no main income | Refused |
+| H9.9 | Submit complete | `draft` to `referencing`, `completed_at` set, activity row written |
+| H9.10 | Return from Checkout to `/apply?fee=paid` | The URL is cleaned and the form re-reads shortly after, so a paid tenant never sees a locked form because the webhook was a moment behind |
+| H9.11 | An agent referral on a `pre_referenced_open` partner | **Unchanged.** No fee, no lock, no draft. The referral path does not have an application fee |

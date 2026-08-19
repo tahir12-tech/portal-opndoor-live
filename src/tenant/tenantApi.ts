@@ -14,7 +14,7 @@
    different question.
    ===================================================================== */
 import { SUPABASE_ENABLED } from '@/lib/supabase';
-import { tenantAccessToken, tsb } from './tenantAuth';
+import { prequalifyAnon, tenantAccessToken, tsb } from './tenantAuth';
 
 export interface TenantApplication {
   id: string;
@@ -35,6 +35,8 @@ export interface TenantApplication {
 export interface ApplicationBundle {
   application: TenantApplication;
   editable: boolean;
+  /** Has the application fee cleared? The sections after the basics lock on this. */
+  fee_paid: boolean;
   profile: Record<string, unknown> | null;
   addresses: Record<string, unknown>[];
   incomes: Record<string, unknown>[];
@@ -68,6 +70,7 @@ const MOCK_KEY = 'opndoor.tenant.demo.v1';
 
 interface MockState {
   applicant: { email: string; first_name: string; last_name: string };
+  fee_paid?: boolean;
   application: TenantApplication;
   profile: Record<string, unknown>;
   addresses: Record<string, unknown>[];
@@ -87,7 +90,7 @@ function seed(): MockState {
     },
     // Pre-filled from signup, which is the whole point of not asking twice.
     profile: { first_name: 'Sam', last_name: 'Okafor', phone: '07700 900123' },
-    addresses: [], incomes: [], documents: [], agent: null,
+    addresses: [], incomes: [], documents: [], agent: null, fee_paid: false,
   };
 }
 
@@ -122,6 +125,7 @@ export async function getApplication(applicationId: string): Promise<Application
   return {
     application: s.application,
     editable: s.application.status === 'draft' || s.application.status === 'referencing',
+    fee_paid: s.fee_paid === true,
     profile: s.profile, addresses: s.addresses, incomes: s.incomes,
     documents: s.documents, agent: s.agent,
   };
@@ -209,8 +213,10 @@ export interface Prequalification {
 export async function prequalify(applicationId: string): Promise<Prequalification> {
   if (SUPABASE_ENABLED) return await callFn('prequalify', { application_id: applicationId });
 
-  // The same rules as assess_eligibility, so the demo answers what production
-  // would. Kept beside the SQL deliberately: if these drift, the mock is lying.
+  // ONE mirror of the rules, not two. The standalone prequalification screen is
+  // gone, but prequalifyAnon is still the mock implementation of
+  // assess_eligibility, so the in-form check reuses it rather than keeping a
+  // second copy that can drift from it and from the SQL.
   const s = readMock();
   const rent = Number(s.application.monthly_rent ?? 0);
   const isStudent = s.incomes.some((i) => i.income_type === 'student');
@@ -226,7 +232,7 @@ export async function prequalify(applicationId: string): Promise<Prequalificatio
     }
     return sum + Number(i.annual_salary ?? 0);
   }, 0);
-  const needed = Math.round(rent * 1.5 * 100) / 100;
+
   const months = (() => {
     const ds = s.addresses
       .map((a) => (Number(a.moved_in_year) > 1900 ? new Date(Number(a.moved_in_year), Number(a.moved_in_month) - 1, 1) : null))
@@ -237,13 +243,36 @@ export async function prequalify(applicationId: string): Promise<Prequalificatio
     return Math.max(0, (n.getFullYear() - e.getFullYear()) * 12 + (n.getMonth() - e.getMonth()));
   })();
 
-  const ruledOut = !isStudent && rent > 0 && annual / 12 < needed;
+  if (rent <= 0) {
+    return { outcome: null, reason: null, annual_income: annual, income_needed_monthly: null,
+             history_months: months, adverse_credit: (s.profile.adverse_credit as boolean | null) ?? null };
+  }
+
+  const r = await prequalifyAnon({
+    monthly_rent: rent, annual_income: annual, is_student: isStudent,
+    adverse_credit: s.profile.adverse_credit === true,
+  });
   return {
-    outcome: rent > 0 ? (ruledOut ? 'ruled_out' : 'not_ruled_out') : null,
-    reason: ruledOut ? 'affordability_below_threshold' : null,
-    annual_income: annual, income_needed_monthly: needed, history_months: months,
+    outcome: r.outcome, reason: r.reason,
+    annual_income: annual, income_needed_monthly: r.income_needed_monthly,
+    history_months: months,
     adverse_credit: (s.profile.adverse_credit as boolean | null) ?? null,
   };
+}
+
+export async function startFeePayment(applicationId: string): Promise<string | null> {
+  if (SUPABASE_ENABLED) {
+    const r = await callFn('start_eligibility_payment', {
+      application_id: applicationId, origin: window.location.origin,
+    });
+    return r.already_paid ? null : (r.url as string);
+  }
+  // Mock mode has no Stripe. The fee is marked paid so the journey past it can
+  // be walked, and the screen says plainly that no money moved.
+  const s = readMock();
+  s.fee_paid = true;
+  writeMock(s);
+  return null;
 }
 
 export async function submitApplication(applicationId: string): Promise<{ ok: boolean; error?: string; history_months?: number }> {
@@ -252,9 +281,13 @@ export async function submitApplication(applicationId: string): Promise<{ ok: bo
     catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'Could not submit.' }; }
   }
   const s = readMock();
+  if (!s.fee_paid) return { ok: false, error: 'The application fee has not been paid.' };
   const pre = await prequalify(applicationId);
   if (pre.history_months < 36) {
-    return { ok: false, error: 'We need three years of address history before we can send this.', history_months: pre.history_months };
+    return { ok: false, error: `We need three years of address history. You have given us ${pre.history_months} months.`, history_months: pre.history_months };
+  }
+  if (!s.incomes.some((i) => !i.is_additional)) {
+    return { ok: false, error: 'We need at least one main income.' };
   }
   // completed_at ONLY. Submitting marks the answers finished; it is the
   // eligibility payment that moves draft -> referencing, in
@@ -262,6 +295,7 @@ export async function submitApplication(applicationId: string): Promise<{ ok: bo
   // does not, and a mock that models a different state machine is worse than no
   // mock: it teaches the wrong journey.
   s.profile = { ...s.profile, completed_at: new Date().toISOString() };
+  s.application = { ...s.application, status: 'referencing' };
   writeMock(s);
   return { ok: true };
 }
