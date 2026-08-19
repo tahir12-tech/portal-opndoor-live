@@ -22,6 +22,28 @@ the estate and its open items, `REGRESSION.md` for the test plan.
 
 ---
 
+## 2026-08-19 — Postcode lookup, shared with the referral form
+
+**Built.** The tenant form's three postcode fields now use the SAME lookup the
+staff New Application form uses: the property, every address in the three-year
+history, and an employer's address.
+
+**Touched.** Nothing outside the tenant journey. `src/data/addressService.ts`
+is reused unchanged; the field spec gained a `fills` declaration naming which
+columns a chosen address writes, because the same control serves three places
+whose columns are named differently.
+
+**Verified.** Typechecks and four tests on the mapping, which is the part that
+would silently write an address into the wrong columns. The lookup itself is not
+re-tested: it is the staff form's and was already covered.
+
+**Left open.** `VITE_ADDRESS_LOOKUP_KEY` is not set on dev, so the control falls
+back to plain manual entry and the Find button does not render at all. That is
+the same state the staff form is in, and `HANDOVER.md` records it under
+"deliberately not done".
+
+---
+
 ## 2026-08-19 — The tenant journey's front door, look and lifecycle
 
 **Built.** Registration, six-digit email verification, sign-in, password reset,

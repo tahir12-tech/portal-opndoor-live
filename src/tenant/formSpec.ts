@@ -29,6 +29,22 @@ export interface FieldSpec {
   placeholder?: string;
   /** Accepted upload types, for kind: 'file'. */
   accept?: string;
+  /**
+   * For kind 'postcode': which fields a chosen address fills in.
+   *
+   * The lookup returns a whole address, so the control has to write several
+   * fields, not just its own. Naming them here rather than hard-coding them in
+   * the renderer means the same control serves the property, each address in
+   * the history and an employer's address, which have three different field
+   * names for the same five things.
+   *
+   * `single` collapses the address into ONE field, for places that hold it as
+   * free text rather than as parts.
+   */
+  fills?: {
+    line1?: string; line2?: string; city?: string; county?: string; postcode?: string;
+    single?: string;
+  };
 }
 
 const YES_NO_NA = [
@@ -131,7 +147,8 @@ export function employmentFields(type: string): FieldSpec[] {
   if (has(WITH_EMPLOYER) || type === 'self_employed') {
     f.push({ name: 'employer_in_uk', label: 'Is that address in the UK?', kind: 'yesno' });
     f.push({ name: 'employer_postcode', label: 'Postcode', kind: 'postcode',
-             when: (v) => v.employer_in_uk === 'yes' });
+             when: (v) => v.employer_in_uk === 'yes',
+             fills: { single: 'employer_address', postcode: 'employer_postcode' } });
     f.push({ name: 'employer_address', label: 'Address', kind: 'textarea' });
   }
 
@@ -198,7 +215,8 @@ export function additionalIncomeFields(type: string): FieldSpec[] {
 export function addressFields(isCurrent: boolean): FieldSpec[] {
   const f: FieldSpec[] = [
     { name: 'in_uk', label: 'Is this address in the UK?', kind: 'yesno' },
-    { name: 'postcode', label: 'Postcode', kind: 'postcode', when: (v) => v.in_uk !== 'no' },
+    { name: 'postcode', label: 'Postcode', kind: 'postcode', when: (v) => v.in_uk !== 'no',
+      fills: { line1: 'address_1', line2: 'address_2', city: 'city', county: 'county', postcode: 'postcode' } },
     { name: 'flat_number', label: 'Flat number', kind: 'text' },
     { name: 'house_number', label: 'House number', kind: 'text' },
     { name: 'house_name', label: 'House name', kind: 'text' },
@@ -315,7 +333,8 @@ export const AGENT_FIELDS: FieldSpec[] = [
 ];
 
 export const PROPERTY_FIELDS: FieldSpec[] = [
-  { name: 'prop_postcode', label: 'Property postcode', kind: 'postcode', required: true },
+  { name: 'prop_postcode', label: 'Property postcode', kind: 'postcode', required: true,
+    fills: { line1: 'prop_addr1', line2: 'prop_addr2', city: 'prop_city', county: 'prop_county', postcode: 'prop_postcode' } },
   { name: 'prop_addr1', label: 'Address line 1', kind: 'text', required: true },
   { name: 'prop_addr2', label: 'Address line 2', kind: 'text' },
   { name: 'prop_city', label: 'Town or city', kind: 'text', required: true },
