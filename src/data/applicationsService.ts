@@ -448,7 +448,12 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
 export interface CreateReferralInput {
   title: string;
   firstName: string;
+  /** Optional. Carried because the eligibility check runs against a legal name. */
+  middleName?: string;
   lastName: string;
+  /** The applicant's share of the rent. Both are sent; see shareMath.ts. */
+  sharePercent?: number;
+  shareAmount?: number;
   dob: string;
   email: string;
   phone: string;
@@ -502,6 +507,8 @@ export async function createReferral(input: CreateReferralInput): Promise<Create
     body: {
       agency: input.agency, branch: input.branch, origin,
       title: input.title, firstName: input.firstName, lastName: input.lastName,
+      middleName: input.middleName ?? null,
+      sharePercent: input.sharePercent ?? null, shareAmount: input.shareAmount ?? null,
       dob: input.dob || null, email: input.email, phone: input.phone,
       addr1: input.addr1, addr2: input.addr2, city: input.city, county: input.county, postcode: input.postcode,
       rent: input.rent, tenancyStart: input.tenancyStart || null,

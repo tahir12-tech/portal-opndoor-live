@@ -92,6 +92,8 @@ export function isTenancyStartInAllowedRange(value: Date, referenceDate: Date = 
 export interface ReferralValues {
   title: string;
   first: string;
+  /** Optional. The eligibility check runs against a legal name. */
+  middle: string;
   last: string;
   dob: string;
   email: string;
@@ -105,6 +107,9 @@ export interface ReferralValues {
   tenancyStart: string;
   agency: string;
   branch: string;
+  /** The applicant's share of the rent. Both are kept; see shareMath.ts. */
+  sharePercent: string;
+  shareAmount: string;
 }
 
 export type ReferralErrors = Partial<Record<keyof ReferralValues, string>>;

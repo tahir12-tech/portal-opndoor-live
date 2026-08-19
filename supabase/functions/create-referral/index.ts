@@ -101,6 +101,21 @@ Deno.serve(async (req) => {
     if (rpcErr) return json({ ok: false, error: rpcErr.message }, 400);
     const app = Array.isArray(appRes) ? appRes[0] : appRes;
 
+    // Fields the create RPC does not take as arguments, written straight after
+    // the insert. They are optional and additive: the RPC's signature is shared
+    // with the API path and widening it would be a drop-and-recreate on the one
+    // function the referral path calls on every referral.
+    {
+      const extra: Record<string, unknown> = {};
+      if (typeof b.middleName === "string" && b.middleName.trim()) extra.tenant_middle_name = b.middleName.trim();
+      if (b.sharePercent !== null && b.sharePercent !== undefined) extra.share_percent = Number(b.sharePercent);
+      if (b.shareAmount !== null && b.shareAmount !== undefined) extra.share_amount = Number(b.shareAmount);
+      if (Object.keys(extra).length) {
+        const svc = createClient(SUPABASE_URL, SERVICE);
+        await svc.from("applications").update(extra).eq("id", app.id);
+      }
+    }
+
     const appId = app.id as string;
     const ref = app.guarantee_ref as string;
     const rent = Number(app.monthly_rent);

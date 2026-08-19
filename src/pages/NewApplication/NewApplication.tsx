@@ -12,6 +12,7 @@
    ===================================================================== */
 import { useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { DEFAULT_SHARE_PERCENT, amountFromPercent, percentFromAmount, shareWarning } from './shareMath';
 import { addressLookupAvailable, ALL_PARTNERS, createReferral, findActiveReferralByTenantProperty, lookupAddresses, type AddressOption, type DuplicateMatch } from '@/data';
 import { Modal } from '@/components/ui/Modal';
 import { TITLE_OPTIONS, validateReferral, parseFlexibleDate, toISODate, type ReferralValues } from '@/lib/validation';
@@ -29,9 +30,12 @@ import './NewApplication.css';
 const Req = () => <span className="req" aria-hidden="true">*</span>;
 
 const EMPTY: ReferralValues = {
-  title: '', first: '', last: '', dob: '', email: '', phone: '',
+  title: '', first: '', middle: '', last: '', dob: '', email: '', phone: '',
   addr1: '', addr2: '', city: '', county: '', postcode: '',
   rent: '', tenancyStart: '', agency: '', branch: '',
+  // 100%: one applicant responsible for the whole rent is the common case by a
+  // distance, and a sole tenant should not have to say so.
+  sharePercent: String(DEFAULT_SHARE_PERCENT), shareAmount: '',
 };
 
 export function NewApplication() {
@@ -127,6 +131,9 @@ export function NewApplication() {
     try {
       const res = await createReferral({
         title: values.title, firstName: values.first.trim(), lastName: values.last.trim(),
+        middleName: values.middle.trim() || undefined,
+        sharePercent: values.sharePercent === '' ? undefined : Number(values.sharePercent),
+        shareAmount: values.shareAmount === '' ? undefined : Number(values.shareAmount),
         dob: values.dob.trim(), email: values.email.trim(), phone: values.phone.trim(),
         addr1: values.addr1.trim(), addr2: values.addr2.trim(), city: values.city.trim(),
         county: values.county.trim(), postcode: values.postcode.trim(),
@@ -190,6 +197,9 @@ export function NewApplication() {
                 <div className="field span-2" style={{ gridColumn: '2 / 3' }} />
                 <Field label={<>First name <Req /></>} htmlFor="t-first" error={err('first')}>
                   <input id="t-first" type="text" placeholder="Amelia" value={values.first} onChange={(e) => set('first', e.target.value)} onBlur={() => markTouched('first')} />
+                </Field>
+                <Field label="Middle name" htmlFor="t-middle" hint="If they have one. The eligibility check runs against their legal name.">
+                  <input id="t-middle" type="text" placeholder="Rose" value={values.middle} onChange={(e) => set('middle', e.target.value)} />
                 </Field>
                 <Field label={<>Last name <Req /></>} htmlFor="t-last" error={err('last')}>
                   <input id="t-last" type="text" placeholder="Hartley" value={values.last} onChange={(e) => set('last', e.target.value)} onBlur={() => markTouched('last')} />
@@ -277,7 +287,47 @@ export function NewApplication() {
         
                   <input id="ty-start" type="date" min={startMin} max={startMax} value={values.tenancyStart} onChange={(e) => set('tenancyStart', e.target.value)} onPaste={onPasteDate('tenancyStart')} onBlur={() => markTouched('tenancyStart')} />
                 </Field>
+
+                {/* THE SHARE. Each derives from the other as you type, and BOTH
+                    are sent. The percentage is the commercial fact agreed
+                    between tenants; the amount is what the eligibility check is
+                    assessed against. Storing one and recomputing the other later
+                    against a corrected rent would silently restate the basis of
+                    a decision already made. */}
+                <Field label="Their share of the rent (%)" htmlFor="ty-share-pct"
+                  hint="100% unless they are sharing. A share of 0% is allowed: somebody else may carry the whole rent.">
+                  <input
+                    id="ty-share-pct" type="number" min="0" max="100" step="0.001"
+                    value={values.sharePercent}
+                    onChange={(e) => {
+                      const pctVal = e.target.value;
+                      const amt = amountFromPercent(Number(values.rent), Number(pctVal));
+                      setValues((prev) => ({
+                        ...prev, sharePercent: pctVal,
+                        shareAmount: amt === null ? prev.shareAmount : String(amt),
+                      }));
+                    }} />
+                </Field>
+                <Field label="Their share of the rent (£)" htmlFor="ty-share-amt">
+                  <input
+                    id="ty-share-amt" type="number" min="0" step="0.01"
+                    value={values.shareAmount}
+                    onChange={(e) => {
+                      const amtVal = e.target.value;
+                      const p2 = percentFromAmount(Number(values.rent), Number(amtVal));
+                      setValues((prev) => ({
+                        ...prev, shareAmount: amtVal,
+                        sharePercent: p2 === null ? prev.sharePercent : String(p2),
+                      }));
+                    }} />
+                </Field>
               </div>
+              {(() => {
+                const w = shareWarning(Number(values.rent), Number(values.sharePercent), Number(values.shareAmount));
+                // Advisory, never blocking: a zero share is legitimate and a
+                // rounding gap is arithmetic.
+                return w ? <p className="soft" style={{ marginTop: 10 }}>{w}</p> : null;
+              })()}
             </CardBody>
           </section>
 
