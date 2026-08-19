@@ -188,3 +188,21 @@
   .apst .tl-step::after { display: none; }
   .apst .tl-step { padding: 0; }
 }
+
+/* The step footer. Every section ends with one, because autosave is invisible
+   and a section with nothing to press reads as unfinished however many times a
+   badge says "Saved". */
+.apfoot { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+          margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.apfoot__left, .apfoot__right { display: flex; align-items: center; gap: 12px; }
+.apfoot__note { font-size: 13px; color: var(--ink-soft); max-width: 44ch; }
+
+/* Documents. A list, not a table: there are rarely more than a handful and a
+   table of four rows is more chrome than content. */
+.apdoc { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 8px; }
+.apdoc__item { display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+               border: 1px solid var(--line); border-radius: var(--r-md); background: var(--canvas); }
+.apdoc__item > svg { color: var(--ink-mute); flex: none; }
+.apdoc__txt { min-width: 0; flex: 1; }
+.apdoc__name { font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.apdoc__meta { font-size: 12px; color: var(--ink-soft); }

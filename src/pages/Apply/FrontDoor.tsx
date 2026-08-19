@@ -77,7 +77,7 @@ function Shell({
             <span className="auth__flow-ic"><Icon name="shield" /></span>
             <div>
               <div className="auth__flow-t">Your details stay yours</div>
-              <div className="auth__flow-s">Shared only with the referencing check</div>
+              <div className="auth__flow-s">Shared only with your eligibility check</div>
             </div>
           </div>
         </div>

@@ -1428,3 +1428,18 @@ journey can be walked end to end.
 | H12.2 | Supabase mode, `/apply` | **No demo strip at all**, and `demoSetStatus` throws if called |
 | H12.3 | Jump to any state after draft | The fee shows as paid too, so the timeline cannot contradict the headline |
 | H12.4 | Walk draft → submitted → approved → paid → issued | Each step changes the headline, the tone and the timeline position |
+
+## H13. Sections, wording, and folding away
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H13.1 | Read every tenant-facing string | **Never "referencing".** A tenant is told "eligibility check". `referencing_mode`, the `referencing` status and the partner API contract keep their names: those are internal and partner vocabulary. Asserted by a test over every status |
+| H13.2 | Any step in the form | Ends with **Save and continue to \<next section\>**, naming where it goes. Autosave is invisible and a section with nothing to press reads as unfinished |
+| H13.3 | A step with something outstanding | The footer says what, and still lets them continue. Only the fee gates, and that gate is in SQL |
+| H13.4 | The last step | No "continue"; the Send button is the ending |
+| H13.5 | Submit, then look at the sidebar | The seven form steps are **gone**. Status, Documents, Payment and Your guarantee remain. Seven steps in front of somebody who has finished implies there is still something to do |
+| H13.6 | Same, page head | No section counter. There are no sections left to count |
+| H13.7 | "What you told us" | Collapsed by default, expands read-only. Somebody waiting does sometimes want to check what they said, and editing would change the basis of a decision in flight |
+| H13.8 | Documents tab | Lists what has been uploaded, allows adding and removing, and shows eligibility reports as **held on file, not downloadable** |
+| H13.9 | ID check and Financials | Real steps with a working manual path, and each names the vendor path that is not switched on. Neither is a "coming soon" panel |
+| H13.10 | Upload on Financials | Recorded as `bank_statement` and appears on Documents too. One index, two ways in |

@@ -22,7 +22,7 @@ import '@/pages/ApplicationDetail/ApplicationDetail.css';
    out, which is meaningless to the person it was sent to. This is theirs. */
 const STEPS: TimelineStep[] = [
   { label: 'Your application', date: '', note: 'Details, fee and documents' },
-  { label: 'Referencing',      date: '', note: 'With our referencing partner' },
+  { label: 'Eligibility check', date: '', note: 'We check whether we can guarantee you' },
   { label: 'Decision',         date: '', note: 'Approved or not' },
   { label: 'Guarantee fee',    date: '', note: "One month's rent" },
   { label: 'Guarantee issued', date: '', note: 'Deed of Guarantee in place' },
@@ -50,14 +50,14 @@ export function statusView(status: string, feePaid: boolean, doneCount: number, 
     case 'referencing':
       return {
         reached: 2, terminated: false, tone: 'waiting',
-        headline: 'With our referencing partner',
-        detail: 'They usually come back within a few working days. We will email you as soon as they decide, and you do not need to do anything in the meantime.',
+        headline: 'Eligibility check in progress',
+        detail: 'We are checking your eligibility now. It usually takes a few working days. We will email you as soon as there is a decision, and you do not need to do anything in the meantime.',
       };
     case 'declined':
       return {
         reached: 3, terminated: true, tone: 'bad',
         headline: 'Not approved',
-        detail: 'Our referencing partner was not able to approve this application. We know that is disappointing. If your circumstances change, you are welcome to apply again.',
+        detail: 'We were not able to approve this application on the eligibility check. We know that is disappointing. If your circumstances change, you are welcome to apply again.',
       };
     case 'sent':
       return {

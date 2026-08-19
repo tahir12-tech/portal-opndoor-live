@@ -24,9 +24,18 @@ describe('what a tenant is told about their application', () => {
     expect(statusView('draft', true, 7, 7).headline).toBe('Ready to send');
   });
 
+  it('never says "referencing" to a tenant: it is an eligibility check', () => {
+    // Our internal vocabulary and the partner API's is "referencing"; the word a
+    // tenant sees is "eligibility". These are the two places it leaks.
+    for (const st of ['draft', 'referencing', 'declined', 'sent', 'paid', 'deed']) {
+      const v = statusView(st, true, 7, 7);
+      expect(`${v.headline} ${v.detail}`.toLowerCase()).not.toContain('referenc');
+    }
+  });
+
   it('after submitting, says it is pending and that nothing is needed from them', () => {
     const v = statusView('referencing', true, 7, 7);
-    expect(v.headline).toBe('With our referencing partner');
+    expect(v.headline).toBe('Eligibility check in progress');
     expect(v.detail).toContain('do not need to do anything');
     expect(v.tone).toBe('waiting');
     expect(v.reached).toBe(2);

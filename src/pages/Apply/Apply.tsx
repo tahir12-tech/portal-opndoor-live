@@ -38,6 +38,7 @@ import { currentTenant } from '@/tenant/tenantAuth';
 import { useAutosave, type SaveStatus } from '@/tenant/useAutosave';
 import { TenantShell, type TenantNavItem } from './TenantShell';
 import { ApplicationStatus, statusView } from './ApplicationStatus';
+import { DocumentsPanel, FinancialsPanel, IdCheckPanel, StepFooter } from './Sections';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import './Apply.css';
 
@@ -259,6 +260,16 @@ export function Apply() {
 
   const view = statusView(bundle.application.status, feePaid, doneCount, STEPS.length);
 
+  /* ONCE IT IS SENT, THE FORM FOLDS AWAY.
+     Everything before submission is about filling something in; everything
+     after is about waiting, paying and receiving. Leaving seven form steps in
+     the sidebar of somebody who has finished implies there is still something
+     to do, and the one honest answer at that point is "nothing, we will email
+     you". The answers are still readable, behind one link, because somebody who
+     is waiting does sometimes want to check what they said. */
+  const submitted = bundle.application.status !== 'draft';
+  const [showAnswers, setShowAnswers] = useState(false);
+
   const payGuarantee = () => {
     // The guarantee fee is the referral path's existing Stripe flow, reached
     // from the tokenised payment page. A tenant with an account gets there the
@@ -266,25 +277,66 @@ export function Apply() {
     window.location.href = '/pay';
   };
 
-  const shellNav = [
-    {
-      group: 'Your application',
-      items: STEPS.map((st) => ({
-        id: `details:${st.id}`, label: st.label, icon: st.icon,
-        done: stepDone[st.id], locked: locked(st.id),
-      })),
-    },
-    {
-      group: 'After you apply',
-      items: TABS.filter((t) => t.id !== 'details').map((t) => ({
-        id: t.id, label: t.label, icon: TAB_ICON[t.id],
-      })),
-    },
-  ];
+  /* The step footer needs to know where "next" goes and what is outstanding.
+     Order comes from STEPS, so inserting a step does not need this updated. */
+  const stepIndex = STEPS.findIndex((st) => st.id === step);
+  const nextStep = STEPS[stepIndex + 1];
+  const OUTSTANDING: Record<Step, string> = {
+    property: 'Add the property, the rent, the start date and who manages it.',
+    about: 'We still need your date of birth, phone and the adverse credit question.',
+    fee: 'The fee unlocks the rest of the form.',
+    address: `We need three years. You have given us ${months} month${months === 1 ? '' : 's'}.`,
+    income: 'Add at least one main income.',
+    nationality: 'Tell us your nationality and which description fits you.',
+    declaration: 'Confirm your name and tick the declaration.',
+  };
 
-  const activeNav = tab === 'details' ? `details:${step}` : tab;
+  const goNext = async () => {
+    setBusy(true);
+    await flushAll();
+    setBusy(false);
+    if (nextStep) void goStep(nextStep.id);
+  };
+
+  const footer = (id: Step) => (
+    <StepFooter
+      done={stepDone[id]}
+      outstanding={OUTSTANDING[id]}
+      nextLabel={nextStep ? `Save and continue to ${nextStep.label.toLowerCase()}` : null}
+      onNext={() => void goNext()}
+      onBack={stepIndex > 0 ? () => void goStep(STEPS[stepIndex - 1].id) : undefined}
+      isLast={!nextStep}
+      busy={busy}
+    />
+  );
+
+  const shellNav = submitted
+    ? [{
+        group: 'Your application',
+        items: [
+          { id: 'details', label: 'Status', icon: 'dashboard' as const, done: true },
+          ...TABS.filter((t) => t.id !== 'details' && t.id !== 'id' && t.id !== 'financials')
+            .map((t) => ({ id: t.id, label: t.label, icon: TAB_ICON[t.id] })),
+        ],
+      }]
+    : [
+        {
+          group: 'Your application',
+          items: STEPS.map((st) => ({
+            id: `details:${st.id}`, label: st.label, icon: st.icon,
+            done: stepDone[st.id], locked: locked(st.id),
+          })),
+        },
+        {
+          group: 'Before you send',
+          items: TABS.filter((t) => t.id === 'id' || t.id === 'financials' || t.id === 'documents')
+            .map((t) => ({ id: t.id, label: t.label, icon: TAB_ICON[t.id] })),
+        },
+      ];
+
+  const activeNav = tab === 'details' ? (submitted ? 'details' : `details:${step}`) : tab;
   const currentLabel = tab === 'details'
-    ? STEPS.find((st) => st.id === step)?.label ?? 'Your details'
+    ? (submitted ? 'Status' : STEPS.find((st) => st.id === step)?.label ?? 'Your details')
     : TABS.find((t) => t.id === tab)?.label ?? '';
 
   return (
@@ -308,12 +360,14 @@ export function Apply() {
             {bundle.application.guarantee_ref} · Everything saves as you go, so you can stop and come back.
           </p>
         </div>
-        <div className="page-head__actions">
-          <div className="ap-progress" style={{ minWidth: 180 }}>
-            <div className="ap-progress__bar"><span style={{ width: `${pct}%` }} /></div>
-            <span className="ap-progress__label">{doneCount} of {STEPS.length} done</span>
+        {!submitted && (
+          <div className="page-head__actions">
+            <div className="ap-progress" style={{ minWidth: 180 }}>
+              <div className="ap-progress__bar"><span style={{ width: `${pct}%` }} /></div>
+              <span className="ap-progress__label">{doneCount} of {STEPS.length} done</span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <ApplicationStatus
@@ -327,14 +381,14 @@ export function Apply() {
         <div className="apdemo">
           <p className="apdemo__title">Demo controls</p>
           <p className="ap-p" style={{ marginBottom: 0 }}>
-            The states after submission are driven by the referencing partner, Stripe and PandaDoc,
+            The states after submission are driven by the eligibility check, Stripe and PandaDoc,
             none of which exist here. These jump straight to them so the whole journey can be walked.
             They do nothing against a real database.
           </p>
           <div className="apdemo__row">
             {([
               ['draft', 'Back to in progress'],
-              ['referencing', 'Submitted, pending'],
+              ['referencing', 'Submitted, awaiting decision'],
               ['sent', 'Approved'],
               ['declined', 'Declined'],
               ['paid', 'Guarantee fee paid'],
@@ -351,13 +405,21 @@ export function Apply() {
 
       {!editable && (
         <div className="ap-note">
-          Your application is with our referencing partner. You can still read everything,
+          Your eligibility check is under way. You can still read everything,
           and we will email you as soon as there is news.
         </div>
       )}
       {err && <div className="ap-alert" role="alert">{err}</div>}
 
-      {tab === 'details' && (
+      {tab === 'details' && submitted && (
+        <ReadOnlyAnswers
+          open={showAnswers}
+          onToggle={() => setShowAnswers((v) => !v)}
+          property={property} agent={agent} profile={profile}
+          addresses={addresses} incomes={incomes} />
+      )}
+
+      {tab === 'details' && !submitted && (
         <div className="ap-body ap-body--full">
           <aside className="ap-steps ap-steps--hidden" aria-label="Your details, steps">
             <div className="ap-progress">
@@ -393,6 +455,7 @@ export function Apply() {
                 </p>
                 <FieldList fields={AGENT_FIELDS} values={agent} disabled={!editable}
                   onChange={(n, v) => { setAgent((p) => ({ ...p, [n]: v })); agentSave.set(n, v); }} />
+                {editable && footer('property')}
               </CardBody></Card>
             )}
 
@@ -403,6 +466,7 @@ export function Apply() {
                 </p>
                 <FieldList fields={BASIC_FIELDS} values={profile} disabled={!editable}
                   onChange={(n, v) => { setProfile((p) => ({ ...p, [n]: v })); profileSave.set(n, v); }} />
+                {editable && footer('about')}
               </CardBody></Card>
             )}
 
@@ -414,7 +478,7 @@ export function Apply() {
                       <strong>Paid.</strong> The rest of your application is unlocked.
                     </div>
                     <p className="ap-p">
-                      Nothing has been sent for referencing yet. That happens when you have
+                      Nothing has been sent for checking yet. That happens when you have
                       finished the remaining sections and press send.
                     </p>
                     <div className="ap-actions">
@@ -424,13 +488,13 @@ export function Apply() {
                 ) : (
                   <>
                     <p className="ap-p">
-                      <strong>£20, once.</strong> It covers referencing your application, and it is
-                      not the guarantee fee. If you are approved, the guarantee itself is one month&rsquo;s
+                      <strong>£20, once.</strong> It covers the eligibility check on your application,
+                      and it is not the guarantee fee. If you are approved, the guarantee itself is one month&rsquo;s
                       rent and we will tell you before anything is due.
                     </p>
                     <p className="ap-p">
-                      We ask for it now because the next step is the long one, and because sending
-                      your details to be referenced is what costs us. Nothing is sent until this clears.
+                      We ask for it now because the next step is the long one, and because the
+                      eligibility check is what costs us. Nothing is sent until this clears.
                     </p>
                     <ul className="ap-list">
                       <li>The sections after this unlock as soon as it goes through.</li>
@@ -489,6 +553,7 @@ export function Apply() {
                     <Icon name="plus" /> Add an earlier address
                   </Button>
                 )}
+                {editable && footer('address')}
               </CardBody></Card>
             )}
 
@@ -553,6 +618,7 @@ export function Apply() {
                     </Button>
                   </div>
                 )}
+                {editable && footer('income')}
               </CardBody></Card>
             )}
 
@@ -560,6 +626,7 @@ export function Apply() {
               <Card><CardHead title="Nationality and right to rent" /><CardBody>
                 <FieldList fields={NATIONALITY_FIELDS} values={profile} disabled={!editable}
                   onChange={(n, v) => { setProfile((p) => ({ ...p, [n]: v })); profileSave.set(n, v); }} />
+                {editable && footer('nationality')}
               </CardBody></Card>
             )}
 
@@ -592,23 +659,22 @@ export function Apply() {
                   <div className={`ap-pre ${pre.outcome === 'ruled_out' ? 'ap-pre--no' : 'ap-pre--ok'}`}>
                     {pre.outcome === 'ruled_out'
                       ? <>On what you have told us, the income here is under what this rent needs.
-                          You can still send it, and our referencing partner makes the decision.</>
+                          You can still send it, and the eligibility check makes the decision.</>
                       : <><strong>Nothing here rules you out.</strong> That is not a decision:
-                          our referencing partner makes it, and they see things we cannot.</>}
+                          it is made on the eligibility check, which sees things we cannot.</>}
                   </div>
                 ) : (
                   <div className="ap-pre ap-pre--wait">
                     Once your rent and income are in, we will tell you whether anything obvious
-                    stands in the way. It is never a decision: our referencing partner makes that.
+                    stands in the way. It is never a decision: the eligibility check makes that.
                   </div>
                 )}
 
                 {editable && (
                   <>
                     <p className="ap-p">
-                      Sending this passes your details to our referencing partner. They decide, not us,
-                      and we will email you either way. If you are approved the next thing you will hear
-                      about is the guarantee fee.
+                      Sending this starts your eligibility check. We will email you either way, and if
+                      you are approved the next thing you will hear about is the guarantee fee.
                     </p>
                     <div className="ap-actions">
                       <Button variant="primary" disabled={busy || doneCount < STEPS.length} onClick={() => void submit()}>
@@ -628,7 +694,19 @@ export function Apply() {
         </div>
       )}
 
-      {tab !== 'details' && (
+      {tab === 'documents' && (
+        <DocumentsPanel applicationId={appId} documents={bundle.documents}
+          editable={editable} onChanged={() => { seeded.current = false; void load(); }} />
+      )}
+      {tab === 'id' && (
+        <IdCheckPanel applicationId={appId} documents={bundle.documents}
+          editable={editable} onChanged={() => { seeded.current = false; void load(); }} />
+      )}
+      {tab === 'financials' && (
+        <FinancialsPanel applicationId={appId} documents={bundle.documents}
+          editable={editable} onChanged={() => { seeded.current = false; void load(); }} />
+      )}
+      {(tab === 'payment' || tab === 'guarantee') && (
         <div className="ap-panel">
           <Card><CardHead title={TABS.find((t) => t.id === tab)!.label} /><CardBody>
             <PlaceholderTab tab={tab} status={bundle.application.status} />
@@ -636,6 +714,60 @@ export function Apply() {
         </div>
       )}
     </TenantShell>
+  );
+}
+
+
+/* What they told us, once the form has folded away.
+
+   Collapsed by default: somebody waiting for a decision does not need seven
+   sections in front of them, but they do sometimes want to check what they put.
+   Read-only, because editing after submission would change the basis of a
+   decision already in flight, which the server refuses anyway. */
+function ReadOnlyAnswers({
+  open, onToggle, property, agent, profile, addresses, incomes,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  property: Record<string, unknown>;
+  agent: Record<string, unknown>;
+  profile: Record<string, unknown>;
+  addresses: Record<string, unknown>[];
+  incomes: Record<string, unknown>[];
+}) {
+  const line = (k: string, v: unknown) =>
+    v ? <div key={k}><dt>{k}</dt><dd>{String(v)}</dd></div> : null;
+
+  return (
+    <Card>
+      <CardHead
+        title="What you told us"
+        actions={
+          <Button variant="quiet" size="sm" onClick={onToggle}>
+            {open ? 'Hide' : 'Show'}
+          </Button>
+        }
+      />
+      {open && (
+        <CardBody>
+          <dl className="ap-summary">
+            {line('Property', [property.prop_addr1, property.prop_city, property.prop_postcode].filter(Boolean).join(', '))}
+            {line('Monthly rent', property.monthly_rent ? `£${String(property.monthly_rent)}` : '')}
+            {line('Tenancy starts', property.tenancy_start)}
+            {line('Managed by', agent.agency_name || [agent.first_name, agent.last_name].filter(Boolean).join(' '))}
+            {line('Name', [profile.first_name, profile.last_name].filter(Boolean).join(' '))}
+            {line('Date of birth', profile.dob)}
+            {line('Nationality', profile.nationality)}
+            {line('Addresses given', addresses.length ? `${addresses.length}` : '')}
+            {line('Income sources', incomes.length ? `${incomes.length}` : '')}
+          </dl>
+          <p className="soft">
+            These cannot be changed now. If something here is wrong, tell us and we will
+            sort it out rather than you starting again.
+          </p>
+        </CardBody>
+      )}
+    </Card>
   );
 }
 
@@ -660,7 +792,7 @@ function PlaceholderTab({ tab, status }: { tab: Tab; status: string }) {
         {status === 'draft'
           ? 'This opens once you have sent your details.'
           : status === 'referencing'
-            ? 'Your application is with our referencing partner. We will email you as soon as they decide.'
+            ? 'Your eligibility check is under way. We will email you as soon as there is a decision.'
             : 'We will email you when this step is ready.'}
       </p>
     </>
