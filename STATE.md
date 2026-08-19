@@ -33,6 +33,9 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 | **Email codes**: 10-minute life, 5 attempts, single use, 5 issues an hour, all four proven under concurrency | H10, verified live |
 | **Eligibility criteria** in SQL, one implementation for the prequalification and the screened rail | Verified live, 9 rules |
 | **Groups and positions**: a group above the agency, rate resolution, scope expansion | Verified live, 9 checks |
+| **Position UI**: a director sets what somebody sees; the invite ladder follows position | Built; SQL refuses a branch manager regardless of the screen |
+| **Agent referral form**: middle name, share as % and £ deriving from each other | Built, 8 tests on the arithmetic |
+| **CRM attribution**: channel derived from the route, brand and group as properties | Verified live on four applications |
 
 ## Half built
 
@@ -40,8 +43,7 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 | ---- | ----- | ----- |
 | **Rail 4 (provider hand-over)** | Receiver and callback built and deployed; **no token seeded and no credentials**, so nothing can arrive | `TENANT-PLATFORM.md` 6.2 |
 | **Joint tenancies** | Schema, group test and one-deed-per-tenancy built. The group test cannot be trusted until we know whether the provider assesses against the share or the full rent | HANDOVER 26 |
-| **Positions** | Model, helpers and all three policies done. **No UI to set one**, so nobody holds a position yet | This file, below |
-| **Agent referral form** | Postcode lookup, validation and the tenant handoff exist. **Middle name and share are in the schema, not yet on the form** | Next |
+| **Agent referrals end to end** | Form, hierarchy, positions and attribution built. **Not yet walked end to end** with a real agency, several branches and a group |
 | **Tenant journey's later tabs** | Documents fully live. ID check and Financials have a working manual upload; the vendor path needs credentials | `TENANT-PLATFORM.md` 6.1 |
 | **HubSpot** | Syncs applicants and companies, cursor now per partner. **One pipeline, `channel` hardcoded to "Partner Referral"** | HANDOVER, HubSpot items |
 
@@ -59,15 +61,26 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 
 | On | What | Blocks |
 | -- | ---- | ------ |
-| **The developer** | **How the pass/fail decision reaches us on rails 1 and 2** | The entire second half of the tenant journey |
-| The developer | LIB base URL, credentials, sandbox, `agency_secret_token` shape | Rail 4 |
-| The provider | Affordability against the share or the full rent | Joint tenancies |
-| The provider | Yoti and Kreditz credentials and check ids | Guided ID check, bank connection |
+| **The developer** | **How the pass/fail decision reaches us on rails 1 and 2. ASKED TWICE, STILL UNANSWERED** | The entire second half of the tenant journey |
+| The developer | The per-agency tokens themselves (shape confirmed, values to follow) | Rail 4 |
+| The developer | Yoti credentials and check ids; the Lettings endpoint that returns Kreditz data | Guided ID check, bank connection |
+| The provider | **Affordability against the share or the full rent. Still unanswered**: they confirmed there is no capacity NUMBER, which was the other half | Joint tenancies |
 | **Matt** | Whether a group's brands can be on different commercial terms | **Answered: yes, rate sits at the agency** |
 | Matt | What a "supplier" is in our model | The third sign-in tab |
 | Ops | `APP_URL`, a mail provider, a Stripe test webhook, an address-lookup key | Reset links, tenant codes, card payments, address lookup |
 
-Chase email drafted; asks are in `docs/ASK-THE-DEVELOPER.md`.
+**Answered 2026-08-19** by the developer: sandbox is `https://lettingsinabox.xyz`;
+`agency_secret_token` is **per agency**, created by the Lettings admin;
+`table_id` never expires and nothing happens if we never call back; they return
+a verdict and condition, **never a capacity number**; they do **not** deduplicate
+applicants across channels, so that is ours to detect. He also corrected the
+Yoti and Kreditz architecture: see `TENANT-PLATFORM.md` 6.1, which was rebuilt
+on his account rather than the derived specification.
+
+**He did not answer the blocking question.** It has now been asked twice.
+One clarification is owed back to him, on inbound retries and deduplication.
+
+Asks are in `docs/ASK-THE-DEVELOPER.md`.
 
 ---
 
