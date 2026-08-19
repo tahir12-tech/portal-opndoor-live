@@ -218,10 +218,13 @@ Deno.serve(async (req) => {
         service.from("application_delivery_contacts").select("*").eq("application_id", app.id).maybeSingle(),
       ]);
 
+      const { data: feePaid } = await service.rpc("eligibility_fee_paid", { p_application: app.id });
+
       return json({
         ok: true,
         application: app,
         editable: editable(app.status),
+        fee_paid: feePaid === true,
         profile: profile.data ?? null,
         addresses: addresses.data ?? [],
         incomes: incomes.data ?? [],
@@ -388,18 +391,70 @@ Deno.serve(async (req) => {
       });
     }
 
+    /* ----- the application fee ---------------------------------------------
+       Sits between the basic details and the rest of the form. The sections
+       after it are locked until Stripe confirms it, and the lock that matters
+       is in SQL: submit_application_for_referencing refuses without it, so a
+       browser that ignores the lock still cannot send anything to the partner. */
+    if (action === "start_eligibility_payment") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      if (!editable(app.status)) return json({ ok: false, error: "This application can no longer be edited." }, 409);
+
+      const { data: already } = await service.rpc("eligibility_fee_paid", { p_application: app.id });
+      if (already === true) return json({ ok: true, already_paid: true });
+
+      const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+      if (!STRIPE_SECRET) return json({ ok: false, error: "Payments are not configured." }, 503);
+
+      // The fee, in pence. A constant rather than a setting because it is a
+      // commercial decision that should not be changeable by accident, and it
+      // is recorded in HANDOVER so changing it is deliberate.
+      const FEE_PENCE = 2000;
+      const origin = String(body.origin ?? "").replace(/\/+$/, "");
+
+      const form = new URLSearchParams();
+      form.set("mode", "payment");
+      form.set("client_reference_id", app.id);
+      // PURPOSE IS WHAT KEEPS THIS OFF THE GUARANTEE PATH. Without it the
+      // webhook treats a payment as the guarantee fee, sets status paid and
+      // generates a Deed of Guarantee on a twenty pound payment.
+      form.set("metadata[application_id]", app.id);
+      form.set("metadata[purpose]", "eligibility");
+      form.set("line_items[0][quantity]", "1");
+      form.set("line_items[0][price_data][currency]", "gbp");
+      form.set("line_items[0][price_data][unit_amount]", String(FEE_PENCE));
+      form.set("line_items[0][price_data][product_data][name]", `Application fee - ${app.guarantee_ref}`);
+      form.set("line_items[0][price_data][product_data][description]",
+               "Covers referencing your application. Not the guarantee fee.");
+      form.set("success_url", `${origin}/apply?fee=paid`);
+      form.set("cancel_url", `${origin}/apply?fee=cancelled`);
+
+      const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${STRIPE_SECRET}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: form.toString(),
+      });
+      const session = await res.json();
+      if (!res.ok || !session?.url) {
+        console.log(JSON.stringify({ event: "eligibility_session_failed", status: res.status }));
+        return json({ ok: false, error: "Could not start the payment." }, 500);
+      }
+      return json({ ok: true, url: session.url });
+    }
+
     if (action === "submit") {
       const app = await ownedApplication(body.application_id);
       if (!app) return json({ ok: false, error: "Not found." }, 404);
-      if (!editable(app.status)) return json({ ok: false, error: "This application has already been submitted." }, 409);
-      const { data: months } = await service.rpc("address_history_months", { p_application: app.id });
-      if ((months ?? 0) < 36) {
-        return json({ ok: false, error: "We need three years of address history before we can send this.", history_months: months ?? 0 }, 422);
+      const { error } = await service.rpc("submit_application_for_referencing", { p_application: app.id });
+      if (error) {
+        // These are written for a tenant to read and each names what is still
+        // needed, so the message is passed through rather than flattened.
+        return json({ ok: false, error: error.message }, 422);
       }
-      const { error } = await service.from("application_profiles")
-        .upsert({ application_id: app.id, completed_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-                { onConflict: "application_id" });
-      if (error) return json({ ok: false, error: "Could not submit." }, 500);
       return json({ ok: true });
     }
 
