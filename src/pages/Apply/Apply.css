@@ -151,3 +151,40 @@
 .apdemo { border: 1px dashed var(--warn); background: var(--warn-bg); border-radius: var(--r-md); padding: 14px 16px; margin-bottom: 20px; }
 .apdemo__title { font: 700 13px var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--warn); margin: 0 0 6px; }
 .apdemo__row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+
+/* ---------------------------------------------------------------------------
+   The timeline inside the tenant status card.
+
+   StatusTimeline hardcodes className="timeline", and that stylesheet is written
+   for the STAFF view's three stages: `grid-template-columns: repeat(3, 1fr)`.
+   A tenant has five, so five items wrapped onto two rows of 36px nodes, which
+   is what "the progress bar is huge" was.
+
+   Scoped to .apst so the staff view is untouched. The alternative was a
+   modifier prop on StatusTimeline, which would mean editing a component the
+   application detail page depends on in order to fix a page it does not know
+   about.
+   --------------------------------------------------------------------------- */
+.apst .timeline { grid-template-columns: repeat(5, 1fr); }
+
+/* Five stages in a card is tighter than three across a page, so the step scales
+   down with it rather than staying at detail-view proportions. */
+.apst .tl-step { padding: 0 10px; }
+.apst .tl-step__node { width: 26px; height: 26px; }
+.apst .tl-step__node svg { width: 14px; height: 14px; }
+.apst .tl-step__label { font-size: 13px; }
+.apst .tl-step__date { display: none; }          /* nothing to put in it here */
+.apst .tl-step__note { font-size: 12px; line-height: 1.45; }
+
+/* The connector is positioned off the 36px node, so it needs the same shift
+   the smaller node implies or it starts inside the circle. */
+.apst .tl-step::after { top: 13px; left: 17px; transform: translateX(13px); }
+
+@media (max-width: 720px) {
+  /* One per row, as the staff view already does under 640px. Five abbreviated
+     columns on a phone is worse than five readable rows. */
+  .apst .timeline { grid-template-columns: 1fr; gap: 14px; }
+  .apst .tl-step::after { display: none; }
+  .apst .tl-step { padding: 0; }
+}
