@@ -259,6 +259,22 @@ Deno.serve(async (req) => {
       hs(`/crm/v4/objects/${OBJ}/${fromId}/associations/default/${COMPANIES}/${toId}`, "PUT");
 
     // ---- property builder from config --------------------------------
+    /* The group a brand belongs to. Prefers the real group added by
+       20260813010000 and falls back to the free-text group_name, so agencies
+       that have not been placed in a group yet keep syncing exactly as they do
+       now rather than losing a property. */
+    const groupNames = new Map<string, string>();
+    {
+      const { data: gs } = await service
+        .from("agencies").select("id, group_id, group_name, agency_groups(name)");
+      for (const a of (gs ?? []) as any[]) {
+        const real = a.agency_groups?.name as string | undefined;
+        const v = real ?? a.group_name ?? null;
+        if (v) groupNames.set(a.id, v);
+      }
+    }
+    const ctxGroupName = (agency: any) => groupNames.get(agency.id) ?? agency.group_name ?? null;
+
     const buildApplicantProps = (rows: FieldRow[], ctx: any): Record<string, string> => {
       const out: Record<string, string> = {};
       for (const r of rows) {
@@ -276,6 +292,12 @@ Deno.serve(async (req) => {
               : r.source === "agency_ref" ? ctx.agencyRef
               : r.source === "deed_url" ? ctx.deedUrl
               : r.source === "delivered_to" ? ctx.deliveredTo
+              // Attribution. channel is how the application arrived; brand and
+              // group are where it came from. All three are read once per event
+              // in one round trip rather than joined per property.
+              : r.source === "channel" ? ctx.attribution?.channel
+              : r.source === "brand_name" ? ctx.attribution?.brand_name
+              : r.source === "group_name" ? ctx.attribution?.group_name
               : null;
             break;
         }
@@ -318,7 +340,7 @@ Deno.serve(async (req) => {
         // ONE company: agency-level, head_office_ = Yes, serves agency + branch.
         const id = await upsertCompany(agencyKey, co({
           company_key: agencyKey, company_name: agency.name, agency_name: agency.name,
-          company_level: "Group HQ / Brand", head_office: "Yes", network_group: agency.group_name,
+          company_level: "Group HQ / Brand", head_office: "Yes", network_group: ctxGroupName(agency),
           commission_rate: commissionRate,
         }));
         return { agencyKey, branchKey: agencyKey, agencyCoId: id, branchCoId: id, single: true };
@@ -327,7 +349,7 @@ Deno.serve(async (req) => {
       // Multi-branch: agency = parent, branch = child.
       const parentId = await upsertCompany(agencyKey, co({
         company_key: agencyKey, company_name: agency.name, agency_name: agency.name,
-        company_level: "Group HQ / Brand", head_office: null, network_group: agency.group_name,
+        company_level: "Group HQ / Brand", head_office: null, network_group: ctxGroupName(agency),
         commission_rate: commissionRate,
       }));
       let branchKey: string | null = null, branchCoId: string | null = null;
@@ -427,6 +449,14 @@ Deno.serve(async (req) => {
           // 1. Applicant property upsert (per-event idempotency). Config-driven props.
           const rows = applicantRows.filter((r) => r.events.includes(eventType));
           const ctx: any = { app, event: { at: ev.at } };
+          // One call, not four joins. Fails soft: an unattributed record is
+          // worse than none but a BLOCKED sync is worse than both, and the
+          // cursor is per partner now so a failure here would stall that
+          // partner's whole feed.
+          try {
+            const { data: attr } = await service.rpc("application_attribution", { p_application: app.id });
+            ctx.attribution = Array.isArray(attr) ? attr[0] : attr;
+          } catch { ctx.attribution = null; }
           if (eventType === "referral") ctx.partnerHsId = partnerMap.get(app.partner_id)?.hs_partner_id ?? null;
           if (eventType === "deed_issued") ctx.deedUrl = APP_BASE ? `${APP_BASE}/applications/${app.guarantee_ref}` : null;
           if (eventType === "delivered") ctx.deliveredTo = await deliveredTo(app.branch_id, app.agency_id);
