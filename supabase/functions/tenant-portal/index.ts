@@ -446,6 +446,39 @@ Deno.serve(async (req) => {
       return json({ ok: true, url: session.url });
     }
 
+    /* ----- the guarantee fee -----------------------------------------------
+       Returns the application's OWN payment-page token rather than minting a
+       second Checkout session here.
+
+       There is already one implementation of the guarantee payment: the
+       tokenised /pay page, which the referral path has used since it was
+       written and which handles the reissue, the decline path and the 30-minute
+       session expiry. A signed-in tenant should reach that page, not a parallel
+       copy of it that would drift on all three.
+
+       mint_payment_page_token is idempotent: one token per application,
+       refreshed rather than duplicated. */
+    if (action === "guarantee_payment_link") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+
+      // Only when there is actually something to pay. 'sent' is the state an
+      // approved application sits in; offering this earlier would be asking for
+      // the guarantee fee before anybody has been approved.
+      if (app.status !== "sent") {
+        return json({ ok: false, error: "There is nothing to pay yet." }, 409);
+      }
+
+      const { data: token, error } = await service.rpc("mint_payment_page_token", {
+        p_ref: app.guarantee_ref,
+      });
+      if (error || !token) {
+        console.log(JSON.stringify({ event: "guarantee_link_failed", message: error?.message }));
+        return json({ ok: false, error: "Could not open the payment page." }, 500);
+      }
+      return json({ ok: true, url: `/pay?token=${token}&utm_source=tenant_portal` });
+    }
+
     if (action === "submit") {
       const app = await ownedApplication(body.application_id);
       if (!app) return json({ ok: false, error: "Not found." }, 404);

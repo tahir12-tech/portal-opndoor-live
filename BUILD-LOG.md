@@ -22,6 +22,25 @@ the estate and its open items, `REGRESSION.md` for the test plan.
 
 ---
 
+## 2026-08-19 — The approved tenant could not pay
+
+**Fixed a defect I shipped.** The status card's "Pay the guarantee fee" button
+sent an approved tenant to `/pay` with no token, which renders the invalid-link
+state. A dead end at the exact moment somebody is trying to pay.
+
+**Built.** `guarantee_payment_link` returns the application's own payment-page
+token, so the tenant lands on the existing tokenised page. Deliberately not a
+second Checkout session in `tenant-portal`: there is one implementation of the
+guarantee payment and it already handles reissue, the decline path and the
+30-minute session expiry.
+
+**Verified live.** Refused on a draft, a URL on an approved application, refused
+for another tenant's id.
+
+**Left open.** Nothing new.
+
+---
+
 ## 2026-08-19 — Postcode lookup, shared with the referral form
 
 **Built.** The tenant form's three postcode fields now use the SAME lookup the

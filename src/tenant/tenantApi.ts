@@ -275,6 +275,18 @@ export async function startFeePayment(applicationId: string): Promise<string | n
   return null;
 }
 
+/** Where an approved tenant goes to pay the guarantee fee. */
+export async function guaranteePaymentUrl(applicationId: string): Promise<string> {
+  if (SUPABASE_ENABLED) {
+    const r = await callFn('guarantee_payment_link', { application_id: applicationId });
+    return r.url as string;
+  }
+  // Mock mode has no token and no Stripe. The demo controls are how the paid
+  // state is reached here, and saying so beats a link to a page that will
+  // refuse.
+  return '';
+}
+
 export async function submitApplication(applicationId: string): Promise<{ ok: boolean; error?: string; history_months?: number }> {
   if (SUPABASE_ENABLED) {
     try { await callFn('submit', { application_id: applicationId }); return { ok: true }; }

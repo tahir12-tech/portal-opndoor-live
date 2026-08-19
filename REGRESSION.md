@@ -1444,6 +1444,24 @@ journey can be walked end to end.
 | H13.9 | ID check and Financials | Real steps with a working manual path, and each names the vendor path that is not switched on. Neither is a "coming soon" panel |
 | H13.10 | Upload on Financials | Recorded as `bank_statement` and appears on Documents too. One index, two ways in |
 
+## H13a. The approved tenant can actually pay
+
+The status card offers "Pay the guarantee fee" when approved. It sent them to
+`/pay` with no token, which renders the invalid-link state: a dead end at the
+one moment somebody is trying to give us money.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H13a.1 | `guarantee_payment_link` on a **draft** application | `There is nothing to pay yet.` **Verified live.** Asking before approval is the failure worth guarding |
+| H13a.2 | Same on an **approved** (`sent`) application | A `/pay?token=…` URL. **Verified live** |
+| H13a.3 | Same with another tenant's application id | `Not found.` **Verified live** |
+| H13a.4 | Follow the URL | The real payment page, loaded, not the invalid-link state |
+| H13a.5 | Call it twice | The same token. `mint_payment_page_token` is idempotent, so a reload does not orphan the first |
+
+There is still exactly **one** implementation of the guarantee payment. A signed-in
+tenant reaches the existing tokenised page rather than a second Checkout flow
+that would drift on reissue, decline and session expiry.
+
 ## H14. The tenant journey mounts
 
 **Why this section exists: it shipped a white page.** `tsc` was clean, the build

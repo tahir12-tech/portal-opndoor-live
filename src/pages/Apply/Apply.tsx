@@ -275,11 +275,21 @@ export function Apply() {
      is waiting does sometimes want to check what they said. */
   const submitted = bundle.application.status !== 'draft';
 
-  const payGuarantee = () => {
+  const payGuarantee = async () => {
     // The guarantee fee is the referral path's existing Stripe flow, reached
     // from the tokenised payment page. A tenant with an account gets there the
     // same way rather than through a second implementation of the same payment.
-    window.location.href = '/pay';
+    //
+    // It needs the application's OWN token: /pay without one renders the
+    // invalid-link state, which is where this button used to send people.
+    setBusy(true); setErr(null);
+    try {
+      const url = await api.guaranteePaymentUrl(appId);
+      if (url) { window.location.href = url; return; }
+      setErr('Payment is not available in this demo. Use the demo controls to see what follows.');
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not open the payment page.');
+    } finally { setBusy(false); }
   };
 
   /* The step footer needs to know where "next" goes and what is outstanding.
@@ -378,7 +388,7 @@ export function Apply() {
       <ApplicationStatus
         view={view}
         guaranteeRef={bundle.application.guarantee_ref}
-        onPayGuarantee={view.cta === 'pay_guarantee' ? payGuarantee : undefined}
+        onPayGuarantee={view.cta === 'pay_guarantee' ? () => void payGuarantee() : undefined}
         busy={busy}
       />
 
