@@ -34,8 +34,9 @@ import {
   addressFields, additionalIncomeFields, employmentFields, historyMonths,
 } from '@/tenant/formSpec';
 import * as api from '@/tenant/tenantApi';
-import { currentTenant, signOut } from '@/tenant/tenantAuth';
+import { currentTenant } from '@/tenant/tenantAuth';
 import { useAutosave, type SaveStatus } from '@/tenant/useAutosave';
+import { TenantShell, type TenantNavItem } from './TenantShell';
 import './Apply.css';
 
 type Tab = 'details' | 'id' | 'financials' | 'documents' | 'payment' | 'guarantee';
@@ -55,15 +56,20 @@ const TABS: { id: Tab; label: string }[] = [
    is when somebody has committed enough to be worth charging and before the
    bulk of the typing, and because referencing them is what costs us. Everything
    after it is LOCKED until it clears, and the lock is in SQL as well as here. */
-const STEPS: { id: Step; label: string }[] = [
-  { id: 'property', label: 'Property' },
-  { id: 'about', label: 'About you' },
-  { id: 'fee', label: 'Application fee' },
-  { id: 'address', label: 'Address history' },
-  { id: 'income', label: 'Income' },
-  { id: 'nationality', label: 'Nationality' },
-  { id: 'declaration', label: 'Declaration' },
+const STEPS: { id: Step; label: string; icon: TenantNavItem['icon'] }[] = [
+  { id: 'property',     label: 'Property',        icon: 'home' },
+  { id: 'about',        label: 'About you',       icon: 'users' },
+  { id: 'fee',          label: 'Application fee',  icon: 'building' },
+  { id: 'address',      label: 'Address history', icon: 'org' },
+  { id: 'income',       label: 'Income',          icon: 'trend' },
+  { id: 'nationality',  label: 'Nationality',     icon: 'shield' },
+  { id: 'declaration',  label: 'Declaration',     icon: 'pen' },
 ];
+
+const TAB_ICON: Record<Tab, TenantNavItem['icon']> = {
+  details: 'edit', id: 'eye', financials: 'trend',
+  documents: 'file', payment: 'building', guarantee: 'shield',
+};
 
 /** Everything after the fee. Locked until it clears. */
 const LOCKED_UNTIL_PAID: Step[] = ['address', 'income', 'nationality', 'declaration'];
@@ -249,32 +255,55 @@ export function Apply() {
   if (err && !bundle) return <div className="ap"><div className="ap-alert">{err}</div></div>;
   if (!bundle) return <div className="ap"><p className="soft">Loading your application…</p></div>;
 
+  const shellNav = [
+    {
+      group: 'Your application',
+      items: STEPS.map((st) => ({
+        id: `details:${st.id}`, label: st.label, icon: st.icon,
+        done: stepDone[st.id], locked: locked(st.id),
+      })),
+    },
+    {
+      group: 'After you apply',
+      items: TABS.filter((t) => t.id !== 'details').map((t) => ({
+        id: t.id, label: t.label, icon: TAB_ICON[t.id],
+      })),
+    },
+  ];
+
+  const activeNav = tab === 'details' ? `details:${step}` : tab;
+  const currentLabel = tab === 'details'
+    ? STEPS.find((st) => st.id === step)?.label ?? 'Your details'
+    : TABS.find((t) => t.id === tab)?.label ?? '';
+
   return (
-    <div className="ap">
-      <header className="ap-head">
+    <TenantShell
+      nav={shellNav}
+      active={activeNav}
+      onNavigate={(id) => {
+        if (id.startsWith('details:')) { setTab('details'); void goStep(id.slice(8) as Step); }
+        else void goTab(id as Tab);
+      }}
+      name={[profile.first_name, profile.last_name].filter(Boolean).join(' ')}
+      email={String(bundle.application.tenant_email ?? '')}
+      title={currentLabel}
+      crumbs={['Your application', currentLabel]}
+      actions={<SaveBadge status={status} />}
+    >
+      <div className="page-head">
         <div>
-          <div className="ap-brand">opndoor</div>
-          <h1>Your guarantor application</h1>
-          <p className="ap-sub">
+          <h1 className="page-head__title">{currentLabel}</h1>
+          <p className="page-head__sub">
             {bundle.application.guarantee_ref} · Everything saves as you go, so you can stop and come back.
           </p>
         </div>
-        <div className="ap-headright">
-          <SaveBadge status={status} />
-          <button type="button" className="ap-link" onClick={() => { void signOut().then(() => { window.location.href = '/apply/signin'; }); }}>
-            Sign out
-          </button>
+        <div className="page-head__actions">
+          <div className="ap-progress" style={{ minWidth: 180 }}>
+            <div className="ap-progress__bar"><span style={{ width: `${pct}%` }} /></div>
+            <span className="ap-progress__label">{doneCount} of {STEPS.length} done</span>
+          </div>
         </div>
-      </header>
-
-      <nav className="ap-tabs" aria-label="Application sections">
-        {TABS.map((t) => (
-          <button key={t.id} type="button"
-            className={`ap-tab${t.id === tab ? ' is-active' : ''}`}
-            aria-current={t.id === tab ? 'page' : undefined}
-            onClick={() => void goTab(t.id)}>{t.label}</button>
-        ))}
-      </nav>
+      </div>
 
       {!editable && (
         <div className="ap-note">
@@ -285,8 +314,8 @@ export function Apply() {
       {err && <div className="ap-alert" role="alert">{err}</div>}
 
       {tab === 'details' && (
-        <div className="ap-body">
-          <aside className="ap-steps" aria-label="Your details, steps">
+        <div className="ap-body ap-body--full">
+          <aside className="ap-steps ap-steps--hidden" aria-label="Your details, steps">
             <div className="ap-progress">
               <div className="ap-progress__bar"><span style={{ width: `${pct}%` }} /></div>
               <span className="ap-progress__label">{doneCount} of {STEPS.length} done</span>
@@ -562,7 +591,7 @@ export function Apply() {
           </CardBody></Card>
         </div>
       )}
-    </div>
+    </TenantShell>
   );
 }
 

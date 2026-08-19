@@ -12,6 +12,9 @@
    to them. A centred column on the portal's own canvas is the same system with
    the staff furniture taken out.
    ===================================================================== */
+/* Used by the front door and the signed-out states only. The signed-in journey
+   renders inside TenantShell and uses .content from portal.css, exactly as
+   every staff screen does. */
 .ap {
   max-width: 1080px;
   margin: 0 auto;
@@ -115,3 +118,16 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
+
+
+/* Inside the shell the sidebar IS the step rail, so the in-page one goes and
+   the panel takes the full width. Keeping both would be two navigations for one
+   set of steps, which is how somebody clicks the wrong one. */
+.ap-body--full { grid-template-columns: 1fr; }
+.ap-steps--hidden { display: none; }
+
+/* The tenant sidebar's own two additions to .sb__link: it is a button rather
+   than a Link, and it carries progress rather than a count. */
+.tsb__link { width: 100%; border: 0; background: none; text-align: left; font: inherit; cursor: pointer; }
+.tsb__link.is-locked { opacity: 0.55; }
+.tsb__tick { margin-left: auto; display: inline-flex; color: var(--deed); }
