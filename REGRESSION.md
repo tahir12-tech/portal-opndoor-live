@@ -1443,3 +1443,24 @@ journey can be walked end to end.
 | H13.8 | Documents tab | Lists what has been uploaded, allows adding and removing, and shows eligibility reports as **held on file, not downloadable** |
 | H13.9 | ID check and Financials | Real steps with a working manual path, and each names the vendor path that is not switched on. Neither is a "coming soon" panel |
 | H13.10 | Upload on Financials | Recorded as `bank_statement` and appears on Documents too. One index, two ways in |
+
+## H14. The tenant journey mounts
+
+**Why this section exists: it shipped a white page.** `tsc` was clean, the build
+was clean and 158 tests passed, because every one of them tested a pure
+function. A `useState` had been declared below an `if (!bundle) return`, so it
+did not run on the first render and did on the second, and React threw
+"rendered more hooks than during the previous render".
+
+Nothing in the suite mounted a component, so nothing could have caught it.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H14.1 | Mount `<Apply/>` with a draft and let effects settle | Renders past the loading state. **The bug was on the second render**, once the bundle arrived, so getting there is the assertion |
+| H14.2 | Mount it for `referencing`, `sent`, `declined`, `paid`, `deed` | Each renders. These are the states the form folds away in, and the fold is where the hook count changed |
+| H14.3 | Mount signed out | The sign-in prompt, not a throw |
+| H14.4 | Move any hook below an early return in `Apply.tsx` | **H14.1 and H14.2 fail.** Verified by reintroducing the bug on purpose: two files failed and the suite dropped from 162 tests to 107 |
+
+H14.4 is the row that matters. A rule nobody can check is a rule that comes
+back; there is no ESLint in this repo, so `react-hooks/rules-of-hooks` is not
+watching, and this section is what replaces it.

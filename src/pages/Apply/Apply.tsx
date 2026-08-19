@@ -104,6 +104,12 @@ export function Apply() {
   const appId = bundle?.application.id ?? 'demo-application';
 
   const [signedOut, setSignedOut] = useState(false);
+  // Declared here with the rest of the state, NOT beside the code that uses it.
+  // It lived below the `if (!bundle) return` guard, so it did not run on the
+  // first render and did on the second: "rendered more hooks than during the
+  // previous render", which is a white page. Every hook in this component must
+  // sit above every early return.
+  const [showAnswers, setShowAnswers] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -268,7 +274,6 @@ export function Apply() {
      you". The answers are still readable, behind one link, because somebody who
      is waiting does sometimes want to check what they said. */
   const submitted = bundle.application.status !== 'draft';
-  const [showAnswers, setShowAnswers] = useState(false);
 
   const payGuarantee = () => {
     // The guarantee fee is the referral path's existing Stripe flow, reached
