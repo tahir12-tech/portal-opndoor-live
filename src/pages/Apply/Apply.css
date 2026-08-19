@@ -131,3 +131,23 @@
 .tsb__link { width: 100%; border: 0; background: none; text-align: left; font: inherit; cursor: pointer; }
 .tsb__link.is-locked { opacity: 0.55; }
 .tsb__tick { margin-left: auto; display: inline-flex; color: var(--deed); }
+
+/* The status card. Sits above the form, because "where is my application" is
+   the first question after submitting and the form cannot answer it. */
+.apst { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px 20px; margin-bottom: 20px; background: var(--canvas); box-shadow: var(--shadow-sm); }
+.apst__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; margin-bottom: 18px; }
+.apst__eyebrow { font: 600 11px var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-mute); }
+.apst__headline { display: flex; align-items: center; gap: 8px; font: 700 20px var(--display); letter-spacing: -0.02em; margin: 6px 0 6px; color: var(--ink); }
+.apst__detail { font-size: 14px; line-height: 1.6; color: var(--ink-soft); margin: 0; max-width: 62ch; }
+.apst--progress .apst__headline { color: var(--ink); }
+.apst--waiting  .apst__headline { color: var(--sent); }
+.apst--good     .apst__headline { color: var(--deed); }
+.apst--bad      .apst__headline { color: var(--danger); }
+.apst--waiting { background: var(--sent-bg); }
+.apst--good    { background: var(--deed-bg); }
+.apst--bad     { background: var(--danger-bg); }
+
+/* Demo-only controls. Loud on purpose: this must never be mistaken for product. */
+.apdemo { border: 1px dashed var(--warn); background: var(--warn-bg); border-radius: var(--r-md); padding: 14px 16px; margin-bottom: 20px; }
+.apdemo__title { font: 700 13px var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--warn); margin: 0 0 6px; }
+.apdemo__row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }

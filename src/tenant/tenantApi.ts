@@ -338,3 +338,31 @@ export async function startApplication(input: Record<string, unknown>): Promise<
   writeMock(s);
   return 'demo-application';
 }
+
+/* ---------------------------------------------------------------------------
+   Walking the lifecycle in mock mode.
+
+   WHY THIS EXISTS. The states after submission are driven by events this repo
+   does not own: the referencing partner's decision, a Stripe webhook, a
+   PandaDoc callback. In mock mode none of them can fire, so without this the
+   journey stops dead at "with our referencing partner" and the approved,
+   declined, paid and deed screens can never be seen at all.
+
+   IT IS MOCK-ONLY, BY CONSTRUCTION, not by a flag somebody can flip. In
+   Supabase mode it throws rather than doing anything, because a control that
+   advanced a real application past a real decision would be a way to issue a
+   Deed of Guarantee to somebody a referencing partner never approved.
+   --------------------------------------------------------------------------- */
+export type DemoState = 'draft' | 'referencing' | 'declined' | 'sent' | 'paid' | 'deed';
+
+export async function demoSetStatus(status: DemoState): Promise<void> {
+  if (SUPABASE_ENABLED) {
+    throw new Error('Demo controls are not available against a real database.');
+  }
+  const s = readMock();
+  s.application = { ...s.application, status };
+  // Reaching a state implies the ones before it. Otherwise "approved" renders
+  // with an unpaid fee and the timeline contradicts the headline.
+  if (status !== 'draft') s.fee_paid = true;
+  writeMock(s);
+}

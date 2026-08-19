@@ -37,6 +37,8 @@ import * as api from '@/tenant/tenantApi';
 import { currentTenant } from '@/tenant/tenantAuth';
 import { useAutosave, type SaveStatus } from '@/tenant/useAutosave';
 import { TenantShell, type TenantNavItem } from './TenantShell';
+import { ApplicationStatus, statusView } from './ApplicationStatus';
+import { SUPABASE_ENABLED } from '@/lib/supabase';
 import './Apply.css';
 
 type Tab = 'details' | 'id' | 'financials' | 'documents' | 'payment' | 'guarantee';
@@ -255,6 +257,15 @@ export function Apply() {
   if (err && !bundle) return <div className="ap"><div className="ap-alert">{err}</div></div>;
   if (!bundle) return <div className="ap"><p className="soft">Loading your application…</p></div>;
 
+  const view = statusView(bundle.application.status, feePaid, doneCount, STEPS.length);
+
+  const payGuarantee = () => {
+    // The guarantee fee is the referral path's existing Stripe flow, reached
+    // from the tokenised payment page. A tenant with an account gets there the
+    // same way rather than through a second implementation of the same payment.
+    window.location.href = '/pay';
+  };
+
   const shellNav = [
     {
       group: 'Your application',
@@ -304,6 +315,39 @@ export function Apply() {
           </div>
         </div>
       </div>
+
+      <ApplicationStatus
+        view={view}
+        guaranteeRef={bundle.application.guarantee_ref}
+        onPayGuarantee={view.cta === 'pay_guarantee' ? payGuarantee : undefined}
+        busy={busy}
+      />
+
+      {!SUPABASE_ENABLED && (
+        <div className="apdemo">
+          <p className="apdemo__title">Demo controls</p>
+          <p className="ap-p" style={{ marginBottom: 0 }}>
+            The states after submission are driven by the referencing partner, Stripe and PandaDoc,
+            none of which exist here. These jump straight to them so the whole journey can be walked.
+            They do nothing against a real database.
+          </p>
+          <div className="apdemo__row">
+            {([
+              ['draft', 'Back to in progress'],
+              ['referencing', 'Submitted, pending'],
+              ['sent', 'Approved'],
+              ['declined', 'Declined'],
+              ['paid', 'Guarantee fee paid'],
+              ['deed', 'Guarantee issued'],
+            ] as const).map(([st, label]) => (
+              <Button key={st} variant="quiet" size="sm"
+                onClick={async () => { await api.demoSetStatus(st); seeded.current = false; await load(); }}>
+                {label}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!editable && (
         <div className="ap-note">

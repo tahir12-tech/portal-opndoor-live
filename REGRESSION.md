@@ -1394,3 +1394,37 @@ together are, and each has a row because each was found broken once.
 H10.8 is the one to run first after any change to this file. Client-supplied
 origin on a link that carries a token is account takeover with a phishing page
 attached, and `send-password-reset` had already solved it before I undid it.
+
+## H11. What a tenant is told about their own application
+
+The status card is the answer to "have they got back to me yet", which is the
+only question somebody has after submitting and the one the form could not
+answer. `applications.status` is our vocabulary and not theirs: `sent` means a
+payment link is out, and `paid` means the guarantee fee rather than the
+application fee, so both are translated before a tenant sees them.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H11.1 | Draft, three of seven sections done | "In progress", **3 of 7**, and it names the fee as what unlocks the rest |
+| H11.2 | Draft, fee paid | Stops mentioning the fee. It has been paid; saying it again reads as unpaid |
+| H11.3 | Everything done, not yet sent | "Ready to send" |
+| H11.4 | Submitted | "With our referencing partner", and it says **they do not need to do anything** |
+| H11.5 | Approved | "Approved", and the guarantee fee is offered |
+| H11.6 | Declined | Terminal on the timeline, **never a success tick**, and **no request for money** |
+| H11.7 | Any state other than approved | No payment button anywhere. Asking a declined tenant to pay is the worst version of this screen |
+| H11.8 | Guarantee issued | Timeline complete |
+| H11.9 | Lapsed or withdrawn | Terminal and explained, not a blank screen |
+| H11.10 | Progress in three places | The status card counts sections, the page head shows the bar, the sidebar ticks each step. All three agree |
+
+## H12. Walking the whole journey
+
+The states after submission are driven by the referencing partner, Stripe and
+PandaDoc, none of which exist in mock mode. Demo controls jump to them so the
+journey can be walked end to end.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H12.1 | Mock mode, `/apply` | A dashed amber "Demo controls" strip. Unmistakably not product |
+| H12.2 | Supabase mode, `/apply` | **No demo strip at all**, and `demoSetStatus` throws if called |
+| H12.3 | Jump to any state after draft | The fee shows as paid too, so the timeline cannot contradict the headline |
+| H12.4 | Walk draft → submitted → approved → paid → issued | Each step changes the headline, the tone and the timeline position |
