@@ -11,7 +11,10 @@
    and a confirmation dialog stating the consequence. Reachable by opndoor admin
    + Management (route guard).
    ===================================================================== */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { PositionModal, type ScopeTarget } from './PositionModal';
+import * as positionsService from '@/data/positionsService';
+import { getAgencies } from '@/data';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -129,6 +132,12 @@ export function UserManagement() {
   // edit-name modal. Separate from edit-role because the two are granted the same
   // way but done at different times: a partner-API-provisioned user is named once,
   // then their role is set, and neither should force the other.
+  // Positions. Loaded for everybody on screen so the column can show what each
+  // person covers, which is the question the column exists to answer.
+  const [positionUser, setPositionUser] = useState<ManagedUser | null>(null);
+  const [positionsByUser, setPositionsByUser] = useState<Record<string, positionsService.Position[]>>({});
+  const [ownPositions, setOwnPositions] = useState<positionsService.Position[]>([]);
+
   const [nameUser, setNameUser] = useState<ManagedUser | null>(null);
   const [nameVal, setNameVal] = useState('');
 
@@ -230,6 +239,51 @@ export function UserManagement() {
     setNameVal(u.name === userEmail(u) ? '' : u.name);
   }
 
+  const loadPositions = useCallback(async (ids: string[]) => {
+    const out: Record<string, positionsService.Position[]> = {};
+    await Promise.all(ids.map(async (id) => {
+      try { out[id] = await positionsService.getPositions(id); } catch { out[id] = []; }
+    }));
+    setPositionsByUser(out);
+  }, []);
+
+  /* WHO MAY GRANT A POSITION is decided once, here, from the caller's OWN
+     position. An opndoor admin always may; a partner-wide manager may, which is
+     what management has always meant; a group or agency position may; a BRANCH
+     position may not, because granting positions from a branch would be a way
+     out of the branch you were given. set_user_scope refuses it in SQL as well,
+     so this only decides whether the button is drawn. */
+  const canGrantPositions = positionsService.mayGrantPositions(role, ownPositions);
+
+  /* What the caller can hand out. An admin sees every brand and branch; anybody
+     else sees exactly what agencies_select and branches_select let them, so the
+     options are already scoped by the same rule that will judge the write. */
+  const scopeTargets = useMemo<ScopeTarget[]>(() => {
+    const out: ScopeTarget[] = [];
+    // Scoped by the caller's own partner selection, so the options are already
+    // narrowed by the same rule that will judge the write.
+    for (const a of getAgencies(selectedPartner)) {
+      // Mock mode has no ids. A position needs one, so those rows are skipped
+      // rather than offered as options that cannot be saved.
+      if (a.id) out.push({ id: a.id, name: a.name, kind: 'agency' });
+      for (const b of a.branches ?? []) {
+        if (b.id) out.push({ id: b.id, name: `${a.name} — ${b.name}`, kind: 'branch' });
+      }
+    }
+    return out;
+  }, [selectedPartner]);
+
+  useEffect(() => {
+    if (currentUserId) {
+      positionsService.getPositions(currentUserId).then(setOwnPositions).catch(() => setOwnPositions([]));
+    }
+  }, [currentUserId]);
+
+  useEffect(() => {
+    const ids = users.map((u) => u.id);
+    if (ids.length) void loadPositions(ids);
+  }, [users, loadPositions]);
+
   function handleAction(action: string, u: ManagedUser) {
     if (action === 'edit-role') { openEditRole(u); return; }
     if (action === 'edit-name') { openEditName(u); return; }
@@ -293,6 +347,11 @@ export function UserManagement() {
     if (u.status === 'pending') {
       return (
         <>
+          {canGrantPositions && (
+            <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); setPositionUser(u); }}>
+              <Icon name="org" />Set what they see
+            </button>
+          )}
           <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('resend', u); }}><Icon name="send" />Resend invite</button>
           {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-name', u); }}><Icon name="edit" />Edit name</button>}
           {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-role', u); }}><Icon name="edit" />Edit role</button>}
@@ -430,6 +489,7 @@ export function UserManagement() {
                 <th>User</th>
                 {showPartner && <th>Partner</th>}
                 <th>Role</th>
+                <th>Sees</th>
                 <th>Last active</th>
                 <th>Status</th>
                 <th />
@@ -449,6 +509,7 @@ export function UserManagement() {
                     </td>
                     {showPartner && <td className="soft">{userPartnerName(u.partner)}</td>}
                     <td><span className={`role-tag ${rm[1]}`}>{rm[0]}</span></td>
+                    <td className="soft">{positionsService.describePosition(positionsByUser[u.id] ?? [])}</td>
                     <td className="soft">{u.lastActive}</td>
                     <td><Pill variant={sp[1]}>{sp[0]}</Pill></td>
                     <td style={{ textAlign: 'right' }}>
@@ -466,7 +527,7 @@ export function UserManagement() {
                 );
               })}
               {users.length === 0 && (
-                <tr><td colSpan={showPartner ? 6 : 5} className="soft" style={{ textAlign: 'center', padding: '28px 0' }}>{q ? `No users match “${query.trim()}”.` : 'No users to show yet.'}</td></tr>
+                <tr><td colSpan={showPartner ? 7 : 6} className="soft" style={{ textAlign: 'center', padding: '28px 0' }}>{q ? `No users match “${query.trim()}”.` : 'No users to show yet.'}</td></tr>
               )}
             </tbody>
           </table>
@@ -562,6 +623,15 @@ export function UserManagement() {
           </div>
         )}
       </Modal>
+
+      {positionUser && canGrantPositions && (
+        <PositionModal
+          user={positionUser}
+          targets={scopeTargets}
+          onClose={() => setPositionUser(null)}
+          onSaved={() => { void loadPositions(users.map((u) => u.id)); }}
+        />
+      )}
 
       {/* CONFIRM (role change / deactivate / reactivate / reset 2FA) */}
       <Modal

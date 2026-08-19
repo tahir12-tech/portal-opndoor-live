@@ -259,3 +259,17 @@
   color: var(--ink-mute);
   font-size: 11.5px;
 }
+
+/* Positions. A list rather than a table: most people have none and the rest
+   have one or two, so a table of one row is more chrome than content. */
+.pos-empty { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px;
+             border: 1px solid var(--line); border-radius: var(--r-md); background: var(--app-bg); margin-bottom: 16px; }
+.pos-empty > svg { color: var(--ink-mute); flex: none; margin-top: 2px; }
+.pos-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; }
+.pos-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+            border: 1px solid var(--line); border-radius: var(--r-md); }
+.pos-item > svg { color: var(--ink-mute); flex: none; }
+.pos-item__txt { flex: 1; min-width: 0; }
+.pos-item__name { font-weight: 600; font-size: 14px; color: var(--ink); }
+.pos-add { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; align-items: end; }
+@media (max-width: 560px) { .pos-add { grid-template-columns: 1fr; } }
