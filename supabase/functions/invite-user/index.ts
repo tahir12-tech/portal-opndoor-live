@@ -41,7 +41,12 @@ Deno.serve(async (req) => {
     const base = String(Deno.env.get("APP_URL") ?? b.origin ?? "").replace(/\/$/, "");
 
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ ok: false, error: "A valid email address is required." }, 400);
-    if (!["superadmin", "management", "referrer"].includes(role)) return json({ ok: false, error: "Invalid role." }, 400);
+    // 'developer' was missing here while the User Management screen offered it
+    // as a full option with a written description. The screen and the server
+    // disagreed, so every agency wanting an API key needed opndoor to run SQL.
+    if (!["superadmin", "management", "referrer", "developer"].includes(role)) {
+      return json({ ok: false, error: "Invalid role." }, 400);
+    }
 
     // Caller-scoped client: identify + authorise the inviter.
     const userClient = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
@@ -62,8 +67,41 @@ Deno.serve(async (req) => {
         inviteePartnerId = p.id;
       }
     } else if (caller.role === "management") {
-      // Managers may only invite referrers/managers, and only into their own partner.
-      if (!["referrer", "management"].includes(role)) return json({ ok: false, error: "Managers may only invite referrers or managers." }, 403);
+      // ---- the agency's own ladder ------------------------------------------
+      //
+      // An agency manages its own people: a director invites a branch manager,
+      // a branch manager invites a negotiator, without opndoor doing it. What
+      // somebody may grant follows their POSITION, not just their role, because
+      // "management" covers a head office and a single branch manager and those
+      // are not the same authority.
+      //
+      // Read through the caller-scoped client on purpose: user_scopes' own
+      // policy decides what they can see of their scope, so this cannot be used
+      // to discover somebody else's.
+      const { data: scopes } = await userClient
+        .from("user_scopes").select("kind").eq("user_id", callerId);
+      const kinds = new Set((scopes ?? []).map((r: { kind: string }) => r.kind));
+
+      // No position at all is the pre-existing case: a partner-wide manager,
+      // which is what management has always meant. They keep exactly what they
+      // had, plus developer, which the screen already claimed they could grant.
+      const isBranchOnly = kinds.size > 0 && !kinds.has("group") && !kinds.has("agency");
+
+      const allowed = isBranchOnly
+        // A branch manager staffs their branches. They cannot create another
+        // manager, and they certainly cannot create a key-minting developer:
+        // both would be a way to climb out of the branch they were given.
+        ? ["referrer"]
+        : ["referrer", "management", "developer"];
+
+      if (!allowed.includes(role)) {
+        return json({
+          ok: false,
+          error: isBranchOnly
+            ? "Branch managers may invite negotiators only."
+            : "Managers may invite negotiators, managers or developers.",
+        }, 403);
+      }
       inviteePartnerId = caller.partner_id ?? null;
     } else {
       return json({ ok: false, error: "Not permitted." }, 403);
