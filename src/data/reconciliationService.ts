@@ -4,7 +4,7 @@
    (review_state = pending_review), each with its parent, creator, created-at,
    attached referral count, and a same/similar-name hint against confirmed
    records. "Confirm as new" promotes it to confirmed (audited). HubSpot sync runs
-   on a 2-minute cron and on demand via triggerHubspotSync (the Sync button);
+   on a 2-minute cron and on demand via triggerCrmSync (the Sync button);
    merge is not built yet.
 
    Live mode uses the reconciliation_queue / confirm_org_entity RPCs; the badge
@@ -93,11 +93,15 @@ export async function confirmReconEntity(type: 'agency' | 'branch', entityId: st
   }
 }
 
-/** Trigger an on-demand HubSpot sync (admin only). Fire-and-forget: the edge
-    function runs asynchronously; a 2-minute cron also runs it automatically. */
-export async function triggerHubspotSync(): Promise<void> {
+/** Trigger an on-demand CRM sync (admin only). Fire-and-forget: the edge
+    function runs asynchronously; a 2-minute cron also runs it automatically.
+
+    The RPC is trigger_crm_sync and not the older supplier-named twin, because
+    an rpc() argument is a string literal that survives minification and shows up
+    in a grep of dist/. The old function still exists for the cron. */
+export async function triggerCrmSync(): Promise<void> {
   if (SUPABASE_ENABLED) {
-    const { error } = await sb().rpc('trigger_hubspot_sync');
+    const { error } = await sb().rpc('trigger_crm_sync');
     if (error) throw new Error(error.message);
     return;
   }

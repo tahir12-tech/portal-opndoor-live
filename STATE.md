@@ -36,6 +36,8 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 | **Position UI**: a director sets what somebody sees; the invite ladder follows position | Built; SQL refuses a branch manager regardless of the screen |
 | **Agent referral form**: middle name, share as % and £ deriving from each other | Built, 8 tests on the arithmetic |
 | **CRM attribution**: channel derived from the route, brand and group as properties | Verified live on four applications |
+| **Three doors on /login**: tenant signs in on the tab, supplier is a real staff sign-in, agent unchanged | REGRESSION H15, 8 tests, both defects reintroduced and caught |
+| **No supplier name in the browser**: banned-list grep over `dist/` including static assets | REGRESSION H16, run and clean |
 | **Rate resolution across a group**: agency override beats partner default, group override beats both | Verified live on the Meridian fixture, 0.30 against 0.25 |
 
 ## Half built
@@ -55,7 +57,6 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 | The eligibility **decision inbound** on rails 1 and 2 | Nowhere. **This is the gap** |
 | Provider masking, `reference_provider_events`, the adapter boundary | `PARTNER-API.md` §15 |
 | `pre_referenced_screened` acceptance at the API | Criteria now exist in SQL; the 501 branch is still there |
-| Supplier sign-in | Tab exists and says it is not open. No role, no table |
 | Agent referrals in the admin view and their own HubSpot pipeline | Agreed, not built |
 
 ## Waiting on whom
@@ -67,7 +68,6 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 | The developer | Yoti credentials and check ids; the Lettings endpoint that returns Kreditz data | Guided ID check, bank connection |
 | The provider | **Affordability against the share or the full rent. Still unanswered**: they confirmed there is no capacity NUMBER, which was the other half | Joint tenancies |
 | **Matt** | Whether a group's brands can be on different commercial terms | **Answered: yes, rate sits at the agency** |
-| Matt | What a "supplier" is in our model | The third sign-in tab |
 | Ops | `APP_URL`, a mail provider, a Stripe test webhook, an address-lookup key | Reset links, tenant codes, card payments, address lookup |
 
 **Answered 2026-08-19** by the developer: sandbox is `https://lettingsinabox.xyz`;
@@ -91,7 +91,7 @@ Things that have cost time once and will again.
 
 - **Nothing is pushed.** The branch is 130-odd commits ahead of `origin/main`,
   which has 65 migrations ending 5 July and no partner API at all.
-- **`npm test` does not exist.** It is `npm run smoke`. 167 tests.
+- **`npm test` exists** and is byte-identical to `npm run smoke`. 188 tests.
 - **`tsc -p tsconfig.json` checks nothing** (`"files": []`). Use `tsconfig.app.json`.
 - **A new column on `applications` needs its own `grant select`** or it is
   silently invisible to the client.

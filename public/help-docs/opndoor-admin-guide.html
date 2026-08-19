@@ -54,7 +54,7 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
 
   <div class="gated">opndoor admin only</div>
   <h1>Running the platform</h1>
-  <p class="lead">The internal opndoor view: reconciliation, partners and rates, the underwriter bordereau, system health, the opndoor team, and the HubSpot sync.</p>
+  <p class="lead">The internal opndoor view: reconciliation, partners and rates, the underwriter bordereau, system health, the opndoor team, and the CRM sync.</p>
 
   <hr class="rule">
 
@@ -62,7 +62,7 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
   <p>Agencies and branches created on the fly by referrers land in <b>Reconciliation</b> for review. For each, confirm it as a new canonical record, or (in a later release) merge a likely duplicate.</p>
   <ul>
     <li><b>Head-office folding</b> — a single-office agency's automatic "[Agency], Head office" branch folds into the agency card; confirming the agency confirms both. The queue counts <b>decisions</b>, not raw rows.</li>
-    <li><b>Sync nudge</b> — confirming a record fires an immediate HubSpot sync (fire-and-forget) so it appears within seconds; the couple-of-minutes cron remains the backstop.</li>
+    <li><b>Sync nudge</b> — confirming a record fires an immediate CRM sync (fire-and-forget) so it appears within seconds; the couple-of-minutes cron remains the backstop.</li>
   </ul>
 
   <h2>Partners &amp; rate management</h2>
@@ -81,14 +81,14 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
   <h2>The opndoor team</h2>
   <p>The <b>opndoor team</b> screen manages internal opndoor staff accounts, separate from partner users. Actions taken by opndoor staff appear as "opndoor" on partner-facing screens, never as a referrer.</p>
 
-  <h2>HubSpot sync</h2>
-  <p>Confirmed agencies and branches sync one-way to HubSpot.</p>
+  <h2>CRM sync</h2>
+  <p>Confirmed agencies and branches sync one-way to the CRM.</p>
   <table>
     <tr><th>Aspect</th><th>Behaviour</th></tr>
     <tr><td>Cadence</td><td>Automatic every couple of minutes (cron), plus an immediate nudge when you confirm a record.</td></tr>
-    <tr><td>Manual</td><td>The <b>Sync HubSpot</b> button on Reconciliation runs it on demand.</td></tr>
+    <tr><td>Manual</td><td>The <b>Sync CRM</b> button on Reconciliation runs it on demand.</td></tr>
     <tr><td>What syncs</td><td>Applicants, companies (agencies/branches) and their associations; portal-minted companies carry their commission rate across.</td></tr>
-    <tr><td>What never syncs</td><td>HubSpot-owned finance, owner and attribution fields — a defensive filter drops them even if they ever appear in a payload. The sync never writes Contacts; tenants never become Contacts.</td></tr>
+    <tr><td>What never syncs</td><td>CRM-owned finance, owner and attribution fields — a defensive filter drops them even if they ever appear in a payload. The sync never writes Contacts; tenants never become Contacts.</td></tr>
   </table>
 
   <div class="foot">This guide describes opndoor-internal capabilities in the shipped portal. It's a practical guide, not a finance, legal or security specification. © opndoor.</div>

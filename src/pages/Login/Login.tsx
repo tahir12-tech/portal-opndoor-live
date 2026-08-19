@@ -18,6 +18,11 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+// Namespaced as tenantAuth, never as auth. It exposes signIn(email, password)
+// with the same arity as authService.signIn above and the opposite meaning:
+// this one is terminal, that one is step one of two.
+import * as tenantAuth from '@/tenant/tenantAuth';
+import { afterSignIn } from '@/pages/Apply/FrontDoor';
 import '../auth/auth.css';
 import './Login.css';
 
@@ -192,22 +197,29 @@ export function Login() {
       <section className="auth__form-wrap">
         <div className="auth__card">
           {/* WHO IS SIGNING IN.
-              opndoor serves three parties and they do not share a sign-in: an
-              agent is staff with two-factor, a tenant is an applicant with no
-              portal role at all, and a supplier is neither. Sending all three
-              at one form and hoping the email resolves it is how a tenant ends
-              up staring at an authenticator prompt.
+              Two sign-ins, three doors.
 
-              The agent path below this is UNCHANGED. Switching audience renders
-              a different component rather than branching inside the staff flow,
-              because that flow carries AAL2 enrolment and is not somewhere to
-              add conditionals. */}
+              A TENANT is an applicant with no portal role, on a separate
+              Supabase client and no authenticator app, so that is a genuinely
+              different form and gets its own component below.
+
+              An AGENT and a SUPPLIER are both staff: a row in public.users with
+              a role and a partner_id, email plus password plus TOTP, landing on
+              the same dashboard. A supplier is a partner who sends us
+              referrals, which is a commercial distinction and not an
+              authentication one, so wiring it to its own form would have been
+              inventing a difference that does not exist. What they see is
+              decided by their role and their partner row. The tab is
+              wayfinding, and only the subtitle changes.
+
+              The staff flow itself is UNCHANGED. The audience switch never
+              reaches inside it, because it carries AAL2 enrolment and is not
+              somewhere to add conditionals. */}
           <AudienceTabs value={audience} onChange={setAudience} />
 
           {audience === 'tenant' && <TenantSignInPanel />}
-          {audience === 'supplier' && <SupplierPanel />}
 
-          {audience === 'agent' && (<>
+          {audience !== 'tenant' && (<>
           <div className="auth__steps">
             <div className={`auth__step-dot${step === 'creds' ? ' is-active' : ' is-done'}`}>
               <span className="n">1</span><span>Credentials</span>
@@ -222,7 +234,9 @@ export function Login() {
           {step === 'creds' ? (
             <div>
               <h2 className="auth__title">Sign in to the portal</h2>
-              <p className="auth__sub">Use the work email your administrator registered for you.</p>
+              <p className="auth__sub">{audience === 'supplier'
+                ? 'For partners who send us referrals. The same sign-in as an agent, and the same portal: what you see is set by your account, not by the tab you picked.'
+                : 'Use the work email your administrator registered for you.'}</p>
               {error && <p className="auth__error" style={{ color: 'var(--danger, #c0392b)' }}>{error}</p>}
               <form className="auth__form" onSubmit={submitCreds} noValidate>
                 <div className="field">
@@ -336,7 +350,48 @@ function AudienceTabs({ value, onChange }: { value: Audience; onChange: (a: Audi
   );
 }
 
+/* The tenant sign-in, ON the tab rather than behind it.
+
+   This was a button that sent the browser to /apply/signin. There was no reason
+   for it. The form is an email and a password, and making somebody click
+   through to another page to type them buys nothing.
+
+   Safe because tenant auth is a SEPARATE Supabase client keyed on
+   'opndoor.tenant.auth', so signing in here cannot touch a staff session in the
+   same browser and the staff SessionContext this page watches never sees it.
+
+   /apply/signin STAYS. Seven places link to it, including the invite landing
+   and where tenant sign-out lands, so this is additive rather than a move. */
 function TenantSignInPanel() {
+  const nav = useNavigate();
+  const [sp] = useSearchParams();
+  // An invite means an agent already built the application and the property
+  // came with it, so it is claimed rather than created. Carried through here so
+  // /login?tab=tenant&invite=... does not silently open an empty draft instead.
+  const invite = sp.get('invite') ?? undefined;
+  const [tEmail, setTEmail] = useState('');
+  const [tPassword, setTPassword] = useState('');
+  const [tBusy, setTBusy] = useState(false);
+  const [tErr, setTErr] = useState<string | null>(null);
+
+  async function go(e: FormEvent) {
+    e.preventDefault();
+    setTBusy(true);
+    setTErr(null);
+    try {
+      await tenantAuth.signIn(tEmail, tPassword);
+      // afterSignIn is imported rather than reimplemented. It decides between
+      // claiming an invite and opening a draft, and two copies of that decision
+      // would drift.
+      await afterSignIn(nav, invite);
+      // busy deliberately stays true through the navigation: it blocks a double
+      // submit while claimInvite/startApplication and the route change run.
+    } catch (err) {
+      setTErr(err instanceof Error ? err.message : 'Could not sign in.');
+      setTBusy(false);
+    }
+  }
+
   return (
     <div>
       <h2 className="auth__title">Sign in to your application</h2>
@@ -344,34 +399,27 @@ function TenantSignInPanel() {
         For tenants applying for an opndoor guarantee. No authenticator app, just your
         email and password.
       </p>
-      <Button variant="primary" block arrow onClick={() => { window.location.href = '/apply/signin'; }}>
-        Continue
-      </Button>
+      {tErr && <p className="auth__error" style={{ color: 'var(--danger, #c0392b)' }}>{tErr}</p>}
+      <form className="auth__form" onSubmit={go} noValidate>
+        <div className="field">
+          <label htmlFor="t-email">Email address</label>
+          <input id="t-email" type="email" placeholder="you@example.com" autoComplete="email"
+                 value={tEmail} onChange={(e) => setTEmail(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label htmlFor="t-pass">Password</label>
+          <PasswordInput id="t-pass" autoComplete="current-password"
+                         value={tPassword} onChange={(e) => setTPassword(e.target.value)} required />
+        </div>
+        <div className="auth__row auth__row--end">
+          <a href="/apply/forgot">Forgot password?</a>
+        </div>
+        <Button variant="primary" block type="submit" arrow disabled={tBusy || !tEmail || !tPassword}>
+          {tBusy ? 'Signing in\u2026' : 'Sign in'}
+        </Button>
+      </form>
       <p className="auth__foot">
         Not started yet? <a href="/apply/register">Apply for a guarantee</a>.
-      </p>
-    </div>
-  );
-}
-
-/* Supplier is a REAL third audience on the site this replaces, where it reads
-   "BTR / PBSA operator". It has no role, no table and no policies in this
-   codebase, and inventing one would mean guessing what a supplier is allowed to
-   see, which is a commercial question rather than a technical one. So the tab
-   is honest about it rather than absent, because absent looks like an oversight
-   and a dead form looks broken. */
-function SupplierPanel() {
-  return (
-    <div>
-      <h2 className="auth__title">Supplier access</h2>
-      <p className="auth__sub">
-        Supplier sign-in is not open yet. If you supply referencing, identity or
-        financial checks to opndoor and you need access, talk to your opndoor
-        contact and we will set you up.
-      </p>
-      <p className="auth__foot">
-        Looking for the partner API instead? Your developers can reach the
-        documentation from the Dev Centre once your account is enabled.
       </p>
     </div>
   );

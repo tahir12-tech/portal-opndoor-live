@@ -190,9 +190,9 @@ Four traps, each of which cost time here.
 **`tsc -p tsconfig.json` checks nothing.** It has `"files": []`. Use
 `tsc -p tsconfig.app.json` or `tsc -b`.
 
-**`npm test` does not exist.** The suite is `npm run smoke`. Running vitest
-directly gives it no DOM and fails 14 of 15 files, which looks like the tree is
-in pieces and is one missing flag. Under the right command: 127 tests, all passing.
+**`npm test` exists** and is the same script as `npm run smoke`. Running vitest
+directly, without the script, gives it no DOM and fails most files, which looks
+like the tree is in pieces and is one missing flag. 188 tests, all passing.
 
 **Grep the built bundle, not just the source.** A `?raw` import once shipped an
 entire internal specification to every browser while the component filtered it at

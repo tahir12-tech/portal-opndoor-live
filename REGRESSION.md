@@ -1482,3 +1482,74 @@ Nothing in the suite mounted a component, so nothing could have caught it.
 H14.4 is the row that matters. A rule nobody can check is a rule that comes
 back; there is no ESLint in this repo, so `react-hooks/rules-of-hooks` is not
 watching, and this section is what replaces it.
+
+---
+
+## H15. The three doors on /login
+
+**Why this section exists: the tab strip had no test of any kind.** Not the
+tabs, not the `?tab=` seeding, not either panel. `smoke.test.tsx` requests
+`/login` with no query string, so `audience` defaults to `agent` and the tenant
+and supplier panels were never mounted by anything in the suite.
+
+Two defects were living in that gap. The tenant tab rendered a button that sent
+the browser to `/apply/signin` to type an email and a password, which is a page
+load that buys nothing. And the supplier tab was a dead end saying sign-in was
+not open, written when nobody had settled what a supplier was.
+
+A supplier is a partner who sends us referrals. That is a commercial
+distinction and not an authentication one, so the tab renders the same staff
+form as Agent, and the rows below assert both halves: that each audience gets
+the thing its tab exists for, and that the tenant is still not shown a staff
+flow.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H15.1 | Render `/login` | Three tabs: Tenant, Agent, Supplier. Agent is selected, because that is who has been signing in here for a year |
+| H15.2 | Render `/login?tab=tenant` | The Tenant tab is selected. `?tab=` is a link somebody can be sent, not internal state |
+| H15.3 | Render `/login?tab=tenant` | **An email field, a password field and a Sign in button, on the tab.** Not a button to another page |
+| H15.4 | Render `/login?tab=tenant` | No Credentials or Verify step. A tenant has no authenticator app and must never be shown one |
+| H15.5 | Render `/login?tab=supplier` | A working staff form. **No "not open yet"** |
+| H15.6 | Render `/login?tab=supplier` | The Credentials and Verify steps are present. A supplier is staff, so two-factor stays |
+| H15.7 | Compare the supplier and agent subtitles | They differ. The tab changes the copy and nothing else, because the difference is commercial |
+| H15.8 | Revert the supplier branch to `audience === 'agent'` | **H15.5, H15.6 and H15.7 fail.** Verified by reintroducing it: 3 failed, 185 passed |
+| H15.9 | Revert the tenant panel to a Continue button | **H15.3 fails.** Verified by reintroducing it: 1 failed, 187 passed |
+
+H15.8 and H15.9 are the rows that matter. The rest would pass against a screen
+that had quietly lost a door.
+
+Sign-in isolation is what makes H15.3 safe: tenant auth is a separate Supabase
+client keyed on `opndoor.tenant.auth` (`src/tenant/tenantAuth.ts`), so a tenant
+signing in at `/login` cannot disturb a staff session in the same browser.
+`/apply/signin` still exists and is still linked from seven places, so this was
+additive rather than a move.
+
+---
+
+## H16. No supplier name reaches the browser
+
+**Why this section exists: the check was written down and never run, and it was
+already failing.** The rule is that a partner never learns which CRM or mail
+provider we use. The Reconciliation button already said "Sync CRM" and the
+minifier strips every comment, so the source read clean. But an `rpc()` argument
+is a string literal and survives minification:
+
+    sb().rpc('trigger_hubspot_sync')
+
+A function NAME is a leak like any other string. Separately,
+`opndoor-admin-guide.html` named the CRM six times, and although the link to it
+is gated to superadmin, the file is served from `public/` and anyone who guesses
+the URL can read it. Gating a link is not gating a file.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H16.1 | `npm run build`, then grep `dist/` case-insensitively for the banned list | **No match.** Run it; do not read the source and assume |
+| H16.2 | Include static assets under `dist/help-docs/` in that grep | No match. A file in `public/` ships whether or not the UI links to it |
+| H16.3 | Fetch `/help-docs/opndoor-admin-guide.html` directly | It loads, and names no supplier. The superadmin gate hides the link, not the file |
+| H16.4 | `select to_regprocedure('public.trigger_hubspot_sync()')` | **Not null.** The rename was additive; the old entry point stays for the cron |
+| H16.5 | As a non-admin, call `trigger_crm_sync()` | `42501 not permitted`. The new name inherits the old guard rather than relaxing it |
+| H16.6 | Add any new `rpc('...')` call | Re-run H16.1. Every RPC name is public copy |
+
+The banned list is at the built-artefact grep near the top of this document.
+H16.6 is the row that keeps this from rotting: the leak was not a name somebody
+typed into the UI, it was one nobody thought of as text.

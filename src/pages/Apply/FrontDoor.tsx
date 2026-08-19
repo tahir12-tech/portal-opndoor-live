@@ -237,7 +237,7 @@ function CodeStep({ email, invite, onBack }: { email: string; invite?: string; o
  * rather than created and the property comes with it. Otherwise a fresh draft
  * is opened, empty, and the Property step is the first thing they see.
  */
-async function afterSignIn(nav: (to: string) => void, invite?: string) {
+export async function afterSignIn(nav: (to: string) => void, invite?: string) {
   try {
     if (invite) {
       await api.claimInvite(invite);

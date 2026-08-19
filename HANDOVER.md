@@ -150,7 +150,7 @@ refuses to build if internal detail appears in it.
 > ### ⚠️ Two test suites, and `npx vitest run` alone is not either of them
 >
 > ```sh
-> npm test          # 127 tests, all passing. Same as npm run smoke.
+> npm test          # 188 tests, all passing. Same as npm run smoke.
 > npx vitest run    # 14 of 15 FILES fail. Missing jsdom, not broken code.
 > deno test supabase/functions/_shared/     # the Edge Function helpers, separate
 > ```
@@ -789,7 +789,7 @@ Ordered by urgency, not by effort.
 | 38 | **`walkthrough@opndoor.test` and `demo.tenant@opndoor.test` are demo accounts** | Both on dev with known passwords, both confirmed by hand. Neither must ever be seeded anywhere real. See item 33. |
 | 39 | 🚨 **Set `APP_URL` on every environment before tenant sign-in is used** | `tenant-auth` builds password-reset links from `APP_URL` and refuses to send at all when it is unset and the caller is not localhost. That is deliberate: it previously built them from the client-supplied `origin`, which meant one unauthenticated request could have opndoor's own sender deliver a live recovery token to a host the attacker chose. Unset in production means **no tenant password resets are sent**, which is the safe failure but is silent. Set it. |
 | 40 | **Tenant verification is a six-digit code, not a link** | Ten-minute life, five attempts, single use, five issues an hour per address, throttled per address and per caller. `REGRESSION.md` H10 covers all of it. H10.8 is the row to run after any change to that file. |
-| 41 | **Supplier sign-in is a tab with nothing behind it** | `/login` now carries Tenant / Agent / Supplier, because the site this replaces serves three parties. Tenant and Agent are wired. Supplier says plainly that it is not open yet, because this codebase has no supplier role, table or policy, and what a supplier may see is a commercial question. Decide what a supplier is before building it. |
+| 41 | **A supplier is a referral partner, and signs in as staff** | Answered by Matt, 19 Aug 2026. `/login` carries Tenant / Agent / Supplier. A supplier is a partner who sends us referrals, which is a commercial distinction, not an authentication one: they are a `public.users` row with a role and a `partner_id`, they use email plus password plus TOTP, and they land on the same dashboard, seeing what their role and partner row allow. So the Supplier tab renders the SAME staff form as Agent and only the subtitle differs. Note the word is overloaded in this repo: the built-artefact banned list uses "supplier" for the CRM and the mail provider, which a partner must never see named. Different sense, same word. |
 | 36 | **Decide how a direct applicant reaches the journey** | There is no signup screen yet: the demo tenant was provisioned by hand. Account creation, email verification and the first application need a front door, and that front door is also where the free prequalification belongs. | **Done** (`20260812200000`, `20260812210000`): prequalification at `/apply/start`, registration, email verification, sign-in, reset, and the agent invite at `/apply/invite`.
 
 ### Deliberately not done

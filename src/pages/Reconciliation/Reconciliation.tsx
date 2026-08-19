@@ -4,11 +4,11 @@
    (review_state = pending_review), each with its parent, creator, created-at,
    attached referral count, and a same/similar-name hint against confirmed
    records. "Confirm as new" promotes it to a confirmed canonical record
-   (audited). The Sync button pushes confirmed records to HubSpot on demand (a
+   (audited). The Sync button pushes confirmed records to the CRM on demand (a
    2-minute cron also runs the sync). Merge is not built yet (disabled).
    ===================================================================== */
 import { useCallback, useEffect, useState } from 'react';
-import { confirmReconEntity, loadReconciliationQueue, triggerHubspotSync, type ReconRow } from '@/data';
+import { confirmReconEntity, loadReconciliationQueue, triggerCrmSync, type ReconRow } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -63,7 +63,7 @@ export function Reconciliation() {
       await confirmReconEntity(item.type, item.entityId);
       // #118/#119: nudge an immediate HubSpot sync (fire-and-forget) so the confirmed
       // org appears in HubSpot within seconds; the 2-minute cron remains the backstop.
-      void triggerHubspotSync().catch(() => {});
+      void triggerCrmSync().catch(() => {});
       await refreshData(); // re-hydrate so the sidebar pending badge decrements
       toast(`Confirmed "${item.name}" as a new canonical ${item.type}. Syncing now…`);
       await reload();
@@ -78,7 +78,7 @@ export function Reconciliation() {
     if (syncing) return;
     setSyncing(true);
     try {
-      await triggerHubspotSync();
+      await triggerCrmSync();
       toast('CRM sync started — confirmed records update within ~2 minutes.');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not start the CRM sync.', 'error');
