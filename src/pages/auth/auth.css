@@ -194,3 +194,34 @@
   width: 15px;
   height: 15px;
 }
+
+/* Who is signing in. Three audiences, one page, because opndoor serves three
+   parties and sending all of them at one form and hoping the email address
+   resolves it is how a tenant ends up staring at an authenticator prompt.
+   Segmented rather than a dropdown: three options that a person picks once
+   should all be visible, and a dropdown hides two of them. */
+.aud {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  margin: 0 0 22px;
+  background: var(--white-lilac);
+  border-radius: var(--r-xl);
+}
+.aud__tab {
+  border: 0;
+  background: none;
+  padding: 9px 10px;
+  border-radius: var(--r-xl);
+  font: 600 14px var(--body);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.aud__tab:hover { color: var(--ink); }
+.aud__tab.is-active {
+  background: var(--valhalla);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}

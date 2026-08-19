@@ -10,7 +10,7 @@
    this page routes on to the dashboard.
    ===================================================================== */
 import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authService } from '@/data';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
@@ -29,6 +29,13 @@ type Step = 'creds' | '2fa' | 'enrol' | 'verify';
 export function Login() {
   useDocumentTitle('Sign in');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Seeded from the URL so ?tab=tenant is a link somebody can be sent. Agent is
+  // the default because that is who has been signing in here for a year.
+  const tabParam = searchParams.get('tab');
+  const [audience, setAudience] = useState<Audience>(
+    tabParam === 'tenant' || tabParam === 'supplier' ? tabParam : 'agent',
+  );
   const { status, markMfaVerified } = useSession();
   const [step, setStep] = useState<Step>('creds');
   const [email, setEmail] = useState('');
@@ -184,6 +191,23 @@ export function Login() {
 
       <section className="auth__form-wrap">
         <div className="auth__card">
+          {/* WHO IS SIGNING IN.
+              opndoor serves three parties and they do not share a sign-in: an
+              agent is staff with two-factor, a tenant is an applicant with no
+              portal role at all, and a supplier is neither. Sending all three
+              at one form and hoping the email resolves it is how a tenant ends
+              up staring at an authenticator prompt.
+
+              The agent path below this is UNCHANGED. Switching audience renders
+              a different component rather than branching inside the staff flow,
+              because that flow carries AAL2 enrolment and is not somewhere to
+              add conditionals. */}
+          <AudienceTabs value={audience} onChange={setAudience} />
+
+          {audience === 'tenant' && <TenantSignInPanel />}
+          {audience === 'supplier' && <SupplierPanel />}
+
+          {audience === 'agent' && (<>
           <div className="auth__steps">
             <div className={`auth__step-dot${step === 'creds' ? ' is-active' : ' is-done'}`}>
               <span className="n">1</span><span>Credentials</span>
@@ -275,8 +299,80 @@ export function Login() {
               </form>
             </div>
           )}
+          </>)}
         </div>
       </section>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   The three audiences.
+   --------------------------------------------------------------------------- */
+type Audience = 'tenant' | 'agent' | 'supplier';
+
+function AudienceTabs({ value, onChange }: { value: Audience; onChange: (a: Audience) => void }) {
+  const nav = useNavigate();
+  const tabs: { id: Audience; label: string }[] = [
+    { id: 'tenant', label: 'Tenant' },
+    { id: 'agent', label: 'Agent' },
+    { id: 'supplier', label: 'Supplier' },
+  ];
+  return (
+    <div className="aud" role="tablist" aria-label="Who is signing in">
+      {tabs.map((t) => (
+        <button key={t.id} type="button" role="tab" aria-selected={t.id === value}
+          className={`aud__tab${t.id === value ? ' is-active' : ''}`}
+          onClick={() => {
+            onChange(t.id);
+            // Shareable, like the site it replaces: ?tab=tenant is a link
+            // somebody can be sent, not internal state.
+            nav(`/login?tab=${t.id}`, { replace: true });
+          }}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TenantSignInPanel() {
+  return (
+    <div>
+      <h2 className="auth__title">Sign in to your application</h2>
+      <p className="auth__sub">
+        For tenants applying for an opndoor guarantee. No authenticator app, just your
+        email and password.
+      </p>
+      <Button variant="primary" block arrow onClick={() => { window.location.href = '/apply/signin'; }}>
+        Continue
+      </Button>
+      <p className="auth__foot">
+        Not started yet? <a href="/apply/register">Apply for a guarantee</a>.
+      </p>
+    </div>
+  );
+}
+
+/* Supplier is a REAL third audience on the site this replaces, where it reads
+   "BTR / PBSA operator". It has no role, no table and no policies in this
+   codebase, and inventing one would mean guessing what a supplier is allowed to
+   see, which is a commercial question rather than a technical one. So the tab
+   is honest about it rather than absent, because absent looks like an oversight
+   and a dead form looks broken. */
+function SupplierPanel() {
+  return (
+    <div>
+      <h2 className="auth__title">Supplier access</h2>
+      <p className="auth__sub">
+        Supplier sign-in is not open yet. If you supply referencing, identity or
+        financial checks to opndoor and you need access, talk to your opndoor
+        contact and we will set you up.
+      </p>
+      <p className="auth__foot">
+        Looking for the partner API instead? Your developers can reach the
+        documentation from the Dev Centre once your account is enabled.
+      </p>
     </div>
   );
 }
