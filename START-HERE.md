@@ -103,6 +103,7 @@ You do not need all of it. Stop when you have what you need.
 | 8 | **`SANDBOX-MODE-SCOPE.md`** | Superseded. A record of a decision point, kept as evidence. | Skip |
 | 4a | **`TENANT-PLATFORM.md`** | **The tenant journey.** The four rails, the two payments, tenant identity, the data model, and every integration seam with exactly what each needs before it can be built. Read before touching Yoti, open banking or the eligibility provider. | 25 min |
 | 4b | **`TENANT-PLATFORM-SETUP.md`** | **The runbook.** Ordered by dependency, exact commands, a check per step, and an honest note on which stages are yours and which are waiting on other people. Start here if you just want it running. | 15 min |
+| — | **`docs/ASK-THE-DEVELOPER.md`** | The outstanding questions for the developer who maintains the existing platform, ordered by what unblocks the most. | 10 min |
 | — | **`BUILD-LOG.md`** | What was built, in order, with what it touched, what was verified live and what was retracted. Kept as we go. | Reference |
 | — | **`CHANGES-AGAINST-HANDOVER.md`** | What is on the branch and what reviewing it involves. Read this **before** reviewing the diff, not after: about a fifth of the line count is line endings and generated output, and it says which parts matter. | 10 min |
 

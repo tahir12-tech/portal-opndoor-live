@@ -151,6 +151,11 @@ $$);
 
 ## Stage 3 — Waiting on other people
 
+**The asks are written up as a single list in `docs/ASK-THE-DEVELOPER.md`**,
+ordered by what unblocks the most, with what we build the moment each lands.
+Send that rather than describing the items below individually.
+
+
 Each of these blocks a specific thing and none of them is yours to decide.
 
 ### 3.1 The eligibility provider's credentials and token
