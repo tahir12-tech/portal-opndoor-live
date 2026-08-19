@@ -17,25 +17,79 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
-import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
+import { Icon } from '@/components/ui/Icon';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import * as auth from '@/tenant/tenantAuth';
 import * as api from '@/tenant/tenantApi';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
+import '@/pages/auth/auth.css';
 import './Apply.css';
 
-function Shell({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
+/* The SAME split-panel shell the portal's own sign-in uses: auth.css, the same
+   brand panel on the left, the same card on the right. Not a lookalike, the
+   actual stylesheet.
+
+   The existing tenant site is a separate marketing-styled sign-in with its own
+   navy hero and its own type. It is deliberately NOT reproduced: a tenant who
+   is later shown a deed, a receipt and a guarantee should not feel handed
+   between two companies, and maintaining two design systems for one product is
+   how they drift.
+
+   What the left panel says is the only thing that changes, because a tenant is
+   not a partner and "Refer with confidence" means nothing to them. */
+function Shell({
+  title, sub, children, eyebrow = 'Tenant sign in',
+}: {
+  title: string; sub?: string; children: React.ReactNode; eyebrow?: string;
+}) {
   return (
-    <div className="ap ap--narrow">
-      <header className="ap-head">
-        <div>
-          <div className="ap-brand">opndoor</div>
-          <h1>{title}</h1>
-          {sub && <p className="ap-sub">{sub}</p>}
+    <div className="auth">
+      <aside className="auth__brand">
+        <div className="auth__brand-top">
+          <span className="wordmark">opndoor</span>
+          <span className="auth__cobrand">Guarantor<br />application</span>
         </div>
-      </header>
-      {children}
+        <div className="auth__brand-mid">
+          <span className="auth__eyebrow">{eyebrow}</span>
+          <h1 className="auth__brand-h1">A guarantor, without asking a family member.</h1>
+          <p className="auth__brand-copy">
+            opndoor stands as guarantor on your tenancy, so a failed reference does not cost you
+            the property. Apply online, and we deal with your letting agent.
+          </p>
+        </div>
+        <div className="auth__flow">
+          <div className="auth__flow-item">
+            <span className="auth__flow-ic"><Icon name="edit" /></span>
+            <div>
+              <div className="auth__flow-t">Apply in about fifteen minutes</div>
+              <div className="auth__flow-s">Stop and come back whenever you like</div>
+            </div>
+          </div>
+          <div className="auth__flow-item">
+            <span className="auth__flow-ic"><Icon name="clock" /></span>
+            <div>
+              <div className="auth__flow-t">Everything saves as you go</div>
+              <div className="auth__flow-s">Nothing you type is ever lost</div>
+            </div>
+          </div>
+          <div className="auth__flow-item">
+            <span className="auth__flow-ic"><Icon name="shield" /></span>
+            <div>
+              <div className="auth__flow-t">Your details stay yours</div>
+              <div className="auth__flow-s">Shared only with the referencing check</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section className="auth__form-wrap">
+        <div className="auth__card">
+          <h2 className="auth__title">{title}</h2>
+          {sub && <p className="auth__sub">{sub}</p>}
+          {children}
+        </div>
+      </section>
     </div>
   );
 }
@@ -83,8 +137,7 @@ export function Register() {
   if (sent) {
     return (
       <Shell title="Check your email">
-        <Card><CardBody>
-          <p className="ap-p">
+            <p className="ap-p">
             We have sent a confirmation link to <strong>{f.email}</strong>. Open it and we will take you
             straight to your application.
           </p>
@@ -94,15 +147,13 @@ export function Register() {
               send it again
             </button>.
           </p>
-        </CardBody></Card>
-      </Shell>
+        </Shell>
     );
   }
 
   return (
     <Shell title="Apply for an opndoor guarantee"
       sub="Create an account first, so nothing you type is ever lost.">
-      <Card><CardBody>
         <div className="ap-grid">
           <Field label="First name"><input className="input" value={f.first_name} onChange={(e) => setF({ ...f, first_name: e.target.value })} /></Field>
           <Field label="Last name"><input className="input" value={f.last_name} onChange={(e) => setF({ ...f, last_name: e.target.value })} /></Field>
@@ -118,7 +169,6 @@ export function Register() {
             {busy ? 'Creating…' : 'Create my account'}
           </Button>
         </div>
-      </CardBody></Card>
       <p className="ap-foot">
         Next: a few details about the property, then a £20 application fee, then the longer part.
         You can stop and come back at any point.
@@ -171,7 +221,6 @@ export function SignIn() {
 
   return (
     <Shell title="Sign in">
-      <Card><CardBody>
         <div className="ap-grid">
           <Field label="Email address"><input className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
           <Field label="Password"><PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></Field>
@@ -183,7 +232,6 @@ export function SignIn() {
           </Button>
           <a className="ap-link" href="/apply/forgot">I have forgotten my password</a>
         </div>
-      </CardBody></Card>
       <p className="ap-foot">No account yet? <a href="/apply/register">Create one</a>.</p>
     </Shell>
   );
@@ -197,7 +245,6 @@ export function Forgot() {
   const [sent, setSent] = useState(false);
   return (
     <Shell title="Set a new password">
-      <Card><CardBody>
         {sent ? (
           <p className="ap-p">
             If there is an account for <strong>{email}</strong>, we have sent it a link. It lasts an hour.
@@ -215,7 +262,6 @@ export function Forgot() {
             </div>
           </>
         )}
-      </CardBody></Card>
       <p className="ap-foot"><a href="/apply/signin">Back to sign in</a></p>
     </Shell>
   );
@@ -235,7 +281,6 @@ export function ResetPassword() {
 
   return (
     <Shell title="Choose a new password">
-      <Card><CardBody>
         {err && <div className="ap-alert" role="alert">{err} <a href="/apply/forgot">Ask for a new link</a>.</div>}
         {ready && !err && (
           <>
@@ -250,7 +295,6 @@ export function ResetPassword() {
             </div>
           </>
         )}
-      </CardBody></Card>
     </Shell>
   );
 }
@@ -272,11 +316,11 @@ export function Verify() {
   return (
     <Shell title={err ? 'That link did not work' : 'Confirming your email…'}>
       {err && (
-        <Card><CardBody>
+        <>
           <div className="ap-alert" role="alert">{err}</div>
           <p className="ap-p">Links last 24 hours and can only be used once.</p>
           <a className="ap-link" href="/apply/signin">Sign in instead</a>
-        </CardBody></Card>
+        </>
       )}
     </Shell>
   );
@@ -308,16 +352,16 @@ export function InviteLanding() {
   useEffect(() => { void load(); }, [load]);
 
   if (err) {
-    return <Shell title="That link did not work"><Card><CardBody>
+    return <Shell title="That link did not work">
       <div className="ap-alert" role="alert">{err}</div>
-    </CardBody></Card></Shell>;
+    </Shell>;
   }
   if (!info) return <Shell title="Just a moment…"><p className="soft">Checking your link.</p></Shell>;
 
   return (
     <Shell title="Your agent has started this for you"
       sub="Set a password and pick up where they left off.">
-      <Card><CardHead title="What we already have" /><CardBody>
+        <h3 className="ap-h3" style={{ marginTop: 0 }}>What we already have</h3>
         <dl className="ap-summary">
           <div><dt>Property</dt><dd>{info.prop_addr1}{info.prop_postcode ? `, ${info.prop_postcode}` : ''}</dd></div>
           {info.monthly_rent != null && <div><dt>Monthly rent</dt><dd>{money(Number(info.monthly_rent))}</dd></div>}
@@ -336,7 +380,6 @@ export function InviteLanding() {
             I already have an account
           </a>
         </div>
-      </CardBody></Card>
     </Shell>
   );
 }
