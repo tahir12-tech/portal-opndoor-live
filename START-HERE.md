@@ -93,6 +93,7 @@ You do not need all of it. Stop when you have what you need.
 
 | # | Document | Why | Time |
 | - | -------- | --- | ---- |
+| 0 | **`STATE.md`** | **Where we are, in one page.** What works, what is half built, what is specified and not built, and what is waiting on whom. Read this first and follow the links. | 5 min |
 | 1 | **`HANDOVER.md`** | The current state of everything. Start with the boxes at the top, then section 7, Open items. | 40 min |
 | 2 | **`DEFECTS.md`** | Nineteen defects, worst first, each saying whether it is fixed here. Read defect 1 today: it is the one still open and it is a live credential. | 30 min |
 | 3 | **`REGRESSION.md`** | A test plan written to pass on day one, so a failing row means a real change. | Reference |
