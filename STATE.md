@@ -36,6 +36,7 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 | **Position UI**: a director sets what somebody sees; the invite ladder follows position | Built; SQL refuses a branch manager regardless of the screen |
 | **Agent referral form**: middle name, share as % and £ deriving from each other | Built, 8 tests on the arithmetic |
 | **CRM attribution**: channel derived from the route, brand and group as properties | Verified live on four applications |
+| **Rate resolution across a group**: agency override beats partner default, group override beats both | Verified live on the Meridian fixture, 0.30 against 0.25 |
 
 ## Half built
 
@@ -43,7 +44,7 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 | ---- | ----- | ----- |
 | **Rail 4 (provider hand-over)** | Receiver and callback built and deployed; **no token seeded and no credentials**, so nothing can arrive | `TENANT-PLATFORM.md` 6.2 |
 | **Joint tenancies** | Schema, group test and one-deed-per-tenancy built. The group test cannot be trusted until we know whether the provider assesses against the share or the full rent | HANDOVER 26 |
-| **Agent referrals end to end** | Form, hierarchy, positions and attribution built. **Not yet walked end to end** with a real agency, several branches and a group |
+| **Agent referrals end to end** | Form, hierarchy, positions and attribution built, and now walkable: `supabase/fixtures/agency-group.sql` builds a group over two brands on different rates. **The invite fork itself is still unwalked**, because dev sends no mail, so the invite link has to be read out of `tenant_invites` by hand | `supabase/fixtures/README.md` |
 | **Tenant journey's later tabs** | Documents fully live. ID check and Financials have a working manual upload; the vendor path needs credentials | `TENANT-PLATFORM.md` 6.1 |
 | **HubSpot** | Syncs applicants and companies, cursor now per partner. **One pipeline, `channel` hardcoded to "Partner Referral"** | HANDOVER, HubSpot items |
 
