@@ -22,6 +22,37 @@ the estate and its open items, `REGRESSION.md` for the test plan.
 
 ---
 
+## 2026-08-19 — Agent referrals: hierarchy, position, and two broken things
+
+**Built.** A group above the agency (`agency_groups`), with the commission rate
+moving to the agency where the deal was done and an optional group override.
+Position: `user_scopes` plus `app_scope_branches()` and `app_has_scope()`, and
+all three org policies gaining a scope arm. A writer for
+`user_agency_attachments`, which I had left with none. Middle name on
+applications. The share arithmetic.
+
+**Touched, and this is the column that matters.** Three RLS policies:
+`applications_select`, `agencies_select`, `branches_select`. Each in its own
+migration, each reproducing every existing arm verbatim and asserting by reading
+`pg_get_expr` back that none was lost. Nobody holds a position yet, so all three
+provably answer exactly as before.
+
+**Fixed two things that were broken.** `invite-user` and
+`admin_update_user_role` both refused `developer` while the User Management
+screen offered it, so no agency could be given a key-minting user without
+opndoor running SQL. And the partner API still scoped by ownership while the
+portal had moved to reachability, so a group's key could not reach a brand its
+own staff could see.
+
+**Verified live.** Rate precedence in both directions; group, agency and branch
+expansion; a scope row naming two targets refused; reachability returning a
+superset of ownership for every agency; the write guard still present.
+
+**Left open.** No UI to set a position, so nobody holds one. The admin view of
+agent referrals and their HubSpot pipeline are agreed and not built.
+
+---
+
 ## 2026-08-19 — The approved tenant could not pay
 
 **Fixed a defect I shipped.** The status card's "Pay the guarantee fee" button
