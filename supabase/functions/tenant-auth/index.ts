@@ -43,6 +43,100 @@ function button(href: string, label: string): string {
   <p style="font-size:12px;color:#5b4d86;">If the button does not work, copy this into your browser:<br><span style="word-break:break-all;">${href}</span></p>`;
 }
 
+
+/**
+ * Where a link in an email is allowed to point.
+ *
+ * NEVER the caller's `origin`. This function is unauthenticated, so `origin`
+ * is whatever the request body says, and every link built from it carries a
+ * LIVE token. Trusting it means one unauthenticated request causes a genuine
+ * opndoor email, from opndoor's own verified sender, to deliver a working
+ * password-reset token to a host the attacker chose. That is account takeover
+ * with a phishing page attached, and it needs no account and no secret.
+ *
+ * send-password-reset already got this right and says so in a comment
+ * (send-password-reset/index.ts:35-38). I reintroduced the bug it warned about.
+ *
+ * APP_URL is server configuration and wins. Localhost is allowed so the journey
+ * can be walked on a dev machine. Anything else returns null and the caller
+ * sends nothing, because a reset email nobody can use is better than one
+ * somebody else can.
+ */
+function safeOrigin(supplied: unknown): string | null {
+  const configured = (Deno.env.get("APP_URL") ?? "").trim().replace(/\/+$/, "");
+  if (configured) return configured;
+  const raw = String(supplied ?? "").trim().replace(/\/+$/, "");
+  try {
+    const u = new URL(raw);
+    if (u.hostname === "localhost" || u.hostname === "127.0.0.1") return `${u.protocol}//${u.host}`;
+  } catch { /* not a URL: refuse */ }
+  return null;
+}
+
+/**
+ * Per-address and per-caller throttling.
+ *
+ * The whole file was unauthenticated and unthrottled, which is what turned two
+ * check-then-act races into practical attacks and left request_reset able to
+ * mail a victim without limit. bump_rate_limit is the repo's own limiter
+ * (20260703150645) and is a single atomic upsert, so it does not have the
+ * problem the code table had.
+ *
+ * Returns false when the caller should be refused. The caller answers with its
+ * NORMAL response in that case, never a distinct one, or the limiter becomes
+ * the oracle the rest of this file is careful not to be.
+ */
+async function withinLimits(
+  service: any, req: Request, action: string, email: string,
+  perAddress: number, perCaller: number,
+): Promise<boolean> {
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  const [a, b] = await Promise.all([
+    service.rpc("bump_rate_limit", { p_key: `ta:${action}:e:${email}`, p_limit: perAddress, p_window_secs: 3600 }),
+    service.rpc("bump_rate_limit", { p_key: `ta:${action}:i:${ip}`,    p_limit: perCaller,  p_window_secs: 3600 }),
+  ]);
+  return a.data === true && b.data === true;
+}
+
+/** Six digits, from the CSPRNG. Math.random here would be a guessable code. */
+function sixDigits(): string {
+  const b = new Uint32Array(1);
+  crypto.getRandomValues(b);
+  return String(b[0] % 1_000_000).padStart(6, "0");
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(digest)).map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+function codeEmail(code: string, mins: number): string {
+  return shell(
+    `<p>Your opndoor confirmation code is:</p>
+     <p style="margin:22px 0;font:800 34px/1 system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:0.22em;color:${VALHALLA};">${code}</p>
+     <p style="font-size:13px;color:#5b4d86;">It lasts ${mins} minutes and can be used once. If you did not ask for it, ignore this email and nothing happens.</p>
+     <p style="font-size:13px;color:#5b4d86;"><strong>We will never ask you for this code.</strong> Not by phone, not by email, not by text.</p>`,
+  );
+}
+
+/**
+ * Issue a code and email it. Returns nothing useful on purpose: whether the
+ * address exists, whether it was rate limited and whether the mail sent are all
+ * invisible to the caller, so this cannot be used to find out who has an account.
+ */
+async function sendCode(service: any, email: string, purpose: "verify_email" | "sign_in") {
+  const code = sixDigits();
+  const { data: allowed } = await service.rpc("issue_email_code", {
+    p_email: email, p_purpose: purpose, p_code_hash: await sha256Hex(code), p_ttl_minutes: 10,
+  });
+  if (allowed !== true) return;          // rate limited: silently do nothing
+  await sendEmail({
+    to: email,
+    subject: `${code} is your opndoor confirmation code`,
+    html: codeEmail(code, 10),
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ ok: false, error: "Use POST." }, 405);
@@ -54,7 +148,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? "");
-    const origin = String(body.origin ?? "").replace(/\/+$/, "");
+    const origin = safeOrigin(body.origin);
     const email = String(body.email ?? "").trim().toLowerCase();
 
     /* ---- the free prequalification, before any account ------------------
@@ -92,22 +186,30 @@ Deno.serve(async (req) => {
     /* ---- register ------------------------------------------------------- */
     if (action === "register") {
       const password = String(body.password ?? "");
+      // Same answer whether refused or accepted, so the limiter is not an oracle.
+      if (!(await withinLimits(service, req, "register", email, 5, 20))) {
+        return json({ ok: true, sent: true });
+      }
       if (!email || !email.includes("@")) return json({ ok: false, error: "Enter a valid email address." }, 400);
       if (password.length < 10) return json({ ok: false, error: "Use at least 10 characters." }, 400);
 
       // A staff address must never become a tenant account. The database would
       // refuse it anyway, via the mutual-exclusion triggers, but refusing here
       // gives a sentence a person can act on instead of a constraint violation.
-      const { data: staff } = await service.from("users").select("id").ilike("email", email).maybeSingle();
+      const { data: staff } = await service.from("users").select("id").eq("email", email).maybeSingle();
       if (staff) {
         return json({ ok: true, sent: true });   // same shape as success: no enumeration
       }
 
-      const { data: existing } = await service.from("applicants").select("id").ilike("email", email).maybeSingle();
+      const { data: existing } = await service.from("applicants").select("id").eq("email", email).maybeSingle();
 
       if (existing) {
         // Known address. Say nothing different, but send a "you already have an
         // account" email so a real person is not left confused by silence.
+        if (!origin) {
+          console.log(JSON.stringify({ event: "reset_link_suppressed", reason: "no safe origin" }));
+          return json({ ok: true, sent: true });
+        }
         const { data: link } = await service.auth.admin.generateLink({ type: "recovery", email });
         const href = `${origin}/apply/reset#${(link?.properties as any)?.hashed_token ? `token_hash=${(link!.properties as any).hashed_token}&type=recovery` : ""}`;
         await sendEmail({
@@ -144,38 +246,88 @@ Deno.serve(async (req) => {
         return json({ ok: false, error: "Could not create the account." }, 500);
       }
 
-      const { data: link } = await service.auth.admin.generateLink({ type: "signup", email, password });
-      const hashed = (link?.properties as any)?.hashed_token ?? "";
-      const href = `${origin}/apply/verify#token_hash=${hashed}&type=signup${body.invite ? `&invite=${encodeURIComponent(String(body.invite))}` : ""}`;
-      await sendEmail({
-        to: email,
-        subject: "Confirm your email address",
-        html: shell(`<p>Thanks for starting an opndoor guarantor application.</p>
-          <p>Confirm this address and we will take you straight to your application.</p>${button(href, "Confirm my email")}
-          <p style="font-size:13px;color:#5b4d86;">This link lasts 24 hours. If you did not start an application you can ignore this email.</p>`),
-      });
+      // A CODE, not a link. A tenant applying on a laptop reads their email on a
+      // phone, and a link then strands them on the wrong device. A code crosses
+      // devices by being typed, which is the whole point of it.
+      await sendCode(service, email, "verify_email");
       return json({ ok: true, sent: true });
     }
 
-    if (action === "resend_verification" || action === "request_reset") {
-      if (!email) return json({ ok: true, sent: true });
-      const { data: ap } = await service.from("applicants").select("id").ilike("email", email).maybeSingle();
-      if (ap) {
-        const type = action === "request_reset" ? "recovery" : "signup";
-        const { data: link } = await service.auth.admin.generateLink({ type: type as "recovery" | "signup", email });
-        const hashed = (link?.properties as any)?.hashed_token ?? "";
-        const path = action === "request_reset" ? "reset" : "verify";
-        const href = `${origin}/apply/${path}#token_hash=${hashed}&type=${type}`;
-        await sendEmail({
-          to: email,
-          subject: action === "request_reset" ? "Set a new opndoor password" : "Confirm your email address",
-          html: shell(action === "request_reset"
-            ? `<p>Set a new password for your opndoor account.</p>${button(href, "Set a new password")}<p style="font-size:13px;color:#5b4d86;">If you did not ask for this, ignore it. Your password has not changed.</p>`
-            : `<p>Confirm your email address to continue your application.</p>${button(href, "Confirm my email")}`),
-        });
+    if (action === "resend_verification") {
+      if (email && !(await withinLimits(service, req, "resend", email, 5, 20))) {
+        return json({ ok: true, sent: true });
       }
-      // Identical answer whether or not the address is known.
+      // Answers identically whether or not the address is known, and whether or
+      // not it was rate limited.
+      if (email) {
+        const { data: ap } = await service.from("applicants").select("id").eq("email", email).maybeSingle();
+        if (ap) await sendCode(service, email, "verify_email");
+      }
       return json({ ok: true, sent: true });
+    }
+
+    if (action === "request_reset") {
+      if (email && !(await withinLimits(service, req, "reset", email, 5, 20))) {
+        return json({ ok: true, sent: true });
+      }
+      if (email) {
+        const { data: ap } = await service.from("applicants").select("id").eq("email", email).maybeSingle();
+        if (ap && origin) {
+          const { data: link } = await service.auth.admin.generateLink({ type: "recovery", email });
+          const hashed = (link?.properties as any)?.hashed_token ?? "";
+          const href = `${origin}/apply/reset#token_hash=${hashed}&type=recovery`;
+          await sendEmail({
+            to: email,
+            subject: "Set a new opndoor password",
+            html: shell(`<p>Set a new password for your opndoor account.</p>${button(href, "Set a new password")}
+              <p style="font-size:13px;color:#5b4d86;">If you did not ask for this, ignore it. Your password has not changed.</p>`),
+          });
+        }
+      }
+      return json({ ok: true, sent: true });
+    }
+
+    /* ---- exchanging a correct code for a session --------------------------
+       The code proves the ADDRESS. It does not issue the session: that still
+       comes from Supabase Auth, via a one-time token the browser redeems. So
+       this table never becomes a second, weaker way of being logged in, and a
+       leaked code cannot be replayed into a session by anything but the person
+       holding the browser that asked for it. */
+    if (action === "verify_code") {
+      const code = String(body.code ?? "").replace(/\D/g, "");
+      if (!email || code.length !== 6) {
+        return json({ ok: false, error: "That code is not right. Check it and try again." }, 400);
+      }
+
+      // The address-scoped cap the code row enforces is per code; this is the
+      // ceiling across codes, and the per-caller tier is what stops one attacker
+      // spreading guesses over many addresses.
+      if (!(await withinLimits(service, req, "verify", email, 20, 100))) {
+        return json({ ok: false, error: "Too many attempts. Wait a little and ask for a new code." }, 429);
+      }
+
+      const { data: ok } = await service.rpc("verify_email_code", {
+        p_email: email, p_purpose: "verify_email", p_code_hash: await sha256Hex(code),
+      });
+      // One message for wrong, expired, exhausted and never-issued. Telling the
+      // difference is telling an attacker where they are.
+      if (ok !== true) {
+        return json({ ok: false, error: "That code is not right, or it has expired. Ask for a new one." }, 401);
+      }
+
+      const { data: ap } = await service.from("applicants").select("id").eq("email", email).maybeSingle();
+      if (!ap) return json({ ok: false, error: "That code is not right, or it has expired. Ask for a new one." }, 401);
+
+      // The address is proven, so confirm it.
+      await service.auth.admin.updateUserById(ap.id, { email_confirm: true });
+
+      const { data: link, error: linkErr } = await service.auth.admin.generateLink({ type: "magiclink", email });
+      const hashed = (link?.properties as any)?.hashed_token ?? "";
+      if (linkErr || !hashed) {
+        console.log(JSON.stringify({ event: "verify_code_session_failed", message: linkErr?.message }));
+        return json({ ok: false, error: "Could not sign you in. Try signing in with your password." }, 500);
+      }
+      return json({ ok: true, token_hash: hashed });
     }
 
     /* ---- invites -------------------------------------------------------- */

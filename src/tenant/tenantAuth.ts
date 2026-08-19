@@ -151,7 +151,27 @@ export async function signOut() {
   await tsb().auth.signOut();
 }
 
-/** Exchange the token in a verify or reset link for a session. */
+/**
+ * Exchange a six-digit code for a session.
+ *
+ * The code proves the address; the SESSION still comes from Supabase Auth. The
+ * function returns a one-time token which is redeemed here, so the code is
+ * never itself a credential the browser holds on to.
+ */
+export async function verifyCode(email: string, code: string): Promise<void> {
+  if (!SUPABASE_ENABLED) {
+    // Mock mode has no mail. Any six digits sign you in, and the screen says so,
+    // rather than inventing a code the walker has no way to receive.
+    if (code.replace(/\D/g, '').length !== 6) throw new Error('Enter the six digits from your email.');
+    mockSignIn({ email, first_name: 'Sam', last_name: 'Okafor' });
+    return;
+  }
+  const r = await publicCall('verify_code', { email, code });
+  const { error } = await tsb().auth.verifyOtp({ token_hash: r.token_hash, type: 'magiclink' });
+  if (error) throw new Error('Could not sign you in. Try signing in with your password.');
+}
+
+/** Exchange the token in a reset link for a session. */
 export async function exchangeLinkToken(): Promise<'signup' | 'recovery' | null> {
   if (!SUPABASE_ENABLED) return null;
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));

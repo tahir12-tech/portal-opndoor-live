@@ -135,20 +135,7 @@ export function Register() {
   };
 
   if (sent) {
-    return (
-      <Shell title="Check your email">
-            <p className="ap-p">
-            We have sent a confirmation link to <strong>{f.email}</strong>. Open it and we will take you
-            straight to your application.
-          </p>
-          <p className="soft">
-            Nothing arrived? Check your spam folder, or{' '}
-            <button type="button" className="ap-link" onClick={() => void auth.resendVerification(f.email)}>
-              send it again
-            </button>.
-          </p>
-        </Shell>
-    );
+    return <CodeStep email={f.email} invite={invite} onBack={() => setSent(false)} />;
   }
 
   return (
@@ -174,6 +161,71 @@ export function Register() {
         You can stop and come back at any point.
       </p>
       <p className="ap-foot">Already have an account? <a href="/apply/signin">Sign in</a>.</p>
+    </Shell>
+  );
+}
+
+
+/* ---------------------------------------------------------------------------
+   The code step. Shown straight after registering, and after a resend.
+
+   A CODE RATHER THAN A LINK because a tenant applying on a laptop reads their
+   email on a phone. A link strands them on the wrong device; six digits cross
+   the gap by being typed.
+   --------------------------------------------------------------------------- */
+function CodeStep({ email, invite, onBack }: { email: string; invite?: string; onBack: () => void }) {
+  const nav = useNavigate();
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [resent, setResent] = useState(false);
+
+  const go = async () => {
+    setBusy(true); setErr(null);
+    try {
+      await auth.verifyCode(email, code);
+      await afterSignIn(nav, invite);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'That code is not right.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Shell title="Check your email" eyebrow="Confirm your address"
+      sub={`We have sent a six-digit code to ${email}. It lasts ten minutes.`}>
+      <form className="auth__form" onSubmit={(e) => { e.preventDefault(); void go(); }} noValidate>
+        <div className="field">
+          <label htmlFor="code">Confirmation code</label>
+          <input
+            id="code" className="ap-code" inputMode="numeric" autoComplete="one-time-code"
+            maxLength={6} placeholder="000000" value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            autoFocus />
+        </div>
+        {err && <p className="auth__error" style={{ color: 'var(--danger)' }} role="alert">{err}</p>}
+        <Button variant="primary" block type="submit" arrow disabled={busy || code.length !== 6}>
+          {busy ? 'Checking…' : 'Confirm and continue'}
+        </Button>
+      </form>
+
+      {!SUPABASE_ENABLED && (
+        <p className="ap-p" style={{ marginTop: 14 }}>
+          <strong>Demo:</strong> there is no email here, so any six digits will do.
+        </p>
+      )}
+
+      <p className="auth__foot">
+        Nothing arrived? Check your spam folder, or{' '}
+        <button type="button" className="ap-link"
+          onClick={() => { void auth.resendVerification(email); setResent(true); }}>
+          send a new code
+        </button>.
+        {resent && <> A new one is on its way. The previous code has stopped working.</>}
+      </p>
+      <p className="auth__foot">
+        <button type="button" className="ap-link" onClick={onBack}>Use a different email address</button>
+      </p>
     </Shell>
   );
 }

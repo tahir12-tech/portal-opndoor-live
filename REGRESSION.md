@@ -1372,3 +1372,25 @@ them was the bug `20260812220000` fixes.
 | H9.9 | Submit complete | `draft` to `referencing`, `completed_at` set, activity row written |
 | H9.10 | Return from Checkout to `/apply?fee=paid` | The URL is cleaned and the form re-reads shortly after, so a paid tenant never sees a locked form because the webhook was a moment behind |
 | H9.11 | An agent referral on a `pre_referenced_open` partner | **Unchanged.** No fee, no lock, no draft. The referral path does not have an application fee |
+
+## H10. Tenant email codes
+
+Six digits is only a million values, so the code is not the control. Four things
+together are, and each has a row because each was found broken once.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H10.1 | Register, then submit a wrong code | Refused. The attempt is counted |
+| H10.2 | A code for an address that never registered | **The same message.** Wrong, expired, exhausted and never-issued are indistinguishable. **Verified live** |
+| H10.3 | Submit the correct code | A one-time token is returned, **not a session**. The browser redeems it. **Verified live** |
+| H10.4 | Submit the same correct code again | Dead. Single use. **Verified live** |
+| H10.5 | **Eight concurrent** wrong guesses against one live code | All refused, and the correct code is dead afterwards. **Verified live.** This failed before `20260812240000`: the cap was decided on a stale read and degraded to the attacker's concurrency |
+| H10.6 | **Eight concurrent** issues for one address | Five allowed, three refused. **Verified live.** This failed before `20260812240000` for the same reason |
+| H10.7 | Two live codes for one address | Impossible. Issuing consumes the previous, under an advisory lock so it cannot be raced |
+| H10.8 | `request_reset` with `origin: "https://evil.example"` | Normal response, **and no email is sent**. The link is built from `APP_URL`, never from the request. **Verified live** |
+| H10.9 | An email address containing `%` or `_` | Matches only itself. `ilike` treated them as wildcards and matched other people's rows |
+| H10.10 | Hammer `verify_code`, `register`, `resend`, `request_reset` | Throttled per address and per caller, and a refusal looks identical to the normal response |
+
+H10.8 is the one to run first after any change to this file. Client-supplied
+origin on a link that carries a token is account takeover with a phishing page
+attached, and `send-password-reset` had already solved it before I undid it.

@@ -105,3 +105,13 @@
 .ap-summary > div { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
 .ap-summary dt { color: var(--ink-soft); font-size: 13px; margin: 0; }
 .ap-summary dd { margin: 0; font-weight: 600; text-align: right; }
+
+/* The confirmation code. Wide tracking and a tabular face, so six digits read
+   as six digits and a transposed pair is visible rather than felt. */
+.ap-code {
+  font: 700 24px/1.2 var(--display);
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
