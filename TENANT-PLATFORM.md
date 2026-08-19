@@ -161,42 +161,49 @@ and credit reports indefinitely. `HANDOVER.md` item 31.
 
 ## 6. The integrations, and exactly what each needs
 
-### 6.1 Yoti (identity) and Kreditz (VeriBank / VeriPay) — NOT BUILT
+### 6.1 Yoti (identity) and Kreditz (open banking) — NOT BUILT
 
-**Read this before starting either.** The commercial position decides the
-architecture, and it is unusual:
+> **CORRECTED 2026-08-19 by the developer who maintains the existing platform.**
+> An earlier version of this section described a credential model taken from
+> `Opndoor_System_Specification.md`, which is a document reconstructed from the
+> others by an AI rather than a primary source. It said Opndoor calls both
+> vendors under Lettings-supplied credentials, so results land in Lettings'
+> accounts and must never enter our outbound sync.
+>
+> **That is contradicted by the developer, and he wins.** What follows is his
+> account. The old one is left recorded in `BUILD-LOG.md` rather than deleted,
+> because we built the manual fallback on the strength of it and somebody will
+> otherwise wonder why.
 
-> Opndoor calls Yoti and Kreditz **directly, but authenticated with credentials
-> supplied by the referencing provider**. The structured results land in the
-> provider's accounts, not ours. We hold no contract with either vendor.
+**Yoti — identity.** Two products: **Document Check** and **Liveness Check**.
+Per the developer: *"All data can be saved on opndoor and syncs with Lettings."*
+So we hold the result and push it to them, which is the opposite direction from
+the superseded description. It also means Yoti results are ours to store, and
+`application_documents` is where they belong.
 
-Three consequences, and the third is the one people get wrong:
+**Kreditz — open banking.** We do **not** call Kreditz. Per the developer: the
+authorisation link is generated **on the Lettings side**, the tenant authorises
+their bank there, and *"we will fetch the kreditz data from lettings and change
+the open banking status to completed if data is fetched."*
 
-1. **We store that a session completed, never its result.** The result is the
-   provider's from the moment it exists.
-2. **Their credentials live in our Edge Function config**, so rotation happens
-   on their timetable and the adapter boundary has to be real.
-3. **The results must not be added to the outbound sync.** The documented
-   payload has `bank_statement_file` and no Kreditz or Yoti fields, and that is
-   deliberate, not an omission.
+So our side of Kreditz is a **poll or a fetch against Lettings**, not a vendor
+integration at all. That is considerably less work than the superseded version
+implied, and it needs one thing we do not have: the Lettings endpoint that
+returns the Kreditz data, and what "completed" looks like on it.
 
-**What is built:** the manual alternative, which the process document already
-describes as the fallback. `IdCheckPanel` and `FinancialsPanel`
-(`src/pages/Apply/Sections.tsx`) each take an upload today and each name the
-vendor path that is not switched on. Neither is a "coming soon" panel.
-
-**What you need before you can build the vendor path:**
+**Still needed before either can be built:**
 
 | From | What |
 | ---- | ---- |
-| The provider | Yoti credentials and the check id |
-| The provider | Kreditz credentials, check id and required parameters |
-| The provider | Which product applies when: VeriBank, VeriPay, or manual |
-| Opndoor | Whether a failed vendor session blocks submission or is advisory |
+| Lettings | Yoti credentials and the check ids for Document Check and Liveness Check |
+| Lettings | The endpoint that returns Kreditz data, and the shape of "completed" |
+| Lettings | Whether the Kreditz link is surfaced to the tenant by us or by them |
 
-**Where it hooks in:** replace the upload button in each panel with a session
-start, and record completion against the application. The document index is
-already there for the manual path and both can coexist, which is the point.
+**What is built and stays useful either way:** the manual upload path in
+`IdCheckPanel` and `FinancialsPanel`, and `application_documents` with its two
+private buckets. Under the corrected model the manual path is the fallback and
+the buckets are now also where Yoti results would live, so nothing built on the
+old understanding is wasted.
 
 ### 6.2 The eligibility provider — INBOUND BUILT, DECISION NOT
 
@@ -204,6 +211,16 @@ already there for the manual path and both can coexist, which is the point.
 hand-over, verifies a hashed shared secret, claims `table_id` in a ledger before
 doing any work, and stores the reports. **The callback is built**:
 `referencing-callback` sends the policy document and payment status back.
+
+**Sandbox: `https://lettingsinabox.xyz`** (given 2026-08-19).
+
+**`table_id` never expires** and nothing happens on their side if we never call
+back, so the callback is not time-critical and `application_provider_links`
+needs no TTL. It also means nothing chases us, so a stuck callback is silent on
+both sides and the staleness has to be ours to watch.
+
+**They do not deduplicate applicants across channels**, so the same person
+arriving twice by different routes is our problem to detect.
 
 **What is NOT built, and blocks rails 1 and 2 entirely:**
 
@@ -216,13 +233,15 @@ no trigger. Ask the provider for the callback contract. `HANDOVER.md` item 27.
 
 **Two other named seams**, both in `HANDOVER.md`:
 
-- **Item 25**: is `agency_secret_token` per agency or global? Both are already
-  implemented, so this closes by inserting token rows rather than changing code.
-  Every inbound event records `agency_from_token` so the answer can be read off
-  production.
-- **Item 26**: does the provider assess affordability against the applicant's
-  **share** or the **full rent**? This decides whether joint tenancies work at
-  all on rails 1 and 2.
+- **Item 25 — ANSWERED 2026-08-19: per agency**, created by the Lettings admin.
+  Both shapes were implemented, so this closes by seeding one token row per
+  agency with its `agency_number` set, which is the stronger form. No code
+  changes. The tokens themselves are still to be shared.
+- **Item 26 — HALF ANSWERED 2026-08-19.** Asked two things and one came back.
+  **They return a verdict and a condition, never a number**, so a capacity
+  figure is not available and a shortfall cannot be computed from their answer.
+  **Whether they assess against the share or the full rent is still unanswered**,
+  and that is the half that decides whether joint tenancies work at all.
 
 ### 6.3 Stripe — BOTH PAYMENTS BUILT
 
