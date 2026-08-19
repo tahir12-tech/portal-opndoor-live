@@ -6,6 +6,12 @@ that produced it.
 **Status:** in progress. This document is updated as work lands. See
 [Open items](#open-items-for-you) for what needs you.
 
+**The tenant platform is documented separately.** `TENANT-PLATFORM.md` carries
+its design record and, in section 6, exactly what each unbuilt integration needs
+before it can be started. `BUILD-LOG.md` is the running record of what has been
+built, what it touched, and what was verified against a real database rather
+than reasoned about.
+
 **If you read one thing before deploying, read the first box below.** It is the
 difference between the partner API working and it refusing every request while
 appearing healthy.
