@@ -53,10 +53,21 @@ describe('the three audiences', () => {
     expect(screen.getByRole('button', { name: /sign in/i })).toBeTruthy();
   });
 
-  it('never shows a tenant an authenticator step', () => {
+  /* This used to assert the opposite: that a tenant saw no step strip at all.
+     That was wrong. A tenant has two factors like everybody else, the second
+     just arrives by email instead of from an app, and hiding the strip made
+     the tenant path read as the lesser one and left the panes different
+     heights. What a tenant must not see is the AUTHENTICATOR, not the step. */
+  it('shows a tenant the same two steps as staff', () => {
     at('/login?tab=tenant');
-    expect(screen.queryByText('Credentials')).toBeNull();
-    expect(screen.queryByText('Verify')).toBeNull();
+    expect(screen.getByText('Credentials')).toBeTruthy();
+    expect(screen.getByText('Verify')).toBeTruthy();
+  });
+
+  it('never mentions an authenticator app to a tenant', () => {
+    at('/login?tab=tenant');
+    expect(screen.queryByText(/scan this qr/i)).toBeNull();
+    expect(screen.getByText(/no authenticator app needed/i)).toBeTruthy();
   });
 
   /* A supplier is a partner who sends us referrals: staff, same credentials,
@@ -158,5 +169,39 @@ describe('a tenant gets two-factor too', () => {
     const box = screen.getByLabelText('Confirmation code') as HTMLInputElement;
     fireEvent.change(box, { target: { value: '12ab34cd56' } });
     expect(box.value).toBe('123456');
+  });
+});
+
+describe('the three panes are the same size', () => {
+  /* The tabs aligning was not enough: the panes still finished 44px apart,
+     which is what "different sizes on the right" meant. The card is a fixed
+     height and the last line of every pane is pinned to its bottom edge, so
+     both ends line up and only the middle differs.
+
+     jsdom does no layout, so this asserts the STRUCTURE the CSS depends on. If
+     a pane stops ending in a footer, or the wrapper goes missing, the pin
+     silently stops reaching and nothing else would say so. */
+  for (const tab of ['tenant', 'agent', 'supplier']) {
+    it(`${tab} renders one pane that ends in a pinned footer`, () => {
+      const { container } = at(`/login?tab=${tab}`);
+      const panes = container.querySelectorAll('.auth__pane');
+      expect(panes.length).toBe(1);
+
+      // The footer is either the pane's own last child or the last child of the
+      // body it nests. Both are what the CSS targets.
+      const direct = panes[0].lastElementChild;
+      const pinned = direct?.classList.contains('auth__foot')
+        || (direct?.classList.contains('auth__pane-body')
+            && direct.lastElementChild?.classList.contains('auth__foot'));
+      expect(pinned).toBe(true);
+    });
+  }
+
+  it('gives every audience the step strip, so none starts lower than another', () => {
+    for (const tab of ['tenant', 'agent', 'supplier']) {
+      const { container } = at(`/login?tab=${tab}`);
+      expect(container.querySelectorAll('.auth__steps').length).toBe(1);
+      cleanup();
+    }
   });
 });

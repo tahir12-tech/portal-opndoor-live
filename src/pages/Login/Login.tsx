@@ -209,22 +209,20 @@ export function Login() {
               somewhere to add conditionals. */}
           <AudienceTabs value={audience} onChange={setAudience} />
 
+          {/* One wrapper for every audience, so the pane can be a flex column
+              and pin its footer to the bottom of the card. Without it the tabs
+              lined up and the panes still ended at different heights, which is
+              the same complaint one level down. */}
+          <div className="auth__pane">
+
           {audience === 'tenant' && <TenantSignInPanel />}
 
           {audience !== 'tenant' && (<>
-          <div className="auth__steps">
-            <div className={`auth__step-dot${step === 'creds' ? ' is-active' : ' is-done'}`}>
-              <span className="n">1</span><span>Credentials</span>
-            </div>
-            <span className="auth__step-line" />
-            <div className={`auth__step-dot${onCode ? ' is-active' : ''}`}>
-              <span className="n">2</span><span>Verify</span>
-            </div>
-          </div>
+          <Steps onSecond={onCode} />
 
 
           {step === 'creds' ? (
-            <div>
+            <div className="auth__pane-body">
               <h2 className="auth__title">Sign in to the portal</h2>
               <p className="auth__sub">{audience === 'supplier'
                 ? 'For partners who send us referrals. The same sign-in as an agent, and the same portal: what you see is set by your account, not by the tab you picked.'
@@ -248,7 +246,7 @@ export function Login() {
               <p className="auth__foot">Not set up yet? Ask your administrator for access, or use the contact details on this screen.</p>
             </div>
           ) : (
-            <div>
+            <div className="auth__pane-body">
               <button className="back-link" type="button" onClick={() => { setStep('creds'); setError(''); }}>
                 <Icon name="arrowLeft" /> Back
               </button>
@@ -306,6 +304,7 @@ export function Login() {
             </div>
           )}
           </>)}
+          </div>
         </div>
       </section>
     </div>
@@ -315,6 +314,28 @@ export function Login() {
 /* ---------------------------------------------------------------------------
    The three audiences.
    --------------------------------------------------------------------------- */
+
+/* The two steps, shared by all three audiences.
+
+   A tenant's second factor arrives by email and staff read theirs from an
+   authenticator app. That is a difference in DELIVERY, not in what is being
+   promised: a password on its own is not enough for anybody here. Showing the
+   strip to staff and hiding it from tenants made the tenant path read as the
+   lesser one, and left the two panes different heights. */
+function Steps({ onSecond }: { onSecond: boolean }) {
+  return (
+    <div className="auth__steps">
+      <div className={`auth__step-dot${onSecond ? ' is-done' : ' is-active'}`}>
+        <span className="n">1</span><span>Credentials</span>
+      </div>
+      <span className="auth__step-line" />
+      <div className={`auth__step-dot${onSecond ? ' is-active' : ''}`}>
+        <span className="n">2</span><span>Verify</span>
+      </div>
+    </div>
+  );
+}
+
 type Audience = 'tenant' | 'agent' | 'supplier';
 
 /* ---------------------------------------------------------------------------
@@ -449,7 +470,8 @@ function TenantSignInPanel() {
   }
 
   if (tSent) return (
-    <div>
+    <>
+      <Steps onSecond />
       <h2 className="auth__title">Check your email</h2>
       <p className="auth__sub">
         We have sent a six-digit code to {tEmail}. It lasts ten minutes.
@@ -475,11 +497,12 @@ function TenantSignInPanel() {
         <button type="button" className="linkish" style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--heliotrope-deep, #5b3fd9)', textDecoration: 'underline', cursor: 'pointer' }}
           onClick={() => { setTSent(false); setTCode(''); setTErr(null); }}>Use a different email address</button>
       </p>
-    </div>
+    </>
   );
 
   return (
-    <div>
+    <>
+      <Steps onSecond={false} />
       <h2 className="auth__title">Sign in to your application</h2>
       <p className="auth__sub">
         For tenants applying for an opndoor guarantee. We will email you a code to
@@ -507,6 +530,6 @@ function TenantSignInPanel() {
       <p className="auth__foot">
         Not started yet? <a href="/apply/register">Apply for a guarantee</a>.
       </p>
-    </div>
+    </>
   );
 }

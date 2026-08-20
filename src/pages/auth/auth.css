@@ -156,7 +156,30 @@
      A fixed min-height makes the card box constant, so its top edge, and the
      tabs sitting on it, land in the same place for every audience. Only the
      content below the tabs differs. Sized to the tallest pane. */
-  min-height: 560px;
+  min-height: 508px;
+  /* Flex column so the pane below can stretch and pin its footer to the bottom
+     edge. Pinning both ends is what actually makes the three panes look the
+     same size: aligning the tabs alone still left them finishing 44px apart. */
+  display: flex;
+  flex-direction: column;
+}
+.auth__pane {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+/* The staff panes nest their content one level deeper, so the chain has to
+   carry the stretch all the way down or the pin never reaches the footer. */
+.auth__pane-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+/* The closing line of a pane sits on the bottom edge, not wherever the content
+   above it happened to end. The slack lands above it, where nobody reads. */
+.auth__pane > .auth__foot:last-child,
+.auth__pane-body > .auth__foot:last-child {
+  margin-top: auto;
 }
 @media (max-height: 760px) {
   /* On a short viewport a fixed height pushes the footer under the fold, and a

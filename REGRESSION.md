@@ -1674,6 +1674,9 @@ pane, so the box is constant and only the content below the tabs differs.
 | H19.1 | Click Tenant, Agent, Supplier in turn and watch the tab strip | It does not move. Nothing above the fold shifts |
 | H19.2 | Same at a viewport under 760px tall | The min-height releases and the card scrolls. A reachable control beats a stationary one |
 | H19.3 | Add a line to any pane | Re-check H19.1. The pin is a fixed number and a taller pane silently overflows it |
+| H19.3a | Watch where each pane ENDS, not just where it starts | The last line sits on the same bottom edge for all three. Aligning the tabs alone left the panes finishing 44px apart, which is the same complaint one level down |
+| H19.3b | Every audience | Exactly one `.auth__pane`, ending in an `.auth__foot` either directly or as the last child of an `.auth__pane-body`. **That chain is what the pin needs**, and if it breaks the footer drifts and nothing else says so |
+| H19.3c | Remove the pane wrapper or the tenant step strip | **H19.3a and H19.3b fail.** Verified by reintroducing both: 5 failed, 208 passed |
 
 ### H19.4 to H19.6. The left panel is not agent copy for everyone
 
@@ -1683,6 +1686,8 @@ earns no commission, and the third was wrong about how they sign in.
 | # | Setup | Expected |
 | - | ----- | -------- |
 | H19.4 | Tenant tab, read the left panel | Eyebrow "Tenant sign in". **No commission, no referring, no authenticator app.** It says a code goes to their email |
+| H19.4a | Tenant tab, the step strip | **Present, and the same two steps as staff: 1 Credentials, 2 Verify.** A tenant has two factors like everybody else; only the delivery differs, email rather than an app. Hiding the strip made the tenant path read as the lesser one |
+| H19.4b | Tenant tab, anywhere | No QR code and no authenticator wording. The step is shared, the second factor is not |
 | H19.5 | Agent tab | "Agent sign in", their own branches, commission, two-factor |
 | H19.6 | Supplier tab | "Supplier sign in", referring **on behalf of** the agencies they work with |
 

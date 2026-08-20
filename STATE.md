@@ -41,7 +41,7 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 | **Agent or supplier**: ownership recorded, form depth counted, four shapes verified live | REGRESSION H17, 202 tests |
 | **API: an agent may omit its own agency name** | H17.13-H17.18, all six outcomes run against the database |
 | **agency_groups is no longer world readable** | H18, RLS on, anon revoked, verified live |
-| **Sign-in page**: tabs pinned, copy per audience, tenant two-factor by emailed code | REGRESSION H19, 208 tests, the one-step regression reintroduced and caught |
+| **Sign-in page**: panes pinned top and bottom, copy per audience, the same two steps for all three, tenant two-factor by emailed code | REGRESSION H19, 213 tests, both regressions reintroduced and caught |
 | **Rate resolution across a group**: agency override beats partner default, group override beats both | Verified live on the Meridian fixture, 0.30 against 0.25 |
 
 ## Half built
@@ -95,7 +95,7 @@ Things that have cost time once and will again.
 
 - **Nothing is pushed.** The branch is 130-odd commits ahead of `origin/main`,
   which has 65 migrations ending 5 July and no partner API at all.
-- **`npm test` exists** and is byte-identical to `npm run smoke`. 208 tests.
+- **`npm test` exists** and is byte-identical to `npm run smoke`. 213 tests.
 - **`tsc -p tsconfig.json` checks nothing** (`"files": []`). Use `tsconfig.app.json`.
 - **A new column on `applications` needs its own `grant select`** or it is
   silently invisible to the client.
