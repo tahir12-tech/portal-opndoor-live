@@ -146,6 +146,24 @@
 .auth__card {
   width: 100%;
   max-width: 420px;
+  /* THE TABS ARE A CONTROL AND MUST NOT MOVE.
+
+     .auth__form-wrap centres its child, so a taller pane grew in BOTH
+     directions and the tab strip shifted with it: measured across the three
+     audiences it moved 43px, which means you click Agent and the thing you just
+     clicked is somewhere else.
+
+     A fixed min-height makes the card box constant, so its top edge, and the
+     tabs sitting on it, land in the same place for every audience. Only the
+     content below the tabs differs. Sized to the tallest pane. */
+  min-height: 560px;
+}
+@media (max-height: 760px) {
+  /* On a short viewport a fixed height pushes the footer under the fold, and a
+     reachable control beats a stationary one. */
+  .auth__card {
+    min-height: 0;
+  }
 }
 .auth__title {
   font-family: var(--display);

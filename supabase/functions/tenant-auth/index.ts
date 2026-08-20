@@ -260,8 +260,12 @@ Deno.serve(async (req) => {
       // Answers identically whether or not the address is known, and whether or
       // not it was rate limited.
       if (email) {
+        // Resending a SIGN-IN code must not mint one that could confirm an
+        // unconfirmed address, so the purpose travels with the request and is
+        // checked again at verify.
+        const purpose = body.purpose === "sign_in" ? "sign_in" : "verify_email";
         const { data: ap } = await service.from("applicants").select("id").eq("email", email).maybeSingle();
-        if (ap) await sendCode(service, email, "verify_email");
+        if (ap) await sendCode(service, email, purpose);
       }
       return json({ ok: true, sent: true });
     }
@@ -293,6 +297,51 @@ Deno.serve(async (req) => {
        this table never becomes a second, weaker way of being logged in, and a
        leaked code cannot be replayed into a session by anything but the person
        holding the browser that asked for it. */
+    /* ---- sign in, step one of two --------------------------------------
+       THE PASSWORD IS CHECKED HERE, ON THE SERVER, and the session it produces
+       is thrown away. That is the whole point: if the browser were handed a
+       session first and then asked for a code, the code would be decoration,
+       because the session already works. The only thing that reaches the client
+       is { ok: true }, and a session exists only after verify_code.
+
+       A tenant gets an emailed code rather than an authenticator app. Staff
+       enrol TOTP because they sign in daily; a tenant signs in a handful of
+       times and would be locked out by a lost phone. */
+    if (action === "signin_start") {
+      const password = String(body.password ?? "");
+      if (!email || !password) {
+        return json({ ok: false, error: "That email address and password do not match." }, 401);
+      }
+
+      if (!(await withinLimits(service, req, "signin", email, 10, 60))) {
+        // A refusal reads as the normal outcome, so a caller cannot use the
+        // rate limiter to learn that an address exists.
+        return json({ ok: true });
+      }
+
+      const anon = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!);
+      const { data: signed, error: pwErr } = await anon.auth.signInWithPassword({ email, password });
+
+      // One message for a wrong password and an unknown address, exactly as the
+      // single-step version had, so this adds no oracle.
+      if (pwErr || !signed?.user) {
+        return json({ ok: false, error: "That email address and password do not match." }, 401);
+      }
+
+      // Discard it. Nothing may survive this request that could be replayed.
+      await anon.auth.signOut();
+
+      // Staff must not be able to sign in through the tenant door. A tenant is
+      // an applicant; a users row is staff and belongs on /login with TOTP.
+      const { data: ap } = await service.from("applicants").select("id").eq("id", signed.user.id).maybeSingle();
+      if (!ap) {
+        return json({ ok: false, error: "That email address and password do not match." }, 401);
+      }
+
+      await sendCode(service, email, "sign_in");
+      return json({ ok: true });
+    }
+
     if (action === "verify_code") {
       const code = String(body.code ?? "").replace(/\D/g, "");
       if (!email || code.length !== 6) {
@@ -306,8 +355,13 @@ Deno.serve(async (req) => {
         return json({ ok: false, error: "Too many attempts. Wait a little and ask for a new code." }, 429);
       }
 
+      // Which code this is. A registration code must not sign somebody in and a
+      // sign-in code must not confirm an address, so the purpose is part of what
+      // is verified rather than assumed.
+      const purpose = body.purpose === "sign_in" ? "sign_in" : "verify_email";
+
       const { data: ok } = await service.rpc("verify_email_code", {
-        p_email: email, p_purpose: "verify_email", p_code_hash: await sha256Hex(code),
+        p_email: email, p_purpose: purpose, p_code_hash: await sha256Hex(code),
       });
       // One message for wrong, expired, exhausted and never-issued. Telling the
       // difference is telling an attacker where they are.
@@ -318,8 +372,12 @@ Deno.serve(async (req) => {
       const { data: ap } = await service.from("applicants").select("id").eq("email", email).maybeSingle();
       if (!ap) return json({ ok: false, error: "That code is not right, or it has expired. Ask for a new one." }, 401);
 
-      // The address is proven, so confirm it.
-      await service.auth.admin.updateUserById(ap.id, { email_confirm: true });
+      // Registration only: the address is proven, so confirm it. A sign-in code
+      // proves possession of an address that was already confirmed, and using it
+      // to confirm one would let an unconfirmed account slip through.
+      if (purpose === "verify_email") {
+        await service.auth.admin.updateUserById(ap.id, { email_confirm: true });
+      }
 
       const { data: link, error: linkErr } = await service.auth.admin.generateLink({ type: "magiclink", email });
       const hashed = (link?.properties as any)?.hashed_token ?? "";

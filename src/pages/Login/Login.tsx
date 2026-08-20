@@ -15,7 +15,7 @@ import { authService } from '@/data';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import { Button } from '@/components/ui/Button';
-import { Icon } from '@/components/ui/Icon';
+import { Icon, type IconName } from '@/components/ui/Icon';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 // Namespaced as tenantAuth, never as auth. It exposes signIn(email, password)
@@ -172,25 +172,17 @@ export function Login() {
           <span className="auth__cobrand">Guarantee<br />Referral Portal</span>
         </div>
         <div className="auth__brand-mid">
-          <span className="auth__eyebrow">Partner sign in</span>
-          <h1 className="auth__brand-h1">Refer with confidence. Track every step.</h1>
-          <p className="auth__brand-copy">
-            The white-labelled referral and tracking tool for partner teams. Refer failed-referencing tenants to opndoor's professional guarantor service, where opndoor provides a Deed of Guarantee in favour of the property, then follow them from sent through to deed issued.
-          </p>
+          <span className="auth__eyebrow">{BRAND[audience].eyebrow}</span>
+          <h1 className="auth__brand-h1">{BRAND[audience].h1}</h1>
+          <p className="auth__brand-copy">{BRAND[audience].copy}</p>
         </div>
         <div className="auth__flow">
-          <div className="auth__flow-item">
-            <span className="auth__flow-ic"><Icon name="send" /></span>
-            <div><div className="auth__flow-t">Refer in seconds</div><div className="auth__flow-s">Add a tenant and send the application</div></div>
-          </div>
-          <div className="auth__flow-item">
-            <span className="auth__flow-ic"><Icon name="trend" /></span>
-            <div><div className="auth__flow-t">Track to deed issued</div><div className="auth__flow-s">Live funnel and commission earned</div></div>
-          </div>
-          <div className="auth__flow-item">
-            <span className="auth__flow-ic"><Icon name="shield" /></span>
-            <div><div className="auth__flow-t">Secure by design</div><div className="auth__flow-s">Two-factor authentication on every sign in</div></div>
-          </div>
+          {BRAND[audience].flow.map((f) => (
+            <div className="auth__flow-item" key={f.t}>
+              <span className="auth__flow-ic"><Icon name={f.icon} /></span>
+              <div><div className="auth__flow-t">{f.t}</div><div className="auth__flow-s">{f.s}</div></div>
+            </div>
+          ))}
         </div>
       </aside>
 
@@ -325,6 +317,52 @@ export function Login() {
    --------------------------------------------------------------------------- */
 type Audience = 'tenant' | 'agent' | 'supplier';
 
+/* ---------------------------------------------------------------------------
+   The left panel, per audience.
+
+   It used to be one block of agent copy shown to all three. A tenant is not
+   referring anybody, earns no commission and has no authenticator app, so two
+   of the three promises on it were false for them and the third was wrong about
+   how they sign in. Whoever is signing in should see what THEY get.
+   --------------------------------------------------------------------------- */
+const BRAND: Record<Audience, {
+  eyebrow: string; h1: string; copy: string;
+  flow: { icon: IconName; t: string; s: string }[];
+}> = {
+  tenant: {
+    eyebrow: 'Tenant sign in',
+    h1: 'Your application, start to finish.',
+    copy: "Apply for an opndoor guarantee when referencing has not gone your way. opndoor stands as your guarantor so the landlord can let to you, and you can see exactly where your application is at any point.",
+    flow: [
+      { icon: 'send',   t: 'Pick up where you left off', s: 'Every answer is saved as you type' },
+      { icon: 'trend',  t: 'See where you are',          s: 'From submitted through to approved' },
+      { icon: 'shield', t: 'Secure by design',           s: 'A six-digit code to your email every sign in' },
+    ],
+  },
+  agent: {
+    eyebrow: 'Agent sign in',
+    h1: 'Let the property. We guarantee the tenant.',
+    copy: "Refer a tenant who could not pass referencing and opndoor stands as guarantor, with a Deed of Guarantee in favour of the property. Track every one of your branches from sent through to deed issued.",
+    flow: [
+      { icon: 'send',   t: 'Refer in seconds',   s: 'Add a tenant and send the application' },
+      { icon: 'trend',  t: 'Track to deed issued', s: 'Live funnel and commission earned' },
+      { icon: 'shield', t: 'Secure by design',   s: 'Two-factor authentication on every sign in' },
+    ],
+  },
+  supplier: {
+    eyebrow: 'Supplier sign in',
+    h1: 'Refer with confidence. Track every step.',
+    copy: "The white-labelled referral and tracking tool for partner teams. Refer failed-referencing tenants on behalf of the agencies you work with, then follow them from sent through to deed issued.",
+    flow: [
+      { icon: 'send',   t: 'Refer for any agency', s: 'Add an agency or a branch as you go' },
+      { icon: 'trend',  t: 'Track to deed issued', s: 'Live funnel and commission earned' },
+      { icon: 'shield', t: 'Secure by design',     s: 'Two-factor authentication on every sign in' },
+    ],
+  },
+};
+
+
+
 function AudienceTabs({ value, onChange }: { value: Audience; onChange: (a: Audience) => void }) {
   const nav = useNavigate();
   const tabs: { id: Audience; label: string }[] = [
@@ -373,31 +411,79 @@ function TenantSignInPanel() {
   const [tPassword, setTPassword] = useState('');
   const [tBusy, setTBusy] = useState(false);
   const [tErr, setTErr] = useState<string | null>(null);
+  const [tSent, setTSent] = useState(false);
+  const [tCode, setTCode] = useState('');
+
+  async function confirm(e: FormEvent) {
+    e.preventDefault();
+    setTBusy(true);
+    setTErr(null);
+    try {
+      await tenantAuth.verifyCode(tEmail, tCode, 'sign_in');
+      // afterSignIn is imported rather than reimplemented: it decides between
+      // claiming an invite and opening a draft, and two copies would drift.
+      await afterSignIn(nav, invite);
+      // busy stays true through the navigation, blocking a double submit.
+    } catch (err) {
+      setTErr(err instanceof Error ? err.message : 'That code is not right.');
+      setTBusy(false);
+    }
+  }
 
   async function go(e: FormEvent) {
     e.preventDefault();
     setTBusy(true);
     setTErr(null);
     try {
-      await tenantAuth.signIn(tEmail, tPassword);
-      // afterSignIn is imported rather than reimplemented. It decides between
-      // claiming an invite and opening a draft, and two copies of that decision
-      // would drift.
-      await afterSignIn(nav, invite);
-      // busy deliberately stays true through the navigation: it blocks a double
-      // submit while claimInvite/startApplication and the route change run.
+      // Step one only. The password goes to the server, which checks it and
+      // discards the session it produced, so nothing usable is in this browser
+      // until the code is right.
+      await tenantAuth.signInStart(tEmail, tPassword);
+      setTSent(true);
+      setTBusy(false);
+      return;
     } catch (err) {
       setTErr(err instanceof Error ? err.message : 'Could not sign in.');
       setTBusy(false);
     }
   }
 
+  if (tSent) return (
+    <div>
+      <h2 className="auth__title">Check your email</h2>
+      <p className="auth__sub">
+        We have sent a six-digit code to {tEmail}. It lasts ten minutes.
+      </p>
+      {tErr && <p className="auth__error" style={{ color: 'var(--danger, #c0392b)' }}>{tErr}</p>}
+      <form className="auth__form" onSubmit={confirm} noValidate>
+        <div className="field">
+          <label htmlFor="t-code">Confirmation code</label>
+          <input id="t-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+                 placeholder="000000" value={tCode} autoFocus
+                 onChange={(e) => setTCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+        </div>
+        <Button variant="primary" block type="submit" arrow disabled={tBusy || tCode.length !== 6}>
+          {tBusy ? 'Checking\u2026' : 'Confirm and continue'}
+        </Button>
+      </form>
+      <p className="auth__foot">
+        Nothing arrived? Check your spam folder, or{' '}
+        <button type="button" className="linkish" style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--heliotrope-deep, #5b3fd9)', textDecoration: 'underline', cursor: 'pointer' }}
+          onClick={() => { void tenantAuth.resendCode(tEmail, 'sign_in'); }}>send a new one</button>.
+      </p>
+      <p className="auth__foot">
+        <button type="button" className="linkish" style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--heliotrope-deep, #5b3fd9)', textDecoration: 'underline', cursor: 'pointer' }}
+          onClick={() => { setTSent(false); setTCode(''); setTErr(null); }}>Use a different email address</button>
+      </p>
+    </div>
+  );
+
   return (
     <div>
       <h2 className="auth__title">Sign in to your application</h2>
       <p className="auth__sub">
-        For tenants applying for an opndoor guarantee. No authenticator app, just your
-        email and password.
+        For tenants applying for an opndoor guarantee. We will email you a code to
+        confirm it is you. No authenticator app needed.
       </p>
       {tErr && <p className="auth__error" style={{ color: 'var(--danger, #c0392b)' }}>{tErr}</p>}
       <form className="auth__form" onSubmit={go} noValidate>

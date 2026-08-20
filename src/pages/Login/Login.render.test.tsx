@@ -11,7 +11,7 @@
 
    Deliberately shallow. The point is that each tab mounts and offers a way in. */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
 import { Login } from './Login';
@@ -82,5 +82,81 @@ describe('the three audiences', () => {
     at('/login?tab=agent');
     expect(screen.queryByText(/partners who send us referrals/i)).toBeNull();
     expect(screen.getByText(/your administrator registered/i)).toBeTruthy();
+  });
+});
+
+describe('the left panel speaks to whoever is signing in', () => {
+  /* It used to be one block of agent copy on all three tabs. Two of its three
+     promises were false for a tenant, who refers nobody and earns nothing, and
+     the third was wrong about how they sign in. */
+  it('does not promise a tenant commission or an authenticator app', () => {
+    at('/login?tab=tenant');
+    expect(screen.queryByText(/commission earned/i)).toBeNull();
+    expect(screen.queryByText(/two-factor authentication on every sign in/i)).toBeNull();
+    expect(screen.getByText(/code to your email every sign in/i)).toBeTruthy();
+  });
+
+  it('gives each audience its own eyebrow', () => {
+    at('/login?tab=tenant');
+    expect(screen.getByText('Tenant sign in')).toBeTruthy();
+    cleanup();
+    at('/login?tab=agent');
+    expect(screen.getByText('Agent sign in')).toBeTruthy();
+    cleanup();
+    at('/login?tab=supplier');
+    expect(screen.getByText('Supplier sign in')).toBeTruthy();
+  });
+
+  it('tells an agent about their own branches and a supplier about other agencies', () => {
+    at('/login?tab=agent');
+    expect(screen.getByText(/refer in seconds/i)).toBeTruthy();
+    cleanup();
+    at('/login?tab=supplier');
+    expect(screen.getByText(/refer for any agency/i)).toBeTruthy();
+  });
+});
+
+describe('a tenant gets two-factor too', () => {
+  /* A tenant is emailed a six-digit code rather than enrolling an authenticator:
+     they sign in a handful of times and a lost phone would lock them out of
+     their own application. The password is checked SERVER side and the session
+     it produces is discarded, so nothing usable reaches the browser until the
+     code is right. */
+  it('asks for a code after the password, not straight in', async () => {
+    at('/login?tab=tenant');
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 't@example.invalid' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a-long-password' } });
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    await waitFor(() => expect(screen.getByText('Check your email')).toBeTruthy());
+    expect(screen.getByLabelText('Confirmation code')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /confirm and continue/i })).toBeTruthy();
+  });
+
+  it('will not accept fewer than six digits', async () => {
+    at('/login?tab=tenant');
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 't@example.invalid' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a-long-password' } });
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await waitFor(() => expect(screen.getByLabelText('Confirmation code')).toBeTruthy());
+
+    const confirm = screen.getByRole('button', { name: /confirm and continue/i });
+    expect(confirm.hasAttribute('disabled')).toBe(true);
+    fireEvent.change(screen.getByLabelText('Confirmation code'), { target: { value: '12345' } });
+    expect(confirm.hasAttribute('disabled')).toBe(true);
+    fireEvent.change(screen.getByLabelText('Confirmation code'), { target: { value: '123456' } });
+    expect(confirm.hasAttribute('disabled')).toBe(false);
+  });
+
+  it('strips anything that is not a digit', async () => {
+    at('/login?tab=tenant');
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 't@example.invalid' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a-long-password' } });
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await waitFor(() => expect(screen.getByLabelText('Confirmation code')).toBeTruthy());
+
+    const box = screen.getByLabelText('Confirmation code') as HTMLInputElement;
+    fireEvent.change(box, { target: { value: '12ab34cd56' } });
+    expect(box.value).toBe('123456');
   });
 });

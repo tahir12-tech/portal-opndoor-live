@@ -173,7 +173,13 @@ export function Register() {
    email on a phone. A link strands them on the wrong device; six digits cross
    the gap by being typed.
    --------------------------------------------------------------------------- */
-function CodeStep({ email, invite, onBack }: { email: string; invite?: string; onBack: () => void }) {
+function CodeStep({ email, invite, onBack, purpose = 'verify_email' }: {
+  email: string; invite?: string; onBack: () => void;
+  /** Which code this is. A registration code confirms the address; a sign-in
+      code proves possession of one already confirmed. The server verifies the
+      purpose too, so one cannot be spent as the other. */
+  purpose?: 'verify_email' | 'sign_in';
+}) {
   const nav = useNavigate();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -183,7 +189,7 @@ function CodeStep({ email, invite, onBack }: { email: string; invite?: string; o
   const go = async () => {
     setBusy(true); setErr(null);
     try {
-      await auth.verifyCode(email, code);
+      await auth.verifyCode(email, code, purpose);
       await afterSignIn(nav, invite);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'That code is not right.');
@@ -192,7 +198,8 @@ function CodeStep({ email, invite, onBack }: { email: string; invite?: string; o
   };
 
   return (
-    <Shell title="Check your email" eyebrow="Confirm your address"
+    <Shell title="Check your email"
+      eyebrow={purpose === 'sign_in' ? 'Two-factor' : 'Confirm your address'}
       sub={`We have sent a six-digit code to ${email}. It lasts ten minutes.`}>
       <form className="auth__form" onSubmit={(e) => { e.preventDefault(); void go(); }} noValidate>
         <div className="field">
@@ -218,7 +225,7 @@ function CodeStep({ email, invite, onBack }: { email: string; invite?: string; o
       <p className="auth__foot">
         Nothing arrived? Check your spam folder, or{' '}
         <button type="button" className="ap-link"
-          onClick={() => { void auth.resendVerification(email); setResent(true); }}>
+          onClick={() => { void auth.resendCode(email, purpose); setResent(true); }}>
           send a new code
         </button>.
         {resent && <> A new one is on its way. The previous code has stopped working.</>}
@@ -252,7 +259,8 @@ export async function afterSignIn(nav: (to: string) => void, invite?: string) {
    2. Sign in.
    --------------------------------------------------------------------------- */
 export function SignIn() {
-  const nav = useNavigate();
+  // No useNavigate here any more: signing in is two steps, and the navigation
+  // belongs to CodeStep, which is what completes it.
   const [sp] = useSearchParams();
   const invite = sp.get('invite') ?? undefined;
   const [email, setEmail] = useState('');
@@ -260,16 +268,24 @@ export function SignIn() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Two steps, not one. The password goes to the server, which checks it and
+  // throws the session away; nothing usable reaches this browser until the code
+  // is right.
+  const [sent, setSent] = useState(false);
+
   const go = async () => {
     setBusy(true); setErr(null);
     try {
-      await auth.signIn(email, password);
-      await afterSignIn(nav, invite);
+      await auth.signInStart(email, password);
+      setSent(true);
+      setBusy(false);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not sign in.');
       setBusy(false);
     }
   };
+
+  if (sent) return <CodeStep email={email} invite={invite} purpose="sign_in" onBack={() => setSent(false)} />;
 
   return (
     <Shell title="Sign in">

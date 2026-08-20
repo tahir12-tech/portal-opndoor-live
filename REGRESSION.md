@@ -1656,3 +1656,56 @@ somebody else's deal. The sibling table built in the same week,
 
 H18.7 is the row that matters. A table created without `enable row level
 security` is open, silently, and nothing in the build or the suite says so.
+
+---
+
+## H19. The sign-in page: one control, three audiences
+
+### H19.1 to H19.3. The tabs must not move
+
+`.auth__form-wrap` centres its child, so a taller pane grew in both directions
+and the tab strip moved with it. Measured across the three audiences it shifted
+**43px**, which means you click Agent and the thing you clicked is somewhere
+else. Fixed by pinning `.auth__card` to a `min-height` sized to the tallest
+pane, so the box is constant and only the content below the tabs differs.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H19.1 | Click Tenant, Agent, Supplier in turn and watch the tab strip | It does not move. Nothing above the fold shifts |
+| H19.2 | Same at a viewport under 760px tall | The min-height releases and the card scrolls. A reachable control beats a stationary one |
+| H19.3 | Add a line to any pane | Re-check H19.1. The pin is a fixed number and a taller pane silently overflows it |
+
+### H19.4 to H19.6. The left panel is not agent copy for everyone
+
+It was. Two of its three promises were false for a tenant, who refers nobody and
+earns no commission, and the third was wrong about how they sign in.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H19.4 | Tenant tab, read the left panel | Eyebrow "Tenant sign in". **No commission, no referring, no authenticator app.** It says a code goes to their email |
+| H19.5 | Agent tab | "Agent sign in", their own branches, commission, two-factor |
+| H19.6 | Supplier tab | "Supplier sign in", referring **on behalf of** the agencies they work with |
+
+### H19.7 to H19.12. A tenant gets two-factor as well
+
+A six-digit code by email, not an authenticator app. Staff enrol TOTP because
+they sign in daily; a tenant signs in a handful of times and a lost phone would
+lock them out of their own application.
+
+**The password is checked on the SERVER and the session it produces is thrown
+away.** If the browser were handed a session and then asked for a code, the code
+would be decoration, because the session would already work. The only thing that
+crosses the wire at step one is `{ ok: true }`.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H19.7 | Tenant, correct password | A code step. **Not signed in.** No session in local storage under `opndoor.tenant.auth` |
+| H19.8 | Tenant, wrong password | The same one message as an unknown address. This adds no oracle the single-step version did not have |
+| H19.9 | Enter the code | Signed in, and landed by `afterSignIn`: an invite is claimed, otherwise a draft opens |
+| H19.10 | Spend a **registration** code at sign in, or the reverse | Refused. The purpose is verified, not assumed, so one kind cannot be spent as the other |
+| H19.11 | A sign-in code for an address that was never confirmed | It does not confirm the address. Only a `verify_email` code does |
+| H19.12 | Eleven sign-in attempts on one address in an hour | Rate limited, and the refusal reads as the normal response |
+| H19.13 | Revert the tenant panel to signing in on the password alone | **H19.7 fails.** Verified by reintroducing it: 3 failed, 205 passed |
+
+H19.13 is the row that matters. H19.7 to H19.9 would all pass against a screen
+that signed somebody in and then showed them a code box for decoration.

@@ -126,6 +126,12 @@ export async function resendVerification(email: string) {
   if (!SUPABASE_ENABLED) return { ok: true };
   return await publicCall('resend_verification', { email });
 }
+/** Resend a code of a stated kind. The purpose travels because a sign-in code
+    must never be spendable as an address confirmation. */
+export async function resendCode(email: string, purpose: 'verify_email' | 'sign_in' = 'verify_email') {
+  if (!SUPABASE_ENABLED) return { ok: true };
+  return await publicCall('resend_verification', { email, purpose });
+}
 export async function inviteInfo(token: string) {
   if (!SUPABASE_ENABLED) {
     return { ok: true, valid: true, email: 'demo.tenant@example.invalid',
@@ -135,15 +141,20 @@ export async function inviteInfo(token: string) {
   return await publicCall('invite_info', { token });
 }
 
-export async function signIn(email: string, password: string) {
-  if (!SUPABASE_ENABLED) {
-    mockSignIn({ email, first_name: 'Sam', last_name: 'Okafor' });
-    return;
-  }
-  const { error } = await tsb().auth.signInWithPassword({ email, password });
-  // One message for a wrong password and an unknown address, so the form is not
-  // an oracle for which addresses have accounts.
-  if (error) throw new Error('That email address and password do not match.');
+/**
+ * Step one of two: prove the password, then wait for a code.
+ *
+ * THE PASSWORD IS NOT CHECKED HERE. It goes to tenant-auth, which verifies it
+ * server side and throws the resulting session away, returning nothing but ok.
+ * Checking it in the browser would hand over a working session and leave the
+ * code as decoration, because the session would already be usable.
+ *
+ * Resolves when a code has been sent. It does NOT sign anybody in: that is
+ * verifyCode.
+ */
+export async function signInStart(email: string, password: string): Promise<void> {
+  if (!SUPABASE_ENABLED) return;   // mock: any six digits pass at the next step
+  await publicCall('signin_start', { email, password });
 }
 
 export async function signOut() {
@@ -158,7 +169,7 @@ export async function signOut() {
  * function returns a one-time token which is redeemed here, so the code is
  * never itself a credential the browser holds on to.
  */
-export async function verifyCode(email: string, code: string): Promise<void> {
+export async function verifyCode(email: string, code: string, purpose: 'verify_email' | 'sign_in' = 'verify_email'): Promise<void> {
   if (!SUPABASE_ENABLED) {
     // Mock mode has no mail. Any six digits sign you in, and the screen says so,
     // rather than inventing a code the walker has no way to receive.
@@ -166,7 +177,7 @@ export async function verifyCode(email: string, code: string): Promise<void> {
     mockSignIn({ email, first_name: 'Sam', last_name: 'Okafor' });
     return;
   }
-  const r = await publicCall('verify_code', { email, code });
+  const r = await publicCall('verify_code', { email, code, purpose });
   const { error } = await tsb().auth.verifyOtp({ token_hash: r.token_hash, type: 'magiclink' });
   if (error) throw new Error('Could not sign you in. Try signing in with your password.');
 }
