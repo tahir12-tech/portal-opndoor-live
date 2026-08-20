@@ -768,6 +768,13 @@ support.
 > - names are matched ignoring case, surrounding whitespace and a trailing `Ltd`
 >   or `Limited`
 > - a name matching more than one org is rejected as **ambiguous**, never guessed
+> - if your account **owns the properties you refer into** and holds exactly one
+>   agency, you may omit `agency_name`: your key already identifies it. Send
+>   `branch_name` alone, or neither if you also have exactly one branch. An
+>   account that refers **on behalf of other agencies** must always name one,
+>   because its next referral is very likely for an agency it has not used
+>   before, and defaulting would attach a referral to an arbitrary record
+> - an account that owns several brands must name one. The error lists them
 > - `agent_contact_email`, `agent_contact_name` and `agent_contact_phone` are
 >   gone from the payload
 > - `org.created` is gone from the response

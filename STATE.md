@@ -38,6 +38,9 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 | **CRM attribution**: channel derived from the route, brand and group as properties | Verified live on four applications |
 | **Three doors on /login**: tenant signs in on the tab, supplier is a real staff sign-in, agent unchanged | REGRESSION H15, 8 tests, both defects reintroduced and caught |
 | **No supplier name in the browser**: banned-list grep over `dist/` including static assets | REGRESSION H16, run and clean |
+| **Agent or supplier**: ownership recorded, form depth counted, four shapes verified live | REGRESSION H17, 202 tests |
+| **API: an agent may omit its own agency name** | H17.13-H17.18, all six outcomes run against the database |
+| **agency_groups is no longer world readable** | H18, RLS on, anon revoked, verified live |
 | **Rate resolution across a group**: agency override beats partner default, group override beats both | Verified live on the Meridian fixture, 0.30 against 0.25 |
 
 ## Half built
@@ -91,7 +94,7 @@ Things that have cost time once and will again.
 
 - **Nothing is pushed.** The branch is 130-odd commits ahead of `origin/main`,
   which has 65 migrations ending 5 July and no partner API at all.
-- **`npm test` exists** and is byte-identical to `npm run smoke`. 188 tests.
+- **`npm test` exists** and is byte-identical to `npm run smoke`. 202 tests.
 - **`tsc -p tsconfig.json` checks nothing** (`"files": []`). Use `tsconfig.app.json`.
 - **A new column on `applications` needs its own `grant select`** or it is
   silently invisible to the client.

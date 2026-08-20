@@ -1601,3 +1601,58 @@ inside a `stable` function. Postgres checks volatility at execution, so
 `db push` reported success and it would have raised "INSERT is not allowed in a
 non-volatile function" the first time anybody opened the form. Fixed in
 20260814040000. Call the function, do not read it.
+
+### H17.13 to H17.18. The API: an agent may stop repeating its own name
+
+The key already identifies the agency. `partner_api_resolve_org` already did
+exactly this one level down (omit `branch_name` and a single branch is used), so
+this is the same kindness one level up, gated on ownership.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H17.13 | Supplier, `org: { branch_name }` with no agency | `agency_required`. Unchanged. Its set is open, so one agency so far is a fact about the past |
+| H17.14 | Agent, one brand, `org: { branch_name }` | Resolves. The agency comes from the key |
+| H17.15 | Agent, one brand and one branch, `org: {}` | Resolves both |
+| H17.16 | Agent, one brand, several branches, `org: {}` | `branch_required`, **with the branch names in the message** so it can be fixed without a ticket |
+| H17.17 | Agent, several brands, no agency named | `agency_required`, with the brand names |
+| H17.18 | Anyone sending `agency_name` as today | Byte-identical behaviour. This is additive to input that used to be a hard error |
+
+**The shortcut is only reachable for `pre_referenced_open`.** `createApplication`
+dispatches on `referencing_mode` as its first act and returns 501 for
+`opndoor_referenced`, before the org is resolved at all. Both original agent
+fixtures were `opndoor_referenced`, so this was unreachable code until
+`kestrel-lettings` was added. Do not relax that mode gate to reach it: B4.8 and
+B4.9 exist to hold it.
+
+**`min(uuid)` does not exist.** `partner_api_resolve_org` resolved "the only
+one" with `min(a.id)` and `min(b.id)` in four places, so **every by-name org
+resolution has always raised `42883` and only the by-id form ever worked.**
+Fixed in 20260814070000 with `(array_agg(id))[1]`. It survived because the
+failure is at execution and nothing in the suite called it with a name.
+
+---
+
+## H18. agency_groups was readable by anyone
+
+**It shipped with RLS off.** 20260813010000 created the table, never enabled row
+level security and never wrote a policy, which under Supabase's default grants
+leaves SELECT held by `authenticated` **and `anon`**. The anon key ships in the
+browser bundle, so the table was open to anybody at all.
+
+What was exposed: every partner's group names, which is a client list, and
+`partner_rate` / `agent_rate` at group level, which are the commercial terms of
+somebody else's deal. The sibling table built in the same week,
+`partner_agency_relationships`, got RLS for this exact reason and said so.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H18.1 | `select relrowsecurity from pg_class where oid = 'public.agency_groups'::regclass` | true |
+| H18.2 | `has_table_privilege('anon', 'public.agency_groups', 'select')` | **false** |
+| H18.3 | As partner A, `select * from agency_groups` | Only partner A's rows |
+| H18.4 | As an opndoor admin | Every row |
+| H18.5 | At AAL1 | Nothing. The restrictive `require_aal2` ANDs with the permissive policy |
+| H18.6 | Any insert, update or delete policy on the table | **None exists.** Groups are created through the security definer RPC only |
+| H18.7 | Every other table added since 20260812 | Repeat H18.1 and H18.2 for each. This was not caught by review, it was caught by an adversarial pass on unrelated work |
+
+H18.7 is the row that matters. A table created without `enable row level
+security` is open, silently, and nothing in the build or the suite says so.

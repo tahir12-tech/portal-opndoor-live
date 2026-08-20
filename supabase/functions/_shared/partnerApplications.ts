@@ -216,7 +216,16 @@ async function resolveOrg(
   }
 
   // ---- by name -----------------------------------------------------------
-  if (!agencyName) {
+  // A missing agency_name is NOT rejected here any more. For a partner that
+  // owns its stock and has exactly one agency, the key already identifies it,
+  // and partner_api_resolve_org resolves it. For a supplier, and for a group
+  // with several brands, that same function still answers agency_required, and
+  // the case below turns it into the identical error this used to return.
+  //
+  // The decision moved to SQL rather than being duplicated here, because two
+  // implementations of "may this caller omit the agency" would drift, and the
+  // one that drifts open attaches real money to an arbitrary agency.
+  if (!agencyName && !branchName) {
     return {
       error: {
         field: "org.agency_name",
@@ -245,7 +254,15 @@ async function resolveOrg(
 
     case "agency_required":
       return {
-        error: { field: "org.agency_name", code: "required", message: "An agency name is required." },
+        error: {
+          field: "org.agency_name",
+          code: "required",
+          // detail carries the brand names when the caller owns several, so a
+          // group integrator can fix the call without opening a ticket.
+          message: r.detail
+            ? `An agency name is required. Your account holds: ${r.detail}.`
+            : "An agency name is required.",
+        },
       };
 
     case "agency_not_found":
