@@ -223,10 +223,12 @@ export function Login() {
 
           {step === 'creds' ? (
             <div className="auth__pane-body">
-              <h2 className="auth__title">Sign in to the portal</h2>
-              <p className="auth__sub">{audience === 'supplier'
-                ? 'For partners who send us referrals. The same sign-in as an agent, and the same portal: what you see is set by your account, not by the tab you picked.'
-                : 'Use the work email your administrator registered for you.'}</p>
+              <div className="auth__intro">
+                <h2 className="auth__title">Sign in to the portal</h2>
+                <p className="auth__sub">{audience === 'supplier'
+                  ? 'For partners who send us referrals. The same sign-in as an agent, and the same portal: what you see is set by your account, not by the tab you picked.'
+                  : 'Use the work email your administrator registered for you.'}</p>
+              </div>
               {error && <p className="auth__error" style={{ color: 'var(--danger, #c0392b)' }}>{error}</p>}
               <form className="auth__form" onSubmit={submitCreds} noValidate>
                 <div className="field">
@@ -472,10 +474,13 @@ function TenantSignInPanel() {
   if (tSent) return (
     <>
       <Steps onSecond />
-      <h2 className="auth__title">Check your email</h2>
-      <p className="auth__sub">
-        We have sent a six-digit code to {tEmail}. It lasts ten minutes.
-      </p>
+      <div className="auth__pane-body">
+      <div className="auth__intro">
+        <h2 className="auth__title">Check your email</h2>
+        <p className="auth__sub">
+          We have sent a six-digit code to {tEmail}. It lasts ten minutes.
+        </p>
+      </div>
       {tErr && <p className="auth__error" style={{ color: 'var(--danger, #c0392b)' }}>{tErr}</p>}
       <form className="auth__form" onSubmit={confirm} noValidate>
         <div className="field">
@@ -497,17 +502,21 @@ function TenantSignInPanel() {
         <button type="button" className="linkish" style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--heliotrope-deep, #5b3fd9)', textDecoration: 'underline', cursor: 'pointer' }}
           onClick={() => { setTSent(false); setTCode(''); setTErr(null); }}>Use a different email address</button>
       </p>
+      </div>
     </>
   );
 
   return (
     <>
       <Steps onSecond={false} />
-      <h2 className="auth__title">Sign in to your application</h2>
-      <p className="auth__sub">
-        For tenants applying for an opndoor guarantee. We will email you a code to
-        confirm it is you. No authenticator app needed.
-      </p>
+      <div className="auth__pane-body">
+      <div className="auth__intro">
+        <h2 className="auth__title">Sign in to your application</h2>
+        <p className="auth__sub">
+          For tenants applying for an opndoor guarantee. We will email you a code to
+          confirm it is you. No authenticator app needed.
+        </p>
+      </div>
       {tErr && <p className="auth__error" style={{ color: 'var(--danger, #c0392b)' }}>{tErr}</p>}
       <form className="auth__form" onSubmit={go} noValidate>
         <div className="field">
@@ -530,6 +539,7 @@ function TenantSignInPanel() {
       <p className="auth__foot">
         Not started yet? <a href="/apply/register">Apply for a guarantee</a>.
       </p>
+      </div>
     </>
   );
 }

@@ -13,6 +13,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { SessionProvider } from '@/session/SessionContext';
 import { Login } from './Login';
 
@@ -203,5 +205,75 @@ describe('the three panes are the same size', () => {
       expect(container.querySelectorAll('.auth__steps').length).toBe(1);
       cleanup();
     }
+  });
+});
+
+describe('switching tabs changes the words and nothing else', () => {
+  /* The tabs were pinned, then the panes were pinned top and bottom, and the
+     FIELDS still sat in three different places. The cause was the intro block:
+     one line of copy for an agent, two for a tenant, three for a supplier, so a
+     shorter one pulled everything below it upwards.
+
+     jsdom does no layout, so these assert the structure the CSS relies on:
+     every tab has the same skeleton, in the same order, with the intro in a
+     block whose height is reserved. */
+  const SKELETON = ['auth__steps', 'auth__pane-body'];
+
+  for (const tab of ['tenant', 'agent', 'supplier']) {
+    it(`${tab} has the same skeleton in the same order`, () => {
+      const { container } = at(`/login?tab=${tab}`);
+      const pane = container.querySelector('.auth__pane')!;
+      const kids = Array.from(pane.children).map((el) => el.className.split(' ')[0]);
+      expect(kids).toEqual(SKELETON);
+    });
+
+    it(`${tab} puts its heading and sentence inside the reserved block`, () => {
+      const { container } = at(`/login?tab=${tab}`);
+      const intro = container.querySelector('.auth__pane-body > .auth__intro');
+      expect(intro).toBeTruthy();
+      expect(intro!.querySelector('.auth__title')).toBeTruthy();
+      expect(intro!.querySelector('.auth__sub')).toBeTruthy();
+      // First child of the body, so nothing above it can shift it.
+      expect(container.querySelector('.auth__pane-body')!.firstElementChild)
+        .toBe(intro);
+    });
+  }
+
+  it('keeps the copy different, which is the point of the tabs', () => {
+    at('/login?tab=tenant');
+    const tenant = document.querySelector('.auth__title')!.textContent;
+    cleanup();
+    at('/login?tab=agent');
+    expect(document.querySelector('.auth__title')!.textContent).not.toBe(tenant);
+  });
+});
+
+describe('the reserved intro height matches the copy it has to hold', () => {
+  /* The number in the CSS is a magic number and the first guess at it was 3px
+     short, which is exactly enough to move the form. This recomputes it from
+     the same values the stylesheet uses, so a copy change that adds a line, or
+     a font-size change, fails here rather than in somebody's eyes. */
+  // From the repo root: import.meta.url is not a file URL under this runner.
+  const css = readFileSync(resolve(process.cwd(), 'src/pages/auth/auth.css'), 'utf8');
+
+  const num = (rule: string, prop: string) => {
+    const block = css.match(new RegExp(`\\${rule}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+    return parseFloat(block.match(new RegExp(`${prop}:\\s*([\\d.]+)`))?.[1] ?? 'NaN');
+  };
+
+  it('reserves at least a one-line heading and a three-line sentence', () => {
+    const titlePx = num('.auth__title', 'font-size');
+    const subPx = num('.auth__sub', 'font-size');
+    const subLh = num('.auth__sub', 'line-height');
+    const subGap = num('.auth__sub', 'margin-top');
+    const reserved = num('.auth__intro', 'min-height');
+
+    expect(titlePx).toBe(28);
+    expect(subPx).toBe(14);
+
+    // Body line-height is 1.5 and h2 margins are reset to 0 in portal.css.
+    const needed = titlePx * 1.5 + subGap + 3 * subPx * subLh;
+    expect(needed).toBeCloseTo(115.1, 1);
+    expect(reserved).toBeGreaterThanOrEqual(needed);
   });
 });

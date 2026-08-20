@@ -1677,6 +1677,11 @@ pane, so the box is constant and only the content below the tabs differs.
 | H19.3a | Watch where each pane ENDS, not just where it starts | The last line sits on the same bottom edge for all three. Aligning the tabs alone left the panes finishing 44px apart, which is the same complaint one level down |
 | H19.3b | Every audience | Exactly one `.auth__pane`, ending in an `.auth__foot` either directly or as the last child of an `.auth__pane-body`. **That chain is what the pin needs**, and if it breaks the footer drifts and nothing else says so |
 | H19.3c | Remove the pane wrapper or the tenant step strip | **H19.3a and H19.3b fail.** Verified by reintroducing both: 5 failed, 208 passed |
+| H19.3d | Switch tabs rapidly and watch the FIELDS, not the tabs | The labels, inputs and button do not move. This is the third layer of the same defect: the tabs were pinned, then the panes were pinned top and bottom, and the fields still sat in three places because the intro copy is one line for an agent, two for a tenant and three for a supplier |
+| H19.3e | `.auth__intro` min-height | At least `28 x 1.5 + 8 + 3 x 14 x 1.55 = 115.1px`. Reserved 120. **The first guess was 112, which is 3px short and enough to move the form.** A test recomputes it from the stylesheet rather than trusting the number |
+| H19.3f | Change any of those font sizes, or add a line to the longest sentence | H19.3e fails. Verified by setting the value back to 112 and separately by growing the sub to 16px: each failed on its own |
+| H19.3g | Every audience | The pane's children are exactly `auth__steps` then `auth__pane-body`, and the body's first child is `auth__intro` holding the title and the sentence. Identical skeleton, so identical geometry |
+| H19.3h | Below 900px | The reserved height releases. One column rewraps the sentence to a different number of lines, so a height measured at 420px wide is meaningless there |
 
 ### H19.4 to H19.6. The left panel is not agent copy for everyone
 
