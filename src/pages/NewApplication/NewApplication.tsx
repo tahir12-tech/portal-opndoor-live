@@ -13,7 +13,7 @@
 import { useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DEFAULT_SHARE_PERCENT, amountFromPercent, percentFromAmount, shareWarning } from './shareMath';
-import { addressLookupAvailable, ALL_PARTNERS, createReferral, findActiveReferralByTenantProperty, lookupAddresses, type AddressOption, type DuplicateMatch } from '@/data';
+import { addressLookupAvailable, ALL_PARTNERS, createReferral, findActiveReferralByTenantProperty, lookupAddresses, type AddressOption, type DuplicateMatch, FULL_PICKER, orgSectionCopy, type OrgShape } from '@/data';
 import { Modal } from '@/components/ui/Modal';
 import { TITLE_OPTIONS, validateReferral, parseFlexibleDate, toISODate, type ReferralValues } from '@/lib/validation';
 import { useSession } from '@/session/SessionContext';
@@ -53,6 +53,11 @@ export function NewApplication() {
 
   // On-the-fly org creation extras from the AgentBranchPicker (contact capture
   // and, for an admin, the target partner the referral lands under).
+  // The shape the picker resolved. Held here only so the section heading can
+  // ask the right question: a supplier is telling us whose property this is, an
+  // agent is telling us which of their own offices it is.
+  const [orgShape, setOrgShape] = useState<OrgShape>(FULL_PICKER);
+  const orgCopy = orgSectionCopy(orgShape);
   const [org, setOrg] = useState({
     agencyNew: false, branchNew: false,
     agencyContactEmail: '', agencyContactName: '', agencyContactPhone: '', branchContactEmail: '',
@@ -333,9 +338,10 @@ export function NewApplication() {
 
           {/* 4. AGENT & BRANCH */}
           <section className="card sec" id="sec-branch">
-            <div className="sec__head"><span className="sec__num">4</span><div><div className="sec__title">Agent &amp; branch <Req /></div><div className="sec__sub">Select the agent this referral belongs to, then the branch. You can add a new agent or branch on the fly.</div></div></div>
+            <div className="sec__head"><span className="sec__num">4</span><div><div className="sec__title">{orgCopy.title} <Req /></div><div className="sec__sub">{orgCopy.sub}</div></div></div>
             <CardBody>
               <AgentBranchPicker onChange={(v) => {
+              setOrgShape(v.shape);
                 setValues((prev) => ({ ...prev, agency: v.agency, branch: v.branch }));
                 setOrg({ agencyNew: v.agencyNew, branchNew: v.branchNew, agencyContactEmail: v.agencyContactEmail, agencyContactName: v.agencyContactName, agencyContactPhone: v.agencyContactPhone, branchContactEmail: v.branchContactEmail, partner: v.partner, singleOffice: v.singleOffice });
               }} />

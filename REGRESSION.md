@@ -1553,3 +1553,51 @@ the URL can read it. Gating a link is not gating a file.
 The banned list is at the built-artefact grep near the top of this document.
 H16.6 is the row that keeps this from rotting: the leak was not a name somebody
 typed into the UI, it was one nobody thought of as text.
+
+---
+
+## H17. Agent or supplier, and how deep the form goes
+
+**The distinction is ownership of the stock the tenant moves into.** An agent
+refers into a property it lets itself, so naming the agency is asking somebody
+to name themselves. A supplier refers on behalf of agencies it does not let for,
+so the agency is a real question with a different answer each time.
+
+It is NOT "one agency versus many". A national group owns several brands and is
+still an agent. So one fact is recorded, `partners.refers_own_stock`, and the
+DEPTH of the form is counted rather than configured: a partner that buys a
+second brand grows the extra step by itself on the next page load.
+
+**Default false means every partner alive today is a supplier by construction
+rather than by care.** Rightmove included. That is what makes this additive.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H17.1 | `select refers_own_stock from partners` for every pre-existing partner | **All false.** Nobody was reclassified. Migration 20260814010000 raises if one was |
+| H17.2 | Sign in as a supplier and open New application | Today's form, unchanged: Agent typeahead, create on the fly, single-office radio, contact block |
+| H17.3 | A **supplier with exactly one agency** | **Still asks.** `collapse_agency` false. Its agency set is open, so next month there are two, and collapsing would file the referral against whichever came first |
+| H17.4 | An agent with one brand and one branch | Asks nothing. One line naming the office, and a "A different branch?" link that reveals the branch field |
+| H17.5 | An agent with one brand and several branches | Asks the branch only. No agency step |
+| H17.6 | An agent with several brands | Asks brand, then branch. The group case |
+| H17.7 | Any agent | **No "create new agent" option, and Enter does not create one.** A new brand is an acquisition and belongs to an admin, not to a referral form |
+| H17.8 | An agent with **no branches set up** | A blocking line saying so. **It must not fall through to the supplier picker**, which is how somebody invents a misspelled duplicate of their own employer with money attached |
+| H17.9 | `my_org_shape` when the RPC fails or returns no row | `FULL_PICKER`: asks for an agency, allows a new one. The fallback is the shape that loses nothing |
+| H17.10 | A branch manager at one office of a twelve-office agent | Their form collapses even though the partner's does not. `my_org_shape` reads `user_scopes` |
+| H17.11 | Add a second branch to a collapsed agent, reload the form | The branch step appears. Nothing was configured |
+| H17.12 | Wording, any agent path | Never says "agency". Says brand, branch or office |
+
+### What protects the referral path
+
+| Claim | Proof |
+| ----- | ----- |
+| `applications` is untouched | No column, no status, no table added. H17 adds nothing to it |
+| Both create paths cannot see the new column | `create_referral` and `create_referral_api` select explicit partner columns. 20260814010000 asserts the explicit list is still there and raises if a create path ever moves to `select *` |
+| No RLS policy reads it | `refers_own_stock` is read by `my_org_shape` and the picker. Neither is on the referral write path |
+| Every existing partner keeps today's form | H17.1 and H17.2. `default false` is the supplier shape, which is what the schema has always been |
+
+**A migration applying cleanly is not evidence the function runs.** The first
+version of `my_org_shape` built its working set with `create temporary table`
+inside a `stable` function. Postgres checks volatility at execution, so
+`db push` reported success and it would have raised "INSERT is not allowed in a
+non-volatile function" the first time anybody opened the form. Fixed in
+20260814040000. Call the function, do not read it.

@@ -10,6 +10,7 @@ export * from './types';
 export * as authService from './authService';
 export * from './partnersService';
 export * from './orgService';
+export * from './orgShapeService';
 export * from './applicationsService';
 export * from './analyticsService';
 export * from './activityService';

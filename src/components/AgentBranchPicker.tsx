@@ -26,7 +26,7 @@
    create_referral_target).
    ===================================================================== */
 import { useEffect, useRef, useState } from 'react';
-import { ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFly, findAgency, getPartners, searchAgencies, searchBranches } from '@/data';
+import { ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFly, findAgency, getPartners, loadOrgShape, orgNotSetUp, searchAgencies, searchBranches, FULL_PICKER, type OrgShape } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { Icon } from '@/components/ui/Icon';
 import { TypeAhead, highlightMatch, type TypeAheadOption } from '@/components/ui/TypeAhead';
@@ -53,11 +53,24 @@ export interface AgentBranchValue {
       office branch); false = has branches (name one). Always null for an
       existing agency, which is never asked. */
   singleOffice: boolean | null;
+  /** What the form decided to ask. Emitted so the section heading can use the
+      same answer instead of asking the server a second time. */
+  shape: OrgShape;
 }
 
 export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranchValue) => void }) {
   const { role, partnerScope } = useSession();
   const isAdmin = role === 'superadmin';
+  // What the form should ask. Derived on the server from what this person can
+  // reach, and from whether the partner owns its stock. FULL_PICKER until it
+  // arrives, because that is the shape the portal has always had and the one
+  // that loses nothing if the call fails.
+  const [shape, setShape] = useState<OrgShape>(FULL_PICKER);
+  const collapsedOnce = useRef(false);
+  // An escape hatch for the collapsed case. Collapsing is right almost always
+  // and wrong on the day they open a second office, so the step is hidden
+  // rather than removed.
+  const [revealBranch, setRevealBranch] = useState(false);
   const [agentValue, setAgentValue] = useState('');
   const [selectedAgency, setSelectedAgency] = useState<string | null>(null);
   const [selectedAgencyPartner, setSelectedAgencyPartner] = useState<string | null>(null);
@@ -102,9 +115,36 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
       branchContactEmail: branchAuto ? '' : brEmail.trim(),
       partner: resolvedPartner,
       singleOffice: agencyNew ? singleOffice : null,
+      shape,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAgency, selectedBranch, agencyNew, branchNew, agEmail, agName, agPhone, brEmail, branchAuto, resolvedPartner, singleOffice]);
+  }, [selectedAgency, selectedBranch, agencyNew, branchNew, agEmail, agName, agPhone, brEmail, branchAuto, resolvedPartner, singleOffice, shape]);
+
+  /* Ask the server what to ask, then collapse anything with one answer.
+
+     Guarded by a ref, not by a dependency list: chooseAgency clears the branch,
+     so running this a second time would wipe a choice the user had already
+     made. It runs once, on mount, and never again. */
+  useEffect(() => {
+    let live = true;
+    void loadOrgShape().then((sh) => {
+      if (!live || collapsedOnce.current) return;
+      collapsedOnce.current = true;
+      setShape(sh);
+      if (!sh.collapseAgency || !sh.onlyAgencyName) return;
+      chooseAgency(sh.onlyAgencyName, false);
+      // Set the branch AFTER, because chooseAgency may have defaulted a Head
+      // office for an agency with no branches and the real one wins.
+      if (sh.collapseBranch && sh.onlyBranchName) {
+        setBranchValue(sh.onlyBranchName);
+        setSelectedBranch(sh.onlyBranchName);
+        setBranchNew(false);
+        setBranchAuto(false);
+      }
+    });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Auto-fill a "Head office" branch when the agency has no branches (#65). */
   function autoBranchIfSingleOffice(name: string) {
@@ -204,7 +244,10 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
     sub: `${a.branches.length} branch${a.branches.length === 1 ? '' : 'es'}${isAdmin ? ` · ${partnerName(a.partner)}` : ''}`,
     onSelect: () => chooseAgency(a.name, false, a.partner),
   }));
-  if (agentQuery && !agentExact) {
+  // Only a supplier invents an agency mid-referral. For an agent a new agency
+  // is an acquisition, and that belongs to an admin on the Agencies screen, not
+  // to whoever happens to be sending a referral.
+  if (agentQuery && !agentExact && shape.mayAddAgency) {
     agentOptions.push({
       id: '__create-agent',
       icon: <Icon name="plus" />,
@@ -223,7 +266,9 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
     // not tie-break silently on Enter - require an explicit pick from the list.
     if (matches.length > 1) return;
     if (matches.length === 1) chooseAgency(matches[0].name, false, matches[0].partner);
-    else { createAgencyOnTheFly(q, partnerScope); createdAgencies.current.add(q.toLowerCase()); chooseAgency(q, true); }
+    // Enter is a shortcut for the list, so it has to obey the same rule: no
+    // silent agency creation for a partner that owns its stock.
+    else if (shape.mayAddAgency) { createAgencyOnTheFly(q, partnerScope); createdAgencies.current.add(q.toLowerCase()); chooseAgency(q, true); }
   }
 
   // ---- branch options ----
@@ -268,18 +313,57 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
 
   return (
     <div className="form-grid">
-      <div className="field span-2">
-        <label htmlFor="ag-name">Agent</label>
-        <TypeAhead
-          id="ag-name"
-          value={agentValue}
-          onChange={resetAgent}
-          onEnter={commitAgentEnter}
-          options={agentOptions}
-          placeholder="Search agencies or add a new one"
-          emptyText="No agencies found. Type a name to add one"
-        />
-      </div>
+      {/* An agent with nothing set up. Says so, rather than showing a search box
+          with nothing in it and no way to add anything. It must never fall
+          through to the supplier picker: that is how somebody invents a
+          misspelled duplicate of their own employer with money attached. */}
+      {orgNotSetUp(shape) ? (
+        <div className="field span-2">
+          <label>Your branches</label>
+          <div className="hint" style={{ fontSize: 14, color: 'var(--ink)' }}>
+            No branches are set up for your account yet. Ask your manager or opndoor
+            to add them, then come back to this form.
+          </div>
+        </div>
+      ) : (<>
+      {/* COLLAPSED. One brand, and it is theirs, so there is nothing to choose.
+          Shown rather than hidden: filing a referral against an agency without
+          saying which one is worse than one extra line. It is text, not a
+          control, so it is not something to read through. */}
+      {shape.collapseAgency ? (
+        <div className="field span-2">
+          <label>{shape.collapseBranch ? 'Office' : 'Brand'}</label>
+          <div className="hint" style={{ fontSize: 14, color: 'var(--ink)' }}>
+            This referral is against <b>{shape.onlyAgencyName}</b>
+            {shape.collapseBranch && shape.onlyBranchName && shape.onlyBranchName !== shape.onlyAgencyName
+              ? <>, <b>{shape.onlyBranchName}</b></>
+              : null}.
+          </div>
+          {shape.collapseBranch && !revealBranch && (
+            <button type="button" className="linkish" onClick={() => setRevealBranch(true)}
+              style={{ background: 'none', border: 0, padding: 0, marginTop: 4, cursor: 'pointer',
+                       color: 'var(--heliotrope-deep, #5b3fd9)', font: 'inherit', textDecoration: 'underline' }}>
+              A different branch?
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="field span-2">
+          <label htmlFor="ag-name">{shape.refersOwnStock ? 'Brand' : 'Agent'}</label>
+          <TypeAhead
+            id="ag-name"
+            value={agentValue}
+            onChange={resetAgent}
+            onEnter={commitAgentEnter}
+            options={agentOptions}
+            placeholder={shape.mayAddAgency ? 'Search agencies or add a new one' : 'Search your brands'}
+            emptyText={shape.mayAddAgency ? 'No agencies found. Type a name to add one' : 'No brands found'}
+          />
+          {!shape.mayAddAgency && (
+            <span className="hint">Referrals go against one of your own brands. A new brand is set up by opndoor, not here.</span>
+          )}
+        </div>
+      )}
       {/* #74 New agency: ask explicitly (no default) whether it is single-office. */}
       {agencyNew && (
         <div className="field span-2">
@@ -305,7 +389,9 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
       {/* Branch field: existing agencies always; a new agency only once it is
           confirmed to have branches. A new single-office agency uses the auto
           Head office branch (read-only) and skips this field. */}
-      {agencyNew && singleOffice === true ? (
+      {/* Branch collapses only when the agency did, because for a supplier the
+          branch depends on which agency they pick and that is not known yet. */}
+      {shape.collapseBranch && !revealBranch ? null : agencyNew && singleOffice === true ? (
         <div className="field span-2">
           <label htmlFor="br-name">Branch</label>
           <input id="br-name" type="text" readOnly value={`${selectedAgency}, Head office`} />
@@ -331,6 +417,8 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
           )}
         </div>
       ) : null}
+
+      </>)}
 
       {agencyNew && (
         <div className="field span-2" style={{ background: 'var(--white-lilac)', border: '1px solid var(--line)', borderRadius: 'var(--r-md, 10px)', padding: 14 }}>
