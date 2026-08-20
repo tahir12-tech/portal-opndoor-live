@@ -9,7 +9,7 @@
    data with no screen changes. Runs after AAL2 login; see SessionContext.
    ===================================================================== */
 import { sb } from '@/lib/supabase';
-import { LEAST_PRIVILEGED_ROLE, maySeeCommission,
+import { LEAST_PRIVILEGED_ROLE,
   hydratePartners, hydrateUsers, hydrateOrg, hydrateApplications, hydrateUpcoming, hydrateFull, hydrateSettings,
   type Agency, type AgentContact, type ApplicationSummary, type Branch, type FullApp, type ManagedUser, type Role,
   type Partner, type Status,
@@ -78,20 +78,28 @@ function toContact(c: any): AgentContact {
 }
 
 /** Load all RLS-scoped datasets and replace the service working copies. */
-export async function hydrateFromSupabase(userId: string, viewerRole: Role = LEAST_PRIVILEGED_ROLE): Promise<void> {
+/* viewerRole is no longer read here. It used to narrow the partners select,
+   which was never enforcement: Postgres now refuses the rate columns to
+   everyone whatever they ask. The parameter stays because callers pass it and
+   removing it would be an unrelated change to every call site. */
+export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LEAST_PRIVILEGED_ROLE): Promise<void> {
   const client = sb();
-  const [partnersRes, usersRes, ratesRes, agenciesRes, branchesRes, contactsRes, appsRes] = await Promise.all([
-    // The rate columns are requested only when the caller is entitled to them.
-    // partners_select already refuses the whole row to a developer, so this is
-    // defence in depth rather than the control, but a client that does not ask
-    // cannot receive: the previous select pulled partner_rate and agent_rate
-    // into every browser at login, which meant hiding the figures in the UI was
-    // never going to be sufficient on its own.
+  const [partnersRes, partnerRatesRes, usersRes, ratesRes, agenciesRes, branchesRes, contactsRes, appsRes] = await Promise.all([
+    // THE RATES ARE NO LONGER SELECTABLE HERE BY ANYONE, exactly as on
+    // applications. They came off the table grant for `authenticated`
+    // (20260815030000), because this string was never enforcement: it decided
+    // what the client ASKED for, and PostgREST answers whatever it is asked. A
+    // referrer could request them directly and did, proven live.
+    //
+    // Same list for every role now. There is nothing left to narrow, which is
+    // the point: a select that cannot leak does not need a conditional.
     client.from('partners').select(
-      maySeeCommission(viewerRole)
-        ? 'id, slug, name, status, live_from, partner_rate, agent_rate, is_primary, referrer_leaderboard_mode, referencing_mode, portal_referrals_enabled, api_access_enabled'
-        : 'id, slug, name, status, live_from, is_primary, referrer_leaderboard_mode, referencing_mode, portal_referrals_enabled, api_access_enabled',
+      'id, slug, name, status, live_from, is_primary, referrer_leaderboard_mode, referencing_mode, portal_referrals_enabled, api_access_enabled',
     ),
+    // The partner rates, for the roles entitled to them. Called unconditionally
+    // and refused in the function rather than skipped here, because a client
+    // that skipped the call would be back to a TypeScript decision.
+    client.rpc('my_partner_rates'),
     // Admin user list via RPC: TRUTHFUL last-active (auth.users.last_sign_in_at)
     // and status/role, visibility-scoped like the users_select RLS policy.
     client.rpc('list_managed_users'),
@@ -134,7 +142,16 @@ export async function hydrateFromSupabase(userId: string, viewerRole: Role = LEA
     if (res.error) throw new Error(`Failed to load data: ${res.error.message}`);
   }
 
-  const partners = (partnersRes.data ?? []) as any[];
+  // Merged back onto the partner rows the RPC is entitled to answer for. Empty
+  // for a referrer and a developer, so a rate they are not entitled to reads as
+  // absent rather than as zero, and nothing downstream has to know the
+  // difference between "no commission" and "not your commission".
+  const ratesFromRpc = new Map<string, { partner_rate: number | null; agent_rate: number | null }>(
+    ((partnerRatesRes.data ?? []) as any[]).map((r) => [r.partner_id, { partner_rate: r.partner_rate, agent_rate: r.agent_rate }]),
+  );
+  // Merged before anything downstream reads partners, so partnerRateById below
+  // keeps working unchanged: it derives from these rows.
+  const partners = ((partnersRes.data ?? []) as any[]).map((p) => ({ ...p, ...(ratesFromRpc.get(p.id) ?? {}) }));
   const users = (usersRes.data ?? []) as any[];
   const agencies = (agenciesRes.data ?? []) as any[];
   const branches = (branchesRes.data ?? []) as any[];

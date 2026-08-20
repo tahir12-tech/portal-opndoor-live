@@ -1953,3 +1953,63 @@ grep of `src/` for `table_id` finds nothing**, which is why this survived.
 | H21.9 [AUTO] | The function log for the same failure | Carries the identifiers. Server side, rendered nowhere |
 | H21.10 [AUTO] | Any function invoked by a `pg_net` cron | Treat its response body as browser-visible. Truncating or redacting downstream is chasing it |
 | H21.11 [SEMI] | Force a callback failure and read the Health screen | The row appears, the body names nothing |
+
+### H21.12 to H21.16. A column revoke on one table does not protect the same value on another
+
+**The fourth class, and the one neither sweep would have found.** It is not a
+function grant, so the EXECUTE sweep skipped it. Its policy has no subquery, so
+the predicate sweep skipped it. 20260811180000 revoked
+`applications.partner_rate` and `applications.agent_rate` from `authenticated`
+because RLS grants ROWS and not COLUMNS. **The same two values live on
+`public.partners` and were never revoked there.**
+
+Proven as a plain referrer at AAL2, not inferred:
+
+```
+app_role()                     referrer
+SELECT partners.partner_rate   ALLOWED     <- before
+SELECT partners.agent_rate     ALLOWED     <- before
+applications.partner_rate      REFUSED     <- the fix that worked, in 2026-08
+```
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H21.12 [AUTO] | `has_column_privilege('authenticated','public.partners','partner_rate','select')` | **false**, and the same for `agent_rate` |
+| H21.13 [AUTO] | As a referrer at AAL2, `select partner_rate from partners` | `42501`. Assert by running it as that role, not by reading the grant |
+| H21.14 [AUTO] | As management at AAL2, `my_partner_rates()` | Their own partner's rates. As a referrer or a developer, `42501` |
+| H21.15 [AUTO] | The exact select in `hydrate.ts`, run as management | **ALLOWED.** The revoke breaks login for two roles if the client still asks for a column it can no longer have, and it fails at sign-in, not at the screen that shows commission |
+| H21.16 [AUTO] | Any value that appears on more than one table | Revoking it in one place proves nothing about the other. **Grep the column name across every table before calling it closed** |
+
+H21.16 is the class. The two values had the same name in both places and one
+was closed for a fortnight while the other stayed open.
+
+---
+
+## H22. A recorded decision is not a comment
+
+**Process, not code.** `20260810210000:200-219` removed `developer` from
+`partners_select` deliberately, and left the reason in the migration:
+
+> Exists because partners_select excludes developers to keep partner_rate and
+> agent_rate away from them, and RLS cannot filter columns. **Never add rate
+> columns here.**
+
+`20260811190000:67-72` put `developer` back, justifying it with the narrowed
+select in `hydrate.ts`. The migration immediately before it, `20260811180000`,
+had already stated why that is not a defence:
+
+> `maySeeCommission()` decides whether the client ASKS. It is TypeScript.
+> PostgREST does not consult it.
+
+So a documented decision was reversed by an argument its own author had
+recorded as invalid, one file earlier, on the same day.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H22.1 [HUMAN] | A migration that reverses a rule an earlier migration recorded | The new migration **quotes the original reason and argues against it**. A change that does not mention the reason has not considered it |
+| H22.2 [HUMAN] | The argument offered is that the client does not ask | **Not an argument.** The client asking is not the control. PostgREST answers what it is asked, and any signed-in principal can ask directly with curl |
+| H22.3 [HUMAN] | The argument offered is that the screen hides it | Same. The screen is not the boundary; the grant and the policy are |
+| H22.4 [AUTO] | `grep -rn "Never " supabase/migrations/` | Every hit is a recorded decision. Read them before changing the object they name |
+
+H22.2 is the specific one. It is how this defect got in, and the reason it took
+an adversarial pass rather than a review to find it.
