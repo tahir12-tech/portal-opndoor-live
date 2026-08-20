@@ -223,12 +223,7 @@ export function Login() {
 
           {step === 'creds' ? (
             <div className="auth__pane-body">
-              <div className="auth__intro">
-                <h2 className="auth__title">Sign in to the portal</h2>
-                <p className="auth__sub">{audience === 'supplier'
-                  ? 'For partners who send us referrals. The same sign-in as an agent, and the same portal: what you see is set by your account, not by the tab you picked.'
-                  : 'Use the work email your administrator registered for you.'}</p>
-              </div>
+              <Intro audience={audience} />
               {error && <p className="auth__error" style={{ color: 'var(--danger, #c0392b)' }}>{error}</p>}
               <form className="auth__form" onSubmit={submitCreds} noValidate>
                 <div className="field">
@@ -324,6 +319,49 @@ export function Login() {
    promised: a password on its own is not enough for anybody here. Showing the
    strip to staff and hiding it from tenants made the tenant path read as the
    lesser one, and left the two panes different heights. */
+
+/* The heading and paragraph for the three tabs, all rendered, one visible.
+
+   WHY A STACK RATHER THAN A RESERVED HEIGHT. The previous attempt measured the
+   tallest variant and hard-coded it, which is a magic number that goes stale the
+   moment a copy line grows, and was measurably too small for the supplier's
+   three lines. All three variants now sit in the same grid cell, so the row
+   sizes itself to whichever is tallest and keeps doing so as the copy changes.
+
+   The two inactive ones are visibility:hidden, which reserves their space, and
+   aria-hidden, so a screen reader is not read three headings for one form. */
+const INTRO: Record<Audience, { title: string; sub: string }> = {
+  tenant: {
+    title: 'Sign in to your application',
+    sub: 'For tenants applying for an opndoor guarantee. We will email you a code to confirm it is you. No authenticator app needed.',
+  },
+  agent: {
+    title: 'Sign in to the portal',
+    sub: 'Use the work email your administrator registered for you.',
+  },
+  supplier: {
+    title: 'Sign in to the portal',
+    sub: 'For partners who send us referrals. The same sign-in as an agent, and the same portal: what you see is set by your account, not by the tab you picked.',
+  },
+};
+
+function Intro({ audience }: { audience: Audience }) {
+  return (
+    <div className="auth__intro">
+      {(Object.keys(INTRO) as Audience[]).map((a) => {
+        const on = a === audience;
+        return (
+          <div key={a} className="auth__intro-v" aria-hidden={on ? undefined : true}
+               style={on ? undefined : { visibility: 'hidden' }}>
+            <h2 className="auth__title">{INTRO[a].title}</h2>
+            <p className="auth__sub">{INTRO[a].sub}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Steps({ onSecond }: { onSecond: boolean }) {
   return (
     <div className="auth__steps">
@@ -476,10 +514,12 @@ function TenantSignInPanel() {
       <Steps onSecond />
       <div className="auth__pane-body">
       <div className="auth__intro">
-        <h2 className="auth__title">Check your email</h2>
-        <p className="auth__sub">
-          We have sent a six-digit code to {tEmail}. It lasts ten minutes.
-        </p>
+        <div className="auth__intro-v">
+          <h2 className="auth__title">Check your email</h2>
+          <p className="auth__sub">
+            We have sent a six-digit code to {tEmail}. It lasts ten minutes.
+          </p>
+        </div>
       </div>
       {tErr && <p className="auth__error" style={{ color: 'var(--danger, #c0392b)' }}>{tErr}</p>}
       <form className="auth__form" onSubmit={confirm} noValidate>
@@ -510,13 +550,7 @@ function TenantSignInPanel() {
     <>
       <Steps onSecond={false} />
       <div className="auth__pane-body">
-      <div className="auth__intro">
-        <h2 className="auth__title">Sign in to your application</h2>
-        <p className="auth__sub">
-          For tenants applying for an opndoor guarantee. We will email you a code to
-          confirm it is you. No authenticator app needed.
-        </p>
-      </div>
+      <Intro audience="tenant" />
       {tErr && <p className="auth__error" style={{ color: 'var(--danger, #c0392b)' }}>{tErr}</p>}
       <form className="auth__form" onSubmit={go} noValidate>
         <div className="field">

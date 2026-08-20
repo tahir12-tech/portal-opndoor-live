@@ -5,14 +5,6 @@
   min-height: 100vh;
   background: var(--canvas);
 }
-@media (max-width: 900px) {
-  .auth {
-    grid-template-columns: 1fr;
-  }
-  .auth__brand {
-    display: none;
-  }
-}
 
 .auth__brand {
   background: linear-gradient(165deg, #1a1240 0%, #271d5f 52%, #5a2b8c 120%);
@@ -139,93 +131,48 @@
 
 .auth__form-wrap {
   display: flex;
-  align-items: center;
+  /* TOP ANCHORED, NOT CENTRED.
+
+     Centring was the root cause. Any height difference in the card splits in
+     two and moves everything, including the tab pill, which is a control: the
+     pill measured 471, 459 and 453 on the three tabs. The varying element was
+     the helper line under the button, one line on Tenant and two on the other
+     two, so a difference at the BOTTOM of the card moved the TOP of it.
+
+     Anchoring to a fixed offset means a longer pane grows downward only, and
+     everything above the difference stays where it is. */
+  align-items: flex-start;
   justify-content: center;
   padding: clamp(32px, 5vw, 72px);
+  padding-top: 96px;
 }
 .auth__card {
   width: 100%;
   max-width: 420px;
-  /* THE TABS ARE A CONTROL AND MUST NOT MOVE.
-
-     .auth__form-wrap centres its child, so a taller pane grew in BOTH
-     directions and the tab strip shifted with it: measured across the three
-     audiences it moved 43px, which means you click Agent and the thing you just
-     clicked is somewhere else.
-
-     A fixed min-height makes the card box constant, so its top edge, and the
-     tabs sitting on it, land in the same place for every audience. Only the
-     content below the tabs differs. Sized to the tallest pane. */
-  min-height: 508px;
-  /* Flex column so the pane below can stretch and pin its footer to the bottom
-     edge. Pinning both ends is what actually makes the three panes look the
-     same size: aligning the tabs alone still left them finishing 44px apart. */
-  display: flex;
-  flex-direction: column;
+  /* No height reserved here any more, and none reserved on the footer either.
+     The card is top anchored by .auth__form-wrap, so a pane that runs longer
+     grows downward and nothing above the difference moves. Holding a height
+     here as well would only put the slack somewhere else. */
 }
-.auth__pane {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-}
-/* THE INTRO IS A FIXED BLOCK, SIZED TO THE TALLEST OF THE THREE.
 
-   This is the one that was actually making the fields jump. The heading is one
-   line everywhere, but the sentence under it is one line for an agent, two for
-   a tenant and three for a supplier. A shorter one pulled everything below it
-   upwards, so the labels, the inputs and the button all sat somewhere different
-   depending on which tab you were on.
+/* The three heading and paragraph variants share one grid cell, so the row is
+   as tall as the tallest of them and stays that way as the copy changes. No
+   measured constant to go stale.
 
-   Reserving the tallest means a shorter one leaves empty space instead of
-   dragging the form up. The words change; nothing moves.
-
-   THE ARITHMETIC, because guessing it left the tallest tab 3px short:
-
-     title   28px x 1.5 line-height (inherited from body)   = 42.0
-     sub     margin-top                                     =  8.0
-     sub     3 lines x 14px x 1.55                          = 65.1
-                                                              -----
-                                                              115.1
-
-   h1 to h4 are margin: 0 in portal.css, so nothing else contributes. 120 leaves
-   a little headroom. The three tabs run to one, two and three lines today, and
-   the supplier is the tall one.
-
-   If a fourth audience needs a longer sentence, or any of these copy lines
-   grows, this number has to grow with it. Nothing warns you: the copy just
-   starts pushing the form down again. Login.render.test.tsx holds it to the
-   arithmetic above. */
+   AT EVERY BREAKPOINT. The previous version opted out below 900px, which just
+   moved the same defect to a narrower window: the copy rewraps there to a
+   different number of lines per tab, which is exactly when the stack is needed. */
 .auth__intro {
-  min-height: 120px;
+  display: grid;
 }
-@media (max-width: 900px) {
-  /* One column, so the sentence rewraps to a different number of lines and the
-     reserved height is meaningless. Let it size to its content. */
-  .auth__intro {
-    min-height: 0;
-  }
+.auth__intro-v {
+  grid-area: 1 / 1;
 }
 
-/* The staff panes nest their content one level deeper, so the chain has to
-   carry the stretch all the way down or the pin never reaches the footer. */
-.auth__pane-body {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-}
-/* The closing line of a pane sits on the bottom edge, not wherever the content
-   above it happened to end. The slack lands above it, where nobody reads. */
-.auth__pane > .auth__foot:last-child,
-.auth__pane-body > .auth__foot:last-child {
-  margin-top: auto;
-}
-@media (max-height: 760px) {
-  /* On a short viewport a fixed height pushes the footer under the fold, and a
-     reachable control beats a stationary one. */
-  .auth__card {
-    min-height: 0;
-  }
-}
+/* Kept as the pane's single content wrapper so every tab has the same skeleton.
+   It carries no layout of its own: the alignment comes from the top anchor and
+   the intro stack, not from stretching anything. */
+
 .auth__title {
   font-family: var(--display);
   font-size: 28px;
@@ -303,4 +250,29 @@
   background: var(--valhalla);
   color: #fff;
   box-shadow: var(--shadow-sm);
+}
+
+/* ---------------------------------------------------------------------------
+   Narrow: one column, no brand panel.
+
+   THIS BLOCK USED TO SIT AT THE TOP OF THE FILE, ABOVE .auth__brand's own
+   `display: flex`. Same specificity, later declaration wins, so `display: none`
+   never applied and the brand panel has been rendering on mobile since it was
+   written. That is not cosmetic: the panel's headline is a different length on
+   each tab, so it pushed the form down by a different amount and the tab pill
+   landed at 692, 728 and 704 at 420px wide. Moving it to the end is the fix.
+
+   Media queries live at the END of this file for that reason.
+   --------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .auth {
+    grid-template-columns: 1fr;
+  }
+  .auth__brand {
+    display: none;
+  }
+  .auth__form-wrap {
+    /* Nothing above it now, so the 96px desktop offset is dead space here. */
+    padding-top: clamp(32px, 5vw, 72px);
+  }
 }

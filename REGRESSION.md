@@ -1677,11 +1677,58 @@ pane, so the box is constant and only the content below the tabs differs.
 | H19.3a | Watch where each pane ENDS, not just where it starts | The last line sits on the same bottom edge for all three. Aligning the tabs alone left the panes finishing 44px apart, which is the same complaint one level down |
 | H19.3b | Every audience | Exactly one `.auth__pane`, ending in an `.auth__foot` either directly or as the last child of an `.auth__pane-body`. **That chain is what the pin needs**, and if it breaks the footer drifts and nothing else says so |
 | H19.3c | Remove the pane wrapper or the tenant step strip | **H19.3a and H19.3b fail.** Verified by reintroducing both: 5 failed, 208 passed |
-| H19.3d | Switch tabs rapidly and watch the FIELDS, not the tabs | The labels, inputs and button do not move. This is the third layer of the same defect: the tabs were pinned, then the panes were pinned top and bottom, and the fields still sat in three places because the intro copy is one line for an agent, two for a tenant and three for a supplier |
-| H19.3e | `.auth__intro` min-height | At least `28 x 1.5 + 8 + 3 x 14 x 1.55 = 115.1px`. Reserved 120. **The first guess was 112, which is 3px short and enough to move the form.** A test recomputes it from the stylesheet rather than trusting the number |
-| H19.3f | Change any of those font sizes, or add a line to the longest sentence | H19.3e fails. Verified by setting the value back to 112 and separately by growing the sub to 16px: each failed on its own |
-| H19.3g | Every audience | The pane's children are exactly `auth__steps` then `auth__pane-body`, and the body's first child is `auth__intro` holding the title and the sentence. Identical skeleton, so identical geometry |
-| H19.3h | Below 900px | The reserved height releases. One column rewraps the sentence to a different number of lines, so a height measured at 420px wide is meaningless there |
+| H19.3d | Switch tabs rapidly and watch the FIELDS, not the tabs | Nothing but the text changes position |
+| H19.3e | The right pane's vertical alignment | **Top anchored, not centred.** Centring was the root cause: any height difference in the card splits in two and moves everything above it as well, so a longer helper line UNDER the button moved the tab pill at the TOP. Measured 471, 459, 453 |
+| H19.3f | The intro block | A grid stack. All three heading and paragraph variants share one cell, the inactive two `visibility: hidden` and `aria-hidden`. The row sizes to the tallest by itself. **No measured constant**: the previous one was hard-coded and too short for the supplier's three lines |
+| H19.3g | `display: none` on the hidden variants | Wrong. It collapses the row to the visible one, which is the whole defect back again. It must be `visibility: hidden` |
+| H19.3h | Any reserved height on the card or the footer | **There must be none.** Top anchoring makes them unnecessary, and holding a height as well only moves the slack somewhere else |
+| H19.3i | `@media (max-width: 900px)` in `auth.css` | It must sit **after** `.auth__brand`. It used to be at the top of the file, above that rule's own `display: flex`, so `display: none` never applied and the brand panel rendered on mobile. Its headline is a different length per tab, which moved the form |
+
+### H19.3j. The measured proof
+
+jsdom does no layout, so the alignment claim is checked in a real browser. Run
+the dev server, then from a scratch directory:
+
+```
+npm i playwright-core
+```
+
+```js
+import { chromium } from 'playwright-core';
+const b = await chromium.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+for (const width of [1440, 420]) {
+  const page = await b.newPage({ viewport: { width, height: 1000 } });
+  for (const tab of ['tenant', 'agent', 'supplier']) {
+    await page.goto(`http://localhost:5173/login?tab=${tab}`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('.aud');
+    console.log(width, tab, await page.evaluate(() => {
+      const t = (s) => { const e = document.querySelector(s); return e ? Math.round(e.getBoundingClientRect().top + scrollY) : null; };
+      return { pill: t('.aud'), label: t('.auth__pane-body .field label'), button: t('.auth__pane-body button[type=submit]') };
+    }));
+  }
+  await page.close();
+}
+await b.close();
+```
+
+Expected, and what it returns today. **Every column identical across the three
+tabs**, which is the whole assertion:
+
+| Width | Tab | Tab pill | First field label | Button |
+| ----- | --- | -------- | ----------------- | ------ |
+| 1440 | Tenant | 96 | 366 | 567 |
+| 1440 | Agent | 96 | 366 | 567 |
+| 1440 | Supplier | 96 | 366 | 567 |
+| 420 | Tenant | 32 | 344 | 545 |
+| 420 | Agent | 32 | 344 | 545 |
+| 420 | Supplier | 32 | 344 | 545 |
+
+The intro block measures 129px at 1440 and 171px at 420, the same on all three
+tabs at each width, which is the stack doing its job: it is sized by the
+supplier's three lines and the copy rewraps at the narrower width.
+
+playwright-core is **not** a dependency of this repo. It is installed in a
+scratch directory for the check and thrown away.
 
 ### H19.4 to H19.6. The left panel is not agent copy for everyone
 

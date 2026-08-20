@@ -13,12 +13,22 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { SessionProvider } from '@/session/SessionContext';
 import { Login } from './Login';
 
 afterEach(() => cleanup());
+
+/* All three intro variants are in the DOM by design: that is what makes the row
+   size to the tallest. So a test about COPY has to read the visible one, not
+   whatever querySelector reaches first. */
+function shown(container: ParentNode = document.body) {
+  const v = Array.from(container.querySelectorAll('.auth__intro-v'))
+    .find((el) => !el.getAttribute('aria-hidden'))!;
+  return {
+    title: v.querySelector('.auth__title')!.textContent ?? '',
+    sub: v.querySelector('.auth__sub')!.textContent ?? '',
+  };
+}
 
 function at(path: string) {
   return render(
@@ -69,7 +79,7 @@ describe('the three audiences', () => {
   it('never mentions an authenticator app to a tenant', () => {
     at('/login?tab=tenant');
     expect(screen.queryByText(/scan this qr/i)).toBeNull();
-    expect(screen.getByText(/no authenticator app needed/i)).toBeTruthy();
+    expect(shown().sub).toMatch(/no authenticator app needed/i);
   });
 
   /* A supplier is a partner who sends us referrals: staff, same credentials,
@@ -89,12 +99,13 @@ describe('the three audiences', () => {
 
   it('tells a supplier and an agent apart in the copy, not in the form', () => {
     at('/login?tab=supplier');
-    const supplierSub = screen.getByText(/partners who send us referrals/i);
-    expect(supplierSub).toBeTruthy();
+    expect(shown().sub).toMatch(/partners who send us referrals/i);
     cleanup();
     at('/login?tab=agent');
-    expect(screen.queryByText(/partners who send us referrals/i)).toBeNull();
-    expect(screen.getByText(/your administrator registered/i)).toBeTruthy();
+    // The supplier sentence is still in the DOM, hidden, holding the row open.
+    // What matters is which one is SHOWN.
+    expect(shown().sub).not.toMatch(/partners who send us referrals/i);
+    expect(shown().sub).toMatch(/your administrator registered/i);
   });
 });
 
@@ -241,39 +252,47 @@ describe('switching tabs changes the words and nothing else', () => {
 
   it('keeps the copy different, which is the point of the tabs', () => {
     at('/login?tab=tenant');
-    const tenant = document.querySelector('.auth__title')!.textContent;
+    const tenant = shown().sub;
     cleanup();
     at('/login?tab=agent');
-    expect(document.querySelector('.auth__title')!.textContent).not.toBe(tenant);
+    expect(shown().sub).not.toBe(tenant);
   });
 });
 
-describe('the reserved intro height matches the copy it has to hold', () => {
-  /* The number in the CSS is a magic number and the first guess at it was 3px
-     short, which is exactly enough to move the form. This recomputes it from
-     the same values the stylesheet uses, so a copy change that adds a line, or
-     a font-size change, fails here rather than in somebody's eyes. */
-  // From the repo root: import.meta.url is not a file URL under this runner.
-  const css = readFileSync(resolve(process.cwd(), 'src/pages/auth/auth.css'), 'utf8');
+describe('the intro is a stack, not a measured constant', () => {
+  /* The reserved height was a magic number and it was too small for the
+     supplier's three lines: tab to first label measured 310, 310 and 321.
+     All three variants now share one grid cell, so the row is as tall as the
+     tallest and stays that way when the copy changes. */
+  for (const tab of ['tenant', 'agent', 'supplier']) {
+    it(`${tab} renders all three variants and shows one`, () => {
+      const { container } = at(`/login?tab=${tab}`);
+      const variants = container.querySelectorAll('.auth__intro > .auth__intro-v');
+      expect(variants.length).toBe(3);
 
-  const num = (rule: string, prop: string) => {
-    const block = css.match(new RegExp(`\\${rule}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
-    return parseFloat(block.match(new RegExp(`${prop}:\\s*([\\d.]+)`))?.[1] ?? 'NaN');
-  };
+      const shown = Array.from(variants).filter((v) => !v.getAttribute('aria-hidden'));
+      expect(shown.length).toBe(1);
+      expect(shown[0].querySelector('.auth__title')).toBeTruthy();
+    });
 
-  it('reserves at least a one-line heading and a three-line sentence', () => {
-    const titlePx = num('.auth__title', 'font-size');
-    const subPx = num('.auth__sub', 'font-size');
-    const subLh = num('.auth__sub', 'line-height');
-    const subGap = num('.auth__sub', 'margin-top');
-    const reserved = num('.auth__intro', 'min-height');
+    it(`${tab} hides the other two from assistive tech and keeps their space`, () => {
+      const { container } = at(`/login?tab=${tab}`);
+      const hidden = Array.from(container.querySelectorAll('.auth__intro-v'))
+        .filter((v) => v.getAttribute('aria-hidden') === 'true');
+      expect(hidden.length).toBe(2);
+      // visibility:hidden reserves the box. display:none would not, and the
+      // row would collapse to the visible variant, which is the whole defect.
+      for (const h of hidden) {
+        expect((h as HTMLElement).style.visibility).toBe('hidden');
+      }
+    });
+  }
 
-    expect(titlePx).toBe(28);
-    expect(subPx).toBe(14);
-
-    // Body line-height is 1.5 and h2 margins are reset to 0 in portal.css.
-    const needed = titlePx * 1.5 + subGap + 3 * subPx * subLh;
-    expect(needed).toBeCloseTo(115.1, 1);
-    expect(reserved).toBeGreaterThanOrEqual(needed);
+  it('keeps the copy different per tab, which is the point', () => {
+    at('/login?tab=tenant');
+    expect(shown().title).toBe('Sign in to your application');
+    cleanup();
+    at('/login?tab=agent');
+    expect(shown().title).toBe('Sign in to the portal');
   });
 });

@@ -41,7 +41,7 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 | **Agent or supplier**: ownership recorded, form depth counted, four shapes verified live | REGRESSION H17, 202 tests |
 | **API: an agent may omit its own agency name** | H17.13-H17.18, all six outcomes run against the database |
 | **agency_groups is no longer world readable** | H18, RLS on, anon revoked, verified live |
-| **Sign-in page**: identical skeleton on all three tabs, intro height reserved to the tallest, so switching changes the words and moves nothing | REGRESSION H19, 221 tests, the arithmetic locked by a test that reads the stylesheet |
+| **Sign-in page**: top anchored, intro as a grid stack, so switching tabs moves nothing | REGRESSION H19.3j, **measured in a real browser**: tab pill, first label and button identical across all three tabs at 1440px and 420px |
 | **Rate resolution across a group**: agency override beats partner default, group override beats both | Verified live on the Meridian fixture, 0.30 against 0.25 |
 
 ## Half built
@@ -95,7 +95,7 @@ Things that have cost time once and will again.
 
 - **Nothing is pushed.** The branch is 130-odd commits ahead of `origin/main`,
   which has 65 migrations ending 5 July and no partner API at all.
-- **`npm test` exists** and is byte-identical to `npm run smoke`. 221 tests.
+- **`npm test` exists** and is byte-identical to `npm run smoke`. 227 tests.
 - **`tsc -p tsconfig.json` checks nothing** (`"files": []`). Use `tsconfig.app.json`.
 - **A new column on `applications` needs its own `grant select`** or it is
   silently invisible to the client.
