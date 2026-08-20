@@ -22,7 +22,10 @@ afterEach(() => cleanup());
    size to the tallest. So a test about COPY has to read the visible one, not
    whatever querySelector reaches first. */
 function shown(container: ParentNode = document.body) {
-  const v = Array.from(container.querySelectorAll('.auth__intro-v'))
+  // The first stack is the heading and paragraph; the second is the helper line
+  // under the button. Both render every variant, so scope to the intro.
+  const intro = container.querySelector('.auth__stack')!;
+  const v = Array.from(intro.querySelectorAll('.auth__stack-v'))
     .find((el) => !el.getAttribute('aria-hidden'))!;
   return {
     title: v.querySelector('.auth__title')!.textContent ?? '',
@@ -195,18 +198,17 @@ describe('the three panes are the same size', () => {
      a pane stops ending in a footer, or the wrapper goes missing, the pin
      silently stops reaching and nothing else would say so. */
   for (const tab of ['tenant', 'agent', 'supplier']) {
-    it(`${tab} renders one pane that ends in a pinned footer`, () => {
+    it(`${tab} ends in the helper stack, not a pinned footer`, () => {
       const { container } = at(`/login?tab=${tab}`);
-      const panes = container.querySelectorAll('.auth__pane');
-      expect(panes.length).toBe(1);
+      expect(container.querySelectorAll('.auth__pane').length).toBe(1);
 
-      // The footer is either the pane's own last child or the last child of the
-      // body it nests. Both are what the CSS targets.
-      const direct = panes[0].lastElementChild;
-      const pinned = direct?.classList.contains('auth__foot')
-        || (direct?.classList.contains('auth__pane-body')
-            && direct.lastElementChild?.classList.contains('auth__foot'));
-      expect(pinned).toBe(true);
+      // The footer pin is gone on purpose: the card is centred again, and a
+      // reserved height would only move the slack somewhere else. The helper
+      // line holds its own height by stacking instead.
+      const body = container.querySelector('.auth__pane-body')!;
+      const last = body.lastElementChild!;
+      expect(last.classList.contains('auth__stack--foot')).toBe(true);
+      expect(last.querySelectorAll('.auth__stack-v').length).toBe(3);
     });
   }
 
@@ -240,7 +242,7 @@ describe('switching tabs changes the words and nothing else', () => {
 
     it(`${tab} puts its heading and sentence inside the reserved block`, () => {
       const { container } = at(`/login?tab=${tab}`);
-      const intro = container.querySelector('.auth__pane-body > .auth__intro');
+      const intro = container.querySelector('.auth__pane-body > .auth__stack');
       expect(intro).toBeTruthy();
       expect(intro!.querySelector('.auth__title')).toBeTruthy();
       expect(intro!.querySelector('.auth__sub')).toBeTruthy();
@@ -267,7 +269,8 @@ describe('the intro is a stack, not a measured constant', () => {
   for (const tab of ['tenant', 'agent', 'supplier']) {
     it(`${tab} renders all three variants and shows one`, () => {
       const { container } = at(`/login?tab=${tab}`);
-      const variants = container.querySelectorAll('.auth__intro > .auth__intro-v');
+      const intro = container.querySelector('.auth__pane-body > .auth__stack')!;
+      const variants = intro.querySelectorAll('.auth__stack-v');
       expect(variants.length).toBe(3);
 
       const shown = Array.from(variants).filter((v) => !v.getAttribute('aria-hidden'));
@@ -277,9 +280,11 @@ describe('the intro is a stack, not a measured constant', () => {
 
     it(`${tab} hides the other two from assistive tech and keeps their space`, () => {
       const { container } = at(`/login?tab=${tab}`);
-      const hidden = Array.from(container.querySelectorAll('.auth__intro-v'))
+      // Both stacks on the card: the heading block and the helper line. Each
+      // renders three variants and hides two, so six hidden in total.
+      const hidden = Array.from(container.querySelectorAll('.auth__stack-v'))
         .filter((v) => v.getAttribute('aria-hidden') === 'true');
-      expect(hidden.length).toBe(2);
+      expect(hidden.length).toBe(4);
       // visibility:hidden reserves the box. display:none would not, and the
       // row would collapse to the visible variant, which is the whole defect.
       for (const h of hidden) {

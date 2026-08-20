@@ -1678,20 +1678,17 @@ pane, so the box is constant and only the content below the tabs differs.
 | H19.3b | Every audience | Exactly one `.auth__pane`, ending in an `.auth__foot` either directly or as the last child of an `.auth__pane-body`. **That chain is what the pin needs**, and if it breaks the footer drifts and nothing else says so |
 | H19.3c | Remove the pane wrapper or the tenant step strip | **H19.3a and H19.3b fail.** Verified by reintroducing both: 5 failed, 208 passed |
 | H19.3d | Switch tabs rapidly and watch the FIELDS, not the tabs | Nothing but the text changes position |
-| H19.3e | The right pane's vertical alignment | **Top anchored, not centred.** Centring was the root cause: any height difference in the card splits in two and moves everything above it as well, so a longer helper line UNDER the button moved the tab pill at the TOP. Measured 471, 459, 453 |
-| H19.3f | The intro block | A grid stack. All three heading and paragraph variants share one cell, the inactive two `visibility: hidden` and `aria-hidden`. The row sizes to the tallest by itself. **No measured constant**: the previous one was hard-coded and too short for the supplier's three lines |
-| H19.3g | `display: none` on the hidden variants | Wrong. It collapses the row to the visible one, which is the whole defect back again. It must be `visibility: hidden` |
-| H19.3h | Any reserved height on the card or the footer | **There must be none.** Top anchoring makes them unnecessary, and holding a height as well only moves the slack somewhere else |
+| H19.3e | The right pane | **Centred vertically.** Safe only because every variable-height block on the card is a stack, so the three tabs render at exactly the same height and there is no difference left to split |
+| H19.3f | Both variable-height blocks | The heading and paragraph, AND the helper line under the button. Each is a grid stack: all three variants in one cell, inactive ones `visibility: hidden` and `aria-hidden`. **The helper line was the one that survived the first fix**: one line on Tenant, two on the others, and with the card centred that difference moved the tab pill at the top |
+| H19.3g | `display: none` on a hidden variant | Wrong. It collapses the row to the visible one, which is the defect itself. `visibility: hidden` keeps the box |
+| H19.3h | Any reserved height, on the card or the footer | **There must be none.** The stacks make the heights equal; reserving a height as well only moves the slack |
 | H19.3i | `@media (max-width: 900px)` in `auth.css` | It must sit **after** `.auth__brand`. It used to be at the top of the file, above that rule's own `display: flex`, so `display: none` never applied and the brand panel rendered on mobile. Its headline is a different length per tab, which moved the form |
+| H19.3j | The left column | `grid-template-rows: 1fr auto 1fr`, so the headline's centre is the container's centre and matches the card's. `space-between` looked the same and was not: it centred the headline in the gap between the wordmark and the flow cards, a different point, measured 399 against the card's 500 |
 
-### H19.3j. The measured proof
+### H19.3k. The measured proof
 
-jsdom does no layout, so the alignment claim is checked in a real browser. Run
-the dev server, then from a scratch directory:
-
-```
-npm i playwright-core
-```
+jsdom does no layout, so the alignment claim is checked in a real browser. With
+the dev server running, from a scratch directory (`npm i playwright-core`):
 
 ```js
 import { chromium } from 'playwright-core';
@@ -1703,7 +1700,12 @@ for (const width of [1440, 420]) {
     await page.waitForSelector('.aud');
     console.log(width, tab, await page.evaluate(() => {
       const t = (s) => { const e = document.querySelector(s); return e ? Math.round(e.getBoundingClientRect().top + scrollY) : null; };
-      return { pill: t('.aud'), label: t('.auth__pane-body .field label'), button: t('.auth__pane-body button[type=submit]') };
+      const c = document.querySelector('.auth__card').getBoundingClientRect();
+      const m = document.querySelector('.auth__brand-mid')?.getBoundingClientRect();
+      return { pill: t('.aud'), label: t('.auth__pane-body .field label'),
+               button: t('.auth__pane-body button[type=submit]'),
+               cardH: Math.round(c.height), cardMid: Math.round(c.top + scrollY + c.height / 2),
+               brandMid: m ? Math.round(m.top + scrollY + m.height / 2) : null };
     }));
   }
   await page.close();
@@ -1711,24 +1713,40 @@ for (const width of [1440, 420]) {
 await b.close();
 ```
 
-Expected, and what it returns today. **Every column identical across the three
-tabs**, which is the whole assertion:
+**Every column identical across the three tabs**, which is the whole assertion:
 
-| Width | Tab | Tab pill | First field label | Button |
-| ----- | --- | -------- | ----------------- | ------ |
-| 1440 | Tenant | 96 | 366 | 567 |
-| 1440 | Agent | 96 | 366 | 567 |
-| 1440 | Supplier | 96 | 366 | 567 |
-| 420 | Tenant | 32 | 344 | 545 |
-| 420 | Agent | 32 | 344 | 545 |
-| 420 | Supplier | 32 | 344 | 545 |
+| Width | Tab | Tab pill | First label | Button | Card height | Card centre | Headline centre |
+| ----- | --- | -------- | ----------- | ------ | ----------- | ----------- | --------------- |
+| 1440 | Tenant | 200 | 470 | 670 | 601 | 500 | 500 |
+| 1440 | Agent | 200 | 470 | 670 | 601 | 500 | 500 |
+| 1440 | Supplier | 200 | 470 | 670 | 601 | 500 | 500 |
+| 420 | Tenant | 179 | 491 | 691 | 643 | 500 | n/a |
+| 420 | Agent | 179 | 491 | 691 | 643 | 500 | n/a |
+| 420 | Supplier | 179 | 491 | 691 | 643 | 500 | n/a |
 
-The intro block measures 129px at 1440 and 171px at 420, the same on all three
-tabs at each width, which is the stack doing its job: it is sized by the
-supplier's three lines and the copy rewraps at the narrower width.
+Card height is identical per width, which is what makes centring safe. Headline
+centre is n/a below 900px because the brand column is hidden there.
 
 playwright-core is **not** a dependency of this repo. It is installed in a
 scratch directory for the check and thrown away.
+
+### H19.3l. Nothing renders outside the right pane
+
+Reported: a "Sign in" control, a password eye and a "Forgot password?" link
+appearing over the purple panel. Checked and **not reproducible in the page**:
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H19.3l.1 | Enumerate every `button`, `input` and `a` and compare its left edge to the brand column's right edge | **Zero** have a left edge inside the brand column, on all three tabs |
+| H19.3l.2 | `document.elementFromPoint(230, 849)` at 2000px wide on Tenant | The flow card title, nothing interactive |
+| H19.3l.3 | `.pw-input` | `position: relative`, so the absolutely positioned eye toggle is contained by its own field and cannot escape |
+| H19.3l.4 | Absolutely positioned rules in `auth.css` and `Login.css` | One, `.auth__brand::before`, a decorative pseudo-element with no content |
+
+The likely cause is browser or extension UI drawn over the page: the reported
+screenshots show a filled address and password with the password-manager key in
+the address bar, while a clean render has empty fields and no strays. Confirm by
+reloading in a private window with extensions disabled. If it still appears
+there, it is a real defect and this row is wrong.
 
 ### H19.4 to H19.6. The left panel is not agent copy for everyone
 

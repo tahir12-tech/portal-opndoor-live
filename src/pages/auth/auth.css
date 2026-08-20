@@ -10,11 +10,24 @@
   background: linear-gradient(165deg, #1a1240 0%, #271d5f 52%, #5a2b8c 120%);
   color: #fff;
   padding: clamp(40px, 5vw, 72px);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  /* Three rows with EQUAL flexible space above and below the middle one, so the
+     headline's centre is the container's centre and therefore the same axis the
+     card is centred on in the right pane.
+
+     space-between looked the same and was not: it left the headline centred in
+     the gap between the wordmark and the flow cards, which is a different point
+     because those two blocks are different heights. Measured 399 against the
+     card's 500. */
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
   position: relative;
   overflow: hidden;
+}
+.auth__brand-top {
+  align-self: start;
+}
+.auth__brand .auth__flow {
+  align-self: end;
 }
 .auth__brand::before {
   content: '';
@@ -141,10 +154,12 @@
 
      Anchoring to a fixed offset means a longer pane grows downward only, and
      everything above the difference stays where it is. */
-  align-items: flex-start;
+  /* Centred again, which is safe now that every variable-height block on the
+     card is a stack: the three tabs render at exactly the same height, so there
+     is no difference left to split. */
+  align-items: center;
   justify-content: center;
   padding: clamp(32px, 5vw, 72px);
-  padding-top: 96px;
 }
 .auth__card {
   width: 100%;
@@ -155,18 +170,29 @@
      here as well would only put the slack somewhere else. */
 }
 
-/* The three heading and paragraph variants share one grid cell, so the row is
-   as tall as the tallest of them and stays that way as the copy changes. No
+/* A STACK: every variant rendered into one grid cell, one of them visible.
+
+   Used for both variable-height blocks on this card, the heading and paragraph
+   at the top and the helper line under the button. The row is as tall as the
+   tallest variant and stays that way as the copy changes, so there is no
    measured constant to go stale.
 
-   AT EVERY BREAKPOINT. The previous version opted out below 900px, which just
-   moved the same defect to a narrower window: the copy rewraps there to a
-   different number of lines per tab, which is exactly when the stack is needed. */
-.auth__intro {
+   The hidden ones are visibility: hidden, which keeps their box. display: none
+   would collapse the row to the visible one, which is the defect itself.
+
+   AT EVERY BREAKPOINT. An earlier version opted out below 900px, which only
+   moved the problem to a narrower window: the copy rewraps there to a different
+   number of lines per tab, which is exactly when the stack is needed. */
+.auth__stack {
   display: grid;
 }
-.auth__intro-v {
+.auth__stack-v {
   grid-area: 1 / 1;
+}
+/* The helper line is centred under the button on every tab, so a one-line and a
+   two-line variant share a top edge rather than a baseline. */
+.auth__stack--foot {
+  margin-top: 14px;
 }
 
 /* Kept as the pane's single content wrapper so every tab has the same skeleton.
@@ -270,9 +296,5 @@
   }
   .auth__brand {
     display: none;
-  }
-  .auth__form-wrap {
-    /* Nothing above it now, so the 96px desktop offset is dead space here. */
-    padding-top: clamp(32px, 5vw, 72px);
   }
 }

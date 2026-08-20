@@ -9,7 +9,7 @@
    before returning any data. SessionContext then loads the profile + data and
    this page routes on to the dashboard.
    ===================================================================== */
-import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authService } from '@/data';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
@@ -240,7 +240,7 @@ export function Login() {
                 </div>
                 <Button variant="primary" block type="submit" arrow disabled={busy}>{busy ? 'Signing in…' : 'Continue'}</Button>
               </form>
-              <p className="auth__foot">Not set up yet? Ask your administrator for access, or use the contact details on this screen.</p>
+              <Helper audience={audience} />
             </div>
           ) : (
             <div className="auth__pane-body">
@@ -347,15 +347,47 @@ const INTRO: Record<Audience, { title: string; sub: string }> = {
 
 function Intro({ audience }: { audience: Audience }) {
   return (
-    <div className="auth__intro">
+    <div className="auth__stack">
       {(Object.keys(INTRO) as Audience[]).map((a) => {
         const on = a === audience;
         return (
-          <div key={a} className="auth__intro-v" aria-hidden={on ? undefined : true}
+          <div key={a} className="auth__stack-v" aria-hidden={on ? undefined : true}
                style={on ? undefined : { visibility: 'hidden' }}>
             <h2 className="auth__title">{INTRO[a].title}</h2>
             <p className="auth__sub">{INTRO[a].sub}</p>
           </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
+/* The closing line under the button, all three rendered, one visible.
+
+   THE SECOND VARIABLE-HEIGHT BLOCK, and the one that survived the intro fix.
+   Tenant's is one line, Agent's and Supplier's are two. With the card centred
+   that difference splits in two and moves everything ABOVE it as well, which is
+   how a line under the button ends up moving the tab pill.
+
+   Same treatment as Intro, for the same reason: the row sizes itself to the
+   tallest and keeps doing so when the copy changes. */
+const HELPER: Record<Audience, ReactNode> = {
+  tenant: <>Not started yet? <a href="/apply/register">Apply for a guarantee</a>.</>,
+  agent: <>Not set up yet? Ask your administrator for access, or use the contact details on this screen.</>,
+  supplier: <>Not set up yet? Ask your administrator for access, or use the contact details on this screen.</>,
+};
+
+function Helper({ audience }: { audience: Audience }) {
+  return (
+    <div className="auth__stack auth__stack--foot">
+      {(Object.keys(HELPER) as Audience[]).map((a) => {
+        const on = a === audience;
+        return (
+          <p key={a} className="auth__stack-v auth__foot" aria-hidden={on ? undefined : true}
+             style={on ? undefined : { visibility: 'hidden' }}>
+            {HELPER[a]}
+          </p>
         );
       })}
     </div>
@@ -513,8 +545,8 @@ function TenantSignInPanel() {
     <>
       <Steps onSecond />
       <div className="auth__pane-body">
-      <div className="auth__intro">
-        <div className="auth__intro-v">
+      <div className="auth__stack">
+        <div className="auth__stack-v">
           <h2 className="auth__title">Check your email</h2>
           <p className="auth__sub">
             We have sent a six-digit code to {tEmail}. It lasts ten minutes.
@@ -570,9 +602,7 @@ function TenantSignInPanel() {
           {tBusy ? 'Signing in\u2026' : 'Sign in'}
         </Button>
       </form>
-      <p className="auth__foot">
-        Not started yet? <a href="/apply/register">Apply for a guarantee</a>.
-      </p>
+      <Helper audience="tenant" />
       </div>
     </>
   );
