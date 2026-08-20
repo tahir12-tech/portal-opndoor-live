@@ -67,6 +67,9 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
   // that loses nothing if the call fails.
   const [shape, setShape] = useState<OrgShape>(FULL_PICKER);
   const collapsedOnce = useRef(false);
+  // Releasing the once-guard when the admin changes partner: the shape is a
+  // different partner's now, so re-collapsing is correct rather than a repeat.
+  const scopeSeen = useRef<string | null>(null);
   // An escape hatch for the collapsed case. Collapsing is right almost always
   // and wrong on the day they open a second office, so the step is hidden
   // rather than removed.
@@ -127,7 +130,16 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
      made. It runs once, on mount, and never again. */
   useEffect(() => {
     let live = true;
-    void loadOrgShape().then((sh) => {
+    // An admin viewing one partner gets THAT partner's form. Referring on behalf
+    // of a single-office agent should not ask an opndoor admin to name the
+    // agency either. Ignored by the server for everybody else, so it is a
+    // filter and never a way in.
+    const scoped = isAdmin && partnerScope !== ALL_PARTNERS ? partnerScope : null;
+    if (scopeSeen.current !== null && scopeSeen.current !== String(partnerScope)) {
+      collapsedOnce.current = false;
+    }
+    scopeSeen.current = String(partnerScope);
+    void loadOrgShape(scoped).then((sh) => {
       if (!live || collapsedOnce.current) return;
       collapsedOnce.current = true;
       setShape(sh);
@@ -144,7 +156,7 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
     });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [partnerScope]);
 
   /** Auto-fill a "Head office" branch when the agency has no branches (#65). */
   function autoBranchIfSingleOffice(name: string) {
