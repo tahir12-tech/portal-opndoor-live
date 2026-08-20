@@ -22,6 +22,7 @@
 // address. The user is told to check their email either way.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { assertEmailConfigured, EmailNotConfigured } from "../_shared/emailConfigured.ts";
 import { sendEmail } from "../create-referral/email.ts";
 
 const cors = {
@@ -125,16 +126,26 @@ function codeEmail(code: string, mins: number): string {
  * invisible to the caller, so this cannot be used to find out who has an account.
  */
 async function sendCode(service: any, email: string, purpose: "verify_email" | "sign_in") {
+  // Refuse before minting a code. A code issued and never delivered burns one
+  // of the caller's five per hour and locks them out of a retry.
+  assertEmailConfigured();
+
   const code = sixDigits();
   const { data: allowed } = await service.rpc("issue_email_code", {
     p_email: email, p_purpose: purpose, p_code_hash: await sha256Hex(code), p_ttl_minutes: 10,
   });
   if (allowed !== true) return;          // rate limited: silently do nothing
-  await sendEmail({
+
+  const res = await sendEmail({
     to: email,
     subject: `${code} is your opndoor confirmation code`,
     html: codeEmail(code, 10),
   });
+  // The result used to be dropped here and the caller answered ok either way.
+  if (!res.ok) {
+    console.log(JSON.stringify({ event: "code_email_failed", purpose, message: res.error }));
+    throw new Error(res.error ?? "The confirmation code could not be sent.");
+  }
 }
 
 Deno.serve(async (req) => {
@@ -254,6 +265,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "resend_verification") {
+      assertEmailConfigured();
       if (email && !(await withinLimits(service, req, "resend", email, 5, 20))) {
         return json({ ok: true, sent: true });
       }
@@ -271,6 +283,9 @@ Deno.serve(async (req) => {
     }
 
     if (action === "request_reset") {
+      // This action's only deliverable is an email. Refuse before minting a
+      // recovery token that nobody will ever receive.
+      assertEmailConfigured();
       if (email && !(await withinLimits(service, req, "reset", email, 5, 20))) {
         return json({ ok: true, sent: true });
       }
@@ -398,6 +413,13 @@ Deno.serve(async (req) => {
 
     return json({ ok: false, error: "Unknown action." }, 400);
   } catch (e) {
+    // Named, not swallowed into "Something went wrong". The whole point of the
+    // hard error is that a dev run can tell "email is switched off here" from
+    // "your code is broken", which a generic 500 cannot.
+    if (e instanceof EmailNotConfigured) {
+      console.log(JSON.stringify({ event: "email_not_configured" }));
+      return json({ ok: false, error: e.message, code: "email_not_configured" }, 503);
+    }
     console.log(JSON.stringify({ event: "tenant_auth_error", message: String(e) }));
     return json({ ok: false, error: "Something went wrong." }, 500);
   }

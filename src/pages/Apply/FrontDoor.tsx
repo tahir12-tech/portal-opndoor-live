@@ -147,12 +147,12 @@ export function Register() {
     <Shell title="Apply for an opndoor guarantee"
       sub="Create an account first, so nothing you type is ever lost.">
         <div className="ap-grid">
-          <Field label="First name"><input className="input" value={f.first_name} onChange={(e) => setF({ ...f, first_name: e.target.value })} /></Field>
-          <Field label="Last name"><input className="input" value={f.last_name} onChange={(e) => setF({ ...f, last_name: e.target.value })} /></Field>
-          <Field label="Email address"><input className="input" type="email" autoComplete="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
-          <Field label="Mobile number"><input className="input" type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
-          <Field label="Password" hint="At least 10 characters. Longer is better than complicated.">
-            <PasswordInput value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} autoComplete="new-password" />
+          <Field label="First name" htmlFor="ap-first"><input id="ap-first" className="input" value={f.first_name} onChange={(e) => setF({ ...f, first_name: e.target.value })} /></Field>
+          <Field label="Last name" htmlFor="ap-last"><input id="ap-last" className="input" value={f.last_name} onChange={(e) => setF({ ...f, last_name: e.target.value })} /></Field>
+          <Field label="Email address" htmlFor="ap-reg-email"><input id="ap-reg-email" className="input" type="email" autoComplete="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
+          <Field label="Mobile number" htmlFor="ap-phone"><input id="ap-phone" className="input" type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
+          <Field label="Password" htmlFor="ap-reg-password" hint="At least 10 characters. Longer is better than complicated.">
+            <PasswordInput id="ap-reg-password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} autoComplete="new-password" />
           </Field>
         </div>
         {err && <div className="ap-alert" role="alert">{err}</div>}
@@ -335,8 +335,8 @@ export function Forgot() {
           </p>
         ) : (
           <>
-            <Field label="Email address">
-              <input className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Field label="Email address" htmlFor="ap-forgot-email">
+              <input id="ap-forgot-email" className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </Field>
             <div className="ap-actions">
               <Button variant="primary" disabled={!email.includes('@')}
@@ -368,8 +368,8 @@ export function ResetPassword() {
         {err && <div className="ap-alert" role="alert">{err} <a href="/apply/forgot">Ask for a new link</a>.</div>}
         {ready && !err && (
           <>
-            <Field label="New password" hint="At least 10 characters.">
-              <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+            <Field label="New password" htmlFor="ap-new-password" hint="At least 10 characters.">
+              <PasswordInput id="ap-new-password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
             </Field>
             <div className="ap-actions">
               <Button variant="primary" disabled={password.length < 10}

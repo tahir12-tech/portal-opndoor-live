@@ -169,7 +169,15 @@ Deno.serve(async (req) => {
         visibility: inviteRes.ok ? "business" : "internal",
       });
 
-      return json({ ok: true, id: appId, ref, invited: true });
+      // invited: inviteRes.ok, NOT a hardcoded true. The application and the
+      // invite token both exist by now, so refusing the request would strand
+      // them; what must not happen is claiming the tenant was contacted when
+      // nothing was sent. The caller gets the truth and the reason.
+      return json({
+        ok: true, id: appId, ref,
+        invited: inviteRes.ok,
+        ...(inviteRes.ok ? {} : { email_error: inviteRes.error ?? "The invitation was not sent." }),
+      });
     }
 
     // Stripe test-mode Checkout Session for the guarantor fee (one month's rent).

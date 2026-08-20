@@ -24,6 +24,26 @@ the tagging.
 | `[SEMI]` | Automatable except for one external step |
 | `[HUMAN]` | Needs a person |
 
+### Reporting a test run
+
+**Never report a test total on its own.** Report what changed in the suite:
+added, removed, renamed. A total is a summary of a summary and it hides the
+thing you need to see.
+
+**Call out anything generated in a loop.** Several files build tests with
+
+```js
+for (const tab of ['agent', 'supplier']) { it(`${tab} ...`, ...) }
+```
+
+so dropping one value from that array removes a test per loop with no `it()`
+line in the diff to show for it. Removing the Tenant tab took nine named tests
+and five more this way, and the totals either side, 232 and 221, looked like
+ordinary churn.
+
+**A flat total across real change is a red flag, not a pass.** If the code moved
+and the number did not, find out why before believing it.
+
 ### Before you start
 
 1. A **disposable** project. Several steps write real rows and send real email.
