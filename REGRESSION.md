@@ -1274,45 +1274,45 @@ tenant session, or a provider that answers.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H1.1 | POST with no `Authorization` | 401, `{"status":"error"}` in **their** envelope, not ours. **Verified live** |
-| H1.2 | POST with a wrong secret | 401 `Not authorised.` Indistinguishable from a revoked token. **Verified live** |
-| H1.3 | Either of the above, then read `referencing_inbound_events` | **Zero rows.** A rejected call writes nothing. **Verified live** |
-| H1.4 | Valid token, `overall_status` anything but `Pass with guarantor` | 422, recorded with the status, no application |
-| H1.5 | Valid hand-over | 200, one application at **`sent`**, one `application_provider_links` row, reports in `reference-reports` |
-| H1.6 | Send the identical payload again | 200 `already sent`, and **still one** application |
-| H1.7 | Send a second payload with the same `table_id` but different tenant | Still one application. `table_id` is the provider's handle, not a nonce |
-| H1.8 | A report whose base64 is corrupt | The hand-over still succeeds. The failure is logged and `raw_payload` retains the base64 |
-| H1.9 | Read `agency_from_token` on the events | Tells you which seam answer is actually in force in production |
+| H1.1 [AUTO] | POST with no `Authorization` | 401, `{"status":"error"}` in **their** envelope, not ours. **Verified live** |
+| H1.2 [AUTO] | POST with a wrong secret | 401 `Not authorised.` Indistinguishable from a revoked token. **Verified live** |
+| H1.3 [AUTO] | Either of the above, then read `referencing_inbound_events` | **Zero rows.** A rejected call writes nothing. **Verified live** |
+| H1.4 [SEMI] | Valid token, `overall_status` anything but `Pass with guarantor` | 422, recorded with the status, no application |
+| H1.5 [SEMI] | Valid hand-over | 200, one application at **`sent`**, one `application_provider_links` row, reports in `reference-reports` |
+| H1.6 [SEMI] | Send the identical payload again | 200 `already sent`, and **still one** application |
+| H1.7 [SEMI] | Send a second payload with the same `table_id` but different tenant | Still one application. `table_id` is the provider's handle, not a nonce |
+| H1.8 [SEMI] | A report whose base64 is corrupt | The hand-over still succeeds. The failure is logged and `raw_payload` retains the base64 |
+| H1.9 [SEMI] | Read `agency_from_token` on the events | Tells you which seam answer is actually in force in production |
 
 ## H2. The callback
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H2.1 | Call with no ops secret | 401. **Verified live** |
-| H2.2 | Call with `REFERENCING_API_*` unset | **503 listing exactly which are missing**, and **nothing marked notified** |
-| H2.3 | A due row whose deed is not executed | Not selected. `provider_callbacks_due` requires an executed deed |
-| H2.4 | Provider returns HTTP 200 carrying `{"response":"FAIL"}` | Counted as a failure. The body is trusted over the status |
-| H2.5 | After a success | `notified_at` set, `notify_error` cleared |
+| H2.1 [AUTO] | Call with no ops secret | 401. **Verified live** |
+| H2.2 [AUTO] | Call with `REFERENCING_API_*` unset | **503 listing exactly which are missing**, and **nothing marked notified** |
+| H2.3 [AUTO] | A due row whose deed is not executed | Not selected. `provider_callbacks_due` requires an executed deed |
+| H2.4 [AUTO] | Provider returns HTTP 200 carrying `{"response":"FAIL"}` | Counted as a failure. The body is trusted over the status |
+| H2.5 [SEMI] | After a success | `notified_at` set, `notify_error` cleared |
 
 ## H3. Two payments never become one
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H3.1 | Checkout session with **no** `purpose` metadata | Treated as the guarantee fee. Exactly today's behaviour, which is what every in-flight session depends on |
-| H3.2 | `purpose: "eligibility"` | Eligibility recorded, `draft` moves to `referencing`, **no `paid_at`, no deed, no receipt** |
-| H3.3 | `purpose: "nonsense"` | Refused, not guessed. Guessing here means guessing whether to issue a deed |
-| H3.4 | An eligibility payment on a pre-referenced application | Refused: that rail takes no eligibility fee |
-| H3.5 | `update applications set status='referencing', paid_at=now()` | Refused, 23514. **Verified live** |
+| H3.1 [SEMI] | Checkout session with **no** `purpose` metadata | Treated as the guarantee fee. Exactly today's behaviour, which is what every in-flight session depends on |
+| H3.2 [SEMI] | `purpose: "eligibility"` | Eligibility recorded, `draft` moves to `referencing`, **no `paid_at`, no deed, no receipt** |
+| H3.3 [SEMI] | `purpose: "nonsense"` | Refused, not guessed. Guessing here means guessing whether to issue a deed |
+| H3.4 [SEMI] | An eligibility payment on a pre-referenced application | Refused: that rail takes no eligibility fee |
+| H3.5 [AUTO] | `update applications set status='referencing', paid_at=now()` | Refused, 23514. **Verified live** |
 
 ## H4. Joint tenancies
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H4.1 | Two applications on one tenancy, shares 60 and 40 | Accepted |
-| H4.2 | Shares 60 and 30 | Refused at **commit**, not at insert. The trigger is deferred because applicants arrive one at a time |
-| H4.3 | Shares 100 and 0 | Accepted. A zero share is the case the group rule exists for |
-| H4.4 | `tenancy_group_prequalification` on H4.3 | `not_ruled_out`, provided the 100% holder clears their own share |
-| H4.5 | A referral-path application | `tenancy_id` null, existing per-application deed columns untouched |
+| H4.1 [AUTO] | Two applications on one tenancy, shares 60 and 40 | Accepted |
+| H4.2 [AUTO] | Shares 60 and 30 | Refused at **commit**, not at insert. The trigger is deferred because applicants arrive one at a time |
+| H4.3 [AUTO] | Shares 100 and 0 | Accepted. A zero share is the case the group rule exists for |
+| H4.4 [AUTO] | `tenancy_group_prequalification` on H4.3 | `not_ruled_out`, provided the 100% holder clears their own share |
+| H4.5 [AUTO] | A referral-path application | `tenancy_id` null, existing per-application deed columns untouched |
 
 ## H5. The tenant journey
 
@@ -1320,18 +1320,18 @@ Verified live on 2026-08-12 against the dev project with a real tenant session.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H5.1 | Sign in as a tenant, then `GET /rest/v1/applications` **directly** | **`[]`.** Not an error, an empty array. The tenant is invisible to every existing policy. **Verified live** |
-| H5.2 | `tenant-portal` `list_applications` with that session | Their own application. **Verified live** |
-| H5.3 | `get_application` with **another** id | `Not found.` Same message an unknown id gets. **Verified live** |
-| H5.4 | `save_profile`, `save_row` for an address, `save_row` for an income | All accepted, patches only. **Verified live** |
-| H5.5 | `get_application` again | Everything read back: profile, 1 address, 1 income. **This is resume. Verified live** |
-| H5.6 | `prequalify` | `not_ruled_out`, with the income, the monthly figure needed and the history months. **Verified live** |
-| H5.7 | `submit` with under three years of history | 422 naming the shortfall, nothing marked complete |
-| H5.8 | `save_property` with `partner_rate` in the patch | Ignored. The allowlist drops it; an unfiltered patch from a browser would otherwise reach commission and route columns |
-| H5.9 | Any write after submission and payment | 409. Answers cannot drift once a reference is in flight |
-| H5.10 | Type into a field, then close the tab before the debounce fires | The value is saved. `visibilitychange` and `pagehide` both flush |
-| H5.11 | Answer "yes" to adverse credit, fill the CCJ detail, switch to "no", switch back | The detail is still there. Hidden fields are not cleared |
-| H5.12 | Reload mid-form | Same tab, same step, every answer present |
+| H5.1 [AUTO] | Sign in as a tenant, then `GET /rest/v1/applications` **directly** | **`[]`.** Not an error, an empty array. The tenant is invisible to every existing policy. **Verified live** |
+| H5.2 [AUTO] | `tenant-portal` `list_applications` with that session | Their own application. **Verified live** |
+| H5.3 [AUTO] | `get_application` with **another** id | `Not found.` Same message an unknown id gets. **Verified live** |
+| H5.4 [AUTO] | `save_profile`, `save_row` for an address, `save_row` for an income | All accepted, patches only. **Verified live** |
+| H5.5 [AUTO] | `get_application` again | Everything read back: profile, 1 address, 1 income. **This is resume. Verified live** |
+| H5.6 [AUTO] | `prequalify` | `not_ruled_out`, with the income, the monthly figure needed and the history months. **Verified live** |
+| H5.7 [AUTO] | `submit` with under three years of history | 422 naming the shortfall, nothing marked complete |
+| H5.8 [AUTO] | `save_property` with `partner_rate` in the patch | Ignored. The allowlist drops it; an unfiltered patch from a browser would otherwise reach commission and route columns |
+| H5.9 [AUTO] | Any write after submission and payment | 409. Answers cannot drift once a reference is in flight |
+| H5.10 [AUTO] | Type into a field, then close the tab before the debounce fires | The value is saved. `visibilitychange` and `pagehide` both flush |
+| H5.11 [AUTO] | Answer "yes" to adverse credit, fill the CCJ detail, switch to "no", switch back | The detail is still there. Hidden fields are not cleared |
+| H5.12 [AUTO] | Reload mid-form | Same tab, same step, every answer present |
 
 ## H6. The front door
 
@@ -1339,39 +1339,39 @@ Verified live on 2026-08-12 against the dev project.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H6.1 | Prequalify, rent 1450, income 18000, not a student | `ruled_out`, `affordability_below_threshold`, needs 2175/month. **Verified live** |
-| H6.2 | Same rent, income 40000, adverse credit **yes** | `not_ruled_out`. **Adverse credit rules nobody out**, because there is no credit file to see. **Verified live** |
-| H6.3 | Student, income 0 | `not_ruled_out`. **Verified live** |
-| H6.4 | Rent 2400 with a share of 800 | Basis is **800**, needs 1200/month. The share, not the whole rent. **Verified live** |
-| H6.5 | Read any success copy | Never "you qualify". "Nothing here rules you out", or plainly that it is unlikely |
-| H6.6 | Register a new address | `{ok, sent}`, applicant row created, `email_confirmed_at` null. **Verified live** |
-| H6.7 | Register the **same** address again | Byte-identical response. No enumeration. **Verified live** |
-| H6.8 | Register a **staff** address | Same response again, and no applicant row is created |
-| H6.9 | `request_reset` for an unknown address | Same response as a known one |
-| H6.10 | Sign in with a wrong password, and with an unknown address | The same message for both |
+| H6.1 [AUTO] | Prequalify, rent 1450, income 18000, not a student | `ruled_out`, `affordability_below_threshold`, needs 2175/month. **Verified live** |
+| H6.2 [AUTO] | Same rent, income 40000, adverse credit **yes** | `not_ruled_out`. **Adverse credit rules nobody out**, because there is no credit file to see. **Verified live** |
+| H6.3 [AUTO] | Student, income 0 | `not_ruled_out`. **Verified live** |
+| H6.4 [AUTO] | Rent 2400 with a share of 800 | Basis is **800**, needs 1200/month. The share, not the whole rent. **Verified live** |
+| H6.5 [HUMAN] | Read any success copy | Never "you qualify". "Nothing here rules you out", or plainly that it is unlikely |
+| H6.6 [AUTO] | Register a new address | `{ok, sent}`, applicant row created, `email_confirmed_at` null. **Verified live** |
+| H6.7 [AUTO] | Register the **same** address again | Byte-identical response. No enumeration. **Verified live** |
+| H6.8 [AUTO] | Register a **staff** address | Same response again, and no applicant row is created |
+| H6.9 [AUTO] | `request_reset` for an unknown address | Same response as a known one |
+| H6.10 [AUTO] | Sign in with a wrong password, and with an unknown address | The same message for both |
 
 ## H7. The agent handoff
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H7.1 | Agent refers on a `pre_referenced_open` partner | **Unchanged.** Stripe session, payment email, reminders, 15-day lapse. The referral path does not enter the fork |
-| H7.2 | Agent refers on an `opndoor_referenced` partner | **No Stripe session at all.** Status `draft`, an invite minted, the invite email sent |
-| H7.3 | The invited application at day 15 | **Not lapsed.** `expire_stale_applications` selects on `sent` and this is `draft` |
-| H7.4 | Open the invite link, signed out | The property, rent and start date. **No tenant name, no reference, no income.** Verified in SQL |
-| H7.5 | Claim it from a **different** account | Refused: the link was sent to a different address. **Verified live** |
-| H7.6 | Claim it from the invited account | Attached. **Verified live** |
-| H7.7 | Claim it again from a second device | Resumes, does not fail. **Verified live** |
-| H7.8 | Another account tries after the claim | Still refused. **Verified live** |
-| H7.9 | Re-send the invite | The old token stops working. One live invite per application |
+| H7.1 [SEMI] | Agent refers on a `pre_referenced_open` partner | **Unchanged.** Stripe session, payment email, reminders, 15-day lapse. The referral path does not enter the fork |
+| H7.2 [SEMI] | Agent refers on an `opndoor_referenced` partner | **No Stripe session at all.** Status `draft`, an invite minted, the invite email sent |
+| H7.3 [AUTO] | The invited application at day 15 | **Not lapsed.** `expire_stale_applications` selects on `sent` and this is `draft` |
+| H7.4 [AUTO] | Open the invite link, signed out | The property, rent and start date. **No tenant name, no reference, no income.** Verified in SQL |
+| H7.5 [AUTO] | Claim it from a **different** account | Refused: the link was sent to a different address. **Verified live** |
+| H7.6 [AUTO] | Claim it from the invited account | Attached. **Verified live** |
+| H7.7 [AUTO] | Claim it again from a second device | Resumes, does not fail. **Verified live** |
+| H7.8 [AUTO] | Another account tries after the claim | Still refused. **Verified live** |
+| H7.9 [AUTO] | Re-send the invite | The old token stops working. One live invite per application |
 
 ## H8. A draft may be incomplete
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H8.1 | Register with only a name, email and password, then start an application | Draft created. No title and no date of birth required yet. **This was broken before `20260812210000` and failed with a NOT NULL violation** |
-| H8.2 | Null the date of birth while in draft | Allowed. **Verified live** |
-| H8.3 | Move that application out of draft | Refused, naming what is missing. **Verified live** |
-| H8.4 | A referral or API create missing any of the three | Refused exactly as before. The referral path never enters draft |
+| H8.1 [AUTO] | Register with only a name, email and password, then start an application | Draft created. No title and no date of birth required yet. **This was broken before `20260812210000` and failed with a NOT NULL violation** |
+| H8.2 [AUTO] | Null the date of birth while in draft | Allowed. **Verified live** |
+| H8.3 [AUTO] | Move that application out of draft | Refused, naming what is missing. **Verified live** |
+| H8.4 [AUTO] | A referral or API create missing any of the three | Refused exactly as before. The referral path never enters draft |
 
 ## H9. The fee sits between the basics and the rest
 
@@ -1381,17 +1381,17 @@ them was the bug `20260812220000` fixes.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H9.1 | New account, open the journey | Lands on **Property**. There is no prequalification screen |
-| H9.2 | Try to open Address history before paying | Sent to the **Application fee** step. Locked steps redirect rather than doing nothing |
-| H9.3 | Try to pay with Property or About you unfinished | Refused, naming which. We do not take money for an application that is missing something |
-| H9.4 | `submit` with the fee unpaid, **called directly against the API** | `The application fee has not been paid.` **Verified live.** The lock that matters is in SQL, not the browser |
-| H9.5 | Pay the fee | Application stays **`draft`**. Paying unlocks the form; it sends nothing |
-| H9.6 | Read the status after paying | Still `draft`, never `referencing`. `referencing` means with the provider |
-| H9.7 | Submit with the fee paid but under three years of history | Refused, naming the months given |
-| H9.8 | Submit with the fee paid and no main income | Refused |
-| H9.9 | Submit complete | `draft` to `referencing`, `completed_at` set, activity row written |
-| H9.10 | Return from Checkout to `/apply?fee=paid` | The URL is cleaned and the form re-reads shortly after, so a paid tenant never sees a locked form because the webhook was a moment behind |
-| H9.11 | An agent referral on a `pre_referenced_open` partner | **Unchanged.** No fee, no lock, no draft. The referral path does not have an application fee |
+| H9.1 [AUTO] | New account, open the journey | Lands on **Property**. There is no prequalification screen |
+| H9.2 [AUTO] | Try to open Address history before paying | Sent to the **Application fee** step. Locked steps redirect rather than doing nothing |
+| H9.3 [AUTO] | Try to pay with Property or About you unfinished | Refused, naming which. We do not take money for an application that is missing something |
+| H9.4 [AUTO] | `submit` with the fee unpaid, **called directly against the API** | `The application fee has not been paid.` **Verified live.** The lock that matters is in SQL, not the browser |
+| H9.5 [SEMI] | Pay the fee | Application stays **`draft`**. Paying unlocks the form; it sends nothing |
+| H9.6 [SEMI] | Read the status after paying | Still `draft`, never `referencing`. `referencing` means with the provider |
+| H9.7 [AUTO] | Submit with the fee paid but under three years of history | Refused, naming the months given |
+| H9.8 [AUTO] | Submit with the fee paid and no main income | Refused |
+| H9.9 [AUTO] | Submit complete | `draft` to `referencing`, `completed_at` set, activity row written |
+| H9.10 [AUTO] | Return from Checkout to `/apply?fee=paid` | The URL is cleaned and the form re-reads shortly after, so a paid tenant never sees a locked form because the webhook was a moment behind |
+| H9.11 [AUTO] | An agent referral on a `pre_referenced_open` partner | **Unchanged.** No fee, no lock, no draft. The referral path does not have an application fee |
 
 ## H10. Tenant email codes
 
@@ -1400,16 +1400,16 @@ together are, and each has a row because each was found broken once.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H10.1 | Register, then submit a wrong code | Refused. The attempt is counted |
-| H10.2 | A code for an address that never registered | **The same message.** Wrong, expired, exhausted and never-issued are indistinguishable. **Verified live** |
-| H10.3 | Submit the correct code | A one-time token is returned, **not a session**. The browser redeems it. **Verified live** |
-| H10.4 | Submit the same correct code again | Dead. Single use. **Verified live** |
-| H10.5 | **Eight concurrent** wrong guesses against one live code | All refused, and the correct code is dead afterwards. **Verified live.** This failed before `20260812240000`: the cap was decided on a stale read and degraded to the attacker's concurrency |
-| H10.6 | **Eight concurrent** issues for one address | Five allowed, three refused. **Verified live.** This failed before `20260812240000` for the same reason |
-| H10.7 | Two live codes for one address | Impossible. Issuing consumes the previous, under an advisory lock so it cannot be raced |
-| H10.8 | `request_reset` with `origin: "https://evil.example"` | Normal response, **and no email is sent**. The link is built from `APP_URL`, never from the request. **Verified live** |
-| H10.9 | An email address containing `%` or `_` | Matches only itself. `ilike` treated them as wildcards and matched other people's rows |
-| H10.10 | Hammer `verify_code`, `register`, `resend`, `request_reset` | Throttled per address and per caller, and a refusal looks identical to the normal response |
+| H10.1 [AUTO] | Register, then submit a wrong code | Refused. The attempt is counted |
+| H10.2 [AUTO] | A code for an address that never registered | **The same message.** Wrong, expired, exhausted and never-issued are indistinguishable. **Verified live** |
+| H10.3 [SEMI] | Submit the correct code | A one-time token is returned, **not a session**. The browser redeems it. **Verified live** |
+| H10.4 [SEMI] | Submit the same correct code again | Dead. Single use. **Verified live** |
+| H10.5 [AUTO] | **Eight concurrent** wrong guesses against one live code | All refused, and the correct code is dead afterwards. **Verified live.** This failed before `20260812240000`: the cap was decided on a stale read and degraded to the attacker's concurrency |
+| H10.6 [AUTO] | **Eight concurrent** issues for one address | Five allowed, three refused. **Verified live.** This failed before `20260812240000` for the same reason |
+| H10.7 [AUTO] | Two live codes for one address | Impossible. Issuing consumes the previous, under an advisory lock so it cannot be raced |
+| H10.8 [AUTO] | `request_reset` with `origin: "https://evil.example"` | Normal response, **and no email is sent**. The link is built from `APP_URL`, never from the request. **Verified live** |
+| H10.9 [AUTO] | An email address containing `%` or `_` | Matches only itself. `ilike` treated them as wildcards and matched other people's rows |
+| H10.10 [AUTO] | Hammer `verify_code`, `register`, `resend`, `request_reset` | Throttled per address and per caller, and a refusal looks identical to the normal response |
 
 H10.8 is the one to run first after any change to this file. Client-supplied
 origin on a link that carries a token is account takeover with a phishing page
@@ -1425,16 +1425,16 @@ application fee, so both are translated before a tenant sees them.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H11.1 | Draft, three of seven sections done | "In progress", **3 of 7**, and it names the fee as what unlocks the rest |
-| H11.2 | Draft, fee paid | Stops mentioning the fee. It has been paid; saying it again reads as unpaid |
-| H11.3 | Everything done, not yet sent | "Ready to send" |
-| H11.4 | Submitted | "With our referencing partner", and it says **they do not need to do anything** |
-| H11.5 | Approved | "Approved", and the guarantee fee is offered |
-| H11.6 | Declined | Terminal on the timeline, **never a success tick**, and **no request for money** |
-| H11.7 | Any state other than approved | No payment button anywhere. Asking a declined tenant to pay is the worst version of this screen |
-| H11.8 | Guarantee issued | Timeline complete |
-| H11.9 | Lapsed or withdrawn | Terminal and explained, not a blank screen |
-| H11.10 | Progress in three places | The status card counts sections, the page head shows the bar, the sidebar ticks each step. All three agree |
+| H11.1 [AUTO] | Draft, three of seven sections done | "In progress", **3 of 7**, and it names the fee as what unlocks the rest |
+| H11.2 [AUTO] | Draft, fee paid | Stops mentioning the fee. It has been paid; saying it again reads as unpaid |
+| H11.3 [AUTO] | Everything done, not yet sent | "Ready to send" |
+| H11.4 [AUTO] | Submitted | "With our referencing partner", and it says **they do not need to do anything** |
+| H11.5 [AUTO] | Approved | "Approved", and the guarantee fee is offered |
+| H11.6 [AUTO] | Declined | Terminal on the timeline, **never a success tick**, and **no request for money** |
+| H11.7 [AUTO] | Any state other than approved | No payment button anywhere. Asking a declined tenant to pay is the worst version of this screen |
+| H11.8 [AUTO] | Guarantee issued | Timeline complete |
+| H11.9 [AUTO] | Lapsed or withdrawn | Terminal and explained, not a blank screen |
+| H11.10 [AUTO] | Progress in three places | The status card counts sections, the page head shows the bar, the sidebar ticks each step. All three agree |
 
 ## H12. Walking the whole journey
 
@@ -1444,25 +1444,25 @@ journey can be walked end to end.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H12.1 | Mock mode, `/apply` | A dashed amber "Demo controls" strip. Unmistakably not product |
-| H12.2 | Supabase mode, `/apply` | **No demo strip at all**, and `demoSetStatus` throws if called |
-| H12.3 | Jump to any state after draft | The fee shows as paid too, so the timeline cannot contradict the headline |
-| H12.4 | Walk draft → submitted → approved → paid → issued | Each step changes the headline, the tone and the timeline position |
+| H12.1 [HUMAN] | Mock mode, `/apply` | A dashed amber "Demo controls" strip. Unmistakably not product |
+| H12.2 [AUTO] | Supabase mode, `/apply` | **No demo strip at all**, and `demoSetStatus` throws if called |
+| H12.3 [AUTO] | Jump to any state after draft | The fee shows as paid too, so the timeline cannot contradict the headline |
+| H12.4 [HUMAN] | Walk draft → submitted → approved → paid → issued | Each step changes the headline, the tone and the timeline position |
 
 ## H13. Sections, wording, and folding away
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H13.1 | Read every tenant-facing string | **Never "referencing".** A tenant is told "eligibility check". `referencing_mode`, the `referencing` status and the partner API contract keep their names: those are internal and partner vocabulary. Asserted by a test over every status |
-| H13.2 | Any step in the form | Ends with **Save and continue to \<next section\>**, naming where it goes. Autosave is invisible and a section with nothing to press reads as unfinished |
-| H13.3 | A step with something outstanding | The footer says what, and still lets them continue. Only the fee gates, and that gate is in SQL |
-| H13.4 | The last step | No "continue"; the Send button is the ending |
-| H13.5 | Submit, then look at the sidebar | The seven form steps are **gone**. Status, Documents, Payment and Your guarantee remain. Seven steps in front of somebody who has finished implies there is still something to do |
-| H13.6 | Same, page head | No section counter. There are no sections left to count |
-| H13.7 | "What you told us" | Collapsed by default, expands read-only. Somebody waiting does sometimes want to check what they said, and editing would change the basis of a decision in flight |
-| H13.8 | Documents tab | Lists what has been uploaded, allows adding and removing, and shows eligibility reports as **held on file, not downloadable** |
-| H13.9 | ID check and Financials | Real steps with a working manual path, and each names the vendor path that is not switched on. Neither is a "coming soon" panel |
-| H13.10 | Upload on Financials | Recorded as `bank_statement` and appears on Documents too. One index, two ways in |
+| H13.1 [AUTO] | Read every tenant-facing string | **Never "referencing".** A tenant is told "eligibility check". `referencing_mode`, the `referencing` status and the partner API contract keep their names: those are internal and partner vocabulary. Asserted by a test over every status |
+| H13.2 [AUTO] | Any step in the form | Ends with **Save and continue to \<next section\>**, naming where it goes. Autosave is invisible and a section with nothing to press reads as unfinished |
+| H13.3 [AUTO] | A step with something outstanding | The footer says what, and still lets them continue. Only the fee gates, and that gate is in SQL |
+| H13.4 [AUTO] | The last step | No "continue"; the Send button is the ending |
+| H13.5 [AUTO] | Submit, then look at the sidebar | The seven form steps are **gone**. Status, Documents, Payment and Your guarantee remain. Seven steps in front of somebody who has finished implies there is still something to do |
+| H13.6 [AUTO] | Same, page head | No section counter. There are no sections left to count |
+| H13.7 [AUTO] | "What you told us" | Collapsed by default, expands read-only. Somebody waiting does sometimes want to check what they said, and editing would change the basis of a decision in flight |
+| H13.8 [AUTO] | Documents tab | Lists what has been uploaded, allows adding and removing, and shows eligibility reports as **held on file, not downloadable** |
+| H13.9 [AUTO] | ID check and Financials | Real steps with a working manual path, and each names the vendor path that is not switched on. Neither is a "coming soon" panel |
+| H13.10 [AUTO] | Upload on Financials | Recorded as `bank_statement` and appears on Documents too. One index, two ways in |
 
 ## H13a. The approved tenant can actually pay
 
@@ -1472,11 +1472,11 @@ one moment somebody is trying to give us money.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H13a.1 | `guarantee_payment_link` on a **draft** application | `There is nothing to pay yet.` **Verified live.** Asking before approval is the failure worth guarding |
-| H13a.2 | Same on an **approved** (`sent`) application | A `/pay?token=…` URL. **Verified live** |
-| H13a.3 | Same with another tenant's application id | `Not found.` **Verified live** |
-| H13a.4 | Follow the URL | The real payment page, loaded, not the invalid-link state |
-| H13a.5 | Call it twice | The same token. `mint_payment_page_token` is idempotent, so a reload does not orphan the first |
+| H13a.1 [AUTO] | `guarantee_payment_link` on a **draft** application | `There is nothing to pay yet.` **Verified live.** Asking before approval is the failure worth guarding |
+| H13a.2 [AUTO] | Same on an **approved** (`sent`) application | A `/pay?token=…` URL. **Verified live** |
+| H13a.3 [AUTO] | Same with another tenant's application id | `Not found.` **Verified live** |
+| H13a.4 [AUTO] | Follow the URL | The real payment page, loaded, not the invalid-link state |
+| H13a.5 [AUTO] | Call it twice | The same token. `mint_payment_page_token` is idempotent, so a reload does not orphan the first |
 
 There is still exactly **one** implementation of the guarantee payment. A signed-in
 tenant reaches the existing tokenised page rather than a second Checkout flow
@@ -1494,10 +1494,10 @@ Nothing in the suite mounted a component, so nothing could have caught it.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H14.1 | Mount `<Apply/>` with a draft and let effects settle | Renders past the loading state. **The bug was on the second render**, once the bundle arrived, so getting there is the assertion |
-| H14.2 | Mount it for `referencing`, `sent`, `declined`, `paid`, `deed` | Each renders. These are the states the form folds away in, and the fold is where the hook count changed |
-| H14.3 | Mount signed out | The sign-in prompt, not a throw |
-| H14.4 | Move any hook below an early return in `Apply.tsx` | **H14.1 and H14.2 fail.** Verified by reintroducing the bug on purpose: two files failed and the suite dropped from 162 tests to 107 |
+| H14.1 [AUTO] | Mount `<Apply/>` with a draft and let effects settle | Renders past the loading state. **The bug was on the second render**, once the bundle arrived, so getting there is the assertion |
+| H14.2 [AUTO] | Mount it for `referencing`, `sent`, `declined`, `paid`, `deed` | Each renders. These are the states the form folds away in, and the fold is where the hook count changed |
+| H14.3 [AUTO] | Mount signed out | The sign-in prompt, not a throw |
+| H14.4 [AUTO] | Move any hook below an early return in `Apply.tsx` | **H14.1 and H14.2 fail.** Verified by reintroducing the bug on purpose: two files failed and the suite dropped from 162 tests to 107 |
 
 H14.4 is the row that matters. A rule nobody can check is a rule that comes
 back; there is no ESLint in this repo, so `react-hooks/rules-of-hooks` is not
@@ -1525,15 +1525,15 @@ flow.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H15.1 | Render `/login` | Three tabs: Tenant, Agent, Supplier. Agent is selected, because that is who has been signing in here for a year |
-| H15.2 | Render `/login?tab=supplier` | The Supplier tab is selected. `?tab=` is a link somebody can be sent, not internal state |
-| H15.3 | Visit `/login?tab=tenant` | **Redirected to `/apply/signin`.** The tab is gone; the portal serves partner staff. Old links and bookmarks still exist, and an `?invite=` token travels with the redirect |
-| H15.4 | Render `/login` with no query | Agent, the only remaining default |
-| H15.5 | Render `/login?tab=supplier` | A working staff form. **No "not open yet"** |
-| H15.6 | Render `/login?tab=supplier` | The Credentials and Verify steps are present. A supplier is staff, so two-factor stays |
-| H15.7 | Compare the supplier and agent subtitles | They differ. The tab changes the copy and nothing else, because the difference is commercial |
-| H15.8 | Revert the supplier branch to `audience === 'agent'` | **H15.5, H15.6 and H15.7 fail.** Verified by reintroducing it: 3 failed, 185 passed |
-| H15.9 | Revert the tenant panel to a Continue button | **H15.3 fails.** Verified by reintroducing it: 1 failed, 187 passed |
+| H15.1 [AUTO] | Render `/login` | Three tabs: Tenant, Agent, Supplier. Agent is selected, because that is who has been signing in here for a year |
+| H15.2 [AUTO] | Render `/login?tab=supplier` | The Supplier tab is selected. `?tab=` is a link somebody can be sent, not internal state |
+| H15.3 [AUTO] | Visit `/login?tab=tenant` | **Redirected to `/apply/signin`.** The tab is gone; the portal serves partner staff. Old links and bookmarks still exist, and an `?invite=` token travels with the redirect |
+| H15.4 [AUTO] | Render `/login` with no query | Agent, the only remaining default |
+| H15.5 [AUTO] | Render `/login?tab=supplier` | A working staff form. **No "not open yet"** |
+| H15.6 [AUTO] | Render `/login?tab=supplier` | The Credentials and Verify steps are present. A supplier is staff, so two-factor stays |
+| H15.7 [AUTO] | Compare the supplier and agent subtitles | They differ. The tab changes the copy and nothing else, because the difference is commercial |
+| H15.8 [AUTO] | Revert the supplier branch to `audience === 'agent'` | **H15.5, H15.6 and H15.7 fail.** Verified by reintroducing it: 3 failed, 185 passed |
+| H15.9 [AUTO] | Revert the tenant panel to a Continue button | **H15.3 fails.** Verified by reintroducing it: 1 failed, 187 passed |
 
 H15.8 and H15.9 are the rows that matter. The rest would pass against a screen
 that had quietly lost a door.
@@ -1563,12 +1563,12 @@ the URL can read it. Gating a link is not gating a file.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H16.1 | `npm run build`, then grep `dist/` case-insensitively for the banned list | **No match.** Run it; do not read the source and assume |
-| H16.2 | Include static assets under `dist/help-docs/` in that grep | No match. A file in `public/` ships whether or not the UI links to it |
-| H16.3 | Fetch `/help-docs/opndoor-admin-guide.html` directly | It loads, and names no supplier. The superadmin gate hides the link, not the file |
-| H16.4 | `select to_regprocedure('public.trigger_hubspot_sync()')` | **Not null.** The rename was additive; the old entry point stays for the cron |
-| H16.5 | As a non-admin, call `trigger_crm_sync()` | `42501 not permitted`. The new name inherits the old guard rather than relaxing it |
-| H16.6 | Add any new `rpc('...')` call | Re-run H16.1. Every RPC name is public copy |
+| H16.1 [AUTO] | `npm run build`, then grep `dist/` case-insensitively for the banned list | **No match.** Run it; do not read the source and assume |
+| H16.2 [AUTO] | Include static assets under `dist/help-docs/` in that grep | No match. A file in `public/` ships whether or not the UI links to it |
+| H16.3 [AUTO] | Fetch `/help-docs/opndoor-admin-guide.html` directly | It loads, and names no supplier. The superadmin gate hides the link, not the file |
+| H16.4 [AUTO] | `select to_regprocedure('public.trigger_hubspot_sync()')` | **Not null.** The rename was additive; the old entry point stays for the cron |
+| H16.5 [AUTO] | As a non-admin, call `trigger_crm_sync()` | `42501 not permitted`. The new name inherits the old guard rather than relaxing it |
+| H16.6 [AUTO] | Add any new `rpc('...')` call | Re-run H16.1. Every RPC name is public copy |
 
 The banned list is at the built-artefact grep near the top of this document.
 H16.6 is the row that keeps this from rotting: the leak was not a name somebody
@@ -1593,18 +1593,18 @@ rather than by care.** Rightmove included. That is what makes this additive.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H17.1 | `select refers_own_stock from partners` for every pre-existing partner | **All false.** Nobody was reclassified. Migration 20260814010000 raises if one was |
-| H17.2 | Sign in as a supplier and open New application | Today's form, unchanged: Agent typeahead, create on the fly, single-office radio, contact block |
-| H17.3 | A **supplier with exactly one agency** | **Still asks.** `collapse_agency` false. Its agency set is open, so next month there are two, and collapsing would file the referral against whichever came first |
-| H17.4 | An agent with one brand and one branch | Asks nothing. One line naming the office, and a "A different branch?" link that reveals the branch field |
-| H17.5 | An agent with one brand and several branches | Asks the branch only. No agency step |
-| H17.6 | An agent with several brands | Asks brand, then branch. The group case |
-| H17.7 | Any agent | **No "create new agent" option, and Enter does not create one.** A new brand is an acquisition and belongs to an admin, not to a referral form |
-| H17.8 | An agent with **no branches set up** | A blocking line saying so. **It must not fall through to the supplier picker**, which is how somebody invents a misspelled duplicate of their own employer with money attached |
-| H17.9 | `my_org_shape` when the RPC fails or returns no row | `FULL_PICKER`: asks for an agency, allows a new one. The fallback is the shape that loses nothing |
-| H17.10 | A branch manager at one office of a twelve-office agent | Their form collapses even though the partner's does not. `my_org_shape` reads `user_scopes` |
-| H17.11 | Add a second branch to a collapsed agent, reload the form | The branch step appears. Nothing was configured |
-| H17.12 | Wording, any agent path | Never says "agency". Says brand, branch or office |
+| H17.1 [AUTO] | `select refers_own_stock from partners` for every pre-existing partner | **All false.** Nobody was reclassified. Migration 20260814010000 raises if one was |
+| H17.2 [AUTO] | Sign in as a supplier and open New application | Today's form, unchanged: Agent typeahead, create on the fly, single-office radio, contact block |
+| H17.3 [AUTO] | A **supplier with exactly one agency** | **Still asks.** `collapse_agency` false. Its agency set is open, so next month there are two, and collapsing would file the referral against whichever came first |
+| H17.4 [AUTO] | An agent with one brand and one branch | Asks nothing. One line naming the office, and a "A different branch?" link that reveals the branch field |
+| H17.5 [AUTO] | An agent with one brand and several branches | Asks the branch only. No agency step |
+| H17.6 [AUTO] | An agent with several brands | Asks brand, then branch. The group case |
+| H17.7 [AUTO] | Any agent | **No "create new agent" option, and Enter does not create one.** A new brand is an acquisition and belongs to an admin, not to a referral form |
+| H17.8 [AUTO] | An agent with **no branches set up** | A blocking line saying so. **It must not fall through to the supplier picker**, which is how somebody invents a misspelled duplicate of their own employer with money attached |
+| H17.9 [AUTO] | `my_org_shape` when the RPC fails or returns no row | `FULL_PICKER`: asks for an agency, allows a new one. The fallback is the shape that loses nothing |
+| H17.10 [AUTO] | A branch manager at one office of a twelve-office agent | Their form collapses even though the partner's does not. `my_org_shape` reads `user_scopes` |
+| H17.11 [AUTO] | Add a second branch to a collapsed agent, reload the form | The branch step appears. Nothing was configured |
+| H17.12 [AUTO] | Wording, any agent path | Never says "agency". Says brand, branch or office |
 
 ### What protects the referral path
 
@@ -1630,12 +1630,12 @@ this is the same kindness one level up, gated on ownership.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H17.13 | Supplier, `org: { branch_name }` with no agency | `agency_required`. Unchanged. Its set is open, so one agency so far is a fact about the past |
-| H17.14 | Agent, one brand, `org: { branch_name }` | Resolves. The agency comes from the key |
-| H17.15 | Agent, one brand and one branch, `org: {}` | Resolves both |
-| H17.16 | Agent, one brand, several branches, `org: {}` | `branch_required`, **with the branch names in the message** so it can be fixed without a ticket |
-| H17.17 | Agent, several brands, no agency named | `agency_required`, with the brand names |
-| H17.18 | Anyone sending `agency_name` as today | Byte-identical behaviour. This is additive to input that used to be a hard error |
+| H17.13 [AUTO] | Supplier, `org: { branch_name }` with no agency | `agency_required`. Unchanged. Its set is open, so one agency so far is a fact about the past |
+| H17.14 [AUTO] | Agent, one brand, `org: { branch_name }` | Resolves. The agency comes from the key |
+| H17.15 [AUTO] | Agent, one brand and one branch, `org: {}` | Resolves both |
+| H17.16 [AUTO] | Agent, one brand, several branches, `org: {}` | `branch_required`, **with the branch names in the message** so it can be fixed without a ticket |
+| H17.17 [AUTO] | Agent, several brands, no agency named | `agency_required`, with the brand names |
+| H17.18 [AUTO] | Anyone sending `agency_name` as today | Byte-identical behaviour. This is additive to input that used to be a hard error |
 
 **The shortcut is only reachable for `pre_referenced_open`.** `createApplication`
 dispatches on `referencing_mode` as its first act and returns 501 for
@@ -1666,13 +1666,13 @@ somebody else's deal. The sibling table built in the same week,
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H18.1 | `select relrowsecurity from pg_class where oid = 'public.agency_groups'::regclass` | true |
-| H18.2 | `has_table_privilege('anon', 'public.agency_groups', 'select')` | **false** |
-| H18.3 | As partner A, `select * from agency_groups` | Only partner A's rows |
-| H18.4 | As an opndoor admin | Every row |
-| H18.5 | At AAL1 | Nothing. The restrictive `require_aal2` ANDs with the permissive policy |
-| H18.6 | Any insert, update or delete policy on the table | **None exists.** Groups are created through the security definer RPC only |
-| H18.7 | Every other table added since 20260812 | Repeat H18.1 and H18.2 for each. This was not caught by review, it was caught by an adversarial pass on unrelated work |
+| H18.1 [AUTO] | `select relrowsecurity from pg_class where oid = 'public.agency_groups'::regclass` | true |
+| H18.2 [AUTO] | `has_table_privilege('anon', 'public.agency_groups', 'select')` | **false** |
+| H18.3 [AUTO] | As partner A, `select * from agency_groups` | Only partner A's rows |
+| H18.4 [AUTO] | As an opndoor admin | Every row |
+| H18.5 [AUTO] | At AAL1 | Nothing. The restrictive `require_aal2` ANDs with the permissive policy |
+| H18.6 [AUTO] | Any insert, update or delete policy on the table | **None exists.** Groups are created through the security definer RPC only |
+| H18.7 [AUTO] | Every other table added since 20260812 | Repeat H18.1 and H18.2 for each. This was not caught by review, it was caught by an adversarial pass on unrelated work |
 
 H18.7 is the row that matters. A table created without `enable row level
 security` is open, silently, and nothing in the build or the suite says so.
@@ -1691,23 +1691,23 @@ pane, so the box is constant and only the content below the tabs differs.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H19.1 | Click Tenant, Agent, Supplier in turn and watch the tab strip | It does not move. Nothing above the fold shifts |
-| H19.2 | Same at a viewport under 760px tall | The min-height releases and the card scrolls. A reachable control beats a stationary one |
-| H19.3 | Add a line to any pane | Re-check H19.1. The pin is a fixed number and a taller pane silently overflows it |
-| H19.3a | Watch where each pane ENDS, not just where it starts | The last line sits on the same bottom edge for all three. Aligning the tabs alone left the panes finishing 44px apart, which is the same complaint one level down |
-| H19.3b | Every audience | Exactly one `.auth__pane`, ending in an `.auth__foot` either directly or as the last child of an `.auth__pane-body`. **That chain is what the pin needs**, and if it breaks the footer drifts and nothing else says so |
-| H19.3c | Remove the pane wrapper or the tenant step strip | **H19.3a and H19.3b fail.** Verified by reintroducing both: 5 failed, 208 passed |
-| H19.3d | Switch tabs rapidly and watch the FIELDS, not the tabs | Nothing but the text changes position |
-| H19.3e | The right pane | **Centred vertically.** Safe only because every variable-height block on the card is a stack, so the three tabs render at exactly the same height and there is no difference left to split |
-| H19.3f | Both variable-height blocks | The heading and paragraph, AND the helper line under the button. Each is a grid stack: all three variants in one cell, inactive ones `visibility: hidden` and `aria-hidden`. **The helper line was the one that survived the first fix**: one line on Tenant, two on the others, and with the card centred that difference moved the tab pill at the top |
-| H19.3g | `display: none` on a hidden variant | Wrong. It collapses the row to the visible one, which is the defect itself. `visibility: hidden` keeps the box |
-| H19.3h | Any reserved height, on the card or the footer | **There must be none.** The stacks make the heights equal; reserving a height as well only moves the slack |
-| H19.3i | `@media (max-width: 900px)` in `auth.css` | It must sit **after** `.auth__brand`. It used to be at the top of the file, above that rule's own `display: flex`, so `display: none` never applied and the brand panel rendered on mobile. Its headline is a different length per tab, which moved the form |
-| H19.3j | The left column's position | `grid-template-rows: 1fr auto 1fr`, so the headline's centre is the container's centre and matches the card's. `space-between` looked the same and was not: it centred the headline in the gap between the wordmark and the flow cards, a different point, measured 399 against the card's 500 |
-| H19.3m | The left column's copy | **Stacked PER LINE.** The headline is two lines for a tenant and an agent and three for a supplier, so a centred block put the eyebrow at 624, 624 and 591 |
-| H19.3n | Stacking the left block as a whole instead | Not enough. It lines up the eyebrow and the heading and leaves the paragraph at 499, 499 and 551, because the supplier's own three-line headline pushes its own paragraph down inside its own variant. Each of the three lines needs its own cell |
-| H19.3o | The spacing between those lines | On the CELL (`.auth__stack--h1`, `.auth__stack--copy`), not on the item. A margin on a grid item applies once per hidden variant and grid items do not collapse margins, so the gap would come out three times too big |
-| H19.3p | The eyebrow | `justify-self: start`. An inline-flex pill in a grid cell stretches to the column width and drags its background with it |
+| H19.1 [AUTO] | Click Tenant, Agent, Supplier in turn and watch the tab strip | It does not move. Nothing above the fold shifts |
+| H19.2 [AUTO] | Same at a viewport under 760px tall | The min-height releases and the card scrolls. A reachable control beats a stationary one |
+| H19.3 [AUTO] | Add a line to any pane | Re-check H19.1. The pin is a fixed number and a taller pane silently overflows it |
+| H19.3a [AUTO] | Watch where each pane ENDS, not just where it starts | The last line sits on the same bottom edge for all three. Aligning the tabs alone left the panes finishing 44px apart, which is the same complaint one level down |
+| H19.3b [AUTO] | Every audience | Exactly one `.auth__pane`, ending in an `.auth__foot` either directly or as the last child of an `.auth__pane-body`. **That chain is what the pin needs**, and if it breaks the footer drifts and nothing else says so |
+| H19.3c [AUTO] | Remove the pane wrapper or the tenant step strip | **H19.3a and H19.3b fail.** Verified by reintroducing both: 5 failed, 208 passed |
+| H19.3d [AUTO] | Switch tabs rapidly and watch the FIELDS, not the tabs | Nothing but the text changes position |
+| H19.3e [AUTO] | The right pane | **Centred vertically.** Safe only because every variable-height block on the card is a stack, so the three tabs render at exactly the same height and there is no difference left to split |
+| H19.3f [AUTO] | Both variable-height blocks | The heading and paragraph, AND the helper line under the button. Each is a grid stack: all three variants in one cell, inactive ones `visibility: hidden` and `aria-hidden`. **The helper line was the one that survived the first fix**: one line on Tenant, two on the others, and with the card centred that difference moved the tab pill at the top |
+| H19.3g [AUTO] | `display: none` on a hidden variant | Wrong. It collapses the row to the visible one, which is the defect itself. `visibility: hidden` keeps the box |
+| H19.3h [AUTO] | Any reserved height, on the card or the footer | **There must be none.** The stacks make the heights equal; reserving a height as well only moves the slack |
+| H19.3i [AUTO] | `@media (max-width: 900px)` in `auth.css` | It must sit **after** `.auth__brand`. It used to be at the top of the file, above that rule's own `display: flex`, so `display: none` never applied and the brand panel rendered on mobile. Its headline is a different length per tab, which moved the form |
+| H19.3j [AUTO] | The left column's position | `grid-template-rows: 1fr auto 1fr`, so the headline's centre is the container's centre and matches the card's. `space-between` looked the same and was not: it centred the headline in the gap between the wordmark and the flow cards, a different point, measured 399 against the card's 500 |
+| H19.3m [AUTO] | The left column's copy | **Stacked PER LINE.** The headline is two lines for a tenant and an agent and three for a supplier, so a centred block put the eyebrow at 624, 624 and 591 |
+| H19.3n [AUTO] | Stacking the left block as a whole instead | Not enough. It lines up the eyebrow and the heading and leaves the paragraph at 499, 499 and 551, because the supplier's own three-line headline pushes its own paragraph down inside its own variant. Each of the three lines needs its own cell |
+| H19.3o [AUTO] | The spacing between those lines | On the CELL (`.auth__stack--h1`, `.auth__stack--copy`), not on the item. A margin on a grid item applies once per hidden variant and grid items do not collapse margins, so the gap would come out three times too big |
+| H19.3p [AUTO] | The eyebrow | `justify-self: start`. An inline-flex pill in a grid cell stretches to the column width and drags its background with it |
 
 ### H19.3k. The measured proof
 
@@ -1797,11 +1797,9 @@ earns no commission, and the third was wrong about how they sign in.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H19.4 | Tenant tab, read the left panel | Eyebrow "Tenant sign in". **No commission, no referring, no authenticator app.** It says a code goes to their email |
-| H19.4a | Tenant tab, the step strip | **Present, and the same two steps as staff: 1 Credentials, 2 Verify.** A tenant has two factors like everybody else; only the delivery differs, email rather than an app. Hiding the strip made the tenant path read as the lesser one |
-| H19.4b | Tenant tab, anywhere | No QR code and no authenticator wording. The step is shared, the second factor is not |
-| H19.5 | Agent tab | "Agent sign in", their own branches, commission, two-factor |
-| H19.6 | Supplier tab | "Supplier sign in", referring **on behalf of** the agencies they work with |
+| H19.4 [AUTO] | The step strip, both tabs | Present, 1 Credentials then 2 Verify. **Written when there were three tabs, and it applied to the tenant one too**: a tenant has two factors as well, the second arriving by email rather than from an app. That tab has since moved to `/apply/signin`, where the same two steps run without the indicator, which is H20.12 |
+| H19.5 [AUTO] | Agent tab | "Agent sign in", their own branches, commission, two-factor |
+| H19.6 [AUTO] | Supplier tab | "Supplier sign in", referring **on behalf of** the agencies they work with |
 
 ### H19.7 to H19.12. A tenant gets two-factor as well
 
@@ -1816,13 +1814,13 @@ crosses the wire at step one is `{ ok: true }`.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H19.7 | Tenant, correct password | A code step. **Not signed in.** No session in local storage under `opndoor.tenant.auth` |
-| H19.8 | Tenant, wrong password | The same one message as an unknown address. This adds no oracle the single-step version did not have |
-| H19.9 | Enter the code | Signed in, and landed by `afterSignIn`: an invite is claimed, otherwise a draft opens |
-| H19.10 | Spend a **registration** code at sign in, or the reverse | Refused. The purpose is verified, not assumed, so one kind cannot be spent as the other |
-| H19.11 | A sign-in code for an address that was never confirmed | It does not confirm the address. Only a `verify_email` code does |
-| H19.12 | Eleven sign-in attempts on one address in an hour | Rate limited, and the refusal reads as the normal response |
-| H19.13 | Revert the tenant panel to signing in on the password alone | **H19.7 fails.** Verified by reintroducing it: 3 failed, 205 passed |
+| H19.7 [SEMI] | Tenant, correct password | A code step. **Not signed in.** No session in local storage under `opndoor.tenant.auth` |
+| H19.8 [SEMI] | Tenant, wrong password | The same one message as an unknown address. This adds no oracle the single-step version did not have |
+| H19.9 [SEMI] | Enter the code | Signed in, and landed by `afterSignIn`: an invite is claimed, otherwise a draft opens |
+| H19.10 [SEMI] | Spend a **registration** code at sign in, or the reverse | Refused. The purpose is verified, not assumed, so one kind cannot be spent as the other |
+| H19.11 [SEMI] | A sign-in code for an address that was never confirmed | It does not confirm the address. Only a `verify_email` code does |
+| H19.12 [SEMI] | Eleven sign-in attempts on one address in an hour | Rate limited, and the refusal reads as the normal response |
+| H19.13 [AUTO] | Revert the tenant panel to signing in on the password alone | **H19.7 fails.** Verified by reintroducing it: 3 failed, 205 passed |
 
 H19.13 is the row that matters. H19.7 to H19.9 would all pass against a screen
 that signed somebody in and then showed them a code box for decoration.
@@ -1842,22 +1840,22 @@ looked like there was no verify step. Nothing stronger was deleted.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H20.1 | `/apply/signin`, correct password | A six-digit code step. **Not signed in** until it is entered |
-| H20.2 | `/login` | Two tabs, Agent and Supplier. No Tenant |
-| H20.3 | `/login?tab=tenant` | Redirected to `/apply/signin`, `?invite=` preserved |
-| H20.4 | Any tenant email: invite, reset, verification | Points at `/apply/*`, never at `/login`. It always did |
-| H20.5 | Tenant sign-out | `/apply/signin`. Staff sign-out goes to `/login` |
-| H20.6 | An opndoor admin or superadmin | Signs in at `/login` on the Agent or Supplier tab, the same form as a partner referrer. **There is no separate admin route.** Role is read from their `users` row after AAL2. Removing the Tenant tab does not touch this path: the tenant panel was a sibling branch that never entered the staff state machine |
+| H20.1 [SEMI] | `/apply/signin`, correct password | A six-digit code step. **Not signed in** until it is entered |
+| H20.2 [AUTO] | `/login` | Two tabs, Agent and Supplier. No Tenant |
+| H20.3 [AUTO] | `/login?tab=tenant` | Redirected to `/apply/signin`, `?invite=` preserved |
+| H20.4 [AUTO] | Any tenant email: invite, reset, verification | Points at `/apply/*`, never at `/login`. It always did |
+| H20.5 [AUTO] | Tenant sign-out | `/apply/signin`. Staff sign-out goes to `/login` |
+| H20.6 [SEMI] | An opndoor admin or superadmin | Signs in at `/login` on the Agent or Supplier tab, the same form as a partner referrer. **There is no separate admin route.** Role is read from their `users` row after AAL2. Removing the Tenant tab does not touch this path: the tenant panel was a sibling branch that never entered the staff state machine |
 
 ### H20.7 to H20.11. The /apply/signin form
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H20.7 | "No account yet? Create one." | Styled as a link. `.ap-foot a` had no rule at all, so the primary action for a first-time applicant read as body text |
-| H20.8 | Email and password | Stacked, full card width. `.ap-grid` is two columns, which is right for an application and wrong for a sign-in |
-| H20.9 | The submit | Full-width pill, with "Forgot password?" right-aligned above it, matching the portal |
-| H20.10 | The heading | 20px clear of the first field label, not flush on it |
-| H20.11 | The browser tab | "Sign in \| opndoor guarantor application", not "Guarantee Referral Portal" on a page branded guarantor application |
+| H20.7 [AUTO] | "No account yet? Create one." | Styled as a link. `.ap-foot a` had no rule at all, so the primary action for a first-time applicant read as body text |
+| H20.8 [AUTO] | Email and password | Stacked, full card width. `.ap-grid` is two columns, which is right for an application and wrong for a sign-in |
+| H20.9 [AUTO] | The submit | Full-width pill, with "Forgot password?" right-aligned above it, matching the portal |
+| H20.10 [AUTO] | The heading | 20px clear of the first field label, not flush on it |
+| H20.11 [AUTO] | The browser tab | "Sign in \| opndoor guarantor application", not "Guarantee Referral Portal" on a page branded guarantor application |
 
 Measured at 1440: heading y 324, first label 386, fields 386 and 469 at the same
 x and the full 420 wide, forgot link flush to the card's right edge, button 420
@@ -1895,12 +1893,12 @@ plus the form fixes.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H20.12 | Submit a correct password at `/apply/signin` | The code step. **Not signed in** |
-| H20.13 | Five digits, then six | Confirm disabled, then enabled |
-| H20.14 | Type `12ab34cd56` | The box reads `123456` |
-| H20.15 | "Use a different email address" | Back to the password step |
-| H20.16 | Revert `/apply/signin` to signing in on the password alone | **H20.12 to H20.15 fail.** Verified by reintroducing it: 4 failed, 227 passed |
-| H20.17 | The two field labels | Tied to their controls by `htmlFor` and `id`. They were not: a screen reader announced an unlabelled box and clicking a label did nothing |
+| H20.12 [AUTO] | Submit a correct password at `/apply/signin` | The code step. **Not signed in** |
+| H20.13 [AUTO] | Five digits, then six | Confirm disabled, then enabled |
+| H20.14 [AUTO] | Type `12ab34cd56` | The box reads `123456` |
+| H20.15 [AUTO] | "Use a different email address" | Back to the password step |
+| H20.16 [AUTO] | Revert `/apply/signin` to signing in on the password alone | **H20.12 to H20.15 fail.** Verified by reintroducing it: 4 failed, 227 passed |
+| H20.17 [AUTO] | The two field labels | Tied to their controls by `htmlFor` and `id`. They were not: a screen reader announced an unlabelled box and clicking a label did nothing |
 
 The server half, that the password is verified inside `tenant-auth` and the
 session it produces is discarded, cannot be asserted from jsdom. That is H19.7,
