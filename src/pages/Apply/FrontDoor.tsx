@@ -298,11 +298,15 @@ export function SignIn() {
             the forgotten-password link sits right aligned above a full-width
             pill, so the two products do not look like two products. */}
         <form className="ap-stack" onSubmit={(e) => { e.preventDefault(); void go(); }} noValidate>
-          <Field label="Email address">
-            <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          {/* htmlFor and id, so the label is actually tied to its control.
+              Without it a screen reader announces an unlabelled box and clicking
+              the label does nothing. Field supports it; this form was not using
+              it. */}
+          <Field label="Email address" htmlFor="ap-email">
+            <input id="ap-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
-          <Field label="Password">
-            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+          <Field label="Password" htmlFor="ap-password">
+            <PasswordInput id="ap-password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
           </Field>
           {err && <div className="ap-alert" role="alert">{err}</div>}
           <div className="ap-row-end">

@@ -95,7 +95,7 @@ Things that have cost time once and will again.
 
 - **Nothing is pushed.** The branch is 130-odd commits ahead of `origin/main`,
   which has 65 migrations ending 5 July and no partner API at all.
-- **`npm test` exists** and is byte-identical to `npm run smoke`. 221 tests.
+- **`npm test` exists** and is byte-identical to `npm run smoke`. 231 tests.
 - **`tsc -p tsconfig.json` checks nothing** (`"files": []`). Use `tsconfig.app.json`.
 - **A new column on `applications` needs its own `grant select`** or it is
   silently invisible to the client.

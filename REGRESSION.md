@@ -1847,3 +1847,41 @@ wide. Footer link renders `rgb(181, 77, 224)` at weight 700.
 `.ap-body`, which already exists as the two-column application layout, and it
 silently squeezed the sign-in card into a 232px column. It is `.ap-shell-body`.
 Grep before naming a class in `Apply.css`.
+
+### H20.12. Coverage moved with the flow
+
+Removing the Tenant tab deleted **nine** tests, and three of them were the only
+coverage of the six-digit sign-in code anywhere in the suite:
+
+```
+offers all three tabs
+seeds the tab from the URL, so ?tab= is a link somebody can be sent
+gives a tenant the form itself, not a button to another page
+shows a tenant the same two steps as staff
+never mentions an authenticator app to a tenant
+does not promise a tenant commission or an authenticator app
+asks for a code after the password, not straight in        <- the code flow
+will not accept fewer than six digits                      <- the code flow
+strips anything that is not a digit                        <- the code flow
+```
+
+Removing the tab was right. Removing coverage of a flow that still exists was
+not, and it left `/apply/signin` with nothing testing it at all:
+`Apply.render.test.tsx` mounts `Apply`, not `FrontDoor`, and no test anywhere
+referenced `signInStart` or `verifyCode`.
+
+`FrontDoor.render.test.tsx` is those three ported to the page the flow lives on,
+plus the form fixes.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H20.12 | Submit a correct password at `/apply/signin` | The code step. **Not signed in** |
+| H20.13 | Five digits, then six | Confirm disabled, then enabled |
+| H20.14 | Type `12ab34cd56` | The box reads `123456` |
+| H20.15 | "Use a different email address" | Back to the password step |
+| H20.16 | Revert `/apply/signin` to signing in on the password alone | **H20.12 to H20.15 fail.** Verified by reintroducing it: 4 failed, 227 passed |
+| H20.17 | The two field labels | Tied to their controls by `htmlFor` and `id`. They were not: a screen reader announced an unlabelled box and clicking a label did nothing |
+
+The server half, that the password is verified inside `tenant-auth` and the
+session it produces is discarded, cannot be asserted from jsdom. That is H19.7,
+and it stays a manual row.
