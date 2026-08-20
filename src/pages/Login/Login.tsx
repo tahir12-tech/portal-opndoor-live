@@ -18,11 +18,6 @@ import { Button } from '@/components/ui/Button';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
-// Namespaced as tenantAuth, never as auth. It exposes signIn(email, password)
-// with the same arity as authService.signIn above and the opposite meaning:
-// this one is terminal, that one is step one of two.
-import * as tenantAuth from '@/tenant/tenantAuth';
-import { afterSignIn } from '@/pages/Apply/FrontDoor';
 import '../auth/auth.css';
 import './Login.css';
 
@@ -35,12 +30,11 @@ export function Login() {
   useDocumentTitle('Sign in');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  // Seeded from the URL so ?tab=tenant is a link somebody can be sent. Agent is
-  // the default because that is who has been signing in here for a year.
+  // Seeded from the URL so ?tab=supplier is a link somebody can be sent. Agent
+  // is the default: it is who has been signing in here for a year, and it is now
+  // the only other value.
   const tabParam = searchParams.get('tab');
-  const [audience, setAudience] = useState<Audience>(
-    tabParam === 'tenant' || tabParam === 'supplier' ? tabParam : 'agent',
-  );
+  const [audience, setAudience] = useState<Audience>(tabParam === 'supplier' ? 'supplier' : 'agent');
   const { status, markMfaVerified } = useSession();
   const [step, setStep] = useState<Step>('creds');
   const [email, setEmail] = useState('');
@@ -54,6 +48,18 @@ export function Login() {
   const [busy, setBusy] = useState(false);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
   const mfaSetup = useRef(false);
+
+  /* This portal is for partner staff. Tenants sign in at /apply/signin, which
+     runs the same two-step email code this tab used to. Old links and
+     bookmarks still exist, so ?tab=tenant is forwarded rather than silently
+     showing somebody the wrong form. The invite token travels with it, because
+     dropping it opens an empty draft instead of the application their agent
+     already built. */
+  useEffect(() => {
+    if (tabParam !== 'tenant') return;
+    const invite = searchParams.get('invite');
+    window.location.replace(`/apply/signin${invite ? `?invite=${encodeURIComponent(invite)}` : ''}`);
+  }, [tabParam, searchParams]);
 
   // Already authenticated (AAL2) -> straight to the app.
   useEffect(() => {
@@ -222,15 +228,10 @@ export function Login() {
               somewhere to add conditionals. */}
           <AudienceTabs value={audience} onChange={setAudience} />
 
-          {/* One wrapper for every audience, so the pane can be a flex column
-              and pin its footer to the bottom of the card. Without it the tabs
-              lined up and the panes still ended at different heights, which is
-              the same complaint one level down. */}
+          {/* One wrapper, so both tabs share a skeleton and therefore a
+              geometry. Every variable-height block inside it is a stack, which
+              is what lets the card be centred without the tabs moving. */}
           <div className="auth__pane">
-
-          {audience === 'tenant' && <TenantSignInPanel />}
-
-          {audience !== 'tenant' && (<>
           <Steps onSecond={onCode} />
 
 
@@ -313,7 +314,6 @@ export function Login() {
               </form>
             </div>
           )}
-          </>)}
           </div>
         </div>
       </section>
@@ -344,10 +344,6 @@ export function Login() {
    The two inactive ones are visibility:hidden, which reserves their space, and
    aria-hidden, so a screen reader is not read three headings for one form. */
 const INTRO: Record<Audience, { title: string; sub: string }> = {
-  tenant: {
-    title: 'Sign in to your application',
-    sub: 'For tenants applying for an opndoor guarantee. We will email you a code to confirm it is you. No authenticator app needed.',
-  },
   agent: {
     title: 'Sign in to the portal',
     sub: 'Use the work email your administrator registered for you.',
@@ -408,7 +404,6 @@ function Intro({ audience }: { audience: Audience }) {
    Same treatment as Intro, for the same reason: the row sizes itself to the
    tallest and keeps doing so when the copy changes. */
 const HELPER: Record<Audience, ReactNode> = {
-  tenant: <>Not started yet? <a href="/apply/register">Apply for a guarantee</a>.</>,
   agent: <>Not set up yet? Ask your administrator for access, or use the contact details on this screen.</>,
   supplier: <>Not set up yet? Ask your administrator for access, or use the contact details on this screen.</>,
 };
@@ -443,7 +438,7 @@ function Steps({ onSecond }: { onSecond: boolean }) {
   );
 }
 
-type Audience = 'tenant' | 'agent' | 'supplier';
+type Audience = 'agent' | 'supplier';
 
 /* ---------------------------------------------------------------------------
    The left panel, per audience.
@@ -457,16 +452,6 @@ const BRAND: Record<Audience, {
   eyebrow: string; h1: string; copy: string;
   flow: { icon: IconName; t: string; s: string }[];
 }> = {
-  tenant: {
-    eyebrow: 'Tenant sign in',
-    h1: 'Your application, start to finish.',
-    copy: "Apply for an opndoor guarantee when referencing has not gone your way. opndoor stands as your guarantor so the landlord can let to you, and you can see exactly where your application is at any point.",
-    flow: [
-      { icon: 'send',   t: 'Pick up where you left off', s: 'Every answer is saved as you type' },
-      { icon: 'trend',  t: 'See where you are',          s: 'From submitted through to approved' },
-      { icon: 'shield', t: 'Secure by design',           s: 'A six-digit code to your email every sign in' },
-    ],
-  },
   agent: {
     eyebrow: 'Agent sign in',
     h1: 'Let the property. We guarantee the tenant.',
@@ -494,7 +479,6 @@ const BRAND: Record<Audience, {
 function AudienceTabs({ value, onChange }: { value: Audience; onChange: (a: Audience) => void }) {
   const nav = useNavigate();
   const tabs: { id: Audience; label: string }[] = [
-    { id: 'tenant', label: 'Tenant' },
     { id: 'agent', label: 'Agent' },
     { id: 'supplier', label: 'Supplier' },
   ];
@@ -505,7 +489,7 @@ function AudienceTabs({ value, onChange }: { value: Audience; onChange: (a: Audi
           className={`aud__tab${t.id === value ? ' is-active' : ''}`}
           onClick={() => {
             onChange(t.id);
-            // Shareable, like the site it replaces: ?tab=tenant is a link
+            // Shareable: ?tab=supplier is a link
             // somebody can be sent, not internal state.
             nav(`/login?tab=${t.id}`, { replace: true });
           }}>
@@ -516,129 +500,3 @@ function AudienceTabs({ value, onChange }: { value: Audience; onChange: (a: Audi
   );
 }
 
-/* The tenant sign-in, ON the tab rather than behind it.
-
-   This was a button that sent the browser to /apply/signin. There was no reason
-   for it. The form is an email and a password, and making somebody click
-   through to another page to type them buys nothing.
-
-   Safe because tenant auth is a SEPARATE Supabase client keyed on
-   'opndoor.tenant.auth', so signing in here cannot touch a staff session in the
-   same browser and the staff SessionContext this page watches never sees it.
-
-   /apply/signin STAYS. Seven places link to it, including the invite landing
-   and where tenant sign-out lands, so this is additive rather than a move. */
-function TenantSignInPanel() {
-  const nav = useNavigate();
-  const [sp] = useSearchParams();
-  // An invite means an agent already built the application and the property
-  // came with it, so it is claimed rather than created. Carried through here so
-  // /login?tab=tenant&invite=... does not silently open an empty draft instead.
-  const invite = sp.get('invite') ?? undefined;
-  const [tEmail, setTEmail] = useState('');
-  const [tPassword, setTPassword] = useState('');
-  const [tBusy, setTBusy] = useState(false);
-  const [tErr, setTErr] = useState<string | null>(null);
-  const [tSent, setTSent] = useState(false);
-  const [tCode, setTCode] = useState('');
-
-  async function confirm(e: FormEvent) {
-    e.preventDefault();
-    setTBusy(true);
-    setTErr(null);
-    try {
-      await tenantAuth.verifyCode(tEmail, tCode, 'sign_in');
-      // afterSignIn is imported rather than reimplemented: it decides between
-      // claiming an invite and opening a draft, and two copies would drift.
-      await afterSignIn(nav, invite);
-      // busy stays true through the navigation, blocking a double submit.
-    } catch (err) {
-      setTErr(err instanceof Error ? err.message : 'That code is not right.');
-      setTBusy(false);
-    }
-  }
-
-  async function go(e: FormEvent) {
-    e.preventDefault();
-    setTBusy(true);
-    setTErr(null);
-    try {
-      // Step one only. The password goes to the server, which checks it and
-      // discards the session it produced, so nothing usable is in this browser
-      // until the code is right.
-      await tenantAuth.signInStart(tEmail, tPassword);
-      setTSent(true);
-      setTBusy(false);
-      return;
-    } catch (err) {
-      setTErr(err instanceof Error ? err.message : 'Could not sign in.');
-      setTBusy(false);
-    }
-  }
-
-  if (tSent) return (
-    <>
-      <Steps onSecond />
-      <div className="auth__pane-body">
-      <div className="auth__stack">
-        <div className="auth__stack-v">
-          <h2 className="auth__title">Check your email</h2>
-          <p className="auth__sub">
-            We have sent a six-digit code to {tEmail}. It lasts ten minutes.
-          </p>
-        </div>
-      </div>
-      {tErr && <p className="auth__error" style={{ color: 'var(--danger, #c0392b)' }}>{tErr}</p>}
-      <form className="auth__form" onSubmit={confirm} noValidate>
-        <div className="field">
-          <label htmlFor="t-code">Confirmation code</label>
-          <input id="t-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
-                 placeholder="000000" value={tCode} autoFocus
-                 onChange={(e) => setTCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
-        </div>
-        <Button variant="primary" block type="submit" arrow disabled={tBusy || tCode.length !== 6}>
-          {tBusy ? 'Checking\u2026' : 'Confirm and continue'}
-        </Button>
-      </form>
-      <p className="auth__foot">
-        Nothing arrived? Check your spam folder, or{' '}
-        <button type="button" className="linkish" style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--heliotrope-deep, #5b3fd9)', textDecoration: 'underline', cursor: 'pointer' }}
-          onClick={() => { void tenantAuth.resendCode(tEmail, 'sign_in'); }}>send a new one</button>.
-      </p>
-      <p className="auth__foot">
-        <button type="button" className="linkish" style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--heliotrope-deep, #5b3fd9)', textDecoration: 'underline', cursor: 'pointer' }}
-          onClick={() => { setTSent(false); setTCode(''); setTErr(null); }}>Use a different email address</button>
-      </p>
-      </div>
-    </>
-  );
-
-  return (
-    <>
-      <Steps onSecond={false} />
-      <div className="auth__pane-body">
-      <Intro audience="tenant" />
-      {tErr && <p className="auth__error" style={{ color: 'var(--danger, #c0392b)' }}>{tErr}</p>}
-      <form className="auth__form" onSubmit={go} noValidate>
-        <div className="field">
-          <label htmlFor="t-email">Email address</label>
-          <input id="t-email" type="email" placeholder="you@example.com" autoComplete="email"
-                 value={tEmail} onChange={(e) => setTEmail(e.target.value)} required />
-        </div>
-        <div className="field">
-          <label htmlFor="t-pass">Password</label>
-          <PasswordInput id="t-pass" autoComplete="current-password"
-                         value={tPassword} onChange={(e) => setTPassword(e.target.value)} required />
-        </div>
-        <div className="auth__row auth__row--end">
-          <a href="/apply/forgot">Forgot password?</a>
-        </div>
-        <Button variant="primary" block type="submit" arrow disabled={tBusy || !tEmail || !tPassword}>
-          {tBusy ? 'Signing in\u2026' : 'Sign in'}
-        </Button>
-      </form>
-      <Helper audience="tenant" />
-      </div>
-    </>
-  );
-}

@@ -15,6 +15,7 @@
    referencing provider makes the decision and not us.
    ===================================================================== */
 import { useCallback, useEffect, useState } from 'react';
+import { useTenantDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
@@ -43,6 +44,9 @@ function Shell({
 }: {
   title: string; sub?: string; children: React.ReactNode; eyebrow?: string;
 }) {
+  // The tab said "Guarantee Referral Portal" on a page branded "guarantor
+  // application", which tells an applicant they are on the wrong site.
+  useTenantDocumentTitle(title);
   return (
     <div className="auth">
       <aside className="auth__brand">
@@ -87,7 +91,8 @@ function Shell({
         <div className="auth__card">
           <h2 className="auth__title">{title}</h2>
           {sub && <p className="auth__sub">{sub}</p>}
-          {children}
+          {/* The heading sat flush on the first field label. */}
+          <div className="ap-shell-body">{children}</div>
         </div>
       </section>
     </div>
@@ -289,17 +294,24 @@ export function SignIn() {
 
   return (
     <Shell title="Sign in">
-        <div className="ap-grid">
-          <Field label="Email address"><input className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-          <Field label="Password"><PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></Field>
-        </div>
-        {err && <div className="ap-alert" role="alert">{err}</div>}
-        <div className="ap-actions">
-          <Button variant="primary" disabled={busy || !email || !password} onClick={() => void go()}>
+        {/* Stacked, not side by side, and shaped like the portal's own sign-in:
+            the forgotten-password link sits right aligned above a full-width
+            pill, so the two products do not look like two products. */}
+        <form className="ap-stack" onSubmit={(e) => { e.preventDefault(); void go(); }} noValidate>
+          <Field label="Email address">
+            <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </Field>
+          <Field label="Password">
+            <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+          </Field>
+          {err && <div className="ap-alert" role="alert">{err}</div>}
+          <div className="ap-row-end">
+            <a href="/apply/forgot">Forgot password?</a>
+          </div>
+          <Button variant="primary" block type="submit" arrow disabled={busy || !email || !password}>
             {busy ? 'Signing in…' : 'Sign in'}
           </Button>
-          <a className="ap-link" href="/apply/forgot">I have forgotten my password</a>
-        </div>
+        </form>
       <p className="ap-foot">No account yet? <a href="/apply/register">Create one</a>.</p>
     </Shell>
   );

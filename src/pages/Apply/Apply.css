@@ -104,6 +104,25 @@
 
 .ap-link { background: none; border: 0; padding: 0; font: inherit; color: var(--heliotrope-deep); cursor: pointer; text-decoration: underline; }
 .ap-foot { margin-top: 18px; font-size: 14px; color: var(--ink-soft); text-align: center; }
+/* The footer anchor had no styling at all, so "Create one" read as body text.
+   It is the primary action for somebody who has never been here. Matches
+   .auth__foot a in the portal, deliberately. */
+.ap-foot a { color: var(--heliotrope-deep); font-weight: 700; }
+.ap-foot a:hover { text-decoration: underline; }
+
+/* The heading used to sit flush on the first field label.
+   NOT .ap-body: that is already the two-column application layout at line 54,
+   and reusing the name turned the sign-in card into a 232px column. */
+.ap-shell-body { margin-top: 20px; }
+
+/* A stacked form. .ap-grid is two columns, which is right for an application
+   and wrong for a sign-in: an email and a password side by side read as two
+   halves of one thing. */
+.ap-stack { display: grid; gap: 16px; }
+/* Right aligned above the button, like the portal's .auth__row--end. */
+.ap-row-end { display: flex; justify-content: flex-end; margin-top: -4px; }
+.ap-row-end a { font-size: 13px; font-weight: 700; color: var(--heliotrope-deep); }
+.ap-row-end a:hover { text-decoration: underline; }
 .ap-summary { display: grid; gap: 10px; margin: 0 0 16px; }
 .ap-summary > div { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
 .ap-summary dt { color: var(--ink-soft); font-size: 13px; margin: 0; }

@@ -1506,9 +1506,9 @@ flow.
 | # | Setup | Expected |
 | - | ----- | -------- |
 | H15.1 | Render `/login` | Three tabs: Tenant, Agent, Supplier. Agent is selected, because that is who has been signing in here for a year |
-| H15.2 | Render `/login?tab=tenant` | The Tenant tab is selected. `?tab=` is a link somebody can be sent, not internal state |
-| H15.3 | Render `/login?tab=tenant` | **An email field, a password field and a Sign in button, on the tab.** Not a button to another page |
-| H15.4 | Render `/login?tab=tenant` | No Credentials or Verify step. A tenant has no authenticator app and must never be shown one |
+| H15.2 | Render `/login?tab=supplier` | The Supplier tab is selected. `?tab=` is a link somebody can be sent, not internal state |
+| H15.3 | Visit `/login?tab=tenant` | **Redirected to `/apply/signin`.** The tab is gone; the portal serves partner staff. Old links and bookmarks still exist, and an `?invite=` token travels with the redirect |
+| H15.4 | Render `/login` with no query | Agent, the only remaining default |
 | H15.5 | Render `/login?tab=supplier` | A working staff form. **No "not open yet"** |
 | H15.6 | Render `/login?tab=supplier` | The Credentials and Verify steps are present. A supplier is staff, so two-factor stays |
 | H15.7 | Compare the supplier and agent subtitles | They differ. The tab changes the copy and nothing else, because the difference is commercial |
@@ -1806,3 +1806,44 @@ crosses the wire at step one is `{ ok: true }`.
 
 H19.13 is the row that matters. H19.7 to H19.9 would all pass against a screen
 that signed somebody in and then showed them a code box for decoration.
+
+---
+
+## H20. The portal login is for staff; tenants sign in at /apply/signin
+
+**Checked before removing anything: both paths send the same six-digit email
+code.** `/apply/signin` (`FrontDoor.tsx`) and the old `/login` Tenant tab both
+called `tenantAuth.signInStart`, which posts to `tenant-auth`'s `signin_start`,
+where the password is verified server side and the session it produces is
+discarded. Both then redeemed it with `verifyCode(..., 'sign_in')`. Same
+function, same purpose, same server path. The only difference was the step
+indicator, which `/login` drew and `/apply/signin` did not, which is why it
+looked like there was no verify step. Nothing stronger was deleted.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H20.1 | `/apply/signin`, correct password | A six-digit code step. **Not signed in** until it is entered |
+| H20.2 | `/login` | Two tabs, Agent and Supplier. No Tenant |
+| H20.3 | `/login?tab=tenant` | Redirected to `/apply/signin`, `?invite=` preserved |
+| H20.4 | Any tenant email: invite, reset, verification | Points at `/apply/*`, never at `/login`. It always did |
+| H20.5 | Tenant sign-out | `/apply/signin`. Staff sign-out goes to `/login` |
+| H20.6 | An opndoor admin or superadmin | Signs in at `/login` on the Agent or Supplier tab, the same form as a partner referrer. **There is no separate admin route.** Role is read from their `users` row after AAL2. Removing the Tenant tab does not touch this path: the tenant panel was a sibling branch that never entered the staff state machine |
+
+### H20.7 to H20.11. The /apply/signin form
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H20.7 | "No account yet? Create one." | Styled as a link. `.ap-foot a` had no rule at all, so the primary action for a first-time applicant read as body text |
+| H20.8 | Email and password | Stacked, full card width. `.ap-grid` is two columns, which is right for an application and wrong for a sign-in |
+| H20.9 | The submit | Full-width pill, with "Forgot password?" right-aligned above it, matching the portal |
+| H20.10 | The heading | 20px clear of the first field label, not flush on it |
+| H20.11 | The browser tab | "Sign in \| opndoor guarantor application", not "Guarantee Referral Portal" on a page branded guarantor application |
+
+Measured at 1440: heading y 324, first label 386, fields 386 and 469 at the same
+x and the full 420 wide, forgot link flush to the card's right edge, button 420
+wide. Footer link renders `rgb(181, 77, 224)` at weight 700.
+
+**A name collision worth knowing about.** The spacing wrapper was first called
+`.ap-body`, which already exists as the two-column application layout, and it
+silently squeezed the sign-in card into a 232px column. It is `.ap-shell-body`.
+Grep before naming a class in `Apply.css`.
