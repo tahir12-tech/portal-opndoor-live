@@ -1903,3 +1903,53 @@ plus the form fixes.
 The server half, that the password is verified inside `tenant-auth` and the
 session it produces is discarded, cannot be asserted from jsdom. That is H19.7,
 and it stays a manual row.
+
+---
+
+## H21. A grant is a boundary, and a body is a surface
+
+Three fixes, and each one is a CLASS rather than an instance. The sweeps that
+follow them exist because none of the three was the only occurrence.
+
+### H21.1 to H21.4. EXECUTE is the boundary for a definer function
+
+`provider_callbacks_due()` is `security definer`, has no role test in its body,
+and was revoked `from public, anon` only. Supabase's default privileges grant
+EXECUTE to `authenticated` as well, and nothing in this repo had ever revoked
+it, so **any signed-in principal could call it**, tenants included, and receive
+`table_id`, `company_id`, `agency_id`, `user_id`, `tenant_id`. Its sibling
+nineteen lines earlier in the same migration says `from public, anon,
+authenticated`.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H21.1 [AUTO] | `has_function_privilege('authenticated', 'public.provider_callbacks_due()', 'execute')` | **false** |
+| H21.2 [AUTO] | Same for `anon` | false |
+| H21.3 [AUTO] | Same for `service_role` | **true.** The callback cron silently finds no work without it, which is the failure a careless revoke causes |
+| H21.4 [AUTO] | Any NEW `security definer` function with no role test in its body | Revoke from `public, anon, authenticated`. Revoking from `public` alone leaves the role grants standing, which 20260702135800 documented and this still got wrong |
+
+### H21.5 to H21.7. MFA by inheritance is not MFA
+
+`application_provider_links` had no `require_aal2` of its own and reached the
+second factor only because its select policy nests a subquery against
+`applications`, which does have one.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H21.5 [AUTO] | Policies on `application_provider_links` | `provider_links_select` permissive **and** `require_aal2` restrictive |
+| H21.6 [AUTO] | Read at AAL1 | Nothing |
+| H21.7 [AUTO] | Every table added since 20260812 | Each has its own `require_aal2`. A table that reaches it through a subquery loses it the moment somebody rewrites that subquery, and nothing that looks like auth was touched |
+
+### H21.8 to H21.11. A cron response body is a browser surface
+
+`table_id` went into `summary.errors`. This function is driven by a `pg_net`
+cron, so its response body lands in `net._http_response.content`; `cron_health`
+returns the first 160 characters of that; the Health screen renders it. **A
+grep of `src/` for `table_id` finds nothing**, which is why this survived.
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H21.8 [AUTO] | The `referencing-callback` response body | Counts only. **No `table_id`, no `application_id`, no `guarantee_ref`, no provider identifier** |
+| H21.9 [AUTO] | The function log for the same failure | Carries the identifiers. Server side, rendered nowhere |
+| H21.10 [AUTO] | Any function invoked by a `pg_net` cron | Treat its response body as browser-visible. Truncating or redacting downstream is chasing it |
+| H21.11 [SEMI] | Force a callback failure and read the Health screen | The row appears, the body names nothing |

@@ -27,6 +27,28 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, x-ops-secret" };
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
+/* A failure is COUNTED in the response and DESCRIBED in the log.
+
+   WHY THEY ARE SEPARATED. table_id used to go into summary.errors, and this
+   function is driven by a pg_net cron, so its response body is stored in
+   net._http_response.content. cron_health returns the first 160 characters of
+   that to the Health screen, and cron_health is granted to authenticated. So a
+   provider identifier reached the browser through an ops panel, by a route that
+   no grep for "table_id" under src/ would ever find.
+
+   Truncating or redacting downstream would be chasing it. The response body
+   simply does not carry an identifier: counts and a reason, nothing that names
+   a row. The detail a person needs to debug goes to the function log, which is
+   server side and is not rendered anywhere. */
+function noteFailure(row: { table_id: number | string; application_id?: string }, reason: string) {
+  console.log(JSON.stringify({
+    event: "referencing_callback_failed",
+    table_id: row.table_id,
+    application_id: row.application_id,
+    reason,
+  }));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -72,7 +94,9 @@ Deno.serve(async (req) => {
   const { data: due, error } = await service.rpc("provider_callbacks_due");
   if (error) return json({ ok: false, error: `due: ${error.message}` }, 500);
 
-  const summary = { ok: true, considered: (due ?? []).length, sent: 0, failed: 0, errors: [] as unknown[] };
+  // No errors array. It existed to carry table_id and there is nothing else it
+  // should carry: a count says whether to look, and the log says where.
+  const summary = { ok: true, considered: (due ?? []).length, sent: 0, failed: 0 };
 
   for (const row of (due ?? []) as any[]) {
     try {
@@ -83,7 +107,7 @@ Deno.serve(async (req) => {
       if (!app?.executed_pdf_path) { summary.failed++; continue; }
 
       const { data: file, error: dlErr } = await service.storage.from("deeds").download(app.executed_pdf_path);
-      if (dlErr || !file) { summary.failed++; summary.errors.push({ table_id: row.table_id, error: "deed not readable" }); continue; }
+      if (dlErr || !file) { summary.failed++; noteFailure(row, "deed not readable"); continue; }
 
       const buf = new Uint8Array(await file.arrayBuffer());
       let bin = ""; for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
@@ -119,11 +143,11 @@ Deno.serve(async (req) => {
           .update({ notify_error: text.slice(0, 500), notify_attempts: (row.notify_attempts ?? 0) + 1 })
           .eq("table_id", row.table_id);
         summary.failed++;
-        summary.errors.push({ table_id: row.table_id, status: res.status });
+        noteFailure(row, `provider responded ${res.status}`);
       }
     } catch (e) {
       summary.failed++;
-      summary.errors.push({ table_id: row.table_id, error: String(e) });
+      noteFailure(row, String(e));
     }
   }
 
