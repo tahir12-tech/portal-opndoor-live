@@ -195,6 +195,25 @@
   margin-top: 14px;
 }
 
+/* The left panel's three lines each get their own cell. The margins that used to
+   space them live on the cell now: a margin on a grid ITEM would apply three
+   times over, once per hidden variant, and grid items do not collapse margins. */
+.auth__stack--h1 {
+  margin-top: 18px;
+}
+.auth__stack--copy {
+  margin-top: 18px;
+}
+.auth__stack--h1 > .auth__brand-h1,
+.auth__stack--copy > .auth__brand-copy {
+  margin-top: 0;
+}
+/* An inline-flex eyebrow in a grid cell would stretch to the column width and
+   drag its pill background with it. */
+.auth__stack--eyebrow > .auth__eyebrow {
+  justify-self: start;
+}
+
 /* Kept as the pane's single content wrapper so every tab has the same skeleton.
    It carries no layout of its own: the alignment comes from the top anchor and
    the intro stack, not from stretching anything. */

@@ -171,10 +171,23 @@ export function Login() {
           <span className="wordmark">opndoor</span>
           <span className="auth__cobrand">Guarantee<br />Referral Portal</span>
         </div>
+        {/* THE THIRD VARIABLE-HEIGHT BLOCK, and the last one.
+
+            The headline is two lines for a tenant and an agent and three for a
+            supplier, so a centred block put the eyebrow at 624, 624 and 591.
+            Same stack as the right pane: all three rendered, one visible, the
+            row sized by the tallest. */}
+        {/* Stacked PER ELEMENT, not per block.
+
+            Stacking the whole block lined up the eyebrow and the heading and
+            left the paragraph at 499, 499 and 551, because the supplier's own
+            three-line headline pushes its own paragraph down inside its own
+            variant. Giving each of the three elements its own cell means each
+            is as tall as its tallest variant, so every line starts level. */}
         <div className="auth__brand-mid">
-          <span className="auth__eyebrow">{BRAND[audience].eyebrow}</span>
-          <h1 className="auth__brand-h1">{BRAND[audience].h1}</h1>
-          <p className="auth__brand-copy">{BRAND[audience].copy}</p>
+          <BrandLine audience={audience} el="eyebrow" />
+          <BrandLine audience={audience} el="h1" />
+          <BrandLine audience={audience} el="copy" />
         </div>
         <div className="auth__flow">
           {BRAND[audience].flow.map((f) => (
@@ -344,6 +357,28 @@ const INTRO: Record<Audience, { title: string; sub: string }> = {
     sub: 'For partners who send us referrals. The same sign-in as an agent, and the same portal: what you see is set by your account, not by the tab you picked.',
   },
 };
+
+
+/* One line of the left panel, all three variants in one cell.
+
+   The row is as tall as the tallest variant of THAT line, so the next line
+   starts at the same y on every tab. */
+function BrandLine({ audience, el }: { audience: Audience; el: 'eyebrow' | 'h1' | 'copy' }) {
+  const cls = { eyebrow: 'auth__eyebrow', h1: 'auth__brand-h1', copy: 'auth__brand-copy' }[el];
+  return (
+    <div className={`auth__stack auth__stack--${el}`}>
+      {(Object.keys(BRAND) as Audience[]).map((a) => {
+        const on = a === audience;
+        const style = on ? undefined : { visibility: 'hidden' as const };
+        const text = el === 'eyebrow' ? BRAND[a].eyebrow : el === 'h1' ? BRAND[a].h1 : BRAND[a].copy;
+        const hidden = on ? undefined : true;
+        if (el === 'h1') return <h1 key={a} className={`${cls} auth__stack-v`} aria-hidden={hidden} style={style}>{text}</h1>;
+        if (el === 'copy') return <p key={a} className={`${cls} auth__stack-v`} aria-hidden={hidden} style={style}>{text}</p>;
+        return <span key={a} className={`${cls} auth__stack-v`} aria-hidden={hidden} style={style}>{text}</span>;
+      })}
+    </div>
+  );
+}
 
 function Intro({ audience }: { audience: Audience }) {
   return (

@@ -1683,7 +1683,11 @@ pane, so the box is constant and only the content below the tabs differs.
 | H19.3g | `display: none` on a hidden variant | Wrong. It collapses the row to the visible one, which is the defect itself. `visibility: hidden` keeps the box |
 | H19.3h | Any reserved height, on the card or the footer | **There must be none.** The stacks make the heights equal; reserving a height as well only moves the slack |
 | H19.3i | `@media (max-width: 900px)` in `auth.css` | It must sit **after** `.auth__brand`. It used to be at the top of the file, above that rule's own `display: flex`, so `display: none` never applied and the brand panel rendered on mobile. Its headline is a different length per tab, which moved the form |
-| H19.3j | The left column | `grid-template-rows: 1fr auto 1fr`, so the headline's centre is the container's centre and matches the card's. `space-between` looked the same and was not: it centred the headline in the gap between the wordmark and the flow cards, a different point, measured 399 against the card's 500 |
+| H19.3j | The left column's position | `grid-template-rows: 1fr auto 1fr`, so the headline's centre is the container's centre and matches the card's. `space-between` looked the same and was not: it centred the headline in the gap between the wordmark and the flow cards, a different point, measured 399 against the card's 500 |
+| H19.3m | The left column's copy | **Stacked PER LINE.** The headline is two lines for a tenant and an agent and three for a supplier, so a centred block put the eyebrow at 624, 624 and 591 |
+| H19.3n | Stacking the left block as a whole instead | Not enough. It lines up the eyebrow and the heading and leaves the paragraph at 499, 499 and 551, because the supplier's own three-line headline pushes its own paragraph down inside its own variant. Each of the three lines needs its own cell |
+| H19.3o | The spacing between those lines | On the CELL (`.auth__stack--h1`, `.auth__stack--copy`), not on the item. A margin on a grid item applies once per hidden variant and grid items do not collapse margins, so the gap would come out three times too big |
+| H19.3p | The eyebrow | `justify-self: start`. An inline-flex pill in a grid cell stretches to the column width and drags its background with it |
 
 ### H19.3k. The measured proof
 
@@ -1726,6 +1730,20 @@ await b.close();
 
 Card height is identical per width, which is what makes centring safe. Headline
 centre is n/a below 900px because the brand column is hidden there.
+
+The left column, measured the same way at 1440 and 2000 wide. The brand column
+is hidden below 900px, so there is nothing to measure there:
+
+| Tab | Eyebrow | First heading line | First paragraph line |
+| --- | ------- | ------------------ | -------------------- |
+| Tenant | 340 | 375 | 549 |
+| Agent | 340 | 375 | 549 |
+| Supplier | 340 | 375 | 549 |
+
+Three stacks in the left column and two on the card, five in all. Each renders
+every variant and hides all but one, so ten hidden nodes per render. A test
+counts them: if a stack is dropped the count changes and nothing else would say
+so.
 
 playwright-core is **not** a dependency of this repo. It is installed in a
 scratch directory for the check and thrown away.

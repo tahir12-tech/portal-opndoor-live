@@ -24,7 +24,9 @@ afterEach(() => cleanup());
 function shown(container: ParentNode = document.body) {
   // The first stack is the heading and paragraph; the second is the helper line
   // under the button. Both render every variant, so scope to the intro.
-  const intro = container.querySelector('.auth__stack')!;
+  // Scoped to the card: the left panel now stacks its three lines too, so an
+  // unscoped '.auth__stack' picks up the eyebrow stack instead.
+  const intro = container.querySelector('.auth__pane-body > .auth__stack')!;
   const v = Array.from(intro.querySelectorAll('.auth__stack-v'))
     .find((el) => !el.getAttribute('aria-hidden'))!;
   return {
@@ -280,11 +282,11 @@ describe('the intro is a stack, not a measured constant', () => {
 
     it(`${tab} hides the other two from assistive tech and keeps their space`, () => {
       const { container } = at(`/login?tab=${tab}`);
-      // Both stacks on the card: the heading block and the helper line. Each
-      // renders three variants and hides two, so six hidden in total.
+      // Five stacks now: three lines in the left panel, plus the heading block
+      // and the helper line on the card. Each renders three and hides two.
       const hidden = Array.from(container.querySelectorAll('.auth__stack-v'))
         .filter((v) => v.getAttribute('aria-hidden') === 'true');
-      expect(hidden.length).toBe(4);
+      expect(hidden.length).toBe(10);
       // visibility:hidden reserves the box. display:none would not, and the
       // row would collapse to the visible variant, which is the whole defect.
       for (const h of hidden) {
@@ -299,5 +301,44 @@ describe('the intro is a stack, not a measured constant', () => {
     cleanup();
     at('/login?tab=agent');
     expect(shown().title).toBe('Sign in to the portal');
+  });
+});
+
+describe('the left panel lines up too', () => {
+  /* Third and last variable-height block. The headline is two lines for a
+     tenant and an agent and three for a supplier, so a centred block put the
+     eyebrow at 624, 624 and 591.
+
+     Stacked PER LINE, not per block: stacking the whole block lined the eyebrow
+     and heading up and left the paragraph at 499, 499 and 551, because the
+     supplier's own three-line headline pushed its own paragraph down inside its
+     own variant. */
+  for (const line of ['eyebrow', 'h1', 'copy']) {
+    it(`${line} is its own stack, so the line after it starts level`, () => {
+      const { container } = at('/login?tab=supplier');
+      const stack = container.querySelector(`.auth__stack--${line}`)!;
+      expect(stack).toBeTruthy();
+      expect(stack.querySelectorAll('.auth__stack-v').length).toBe(3);
+      expect(Array.from(stack.children).filter((c) => !c.getAttribute('aria-hidden')).length).toBe(1);
+    });
+  }
+
+  it('shows the right copy for the tab and hides the other two', () => {
+    at('/login?tab=agent');
+    const visible = (sel: string) => document.querySelector(`${sel}:not([aria-hidden])`)!.textContent;
+    expect(visible('.auth__eyebrow')).toBe('Agent sign in');
+    expect(visible('.auth__brand-h1')).toBe('Let the property. We guarantee the tenant.');
+    cleanup();
+    at('/login?tab=supplier');
+    expect(visible('.auth__eyebrow')).toBe('Supplier sign in');
+  });
+
+  it('spaces the lines from the cell, not the item', () => {
+    /* A margin on the item would apply once per hidden variant and grid items
+       do not collapse margins, so the gap would be three times too big. */
+    const { container } = at('/login?tab=tenant');
+    for (const el of container.querySelectorAll('.auth__brand-h1, .auth__brand-copy')) {
+      expect(el.classList.contains('auth__stack-v')).toBe(true);
+    }
   });
 });
