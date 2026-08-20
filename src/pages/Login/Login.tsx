@@ -354,7 +354,7 @@ const INTRO: Record<Audience, { title: string; sub: string }> = {
   },
   supplier: {
     title: 'Sign in to the portal',
-    sub: 'For partners who send us referrals. The same sign-in as an agent, and the same portal: what you see is set by your account, not by the tab you picked.',
+    sub: 'For partner teams referring on behalf of the agencies they work with. Use the work email your administrator registered for you.',
   },
 };
 

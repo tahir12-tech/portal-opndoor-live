@@ -1717,13 +1717,17 @@ for (const width of [1440, 420]) {
 await b.close();
 ```
 
-**Every column identical across the three tabs**, which is the whole assertion:
+**Every column identical across the three tabs**, which is the whole assertion.
+The absolute numbers move when copy changes, and that is fine: what must hold is
+that the three rows at a given width agree. The 1440 numbers dropped by 11 when
+the supplier subtitle went from three lines to two, exactly as the stack should
+behave.
 
 | Width | Tab | Tab pill | First label | Button | Card height | Card centre | Headline centre |
 | ----- | --- | -------- | ----------- | ------ | ----------- | ----------- | --------------- |
-| 1440 | Tenant | 200 | 470 | 670 | 601 | 500 | 500 |
-| 1440 | Agent | 200 | 470 | 670 | 601 | 500 | 500 |
-| 1440 | Supplier | 200 | 470 | 670 | 601 | 500 | 500 |
+| 1440 | Tenant | 211 | 459 | 659 | 579 | 500 | 500 |
+| 1440 | Agent | 211 | 459 | 659 | 579 | 500 | 500 |
+| 1440 | Supplier | 211 | 459 | 659 | 579 | 500 | 500 |
 | 420 | Tenant | 179 | 491 | 691 | 643 | 500 | n/a |
 | 420 | Agent | 179 | 491 | 691 | 643 | 500 | n/a |
 | 420 | Supplier | 179 | 491 | 691 | 643 | 500 | n/a |

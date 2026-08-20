@@ -104,12 +104,13 @@ describe('the three audiences', () => {
 
   it('tells a supplier and an agent apart in the copy, not in the form', () => {
     at('/login?tab=supplier');
-    expect(shown().sub).toMatch(/partners who send us referrals/i);
+    expect(shown().sub).toMatch(/on behalf of the agencies they work with/i);
     cleanup();
     at('/login?tab=agent');
     // The supplier sentence is still in the DOM, hidden, holding the row open.
-    // What matters is which one is SHOWN.
-    expect(shown().sub).not.toMatch(/partners who send us referrals/i);
+    // What matters is which one is SHOWN. Both now end with the same sentence
+    // about the work email, so the discriminator is the opening clause.
+    expect(shown().sub).not.toMatch(/on behalf of the agencies/i);
     expect(shown().sub).toMatch(/your administrator registered/i);
   });
 });
