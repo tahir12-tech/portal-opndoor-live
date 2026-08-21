@@ -69,7 +69,7 @@ export function passwordResetTemplate(p: { link: string }): { subject: string; h
   const subject = "Reset your opndoor portal password";
   const inner = `
     <p style="margin:0 0 14px;">Hello,</p>
-    <p style="margin:0 0 14px;">We received a request to reset the password for your opndoor Guarantee Referral Portal account. Click the button below to choose a new password. For your security this link expires in 60 minutes and can be used once.</p>
+    <p style="margin:0 0 14px;">We received a request to reset the password for your opndoor Guarantee Referral Portal account. Click the button below to choose a new password. For your security this link expires in 30 minutes and can be used once.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 20px;"><tr><td>
       <a href="${p.link}" style="display:inline-block;background:${HELIOTROPE};color:#ffffff;text-decoration:none;font:700 15px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;padding:13px 28px;border-radius:999px;box-shadow:0 6px 18px -8px rgba(211,100,251,0.6);">Set a new password</a>
     </td></tr></table>
