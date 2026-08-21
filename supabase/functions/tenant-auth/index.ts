@@ -85,12 +85,45 @@ async function withinLimits(
   service: any, req: Request, action: string, email: string,
   perAddress: number, perCaller: number,
 ): Promise<boolean> {
+  return (await limitCheck(service, req, action, email, perAddress, perCaller)).ok;
+}
+
+/**
+ * The same check, but it also says HOW LONG.
+ *
+ * "Wait a little" gives somebody nothing to act on, and the number is already
+ * sitting in the row: the window is fixed at an hour from the first attempt, so
+ * window_start + 1 hour is the exact moment it clears. Reading it costs one
+ * select on a path that has already decided to refuse.
+ *
+ * Only callers that already disclose should use the minutes. A neutral refusal
+ * that suddenly reports a countdown has started telling the caller something.
+ */
+async function limitCheck(
+  service: any, req: Request, action: string, email: string,
+  perAddress: number, perCaller: number,
+): Promise<{ ok: boolean; minutes: number }> {
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  const keys = [`ta:${action}:e:${email}`, `ta:${action}:i:${ip}`];
   const [a, b] = await Promise.all([
-    service.rpc("bump_rate_limit", { p_key: `ta:${action}:e:${email}`, p_limit: perAddress, p_window_secs: 3600 }),
-    service.rpc("bump_rate_limit", { p_key: `ta:${action}:i:${ip}`,    p_limit: perCaller,  p_window_secs: 3600 }),
+    service.rpc("bump_rate_limit", { p_key: keys[0], p_limit: perAddress, p_window_secs: 3600 }),
+    service.rpc("bump_rate_limit", { p_key: keys[1], p_limit: perCaller,  p_window_secs: 3600 }),
   ]);
-  return a.data === true && b.data === true;
+  const ok = a.data === true && b.data === true;
+  if (ok) return { ok: true, minutes: 0 };
+
+  // The longest wait across whichever counters are blocking, rounded up, and
+  // never zero: "try again in 0 minutes" is worse than saying nothing.
+  const { data: rows } = await service.from("rate_limit").select("window_start").in("key", keys);
+  const now = Date.now();
+  const mins = (rows ?? []).map((r: { window_start: string }) =>
+    Math.ceil((new Date(r.window_start).getTime() + 3600_000 - now) / 60_000));
+  return { ok: false, minutes: Math.max(1, ...(mins.length ? mins : [1])) };
+}
+
+/** "in 5 minutes", or "in a minute" when that is what it is. */
+function inMinutes(m: number): string {
+  return m <= 1 ? "in a minute" : `in ${m} minutes`;
 }
 
 /** Six digits, from the CSPRNG. Math.random here would be a guessable code. */
@@ -194,11 +227,13 @@ Deno.serve(async (req) => {
       // per-caller cap from a nuisance control into the thing standing between
       // a curious person and a list. Ten an hour is enough to sign up, mistype
       // twice and try again; it is useless for testing a list of addresses.
-      if (!(await withinLimits(service, req, "register", email, 5, 10))) {
+      const regLimit = await limitCheck(service, req, "register", email, 5, 10);
+      if (!regLimit.ok) {
         return json({
           ok: false,
-          error: "Too many attempts from here. Wait a little and try again.",
+          error: `Too many attempts from here. Try again ${inMinutes(regLimit.minutes)}.`,
           code: "rate_limited",
+          retry_after_minutes: regLimit.minutes,
         }, 429);
       }
       if (!email || !email.includes("@")) return json({ ok: false, error: "Enter a valid email address." }, 400);
@@ -386,8 +421,13 @@ Deno.serve(async (req) => {
       // The address-scoped cap the code row enforces is per code; this is the
       // ceiling across codes, and the per-caller tier is what stops one attacker
       // spreading guesses over many addresses.
-      if (!(await withinLimits(service, req, "verify", email, 20, 100))) {
-        return json({ ok: false, error: "Too many attempts. Wait a little and ask for a new code." }, 429);
+      const vLimit = await limitCheck(service, req, "verify", email, 20, 100);
+      if (!vLimit.ok) {
+        return json({
+          ok: false,
+          error: `Too many attempts. Try again ${inMinutes(vLimit.minutes)}, or ask for a new code.`,
+          retry_after_minutes: vLimit.minutes,
+        }, 429);
       }
 
       // Which code this is. A registration code must not sign somebody in and a

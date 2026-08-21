@@ -407,10 +407,21 @@ function Intro({ audience }: { audience: Audience }) {
 
    Same treatment as Intro, for the same reason: the row sizes itself to the
    tallest and keeps doing so when the copy changes. */
+/** Where somebody with no account goes. Off-platform, so it opens as a normal
+    link rather than a route. */
+const DEMO_URL = 'https://meetings-eu1.hubspot.com/matthew-dwyer';
+
 const HELPER: Record<Audience, ReactNode> = {
   tenant: <>Not started yet? <a href="/apply/register">Apply for a guarantee</a>.</>,
-  agent: <>Not set up yet? Ask your administrator for access, or use the contact details on this screen.</>,
-  supplier: <>Not set up yet? Ask your administrator for access, or use the contact details on this screen.</>,
+  // TWO ROUTES, because two different people read this line. Somebody at a
+  // partner we already work with needs their own administrator, who can invite
+  // them. Somebody from an agency we have never met needs us, and telling them
+  // to ask an administrator they do not have is a dead end.
+  //
+  // The old second half, "or use the contact details on this screen", pointed at
+  // contact details that are not on the screen and never were.
+  agent: <>Not set up yet? Ask your administrator for access. New to opndoor? <a href={DEMO_URL}>Book a demo</a>.</>,
+  supplier: <>Not set up yet? Ask your administrator for access. New to opndoor? <a href={DEMO_URL}>Book a demo</a>.</>,
 };
 
 function Helper({ audience }: { audience: Audience }) {

@@ -1570,6 +1570,34 @@ the URL can read it. Gating a link is not gating a file.
 | H16.5 [AUTO] | As a non-admin, call `trigger_crm_sync()` | `42501 not permitted`. The new name inherits the old guard rather than relaxing it |
 | H16.6 [AUTO] | Add any new `rpc('...')` call | Re-run H16.1. Every RPC name is public copy |
 
+### H16.7. The one permitted occurrence, and why the rule is narrower than it was
+
+**The rule is about the API and infrastructure surface**, not the word:
+`hubapi.com`, `HUBSPOT_`, tokens, property names, function names. Those tell a
+partner how we are wired and are none of their business.
+
+**A public booking link is marketing.** `/login` links "Book a demo" at
+`meetings-eu1.hubspot.com/matthew-dwyer`, for somebody from an agency we have
+never met and who has no administrator to ask. The domain is only ever rendered
+as a hyperlink somebody clicks. Narrowed deliberately on 21 Aug 2026.
+
+**The exemption is that one URL, not `hubspot.com` generally.** A second HubSpot
+URL in the bundle is a leak until somebody decides otherwise.
+
+Run this rather than a bare grep, so the check passes properly instead of being
+known-failing:
+
+```bash
+grep -roh "[A-Za-z0-9._-]*[Hh]ub[Ss]pot[A-Za-z0-9._/-]*" dist/ | sort -u \
+  | grep -vx "meetings-eu1.hubspot.com/matthew-dwyer"
+```
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H16.7 [AUTO] | The command above, after a build | **No output.** Any line is a leak |
+| H16.8 [AUTO] | A second HubSpot URL anywhere in `src/` | It appears in that output and fails. The exemption is one string |
+| H16.9 [HUMAN] | Somebody "fixing" the booking link because it names the CRM | It is deliberate. This row exists so it is not quietly reverted |
+
 The banned list is at the built-artefact grep near the top of this document.
 H16.6 is the row that keeps this from rotting: the leak was not a name somebody
 typed into the UI, it was one nobody thought of as text.
