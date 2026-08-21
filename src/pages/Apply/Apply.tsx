@@ -255,7 +255,7 @@ export function Apply() {
           <p className="ap-sub">Your application is saved. Sign in and it will be exactly where you left it.</p>
         </div></header>
         <div className="ap-actions">
-          <Button variant="primary" onClick={() => { window.location.href = '/apply/signin'; }}>Sign in</Button>
+          <Button variant="primary" onClick={() => { window.location.href = '/login?tab=tenant'; }}>Sign in</Button>
           <a className="ap-link" href="/apply/register">I have not started yet</a>
         </div>
       </div>

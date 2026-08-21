@@ -15,6 +15,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
 import { Login } from './Login';
+import { App } from '@/App';
 
 afterEach(() => cleanup());
 
@@ -297,5 +298,72 @@ describe('the left panel lines up too', () => {
     for (const el of container.querySelectorAll('.auth__brand-h1, .auth__brand-copy')) {
       expect(el.classList.contains('auth__stack-v')).toBe(true);
     }
+  });
+});
+
+describe('a tenant gets two-factor too', () => {
+  /* THE ONLY COVERAGE OF THE SIX-DIGIT CODE FLOW ANYWHERE. These were written
+     here, moved to FrontDoor.render.test.tsx when the Tenant tab was removed,
+     and moved back when /apply/signin was deleted. They travel with the page
+     that owns the flow, because deleting a page with its tests is how coverage
+     of a flow that still exists goes to zero.
+
+     A tenant is emailed a code rather than enrolling an authenticator: they
+     sign in a handful of times and a lost phone would lock them out of their
+     own application. The password is checked SERVER side and the session it
+     produces is discarded, so nothing usable reaches the browser until the code
+     is right. That half is REGRESSION H19.7 and cannot be asserted from jsdom. */
+  async function toCodeStep() {
+    at('/login?tab=tenant');
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 't@example.invalid' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a-long-password' } });
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+    await waitFor(() => expect(screen.getByLabelText('Confirmation code')).toBeTruthy());
+  }
+
+  it('asks for a code after the password, not straight in', async () => {
+    await toCodeStep();
+    expect(screen.getByText('Check your email')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /confirm and continue/i })).toBeTruthy();
+  });
+
+  it('will not accept fewer than six digits', async () => {
+    await toCodeStep();
+    const confirm = screen.getByRole('button', { name: /confirm and continue/i });
+    expect(confirm.hasAttribute('disabled')).toBe(true);
+    fireEvent.change(screen.getByLabelText('Confirmation code'), { target: { value: '12345' } });
+    expect(confirm.hasAttribute('disabled')).toBe(true);
+    fireEvent.change(screen.getByLabelText('Confirmation code'), { target: { value: '123456' } });
+    expect(confirm.hasAttribute('disabled')).toBe(false);
+  });
+
+  it('strips anything that is not a digit', async () => {
+    await toCodeStep();
+    const box = screen.getByLabelText('Confirmation code') as HTMLInputElement;
+    fireEvent.change(box, { target: { value: '12ab34cd56' } });
+    expect(box.value).toBe('123456');
+  });
+
+  it('lets somebody go back and use a different address', async () => {
+    await toCodeStep();
+    fireEvent.click(screen.getByRole('button', { name: /different email address/i }));
+    await waitFor(() => expect(screen.getByLabelText('Email address')).toBeTruthy());
+  });
+});
+
+describe('there is one sign-in page', () => {
+  /* /apply/signin was a second sign-in page and is deleted. It redirects rather
+     than 404s, because invite and reset emails already delivered carry that
+     path and a 404 would strand whoever is holding one. Nothing links to it. */
+  it('carries an invite token through the redirect', () => {
+    render(
+      <MemoryRouter initialEntries={['/apply/signin?invite=TOK123']}>
+        <SessionProvider><App /></SessionProvider>
+      </MemoryRouter>,
+    );
+    // Landing on the tenant tab with the token intact is the whole point: the
+    // token is the difference between claiming the agent's application and
+    // opening an empty one.
+    expect(screen.getByRole('tab', { name: 'Tenant' }).getAttribute('aria-selected')).toBe('true');
   });
 });

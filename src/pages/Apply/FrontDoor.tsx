@@ -165,7 +165,7 @@ export function Register() {
         Next: a few details about the property, then a £20 application fee, then the longer part.
         You can stop and come back at any point.
       </p>
-      <p className="ap-foot">Already have an account? <a href="/apply/signin">Sign in</a>.</p>
+      <p className="ap-foot">Already have an account? <a href="/login?tab=tenant">Sign in</a>.</p>
     </Shell>
   );
 }
@@ -260,66 +260,6 @@ export async function afterSignIn(nav: (to: string) => void, invite?: string) {
   nav('/apply');
 }
 
-/* ---------------------------------------------------------------------------
-   2. Sign in.
-   --------------------------------------------------------------------------- */
-export function SignIn() {
-  // No useNavigate here any more: signing in is two steps, and the navigation
-  // belongs to CodeStep, which is what completes it.
-  const [sp] = useSearchParams();
-  const invite = sp.get('invite') ?? undefined;
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  // Two steps, not one. The password goes to the server, which checks it and
-  // throws the session away; nothing usable reaches this browser until the code
-  // is right.
-  const [sent, setSent] = useState(false);
-
-  const go = async () => {
-    setBusy(true); setErr(null);
-    try {
-      await auth.signInStart(email, password);
-      setSent(true);
-      setBusy(false);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not sign in.');
-      setBusy(false);
-    }
-  };
-
-  if (sent) return <CodeStep email={email} invite={invite} purpose="sign_in" onBack={() => setSent(false)} />;
-
-  return (
-    <Shell title="Sign in">
-        {/* Stacked, not side by side, and shaped like the portal's own sign-in:
-            the forgotten-password link sits right aligned above a full-width
-            pill, so the two products do not look like two products. */}
-        <form className="ap-stack" onSubmit={(e) => { e.preventDefault(); void go(); }} noValidate>
-          {/* htmlFor and id, so the label is actually tied to its control.
-              Without it a screen reader announces an unlabelled box and clicking
-              the label does nothing. Field supports it; this form was not using
-              it. */}
-          <Field label="Email address" htmlFor="ap-email">
-            <input id="ap-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </Field>
-          <Field label="Password" htmlFor="ap-password">
-            <PasswordInput id="ap-password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
-          </Field>
-          {err && <div className="ap-alert" role="alert">{err}</div>}
-          <div className="ap-row-end">
-            <a href="/apply/forgot">Forgot password?</a>
-          </div>
-          <Button variant="primary" block type="submit" arrow disabled={busy || !email || !password}>
-            {busy ? 'Signing in…' : 'Sign in'}
-          </Button>
-        </form>
-      <p className="ap-foot">No account yet? <a href="/apply/register">Create one</a>.</p>
-    </Shell>
-  );
-}
 
 /* ---------------------------------------------------------------------------
    3. Forgot, and 4. Reset.
@@ -346,7 +286,7 @@ export function Forgot() {
             </div>
           </>
         )}
-      <p className="ap-foot"><a href="/apply/signin">Back to sign in</a></p>
+      <p className="ap-foot"><a href="/login?tab=tenant">Back to sign in</a></p>
     </Shell>
   );
 }
@@ -403,7 +343,7 @@ export function Verify() {
         <>
           <div className="ap-alert" role="alert">{err}</div>
           <p className="ap-p">Links last 24 hours and can only be used once.</p>
-          <a className="ap-link" href="/apply/signin">Sign in instead</a>
+          <a className="ap-link" href="/login?tab=tenant">Sign in instead</a>
         </>
       )}
     </Shell>
@@ -460,7 +400,7 @@ export function InviteLanding() {
           <Button variant="primary" onClick={() => nav(`/apply/register?invite=${encodeURIComponent(token)}`)}>
             Set up my account
           </Button>
-          <a className="ap-link" href={`/apply/signin?invite=${encodeURIComponent(token)}`}>
+          <a className="ap-link" href={`/login?tab=tenant&invite=${encodeURIComponent(token)}`}>
             I already have an account
           </a>
         </div>

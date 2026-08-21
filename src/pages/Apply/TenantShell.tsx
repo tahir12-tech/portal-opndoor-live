@@ -111,7 +111,7 @@ export function TenantShell({
                   type="button"
                   className="sb__usermenu-item sb__usermenu-item--danger"
                   role="menuitem"
-                  onClick={async () => { setMenuOpen(false); await signOut(); window.location.href = '/apply/signin'; }}
+                  onClick={async () => { setMenuOpen(false); await signOut(); window.location.href = '/login?tab=tenant'; }}
                 >
                   <Icon name="arrowLeft" /> Sign out
                 </button>

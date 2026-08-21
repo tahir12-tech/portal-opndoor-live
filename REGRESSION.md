@@ -1829,25 +1829,29 @@ that signed somebody in and then showed them a code box for decoration.
 
 ## H20. Tenant sign-in exists in two places, and both send the code
 
-`/login` on the Tenant tab and `/apply/signin` both call
-`tenantAuth.signInStart`, which posts to `tenant-auth`'s `signin_start`, where
-the password is verified server side and the session it produces is discarded.
-Both redeem it with `verifyCode(..., 'sign_in')`. Same function, same purpose,
-same server path. The only difference is the step indicator, which `/login`
-draws and `/apply/signin` does not.
+There is ONE sign-in page: `/login`, with three tabs. `/apply/signin` is deleted and redirects.
 
-A removal of the Tenant tab was made and then reversed. Both surfaces exist and
-both are covered: `/login` by Login.render.test.tsx, `/apply/signin` by
-FrontDoor.render.test.tsx, which gained that coverage during the removal and
-kept it.
+The tenant tab calls
+`tenantAuth.signInStart`, which posts to `tenant-auth`'s `signin_start`, where
+the password is verified server side and the session it produces is discarded,
+then redeems it with `verifyCode(..., 'sign_in')`.
+
+**The four tests covering that code flow have now moved three times**: written
+on `/login`, moved to `FrontDoor.render.test.tsx` when the Tenant tab was
+removed, and moved back when `/apply/signin` was deleted. They travel with the
+page that owns the flow. Deleting a page together with its tests is how coverage
+of a flow that still exists reaches zero, which happened once already.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H20.1 [AUTO] | `/apply/signin`, correct password | A six-digit code step. **Not signed in** until it is entered |
+| H20.1 [AUTO] | `/login?tab=tenant`, correct password | A six-digit code step. **Not signed in** until it is entered |
 | H20.2 [AUTO] | `/login` | Three tabs: Tenant, Agent, Supplier |
-| H20.3 [AUTO] | `/login?tab=tenant` | The Tenant tab with the form on it. **Not a redirect** |
+| H20.3 [AUTO] | `/login?tab=tenant` | The Tenant tab with the form on it |
+| H20.3a [AUTO] | `/apply/signin?invite=TOK` | **Redirects to `/login?tab=tenant&invite=TOK`.** The page is deleted; the redirect exists only because invite and reset emails already delivered carry that path. A 404 would strand whoever holds one |
+| H20.3b [AUTO] | Anything in `src/` linking to `/apply/signin` | **Nothing does.** Register, the invite landing, tenant sign-out and the signed-out prompt all point at `/login?tab=tenant` |
+| H20.3c [AUTO] | Drop the token or the tab from that redirect | H20.3a fails. The token is the difference between claiming the agent's application and opening an empty one |
 | H20.4 [AUTO] | Any tenant email: invite, reset, verification | Points at `/apply/*`, unaffected by the tab existing |
-| H20.5 [AUTO] | Tenant sign-out | `/apply/signin`. Staff sign-out goes to `/login` |
+| H20.5 [AUTO] | Tenant sign-out | `/login?tab=tenant`. Staff sign-out goes to `/login` |
 | H20.6 [AUTO] | An opndoor admin or superadmin | `/login` on the Agent or Supplier tab, the same form as a partner referrer. **No separate admin route** |
 
 ### H20.7 to H20.11. The /apply/signin form

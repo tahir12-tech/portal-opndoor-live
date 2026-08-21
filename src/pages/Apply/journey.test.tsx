@@ -120,8 +120,12 @@ describe('an invite link', () => {
       ok: true, valid: true, email: 's@example.invalid', already_claimed: false,
     } as never);
     const { container } = at(<InviteLanding />, '/apply/invite?token=TOK123');
-    await waitFor(() => expect(container.querySelector('a[href*="/apply/signin"]')).toBeTruthy());
-    const href = container.querySelector('a[href*="/apply/signin"]')!.getAttribute('href')!;
+    // /apply/signin is gone: there is one sign-in page. What must survive the
+    // move is the token, because without it the tenant opens an empty draft
+    // instead of claiming the application their agent already built.
+    await waitFor(() => expect(container.querySelector('a[href*="/login"]')).toBeTruthy());
+    const href = container.querySelector('a[href*="/login"]')!.getAttribute('href')!;
+    expect(href).toContain('tab=tenant');
     expect(href).toContain('invite=TOK123');
   });
 });

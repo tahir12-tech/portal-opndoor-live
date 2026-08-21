@@ -4,13 +4,13 @@
    -only screens are behind RequireRole guards (see the brief). Nav visibility
    is also role-filtered in the sidebar.
    ===================================================================== */
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireRole } from '@/components/guards/RequireRole';
 import { Apply } from '@/pages/Apply/Apply';
 import {
   Forgot as TenantForgot, InviteLanding, Register,
-  ResetPassword as TenantResetPassword, SignIn as TenantSignIn, Verify as TenantVerify,
+  ResetPassword as TenantResetPassword, Verify as TenantVerify,
 } from '@/pages/Apply/FrontDoor';
 import { RequireAuth } from '@/components/guards/RequireAuth';
 import { Login } from '@/pages/Login/Login';
@@ -33,6 +33,16 @@ import { Reconciliation } from '@/pages/Reconciliation/Reconciliation';
 import { Health } from '@/pages/Health/Health';
 import { Help } from '@/pages/Help/Help';
 import { DevCentre } from '@/pages/DevCentre/DevCentre';
+
+/** /apply/signin moved to /login?tab=tenant. Carries the query string, because
+    an invite token in it is the difference between claiming the application an
+    agent built and opening an empty one. */
+function LegacySignInRedirect() {
+  const { search } = useLocation();
+  const params = new URLSearchParams(search);
+  params.set('tab', 'tenant');
+  return <Navigate to={`/login?${params.toString()}`} replace />;
+}
 
 export function App() {
   return (
@@ -58,7 +68,12 @@ export function App() {
           Its own data access is authenticated inside tenantApi. */}
       <Route path="/apply/start" element={<Navigate to="/apply/register" replace />} />
       <Route path="/apply/register" element={<Register />} />
-      <Route path="/apply/signin" element={<TenantSignIn />} />
+      {/* There is ONE sign-in page and it is /login. This redirect exists only
+          because invite and reset emails already delivered carry the old path,
+          and a 404 would strand somebody holding one. Nothing links here. It
+          keeps the query string, so an ?invite= token still reaches the tab
+          that claims it. */}
+      <Route path="/apply/signin" element={<LegacySignInRedirect />} />
       <Route path="/apply/forgot" element={<TenantForgot />} />
       <Route path="/apply/reset" element={<TenantResetPassword />} />
       <Route path="/apply/verify" element={<TenantVerify />} />

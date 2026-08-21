@@ -518,16 +518,19 @@ function AudienceTabs({ value, onChange }: { value: Audience; onChange: (a: Audi
 
 /* The tenant sign-in, ON the tab rather than behind it.
 
-   This was a button that sent the browser to /apply/signin. There was no reason
-   for it. The form is an email and a password, and making somebody click
-   through to another page to type them buys nothing.
+   This was a button that sent the browser to a second sign-in page. There was
+   no reason for it. The form is an email and a password, and making somebody
+   click through to another page to type them buys nothing. That second page is
+   now gone: there is one sign-in page and this is it.
 
    Safe because tenant auth is a SEPARATE Supabase client keyed on
    'opndoor.tenant.auth', so signing in here cannot touch a staff session in the
    same browser and the staff SessionContext this page watches never sees it.
 
-   /apply/signin STAYS. Seven places link to it, including the invite landing
-   and where tenant sign-out lands, so this is additive rather than a move. */
+   Everything that used to link to /apply/signin now points here, including the
+   invite landing and where tenant sign-out lands. /apply/signin redirects, so
+   an invite email already delivered still arrives at the right tab with its
+   token intact. */
 function TenantSignInPanel() {
   const nav = useNavigate();
   const [sp] = useSearchParams();
