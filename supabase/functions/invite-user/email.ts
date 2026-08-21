@@ -1,7 +1,7 @@
 import { resolveRecipients } from "../_shared/emailRecipients.ts";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 // const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <payments@opndoor.co>";
-const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opendoor <noreply@opndoor.co>";
+const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <noreply@opndoor.co>";
 const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
 
 export interface SendResult {

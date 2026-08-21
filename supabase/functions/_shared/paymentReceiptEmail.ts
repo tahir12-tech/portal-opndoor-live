@@ -55,7 +55,7 @@ function receiptTemplate(p: { title: string; lastName: string; propertyAddr: str
   const subject = `We've received your guarantor fee - ${p.guaranteeRef}`;
   const inner = `
     <p style="margin:0 0 14px;">Dear ${dear || "there"},</p>
-    <p style="margin:0 0 16px;">Thank you, your guarantor fee for ${p.propertyAddr} has been received. Your Deed of Guarantee is on its way to you to sign electronically, which takes about two minutes.</p>
+    <p style="margin:0 0 16px;">Thank you, your guarantor fee for ${p.propertyAddr} has been received. Your Deed of Guarantee is on its way to you to sign electronically.</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border:1px solid rgba(39,29,95,0.12);border-radius:12px;"><tr><td style="padding:16px 18px;">
       <div style="font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:0.12em;text-transform:uppercase;color:${INK_SOFT};">Amount paid</div>
       <div style="font:800 30px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${PAID};margin-top:4px;">${p.amount}</div>

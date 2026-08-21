@@ -194,7 +194,7 @@ export function IdCheckPanel({
       <CardBody>
         <p className="ap-p">
           We confirm your identity from a photo of your passport, driving licence or
-          biometric residence permit. It takes about two minutes.
+          biometric residence permit.
         </p>
         <div className={`ap-pre ${has ? 'ap-pre--ok' : 'ap-pre--wait'}`}>
           {has

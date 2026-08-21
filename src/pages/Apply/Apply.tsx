@@ -793,7 +793,7 @@ function ReadOnlyAnswers({
    an empty panel, because an empty panel reads as broken. */
 function PlaceholderTab({ tab, status }: { tab: Tab; status: string }) {
   const copy: Record<string, { title: string; body: string }> = {
-    id: { title: 'Identity check', body: 'After your application is sent we confirm your identity with a photo of your ID and a short selfie. It takes about two minutes.' },
+    id: { title: 'Identity check', body: 'After your application is sent we confirm your identity with a photo of your ID and a short selfie.' },
     financials: { title: 'Financials', body: 'You can link your bank securely instead of uploading statements, which is faster and means fewer documents to find.' },
     documents: { title: 'Documents', body: 'Anything still outstanding is listed here. Documents you attach on the income and address steps appear here too.' },
     payment: { title: 'Payment', body: 'Two payments, and they are separate. The £20 application fee sits inside your details, part way through. The guarantee fee is one month\u2019s rent and is only ever asked for after you are approved.' },

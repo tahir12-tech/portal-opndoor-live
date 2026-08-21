@@ -77,12 +77,22 @@ const MESSAGES: { id: string; note: string; m: Message; redirected?: boolean }[]
     ],
     action: { label: 'Review and sign', href: 'https://app.pandadoc.com/s/abc123' },
   } },
-  { id: 'executed-deed', note: 'Signed deed, delivered.', m: {
+  { id: 'executed-deed-agent', note: 'Signed deed, to the AGENT. As written today.', m: {
     subject: 'Signed Deed of Guarantee for GR-1042',
     heading: 'The Deed of Guarantee has been signed',
     blocks: [
       { p: 'The Deed of Guarantee for the tenancy below has been signed by all parties. A copy is attached for your records.' },
       { rows: [['Reference', 'GR-1042'], ['Tenant', 'Sam Okafor'], ['Property', '12 Bramble Court, Sheffield'], ['Guarantee expires', '31 August 2027']] },
+      { small: 'opndoor remains the guarantor for the term above. You remain the claim contact.' },
+    ],
+  } },
+  { id: 'executed-deed-tenant', note: 'Signed deed, to the TENANT. NEW. No Tenant line: they know who they are.', m: {
+    subject: 'Your signed Deed of Guarantee for GR-1042',
+    heading: 'Your Deed of Guarantee has been signed',
+    blocks: [
+      { p: 'The Deed of Guarantee for your tenancy has been signed by all parties. A copy is attached for your records, and you do not need to do anything else.' },
+      { rows: [['Reference', 'GR-1042'], ['Property', '12 Bramble Court, Sheffield'], ['Guarantee expires', '31 August 2027']] },
+      { small: 'opndoor is your guarantor for the term above. opndoor is a professional guarantor service, not insurance, and is not a party to your tenancy agreement. If anything changes, speak to your letting agent first.' },
     ],
   } },
   { id: 'payment-reminder', note: 'Chaser for an unpaid referral.', m: {
