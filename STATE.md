@@ -107,6 +107,15 @@ Things that have cost time once and will again.
 - **Deploy `hubspot-sync` with the migrations**, not after: `20260812030000`
   drops the signature the deployed one calls.
 
+## Cutover
+
+[CUTOVER.md](CUTOVER.md) is the list of everything that lives in a dashboard
+rather than in code, with a verify step for each. It exists because `db push`
+finishing tells you nothing about whether any of it is done, and because the
+worst items fail silently: mail redirected away from every tenant, partners
+never notified, a Resend domain that looks verified when you test it against
+your own inbox.
+
 ## The documents
 
 | File | What it is |
