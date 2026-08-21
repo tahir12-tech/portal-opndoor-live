@@ -18,6 +18,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveRecipients } from "../_shared/emailRecipients.ts";
 
+import { sendMessage } from "../_shared/mailer.ts";
+import { weeklyDigestEmail } from "../_shared/emailTemplates.ts";
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-reminders-secret",
@@ -74,50 +77,6 @@ function statPair(a: string, b: string): string {
   return `<tr>${a}<td style="width:12px;"></td>${b}</tr><tr><td colspan="3" style="height:12px;"></td></tr>`;
 }
 
-function digestEmail(p: { partnerName: string; rangeLabel: string; d: DigestRow; intended: string; redirected: boolean }): { subject: string; html: string } {
-  const d = p.d;
-  const topBranch = d.top_branch && d.top_branch_fees > 0 ? `${d.top_branch} (${gbp(d.top_branch_fees)})` : "No branch fees this week";
-  // Cohort conversion: of the referrals SENT this week, the share that have paid
-  // (bounded 0-100%, never contradictory). "-" when none were sent this week.
-  const conversion = d.sent > 0 ? pct(d.sent_paid, d.sent) : "n/a";
-  // #5 Climber of the week (biggest fees-rank rise vs last week), when there is one.
-  const climberRow = d.climber
-    ? `<tr><td colspan="3" style="padding:12px 14px;border:1px solid rgba(211,100,251,0.28);border-radius:12px;background:${LILAC};">
-        <div style="font:700 11px 'Manrope',system-ui,Arial,sans-serif;letter-spacing:0.1em;text-transform:uppercase;color:${INK};">Climber of the week</div>
-        <div style="font:800 16px 'Sora',system-ui,Arial,sans-serif;color:${V};margin-top:4px;">${d.climber.name} <span style="color:${HELI};">&#9650;${d.climber.delta}</span></div>
-      </td></tr><tr><td colspan="3" style="height:12px;"></td></tr>`
-    : "";
-  const grid = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;">
-    ${statPair(stat("Referrals sent", String(d.sent)), stat("Guarantor fees paid", String(d.paid)))}
-    ${statPair(stat("Fees collected", gbp(d.fees)), stat("Sent to Paid", conversion))}
-    ${statPair(stat("Deeds issued", String(d.deeds)), stat("Awaiting signature", String(d.awaiting)))}
-    <tr>${stat("Top branch by fees", topBranch)}<td></td><td width="50%"></td></tr>
-    <tr><td colspan="3" style="height:12px;"></td></tr>
-    ${climberRow}
-  </table>`;
-  const cta = APP_URL
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0 4px;"><tr><td>
-        <a href="${APP_URL}/dashboard" style="display:inline-block;background:${HELI};color:#fff;text-decoration:none;font:700 14px 'Manrope',system-ui,Arial,sans-serif;padding:12px 26px;border-radius:999px;box-shadow:0 6px 18px -8px rgba(211,100,251,0.6);">Open your dashboard</a>
-      </td></tr></table>`
-    : "";
-  const banner = p.redirected
-    ? `<tr><td style="padding:10px 16px;background:${LILAC};border-bottom:1px solid rgba(39,29,95,0.1);font:600 12px 'Manrope',system-ui,Arial,sans-serif;color:${INK};">Test mode. This email was intended for ${p.intended} and redirected to you for review.</td></tr>`
-    : "";
-  const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;"><tr><td align="center">
-    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:92%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(39,29,95,0.4);">
-    <tr><td style="background:${V};padding:22px 28px;"><span style="font:800 22px 'Sora',system-ui,Arial,sans-serif;letter-spacing:-0.04em;color:#fff;">opndoor</span><span style="font:600 12px 'Manrope',system-ui,Arial,sans-serif;color:rgba(255,255,255,0.7);margin-left:10px;">Guarantee Referral Portal</span></td></tr>
-    ${banner}
-    <tr><td style="padding:26px 28px;font:400 15px/1.6 'Manrope',system-ui,Arial,sans-serif;color:${V};">
-      <p style="margin:0 0 4px;font:800 18px 'Sora',system-ui,Arial,sans-serif;">Your week at a glance</p>
-      <p style="margin:0 0 16px;font-size:13px;color:${INK};">${p.partnerName} &middot; ${p.rangeLabel}</p>
-      ${grid}
-      ${cta}
-    </td></tr>
-    <tr><td style="padding:16px 28px;background:${LILAC};font:400 12px/1.5 'Manrope',system-ui,Arial,sans-serif;color:${INK};">Sent every Monday. Questions? Reply to this email or contact ${REPLY_TO}.</td></tr>
-    </table></td></tr></table></body></html>`;
-  return { subject: `Your weekly summary, ${p.rangeLabel}`, html };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -211,13 +170,13 @@ Deno.serve(async (req) => {
       // `redirected` was hardcoded false, so the banner three functions up was
       // dead code that could never render. It now reflects what actually
       // happened.
-      const tpl = digestEmail({ partnerName: d.partner_name, rangeLabel, d, intended: routed.intended.join(", "), redirected: routed.redirected });
+      const tpl = weeklyDigestEmail({
+          sent: Number(d.sent ?? 0), paid: Number(d.paid ?? 0), deeds: Number(d.deeds ?? 0),
+          fees: `£${Number(d.fees ?? 0).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`,
+          commission: null, climber: null, link: `${APP_URL}/dashboard`,
+        });
       if (!RESEND_API_KEY || dest.length === 0) { failed += 1; continue; }
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: EMAIL_FROM, to: dest, reply_to: REPLY_TO, subject: tpl.subject, html: tpl.html }),
-      });
+      const res = await sendMessage({ to: dest, message: tpl });
       if (!res.ok) { failed += 1; continue; }
       // Only the real scheduled run consumes the idempotency ledger; a manual/test
       // preview must never poison it (which would make the real Monday cron skip

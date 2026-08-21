@@ -17,6 +17,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveRecipients } from "../_shared/emailRecipients.ts";
 
+import { sendMessage } from "../_shared/mailer.ts";
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-reminders-secret",
@@ -179,29 +181,20 @@ Deno.serve(async (req) => {
       const routed = resolveRecipients(recipients);
       const dest = routed.to;
       const intended = routed.intended.join(", ");
-      const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;"><tr><td align="center">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:92%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(39,29,95,0.4);">
-        <tr><td style="background:#271d5f;padding:22px 28px;"><span style="font:800 22px 'Sora',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:-0.04em;color:#fff;">opndoor</span><span style="font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:rgba(255,255,255,0.7);margin-left:10px;">Guarantee Referral Portal</span></td></tr>
-        ${""}
-        <tr><td style="padding:28px;font:400 15px/1.6 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#271d5f;">
-          <p style="margin:0 0 14px;">Hello,</p>
-          <p style="margin:0 0 14px;">Attached are the guarantees expiring in <b>${cohortMonth}</b> (${cohort.length}), soonest first, so you can arrange renewals or fresh referrals in good time. This cohort is sent six weeks before the month begins.</p>
-          <p style="margin:0;font-size:13px;color:#5b4d86;">You can also download expiries for any month from your dashboard.</p>
-        </td></tr>
-        <tr><td style="padding:18px 28px;background:#f8eff9;font:400 12px/1.5 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#5b4d86;">opndoor. Questions? Reply to this email or contact ${REPLY_TO}.</td></tr>
-        </table></td></tr></table></body></html>`;
-
       if (!RESEND_API_KEY || dest.length === 0) { failed += 1; continue; }
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: EMAIL_FROM, to: dest, reply_to: REPLY_TO,
+      // Attachments already worked here, and only here. The shared sender now
+      // carries them for everybody.
+      const res = await sendMessage({
+        to: dest,
+        message: {
           subject: `Guarantees expiring in ${cohortMonth}`,
-          html,
-          attachments: [{ filename, content: btoa(unescape(encodeURIComponent(csv))) }],
-        }),
+          heading: `Guarantees expiring in ${cohortMonth}`,
+          blocks: [
+            { p: `Attached are the guarantees expiring in <b>${cohortMonth}</b> (${cohort.length}), soonest first, so you can arrange renewals or fresh referrals in good time.` },
+            { small: "This cohort is sent six weeks before the month begins. You can also download expiries for any month from your dashboard." },
+          ],
+        },
+        attachments: [{ filename, content: btoa(unescape(encodeURIComponent(csv))) }],
       });
       if (!res.ok) { failed += 1; continue; }
       await service.from("expiry_cohort_sends").insert({ partner_id: partnerId, cohort_month: cohortMonth, recipients: recipients.length });
