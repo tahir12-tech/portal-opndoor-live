@@ -37,7 +37,22 @@ export interface StatusView {
   cta?: 'pay_guarantee';
 }
 
-export function statusView(status: string, feePaid: boolean, doneCount: number, total: number): StatusView {
+/** "your letting agent", "your landlord", or a phrase committing to neither.
+
+    The form already asks "Who manages the property?" and stores the answer, so
+    this reads it rather than assuming. The fallback is vague on purpose: it is
+    true whoever manages the property, and true when we do not yet know. */
+export function managedByLabel(kind?: string | null): string {
+  if (kind === 'letting_agent') return 'your letting agent';
+  if (kind === 'private_landlord') return 'your landlord';
+  return 'whoever manages the property';
+}
+
+export function statusView(
+  status: string, feePaid: boolean, doneCount: number, total: number,
+  managedByKind?: string | null,
+): StatusView {
+  const managedBy = managedByLabel(managedByKind);
   switch (status) {
     case 'draft':
       return {
@@ -82,7 +97,7 @@ export function statusView(status: string, feePaid: boolean, doneCount: number, 
       return {
         reached: 1, terminated: true, tone: 'bad',
         headline: status === 'expired' ? 'This application has lapsed' : 'This application was withdrawn',
-        detail: 'Talk to your letting agent, or start again if you still need a guarantor.',
+        detail: `Talk to ${managedBy}, or start again if you still need a guarantor.`,
       };
     default:
       return { reached: 1, terminated: false, tone: 'progress', headline: 'In progress', detail: '' };

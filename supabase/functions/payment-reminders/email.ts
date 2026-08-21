@@ -88,7 +88,7 @@ export function paymentEmailTemplate(p: {
   const subject = `Complete your guarantor fee payment - ${p.guaranteeRef}`;
   const inner = `
     <p style="margin:0 0 14px;">Dear ${p.title} ${p.lastName},</p>
-    <p style="margin:0 0 14px;">You've been referred to opndoor's professional guarantor service to support your tenancy at ${p.propertyAddr}. To put your Deed of Guarantee in place, please pay the one-off guarantor fee below.</p>
+    <p style="margin:0 0 14px;">opndoor is acting as guarantor for your tenancy at ${p.propertyAddr}. To put your Deed of Guarantee in place, please pay the one-off guarantor fee below.</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid rgba(39,29,95,0.12);border-radius:12px;">
       <tr><td style="padding:16px 18px;">
         <div style="font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:0.12em;text-transform:uppercase;color:${INK_SOFT};">Guarantor fee</div>

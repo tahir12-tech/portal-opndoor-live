@@ -62,7 +62,7 @@ function Shell({
           <h1 className="auth__brand-h1">A guarantor, without asking a family member.</h1>
           <p className="auth__brand-copy">
             opndoor stands as guarantor on your tenancy, so a failed reference does not cost you
-            the property. Apply online, and we deal with your letting agent.
+            the property. Apply online, and we deal with whoever manages the property.
           </p>
         </div>
         <div className="auth__flow">
@@ -380,7 +380,7 @@ export function InviteLanding() {
   const load = useCallback(async () => {
     try {
       const r = await auth.inviteInfo(token);
-      if (!r.valid) { setErr('This link has expired. Ask your agent to send a new one.'); return; }
+      if (!r.valid) { setErr('This link has expired. Ask whoever referred you to send a new one.'); return; }
       setInfo(r);
       // Already signed in as the right person: skip straight through.
       const me = await auth.currentTenant();
@@ -400,7 +400,7 @@ export function InviteLanding() {
   if (!info) return <Shell title="Just a moment…"><p className="soft">Checking your link.</p></Shell>;
 
   return (
-    <Shell title="Your agent has started this for you"
+    <Shell title={info.referrer_name ? `${info.referrer_name} has started this for you` : 'This application has been started for you'}
       sub="Set a password and pick up where they left off.">
         <h3 className="ap-h3" style={{ marginTop: 0 }}>What we already have</h3>
         <dl className="ap-summary">

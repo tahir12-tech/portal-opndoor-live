@@ -71,3 +71,32 @@ describe('what a tenant is told about their application', () => {
     }
   });
 });
+
+describe('who manages the property', () => {
+  /* A tenant reaches opndoor by three routes and the counterparty differs. The
+     form already asks, so a terminal message must not assume a letting agent:
+     a direct tenant with a private landlord was being told to talk to an agent
+     who does not exist. */
+  it('says letting agent when it is one', () => {
+    expect(statusView('withdrawn', true, 7, 7, 'letting_agent').detail).toContain('your letting agent');
+  });
+
+  it('says landlord when it is one', () => {
+    const d = statusView('withdrawn', true, 7, 7, 'private_landlord').detail;
+    expect(d).toContain('your landlord');
+    expect(d).not.toContain('letting agent');
+  });
+
+  it('commits to neither when it does not know', () => {
+    const d = statusView('expired', true, 7, 7, null).detail;
+    expect(d).toContain('whoever manages the property');
+    expect(d).not.toContain('letting agent');
+    expect(d).not.toContain('landlord');
+  });
+
+  it('never assumes an agent on any terminal state', () => {
+    for (const st of ['withdrawn', 'expired']) {
+      expect(statusView(st, true, 7, 7).detail).not.toContain('your letting agent');
+    }
+  });
+});

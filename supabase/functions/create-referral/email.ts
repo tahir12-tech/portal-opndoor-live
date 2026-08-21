@@ -120,7 +120,7 @@ export function tenantInviteTemplate(p: {
   const subject = 'Complete your guarantor application';
   const inner = `
     <p style="margin:0 0 14px;">Dear ${p.title} ${p.lastName},</p>
-    <p style="margin:0 0 14px;">Your letting agent has asked opndoor to act as guarantor for your tenancy at ${p.propertyAddr}.</p>
+    <p style="margin:0 0 14px;">They have asked opndoor to act as guarantor for your tenancy at ${p.propertyAddr}.</p>
     <p style="margin:0 0 14px;">To get started we need some details from you: where you have lived for the last three years, your income, and a couple of documents. <strong>Everything saves as you go</strong>, so you can stop and come back whenever you like and there is no need to find everything first.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 18px;"><tr><td>
       <a href="${p.inviteUrl}" style="display:inline-block;background:${HELIOTROPE};color:#ffffff;text-decoration:none;font:700 15px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;padding:13px 28px;border-radius:999px;box-shadow:0 6px 18px -8px rgba(211,100,251,0.6);">Start my application</a>

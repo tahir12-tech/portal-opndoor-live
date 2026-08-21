@@ -264,7 +264,10 @@ export function Apply() {
   if (err && !bundle) return <div className="ap"><div className="ap-alert">{err}</div></div>;
   if (!bundle) return <div className="ap"><p className="soft">Loading your application…</p></div>;
 
-  const view = statusView(bundle.application.status, feePaid, doneCount, STEPS.length);
+  // The answer to "Who manages the property?", so a terminal message can name
+  // the right party instead of assuming a letting agent.
+  const view = statusView(bundle.application.status, feePaid, doneCount, STEPS.length,
+    (bundle.agent as { kind?: string } | null)?.kind ?? null);
 
   /* ONCE IT IS SENT, THE FORM FOLDS AWAY.
      Everything before submission is about filling something in; everything
