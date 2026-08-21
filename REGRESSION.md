@@ -1526,9 +1526,9 @@ flow.
 | # | Setup | Expected |
 | - | ----- | -------- |
 | H15.1 [AUTO] | Render `/login` | Three tabs: Tenant, Agent, Supplier. Agent is selected, because that is who has been signing in here for a year |
-| H15.2 [AUTO] | Render `/login?tab=supplier` | The Supplier tab is selected. `?tab=` is a link somebody can be sent, not internal state |
-| H15.3 [AUTO] | Visit `/login?tab=tenant` | **Redirected to `/apply/signin`.** The tab is gone; the portal serves partner staff. Old links and bookmarks still exist, and an `?invite=` token travels with the redirect |
-| H15.4 [AUTO] | Render `/login` with no query | Agent, the only remaining default |
+| H15.2 [AUTO] | Render `/login?tab=tenant` | The Tenant tab is selected. `?tab=` is a link somebody can be sent, not internal state |
+| H15.3 [AUTO] | Render `/login?tab=tenant` | **An email field, a password field and a Sign in button, on the tab.** Not a button to another page |
+| H15.4 [AUTO] | Render `/login?tab=tenant` | The same two steps as staff, 1 Credentials and 2 Verify. A tenant has two factors too; only the delivery differs |
 | H15.5 [AUTO] | Render `/login?tab=supplier` | A working staff form. **No "not open yet"** |
 | H15.6 [AUTO] | Render `/login?tab=supplier` | The Credentials and Verify steps are present. A supplier is staff, so two-factor stays |
 | H15.7 [AUTO] | Compare the supplier and agent subtitles | They differ. The tab changes the copy and nothing else, because the difference is commercial |
@@ -1797,7 +1797,7 @@ earns no commission, and the third was wrong about how they sign in.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H19.4 [AUTO] | The step strip, both tabs | Present, 1 Credentials then 2 Verify. **Written when there were three tabs, and it applied to the tenant one too**: a tenant has two factors as well, the second arriving by email rather than from an app. That tab has since moved to `/apply/signin`, where the same two steps run without the indicator, which is H20.12 |
+| H19.4 [AUTO] | The step strip, all three tabs | Present, 1 Credentials then 2 Verify. A tenant has two factors as well, the second arriving by email rather than from an authenticator app |
 | H19.5 [AUTO] | Agent tab | "Agent sign in", their own branches, commission, two-factor |
 | H19.6 [AUTO] | Supplier tab | "Supplier sign in", referring **on behalf of** the agencies they work with |
 
@@ -1827,25 +1827,28 @@ that signed somebody in and then showed them a code box for decoration.
 
 ---
 
-## H20. The portal login is for staff; tenants sign in at /apply/signin
+## H20. Tenant sign-in exists in two places, and both send the code
 
-**Checked before removing anything: both paths send the same six-digit email
-code.** `/apply/signin` (`FrontDoor.tsx`) and the old `/login` Tenant tab both
-called `tenantAuth.signInStart`, which posts to `tenant-auth`'s `signin_start`,
-where the password is verified server side and the session it produces is
-discarded. Both then redeemed it with `verifyCode(..., 'sign_in')`. Same
-function, same purpose, same server path. The only difference was the step
-indicator, which `/login` drew and `/apply/signin` did not, which is why it
-looked like there was no verify step. Nothing stronger was deleted.
+`/login` on the Tenant tab and `/apply/signin` both call
+`tenantAuth.signInStart`, which posts to `tenant-auth`'s `signin_start`, where
+the password is verified server side and the session it produces is discarded.
+Both redeem it with `verifyCode(..., 'sign_in')`. Same function, same purpose,
+same server path. The only difference is the step indicator, which `/login`
+draws and `/apply/signin` does not.
+
+A removal of the Tenant tab was made and then reversed. Both surfaces exist and
+both are covered: `/login` by Login.render.test.tsx, `/apply/signin` by
+FrontDoor.render.test.tsx, which gained that coverage during the removal and
+kept it.
 
 | # | Setup | Expected |
 | - | ----- | -------- |
-| H20.1 [SEMI] | `/apply/signin`, correct password | A six-digit code step. **Not signed in** until it is entered |
-| H20.2 [AUTO] | `/login` | Two tabs, Agent and Supplier. No Tenant |
-| H20.3 [AUTO] | `/login?tab=tenant` | Redirected to `/apply/signin`, `?invite=` preserved |
-| H20.4 [AUTO] | Any tenant email: invite, reset, verification | Points at `/apply/*`, never at `/login`. It always did |
+| H20.1 [AUTO] | `/apply/signin`, correct password | A six-digit code step. **Not signed in** until it is entered |
+| H20.2 [AUTO] | `/login` | Three tabs: Tenant, Agent, Supplier |
+| H20.3 [AUTO] | `/login?tab=tenant` | The Tenant tab with the form on it. **Not a redirect** |
+| H20.4 [AUTO] | Any tenant email: invite, reset, verification | Points at `/apply/*`, unaffected by the tab existing |
 | H20.5 [AUTO] | Tenant sign-out | `/apply/signin`. Staff sign-out goes to `/login` |
-| H20.6 [SEMI] | An opndoor admin or superadmin | Signs in at `/login` on the Agent or Supplier tab, the same form as a partner referrer. **There is no separate admin route.** Role is read from their `users` row after AAL2. Removing the Tenant tab does not touch this path: the tenant panel was a sibling branch that never entered the staff state machine |
+| H20.6 [AUTO] | An opndoor admin or superadmin | `/login` on the Agent or Supplier tab, the same form as a partner referrer. **No separate admin route** |
 
 ### H20.7 to H20.11. The /apply/signin form
 
