@@ -23,7 +23,8 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { assertEmailConfigured, EmailNotConfigured } from "../_shared/emailConfigured.ts";
-import { sendEmail } from "../create-referral/email.ts";
+import { sendMessage } from "../_shared/mailer.ts";
+import { accountExistsEmail, codeEmail, passwordResetEmail } from "../_shared/emailTemplates.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -36,13 +37,6 @@ const json = (b: unknown, s = 200) =>
 const VALHALLA = "#271d5f";
 const HELIOTROPE = "#d364fb";
 
-function shell(inner: string): string {
-  return `<div style="font:400 15px/1.6 system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${VALHALLA};max-width:560px;">${inner}</div>`;
-}
-function button(href: string, label: string): string {
-  return `<p style="margin:22px 0;"><a href="${href}" style="display:inline-block;background:${HELIOTROPE};color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:999px;">${label}</a></p>
-  <p style="font-size:12px;color:#5b4d86;">If the button does not work, copy this into your browser:<br><span style="word-break:break-all;">${href}</span></p>`;
-}
 
 
 /**
@@ -111,14 +105,6 @@ async function sha256Hex(input: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-function codeEmail(code: string, mins: number): string {
-  return shell(
-    `<p>Your opndoor confirmation code is:</p>
-     <p style="margin:22px 0;font:800 34px/1 system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:0.22em;color:${VALHALLA};">${code}</p>
-     <p style="font-size:13px;color:#5b4d86;">It lasts ${mins} minutes and can be used once. If you did not ask for it, ignore this email and nothing happens.</p>
-     <p style="font-size:13px;color:#5b4d86;"><strong>We will never ask you for this code.</strong> Not by phone, not by email, not by text.</p>`,
-  );
-}
 
 /**
  * Issue a code and email it. Returns nothing useful on purpose: whether the
@@ -136,11 +122,7 @@ async function sendCode(service: any, email: string, purpose: "verify_email" | "
   });
   if (allowed !== true) return;          // rate limited: silently do nothing
 
-  const res = await sendEmail({
-    to: email,
-    subject: `${code} is your opndoor confirmation code`,
-    html: codeEmail(code, 10),
-  });
+  const res = await sendMessage({ to: email, message: codeEmail(code, 10) });
   // The result used to be dropped here and the caller answered ok either way.
   if (!res.ok) {
     console.log(JSON.stringify({ event: "code_email_failed", purpose, message: res.error }));
@@ -231,12 +213,9 @@ Deno.serve(async (req) => {
         }
         const { data: link } = await service.auth.admin.generateLink({ type: "recovery", email });
         const href = `${origin}/apply/reset#${(link?.properties as any)?.hashed_token ? `token_hash=${(link!.properties as any).hashed_token}&type=recovery` : ""}`;
-        await sendEmail({
+        await sendMessage({
           to: email,
-          subject: "You already have an opndoor account",
-          html: shell(`<p>Somebody, probably you, tried to create an opndoor account with this address. You already have one.</p>
-            <p>If you have forgotten your password, you can set a new one:</p>${button(href, "Set a new password")}
-            <p style="font-size:13px;color:#5b4d86;">If this was not you, you can ignore this email. Nothing has changed.</p>`),
+          message: { ...accountExistsEmail(), action: { label: "Set a new password", href } },
         });
         return json({ ok: true, sent: true });
       }
@@ -324,12 +303,7 @@ Deno.serve(async (req) => {
           const { data: link } = await service.auth.admin.generateLink({ type: "recovery", email });
           const hashed = (link?.properties as any)?.hashed_token ?? "";
           const href = `${origin}/apply/reset#token_hash=${hashed}&type=recovery`;
-          await sendEmail({
-            to: email,
-            subject: "Set a new opndoor password",
-            html: shell(`<p>Set a new password for your opndoor account.</p>${button(href, "Set a new password")}
-              <p style="font-size:13px;color:#5b4d86;">If you did not ask for this, ignore it. Your password has not changed.</p>`),
-          });
+          await sendMessage({ to: email, message: passwordResetEmail(href) });
         }
       }
       return json({ ok: true, sent: true });

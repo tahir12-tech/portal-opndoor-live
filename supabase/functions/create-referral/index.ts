@@ -13,7 +13,8 @@
 // =====================================================================
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { paymentEmailTemplate, sendEmail, tenantInviteTemplate } from "./email.ts";
+import { sendMessage } from "../_shared/mailer.ts";
+import { paymentLinkEmail, tenantInviteEmail } from "../_shared/emailTemplates.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 import { stripeSecretFor } from "../_shared/livemodeCredentials.ts";
 
@@ -155,10 +156,15 @@ Deno.serve(async (req) => {
       }
 
       const inviteUrl = `${origin}/apply/invite?token=${inviteToken}`;
-      const tpl = tenantInviteTemplate({
-        title: tenantTitle, lastName: tenantLast, propertyAddr, inviteUrl,
+      const inviteRes = await sendMessage({
+        to: tenantEmail,
+        message: tenantInviteEmail({
+          // The agency the referral was filed against, not "your letting
+          // agent": the referrer may be a supplier.
+          referrerName: (branch as { agencies?: { name?: string } } | null)?.agencies?.name ?? b.agency ?? null,
+          propertyAddr, monthlyRent: b.rent ?? null, guaranteeRef: ref, inviteUrl,
+        }),
       });
-      const inviteRes = await sendEmail({ subject: tpl.subject, html: tpl.html, to: tenantEmail });
 
       await service.from("activity_log").insert({ application_id: appId, kind: "referral_created", message: "Referral created. The tenant has been invited to complete their application.", actor });
       await service.from("activity_log").insert({
@@ -221,8 +227,10 @@ Deno.serve(async (req) => {
     const payUrl = pageToken ? `${origin}/pay?token=${pageToken}&utm_source=initial` : session.url!;
 
     // Branded payment email (redirected to the review address in test mode).
-    const tpl = paymentEmailTemplate({ title: tenantTitle, lastName: tenantLast, propertyAddr, guaranteeRef: ref, amount: amountGBP, payUrl });
-    const emailRes = await sendEmail({ subject: tpl.subject, html: tpl.html, to: tenantEmail });
+    const emailRes = await sendMessage({
+      to: tenantEmail,
+      message: paymentLinkEmail({ propertyAddr, guaranteeRef: ref, amount: amountGBP, payUrl }),
+    });
     // Partner-safe business message; the test-mode redirect target stays admin-only
     // (a separate internal entry), so no partner-facing surface exposes the review
     // address regardless of how it renders the log.

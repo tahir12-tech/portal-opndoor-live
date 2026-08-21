@@ -1,76 +1,20 @@
-import { resolveRecipients } from "./emailRecipients.ts";
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <noreply@opndoor.co>";
-const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
+import { sendMessage } from "./mailer.ts";
+import { paymentReceiptEmail } from "./emailTemplates.ts";
+import { managedByFor, managedByLabel } from "./managedBy.ts";
 
-interface SendResult { ok: boolean; error?: string; to?: string; redirected?: boolean; intended?: string }
-
-//email for only user
-export async function sendEmail(opts: { subject: string; html: string; to: string }): Promise<SendResult> {
-  if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
-  if (!opts.to) return { ok: false, error: "No recipient email provided." };
-  const routed = resolveRecipients(opts.to);
-  const recipients = routed.to;
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: EMAIL_FROM, to: recipients, reply_to: REPLY_TO, subject: opts.subject, html: opts.html }),
-    });
-    if (!res.ok) {
-      const detail = await res.text();
-      return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", "), redirected: routed.redirected, intended: routed.intended.join(", ") };
-    }
-    return { ok: true, to: recipients.join(", "), redirected: routed.redirected, intended: routed.intended.join(", ") };
-  } catch (e) {
-    return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: recipients.join(", ") };
-  }
-}
-
-const VALHALLA = "#271d5f";
-const PAID = "#1f9d6b";
-const INK_SOFT = "#5b4d86";
-const LILAC = "#f8eff9";
-
-
-//email for tenat only 
-function layout(inner: string): string {
-  return `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;">
-    <tr><td align="center">
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:92%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(39,29,95,0.4);">
-        <tr><td style="background:${VALHALLA};padding:22px 28px;">
-          <span style="font:800 22px 'Sora',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:-0.04em;color:#ffffff;">opndoor</span>
-          <span style="font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:rgba(255,255,255,0.7);margin-left:10px;">Guarantee Referral Portal</span>
-        </td></tr>
-        <tr><td style="padding:28px;font:400 15px/1.6 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${VALHALLA};">${inner}</td></tr>
-        <tr><td style="padding:18px 28px;background:${LILAC};font:400 12px/1.5 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};">opndoor. Questions? Reply to this email or contact ${REPLY_TO}.</td></tr>
-      </table>
-    </td></tr>
-  </table></body></html>`;
-}
-
-function receiptTemplate(p: { title: string; lastName: string; propertyAddr: string; amount: string; guaranteeRef: string }): { subject: string; html: string } {
-  const dear = [p.title, p.lastName].filter((x) => (x || "").trim()).join(" ").trim();
-  const subject = `We've received your guarantor fee - ${p.guaranteeRef}`;
-  const inner = `
-    <p style="margin:0 0 14px;">Dear ${dear || "there"},</p>
-    <p style="margin:0 0 16px;">Thank you, your guarantor fee for ${p.propertyAddr} has been received. Your Deed of Guarantee is on its way to you to sign electronically.</p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border:1px solid rgba(39,29,95,0.12);border-radius:12px;"><tr><td style="padding:16px 18px;">
-      <div style="font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:0.12em;text-transform:uppercase;color:${INK_SOFT};">Amount paid</div>
-      <div style="font:800 30px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${PAID};margin-top:4px;">${p.amount}</div>
-      <div style="font:400 13px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};margin-top:2px;">One-off guarantor fee. Reference ${p.guaranteeRef}.</div>
-    </td></tr></table>
-    <p style="margin:0 0 8px;font-size:13px;color:${INK_SOFT};">Once you've signed, your letting agent receives the executed deed and your tenancy can proceed. Nothing else is needed from you.</p>
-    <p style="margin:8px 0 0;font-size:13px;color:${INK_SOFT};">If you've already signed your deed, nothing more is needed.</p>`;
-  return { subject, html: layout(inner) };
-}
-
-/** Send the branded payment receipt to the tenant and record the activity entries. */
 export async function deliverPaymentReceipt(service: any, p: { appId: string; tenantEmail: string; title: string; lastName: string; propertyAddr: string; amount: string; guaranteeRef: string }): Promise<void> {
   if (!p.tenantEmail) return;
   const tpl = receiptTemplate({ title: p.title, lastName: p.lastName, propertyAddr: p.propertyAddr, amount: p.amount, guaranteeRef: p.guaranteeRef });
-  const res = await sendEmail({ subject: tpl.subject, html: tpl.html, to: p.tenantEmail });
+  // Says "your letting agent" or "your landlord" from what the tenant told us,
+  // rather than assuming. managedByFor never throws: a copy decision must not
+  // fail a send.
+  const res = await sendMessage({
+    to: p.tenantEmail,
+    message: paymentReceiptEmail({
+      propertyAddr: p.propertyAddr, guaranteeRef: p.guaranteeRef, amount: p.amount,
+      managedBy: managedByLabel(await managedByFor(service, p.appId)),
+    }),
+  });
   await service.from("activity_log").insert({
     application_id: p.appId,
     kind: res.ok ? "payment_receipt_sent" : "payment_receipt_failed",
