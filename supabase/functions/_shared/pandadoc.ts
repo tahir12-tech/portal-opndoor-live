@@ -23,7 +23,7 @@
 import { titleCaseAddress } from "./text.ts";
 import { pandadocConfigFor, pandadocConfiguredFor, pandadocWebhookKeys } from "./livemodeCredentials.ts";
 import { timingSafeEqual } from "./partnerAuth.ts";
-import { resolveRecipients } from "./emailRecipients.ts";
+import { sendMessage } from "./mailer.ts";
 
 const API = "https://api.pandadoc.com/public/v1";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -292,36 +292,20 @@ async function signingLink(documentId: string, recipientEmail: string, key: stri
 //redirct to user
 
 async function emailSigningLink(tenantEmail: string, link: string, ctx: RemindContext): Promise<{ ok: boolean; error?: string }> {
-  if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured, so the signing link could not be emailed." };
-  const routed = resolveRecipients(tenantEmail);
-  const recipients = routed.to;
-  const subject = `Your opndoor Deed of Guarantee is ready to sign, ${ctx.guarantee_ref}`;
-  const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;"><tr><td align="center">
-    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:92%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(39,29,95,0.4);">
-      <tr><td style="background:#271d5f;padding:22px 28px;"><span style="font:800 22px 'Sora',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:-0.04em;color:#fff;">opndoor</span><span style="font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:rgba(255,255,255,0.7);margin-left:10px;">Guarantee Referral Portal</span></td></tr>
-      <tr><td style="padding:28px;font:400 15px/1.6 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#271d5f;">
-        <p style="margin:0 0 14px;">Dear ${ctx.tenant_first_name} ${ctx.tenant_last_name},</p>
-        <p style="margin:0 0 18px;">Your opndoor Deed of Guarantee is ready to sign. Please review and sign the document to put your guarantee in place. Reference ${ctx.guarantee_ref}.</p>
-        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 18px;"><tr><td>
-          <a href="${link}" style="display:inline-block;background:#d364fb;color:#fff;text-decoration:none;font:700 15px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;padding:13px 28px;border-radius:999px;box-shadow:0 6px 18px -8px rgba(211,100,251,0.6);">Review and sign your deed</a>
-        </td></tr></table>
-        <p style="margin:14px 0 0;font-size:12px;color:#5b4d86;">If the button does not work, copy this link into your browser:<br><span style="color:#b54de0;word-break:break-all;">${link}</span></p>
-      </td></tr>
-      <tr><td style="padding:18px 28px;background:#f8eff9;font:400 12px/1.5 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#5b4d86;">opndoor. Questions? Reply to this email or contact ${REPLY_TO}.</td></tr>
-    </table>
-  </td></tr></table></body></html>`;
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: EMAIL_FROM, to: recipients, reply_to: REPLY_TO, subject, html }),
-    });
-    if (!res.ok) return { ok: false, error: `Resend responded ${res.status}: ${(await res.text()).slice(0, 150)}` };
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}` };
-  }
+  const res = await sendMessage({
+    to: tenantEmail,
+    message: {
+      subject: `Your opndoor Deed of Guarantee is ready to sign, ${ctx.guarantee_ref}`,
+      heading: "Your Deed of Guarantee is ready to sign",
+      blocks: [
+        { p: "Your guarantee is in place and the Deed of Guarantee is ready for your signature. Signing is the last step." },
+        { rows: [["Reference", ctx.guarantee_ref]] },
+        { small: "opndoor is a professional guarantor service, not insurance, and is not a party to your tenancy agreement." },
+      ],
+      action: { label: "Review and sign", href: link },
+    },
+  });
+  return { ok: res.ok, error: res.error };
 }
 
 /**
