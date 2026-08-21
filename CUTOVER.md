@@ -145,6 +145,87 @@ rewrite.
 
 ---
 
+## 0b. Deploy every function, with the right JWT setting
+
+**Found on dev, and production will have it too.** Fourteen of twenty-seven
+functions had never been deployed, including `stripe-webhook`, `pandadoc-webhook`,
+`payment-page` and `send-deed-to-agent`. That is the entire payment and deed half
+of the product. Nothing errored: a payment simply never settled, because there
+was nothing at the URL to receive the event.
+
+**And the deploy default is wrong for fifteen of them.** `verify_jwt` defaults to
+true and **Stripe cannot send a Supabase JWT**. A correctly signed webhook comes
+back `401 UNAUTHORIZED_NO_AUTH_HEADER` before the signature check ever runs.
+`supabase/config.toml` now records the exceptions, so a plain
+`supabase functions deploy` gets it right without anybody remembering a flag.
+
+These fifteen are **not unauthenticated**. Each carries a check stronger than a
+JWT: a provider signature over the raw body for the two webhooks, `x-ops-secret`
+for the cron set, a per-agency bearer token for `referencing-inbound`, and rate
+limiting for the genuinely public ones where a tenant has no session yet.
+
+### Deploy
+
+```
+supabase functions deploy --project-ref <PROD_REF>
+```
+
+**Verify the count first**, because a partial deploy is the failure this is about:
+
+```
+supabase functions list --project-ref <PROD_REF>
+```
+
+Compare against `ls supabase/functions | grep -v '^_'`. **27 of 27.**
+
+### Verify each of the fifteen is public
+
+**Do not judge this by the status code.** A function that is correctly public and
+correctly refusing an empty request looks identical, by status, to one that is
+wrongly gated: both return 401. The difference is in the body.
+
+```bash
+for f in stripe-webhook pandadoc-webhook payment-page payment-confirmation \
+         send-password-reset tenancy-correction tenant-auth expiry-reminders \
+         expiry-cohorts payment-reminders ops-alert weekly-digest hubspot-sync \
+         referencing-inbound referencing-callback; do
+  body=$(curl -s -X POST "https://<PROD_REF>.supabase.co/functions/v1/$f" \
+           -H "Content-Type: application/json" -d '{}' | head -c 90)
+  case "$body" in
+    *UNAUTHORIZED_NO_AUTH_HEADER*) echo "$f  PLATFORM 401  <-- WRONG, still gated" ;;
+    *) echo "$f  ok: $body" ;;
+  esac
+done
+```
+
+**No line may say `PLATFORM 401`.** Everything else is a pass, including:
+
+| Function | Expected refusal, and it is correct |
+| -------- | ----------------------------------- |
+| `stripe-webhook` | `400`, no signature on the request |
+| `pandadoc-webhook` | `Invalid signature` |
+| the six cron functions | `{"ok":false,"error":"Not authorised."}`, no `x-ops-secret` |
+| `referencing-inbound` | `Missing or malformed Authorization header` |
+| `tenant-auth` | `400`, no action in the body |
+| `payment-confirmation`, `send-password-reset`, `tenancy-correction` | `200`, they answer neutrally by design |
+
+### The end-to-end proof
+
+Config being right is not the same as a payment settling. Sign a test event with
+the webhook secret and post it:
+
+```
+bad signature  -> 400
+good signature -> reaches the database
+```
+
+A **500 naming a database error is a pass**: it means the signature verified and
+the event was decoded. On dev, an event for a deliberately non-existent
+application returned `apply_stripe_payment failed: application not found`, which
+is the whole path working. A wrong secret gives 400 and never reaches SQL.
+
+---
+
 ## 1. Supabase Auth settings
 
 ### 1.1 Email OTP Expiration

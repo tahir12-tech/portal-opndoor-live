@@ -1,0 +1,77 @@
+# =============================================================================
+# Supabase CLI configuration.
+#
+# This file did not exist. Everything the CLI needed came from the link in
+# supabase/.temp, and every per-function setting came from whatever flag the
+# last person happened to type. That is how a correctly signed Stripe webhook
+# came back 401: the deploy default is verify_jwt = true, nothing recorded the
+# exceptions, and Stripe cannot send a Supabase JWT.
+#
+# It is deliberately minimal. The CLI supplies its own defaults for anything
+# absent, and this repo's database configuration lives in migrations, not here.
+# =============================================================================
+
+project_id = "portal-opndoor"
+
+# -----------------------------------------------------------------------------
+# Functions that must NOT require a Supabase JWT.
+#
+# THESE ARE NOT UNAUTHENTICATED. Each carries a check stronger than a JWT:
+#
+#   stripe-webhook, pandadoc-webhook     a provider signature over the raw body
+#   the cron set                          x-ops-secret, matched against the edge
+#                                         secret OR the ops_secrets mirror
+#   tenant-auth, payment-page,            public by design and rate limited;
+#   payment-confirmation                  a tenant has no session at these points
+#   referencing-inbound                   a per-agency bearer token
+#
+# verify_jwt = true would reject the caller BEFORE any of those checks run, so
+# the strong check never gets a chance and the failure is a 401 nobody sees.
+#
+# A flag on a deploy command is a thing somebody forgets. This is not.
+# -----------------------------------------------------------------------------
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.pandadoc-webhook]
+verify_jwt = false
+
+[functions.payment-page]
+verify_jwt = false
+
+[functions.payment-confirmation]
+verify_jwt = false
+
+[functions.send-password-reset]
+verify_jwt = false
+
+[functions.tenancy-correction]
+verify_jwt = false
+
+[functions.tenant-auth]
+verify_jwt = false
+
+[functions.expiry-reminders]
+verify_jwt = false
+
+[functions.expiry-cohorts]
+verify_jwt = false
+
+[functions.payment-reminders]
+verify_jwt = false
+
+[functions.ops-alert]
+verify_jwt = false
+
+[functions.weekly-digest]
+verify_jwt = false
+
+[functions.hubspot-sync]
+verify_jwt = false
+
+[functions.referencing-inbound]
+verify_jwt = false
+
+[functions.referencing-callback]
+verify_jwt = false
