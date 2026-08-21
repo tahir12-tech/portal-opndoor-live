@@ -196,6 +196,14 @@ Deno.serve(async (req) => {
 
     /* ---- register ------------------------------------------------------- */
     if (action === "register") {
+      // AT THE TOP, before anything is created. The first version of this
+      // asserted inside sendCode, which runs AFTER the auth user and the
+      // applicant row exist, so a 503 left an account behind that could never
+      // be verified and whose error message said it had done nothing. That is
+      // the exact "fail at the boundary" rule emailConfigured.ts states, broken
+      // in the first place it was used.
+      assertEmailConfigured();
+
       const password = String(body.password ?? "");
       // Same answer whether refused or accepted, so the limiter is not an oracle.
       if (!(await withinLimits(service, req, "register", email, 5, 20))) {
