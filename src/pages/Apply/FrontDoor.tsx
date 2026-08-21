@@ -40,7 +40,10 @@ import './Apply.css';
    What the left panel says is the only thing that changes, because a tenant is
    not a partner and "Refer with confidence" means nothing to them. */
 function Shell({
-  title, sub, children, eyebrow = 'Tenant sign in',
+  // No misleading default. Every caller states its own, because a shared
+  // default reading "Tenant sign in" is how a registration page ended up
+  // labelled as a sign-in.
+  title, sub, children, eyebrow = 'Your application',
 }: {
   title: string; sub?: string; children: React.ReactNode; eyebrow?: string;
 }) {
@@ -124,6 +127,7 @@ export function Register() {
   const [f, setF] = useState({ first_name: '', last_name: '', email: '', phone: '', password: '' });
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [sendFailed, setSendFailed] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const ready = f.first_name && f.last_name && f.email.includes('@') && f.password.length >= 10;
@@ -131,8 +135,12 @@ export function Register() {
   const go = async () => {
     setBusy(true); setErr(null);
     try {
-      await auth.register({ ...f, invite });
+      const r = await auth.register({ ...f, invite }) as { sent?: boolean } | undefined;
       if (!SUPABASE_ENABLED) { await afterSignIn(nav, invite); return; }
+      // ok with sent:false means the account is real and the code is not. Go to
+      // the verification screen and say so, rather than back to a form that
+      // would tell them the address is already taken.
+      setSendFailed(r?.sent === false);
       setSent(true);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not create the account.');
@@ -140,11 +148,11 @@ export function Register() {
   };
 
   if (sent) {
-    return <CodeStep email={f.email} invite={invite} onBack={() => setSent(false)} />;
+    return <CodeStep email={f.email} invite={invite} onBack={() => setSent(false)} sendFailed={sendFailed} />;
   }
 
   return (
-    <Shell title="Apply for an opndoor guarantee"
+    <Shell eyebrow="Create an account" title="Apply for an opndoor guarantee"
       sub="Create an account first, so nothing you type is ever lost.">
         <div className="ap-grid">
           <Field label="First name" htmlFor="ap-first"><input id="ap-first" className="input" value={f.first_name} onChange={(e) => setF({ ...f, first_name: e.target.value })} /></Field>
@@ -178,8 +186,11 @@ export function Register() {
    email on a phone. A link strands them on the wrong device; six digits cross
    the gap by being typed.
    --------------------------------------------------------------------------- */
-function CodeStep({ email, invite, onBack, purpose = 'verify_email' }: {
+function CodeStep({ email, invite, onBack, purpose = 'verify_email', sendFailed = false }: {
   email: string; invite?: string; onBack: () => void;
+  /** The first code did not go out. The account exists; only delivery failed,
+      so the way forward is another code rather than starting again. */
+  sendFailed?: boolean;
   /** Which code this is. A registration code confirms the address; a sign-in
       code proves possession of one already confirmed. The server verifies the
       purpose too, so one cannot be spent as the other. */
@@ -206,6 +217,12 @@ function CodeStep({ email, invite, onBack, purpose = 'verify_email' }: {
     <Shell title="Check your email"
       eyebrow={purpose === 'sign_in' ? 'Two-factor' : 'Confirm your address'}
       sub={`We have sent a six-digit code to ${email}. It lasts ten minutes.`}>
+      {sendFailed && (
+        <div className="ap-alert" role="alert" style={{ marginBottom: 14 }}>
+          Your account was created, but we could not send the code just now.
+          Use <b>send a new code</b> below to try again.
+        </div>
+      )}
       <form className="auth__form" onSubmit={(e) => { e.preventDefault(); void go(); }} noValidate>
         <div className="field">
           <label htmlFor="code">Confirmation code</label>
@@ -268,7 +285,7 @@ export function Forgot() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   return (
-    <Shell title="Set a new password">
+    <Shell eyebrow="Reset your password" title="Set a new password">
         {sent ? (
           <p className="ap-p">
             If there is an account for <strong>{email}</strong>, we have sent it a link. It lasts an hour.
@@ -304,8 +321,8 @@ export function ResetPassword() {
   }, []);
 
   return (
-    <Shell title="Choose a new password">
-        {err && <div className="ap-alert" role="alert">{err} <a href="/apply/forgot">Ask for a new link</a>.</div>}
+    <Shell eyebrow="Reset your password" title="Choose a new password">
+        {err && <div className="ap-alert" role="alert">{err} <a href="/forgot-password?tab=tenant">Ask for a new link</a>.</div>}
         {ready && !err && (
           <>
             <Field label="New password" htmlFor="ap-new-password" hint="At least 10 characters.">
@@ -338,7 +355,7 @@ export function Verify() {
   }, [nav]);
 
   return (
-    <Shell title={err ? 'That link did not work' : 'Confirming your email…'}>
+    <Shell eyebrow="Confirm your email" title={err ? 'That link did not work' : 'Confirming your email…'}>
       {err && (
         <>
           <div className="ap-alert" role="alert">{err}</div>

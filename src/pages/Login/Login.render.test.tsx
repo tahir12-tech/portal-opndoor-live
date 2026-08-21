@@ -15,6 +15,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
 import { Login } from './Login';
+import { ForgotPassword } from '@/pages/ForgotPassword/ForgotPassword';
 import { App } from '@/App';
 
 afterEach(() => cleanup());
@@ -365,5 +366,49 @@ describe('there is one sign-in page', () => {
     // token is the difference between claiming the agent's application and
     // opening an empty one.
     expect(screen.getByRole('tab', { name: 'Tenant' }).getAttribute('aria-selected')).toBe('true');
+  });
+});
+
+describe('the reset page', () => {
+  const reset = (path = '/forgot-password') => render(
+    <MemoryRouter initialEntries={[path]}><ForgotPassword /></MemoryRouter>,
+  );
+
+  it('offers the same three audiences as /login, and says Supplier', () => {
+    reset();
+    for (const label of ['Tenant', 'Agent', 'Supplier']) {
+      expect(screen.getByRole('tab', { name: label })).toBeTruthy();
+    }
+    // The site this replaces says Operator. The portal says Supplier.
+    expect(screen.queryByRole('tab', { name: 'Operator' })).toBeNull();
+  });
+
+  it('carries the chosen tab back to sign in', () => {
+    for (const tab of ['tenant', 'agent', 'supplier']) {
+      const { container } = reset(`/forgot-password?tab=${tab}`);
+      expect(container.querySelector('.auth__foot a')!.getAttribute('href')).toBe(`/login?tab=${tab}`);
+      cleanup();
+    }
+  });
+
+  it('has exactly one back-to-sign-in link', () => {
+    const { container } = reset();
+    // The screenshot had it twice, once mid-paragraph and once in the footer.
+    const backs = Array.from(container.querySelectorAll('a')).filter((a) => /back to sign in/i.test(a.textContent ?? ''));
+    expect(backs.length).toBe(1);
+  });
+
+  it('says the same thing whether or not the address exists', async () => {
+    reset();
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'nobody@example.invalid' } });
+    fireEvent.click(screen.getByRole('button', { name: /send reset link/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toBeTruthy());
+    // Neutral by design: never reveals whether an account is there.
+    expect(screen.getByRole('status').textContent).toMatch(/if an account exists/i);
+  });
+
+  it('keeps the same skeleton as /login so the tabs cannot shift the form', () => {
+    const { container } = reset();
+    expect(container.querySelector('.auth__pane > .auth__pane-body > .auth__stack')).toBeTruthy();
   });
 });

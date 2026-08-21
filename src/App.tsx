@@ -9,7 +9,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { RequireRole } from '@/components/guards/RequireRole';
 import { Apply } from '@/pages/Apply/Apply';
 import {
-  Forgot as TenantForgot, InviteLanding, Register,
+  InviteLanding, Register,
   ResetPassword as TenantResetPassword, Verify as TenantVerify,
 } from '@/pages/Apply/FrontDoor';
 import { RequireAuth } from '@/components/guards/RequireAuth';
@@ -74,7 +74,9 @@ export function App() {
           keeps the query string, so an ?invite= token still reaches the tab
           that claims it. */}
       <Route path="/apply/signin" element={<LegacySignInRedirect />} />
-      <Route path="/apply/forgot" element={<TenantForgot />} />
+      {/* Tenant reset moved onto /forgot-password's Tenant tab. Redirects
+          rather than 404s: reset links and older emails carry this path. */}
+      <Route path="/apply/forgot" element={<Navigate to="/forgot-password?tab=tenant" replace />} />
       <Route path="/apply/reset" element={<TenantResetPassword />} />
       <Route path="/apply/verify" element={<TenantVerify />} />
       <Route path="/apply/invite" element={<InviteLanding />} />

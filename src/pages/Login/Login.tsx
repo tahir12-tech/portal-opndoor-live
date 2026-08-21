@@ -634,7 +634,7 @@ function TenantSignInPanel() {
                          value={tPassword} onChange={(e) => setTPassword(e.target.value)} required />
         </div>
         <div className="auth__row auth__row--end">
-          <a href="/apply/forgot">Forgot password?</a>
+          <a href="/forgot-password?tab=tenant">Forgot password?</a>
         </div>
         <Button variant="primary" block type="submit" arrow disabled={tBusy || !tEmail || !tPassword}>
           {tBusy ? 'Signing in\u2026' : 'Sign in'}

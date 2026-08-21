@@ -268,8 +268,29 @@ Deno.serve(async (req) => {
       // A CODE, not a link. A tenant applying on a laptop reads their email on a
       // phone, and a link then strands them on the wrong device. A code crosses
       // devices by being typed, which is the whole point of it.
-      await sendCode(service, email, "verify_email");
-      return json({ ok: true, sent: true });
+      //
+      // A SEND FAILURE DOES NOT UNDO THE ACCOUNT. The account is real and the
+      // address is theirs; only the delivery failed. Deleting it would send them
+      // back to a form that then tells them the email is taken, which is the
+      // worse outcome and is not recoverable from the outside.
+      //
+      // So the account stands, the caller is told the code did not go, and the
+      // verification screen offers another. Codes expire and mail lands in spam,
+      // so that path is needed anyway and this is just its first use.
+      let codeSent = true;
+      let sendError: string | null = null;
+      try {
+        await sendCode(service, email, "verify_email");
+      } catch (e) {
+        codeSent = false;
+        sendError = e instanceof Error ? e.message : "The code could not be sent.";
+        console.log(JSON.stringify({ event: "register_code_send_failed", message: sendError }));
+      }
+      return json({
+        ok: true,
+        sent: codeSent,
+        ...(codeSent ? {} : { error: sendError }),
+      });
     }
 
     if (action === "resend_verification") {
