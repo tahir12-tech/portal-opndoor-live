@@ -15,6 +15,9 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+import { sendMessage } from "../_shared/mailer.ts";
+import { opsAlertEmail } from "../_shared/emailTemplates.ts";
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-ops-secret",
@@ -63,43 +66,6 @@ function row(label: string, value: string): string {
   </tr>`;
 }
 
-function template(p: { type: string; label: string; ref: string | null; tenant: string | null; partner: string | null; message: string; link: string | null }): { subject: string; html: string } {
-  const subject = `[opndoor ops] ${p.label}${p.ref ? ` (${p.ref})` : ""}`;
-  const rows = [
-    row("Failure", esc(p.label)),
-    row("Type", esc(p.type)),
-    p.ref ? row("Application", esc(p.ref)) : "",
-    p.tenant ? row("Tenant", esc(p.tenant)) : "",
-    p.partner ? row("Partner", esc(p.partner)) : "",
-  ].filter(Boolean).join("");
-  const button = p.link
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;"><tr><td>
-        <a href="${p.link}" style="display:inline-block;background:${VALHALLA};color:#fff;text-decoration:none;font:700 14px 'Manrope',system-ui,Arial,sans-serif;padding:12px 24px;border-radius:999px;">Open the application</a>
-      </td></tr></table>`
-    : "";
-  const inner = `
-    <p style="margin:0 0 6px;font:800 16px 'Sora',system-ui,Arial,sans-serif;color:${DANGER};">Operational failure</p>
-    <p style="margin:0 0 16px;">${esc(p.label)} was detected and logged. Details below.</p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:10px 0;border:1px solid rgba(39,29,95,0.12);border-radius:12px;background:${LILAC};"><tr><td style="padding:14px 18px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>
-    </td></tr></table>
-    <div style="margin:12px 0;padding:12px 14px;border-radius:10px;background:#fff5f5;border:1px solid rgba(192,57,43,0.25);font:400 13px/1.5 'Manrope',system-ui,Arial,sans-serif;color:${VALHALLA};"><b style="color:${DANGER};">Error</b><br>${esc(p.message).slice(0, 800)}</div>
-    ${button}`;
-  const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;">
-      <tr><td align="center">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:92%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(39,29,95,0.4);">
-          <tr><td style="background:${VALHALLA};padding:20px 28px;">
-            <span style="font:800 20px 'Sora',system-ui,Arial,sans-serif;letter-spacing:-0.04em;color:#fff;">opndoor</span>
-            <span style="font:600 12px 'Manrope',system-ui,Arial,sans-serif;color:rgba(255,255,255,0.7);margin-left:10px;">Operations alert</span>
-          </td></tr>
-          <tr><td style="padding:26px 28px;font:400 15px/1.6 'Manrope',system-ui,Arial,sans-serif;color:${VALHALLA};">${inner}</td></tr>
-          <tr><td style="padding:16px 28px;background:${LILAC};font:400 12px/1.5 'Manrope',system-ui,Arial,sans-serif;color:${INK_SOFT};">Automated alert from the Guarantee Referral Portal. Deduped to one per failure type per application per hour.</td></tr>
-        </table>
-      </td></tr>
-    </table></body></html>`;
-  return { subject, html };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -149,17 +115,12 @@ Deno.serve(async (req) => {
       ?? (type.startsWith("cron_error") ? "Scheduled job error"
         : type.startsWith("webhook_error") ? "Webhook processing error"
         : type);
-    const tpl = template({ type, label, ref, tenant, partner, message, link });
+    const tpl = opsAlertEmail({ type, label, ref, message, link });
 
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: EMAIL_FROM, to: [OPS_ADDRESS], reply_to: REPLY_TO, subject: tpl.subject, html: tpl.html }),
-    });
-    if (!res.ok) {
-      const detail = await res.text();
-      return json({ ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}` }, 502);
-    }
+    const res = await sendMessage({ to: dest, message: tpl });
+    // sendMessage returns a SendResult, not a fetch Response: the shared sender
+    // already turned the provider's reply into ok plus a reason.
+    if (!res.ok) return json({ ok: false, error: res.error ?? "Send failed." }, 502);
     return json({ ok: true, sent_to: OPS_ADDRESS, type, ref });
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "Unexpected error." }, 500);

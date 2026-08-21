@@ -16,7 +16,8 @@
 // (optional {date, reset}) so the job can be verified today without waiting.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { sendEmail, expiryReminderTemplate } from "./email.ts";
+import { sendMessage } from "../_shared/mailer.ts";
+import { expiryReminderEmail } from "../_shared/emailTemplates.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -136,11 +137,13 @@ Deno.serve(async (req) => {
             ]
               .filter(isValidEmail)
               .map((email) => email.trim());
-      const tpl = expiryReminderTemplate({
-        guaranteeRef: r.guarantee_ref, prop: r.prop ?? "", agency: r.agency ?? "", branch: r.branch ?? "",
-        daysUntil: r.days, expiryDmy: dmy(r.expiry_date), intendedFor: recipients.join(", ") || "the owning referrer and partner management",
+      const res = await sendMessage({
+        to: recipients,
+        message: expiryReminderEmail({
+          guaranteeRef: r.guarantee_ref, propertyAddr: r.prop ?? "",
+          expiryLabel: dmy(r.expiry_date), agency: r.agency ?? null, branch: r.branch ?? null,
+        }),
       });
-      const res = await sendEmail({ subject: tpl.subject, html: tpl.html, to: recipients.join(", ")});
       if (res.ok) {
         emailed += 1;
       } else {
