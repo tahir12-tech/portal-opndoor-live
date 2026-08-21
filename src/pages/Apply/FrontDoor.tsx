@@ -69,7 +69,7 @@ function Shell({
           <div className="auth__flow-item">
             <span className="auth__flow-ic"><Icon name="edit" /></span>
             <div>
-              <div className="auth__flow-t">Apply in about fifteen minutes</div>
+              <div className="auth__flow-t">Everything saves as you go</div>
               <div className="auth__flow-s">Stop and come back whenever you like</div>
             </div>
           </div>
@@ -411,7 +411,7 @@ export function InviteLanding() {
         </dl>
         <p className="ap-p">
           You will not have to enter any of that again. We need your address history, your income and a
-          couple of documents. About fifteen minutes, and you can stop and come back.
+          couple of documents. Everything saves as you go, so you can stop and come back whenever you like.
         </p>
         <div className="ap-actions">
           <Button variant="primary" onClick={() => nav(`/apply/register?invite=${encodeURIComponent(token)}`)}>
