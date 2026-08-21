@@ -150,16 +150,44 @@ async function sendCode(service: any, email: string, purpose: "verify_email" | "
   assertEmailConfigured();
 
   const code = sixDigits();
-  const { data: allowed } = await service.rpc("issue_email_code", {
+  // Set-returning now: one row of { allowed, superseded }. Issuing a code
+  // retires the previous one for the same purpose, and the mail has to say so.
+  const { data: issued } = await service.rpc("issue_email_code", {
     p_email: email, p_purpose: purpose, p_code_hash: await sha256Hex(code), p_ttl_minutes: 10,
   });
-  if (allowed !== true) return;          // rate limited: silently do nothing
+  const row = Array.isArray(issued) ? issued[0] : issued;
+  if (row?.allowed !== true) return;     // rate limited: silently do nothing
 
-  const res = await sendMessage({ to: email, message: codeEmail(code, 10) });
+  const res = await sendMessage({ to: email, message: codeEmail(code, 10, row.superseded === true) });
   // The result used to be dropped here and the caller answered ok either way.
   if (!res.ok) {
     console.log(JSON.stringify({ event: "code_email_failed", purpose, message: res.error }));
     throw new Error(res.error ?? "The confirmation code could not be sent.");
+  }
+}
+
+/**
+ * Why a code failed, in words, without handing an attacker a probe.
+ *
+ * The line is possession. 'superseded', 'used' and 'exhausted' are only
+ * reachable by somebody who holds a code we really sent, so naming them tells
+ * a stranger nothing they did not already have. 'wrong' and 'none' are the
+ * pair that would leak: they separate "you mistyped it" from "no code is
+ * outstanding for this address", which is an account probe. They share one
+ * sentence and always will.
+ */
+function codeFailure(reason?: string): string {
+  switch (reason) {
+    case "superseded":
+      return "That code has been replaced. Use the code in the most recent email we sent you.";
+    case "used":
+      return "That code has already been used. Ask for a new one.";
+    case "expired":
+      return "That code has expired. Ask for a new one.";
+    case "exhausted":
+      return "That code has had too many wrong attempts. Ask for a new one.";
+    default:
+      return "That code is not right. Check it and try again, or ask for a new one.";
   }
 }
 
@@ -435,13 +463,12 @@ Deno.serve(async (req) => {
       // is verified rather than assumed.
       const purpose = body.purpose === "sign_in" ? "sign_in" : "verify_email";
 
-      const { data: ok } = await service.rpc("verify_email_code", {
+      const { data: checked } = await service.rpc("verify_email_code", {
         p_email: email, p_purpose: purpose, p_code_hash: await sha256Hex(code),
       });
-      // One message for wrong, expired, exhausted and never-issued. Telling the
-      // difference is telling an attacker where they are.
-      if (ok !== true) {
-        return json({ ok: false, error: "That code is not right, or it has expired. Ask for a new one." }, 401);
+      const v = Array.isArray(checked) ? checked[0] : checked;
+      if (v?.ok !== true) {
+        return json({ ok: false, error: codeFailure(v?.reason), reason: v?.reason ?? "wrong" }, 401);
       }
 
       const { data: ap } = await service.from("applicants").select("id").eq("email", email).maybeSingle();

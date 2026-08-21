@@ -555,6 +555,10 @@ function TenantSignInPanel() {
   const [tErr, setTErr] = useState<string | null>(null);
   const [tSent, setTSent] = useState(false);
   const [tCode, setTCode] = useState('');
+  // Tapping resend here used to do its work in silence, so the only evidence
+  // was a second identical email. The register screen already confirms; this
+  // says the same thing in the same words.
+  const [tResent, setTResent] = useState(false);
 
   async function confirm(e: FormEvent) {
     e.preventDefault();
@@ -618,11 +622,12 @@ function TenantSignInPanel() {
       <p className="auth__foot">
         Nothing arrived? Check your spam folder, or{' '}
         <button type="button" className="linkish" style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--heliotrope-deep, #5b3fd9)', textDecoration: 'underline', cursor: 'pointer' }}
-          onClick={() => { void tenantAuth.resendCode(tEmail, 'sign_in'); }}>send a new one</button>.
+          onClick={() => { void tenantAuth.resendCode(tEmail, 'sign_in'); setTResent(true); setTCode(''); setTErr(null); }}>send a new one</button>.
+        {tResent && <> A new one is on its way. The previous code has stopped working.</>}
       </p>
       <p className="auth__foot">
         <button type="button" className="linkish" style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--heliotrope-deep, #5b3fd9)', textDecoration: 'underline', cursor: 'pointer' }}
-          onClick={() => { setTSent(false); setTCode(''); setTErr(null); }}>Use a different email address</button>
+          onClick={() => { setTSent(false); setTCode(''); setTErr(null); setTResent(false); }}>Use a different email address</button>
       </p>
       </div>
     </>

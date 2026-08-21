@@ -13,12 +13,20 @@ const money = (n: number) => `£${n.toLocaleString("en-GB", { maximumFractionDig
 
 /* ---- tenant: identity and access ---------------------------------------- */
 
-export function codeEmail(code: string, minutes: number): Message {
+export function codeEmail(code: string, minutes: number, superseded = false): Message {
   return {
-    subject: `${code} is your opndoor confirmation code`,
-    heading: "Your confirmation code",
+    subject: superseded
+      ? `${code} is your new opndoor confirmation code`
+      : `${code} is your opndoor confirmation code`,
+    heading: superseded ? "Your new confirmation code" : "Your confirmation code",
     blocks: [
-      { p: "Enter this code to confirm your email address and continue your application." },
+      // Somebody who tapped resend has two or more of these sitting in one
+      // inbox, identical apart from six digits. Say which one is live, in the
+      // body rather than only the subject, because the older mail is the one
+      // nearer the top on a phone.
+      superseded
+        ? { p: "Enter this code to confirm your email address and continue your application. This replaces any earlier code we sent you, which no longer works." }
+        : { p: "Enter this code to confirm your email address and continue your application." },
       { callout: code },
       { small: `It lasts ${minutes} minutes and can be used once. If you did not ask for this, you can ignore it and nothing happens. We will never ask you for this code.` },
     ],

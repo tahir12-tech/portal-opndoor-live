@@ -280,7 +280,7 @@ function CodeStep({ email, invite, onBack, purpose = 'verify_email', sendFailed 
       <p className="auth__foot">
         Nothing arrived? Check your spam folder, or{' '}
         <button type="button" className="ap-link"
-          onClick={() => { void auth.resendCode(email, purpose); setResent(true); }}>
+          onClick={() => { void auth.resendCode(email, purpose); setResent(true); setCode(''); }}>
           send a new code
         </button>.
         {resent && <> A new one is on its way. The previous code has stopped working.</>}

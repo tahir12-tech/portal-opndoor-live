@@ -345,6 +345,17 @@ describe('a tenant gets two-factor too', () => {
     expect(box.value).toBe('123456');
   });
 
+  it('confirms a resend, and clears the box holding the dead code', async () => {
+    // Tapping this used to do its work in silence: the only evidence a resend
+    // had happened was a second email. Worse, the digits of the code it had
+    // just killed stayed in the box, ready to be submitted.
+    await toCodeStep();
+    fireEvent.change(screen.getByLabelText('Confirmation code'), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: /send a new one/i }));
+    await waitFor(() => expect(screen.getByText(/previous code has stopped working/i)).toBeTruthy());
+    expect((screen.getByLabelText('Confirmation code') as HTMLInputElement).value).toBe('');
+  });
+
   it('lets somebody go back and use a different address', async () => {
     await toCodeStep();
     fireEvent.click(screen.getByRole('button', { name: /different email address/i }));
