@@ -13,7 +13,8 @@
 // belongs to a real account.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { passwordResetTemplate, sendEmail } from "./email.ts";
+import { sendMessage } from "../_shared/mailer.ts";
+import { passwordResetEmail } from "../_shared/emailTemplates.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -54,12 +55,7 @@ Deno.serve(async (req) => {
       });
       const link = data?.properties?.action_link as string | undefined;
       if (!error && link) {
-        const tpl = passwordResetTemplate({ link });
-        const result = await sendEmail({
-          subject: tpl.subject,
-          html: tpl.html,
-          to: email,
-        });
+        const result = await sendMessage({ to: email, message: passwordResetEmail(link) });
 
 console.log("EMAIL RESULT", result);
       }
