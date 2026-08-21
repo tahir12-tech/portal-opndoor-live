@@ -553,7 +553,8 @@ function TenantSignInPanel() {
       await tenantAuth.verifyCode(tEmail, tCode, 'sign_in');
       // afterSignIn is imported rather than reimplemented: it decides between
       // claiming an invite and opening a draft, and two copies would drift.
-      await afterSignIn(nav, invite);
+      const failed = await afterSignIn(nav, invite);
+      if (failed) { setTErr(failed); setTBusy(false); return; }
       // busy stays true through the navigation, blocking a double submit.
     } catch (err) {
       setTErr(err instanceof Error ? err.message : 'That code is not right.');

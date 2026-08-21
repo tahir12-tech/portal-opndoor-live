@@ -136,7 +136,11 @@ export function Register() {
     setBusy(true); setErr(null);
     try {
       const r = await auth.register({ ...f, invite }) as { sent?: boolean } | undefined;
-      if (!SUPABASE_ENABLED) { await afterSignIn(nav, invite); return; }
+      if (!SUPABASE_ENABLED) {
+        const failed = await afterSignIn(nav, invite);
+        if (failed) setErr(failed);
+        return;
+      }
       // ok with sent:false means the account is real and the code is not. Go to
       // the verification screen and say so, rather than back to a form that
       // would tell them the address is already taken.
@@ -206,7 +210,8 @@ function CodeStep({ email, invite, onBack, purpose = 'verify_email', sendFailed 
     setBusy(true); setErr(null);
     try {
       await auth.verifyCode(email, code, purpose);
-      await afterSignIn(nav, invite);
+      const failed = await afterSignIn(nav, invite);
+      if (failed) { setErr(failed); setBusy(false); }
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'That code is not right.');
       setBusy(false);
@@ -266,15 +271,27 @@ function CodeStep({ email, invite, onBack, purpose = 'verify_email', sendFailed 
  * rather than created and the property comes with it. Otherwise a fresh draft
  * is opened, empty, and the Property step is the first thing they see.
  */
-export async function afterSignIn(nav: (to: string) => void, invite?: string) {
+export async function afterSignIn(nav: (to: string) => void, invite?: string): Promise<string | null> {
   try {
     if (invite) {
       await api.claimInvite(invite);
     } else {
       await api.startApplication({});
     }
-  } catch { /* a failure here must not strand somebody who just signed in */ }
+  } catch (e) {
+    /* THE SWALLOW WAS THE WORST PART OF THE WORST FAILURE.
+       This used to catch and carry on to /apply, which finds no application and
+       sends them back to the registration form. A tenant who has just created
+       an account, verified a code and been returned to "Create an account
+       first" has no way to read that as anything but the account not saving.
+
+       They stay signed in, which is true and is why the catch existed. But they
+       are TOLD, and the caller decides where to put them, rather than being
+       shown the form they just completed. */
+    return e instanceof Error && e.message ? e.message : 'We could not open your application.';
+  }
   nav('/apply');
+  return null;
 }
 
 
