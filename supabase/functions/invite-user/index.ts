@@ -13,7 +13,8 @@
 // management may invite referrers/managers into THEIR OWN partner only.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { inviteEmailTemplate, sendEmail } from "./email.ts";
+import { sendMessage } from "../_shared/mailer.ts";
+import { staffInviteEmail } from "../_shared/emailTemplates.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -154,9 +155,7 @@ Deno.serve(async (req) => {
     // full_name falls back to their email (see fullName above), so if such a user
     // is the inviter, drop it and let the template say "Your team".
     const inviterName = caller.full_name && !caller.full_name.includes("@") ? caller.full_name : "";
-    const tpl = inviteEmailTemplate({ link, intendedFor: email, firstName, inviterName, partnerName });
-    // const emailRes = await sendEmail({ subject: tpl.subject, html: tpl.html });
-     const emailRes = await sendEmail({ subject: tpl.subject, html: tpl.html, to: email });
+    const emailRes = await sendMessage({ to: email, message: staffInviteEmail({ inviterName, partnerName, link }) });
 
     // const emailRes = await sendEmail({
     //     subject: tpl.subject,
