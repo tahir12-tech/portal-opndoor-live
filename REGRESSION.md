@@ -2020,3 +2020,25 @@ recorded as invalid, one file earlier, on the same day.
 
 H22.2 is the specific one. It is how this defect got in, and the reason it took
 an adversarial pass rather than a review to find it.
+
+---
+
+## H23. Registration tells you the address is taken
+
+**A deliberate disclosure, decided 21 Aug 2026.** The neutral answer protected
+the address and lied to the person: a returning user was told a six-digit code
+was on its way and shown a box to type it into, when no code had been sent. They
+waited for something that did not exist.
+
+Registration now answers differently for a known address. That is an enumeration
+oracle and it was accepted as a trade. **The rate limit is the whole defence.**
+
+| # | Setup | Expected |
+| - | ----- | -------- |
+| H23.1 [AUTO] | Register with a known address | `{ok:true, exists:true}`. Screen says **You already have an account**, with a sign-in button and a forgotten-password link |
+| H23.2 [AUTO] | Register with a new address | `{ok:true, sent:true}`. The code screen |
+| H23.3 [SEMI] | The known-address case | The "you already have an account" email **still sends**. It is what tells the real owner somebody tried, and the screen cannot do that |
+| H23.4 [AUTO] | Eleven registrations from one caller in an hour | **429** with `code: rate_limited`. Not a fake success |
+| H23.5 [AUTO] | Six registrations for one address in an hour | 429. The per-address cap is unchanged at 5 |
+| H23.6 [HUMAN] | Anyone changing the per-caller cap | It is not a nuisance control. It is the only thing between a curious person and a list of which addresses hold accounts |
+| H23.7 [AUTO] | The 429 body | Names neither the address nor whether it exists. A refusal must not leak what the endpoint would have said |

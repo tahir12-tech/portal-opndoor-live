@@ -188,8 +188,18 @@ Deno.serve(async (req) => {
 
       const password = String(body.password ?? "");
       // Same answer whether refused or accepted, so the limiter is not an oracle.
-      if (!(await withinLimits(service, req, "register", email, 5, 20))) {
-        return json({ ok: true, sent: true });
+      // THE LIMIT IS NOW THE WHOLE DEFENCE, so it refuses honestly rather than
+      // impersonating success. This endpoint discloses whether an address is
+      // registered, a deliberate trade for a clearer signup, and that turns the
+      // per-caller cap from a nuisance control into the thing standing between
+      // a curious person and a list. Ten an hour is enough to sign up, mistype
+      // twice and try again; it is useless for testing a list of addresses.
+      if (!(await withinLimits(service, req, "register", email, 5, 10))) {
+        return json({
+          ok: false,
+          error: "Too many attempts from here. Wait a little and try again.",
+          code: "rate_limited",
+        }, 429);
       }
       if (!email || !email.includes("@")) return json({ ok: false, error: "Enter a valid email address." }, 400);
       if (password.length < 10) return json({ ok: false, error: "Use at least 10 characters." }, 400);
@@ -205,11 +215,18 @@ Deno.serve(async (req) => {
       const { data: existing } = await service.from("applicants").select("id").eq("email", email).maybeSingle();
 
       if (existing) {
-        // Known address. Say nothing different, but send a "you already have an
-        // account" email so a real person is not left confused by silence.
+        // KNOWN ADDRESS, AND WE SAY SO. This used to answer identically to a
+        // successful signup, which kept the address private and left a real
+        // person staring at a code box waiting for a code that was never sent.
+        // Matt's call: tell them, and accept that it makes registration an
+        // enumeration oracle. The rate limit above is what keeps that from
+        // being useful in bulk.
+        //
+        // The email still goes out. It is what tells the real owner that
+        // somebody tried, which the on-screen message cannot do.
         if (!origin) {
           console.log(JSON.stringify({ event: "reset_link_suppressed", reason: "no safe origin" }));
-          return json({ ok: true, sent: true });
+          return json({ ok: true, exists: true });
         }
         const { data: link } = await service.auth.admin.generateLink({ type: "recovery", email });
         const href = `${origin}/apply/reset#${(link?.properties as any)?.hashed_token ? `token_hash=${(link!.properties as any).hashed_token}&type=recovery` : ""}`;
@@ -217,7 +234,7 @@ Deno.serve(async (req) => {
           to: email,
           message: { ...accountExistsEmail(), action: { label: "Set a new password", href } },
         });
-        return json({ ok: true, sent: true });
+        return json({ ok: true, exists: true });
       }
 
       const { data: created, error: cErr } = await service.auth.admin.createUser({

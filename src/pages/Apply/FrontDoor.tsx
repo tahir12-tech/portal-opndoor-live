@@ -127,6 +127,10 @@ export function Register() {
   const [f, setF] = useState({ first_name: '', last_name: '', email: '', phone: '', password: '' });
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  // The address already has an account, and we say so. A deliberate trade: the
+  // neutral answer kept the address private and left a real person waiting for
+  // a code that was never sent.
+  const [existing, setExisting] = useState(false);
   const [sendFailed, setSendFailed] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -135,7 +139,8 @@ export function Register() {
   const go = async () => {
     setBusy(true); setErr(null);
     try {
-      const r = await auth.register({ ...f, invite }) as { sent?: boolean } | undefined;
+      const r = await auth.register({ ...f, invite }) as { sent?: boolean; exists?: boolean } | undefined;
+      if (r?.exists) { setExisting(true); return; }
       if (!SUPABASE_ENABLED) {
         const failed = await afterSignIn(nav, invite);
         if (failed) setErr(failed);
@@ -150,6 +155,29 @@ export function Register() {
       setErr(e instanceof Error ? e.message : 'Could not create the account.');
     } finally { setBusy(false); }
   };
+
+  if (existing) return (
+    <Shell eyebrow="Create an account" title="You already have an account"
+      sub={`There is already an opndoor account for ${f.email}.`}>
+      <p className="ap-p">
+        Sign in to pick up where you left off. We have emailed you as well, in case
+        it was not you who tried.
+      </p>
+      <div className="ap-actions">
+        <Button variant="primary" onClick={() => { window.location.href = '/login?tab=tenant'; }}>
+          Sign in
+        </Button>
+        <a className="ap-link" href="/forgot-password?tab=tenant">I have forgotten my password</a>
+      </div>
+      <p className="ap-foot">
+        Wrong address?{' '}
+        <button type="button" className="ap-link"
+          onClick={() => { setExisting(false); setF({ ...f, email: '' }); }}>
+          Use a different one
+        </button>.
+      </p>
+    </Shell>
+  );
 
   if (sent) {
     return <CodeStep email={f.email} invite={invite} onBack={() => setSent(false)} sendFailed={sendFailed} />;
