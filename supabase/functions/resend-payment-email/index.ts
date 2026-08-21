@@ -10,7 +10,8 @@
 // email.ts is the same shared module used by create-referral.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { paymentEmailTemplate, sendEmail } from "./email.ts";
+import { sendMessage } from "../_shared/mailer.ts";
+import { paymentLinkEmail } from "../_shared/emailTemplates.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 import { maySendOpndoorEmail } from "../_shared/livemodeCredentials.ts";
 
@@ -71,16 +72,14 @@ Deno.serve(async (req) => {
     const { data: pageToken } = await service.rpc("mint_payment_page_token", { p_ref: app.guarantee_ref });
     const payUrl = pageToken && origin ? `${origin}/pay?token=${pageToken}&utm_source=resend` : app.payment_url;
 
-    const tpl = paymentEmailTemplate({
-      title: app.tenant_title ?? "",
-      lastName: app.tenant_last_name,
-      propertyAddr,
-      guaranteeRef: app.guarantee_ref,
-      amount: `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
-      payUrl,
-      intendedFor: app.tenant_email,
+    const emailRes = await sendMessage({
+      to: app.tenant_email,
+      message: paymentLinkEmail({
+        propertyAddr, guaranteeRef: app.guarantee_ref,
+        amount: `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
+        payUrl,
+      }),
     });
-   const emailRes = await sendEmail({ subject: tpl.subject, html: tpl.html, to: app.tenant_email });
     // Partner-safe business message; test-mode redirect target stays admin-only.
     await service.from("activity_log").insert({
       application_id: app.id,

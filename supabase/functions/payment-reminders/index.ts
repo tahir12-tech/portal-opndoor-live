@@ -19,7 +19,8 @@
 // manual resend), which is why the "8am payment reminder" never delivered.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { reminderEmailTemplate, sendEmail } from "./email.ts";
+import { sendMessage } from "../_shared/mailer.ts";
+import { paymentReminderEmail } from "../_shared/emailTemplates.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 
 const cors = {
@@ -102,18 +103,16 @@ Deno.serve(async (req) => {
       // #1/#2 Point the reminder at the confirmation page with a per-touch utm_source.
       const { data: pageToken } = await service.rpc("mint_payment_page_token", { p_ref: r.guarantee_ref });
       const payUrl = pageToken && APP_URL ? `${APP_URL}/pay?token=${pageToken}&utm_source=reminder_${r.days}` : (r.payment_url ?? "");
-      const tpl = reminderEmailTemplate({
-        title: r.tenant_title ?? "",
-        lastName: r.tenant_last_name ?? "",
-        // #8 Title-case the address line for display; postcode left raw.
-        propertyAddr: [titleCaseAddress(r.prop_addr1), r.prop_postcode].filter(Boolean).join(", "),
-        guaranteeRef: r.guarantee_ref,
-        amount: `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
-        payUrl,
-        intendedFor: r.tenant_email ?? "the tenant",
-        day: Number(r.days),
+      const res = await sendMessage({
+        to: r.tenant_email ?? "",
+        message: paymentReminderEmail({
+          propertyAddr: [titleCaseAddress(r.prop_addr1), r.prop_postcode].filter(Boolean).join(", "),
+          guaranteeRef: r.guarantee_ref,
+          amount: `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
+          openUntilLabel: null, payUrl,
+          nudge: (Number(r.days) <= 3 ? 1 : Number(r.days) <= 7 ? 2 : 3) as 1 | 2 | 3,
+        }),
       });
-     const res = await sendEmail({ subject: tpl.subject, html: tpl.html, to: r.tenant_email ?? undefined });
       if (res.ok) {
         emailed += 1;
       } else {
