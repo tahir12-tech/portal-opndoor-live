@@ -17,6 +17,134 @@ looking at the app.
 
 ---
 
+# DO NOW, not at cutover
+
+## 0. Rotate `REMINDERS_CRON_SECRET` on production
+
+**Why this is not a cutover item.** The dev value was committed to the repo at
+`supabase/EXPIRY-REMINDERS.md` and has been in git history for weeks, so it is in
+**every clone anyone has ever taken**. Production uses the same secret. The
+exposure exists today, not on cutover day.
+
+It authenticates seven functions: `ops-alert`, `hubspot-sync`,
+`payment-reminders`, `expiry-reminders`, `expiry-cohorts`, `weekly-digest` and
+`referencing-callback`. Anyone holding it can trigger any of them, which means
+firing real reminder and digest email to real partners and tenants.
+
+**The one thing that makes this safe.** Each function accepts the presented
+`x-ops-secret` against **either** the `REMINDERS_CRON_SECRET` env var **or** the
+`ops_secrets.reminders_cron` row (`hubspot-sync/index.ts:94-99`). So there is no
+window where a cron is refused, in either order.
+
+**The corollary, and the reason to do both halves in one sitting:** the old
+secret keeps working until **both** are changed. Doing one is not a rotation.
+
+### Step 1: confirm production's shape before touching it
+
+Do not assume it matches dev. Dev had **no** Vault row despite the docs
+describing one.
+
+```sql
+select name from public.ops_secrets where name = 'reminders_cron';
+select name from vault.secrets where name = 'reminders_cron_secret';
+```
+
+Expect one row from the first and **zero** from the second. If the second
+returns a row, production has a Vault copy that dev does not, and it is a
+**third** holder that must be updated too. Stop and say so before continuing.
+
+### Step 2: generate the new value
+
+```
+python3 -c "import secrets,string; print(''.join(secrets.choice(string.ascii_letters+string.digits) for _ in range(48)))"
+```
+
+Keep it in a password manager. Do not paste it into a file in this repo, which
+is how the current one got out.
+
+### Step 3: update `ops_secrets` first
+
+This is the row the cron bodies read, so updating it first means the crons
+immediately present the new value, and the function still accepts it via the old
+env var.
+
+```sql
+update public.ops_secrets set secret = '<NEW>' where name = 'reminders_cron';
+select secret = '<NEW>' as took from public.ops_secrets where name = 'reminders_cron';
+```
+
+**Check before continuing:** `took` is `true`, and
+
+```sql
+select jobname, status, start_time
+  from cron.job_run_details order by start_time desc limit 10;
+```
+
+still shows `succeeded`. Wait for at least one job to run. `hubspot-sync` fires
+every two minutes and is the fastest signal.
+
+### Step 4: update the edge function secret
+
+```
+supabase secrets set REMINDERS_CRON_SECRET='<NEW>' --project-ref <PROD_REF>
+```
+
+**This is the step that closes the exposure.** Until it lands, the old value is
+still accepted.
+
+**Check:** the old secret must now be refused and the new one accepted.
+
+```
+curl -s -o /dev/null -w "old -> %{http_code}\n" -X POST \
+  https://<PROD_REF>.supabase.co/functions/v1/hubspot-sync \
+  -H "x-ops-secret: <OLD>" -H "Content-Type: application/json" -d '{"limit":1}'
+
+curl -s -o /dev/null -w "new -> %{http_code}\n" -X POST \
+  https://<PROD_REF>.supabase.co/functions/v1/hubspot-sync \
+  -H "x-ops-secret: <NEW>" -H "Content-Type: application/json" -d '{"limit":1}'
+```
+
+**old must be 401.** If it is not, a holder was missed: re-check step 1's
+queries and whether a Vault row exists.
+
+**new should be 200.** A **500 is also a pass for the rotation**: it means auth
+succeeded and something downstream failed. On dev the 500 was
+`No HubSpot access token configured`. Read the body before treating it as a
+failure.
+
+### Step 5: watch one full cycle
+
+```sql
+select jobname, status, start_time, return_message
+  from cron.job_run_details
+ where start_time > now() - interval '30 minutes'
+ order by start_time desc;
+```
+
+Every row `succeeded`. **A 401 in `return_message` is the failure signal.**
+
+### Rollback
+
+If a cron starts 401ing, put the old value back in the row the crons read. This
+takes effect on the next tick with no deploy:
+
+```sql
+update public.ops_secrets set secret = '<OLD>' where name = 'reminders_cron';
+```
+
+That restores service immediately, because the function accepts either source
+and the env var can stay on the new value while you work out what happened.
+**The exposure reopens for as long as the old value is live**, so treat it as
+buying time rather than as a fix, and retry the same day.
+
+### Afterwards
+
+The old value remains in git history. Rotating makes it worthless, which is the
+only fix short of rewriting history and breaking every clone. Do not attempt the
+rewrite.
+
+---
+
 ## 1. Supabase Auth settings
 
 ### 1.1 Email OTP Expiration
@@ -58,7 +186,7 @@ exercising the path.
 | `SUPABASE_SERVICE_ROLE_KEY` | 27 fns | Set automatically | Nothing runs |
 | `SUPABASE_ANON_KEY` | 15 fns | Set automatically | Password checks fail |
 | `RESEND_API_KEY` | 15 fns | The live Resend key | **Registration refuses with 503.** Loud, deliberately |
-| `EMAIL_FROM` | 14 fns | An address on a **verified domain** | Resend refuses every send to anyone but the account owner |
+| `EMAIL_FROM` | 14 fns | An address on a **verified domain** | Resend refuses every send to anyone but the account owner. **Set it explicitly.** Each module carries its own default and they diverge: nine say `noreply@opndoor.co` and six say `payments@opndoor.co`, so leaving it unset sends from two different addresses depending on which email it is, and only whichever is verified will deliver |
 | `EMAIL_REPLY_TO` | 14 fns | `hello@opndoor.co` | Falls back to a default in code. **SILENT** |
 | `EMAIL_REVIEW_ADDRESS` | 4 fns | **UNSET.** Leave it unset | If set, **every tenant email is redirected and no tenant is ever contacted.** SILENT and severe |
 | `APP_URL` | 13 fns | The production portal origin | Links in emails point at the wrong host, or nowhere |
@@ -71,7 +199,7 @@ exercising the path.
 | `PANDADOC_WEBHOOK_SHARED_KEY` | webhook | Matches the PandaDoc webhook config | Executed deeds never come back |
 | `HUBSPOT_ACCESS_TOKEN` | 1 fn | The live private-app token | CRM sync stops. **SILENT**: the cron runs and reports success |
 | `OPS_ALERT_ADDRESS` | 1 fn | The ops inbox | **Failure alerts go nowhere.** SILENT, and it is the alarm itself |
-| `REMINDERS_CRON_SECRET` | 7 fns | Any long random string, and it must **match `ops_secrets.reminders_cron` in the database** | Every cron-driven function returns 401 |
+| `REMINDERS_CRON_SECRET` | 7 fns | A **fresh** value, matching `ops_secrets.reminders_cron`. **See section 0: the current one is exposed and must be rotated now, not at cutover** | Every cron-driven function returns 401 |
 | `PORTAL_ENV` | 1 fn | `production` | Environment banner is wrong |
 | `REFERENCING_API_URL` | 1 fn | Lettings live base URL | Rail 4 cannot call back |
 | `REFERENCING_API_EMAIL` / `_PASSWORD` / `_TOKEN` | 1 fn | Lettings credentials | Rail 4 cannot call back |
