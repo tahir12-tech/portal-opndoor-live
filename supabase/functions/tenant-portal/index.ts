@@ -36,6 +36,7 @@
 //   4. The read model is an explicit column list in SQL. Commission is off the
 //      applications table grant entirely and must never reappear there.
 // =====================================================================
+import { splitProfilePatch, deliveryContactReady } from "../_shared/applicationPatch.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const cors = {
@@ -166,13 +167,16 @@ Deno.serve(async (req) => {
       }
       const appId = (app as any)?.id as string;
 
-      // Seed what the prequalification already asked, so the form does not.
-      const profilePatch: Record<string, unknown> = {
-        application_id: appId, updated_at: new Date().toISOString(),
-        first_name: applicant.first_name, last_name: applicant.last_name,
-      };
-      if (body.adverse_credit !== undefined) profilePatch.adverse_credit = body.adverse_credit === true || body.adverse_credit === "yes";
-      await service.from("application_profiles").upsert(profilePatch, { onConflict: "application_id" });
+      // Identity is already on applications.tenant_* from
+      // create_direct_application; application_profiles holds declarations only.
+      // Writing a name here was the same 42703 as save_profile, silently
+      // swallowed because this upsert's result was never checked.
+      if (body.adverse_credit !== undefined) {
+        await service.from("application_profiles").upsert({
+          application_id: appId, updated_at: new Date().toISOString(),
+          adverse_credit: body.adverse_credit === true || body.adverse_credit === "yes",
+        }, { onConflict: "application_id" });
+      }
 
       if (Number(body.annual_income) > 0) {
         await service.from("application_incomes").upsert({
@@ -225,7 +229,16 @@ Deno.serve(async (req) => {
         application: app,
         editable: editable(app.status),
         fee_paid: feePaid === true,
-        profile: profile.data ?? null,
+        // Identity read back from where it is written, so the details step
+        // shows filled fields on resume instead of blanks it cannot save.
+        profile: {
+          ...(profile.data ?? {}),
+          title: app.tenant_title ?? null,
+          first_name: app.tenant_first_name ?? null,
+          last_name: app.tenant_last_name ?? null,
+          dob: app.tenant_dob ?? null,
+          phone: app.tenant_phone ?? null,
+        },
         addresses: addresses.data ?? [],
         incomes: incomes.data ?? [],
         documents: docs.data ?? [],
@@ -241,11 +254,31 @@ Deno.serve(async (req) => {
       const app = await ownedApplication(body.application_id);
       if (!app) return json({ ok: false, error: "Not found." }, 404);
       if (!editable(app.status)) return json({ ok: false, error: "This application can no longer be edited." }, 409);
-      const patch = { ...(body.patch ?? {}), application_id: app.id, updated_at: new Date().toISOString() };
-      const { error } = await service.from("application_profiles").upsert(patch, { onConflict: "application_id" });
-      if (error) {
-        console.log(JSON.stringify({ event: "tenant_save_profile_failed", message: error.message }));
-        return json({ ok: false, error: "Could not save." }, 500);
+
+      /* IDENTITY LIVES ON applications.tenant_*, DECLARATIONS ON
+         application_profiles. The 2026-08-12 identity split moved
+         title/name/dob/phone off this table, but the details step still sends
+         them here in one patch, so they are routed by key. Writing an identity
+         field into application_profiles is the 42703 ("column does not exist")
+         that had every keystroke of that step answering "Could not save". */
+      const { identity: idPatch, declarations: profPatch } =
+        splitProfilePatch((body.patch ?? {}) as Record<string, unknown>);
+
+      if (Object.keys(idPatch).length) {
+        const { error } = await service.from("applications").update(idPatch).eq("id", app.id);
+        if (error) {
+          console.log(JSON.stringify({ event: "tenant_save_identity_failed", message: error.message }));
+          return json({ ok: false, error: "Could not save." }, 500);
+        }
+      }
+      if (Object.keys(profPatch).length) {
+        const { error } = await service.from("application_profiles")
+          .upsert({ ...profPatch, application_id: app.id, updated_at: new Date().toISOString() },
+                  { onConflict: "application_id" });
+        if (error) {
+          console.log(JSON.stringify({ event: "tenant_save_profile_failed", message: error.message }));
+          return json({ ok: false, error: "Could not save." }, 500);
+        }
       }
       return json({ ok: true });
     }
@@ -271,9 +304,9 @@ Deno.serve(async (req) => {
       if (!app) return json({ ok: false, error: "Not found." }, 404);
       if (!editable(app.status)) return json({ ok: false, error: "This application can no longer be edited." }, 409);
       const p = (body.patch ?? {}) as Record<string, unknown>;
-      // kind and email are NOT NULL on the table, so a partial patch that has
-      // not reached them yet is held client side rather than written half.
-      if (!p.kind || !p.email) return json({ ok: true, deferred: true });
+      // Held until kind, email AND the naming field the delivery_contact_named
+      // check wants are all present, or the upsert is a 23514/NOT NULL failure.
+      if (!deliveryContactReady(p)) return json({ ok: true, deferred: true });
       const { error } = await service.from("application_delivery_contacts")
         .upsert({ ...p, application_id: app.id }, { onConflict: "application_id" });
       if (error) {
