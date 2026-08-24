@@ -40,6 +40,7 @@ import { TenantShell, type TenantNavItem } from './TenantShell';
 import { ApplicationStatus, statusView } from './ApplicationStatus';
 import { DocumentsPanel, FinancialsPanel, IdCheckPanel, StepFooter } from './Sections';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
+import { useTenantDocumentTitle } from '@/hooks/useDocumentTitle';
 import './Apply.css';
 
 type Tab = 'details' | 'id' | 'financials' | 'documents' | 'payment' | 'guarantee';
@@ -245,6 +246,18 @@ export function Apply() {
     await load(); seeded.current = false;
     setStep('declaration');
   };
+
+  /* The tab title follows the journey. /apply set none, so after registration
+     it kept "Check your email" from the code screen and never moved as the
+     tenant went step to step. Derived from tab and step, which exist before the
+     loading and signed-out guards below, so the hook stays unconditional. */
+  const journeyTitle =
+    tab === 'details'
+      ? (bundle && bundle.application.status !== 'draft'
+          ? 'Status'
+          : STEPS.find((st) => st.id === step)?.label ?? 'Your application')
+      : TABS.find((t) => t.id === tab)?.label ?? 'Your application';
+  useTenantDocumentTitle(journeyTitle);
 
   if (signedOut) {
     return (

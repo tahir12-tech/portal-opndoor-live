@@ -59,6 +59,18 @@ describe('the tenant journey mounts', () => {
     await waitFor(() => expect(screen.getAllByText('GR-TEST', { exact: false }).length).toBeGreaterThan(0));
   });
 
+  it('sets its own tab title instead of inheriting the previous screen\'s', async () => {
+    // /apply set no title, so after registration it kept "Check your email"
+    // from the code screen and never moved. Seed that exact stale value.
+    document.title = 'Check your email | opndoor guarantor application';
+    stub('draft');
+    mount();
+    // A fresh draft opens on the Property step, under the tenant product suffix.
+    await waitFor(() =>
+      expect(document.title).toBe('Property | opndoor guarantor application'));
+    expect(document.title).not.toMatch(/Check your email/);
+  });
+
   it('renders every state after submission, which is where the form folds away', async () => {
     for (const status of ['referencing', 'sent', 'declined', 'paid', 'deed']) {
       stub(status, true);
