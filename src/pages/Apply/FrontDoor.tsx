@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTenantDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { forgotHref, signInHref } from '@/pages/auth/carry';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
@@ -164,10 +165,13 @@ export function Register() {
         it was not you who tried.
       </p>
       <div className="ap-actions">
-        <Button variant="primary" onClick={() => { window.location.href = '/login?tab=tenant'; }}>
+        {/* Both carry the address. This screen is literally displaying it back
+            to them, so sending them on to an empty field was the same "retype
+            what you just typed" as the sign-in page had. */}
+        <Button variant="primary" onClick={() => { window.location.href = signInHref('tenant', f.email); }}>
           Sign in
         </Button>
-        <a className="ap-link" href="/forgot-password?tab=tenant">I have forgotten my password</a>
+        <a className="ap-link" href={forgotHref('tenant', f.email)}>I have forgotten my password</a>
       </div>
       <p className="ap-foot">
         Wrong address?{' '}

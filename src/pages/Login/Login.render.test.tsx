@@ -380,6 +380,87 @@ describe('there is one sign-in page', () => {
   });
 });
 
+describe('sign in and reset hand the tab and the email to each other', () => {
+  /* Clicking "Forgot password?" used to land you on the reset page with the tab
+     reset and the field empty, so you reselected who you were and retyped the
+     address you had typed ten seconds earlier. Two separate half-fixes were in
+     place: the staff form passed the email and not the tab, and the tenant form
+     passed the tab and not the email, through a plain <a> that reloaded the SPA
+     and discarded the typing anyway. */
+  const EMAIL = 'sam.oakley@example.co.uk';
+  const forgot = () => screen.getByRole('link', { name: /forgot password/i }).getAttribute('href');
+
+  function typeEmail(label: RegExp, value: string) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  }
+
+  it('carries the tab and the email out, on every tab', () => {
+    for (const [tab, label] of [
+      ['agent', /work email/i], ['supplier', /work email/i], ['tenant', /email address/i],
+    ] as const) {
+      at(`/login?tab=${tab}`);
+      typeEmail(label, EMAIL);
+      const href = forgot()!;
+      expect(href).toContain(`tab=${tab}`);
+      // Encoded, not raw: the address is a query value like any other.
+      expect(href).toContain(`email=${encodeURIComponent(EMAIL)}`);
+      cleanup();
+    }
+  });
+
+  it('omits the email when there is nothing to carry, rather than sending email=', () => {
+    for (const tab of ['agent', 'supplier', 'tenant'] as const) {
+      at(`/login?tab=${tab}`);
+      expect(forgot()).toBe(`/forgot-password?tab=${tab}`);
+      cleanup();
+    }
+  });
+
+  it('arrives on the reset page with the right tab selected and the field filled', () => {
+    for (const [tab, label] of [
+      ['agent', 'Agent'], ['supplier', 'Supplier'], ['tenant', 'Tenant'],
+    ] as const) {
+      render(
+        <MemoryRouter initialEntries={[`/forgot-password?tab=${tab}&email=${encodeURIComponent(EMAIL)}`]}>
+          <ForgotPassword />
+        </MemoryRouter>,
+      );
+      expect(screen.getByRole('tab', { name: label }).getAttribute('aria-selected')).toBe('true');
+      expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe(EMAIL);
+      cleanup();
+    }
+  });
+
+  it('carries both home again, including an address edited on the way', () => {
+    render(
+      <MemoryRouter initialEntries={[`/forgot-password?tab=supplier&email=${encodeURIComponent(EMAIL)}`]}>
+        <ForgotPassword />
+      </MemoryRouter>,
+    );
+    const back = () => screen.getByRole('link', { name: /back to sign in/i }).getAttribute('href');
+    expect(back()).toBe(`/login?tab=supplier&email=${encodeURIComponent(EMAIL)}`);
+
+    // Corrected a typo on the reset page: the correction is what goes back.
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'fixed@example.co.uk' } });
+    expect(back()).toBe('/login?tab=supplier&email=fixed%40example.co.uk');
+  });
+
+  it('fills the sign-in field on the way back, on the staff and tenant forms alike', () => {
+    at(`/login?tab=agent&email=${encodeURIComponent(EMAIL)}`);
+    expect((screen.getByLabelText(/work email/i) as HTMLInputElement).value).toBe(EMAIL);
+    cleanup();
+    at(`/login?tab=tenant&email=${encodeURIComponent(EMAIL)}`);
+    expect((screen.getByLabelText(/email address/i) as HTMLInputElement).value).toBe(EMAIL);
+  });
+
+  it('refuses to be stuffed by a hostile link', () => {
+    // The field is a controlled input, so this is about not rendering a novel
+    // into the page, not about escaping, which React already does.
+    at(`/login?tab=agent&email=${'a'.repeat(5000)}`);
+    expect((screen.getByLabelText(/work email/i) as HTMLInputElement).value.length).toBe(254);
+  });
+});
+
 describe('the reset page', () => {
   const reset = (path = '/forgot-password') => render(
     <MemoryRouter initialEntries={[path]}><ForgotPassword /></MemoryRouter>,

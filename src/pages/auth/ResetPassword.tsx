@@ -31,7 +31,7 @@ import '../ForgotPassword/ForgotPassword.css';
 type Phase = 'checking' | 'stepup' | 'password' | 'enrol' | 'done' | 'invalid';
 
 const COPY = {
-  reset: { title: 'Set a new password', eyebrow: 'Account recovery', brandH1: 'Choose a new password.', invalidLead: 'Your reset link may have expired or already been used. Request a new one and we will email you a fresh link.', invalidCta: { to: '/forgot-password', label: 'Request a new link' } },
+  reset: { title: 'Set a new password', eyebrow: 'Account recovery', brandH1: 'Choose a new password.', invalidLead: 'Your reset link may have expired or already been used. Request a new one and we will email you a fresh link.', invalidCta: { to: '/forgot-password?tab=agent', label: 'Request a new link' } },
   invite: { title: 'Set your password', eyebrow: 'Welcome to opndoor', brandH1: 'Set your password to get started.', invalidLead: 'Your invitation may have expired or already been used. Ask your administrator to resend it.', invalidCta: { to: '/login', label: 'Back to sign in' } },
 } as const;
 

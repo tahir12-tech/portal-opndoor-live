@@ -22,10 +22,9 @@ import * as tenantAuth from '@/tenant/tenantAuth';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { carriedEmail, carriedTab, signInHref, type Audience } from '../auth/carry';
 import '../auth/auth.css';
 import '../Login/Login.css';
-
-type Audience = 'tenant' | 'agent' | 'supplier';
 
 const TABS: { id: Audience; label: string }[] = [
   { id: 'tenant', label: 'Tenant' },
@@ -38,11 +37,12 @@ const TABS: { id: Audience; label: string }[] = [
 export function ForgotPassword() {
   useDocumentTitle('Reset password');
   const [params, setParams] = useSearchParams();
-  const tabParam = params.get('tab');
-  const [audience, setAudience] = useState<Audience>(
-    tabParam === 'agent' || tabParam === 'supplier' ? tabParam : 'tenant',
-  );
-  const [email, setEmail] = useState('');
+  // Tenant is the default HERE and agent is the default on /login, deliberately,
+  // so carriedTab answers null rather than choosing for either page.
+  const [audience, setAudience] = useState<Audience>(carriedTab(params) ?? 'tenant');
+  // Prefilled from the sign-in field they just typed into, so the address is
+  // not asked for twice in ten seconds.
+  const [email, setEmail] = useState(() => carriedEmail(params));
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -120,7 +120,11 @@ export function ForgotPassword() {
                   setErr(null);
                   setSent(false);
                   // Shareable, like /login: ?tab= is a link somebody can be sent.
-                  setParams({ tab: t.id }, { replace: true });
+                  // The address rides along so a reload after switching tabs
+                  // does not empty the field they already filled.
+                  const next: Record<string, string> = { tab: t.id };
+                  if (email.trim()) next.email = email.trim();
+                  setParams(next, { replace: true });
                 }}>
                 {t.label}
               </button>
@@ -175,7 +179,7 @@ export function ForgotPassword() {
               )}
 
               <p className="auth__foot auth__stack--foot">
-                Remembered it? <Link to={`/login?tab=${audience}`}>Back to sign in</Link>
+                Remembered it? <Link to={signInHref(audience, email)}>Back to sign in</Link>
               </p>
             </div>
           </div>

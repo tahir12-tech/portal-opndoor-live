@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { carriedEmail, carriedTab, forgotHref, type Audience } from '@/pages/auth/carry';
 // Namespaced as tenantAuth, never as auth. It exposes signIn(email, password)
 // with the same arity as authService.signIn above and the opposite meaning:
 // this one is terminal, that one is step one of two.
@@ -37,13 +38,14 @@ export function Login() {
   const [searchParams] = useSearchParams();
   // Seeded from the URL so ?tab=tenant is a link somebody can be sent. Agent is
   // the default because that is who has been signing in here for a year.
-  const tabParam = searchParams.get('tab');
-  const [audience, setAudience] = useState<Audience>(
-    tabParam === 'tenant' || tabParam === 'supplier' ? tabParam : 'agent',
-  );
+  // Agent is the default because that is who has been signing in here for a
+  // year, so a missing or unknown tab lands there rather than on tenant.
+  const [audience, setAudience] = useState<Audience>(carriedTab(searchParams) ?? 'agent');
   const { status, markMfaVerified } = useSession();
   const [step, setStep] = useState<Step>('creds');
-  const [email, setEmail] = useState('');
+  // Carried back from /forgot-password, so "Back to sign in" returns somebody
+  // to a filled field rather than an empty one.
+  const [email, setEmail] = useState(() => carriedEmail(searchParams));
   const [password, setPassword] = useState('');
   const [masked, setMasked] = useState('');
   const [codes, setCodes] = useState<string[]>(['', '', '', '', '', '']);
@@ -248,8 +250,10 @@ export function Login() {
                   <PasswordInput id="pass" autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </div>
                 <div className="auth__row auth__row--end">
-                  {/* Carry the typed email over so the reset form is prefilled (#60). */}
-                  <Link to={`/forgot-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ''}`}>Forgot password?</Link>
+                  {/* Carry BOTH. This passed the email and not the tab, so an
+                      agent landed on the reset page's tenant tab and had to
+                      reselect who they were. */}
+                  <Link to={forgotHref(audience, email)}>Forgot password?</Link>
                 </div>
                 <Button variant="primary" block type="submit" arrow disabled={busy}>{busy ? 'Signing in…' : 'Continue'}</Button>
               </form>
@@ -454,8 +458,6 @@ function Steps({ onSecond }: { onSecond: boolean }) {
   );
 }
 
-type Audience = 'tenant' | 'agent' | 'supplier';
-
 /* ---------------------------------------------------------------------------
    The left panel, per audience.
 
@@ -549,7 +551,7 @@ function TenantSignInPanel() {
   // came with it, so it is claimed rather than created. Carried through here so
   // /login?tab=tenant&invite=... does not silently open an empty draft instead.
   const invite = sp.get('invite') ?? undefined;
-  const [tEmail, setTEmail] = useState('');
+  const [tEmail, setTEmail] = useState(() => carriedEmail(sp));
   const [tPassword, setTPassword] = useState('');
   const [tBusy, setTBusy] = useState(false);
   const [tErr, setTErr] = useState<string | null>(null);
@@ -668,7 +670,9 @@ function TenantSignInPanel() {
                          value={tPassword} onChange={(e) => setTPassword(e.target.value)} required />
         </div>
         <div className="auth__row auth__row--end">
-          <a href="/forgot-password?tab=tenant">Forgot password?</a>
+          {/* A Link, not an anchor. This was a full page reload that threw away
+              the typed address along with everything else in the SPA. */}
+          <Link to={forgotHref('tenant', tEmail)}>Forgot password?</Link>
         </div>
         <Button variant="primary" block type="submit" arrow disabled={tBusy || !tEmail || !tPassword}>
           {tBusy ? 'Signing in\u2026' : 'Sign in'}
