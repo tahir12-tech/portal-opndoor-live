@@ -175,7 +175,10 @@ export async function resetUserPassword(id: string): Promise<void> {
   if (SUPABASE_ENABLED) {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const { error } = await sb().functions.invoke('send-password-reset', { body: { email: userEmail(u), origin } });
-    if (error) throw new Error(error.message);
+    // The function now answers 503 when the send itself failed, where it used
+    // to answer ok. supabase-js turns that into "non-2xx status code", which
+    // tells an admin nothing, so say the useful thing instead.
+    if (error) throw new Error('We could not send that just now. Try again in a moment.');
   }
 }
 

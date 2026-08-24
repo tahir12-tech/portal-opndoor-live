@@ -40,18 +40,21 @@ export function verify2fa(_code: string): { ok: boolean } {
  * Self-service password reset. In Supabase mode this invokes the
  * send-password-reset Edge Function, which generates a recovery link and emails
  * it via the branded Resend template (redirected to the review address in this
- * test build). It ALWAYS resolves ok and never reveals whether the address has
- * an account (no enumeration); the UI shows the neutral "if an account exists"
- * confirmation regardless. No-op in mock mode.
+ * test build). It never reveals whether the address has an account (the function
+ * answers ok either way), so the UI keeps its neutral "if an account exists"
+ * confirmation. It DOES reject when the send failed or the function is down, so
+ * the caller can say so instead of promising an email nobody will get.
+ * No-op in mock mode.
  */
 export async function requestPasswordReset(email: string): Promise<{ ok: boolean }> {
   if (!SUPABASE_ENABLED) return { ok: true };
-  try {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    await sb().functions.invoke('send-password-reset', { body: { email: email.trim(), origin } });
-  } catch {
-    // Swallow: the confirmation is intentionally identical whether or not the
-    // send succeeded, so an outage never leaks account existence.
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const { data, error } = await sb().functions
+    .invoke('send-password-reset', { body: { email: email.trim(), origin } });
+  // Whether the address has an account is still invisible: the function answers
+  // ok for both. What is no longer invisible is a send we failed to make.
+  if (error || (data && data.ok === false)) {
+    throw new Error((data && data.error) || 'We could not send that just now. Try again in a moment.');
   }
   return { ok: true };
 }

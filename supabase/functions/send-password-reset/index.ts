@@ -8,9 +8,11 @@
 // test build. The link lands on the app's /reset-password screen, which
 // consumes the recovery token and sets the new password.
 //
-// Anonymous by design (password reset must work for a signed-out user). To
-// avoid account enumeration it ALWAYS responds ok, whether or not the address
-// belongs to a real account.
+// Anonymous by design (password reset must work for a signed-out user). It
+// responds ok whether or not the address belongs to a real account, so it never
+// enumerates. It does NOT respond ok when the send itself failed: that is not a
+// fact about the account, it is a fact about us, and hiding it behind the
+// neutral answer is how a reset disappears with nothing to chase.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
@@ -48,18 +50,24 @@ Deno.serve(async (req) => {
         email,
         options: { redirectTo: `${base}/reset-password` },
       });
-      console.log("RESET LINK RESULT", {
-        email,
-        error,
-        hasLink: !!data?.properties?.action_link
-      });
       const link = data?.properties?.action_link as string | undefined;
-      if (!error && link) {
-        const result = await sendMessage({ to: email, message: passwordResetEmail(link) });
 
-console.log("EMAIL RESULT", result);
+      // generateLink IS the existence check on this path, so a failure here is
+      // usually "no such account" and must stay neutral. Logged, not disclosed.
+      if (error || !link) {
+        console.log(JSON.stringify({
+          event: "reset_link_unavailable", message: error?.message ?? "no action_link returned",
+        }));
+        return json({ ok: true });
       }
 
+      const result = await sendMessage({ to: email, message: passwordResetEmail(link) });
+      if (!result.ok) {
+        // Was logged and then ignored, which answered ok on a send that failed.
+        console.log(JSON.stringify({ event: "reset_send_failed", message: result.error }));
+        return json({ ok: false, error: "We could not send that just now. Try again in a moment." }, 503);
+      }
+      console.log(JSON.stringify({ event: "reset_sent", redirected: result.redirected === true }));
     }
     return json({ ok: true });
   } catch (e) {

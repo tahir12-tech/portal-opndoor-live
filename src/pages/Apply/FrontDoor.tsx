@@ -324,35 +324,17 @@ export async function afterSignIn(nav: (to: string) => void, invite?: string): P
 
 
 /* ---------------------------------------------------------------------------
-   3. Forgot, and 4. Reset.
-   --------------------------------------------------------------------------- */
-export function Forgot() {
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
-  return (
-    <Shell eyebrow="Reset your password" title="Set a new password">
-        {sent ? (
-          <p className="ap-p">
-            If there is an account for <strong>{email}</strong>, we have sent it a link. It lasts an hour.
-          </p>
-        ) : (
-          <>
-            <Field label="Email address" htmlFor="ap-forgot-email">
-              <input id="ap-forgot-email" className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </Field>
-            <div className="ap-actions">
-              <Button variant="primary" disabled={!email.includes('@')}
-                onClick={() => { void auth.requestReset(email); setSent(true); }}>
-                Send me a link
-              </Button>
-            </div>
-          </>
-        )}
-      <p className="ap-foot"><a href="/login?tab=tenant">Back to sign in</a></p>
-    </Shell>
-  );
-}
+   3. Reset.
 
+   Forgot lived here too, a second reset screen with its own copy and its own
+   state. Nothing imported it: /apply/forgot has redirected to
+   /forgot-password?tab=tenant since /apply/signin was deleted, so it was
+   unreachable and had been for a while. It was also still carrying the defect
+   this commit exists to fix, `void auth.requestReset(email)` followed by an
+   unconditional setSent(true), which is what an unreachable copy of a screen
+   does: it stops being fixed when the real one is. Deleted rather than
+   repaired. There is one reset page and it is /forgot-password.
+   --------------------------------------------------------------------------- */
 export function ResetPassword() {
   const nav = useNavigate();
   const [ready, setReady] = useState(false);

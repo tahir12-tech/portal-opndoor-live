@@ -24,6 +24,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { assertEmailConfigured, EmailNotConfigured } from "../_shared/emailConfigured.ts";
 import { sendMessage } from "../_shared/mailer.ts";
+import { limitCheck, LimiterUnavailable } from "../_shared/rateLimit.ts";
 import { accountExistsEmail, codeEmail, passwordResetEmail } from "../_shared/emailTemplates.ts";
 
 const cors = {
@@ -77,48 +78,22 @@ function safeOrigin(supplied: unknown): string | null {
  * (20260703150645) and is a single atomic upsert, so it does not have the
  * problem the code table had.
  *
- * Returns false when the caller should be refused. The caller answers with its
- * NORMAL response in that case, never a distinct one, or the limiter becomes
- * the oracle the rest of this file is careful not to be.
+ * Returns false when the caller should be refused, and THROWS when the limiter
+ * itself is unavailable. Callers must not conflate the two.
+ *
+ * On refusal the old rule was to answer with the NORMAL response, so the
+ * limiter could not become the oracle the rest of this file avoids being. That
+ * rule was wrong here and has been dropped for the reset path. Both buckets are
+ * bumped BEFORE anything looks the address up, so a refusal is reachable for any
+ * address at all and discloses nothing about who has an account. What it did
+ * disclose, by staying silent, was nothing to the attacker and nothing to the
+ * person waiting for an email that was never coming.
  */
 async function withinLimits(
   service: any, req: Request, action: string, email: string,
   perAddress: number, perCaller: number,
 ): Promise<boolean> {
   return (await limitCheck(service, req, action, email, perAddress, perCaller)).ok;
-}
-
-/**
- * The same check, but it also says HOW LONG.
- *
- * "Wait a little" gives somebody nothing to act on, and the number is already
- * sitting in the row: the window is fixed at an hour from the first attempt, so
- * window_start + 1 hour is the exact moment it clears. Reading it costs one
- * select on a path that has already decided to refuse.
- *
- * Only callers that already disclose should use the minutes. A neutral refusal
- * that suddenly reports a countdown has started telling the caller something.
- */
-async function limitCheck(
-  service: any, req: Request, action: string, email: string,
-  perAddress: number, perCaller: number,
-): Promise<{ ok: boolean; minutes: number }> {
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
-  const keys = [`ta:${action}:e:${email}`, `ta:${action}:i:${ip}`];
-  const [a, b] = await Promise.all([
-    service.rpc("bump_rate_limit", { p_key: keys[0], p_limit: perAddress, p_window_secs: 3600 }),
-    service.rpc("bump_rate_limit", { p_key: keys[1], p_limit: perCaller,  p_window_secs: 3600 }),
-  ]);
-  const ok = a.data === true && b.data === true;
-  if (ok) return { ok: true, minutes: 0 };
-
-  // The longest wait across whichever counters are blocking, rounded up, and
-  // never zero: "try again in 0 minutes" is worse than saying nothing.
-  const { data: rows } = await service.from("rate_limit").select("window_start").in("key", keys);
-  const now = Date.now();
-  const mins = (rows ?? []).map((r: { window_start: string }) =>
-    Math.ceil((new Date(r.window_start).getTime() + 3600_000 - now) / 60_000));
-  return { ok: false, minutes: Math.max(1, ...(mins.length ? mins : [1])) };
 }
 
 /** "in 5 minutes", or "in a minute" when that is what it is. */
@@ -374,17 +349,64 @@ Deno.serve(async (req) => {
       // This action's only deliverable is an email. Refuse before minting a
       // recovery token that nobody will ever receive.
       assertEmailConfigured();
-      if (email && !(await withinLimits(service, req, "reset", email, 5, 20))) {
-        return json({ ok: true, sent: true });
-      }
+      /* WHAT THIS ACTION MAY AND MAY NOT HIDE.
+         Neutral about WHETHER AN ACCOUNT EXISTS: a hit and a miss both answer
+         ok, and always will. Not neutral about WHETHER WE MANAGED TO SEND.
+         Those were the same sentence, and the second wearing the first's
+         clothes is how a reset vanished with nothing for anybody to chase.
+
+         The trade, stated rather than buried: while mail is broken an existing
+         address gets 503 and an unknown one still gets 200, so an outage is a
+         window in which existence is visible. That window costs an attacker a
+         mail outage to open. The alternative cost every user their reset,
+         silently, every time. No logging carries the address. */
       if (email) {
-        const { data: ap } = await service.from("applicants").select("id").eq("email", email).maybeSingle();
-        if (ap && origin) {
-          const { data: link } = await service.auth.admin.generateLink({ type: "recovery", email });
-          const hashed = (link?.properties as any)?.hashed_token ?? "";
-          const href = `${origin}/apply/reset#token_hash=${hashed}&type=recovery`;
-          await sendMessage({ to: email, message: passwordResetEmail(href) });
+        const limit = await limitCheck(service, req, "reset", email, 5, 20);
+        if (!limit.ok) {
+          // Say how long. Both buckets are bumped before the address is looked
+          // up, so this is reachable for any address and reveals no account.
+          console.log(JSON.stringify({ event: "reset_rate_limited", minutes: limit.minutes }));
+          return json({
+            ok: false,
+            error: `Too many reset requests. Try again ${inMinutes(limit.minutes)}.`,
+            retry_after_minutes: limit.minutes,
+          }, 429);
         }
+
+        const { data: ap, error: apErr } = await service.from("applicants")
+          .select("id").eq("email", email).maybeSingle();
+        if (apErr) {
+          console.log(JSON.stringify({ event: "reset_lookup_failed", message: apErr.message }));
+          return json({ ok: false, error: "We could not process that just now. Try again in a moment." }, 503);
+        }
+        if (!ap) {
+          console.log(JSON.stringify({ event: "reset_no_account" }));
+          return json({ ok: true, sent: true });    // neutral, and correct
+        }
+        if (!origin) {
+          console.log(JSON.stringify({ event: "reset_link_suppressed", reason: "no safe origin" }));
+          return json({ ok: false, error: "We could not send that just now. Try again in a moment." }, 503);
+        }
+
+        const { data: link, error: linkErr } = await service.auth.admin
+          .generateLink({ type: "recovery", email });
+        const hashed = (link?.properties as any)?.hashed_token ?? "";
+        if (linkErr || !hashed) {
+          // Was discarded. A recovery link that failed to mint produced a
+          // token_hash of "" and an email carrying a dead link.
+          console.log(JSON.stringify({
+            event: "reset_link_failed", message: linkErr?.message ?? "no hashed_token returned",
+          }));
+          return json({ ok: false, error: "We could not send that just now. Try again in a moment." }, 503);
+        }
+
+        const href = `${origin}/apply/reset#token_hash=${hashed}&type=recovery`;
+        const res = await sendMessage({ to: email, message: passwordResetEmail(href) });
+        if (!res.ok) {
+          console.log(JSON.stringify({ event: "reset_send_failed", message: res.error }));
+          return json({ ok: false, error: "We could not send that just now. Try again in a moment." }, 503);
+        }
+        console.log(JSON.stringify({ event: "reset_sent", redirected: res.redirected === true }));
       }
       return json({ ok: true, sent: true });
     }
@@ -503,6 +525,10 @@ Deno.serve(async (req) => {
     // Named, not swallowed into "Something went wrong". The whole point of the
     // hard error is that a dev run can tell "email is switched off here" from
     // "your code is broken", which a generic 500 cannot.
+    if (e instanceof LimiterUnavailable) {
+      console.log(JSON.stringify({ event: "limiter_unavailable", detail: e.detail }));
+      return json({ ok: false, error: e.message, code: "limiter_unavailable" }, 503);
+    }
     if (e instanceof EmailNotConfigured) {
       console.log(JSON.stringify({ event: "email_not_configured" }));
       return json({ ok: false, error: e.message, code: "email_not_configured" }, 503);

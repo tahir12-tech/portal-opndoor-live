@@ -45,20 +45,29 @@ export function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setErr(null);
     // A tenant and a member of staff are different principals in different
     // tables, so the request goes to a different place. Nothing else differs.
     try {
       if (audience === 'tenant') await tenantAuth.requestReset(email.trim());
       else await authService.requestPasswordReset(email.trim());
-    } catch {
-      // Swallowed on purpose. The confirmation must be identical whether the
-      // address exists, whether the send worked, and whether we are down.
+      setSent(true);
+    } catch (e) {
+      /* THREE CONDITIONS USED TO ARRIVE HERE AND LEAVE AS ONE SENTENCE:
+         the address has no account, the send failed, and we are down. Only the
+         first is a secret worth keeping, and the server keeps it by answering
+         ok for a hit and a miss alike. The other two are ours, and saying "a
+         reset link is on its way" over the top of them is the one claim we
+         already know to be false. */
+      setErr(e instanceof Error && e.message
+        ? e.message
+        : 'We could not send that just now. Try again in a moment.');
     }
-    setSent(true);
     setBusy(false);
   }
 
@@ -104,6 +113,8 @@ export function ForgotPassword() {
                 className={`aud__tab${t.id === audience ? ' is-active' : ''}`}
                 onClick={() => {
                   setAudience(t.id);
+                  // A failure belongs to the audience that produced it.
+                  setErr(null);
                   // Shareable, like /login: ?tab= is a link somebody can be sent.
                   setParams({ tab: t.id }, { replace: true });
                 }}>
@@ -134,11 +145,16 @@ export function ForgotPassword() {
                     If an account exists for <b>{email.trim()}</b>, a reset link is on
                     its way. It expires in 30 minutes and can be used once.
                   </p>
-                  <Button variant="quiet" block onClick={() => { setSent(false); setEmail(''); }}>
+                  <Button variant="quiet" block onClick={() => { setSent(false); setEmail(''); setErr(null); }}>
                     Send another
                   </Button>
                 </>
               ) : (
+                <>
+                {err && (
+                  <p className="auth__error" role="alert"
+                     style={{ color: 'var(--danger, #c0392b)', marginTop: 4 }}>{err}</p>
+                )}
                 <form className="auth__form" onSubmit={submit} noValidate>
                   <div className="field">
                     <label htmlFor="reset-email">Email</label>
@@ -151,6 +167,7 @@ export function ForgotPassword() {
                     {busy ? 'Sending…' : 'Send reset link'}
                   </Button>
                 </form>
+                </>
               )}
 
               <p className="auth__foot auth__stack--foot">
