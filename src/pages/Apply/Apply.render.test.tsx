@@ -17,7 +17,7 @@ import { Apply } from './Apply';
 import * as auth from '@/tenant/tenantAuth';
 import * as api from '@/tenant/tenantApi';
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); window.history.replaceState({}, '', '/apply'); });
 
 function bundle(status: string, feePaid: boolean): api.ApplicationBundle {
   return {
@@ -90,5 +90,57 @@ describe('the tenant journey mounts', () => {
     vi.spyOn(auth, 'currentTenant').mockResolvedValue(null);
     mount();
     await waitFor(() => expect(screen.getByText('Sign in to continue')).toBeTruthy());
+  });
+});
+
+function mountAt(search: string) {
+  window.history.replaceState({}, '', `/apply${search}`);
+  return render(<MemoryRouter><Apply /></MemoryRouter>);
+}
+
+describe('the post-payment return', () => {
+  it('lands on a confirmed state naming the amount, what it bought and the next section', async () => {
+    stub('draft', true); // webhook has recorded the fee
+    mountAt('?fee=paid');
+    await waitFor(() => expect(screen.getByText(/Payment received/i)).toBeTruthy());
+    // Names the amount and what it bought, and never claims an assessment happened.
+    expect(screen.getByText(/£20 for your eligibility check/i)).toBeTruthy();
+    expect(screen.getByText(/Nothing has been sent for checking yet/i)).toBeTruthy();
+    // Button says where it goes, not "Carry on".
+    expect(screen.getByRole('button', { name: /continue to address history/i })).toBeTruthy();
+  });
+
+  it('sends a cancelled payment back to the fee step, nothing alarming, payment still there', async () => {
+    stub('draft', false);
+    mountAt('?fee=cancelled');
+    await waitFor(() => expect(screen.getByText(/No payment was taken/i)).toBeTruthy());
+    // Still on the fee step with the payment available.
+    expect(screen.getByRole('button', { name: /pay £20 and continue/i })).toBeTruthy();
+    // Nothing alarming: no error alert.
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('the progress indicators', () => {
+  it('hides the five-stage lifecycle timeline while a draft', async () => {
+    stub('draft');
+    mount();
+    await waitFor(() => expect(screen.getAllByText('GR-TEST', { exact: false }).length).toBeGreaterThan(0));
+    // The timeline reads "1 of 5" forever on a draft and fights the sidebar ticks.
+    expect(document.querySelector('.timeline')).toBeNull();
+  });
+
+  it('shows the lifecycle timeline once submitted', async () => {
+    stub('referencing');
+    mount();
+    await waitFor(() => expect(document.querySelector('.timeline')).not.toBeNull());
+  });
+
+  it('no longer shows an "X of N done" count bar anywhere', async () => {
+    stub('draft');
+    mount();
+    await waitFor(() => expect(screen.getAllByText('GR-TEST', { exact: false }).length).toBeGreaterThan(0));
+    // Kept the sidebar ticks (which say WHICH sections); dropped the duplicate count.
+    expect(screen.queryByText(/of \d+ done/i)).toBeNull();
   });
 });

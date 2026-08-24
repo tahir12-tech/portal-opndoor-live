@@ -45,6 +45,9 @@ import './Apply.css';
 
 type Tab = 'details' | 'id' | 'financials' | 'documents' | 'payment' | 'guarantee';
 type Step = 'property' | 'about' | 'fee' | 'address' | 'income' | 'nationality' | 'declaration';
+/* The post-payment return is a STATE, not a route: land here deterministically
+   after Checkout rather than wherever a fresh mount defaults to. */
+type PayReturn = 'none' | 'confirming' | 'confirmed' | 'stuck';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'details', label: 'Your details' },
@@ -111,6 +114,12 @@ export function Apply() {
   // previous render", which is a white page. Every hook in this component must
   // sit above every early return.
   const [showAnswers, setShowAnswers] = useState(false);
+  const [payReturn, setPayReturn] = useState<PayReturn>(
+    () => (new URLSearchParams(window.location.search).get('fee') === 'paid' ? 'confirming' : 'none'),
+  );
+  const [feeCancelled, setFeeCancelled] = useState(
+    () => new URLSearchParams(window.location.search).get('fee') === 'cancelled',
+  );
 
   const load = useCallback(async () => {
     try {
@@ -135,16 +144,15 @@ export function Apply() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Back from Checkout. The webhook records the payment, so a success return
-  // may land a moment before the row exists; one delayed re-read covers the gap
-  // rather than showing a paid tenant a locked form.
+  // Back from Checkout. Strip the one-shot ?fee= param immediately so a refresh
+  // cannot re-enter these states, and land a cancelled tenant back on the fee
+  // step with the payment still there. The paid path is driven by the polling
+  // and confirmation effects below, once feePaid is in scope.
   useEffect(() => {
     const fee = new URLSearchParams(window.location.search).get('fee');
-    if (fee !== 'paid') return;
-    window.history.replaceState({}, '', '/apply');
-    const t = setTimeout(() => { seeded.current = false; void load(); }, 1500);
-    return () => clearTimeout(t);
-  }, [load]);
+    if (fee === 'paid' || fee === 'cancelled') window.history.replaceState({}, '', '/apply');
+    if (fee === 'cancelled') setStep('fee');
+  }, []);
 
   /* ---- local mirrors, so typing is instant and the save is behind it ------ */
   const [property, setProperty] = useState<Record<string, unknown>>({});
@@ -172,6 +180,28 @@ export function Apply() {
   const editable = bundle?.editable !== false;
   const feePaid = bundle?.fee_paid === true;
   const locked = (id: Step) => !feePaid && LOCKED_UNTIL_PAID.includes(id);
+
+  // While confirming, POLL for the webhook to record the payment. A single fixed
+  // wait was a guess; a slow webhook left a paying tenant on a locked form,
+  // which reads as "charged for nothing". Poll for a real bounded wait, then
+  // hand off to a "we have your payment" state, never silence and a lock.
+  useEffect(() => {
+    if (payReturn !== 'confirming') return;
+    let stopped = false;
+    const poll = () => { if (!stopped) { seeded.current = false; void load(); } };
+    const id = setInterval(poll, 2000);
+    poll();
+    const giveUp = setTimeout(() => {
+      if (!stopped) setPayReturn((cur) => (cur === 'confirming' ? 'stuck' : cur));
+    }, 20000);
+    return () => { stopped = true; clearInterval(id); clearTimeout(giveUp); };
+  }, [payReturn, load]);
+
+  // The webhook has landed. Move to the confirmed state and SET the step, so the
+  // "Continue" button lands them on the next section deterministically.
+  useEffect(() => {
+    if (payReturn === 'confirming' && feePaid) { setPayReturn('confirmed'); setStep('address'); }
+  }, [payReturn, feePaid]);
 
   const propertySave = useAutosave(useCallback((p) => api.saveProperty(appId, p), [appId]));
   const agentSave = useAutosave(useCallback((p) => api.saveAgent(appId, { ...agent, ...p }), [appId, agent]));
@@ -221,7 +251,6 @@ export function Apply() {
   }), [property, agent, profile, months, incomes, feePaid]);
 
   const doneCount = Object.values(stepDone).filter(Boolean).length;
-  const pct = Math.round((doneCount / STEPS.length) * 100);
 
   const payFee = async () => {
     setBusy(true); setErr(null);
@@ -375,6 +404,9 @@ export function Apply() {
       nav={shellNav}
       active={activeNav}
       onNavigate={(id) => {
+        // Navigating away from the payment-return takeover dismisses it, so the
+        // sidebar is never trapped behind the confirmed/confirming panel.
+        setPayReturn('none');
         if (id.startsWith('details:')) { setTab('details'); void goStep(id.slice(8) as Step); }
         else void goTab(id as Tab);
       }}
@@ -391,22 +423,19 @@ export function Apply() {
             {bundle.application.guarantee_ref} · Everything saves as you go, so you can stop and come back.
           </p>
         </div>
-        {!submitted && (
-          <div className="page-head__actions">
-            <div className="ap-progress" style={{ minWidth: 180 }}>
-              <div className="ap-progress__bar"><span style={{ width: `${pct}%` }} /></div>
-              <span className="ap-progress__label">{doneCount} of {STEPS.length} done</span>
-            </div>
-          </div>
-        )}
       </div>
 
-      <ApplicationStatus
-        view={view}
-        guaranteeRef={bundle.application.guarantee_ref}
-        onPayGuarantee={view.cta === 'pay_guarantee' ? () => void payGuarantee() : undefined}
-        busy={busy}
-      />
+      {/* The five-stage lifecycle timeline only moves from submission onwards; on
+          a draft it reads "1 of 5" however much of the form is done and fights
+          the sidebar ticks. Show it once it carries real information. */}
+      {submitted && (
+        <ApplicationStatus
+          view={view}
+          guaranteeRef={bundle.application.guarantee_ref}
+          onPayGuarantee={view.cta === 'pay_guarantee' ? () => void payGuarantee() : undefined}
+          busy={busy}
+        />
+      )}
 
       {!SUPABASE_ENABLED && (
         <div className="apdemo">
@@ -450,13 +479,17 @@ export function Apply() {
           addresses={addresses} incomes={incomes} />
       )}
 
-      {tab === 'details' && !submitted && (
+      {tab === 'details' && !submitted && payReturn !== 'none' && (
+        <PaymentReturn
+          state={payReturn}
+          onContinue={() => { setPayReturn('none'); void goStep('address'); }}
+          onCheckAgain={() => setPayReturn('confirming')}
+        />
+      )}
+
+      {tab === 'details' && !submitted && payReturn === 'none' && (
         <div className="ap-body ap-body--full">
           <aside className="ap-steps ap-steps--hidden" aria-label="Your details, steps">
-            <div className="ap-progress">
-              <div className="ap-progress__bar"><span style={{ width: `${pct}%` }} /></div>
-              <span className="ap-progress__label">{doneCount} of {STEPS.length} done</span>
-            </div>
             {STEPS.map((s) => (
               <button key={s.id} type="button"
                 className={`ap-step${s.id === step ? ' is-active' : ''}${stepDone[s.id] ? ' is-done' : ''}${locked(s.id) ? ' is-locked' : ''}`}
@@ -513,11 +546,16 @@ export function Apply() {
                       finished the remaining sections and press send.
                     </p>
                     <div className="ap-actions">
-                      <Button variant="primary" onClick={() => void goStep('address')}>Carry on</Button>
+                      <Button variant="primary" onClick={() => void goStep('address')}>Continue to address history</Button>
                     </div>
                   </>
                 ) : (
                   <>
+                    {feeCancelled && (
+                      <div className="ap-pre">
+                        No payment was taken. You can pay whenever you are ready, and nothing has changed.
+                      </div>
+                    )}
                     <p className="ap-p">
                       <strong>£20, once.</strong> It covers the eligibility check on your application,
                       and it is not the guarantee fee. If you are approved, the guarantee itself is one month&rsquo;s
@@ -542,7 +580,7 @@ export function Apply() {
                     <div className="ap-actions">
                       <Button variant="primary"
                         disabled={busy || !stepDone.property || !stepDone.about}
-                        onClick={() => void payFee()}>
+                        onClick={() => { setFeeCancelled(false); void payFee(); }}>
                         {busy ? 'Taking you to payment…' : 'Pay £20 and continue'}
                       </Button>
                     </div>
@@ -755,6 +793,60 @@ export function Apply() {
    sections in front of them, but they do sometimes want to check what they put.
    Read-only, because editing after submission would change the basis of a
    decision already in flight, which the server refuses anyway. */
+/* The post-payment return, as a state the tenant lands on. It names the amount,
+   what it bought and what is next, and it never claims an assessment has
+   happened. While confirming it polls; if the webhook is slow it says we have
+   the payment and are checking, with a way to reach us, rather than a lock. */
+function PaymentReturn({ state, onContinue, onCheckAgain }: {
+  state: PayReturn;
+  onContinue: () => void;
+  onCheckAgain: () => void;
+}) {
+  if (state === 'confirming') {
+    return (
+      <Card><CardBody>
+        <div className="ap-pre ap-pre--wait">
+          <strong>Confirming your payment…</strong> This usually takes a few seconds.
+        </div>
+      </CardBody></Card>
+    );
+  }
+  if (state === 'stuck') {
+    return (
+      <Card><CardBody>
+        <div className="ap-pre ap-pre--wait">
+          <strong>We have your payment and we are checking it.</strong>
+        </div>
+        <p className="ap-p">
+          This is taking a little longer than usual. It does not need anything from
+          you, and the rest of your application unlocks the moment it clears.
+        </p>
+        <p className="ap-p">
+          If it has not cleared in a few minutes, email us at{' '}
+          <a href="mailto:hello@opndoor.co">hello@opndoor.co</a> and we will sort it.
+        </p>
+        <div className="ap-actions">
+          <Button variant="primary" onClick={onCheckAgain}>Check again</Button>
+        </div>
+      </CardBody></Card>
+    );
+  }
+  return (
+    <Card><CardBody>
+      <div className="ap-pre ap-pre--ok">
+        <strong>Payment received.</strong> £20 for your eligibility check.
+      </div>
+      <p className="ap-p">
+        Next: your address history. Nothing has been sent for checking yet. That
+        happens once you have finished the remaining sections and press send.
+      </p>
+      <div className="ap-actions">
+        <Button variant="primary" onClick={onContinue}>Continue to address history</Button>
+      </div>
+    </CardBody></Card>
+  );
+}
+
 function ReadOnlyAnswers({
   open, onToggle, property, agent, profile, addresses, incomes,
 }: {
