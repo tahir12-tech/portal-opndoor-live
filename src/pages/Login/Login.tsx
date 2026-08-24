@@ -560,6 +560,23 @@ function TenantSignInPanel() {
   // says the same thing in the same words.
   const [tResent, setTResent] = useState(false);
 
+  /* Same fix as the register screen: the promise was dropped and the
+     confirmation printed regardless, so a 503 from the limiter became "a new
+     one is on its way" with nothing sent and an unhandled rejection behind it. */
+  async function tResend() {
+    setTErr(null);
+    try {
+      await tenantAuth.resendCode(tEmail, 'sign_in');
+      setTResent(true);
+      setTCode('');
+    } catch (e) {
+      setTResent(false);
+      setTErr(e instanceof Error && e.message
+        ? e.message
+        : 'We could not send a new code just now. Try again in a moment.');
+    }
+  }
+
   async function confirm(e: FormEvent) {
     e.preventDefault();
     setTBusy(true);
@@ -622,7 +639,7 @@ function TenantSignInPanel() {
       <p className="auth__foot">
         Nothing arrived? Check your spam folder, or{' '}
         <button type="button" className="linkish" style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--heliotrope-deep, #5b3fd9)', textDecoration: 'underline', cursor: 'pointer' }}
-          onClick={() => { void tenantAuth.resendCode(tEmail, 'sign_in'); setTResent(true); setTCode(''); setTErr(null); }}>send a new one</button>.
+          onClick={() => { void tResend(); }}>send a new one</button>.
         {tResent && <> A new one is on its way. The previous code has stopped working.</>}
       </p>
       <p className="auth__foot">

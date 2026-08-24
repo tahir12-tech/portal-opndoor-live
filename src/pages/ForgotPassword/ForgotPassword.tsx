@@ -113,8 +113,12 @@ export function ForgotPassword() {
                 className={`aud__tab${t.id === audience ? ' is-active' : ''}`}
                 onClick={() => {
                   setAudience(t.id);
-                  // A failure belongs to the audience that produced it.
+                  // A failure, and a confirmation, belong to the audience that
+                  // produced them. Leaving `sent` set showed "a reset link is on
+                  // its way for sam@x.com" under the Agent tab, and hid the form
+                  // so no agent reset could be asked for at all.
                   setErr(null);
+                  setSent(false);
                   // Shareable, like /login: ?tab= is a link somebody can be sent.
                   setParams({ tab: t.id }, { replace: true });
                 }}>

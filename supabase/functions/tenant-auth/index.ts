@@ -349,17 +349,35 @@ Deno.serve(async (req) => {
       // This action's only deliverable is an email. Refuse before minting a
       // recovery token that nobody will ever receive.
       assertEmailConfigured();
+
+      /* CONFIGURATION FIRST, BEFORE ANYTHING THAT DEPENDS ON THE ADDRESS.
+         safeOrigin returns null when APP_URL is unset and the caller is not on
+         localhost. That is a property of the DEPLOY, not of the address, and it
+         does not clear on its own. It was checked further down, after the
+         applicants lookup, which made a deploy with APP_URL unset answer 503
+         for addresses that exist and 200 for addresses that do not, for free
+         and for as long as the setting stayed unset. HANDOVER.md records
+         APP_URL unset as a real production state, so that was not theoretical.
+
+         An address-independent check belongs above the lookup. Here it refuses
+         every address identically and reveals nothing. */
+      if (!origin) {
+        console.log(JSON.stringify({ event: "reset_link_suppressed", reason: "no safe origin" }));
+        return json({ ok: false, error: "We could not send that just now. Try again in a moment." }, 503);
+      }
+
       /* WHAT THIS ACTION MAY AND MAY NOT HIDE.
          Neutral about WHETHER AN ACCOUNT EXISTS: a hit and a miss both answer
          ok, and always will. Not neutral about WHETHER WE MANAGED TO SEND.
          Those were the same sentence, and the second wearing the first's
          clothes is how a reset vanished with nothing for anybody to chase.
 
-         The trade, stated rather than buried: while mail is broken an existing
-         address gets 503 and an unknown one still gets 200, so an outage is a
-         window in which existence is visible. That window costs an attacker a
-         mail outage to open. The alternative cost every user their reset,
-         silently, every time. No logging carries the address. */
+         The trade, stated rather than buried: the ONLY difference an existing
+         address can now produce is a genuine failure to send, so existence is
+         visible for exactly as long as mail is broken and no longer. Every
+         other refusal above is address-independent by construction. The
+         alternative cost every user their reset, silently, every time. No
+         logging carries the address. */
       if (email) {
         const limit = await limitCheck(service, req, "reset", email, 5, 20);
         if (!limit.ok) {
@@ -383,11 +401,6 @@ Deno.serve(async (req) => {
           console.log(JSON.stringify({ event: "reset_no_account" }));
           return json({ ok: true, sent: true });    // neutral, and correct
         }
-        if (!origin) {
-          console.log(JSON.stringify({ event: "reset_link_suppressed", reason: "no safe origin" }));
-          return json({ ok: false, error: "We could not send that just now. Try again in a moment." }, 503);
-        }
-
         const { data: link, error: linkErr } = await service.auth.admin
           .generateLink({ type: "recovery", email });
         const hashed = (link?.properties as any)?.hashed_token ?? "";

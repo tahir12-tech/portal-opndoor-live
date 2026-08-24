@@ -234,6 +234,25 @@ function CodeStep({ email, invite, onBack, purpose = 'verify_email', sendFailed 
   const [err, setErr] = useState<string | null>(null);
   const [resent, setResent] = useState(false);
 
+  /* Resend used to be `void auth.resendCode(...)` with setResent(true) on the
+     next statement. request_reset's sibling actions can now answer 503 when the
+     limiter cannot reach the database, so a dropped promise is an unhandled
+     rejection AND a screen claiming a code was sent that never was. That is the
+     original defect, one action along. */
+  async function resend() {
+    setErr(null);
+    try {
+      await auth.resendCode(email, purpose);
+      setResent(true);
+      setCode('');
+    } catch (e) {
+      setResent(false);
+      setErr(e instanceof Error && e.message
+        ? e.message
+        : 'We could not send a new code just now. Try again in a moment.');
+    }
+  }
+
   const go = async () => {
     setBusy(true); setErr(null);
     try {
@@ -280,7 +299,7 @@ function CodeStep({ email, invite, onBack, purpose = 'verify_email', sendFailed 
       <p className="auth__foot">
         Nothing arrived? Check your spam folder, or{' '}
         <button type="button" className="ap-link"
-          onClick={() => { void auth.resendCode(email, purpose); setResent(true); setCode(''); }}>
+          onClick={() => { void resend(); }}>
           send a new code
         </button>.
         {resent && <> A new one is on its way. The previous code has stopped working.</>}

@@ -15,6 +15,7 @@
 // neutral answer is how a reset disappears with nothing to chase.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { assertEmailConfigured, EmailNotConfigured } from "../_shared/emailConfigured.ts";
 import { sendMessage } from "../_shared/mailer.ts";
 import { passwordResetEmail } from "../_shared/emailTemplates.ts";
 
@@ -31,6 +32,13 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    /* BEFORE ANYTHING ADDRESS-SPECIFIC. Without this, an unset RESEND_API_KEY
+       makes sendMessage return ok:false with no network call, so the new 503
+       would fire for real accounts and 200 for the rest, permanently and at
+       whatever rate the caller likes: this endpoint has no limiter. Refusing
+       up front makes a missing key one answer for every address. */
+    assertEmailConfigured();
 
     const b = await req.json().catch(() => ({}));
     const email = String(b.email ?? "").trim().toLowerCase();
@@ -71,6 +79,13 @@ Deno.serve(async (req) => {
     }
     return json({ ok: true });
   } catch (e) {
+    // Named rather than folded into a 500, so a dev run can tell "email is
+    // switched off here" from "the code is broken", same as tenant-auth.
+    if (e instanceof EmailNotConfigured) {
+      console.log(JSON.stringify({ event: "email_not_configured" }));
+      return json({ ok: false, error: e.message, code: "email_not_configured" }, 503);
+    }
+    console.log(JSON.stringify({ event: "send_password_reset_error", message: String(e) }));
     return json({ ok: false, error: e instanceof Error ? e.message : "Unexpected error." }, 500);
   }
 });
