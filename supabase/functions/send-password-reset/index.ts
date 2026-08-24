@@ -42,6 +42,9 @@ Deno.serve(async (req) => {
 
     const b = await req.json().catch(() => ({}));
     const email = String(b.email ?? "").trim().toLowerCase();
+    // Allowlisted, not trusted: this value is appended to a URL that GoTrue
+    // will redirect to, and it arrives from an unauthenticated caller.
+    const audience = b.audience === "supplier" ? "supplier" : "agent";
     // Build the recovery redirect from the SERVER-configured APP_URL, not the
     // unauthenticated client-supplied origin, so a caller cannot point the
     // recovery link (and its token) at an address they control. GoTrue's own
@@ -53,11 +56,35 @@ Deno.serve(async (req) => {
     // send when the address is valid and known; the outcome is not disclosed.
     if (email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       const service = createClient(SUPABASE_URL, SERVICE);
-      const { data, error } = await service.auth.admin.generateLink({
-        type: "recovery",
-        email,
-        options: { redirectTo: `${base}/reset-password` },
-      });
+      const mint = (redirectTo: string) =>
+        service.auth.admin.generateLink({ type: "recovery", email, options: { redirectTo } });
+
+      /* THE AUDIENCE RIDES IN THE LINK, WITH A WAY BACK DOWN.
+         The reset request knows which tab was picked, so an expired link can
+         return somebody to it rather than guessing Agent for every member of
+         staff. Only the two staff audiences reach this endpoint; a tenant reset
+         goes through tenant-auth and lands on /apply/reset.
+
+         The fallback is the point. GoTrue matches redirectTo against the
+         project's Redirect URLs allowlist, and an entry without a wildcard does
+         not match once a query string is on the end. When that happens
+         generateLink ERRORS, and the branch below reads a generateLink error as
+         "no such account" and sends nothing at all. A cosmetic improvement to a
+         tab must not be able to turn into no staff reset emails, so a rejected
+         redirect degrades to exactly the link we sent yesterday. CUTOVER has
+         the allowlist entry that stops this firing. */
+      let { data, error } = await mint(`${base}/reset-password?tab=${audience}`);
+      if (error) {
+        const plain = await mint(`${base}/reset-password`);
+        if (!plain.error) {
+          console.log(JSON.stringify({
+            event: "reset_redirect_tab_rejected",
+            detail: "Redirect URLs allowlist does not accept a query string; sent without the tab.",
+          }));
+        }
+        data = plain.data;
+        error = plain.error;
+      }
       const link = data?.properties?.action_link as string | undefined;
 
       // generateLink IS the existence check on this path, so a failure here is

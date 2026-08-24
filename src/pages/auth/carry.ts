@@ -37,6 +37,18 @@ export function carriedTab(params: URLSearchParams): Audience | null {
   return t === 'tenant' || t === 'agent' || t === 'supplier' ? t : null;
 }
 
+/** The two audiences that share the staff sign-in.
+
+    /reset-password serves ONLY these: a tenant reset lands on /apply/reset,
+    which is a different page. So a tab of 'tenant' arriving here is either a
+    hand-edited URL or a mistake, and either way an agent is a better guess than
+    sending a member of staff to the tenant tab. */
+export type StaffAudience = 'agent' | 'supplier';
+
+export function carriedStaffTab(params: URLSearchParams): StaffAudience {
+  return carriedTab(params) === 'supplier' ? 'supplier' : 'agent';
+}
+
 function href(path: string, audience: Audience, email: string): string {
   const p = new URLSearchParams({ tab: audience });
   const e = email.trim().slice(0, MAX_EMAIL);

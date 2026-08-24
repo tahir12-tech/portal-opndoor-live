@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { carriedEmail, carriedTab, forgotHref, signInHref } from './carry';
+import { carriedEmail, carriedStaffTab, carriedTab, forgotHref, signInHref } from './carry';
 
 const q = (s: string) => new URLSearchParams(s);
 
@@ -36,6 +36,16 @@ describe('what is carried', () => {
   it('leaves email off entirely when there is none, rather than sending email=', () => {
     expect(forgotHref('supplier', '   ')).toBe('/forgot-password?tab=supplier');
     expect(signInHref('tenant', '')).toBe('/login?tab=tenant');
+  });
+
+  it('reads a staff tab, and never answers tenant', () => {
+    // /reset-password serves only agents and suppliers. Anything else arriving
+    // there is a hand-edited URL or an old link, and Agent beats sending a
+    // member of staff to the tenant tab.
+    expect(carriedStaffTab(q('tab=supplier'))).toBe('supplier');
+    expect(carriedStaffTab(q('tab=agent'))).toBe('agent');
+    expect(carriedStaffTab(q('tab=tenant'))).toBe('agent');
+    expect(carriedStaffTab(q(''))).toBe('agent');
   });
 
   it('round trips both ways', () => {

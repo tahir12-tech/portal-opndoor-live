@@ -252,6 +252,21 @@ is the whole path working. A wrong secret gives 400 and never reaches SQL.
 - **Value.** The production portal origin. Every `APP_URL` value below must be on the allow list.
 - **Verify.** Complete one real password reset end to end. A wrong value here
   produces a link that lands on an error page rather than the reset form.
+- **The entry must allow a query string.** The staff reset link carries the tab
+  the user picked, so `send-password-reset` asks for a redirect of
+  `<APP_URL>/reset-password?tab=agent` or `?tab=supplier`. GoTrue matches the
+  redirect against this list, and an exact entry of `<APP_URL>/reset-password`
+  does **not** match once a query string is appended. Add a wildcard entry,
+  `<APP_URL>/**`, or list both tab values explicitly.
+- **What happens if you forget.** Nothing visibly breaks. `send-password-reset`
+  retries without the tab, logs `reset_redirect_tab_rejected`, and the email
+  goes out exactly as it did before, with an expired link landing a supplier on
+  the Agent tab. That fallback exists because the alternative was worse: a
+  rejected redirect makes `generateLink` error, and this endpoint reads a
+  `generateLink` error as "no such account" and sends nothing at all. So a
+  missing allow-list entry would have meant no staff reset emails, silently.
+  Search the function logs for `reset_redirect_tab_rejected` to confirm the
+  entry is right rather than assuming it.
 
 ---
 

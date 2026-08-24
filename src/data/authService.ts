@@ -46,11 +46,14 @@ export function verify2fa(_code: string): { ok: boolean } {
  * the caller can say so instead of promising an email nobody will get.
  * No-op in mock mode.
  */
-export async function requestPasswordReset(email: string): Promise<{ ok: boolean }> {
+export async function requestPasswordReset(
+  email: string, audience: 'agent' | 'supplier' = 'agent',
+): Promise<{ ok: boolean }> {
   if (!SUPABASE_ENABLED) return { ok: true };
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  // The tab travels with the request so it can travel back in the link.
   const { data, error } = await sb().functions
-    .invoke('send-password-reset', { body: { email: email.trim(), origin } });
+    .invoke('send-password-reset', { body: { email: email.trim(), origin, audience } });
   // Whether the address has an account is still invisible: the function answers
   // ok for both. What is no longer invisible is a send we failed to make.
   if (error || (data && data.ok === false)) {

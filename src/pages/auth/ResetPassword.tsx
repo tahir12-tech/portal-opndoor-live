@@ -17,7 +17,8 @@
    the user into the app before they finish.
    ===================================================================== */
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { carriedStaffTab, forgotHref } from './carry';
 import { authService } from '@/data';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
@@ -47,6 +48,14 @@ function mapUpdateError(msg: string): string {
 
 export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' }) {
   const c = COPY[mode];
+  const [sp] = useSearchParams();
+  /* The audience rides in the recovery link, so an expired one puts somebody
+     back on the tab they started from instead of guessing Agent for everybody.
+     Falls back to the hardcoded default when the link predates this, or when
+     the allowlist made the sender drop the parameter. */
+  const invalidCta = mode === 'reset'
+    ? { ...c.invalidCta, to: forgotHref(carriedStaffTab(sp), '') }
+    : c.invalidCta;
   useDocumentTitle(c.title);
   const navigate = useNavigate();
   const { status, markMfaVerified } = useSession();
@@ -209,7 +218,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
               <div className="confirm-ic"><Icon name="alert" strokeWidth={2.4} /></div>
               <h2 className="auth__title">This link is not valid</h2>
               <p className="auth__sub">{c.invalidLead}</p>
-              <div className="auth__form"><Button variant="primary" block to={c.invalidCta.to}>{c.invalidCta.label}</Button></div>
+              <div className="auth__form"><Button variant="primary" block to={invalidCta.to}>{invalidCta.label}</Button></div>
               <p className="auth__foot"><Link to="/login">Back to sign in</Link></p>
             </div>
           )}

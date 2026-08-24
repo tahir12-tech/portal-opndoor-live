@@ -55,7 +55,7 @@ export function ForgotPassword() {
     // tables, so the request goes to a different place. Nothing else differs.
     try {
       if (audience === 'tenant') await tenantAuth.requestReset(email.trim());
-      else await authService.requestPasswordReset(email.trim());
+      else await authService.requestPasswordReset(email.trim(), audience);
       setSent(true);
     } catch (e) {
       /* THREE CONDITIONS USED TO ARRIVE HERE AND LEAVE AS ONE SENTENCE:
