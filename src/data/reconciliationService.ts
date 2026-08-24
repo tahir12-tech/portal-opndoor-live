@@ -123,3 +123,95 @@ export function reconciliationPendingCount(): number {
   }
   return MOCK_QUEUE.length;
 }
+
+
+/* =====================================================================
+   Direct-rail agency matches (opndoor admin only).
+   A separate queue from the on-the-fly review above: these are direct-signup
+   applications whose free-text agency name we matched server-side. An exact
+   name match pre-fills the agency; everything else is a person's call. The
+   branch is ALWAYS a person's call. Resolving points the application at a real
+   branch (partner_id stays opndoor-direct, enforced in SQL); dismissing marks
+   it not-in-network and leaves it on the house branch.
+   ===================================================================== */
+export interface MatchCandidate { agency_id: string; name: string; partner_id: string; sim: number }
+
+export interface AgencyMatchRow {
+  applicationId: string;
+  guaranteeRef: string;
+  tenantName: string;
+  property: string;
+  /** What the tenant typed, verbatim. */
+  typedName: string;
+  /** The one exact-match agency, or null when zero or several. */
+  autoAgencyId: string | null;
+  autoAgencyName: string | null;
+  /** Top fuzzy candidates, logged for calibration and shown as hints. Never auto-accepted. */
+  candidates: MatchCandidate[];
+  when: string;
+}
+
+export interface MatchBranch { id: string; name: string; area: string | null }
+
+export async function loadAgencyMatchQueue(): Promise<AgencyMatchRow[]> {
+  if (SUPABASE_ENABLED) {
+    const { data, error } = await sb().rpc('agency_match_queue');
+    if (error) throw new Error(error.message);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((r: any) => ({
+      applicationId: r.application_id,
+      guaranteeRef: r.guarantee_ref,
+      tenantName: r.tenant_name || 'A tenant',
+      property: r.property || '',
+      typedName: r.typed_name || '',
+      autoAgencyId: r.auto_agency_id ?? null,
+      autoAgencyName: r.auto_agency_name ?? null,
+      candidates: Array.isArray(r.candidates) ? r.candidates : [],
+      when: r.created_at ? fmtWhen(r.created_at) : '',
+    }));
+  }
+  return MOCK_AGENCY_MATCHES.slice();
+}
+
+export async function loadMatchBranchOptions(agencyId: string): Promise<MatchBranch[]> {
+  if (SUPABASE_ENABLED) {
+    const { data, error } = await sb().rpc('agency_branches_for_match', { p_agency: agencyId });
+    if (error) throw new Error(error.message);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((b: any) => ({ id: b.branch_id, name: b.name, area: b.area ?? null }));
+  }
+  return MOCK_MATCH_BRANCHES[agencyId] ?? [];
+}
+
+export async function resolveAgencyMatch(applicationId: string, branchId: string): Promise<void> {
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('resolve_agency_match', { p_application: applicationId, p_branch: branchId });
+    if (error) throw new Error(error.message);
+    return;
+  }
+  const i = MOCK_AGENCY_MATCHES.findIndex((r) => r.applicationId === applicationId);
+  if (i >= 0) MOCK_AGENCY_MATCHES.splice(i, 1);
+}
+
+export async function dismissAgencyMatch(applicationId: string, note?: string): Promise<void> {
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('dismiss_agency_match', { p_application: applicationId, p_note: note ?? null });
+    if (error) throw new Error(error.message);
+    return;
+  }
+  const i = MOCK_AGENCY_MATCHES.findIndex((r) => r.applicationId === applicationId);
+  if (i >= 0) MOCK_AGENCY_MATCHES.splice(i, 1);
+}
+
+const MOCK_AGENCY_MATCHES: AgencyMatchRow[] = [
+  { applicationId: 'am1', guaranteeRef: 'GR-1000', tenantName: 'Sam Okafor', property: 'Leeds LS1 4DY',
+    typedName: 'Meridian Lettings', autoAgencyId: 'ag-meridian', autoAgencyName: 'Meridian Lettings',
+    candidates: [{ agency_id: 'ag-meridian', name: 'Meridian Lettings', partner_id: 'p1', sim: 1 }], when: '24/08/2026 · 12:00' },
+  { applicationId: 'am2', guaranteeRef: 'GR-1001', tenantName: 'Alex Field', property: 'Sheffield S1 2HH',
+    typedName: 'barnad & co', autoAgencyId: null, autoAgencyName: null,
+    candidates: [{ agency_id: 'ag-barnard', name: 'Barnard & Co', partner_id: 'p1', sim: 0.62 }], when: '24/08/2026 · 11:30' },
+];
+const MOCK_MATCH_BRANCHES: Record<string, MatchBranch[]> = {
+  'ag-meridian': [{ id: 'br-m-city', name: 'City Centre', area: 'LS1' }, { id: 'br-m-hq', name: 'Head office', area: null }],
+  'ag-barnard': [{ id: 'br-b-1', name: 'Sheffield', area: 'S1' }],
+};

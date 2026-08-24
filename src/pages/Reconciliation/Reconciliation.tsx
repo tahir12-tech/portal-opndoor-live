@@ -8,7 +8,8 @@
    2-minute cron also runs the sync). Merge is not built yet (disabled).
    ===================================================================== */
 import { useCallback, useEffect, useState } from 'react';
-import { confirmReconEntity, loadReconciliationQueue, triggerCrmSync, type ReconRow } from '@/data';
+import { confirmReconEntity, loadReconciliationQueue, loadAgencyMatchQueue, triggerCrmSync, type ReconRow } from '@/data';
+import { AgencyMatchQueue } from './AgencyMatchQueue';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -17,7 +18,7 @@ import { useToast } from '@/components/ui/Toast';
 import '@/components/ui/opbar.css';
 import './Reconciliation.css';
 
-type Filter = 'all' | 'agency' | 'branch' | 'dupes';
+type Filter = 'all' | 'agency' | 'branch' | 'dupes' | 'matches';
 
 export function Reconciliation() {
   usePageMeta('reconcile', 'Reconciliation', ['Home', 'opndoor', 'Reconciliation']);
@@ -26,12 +27,15 @@ export function Reconciliation() {
   const [queue, setQueue] = useState<ReconRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>('all');
+  const [matchCount, setMatchCount] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   const reload = useCallback(async () => {
     try {
-      setQueue(await loadReconciliationQueue());
+      const [q, matches] = await Promise.all([loadReconciliationQueue(), loadAgencyMatchQueue()]);
+      setQueue(q);
+      setMatchCount(matches.length);
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not load the reconciliation queue.', 'error');
     } finally {
@@ -51,6 +55,7 @@ export function Reconciliation() {
     { id: 'agency', label: 'Agencies', count: agencyCount },
     { id: 'branch', label: 'Branches', count: branchCount },
     { id: 'dupes', label: 'Possible duplicates', count: dupes },
+    { id: 'matches', label: 'Direct matches', count: matchCount },
   ];
 
   const passes = (item: ReconRow) => (filter === 'all' ? true : filter === 'dupes' ? !!item.match : item.type === filter);
@@ -119,6 +124,9 @@ export function Reconciliation() {
         ))}
       </div>
 
+      {filter === 'matches' ? (
+        <AgencyMatchQueue onChanged={reload} />
+      ) : (
       <div className="rq">
         {visible.map((item) => {
           const parent = item.type === 'branch' ? <>Under <b>{item.parent}</b> · </> : null;
@@ -160,7 +168,10 @@ export function Reconciliation() {
           );
         })}
       </div>
-      <div className={`empty${!loading && queue.length === 0 ? ' is-shown' : ''}`}>Nothing left to reconcile. The hierarchy is clean.</div>
+      )}
+      {filter !== 'matches' && (
+        <div className={`empty${!loading && queue.length === 0 ? ' is-shown' : ''}`}>Nothing left to reconcile. The hierarchy is clean.</div>
+      )}
     </>
   );
 }

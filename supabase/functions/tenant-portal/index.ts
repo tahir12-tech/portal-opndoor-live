@@ -521,6 +521,15 @@ Deno.serve(async (req) => {
         // needed, so the message is passed through rather than flattened.
         return json({ ok: false, error: error.message }, 422);
       }
+
+      // Attribution match: back-office, and STRICTLY non-blocking. It runs after
+      // the submit has already succeeded and its failure is logged, never
+      // returned. A tenant is not held up, and never sees, the reconciliation.
+      const { error: matchErr } = await service.rpc("match_application_agency", { p_application: app.id });
+      if (matchErr) {
+        console.log(JSON.stringify({ event: "agency_match_failed", message: matchErr.message }));
+      }
+
       return json({ ok: true });
     }
 
