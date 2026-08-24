@@ -12,7 +12,7 @@
    Deliberately shallow. The point is that each tab mounts and offers a way in. */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
 import { Login } from './Login';
 import { ForgotPassword } from '@/pages/ForgotPassword/ForgotPassword';
@@ -431,14 +431,24 @@ describe('sign in and reset hand the tab and the email to each other', () => {
     }
   });
 
-  it('carries both home again, including an address edited on the way', () => {
+  it('carries both home again, on every tab, including an address edited on the way', () => {
+    for (const tab of ['agent', 'supplier', 'tenant'] as const) {
+      render(
+        <MemoryRouter initialEntries={[`/forgot-password?tab=${tab}&email=${encodeURIComponent(EMAIL)}`]}>
+          <ForgotPassword />
+        </MemoryRouter>,
+      );
+      expect(screen.getByRole('link', { name: /back to sign in/i }).getAttribute('href'))
+        .toBe(`/login?tab=${tab}&email=${encodeURIComponent(EMAIL)}`);
+      cleanup();
+    }
+
     render(
       <MemoryRouter initialEntries={[`/forgot-password?tab=supplier&email=${encodeURIComponent(EMAIL)}`]}>
         <ForgotPassword />
       </MemoryRouter>,
     );
     const back = () => screen.getByRole('link', { name: /back to sign in/i }).getAttribute('href');
-    expect(back()).toBe(`/login?tab=supplier&email=${encodeURIComponent(EMAIL)}`);
 
     // Corrected a typo on the reset page: the correction is what goes back.
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'fixed@example.co.uk' } });
@@ -451,6 +461,65 @@ describe('sign in and reset hand the tab and the email to each other', () => {
     cleanup();
     at(`/login?tab=tenant&email=${encodeURIComponent(EMAIL)}`);
     expect((screen.getByLabelText(/email address/i) as HTMLInputElement).value).toBe(EMAIL);
+  });
+
+  /* The tab strip is a navigation, so what it does to the URL is the test. */
+  function LocationProbe() {
+    const loc = useLocation();
+    return <output data-testid="loc">{loc.pathname + loc.search}</output>;
+  }
+  const withUrl = (path: string) => render(
+    <MemoryRouter initialEntries={[path]}>
+      <SessionProvider><Login /><LocationProbe /></SessionProvider>
+    </MemoryRouter>,
+  );
+  const url = () => screen.getByTestId('loc').textContent;
+  const clickTab = (name: string) => fireEvent.click(screen.getByRole('tab', { name }));
+
+  it('keeps the carried email when a tab is clicked', () => {
+    // The tab strip rebuilt the query string from tab alone, so touching the
+    // tabs wiped the address that had just been carried in, which is the exact
+    // retyping this whole thing exists to remove.
+    withUrl(`/login?tab=agent&email=${encodeURIComponent(EMAIL)}`);
+    clickTab('Tenant');
+    expect(url()).toContain(`email=${encodeURIComponent(EMAIL)}`);
+    expect((screen.getByLabelText(/email address/i) as HTMLInputElement).value).toBe(EMAIL);
+    expect(forgot()).toContain(`email=${encodeURIComponent(EMAIL)}`);
+  });
+
+  it('keeps an invite token when a tab is clicked', () => {
+    /* Worse than the email and silent. invite is read live from the URL and
+       handed to afterSignIn; losing it means a tenant signs in and opens an
+       empty draft instead of claiming the application their agent already
+       filled in, with nothing on screen to say so. */
+    withUrl('/login?tab=tenant&invite=TOK123');
+    clickTab('Agent');
+    expect(url()).toContain('invite=TOK123');
+    clickTab('Tenant');
+    expect(url()).toContain('invite=TOK123');
+  });
+
+  it('keeps a TYPED tenant address across a tab round trip', () => {
+    // TenantSignInPanel is mounted conditionally, so state inside it died on
+    // every tab click. The address lives in Login now, like the staff one.
+    at('/login?tab=tenant');
+    typeEmail(/email address/i, 'typed@example.co.uk');
+    clickTab('Agent');
+    clickTab('Tenant');
+    expect((screen.getByLabelText(/email address/i) as HTMLInputElement).value)
+      .toBe('typed@example.co.uk');
+  });
+
+  it('keeps the address in the URL when the reset page switches tab', () => {
+    // Not just in state: a reload, or a link shared after switching, has to
+    // still hold it. Nothing failed when this stopped happening.
+    render(
+      <MemoryRouter initialEntries={[`/forgot-password?tab=tenant&email=${encodeURIComponent(EMAIL)}`]}>
+        <ForgotPassword /><LocationProbe />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('tab', { name: 'Supplier' }));
+    expect(url()).toBe(`/forgot-password?tab=supplier&email=${encodeURIComponent(EMAIL)}`);
   });
 
   it('refuses to be stuffed by a hostile link', () => {

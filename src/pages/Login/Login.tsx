@@ -37,15 +37,20 @@ export function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   // Seeded from the URL so ?tab=tenant is a link somebody can be sent. Agent is
-  // the default because that is who has been signing in here for a year.
-  // Agent is the default because that is who has been signing in here for a
-  // year, so a missing or unknown tab lands there rather than on tenant.
+  // the default because that is who has been signing in here for a year, so a
+  // missing or unknown tab lands there rather than on tenant.
   const [audience, setAudience] = useState<Audience>(carriedTab(searchParams) ?? 'agent');
   const { status, markMfaVerified } = useSession();
   const [step, setStep] = useState<Step>('creds');
   // Carried back from /forgot-password, so "Back to sign in" returns somebody
   // to a filled field rather than an empty one.
   const [email, setEmail] = useState(() => carriedEmail(searchParams));
+  /* The TENANT address lives up here for the same reason the staff one does:
+     TenantSignInPanel is mounted conditionally, so state inside it dies on every
+     tab click. It used to re-seed from the URL on remount, which looked fine
+     until the tab strip below started stripping the URL, at which point tapping
+     Agent and back emptied a field somebody had just been handed. */
+  const [tenantEmail, setTenantEmail] = useState(() => carriedEmail(searchParams));
   const [password, setPassword] = useState('');
   const [masked, setMasked] = useState('');
   const [codes, setCodes] = useState<string[]>(['', '', '', '', '', '']);
@@ -230,7 +235,9 @@ export function Login() {
               the same complaint one level down. */}
           <div className="auth__pane">
 
-          {audience === 'tenant' && <TenantSignInPanel />}
+          {audience === 'tenant' && (
+            <TenantSignInPanel email={tenantEmail} setEmail={setTenantEmail} />
+          )}
 
           {audience !== 'tenant' && (<>
           <Steps onSecond={onCode} />
@@ -506,6 +513,7 @@ const BRAND: Record<Audience, {
 
 function AudienceTabs({ value, onChange }: { value: Audience; onChange: (a: Audience) => void }) {
   const nav = useNavigate();
+  const [sp] = useSearchParams();
   const tabs: { id: Audience; label: string }[] = [
     { id: 'tenant', label: 'Tenant' },
     { id: 'agent', label: 'Agent' },
@@ -518,9 +526,22 @@ function AudienceTabs({ value, onChange }: { value: Audience; onChange: (a: Audi
           className={`aud__tab${t.id === value ? ' is-active' : ''}`}
           onClick={() => {
             onChange(t.id);
-            // Shareable, like the site it replaces: ?tab=tenant is a link
-            // somebody can be sent, not internal state.
-            nav(`/login?tab=${t.id}`, { replace: true });
+            /* MERGE, never rebuild. Building the query string from `tab` alone
+               dropped every other parameter with it:
+
+                 ?email=  the address just carried back from the reset page, so
+                          touching the tabs reproduced the exact retyping this
+                          was written to remove.
+                 ?invite= worse and silent. A tenant holding an application their
+                          agent already filled in would sign in and open an empty
+                          draft instead of claiming it, with nothing on screen to
+                          say anything had been lost.
+
+               Shareable either way: ?tab=tenant is still a link somebody can be
+               sent, it just no longer costs the rest of the URL. */
+            const next = new URLSearchParams(sp);
+            next.set('tab', t.id);
+            nav(`/login?${next}`, { replace: true });
           }}>
           {t.label}
         </button>
@@ -544,14 +565,15 @@ function AudienceTabs({ value, onChange }: { value: Audience; onChange: (a: Audi
    invite landing and where tenant sign-out lands. /apply/signin redirects, so
    an invite email already delivered still arrives at the right tab with its
    token intact. */
-function TenantSignInPanel() {
+function TenantSignInPanel(
+  { email: tEmail, setEmail: setTEmail }: { email: string; setEmail: (v: string) => void },
+) {
   const nav = useNavigate();
   const [sp] = useSearchParams();
   // An invite means an agent already built the application and the property
   // came with it, so it is claimed rather than created. Carried through here so
   // /login?tab=tenant&invite=... does not silently open an empty draft instead.
   const invite = sp.get('invite') ?? undefined;
-  const [tEmail, setTEmail] = useState(() => carriedEmail(sp));
   const [tPassword, setTPassword] = useState('');
   const [tBusy, setTBusy] = useState(false);
   const [tErr, setTErr] = useState<string | null>(null);

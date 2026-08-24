@@ -57,18 +57,60 @@ function sources(dir = 'src'): string[] {
   });
 }
 
+/* The link, and whether it names a real audience.
+
+   Two holes the first version of this had, both found by review rather than by
+   the suite going red, which is the point of testing the matcher itself:
+
+     1. It skipped any line containing "<Route ", so
+        <Route path="/x" element={<Navigate to="/forgot-password" />} /> was
+        waved through whole. Only the Route's OWN path attribute declares the
+        destination; anything else on that line is still a link to it.
+     2. It asked whether the string contained "tab=", which "?tab=" and
+        "?notatab=x" both satisfy. A tab that is mentioned is not a tab that is
+        carried. */
+const NAMES_AN_AUDIENCE = /[?&]tab=(tenant|agent|supplier)(?=[&'"`]|$)/;
+
+export function offendingLinks(line: string): string[] {
+  const scan = line.replace(/path=(['"])\/forgot-password\1/g, '');
+  return (scan.match(/['"`]\/forgot-password([^'"`]*)['"`]/g) ?? [])
+    .filter((hit) => !NAMES_AN_AUDIENCE.test(hit));
+}
+
+describe('the invariant matcher has teeth', () => {
+  it('passes a link that names a real audience', () => {
+    expect(offendingLinks(`<Link to="/forgot-password?tab=agent">x</Link>`)).toEqual([]);
+    expect(offendingLinks(`href="/forgot-password?tab=tenant&email=a%40b.co"`)).toEqual([]);
+  });
+
+  it('ignores the Route that DECLARES the page, but not a link beside it', () => {
+    expect(offendingLinks(`<Route path="/forgot-password" element={<ForgotPassword />} />`)).toEqual([]);
+    // The hole. A redirect route is a link, and it used to be skipped wholesale.
+    expect(offendingLinks(`<Route path="/old" element={<Navigate to="/forgot-password" />} />`))
+      .toEqual(['"/forgot-password"']);
+  });
+
+  it('rejects a tab that is mentioned rather than carried', () => {
+    expect(offendingLinks(`to="/forgot-password?tab="`).length).toBe(1);
+    expect(offendingLinks(`to="/forgot-password?nottab=agent"`).length).toBe(1);
+    expect(offendingLinks(`to="/forgot-password?tab=landlord"`).length).toBe(1);
+    // Interpolated: cannot be checked here, so it must be looked at by a human.
+    expect(offendingLinks('to={`/forgot-password?tab=${who}`}').length).toBe(1);
+  });
+
+  it('catches a bare link', () => {
+    expect(offendingLinks(`<a href="/forgot-password">reset</a>`)).toEqual(['"/forgot-password"']);
+  });
+});
+
 describe('no entry point into the reset page forgets the tab', () => {
-  it('has no link to a bare /forgot-password anywhere in src', () => {
+  it('has none anywhere in src', () => {
     const offenders: string[] = [];
     for (const file of sources()) {
-      // carry.ts BUILDS the link and appends the tab itself; the Route in
-      // App.tsx declares the destination rather than linking to it.
+      // carry.ts BUILDS the link and appends the tab itself.
       if (file.endsWith(join('pages', 'auth', 'carry.ts'))) continue;
       readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
-        if (/<Route\s/.test(line)) return;
-        for (const hit of line.match(/['"`]\/forgot-password([^'"`]*)['"`]/g) ?? []) {
-          if (!hit.includes('tab=')) offenders.push(`${file}:${i + 1}  ${hit}`);
-        }
+        for (const hit of offendingLinks(line)) offenders.push(`${file}:${i + 1}  ${hit}`);
       });
     }
     expect(offenders).toEqual([]);

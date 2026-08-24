@@ -209,7 +209,9 @@ export function Register() {
         Next: a few details about the property, then a £20 application fee, then the longer part.
         You can stop and come back at any point.
       </p>
-      <p className="ap-foot">Already have an account? <a href="/login?tab=tenant">Sign in</a>.</p>
+      {/* The address is in f.email, three lines from the sibling screen that
+          already carries it. Dropping it here asked for it twice. */}
+      <p className="ap-foot">Already have an account? <a href={signInHref('tenant', f.email)}>Sign in</a>.</p>
     </Shell>
   );
 }

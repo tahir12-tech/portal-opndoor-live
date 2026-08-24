@@ -56,6 +56,16 @@ describe('creating an account', () => {
     expect(submit.hasAttribute('disabled')).toBe(true);
   });
 
+  it('hands the typed address to the sign-in link rather than asking twice', () => {
+    // "Already have an account? Sign in" went to a bare /login?tab=tenant with
+    // the address sitting in state three lines away.
+    at(<Register />, '/apply/register');
+    const link = () => screen.getByRole('link', { name: /^sign in$/i }).getAttribute('href');
+    expect(link()).toBe('/login?tab=tenant');
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'sam@example.co.uk' } });
+    expect(link()).toBe('/login?tab=tenant&email=sam%40example.co.uk');
+  });
+
   it('requires a password of at least ten characters', () => {
     at(<Register />, '/apply/register');
     fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Sam' } });
