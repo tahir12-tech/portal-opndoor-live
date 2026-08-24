@@ -188,13 +188,26 @@ export function Apply() {
   useEffect(() => {
     if (payReturn !== 'confirming') return;
     let stopped = false;
-    const poll = () => { if (!stopped) { seeded.current = false; void load(); } };
-    const id = setInterval(poll, 2000);
-    poll();
-    const giveUp = setTimeout(() => {
-      if (!stopped) setPayReturn((cur) => (cur === 'confirming' ? 'stuck' : cur));
-    }, 20000);
-    return () => { stopped = true; clearInterval(id); clearTimeout(giveUp); };
+    const start = Date.now();
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      if (stopped) return;
+      seeded.current = false;
+      void load();
+      const elapsed = Date.now() - start;
+      if (elapsed >= 120000) {
+        // Two minutes of trying on its own. Hand off to the "we have your
+        // payment" state, where Check again is the manual nudge.
+        setPayReturn((cur) => (cur === 'confirming' ? 'stuck' : cur));
+        return;
+      }
+      // Fast while it is most likely to land, then a calm background cadence, so
+      // a payment that clears thirty seconds late advances without the tenant
+      // having to press anything.
+      timer = setTimeout(tick, elapsed < 20000 ? 2000 : 8000);
+    };
+    timer = setTimeout(tick, 0);
+    return () => { stopped = true; clearTimeout(timer); };
   }, [payReturn, load]);
 
   // The webhook has landed. Move to the confirmed state and SET the step, so the
@@ -806,7 +819,8 @@ function PaymentReturn({ state, onContinue, onCheckAgain }: {
     return (
       <Card><CardBody>
         <div className="ap-pre ap-pre--wait">
-          <strong>Confirming your payment…</strong> This usually takes a few seconds.
+          <strong>Confirming your payment…</strong> This is usually a few seconds. It can
+          occasionally take up to a minute, and it continues on its own.
         </div>
       </CardBody></Card>
     );

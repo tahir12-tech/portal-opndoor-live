@@ -121,6 +121,33 @@ describe('the post-payment return', () => {
   });
 });
 
+describe('the post-payment poll', () => {
+  it('auto-advances when the payment lands late, without the tenant pressing anything', async () => {
+    vi.useFakeTimers();
+    // Not paid on arrival: the webhook has not landed yet.
+    stub('draft', false);
+    mountAt('?fee=paid');
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(screen.getByText(/Confirming your payment/i)).toBeTruthy();
+    // The webhook lands a little later: the next reload sees fee_paid true.
+    (api.getApplication as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(bundle('draft', true));
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(screen.getByText(/Payment received/i)).toBeTruthy();
+    vi.useRealTimers();
+  });
+
+  it('falls back to a "we have your payment" state after two minutes, with Check again', async () => {
+    vi.useFakeTimers();
+    stub('draft', false); // never confirms
+    mountAt('?fee=paid');
+    await vi.advanceTimersByTimeAsync(125000);
+    expect(screen.getByText(/We have your payment and we are checking it/i)).toBeTruthy();
+    expect(screen.getByText(/hello@opndoor\.co/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /check again/i })).toBeTruthy();
+    vi.useRealTimers();
+  });
+});
+
 describe('the progress indicators', () => {
   it('hides the five-stage lifecycle timeline while a draft', async () => {
     stub('draft');
