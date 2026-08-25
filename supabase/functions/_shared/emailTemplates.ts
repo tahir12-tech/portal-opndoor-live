@@ -45,14 +45,18 @@ export function passwordResetEmail(link: string): Message {
   };
 }
 
-export function accountExistsEmail(): Message {
+export function accountExistsEmail(signInUrl: string, resetUrl: string): Message {
   return {
     subject: "You already have an opndoor account",
     heading: "You already have an account",
     blocks: [
-      { p: "Somebody, probably you, tried to create an opndoor account with this address. You already have one, so nothing has changed." },
-      { small: "If that was not you, reset your password to be sure." },
+      // Lead with what they can do, not with a "somebody tried" line that puts
+      // the reader on the back foot. Someone who just tried to sign up wants in.
+      { p: "You already have an opndoor account for this address, so there is nothing to set up. Sign in to pick up your application where you left off." },
+      { small: `If it was not you who tried to sign up, nothing has changed and you can ignore this. Forgotten your password? <a href="${resetUrl}">Reset it here</a>.` },
     ],
+    // Primary action is signing in. The reset is the quieter, less likely case.
+    action: { label: "Sign in", href: signInUrl },
   };
 }
 

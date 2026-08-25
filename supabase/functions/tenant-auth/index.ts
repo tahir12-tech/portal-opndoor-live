@@ -267,11 +267,11 @@ Deno.serve(async (req) => {
           return json({ ok: true, exists: true });
         }
         const { data: link } = await service.auth.admin.generateLink({ type: "recovery", email });
-        const href = `${origin}/apply/reset#${(link?.properties as any)?.hashed_token ? `token_hash=${(link!.properties as any).hashed_token}&type=recovery` : ""}`;
-        await sendMessage({
-          to: email,
-          message: { ...accountExistsEmail(), action: { label: "Set a new password", href } },
-        });
+        const resetUrl = `${origin}/apply/reset#${(link?.properties as any)?.hashed_token ? `token_hash=${(link!.properties as any).hashed_token}&type=recovery` : ""}`;
+        // Sign in is the primary action, with the address carried so the field
+        // is filled. The reset link is the quieter secondary in the template.
+        const signInUrl = `${origin}/login?tab=tenant&email=${encodeURIComponent(email)}`;
+        await sendMessage({ to: email, message: accountExistsEmail(signInUrl, resetUrl) });
         return json({ ok: true, exists: true });
       }
 
