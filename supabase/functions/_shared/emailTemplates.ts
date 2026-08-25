@@ -15,6 +15,7 @@ const money = (n: number) => `£${n.toLocaleString("en-GB", { maximumFractionDig
 
 export function codeEmail(code: string, minutes: number, superseded = false): Message {
   return {
+    audience: "tenant",
     subject: superseded
       ? `${code} is your new opndoor confirmation code`
       : `${code} is your opndoor confirmation code`,
@@ -33,8 +34,9 @@ export function codeEmail(code: string, minutes: number, superseded = false): Me
   };
 }
 
-export function passwordResetEmail(link: string): Message {
+export function passwordResetEmail(link: string, audience: "tenant" | "portal" = "portal"): Message {
   return {
+    audience,
     subject: "Reset your opndoor password",
     heading: "Reset your password",
     blocks: [
@@ -47,6 +49,7 @@ export function passwordResetEmail(link: string): Message {
 
 export function accountExistsEmail(signInUrl: string, resetUrl: string): Message {
   return {
+    audience: "tenant",
     subject: "You already have an opndoor account",
     heading: "You already have an account",
     blocks: [
@@ -70,6 +73,7 @@ export function tenantInviteEmail(p: {
   if (p.monthlyRent != null) rows.push(["Monthly rent", money(Number(p.monthlyRent))]);
   if (p.guaranteeRef) rows.push(["Reference", p.guaranteeRef]);
   return {
+    audience: "tenant",
     // Names the referrer rather than assuming a letting agent. Falls back
     // rather than printing an empty gap.
     subject: "Complete your opndoor guarantee application",
@@ -96,6 +100,7 @@ export function paymentLinkEmail(p: {
   ];
   if (p.tenancyStartLabel) rows.push(["Tenancy starts", p.tenancyStartLabel]);
   return {
+    audience: "tenant",
     subject: "Your opndoor guarantee is ready to pay",
     heading: "Your guarantee is approved",
     blocks: [
@@ -119,6 +124,7 @@ export function paymentReminderEmail(p: {
   const rows: [string, string][] = [["Reference", p.guaranteeRef], ["Guarantee fee", p.amount]];
   if (p.openUntilLabel) rows.push(["Open until", p.openUntilLabel]);
   return {
+    audience: "tenant",
     subject: "A reminder about your opndoor guarantee",
     heading: "Your guarantee is still waiting",
     blocks: [
@@ -135,6 +141,7 @@ export function paymentReceiptEmail(p: {
   propertyAddr: string; guaranteeRef: string; amount: string; managedBy: string;
 }): Message {
   return {
+    audience: "tenant",
     subject: `Payment received for ${p.guaranteeRef}`,
     heading: "Thank you, your payment has cleared",
     blocks: [
@@ -147,6 +154,7 @@ export function paymentReceiptEmail(p: {
 
 export function refundEmail(p: { propertyAddr: string; guaranteeRef: string; amount: string }): Message {
   return {
+    audience: "tenant",
     subject: `Refund issued for ${p.guaranteeRef}`,
     heading: "Your guarantee fee has been refunded",
     blocks: [
@@ -170,6 +178,7 @@ export function deedToSignEmail(p: {
   ];
   if (p.tenancyStartLabel) rows.push(["Tenancy starts", p.tenancyStartLabel]);
   return {
+    audience: "tenant",
     subject: `Deed of Guarantee issued for ${p.guaranteeRef}`,
     heading: "The Deed of Guarantee is ready to sign",
     blocks: [
@@ -212,6 +221,7 @@ export function executedDeedTenantEmail(p: {
   const rows: [string, string][] = [["Reference", p.guaranteeRef], ["Property", p.propertyAddr]];
   if (p.expiryLabel) rows.push(["Guarantee expires", p.expiryLabel]);
   return {
+    audience: "tenant",
     subject: `Your signed Deed of Guarantee for ${p.guaranteeRef}`,
     heading: "Your Deed of Guarantee has been signed",
     blocks: [

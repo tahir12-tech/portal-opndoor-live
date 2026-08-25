@@ -414,7 +414,7 @@ Deno.serve(async (req) => {
         }
 
         const href = `${origin}/apply/reset#token_hash=${hashed}&type=recovery`;
-        const res = await sendMessage({ to: email, message: passwordResetEmail(href) });
+        const res = await sendMessage({ to: email, message: passwordResetEmail(href, "tenant") });
         if (!res.ok) {
           console.log(JSON.stringify({ event: "reset_send_failed", message: res.error }));
           return json({ ok: false, error: "We could not send that just now. Try again in a moment." }, 503);

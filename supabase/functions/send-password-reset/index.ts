@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         return json({ ok: true });
       }
 
-      const result = await sendMessage({ to: email, message: passwordResetEmail(link) });
+      const result = await sendMessage({ to: email, message: passwordResetEmail(link, "portal") });
       if (!result.ok) {
         // Was logged and then ignored, which answered ok on a send that failed.
         console.log(JSON.stringify({ event: "reset_send_failed", message: result.error }));
