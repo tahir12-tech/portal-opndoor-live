@@ -31,22 +31,31 @@ export function StepFooter({
   busy?: boolean;
 }) {
   return (
-    <div className="apfoot">
-      <div className="apfoot__left">
-        {onBack && (
-          <Button variant="quiet" onClick={onBack}><Icon name="arrowLeft" /> Back</Button>
-        )}
-      </div>
-      <div className="apfoot__right">
-        {!done && outstanding && <span className="apfoot__note">{outstanding}</span>}
-        {nextLabel && (
-          <Button variant="primary" arrow disabled={busy} onClick={onNext}>
-            {busy ? 'Saving…' : nextLabel}
-          </Button>
-        )}
-        {isLast && !nextLabel && (
-          <span className="apfoot__note">Finish the sections above to send your application.</span>
-        )}
+    <div className="apfoot-wrap">
+      {/* The reason you cannot continue is the prominent thing, not grey text
+          beside a live button. The button is disabled until the step is done,
+          so it cannot be pressed into a save that will bounce. */}
+      {!done && outstanding && (
+        <div className="apfoot__blocking" role="status">
+          <Icon name="alert" strokeWidth={2.2} /> <span>{outstanding}</span>
+        </div>
+      )}
+      <div className="apfoot">
+        <div className="apfoot__left">
+          {onBack && (
+            <Button variant="quiet" onClick={onBack}><Icon name="arrowLeft" /> Back</Button>
+          )}
+        </div>
+        <div className="apfoot__right">
+          {nextLabel && (
+            <Button variant="primary" arrow disabled={busy || !done} onClick={onNext}>
+              {busy ? 'Saving…' : nextLabel}
+            </Button>
+          )}
+          {isLast && !nextLabel && (
+            <span className="apfoot__note">Finish the sections above to send your application.</span>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -3,7 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADDITIONAL_INCOME_TYPES, BASIC_FIELDS, EMPLOYMENT_TYPES, REQUIRED_HISTORY_MONTHS,
-  addressFields, additionalIncomeFields, employmentFields, historyMonths,
+  addressFields, additionalIncomeFields, employmentFields, fieldsComplete, historyMonths,
+  type FieldSpec,
 } from './formSpec';
 
 const shown = (fields: ReturnType<typeof employmentFields>, values: Record<string, unknown>) =>
@@ -109,5 +110,29 @@ describe('address history', () => {
   it('an empty history is zero rather than a crash', () => {
     expect(historyMonths([])).toBe(0);
     expect(historyMonths([{}])).toBe(0);
+  });
+});
+
+describe('fieldsComplete — a step is done when its required questions are answered', () => {
+  const spec: FieldSpec[] = [
+    { name: 'a', label: 'A', kind: 'text', required: true },
+    { name: 'b', label: 'B', kind: 'text' },
+    { name: 'c', label: 'C', kind: 'text', required: true, when: (v) => v.a === 'show' },
+  ];
+
+  it('is false while a required field is empty, whitespace, null or missing', () => {
+    expect(fieldsComplete(spec, {})).toBe(false);
+    expect(fieldsComplete(spec, { a: '' })).toBe(false);
+    expect(fieldsComplete(spec, { a: '   ' })).toBe(false);
+    expect(fieldsComplete(spec, { a: null })).toBe(false);
+  });
+
+  it('is true once every visible required field is answered', () => {
+    expect(fieldsComplete(spec, { a: 'x' })).toBe(true);       // c is hidden, b optional
+  });
+
+  it('requires a conditional field only once its condition is met', () => {
+    expect(fieldsComplete(spec, { a: 'show' })).toBe(false);   // c now visible and required
+    expect(fieldsComplete(spec, { a: 'show', c: 'y' })).toBe(true);
   });
 });

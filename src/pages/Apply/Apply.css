@@ -247,3 +247,15 @@
 .ap-more { margin: 6px 0 16px; }
 .ap-more > summary { cursor: pointer; color: var(--ink-soft); font-size: 14px; padding: 4px 0; }
 .ap-more textarea.input { margin-top: 8px; width: 100%; }
+
+/* The blocker above a step's Continue button: the reason is the prominent thing,
+   and the button is disabled until the step is done. */
+.apfoot-wrap { margin-top: 8px; }
+.apfoot__blocking {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 12px; padding: 10px 14px; border-radius: 10px;
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  color: var(--ink); font-size: 14px; font-weight: 600;
+}
+.apfoot__blocking svg { color: var(--warn); flex: none; }

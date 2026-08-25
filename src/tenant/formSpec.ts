@@ -243,7 +243,7 @@ export function addressFields(isCurrent: boolean): FieldSpec[] {
              accept: '.pdf,.png,.jpg,.jpeg' });
   }
   f.push({ name: 'rental_arrears', label: 'Have you had any rental arrears in the past 3 years?',
-           kind: 'select', options: YES_NO_NA,
+           kind: 'select', options: YES_NO_NA, required: true,
            when: (v) => ARREARS_APPLIES.includes(String(v.residency_type ?? '')) });
   f.push({ name: 'rental_arrears_detail', label: 'Please tell us about your rental arrears', kind: 'textarea',
            when: (v) => v.rental_arrears === 'yes' });
@@ -254,7 +254,7 @@ export function addressFields(isCurrent: boolean): FieldSpec[] {
    Basic information, including the adverse credit ladder.
    --------------------------------------------------------------------------- */
 export const BASIC_FIELDS: FieldSpec[] = [
-  { name: 'title', label: 'Title', kind: 'select', options:
+  { name: 'title', label: 'Title', kind: 'select', required: true, options:
       ['Mr', 'Mrs', 'Miss', 'Ms', 'Mx', 'Dr'].map((t) => ({ value: t, label: t })) },
   { name: 'first_name', label: 'First name', kind: 'text', required: true },
   { name: 'last_name', label: 'Last name', kind: 'text', required: true },
@@ -269,7 +269,7 @@ export const BASIC_FIELDS: FieldSpec[] = [
       { value: 'widowed', label: 'Widowed' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' } ] },
 
   { name: 'adverse_credit', label: 'Have you had any adverse credit in the last six years?', kind: 'yesno',
-    help: 'Answering yes does not rule you out. It tells us what to expect.' },
+    required: true, help: 'Answering yes does not rule you out. It tells us what to expect.' },
 
   { name: 'ccjs', label: 'Have you received any CCJs or decrees?', kind: 'yesno',
     when: (v) => v.adverse_credit === 'yes' },
@@ -358,3 +358,22 @@ export function historyMonths(addresses: Record<string, unknown>[]): number {
 }
 
 export const REQUIRED_HISTORY_MONTHS = 36;
+
+/**
+ * Whether every REQUIRED, currently-visible field in a spec list is answered.
+ *
+ * This is what a step's completeness must be counted from: a step is done when
+ * its questions are answered, not when a related metric (address months, an
+ * income row existing) crosses a line. Honouring `when` means a field hidden by
+ * an earlier answer is not required, and honouring `required` means only the
+ * fields that must be filled gate the step. Empty string, null and undefined
+ * are all "not answered".
+ */
+export function fieldsComplete(fields: FieldSpec[], values: Record<string, unknown>): boolean {
+  return fields.every((f) => {
+    if (f.when && !f.when(values)) return true;
+    if (!f.required) return true;
+    const v = values[f.name];
+    return v !== undefined && v !== null && String(v).trim() !== '';
+  });
+}

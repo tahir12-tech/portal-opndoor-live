@@ -31,7 +31,7 @@ import { FieldList } from './FieldInput';
 import {
   ADDITIONAL_INCOME_TYPES, AGENT_FIELDS, BASIC_FIELDS,
   EMPLOYMENT_TYPES, NATIONALITY_FIELDS, PROPERTY_FIELDS, REQUIRED_HISTORY_MONTHS,
-  addressFields, additionalIncomeFields, employmentFields, historyMonths,
+  addressFields, additionalIncomeFields, employmentFields, fieldsComplete, historyMonths,
 } from '@/tenant/formSpec';
 import * as api from '@/tenant/tenantApi';
 import { currentTenant } from '@/tenant/tenantAuth';
@@ -254,16 +254,24 @@ export function Apply() {
      Counted from what is actually answered rather than from which tabs have
      been visited, so it cannot say 80% while eight fields are empty. */
   const stepDone = useMemo((): Record<Step, boolean> => ({
-    property: !!property.prop_addr1 && !!property.monthly_rent && !!property.tenancy_start
-              && !!agent.email && !!agent.kind,
-    about: !!profile.first_name && !!profile.last_name && !!profile.dob && !!profile.phone
-           && profile.adverse_credit !== undefined && profile.adverse_credit !== '',
+    // Counted from the answered questions, not a proxy. property needs the
+    // property fields AND the delivery contact (agency name for an agent, a
+    // surname for a landlord, an email either way), which the old check missed.
+    property: fieldsComplete(PROPERTY_FIELDS, property) && fieldsComplete(AGENT_FIELDS, agent),
+    about: fieldsComplete(BASIC_FIELDS, profile),
     fee: feePaid,
-    address: months >= REQUIRED_HISTORY_MONTHS,
-    income: incomes.length > 0 && incomes.some((i) => !i.is_additional),
-    nationality: !!profile.nationality && !!profile.right_to_rent_category,
+    // Three years of history AND every address actually filled in, including the
+    // rental-arrears question, which used to read done while it was unanswered.
+    address: months >= REQUIRED_HISTORY_MONTHS && addresses.length > 0
+             && addresses.every((row, i) => fieldsComplete(addressFields(i === 0), row)),
+    // A main income that is actually filled in, not just a row with a type.
+    income: incomes.length > 0 && incomes.some((i) => !i.is_additional)
+            && incomes.every((row) => !!row.income_type && fieldsComplete(
+                 row.is_additional ? additionalIncomeFields(String(row.income_type))
+                                   : employmentFields(String(row.income_type)), row)),
+    nationality: fieldsComplete(NATIONALITY_FIELDS, profile),
     declaration: !!profile.declared_name && !!profile.declared_at,
-  }), [property, agent, profile, months, incomes, feePaid]);
+  }), [property, agent, profile, months, addresses, incomes, feePaid]);
 
   const doneCount = Object.values(stepDone).filter(Boolean).length;
   // The other sections still to finish, shown on the final screen as a
@@ -636,7 +644,7 @@ export function Apply() {
                       onChange={(n, v) => setAddressField(Number(row.seq), n, v)} />
                   </section>
                 ))}
-                {editable && (
+                {editable && months < REQUIRED_HISTORY_MONTHS && (
                   <Button variant="quiet"
                     onClick={() => setAddresses((rs) => [...rs, { seq: (rs.at(-1)?.seq as number ?? -1) + 1 }])}>
                     <Icon name="plus" /> Add an earlier address
