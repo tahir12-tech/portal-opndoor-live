@@ -70,7 +70,7 @@ function Shell({
           <div className="auth__flow-item">
             <span className="auth__flow-ic"><Icon name="edit" /></span>
             <div>
-              <div className="auth__flow-t">Everything saves as you go</div>
+              <div className="auth__flow-t">Do it in your own time</div>
               <div className="auth__flow-s">Stop and come back whenever you like</div>
             </div>
           </div>
