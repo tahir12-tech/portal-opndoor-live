@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ADDITIONAL_INCOME_TYPES, BASIC_FIELDS, EMPLOYMENT_TYPES, REQUIRED_HISTORY_MONTHS,
-  addressFields, additionalIncomeFields, employmentFields, fieldsComplete, historyMonths,
+  addressFields, additionalIncomeFields, employmentFields, fieldsComplete, incomeDocKinds, historyMonths,
   type FieldSpec,
 } from './formSpec';
 
@@ -85,15 +85,28 @@ describe('employment field sets follow the type', () => {
     expect(salaried).not.toContain('weekly_hours');
   });
 
-  it('self-employed without an accountant is asked for tax returns instead of a referee email', () => {
+  it('self-employed without an accountant states income, no referee, and needs tax returns as a document', () => {
     const noAcc = shown(employmentFields('self_employed'), { has_accountant: 'no' });
-    expect(noAcc).toContain('doc_tax_return');
+    expect(noAcc).toContain('annual_salary');
     expect(noAcc).not.toContain('accountant_name');
+    // The upload is a real Documents-flow doc now, not a dead kind:'file' field.
+    expect(noAcc).not.toContain('doc_tax_return');
+    expect(incomeDocKinds({ income_type: 'self_employed', has_accountant: 'no' }).map((d) => d.kind))
+      .toContain('tax_return');
   });
 
-  it('retired is asked for pension income and the award letter', () => {
+  it('retired states pension income; the P60 and a bank statement are Documents-flow uploads', () => {
     const names = shown(employmentFields('retired'), {});
-    expect(names).toEqual(expect.arrayContaining(['pension_income', 'doc_p60_or_pension_award']));
+    expect(names).toContain('pension_income');
+    expect(names).not.toContain('doc_p60_or_pension_award');
+    const kinds = incomeDocKinds({ income_type: 'retired' }).map((d) => d.kind);
+    expect(kinds).toContain('p60_or_pension_award');
+    expect(kinds).toContain('bank_statement');
+  });
+
+  it('savings and benefits need no supporting document', () => {
+    expect(incomeDocKinds({ income_type: 'savings' })).toEqual([]);
+    expect(incomeDocKinds({ income_type: 'universal_credit' })).toEqual([]);
   });
 
   it('second job repeats the employment shape; other additional income does not', () => {

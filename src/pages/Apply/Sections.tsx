@@ -294,30 +294,39 @@ export function FinancialsPanel({
   );
 }
 
-/* Proof of address, uploaded through the real Documents flow (kind
-   proof_of_address) rather than a kind:'file' form field, which never rendered.
-   Sits on the current-address section, beside the "which kind of proof" select. */
-export function ProofOfAddressUpload({
-  applicationId, documents, editable, onChanged,
+/* A document uploaded through the real Documents flow (a kind + label) rather
+   than a dead kind:'file' form field, which never rendered a control. Used for
+   proof of address on the address step and for the income supporting documents
+   (bank statement, tax returns, P60), so both go to storage and show in the
+   Documents tab. */
+export function DocUpload({
+  applicationId, documents, kind, label, editable, onChanged, link,
 }: {
   applicationId: string;
-  documents: { id: string; kind: string; filename: string }[];
+  documents: { id: string; kind: string; filename: string; income_id?: string | null; address_id?: string | null }[];
+  kind: string;
+  label: string;
   editable: boolean;
   onChanged: () => void;
+  link?: { income_id?: string | null; address_id?: string | null };
 }) {
-  const proofs = documents.filter((d) => d.kind === 'proof_of_address');
+  // Scoped to this row when a link is given, so one income's bank statement does
+  // not appear under another.
+  const mine = documents.filter((d) => d.kind === kind
+    && (!link?.income_id || d.income_id === link.income_id)
+    && (!link?.address_id || d.address_id === link.address_id));
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   return (
     <div className="ap-proof">
-      {proofs.length > 0 && (
+      {mine.length > 0 && (
         <ul className="apdoc">
-          {proofs.map((d) => (
+          {mine.map((d) => (
             <li key={d.id} className="apdoc__item">
               <Icon name="file" />
               <div className="apdoc__txt">
                 <div className="apdoc__name">{d.filename}</div>
-                <div className="apdoc__meta">Proof of address</div>
+                <div className="apdoc__meta">{label}</div>
               </div>
               {editable && (
                 <Button variant="quiet" size="sm"
@@ -336,12 +345,12 @@ export function ProofOfAddressUpload({
               const f = e.target.files?.[0]; e.target.value = '';
               if (!f) return;
               setBusy(true);
-              try { await api.uploadDocument(applicationId, 'proof_of_address', f); onChanged(); }
+              try { await api.uploadDocument(applicationId, kind, f, link); onChanged(); }
               finally { setBusy(false); }
             }} />
           <div className="ap-actions">
             <Button variant="quiet" disabled={busy} onClick={() => fileRef.current?.click()}>
-              <Icon name="upload" /> {busy ? 'Uploading\u2026' : proofs.length ? 'Upload another' : 'Upload proof of address'}
+              <Icon name="upload" /> {busy ? 'Uploading…' : mine.length ? 'Upload another' : `Upload ${label.toLowerCase()}`}
             </Button>
           </div>
         </>

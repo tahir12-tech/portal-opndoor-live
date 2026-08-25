@@ -146,8 +146,6 @@ export function employmentFields(type: string): FieldSpec[] {
     // tax returns instead of a referee.
     f.push({ name: 'annual_salary', label: 'Your total annual income', kind: 'money',
              when: (v) => v.has_accountant === 'no', required: true });
-    f.push({ name: 'doc_tax_return', label: "Your last 2 years' tax returns", kind: 'file',
-             accept: '.pdf,.png,.jpg,.jpeg', when: (v) => v.has_accountant === 'no' });
   }
 
   if (has(WITH_EMPLOYER) || type === 'self_employed') {
@@ -212,13 +210,6 @@ export function employmentFields(type: string): FieldSpec[] {
 
   if (type === 'retired') {
     f.push({ name: 'pension_income', label: 'Total monthly pension income', kind: 'money', required: true });
-    f.push({ name: 'doc_p60_or_pension_award', label: 'Most recent P60 or DWP pension award letter',
-             kind: 'file', accept: '.pdf,.png,.jpg,.jpeg' });
-  }
-
-  if (has(WITH_BANK_STATEMENT)) {
-    f.push({ name: 'doc_bank_statement', label: 'Bank statement', kind: 'file', accept: '.pdf,.png,.jpg,.jpeg',
-             help: 'Or link your bank on the Financials tab instead, which is faster.' });
   }
 
   if (has(WITH_QUALITY_QS)) {
@@ -407,6 +398,22 @@ export const REQUIRED_HISTORY_MONTHS = 36;
  * fields that must be filled gate the step. Empty string, null and undefined
  * are all "not answered".
  */
+/** Supporting documents an income row needs, uploaded through the Documents
+    flow (kind + label) rather than a dead kind:'file' field. Bank statement for
+    the employment types the doc lists, two years of tax returns for a
+    self-employed applicant with no accountant, a P60 or pension award for a
+    retiree. */
+export function incomeDocKinds(row: Record<string, unknown>): { kind: string; label: string }[] {
+  const type = String(row.income_type ?? '');
+  const out: { kind: string; label: string }[] = [];
+  if (WITH_BANK_STATEMENT.includes(type)) out.push({ kind: 'bank_statement', label: 'Bank statement' });
+  if (type === 'self_employed' && row.has_accountant === 'no') {
+    out.push({ kind: 'tax_return', label: "Last two years' tax returns" });
+  }
+  if (type === 'retired') out.push({ kind: 'p60_or_pension_award', label: 'P60 or pension award letter' });
+  return out;
+}
+
 export function fieldsComplete(fields: FieldSpec[], values: Record<string, unknown>): boolean {
   return fields.every((f) => {
     if (f.when && !f.when(values)) return true;

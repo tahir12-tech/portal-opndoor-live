@@ -31,14 +31,14 @@ import { FieldList } from './FieldInput';
 import {
   ADDITIONAL_INCOME_TYPES, AGENT_FIELDS, BASIC_FIELDS,
   EMPLOYMENT_TYPES, NATIONALITY_FIELDS, PROPERTY_FIELDS, REQUIRED_HISTORY_MONTHS,
-  addressFields, additionalIncomeFields, employmentFields, fieldsComplete, historyMonths,
+  addressFields, additionalIncomeFields, employmentFields, fieldsComplete, historyMonths, incomeDocKinds,
 } from '@/tenant/formSpec';
 import * as api from '@/tenant/tenantApi';
 import { currentTenant } from '@/tenant/tenantAuth';
 import { useAutosave, type SaveStatus } from '@/tenant/useAutosave';
 import { TenantShell, type TenantNavItem } from './TenantShell';
 import { ApplicationStatus, statusView } from './ApplicationStatus';
-import { DocumentsPanel, FinancialsPanel, IdCheckPanel, ProofOfAddressUpload, StepFooter } from './Sections';
+import { DocUpload, DocumentsPanel, FinancialsPanel, IdCheckPanel, StepFooter } from './Sections';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { useTenantDocumentTitle } from '@/hooks/useDocumentTitle';
 import { formatLongDate } from '@/lib/format';
@@ -641,7 +641,8 @@ export function Apply() {
                     <FieldList fields={addressFields(i === 0)} values={row} disabled={!editable}
                       onChange={(n, v) => setAddressField(Number(row.seq), n, v)} />
                     {i === 0 && (
-                      <ProofOfAddressUpload applicationId={appId} documents={bundle.documents}
+                      <DocUpload applicationId={appId} documents={bundle.documents}
+                        kind="proof_of_address" label="Proof of address"
                         editable={editable} onChanged={() => { seeded.current = false; void load(); }} />
                     )}
                   </section>
@@ -694,6 +695,12 @@ export function Apply() {
                         <FieldList fields={fields} values={row} disabled={!editable}
                           onChange={(n, v) => setIncomeField(Number(row.seq), n, v)} />
                       )}
+                      {type && incomeDocKinds(row).map((doc) => (
+                        <DocUpload key={doc.kind} applicationId={appId} documents={bundle.documents}
+                          kind={doc.kind} label={doc.label}
+                          link={row.id ? { income_id: String(row.id) } : undefined}
+                          editable={editable} onChanged={() => { seeded.current = false; void load(); }} />
+                      ))}
                     </section>
                   );
                 })}
