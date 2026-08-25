@@ -109,9 +109,12 @@ describe('address history', () => {
     expect(shown(addressFields(true), { residency_type: 'homeowner' })).not.toContain('rental_arrears');
   });
 
-  it('asks for proof of address on the current address only', () => {
-    expect(shown(addressFields(true), {})).toContain('doc_proof_of_address');
-    expect(shown(addressFields(false), {})).not.toContain('doc_proof_of_address');
+  it('asks which proof of address on the current address only, and no longer a broken file field', () => {
+    // The file itself is uploaded through the Documents flow now; the spec keeps
+    // only the "which kind of proof" dropdown, and only on the current address.
+    expect(shown(addressFields(true), {})).toContain('proof_type');
+    expect(shown(addressFields(false), {})).not.toContain('proof_type');
+    expect(shown(addressFields(true), {})).not.toContain('doc_proof_of_address');
   });
 
   it('counts months from the EARLIEST move-in, not the latest', () => {

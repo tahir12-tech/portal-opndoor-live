@@ -275,8 +275,9 @@ export function addressFields(isCurrent: boolean): FieldSpec[] {
                { value: 'bank_statement', label: 'Bank statement' },
                { value: 'tenancy_agreement', label: 'Tenancy agreement' },
              ] });
-    f.push({ name: 'doc_proof_of_address', label: 'Upload your proof of address', kind: 'file',
-             accept: '.pdf,.png,.jpg,.jpeg' });
+    // The file is uploaded through the real Documents flow (kind
+    // proof_of_address) on the address step, not a kind:'file' form field, which
+    // has no renderer. The proof_type dropdown above stays, asking which kind.
   }
   f.push({ name: 'rental_arrears', label: 'Have you had any rental arrears in the past 3 years?',
            kind: 'select', options: YES_NO_NA, required: true,

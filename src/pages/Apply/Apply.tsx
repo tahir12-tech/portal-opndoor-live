@@ -38,7 +38,7 @@ import { currentTenant } from '@/tenant/tenantAuth';
 import { useAutosave, type SaveStatus } from '@/tenant/useAutosave';
 import { TenantShell, type TenantNavItem } from './TenantShell';
 import { ApplicationStatus, statusView } from './ApplicationStatus';
-import { DocumentsPanel, FinancialsPanel, IdCheckPanel, StepFooter } from './Sections';
+import { DocumentsPanel, FinancialsPanel, IdCheckPanel, ProofOfAddressUpload, StepFooter } from './Sections';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { useTenantDocumentTitle } from '@/hooks/useDocumentTitle';
 import { formatLongDate } from '@/lib/format';
@@ -640,6 +640,10 @@ export function Apply() {
                     </header>
                     <FieldList fields={addressFields(i === 0)} values={row} disabled={!editable}
                       onChange={(n, v) => setAddressField(Number(row.seq), n, v)} />
+                    {i === 0 && (
+                      <ProofOfAddressUpload applicationId={appId} documents={bundle.documents}
+                        editable={editable} onChanged={() => { seeded.current = false; void load(); }} />
+                    )}
                   </section>
                 ))}
                 {editable && months < REQUIRED_HISTORY_MONTHS && (
