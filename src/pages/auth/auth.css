@@ -317,3 +317,30 @@
     display: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   FrontDoor (guarantor application) only: the right card is TOP ANCHORED to the
+   same line as the left eyebrow, so the two panes line up whatever the height of
+   the card. Login and ForgotPassword hold a constant card height via the stack,
+   so they align while centred; the FrontDoor Shell serves states of very
+   different heights (the register form, "you already have an account", verify),
+   and centring dropped the short ones (heading at 635 while the eyebrow sat at
+   591).
+
+   The mechanism is subgrid: both columns borrow the same three rows from .auth,
+   1fr / auto / 1fr, and place their middle block in row two, top aligned. The
+   eyebrow and the heading are then the same block in the same row, so they share
+   a top edge no matter how tall the card runs. The vertical padding is equal on
+   both columns so the shared row starts at the same y in each.
+   --------------------------------------------------------------------------- */
+.auth--doc { grid-template-rows: 1fr auto 1fr; }
+.auth--doc .auth__brand,
+.auth--doc .auth__form-wrap {
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: subgrid;
+  padding-block: clamp(40px, 5vw, 72px);
+}
+.auth--doc .auth__brand-mid { grid-row: 2; }
+.auth--doc .auth__form-wrap { align-items: start; justify-items: center; }
+.auth--doc .auth__card { grid-row: 2; align-self: start; }

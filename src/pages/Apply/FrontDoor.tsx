@@ -52,7 +52,7 @@ function Shell({
   // application", which tells an applicant they are on the wrong site.
   useTenantDocumentTitle(title);
   return (
-    <div className="auth">
+    <div className="auth auth--doc">
       <aside className="auth__brand">
         <div className="auth__brand-top">
           <span className="wordmark">opndoor</span>
