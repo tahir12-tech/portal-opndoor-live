@@ -254,8 +254,9 @@ export function addressFields(isCurrent: boolean): FieldSpec[] {
     { name: 'postcode', label: 'Postcode', kind: 'postcode', when: (v) => v.in_uk !== 'no',
       fills: { line1: 'address_1', line2: 'address_2', city: 'city', county: 'county', postcode: 'postcode' } },
     { name: 'flat_number', label: 'Flat number', kind: 'text' },
-    { name: 'house_number', label: 'House number', kind: 'text' },
-    { name: 'house_name', label: 'House name', kind: 'text' },
+    // House number and House name dropped: Address line 1 carries the street,
+    // and having them above it is what invited splitting the address across the
+    // wrong boxes. The columns stay (additive rule); nothing reads them.
     { name: 'address_1', label: 'Address line 1', kind: 'text', required: true },
     { name: 'address_2', label: 'Address line 2', kind: 'text' },
     { name: 'city', label: 'Town or city', kind: 'text', required: true },
