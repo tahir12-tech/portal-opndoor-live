@@ -237,3 +237,13 @@
 .apzip__opt { display: block; width: 100%; text-align: left; border: 0; background: none;
               padding: 10px 12px; font: 400 14px var(--body); color: var(--ink); cursor: pointer; }
 .apzip__opt:hover { background: var(--white-lilac); }
+
+/* Declaration: review, then sign. The signature is one grouped act, not two
+   fields drifting apart, and the optional note is demoted below it. */
+.ap-sign { margin: 18px 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 12px; }
+.ap-sign__statement { margin: 0; font-weight: 600; font-size: 15px; }
+.ap-blocking ul { margin: 8px 0 0; padding-left: 18px; }
+.ap-blocking li { margin: 3px 0; }
+.ap-more { margin: 6px 0 16px; }
+.ap-more > summary { cursor: pointer; color: var(--ink-soft); font-size: 14px; padding: 4px 0; }
+.ap-more textarea.input { margin-top: 8px; width: 100%; }

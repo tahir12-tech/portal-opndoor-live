@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fmtRatePct } from './format';
+import { fmtRatePct, formatLongDate } from './format';
 
 // Money-path guard: commission rates must always render to one decimal place so a
 // stored 9.5% can never be rounded to, or mistaken for, 10% anywhere in the product
@@ -21,5 +21,18 @@ describe('fmtRatePct — commission-rate display precision', () => {
   it('treats null/undefined as 0.0%', () => {
     expect(fmtRatePct(null)).toBe('0.0%');
     expect(fmtRatePct(undefined)).toBe('0.0%');
+  });
+});
+
+describe('formatLongDate — the human date on the declaration', () => {
+  it('renders an ISO date as "23 September 2026", not 2026-09-23', () => {
+    expect(formatLongDate('2026-09-23')).toBe('23 September 2026');
+  });
+  it('has no leading zero on the day', () => {
+    expect(formatLongDate('2026-09-01')).toBe('1 September 2026');
+  });
+  it('returns empty string for null or an unparseable value', () => {
+    expect(formatLongDate(null)).toBe('');
+    expect(formatLongDate('not a date')).toBe('');
   });
 });

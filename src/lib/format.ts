@@ -35,6 +35,16 @@ export function fmtRatePct(rate: number | null | undefined): string {
  * timezone (handles the GMT/BST shift consistently, regardless of the
  * viewer's own device timezone). Returns '' for a null/invalid input.
  */
+/** A long, human date in Europe/London: "23 September 2026". '' for null/invalid. */
+export function formatLongDate(input: string | number | Date | null | undefined): string {
+  if (!input) return '';
+  const d = new Date(input);
+  if (isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', day: 'numeric', month: 'long', year: 'numeric',
+  }).format(d);
+}
+
 export function formatLondonDate(input: string | number | Date | null | undefined): string {
   if (!input) return '';
   const d = new Date(input);

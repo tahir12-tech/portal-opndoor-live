@@ -6,7 +6,7 @@
 // anyone could see. A rename cannot fail a compile; only a test that knows the
 // new home catches it.
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { splitProfilePatch, deliveryContactReady } from "./applicationPatch.ts";
+import { splitProfilePatch, deliveryContactReady, resolveDeclaredAt } from "./applicationPatch.ts";
 
 Deno.test("identity is routed to applications.tenant_*, not the profile table", () => {
   const { identity, declarations } = splitProfilePatch({
@@ -64,4 +64,31 @@ Deno.test("kind or email missing is always held, whatever else is present", () =
 
 Deno.test("an unknown kind is never written, since no check would pass it", () => {
   assertEquals(deliveryContactReady({ kind: "something_else", email: "a@b.co", agency_name: "X" }), false);
+});
+
+const NOW = "2026-08-25T12:00:00.000Z";
+
+Deno.test("the declaration name routes to the profile table, not identity", () => {
+  const { identity, declarations } = splitProfilePatch({ declared_name: "Sam Okafor" });
+  assertEquals(identity, {});
+  assertEquals(declarations, { declared_name: "Sam Okafor" });
+});
+
+Deno.test("a ticked declaration becomes declared_at with the server time", () => {
+  assertEquals(resolveDeclaredAt({ declared_true: true }, NOW), { declared_at: NOW });
+});
+
+Deno.test("an unticked declaration clears declared_at", () => {
+  assertEquals(resolveDeclaredAt({ declared_true: false }, NOW), { declared_at: null });
+});
+
+Deno.test("declared_true never survives to the table, whatever else is in the patch", () => {
+  const out = resolveDeclaredAt({ declared_true: true, declaration_note: "hi" }, NOW);
+  assertEquals("declared_true" in out, false);
+  assertEquals(out, { declaration_note: "hi", declared_at: NOW });
+});
+
+Deno.test("a patch without a tick is left exactly as it was", () => {
+  const decl = { nationality: "British", declaration_note: "" };
+  assertEquals(resolveDeclaredAt(decl, NOW), decl);
 });

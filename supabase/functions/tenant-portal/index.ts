@@ -36,7 +36,7 @@
 //   4. The read model is an explicit column list in SQL. Commission is off the
 //      applications table grant entirely and must never reappear there.
 // =====================================================================
-import { splitProfilePatch, deliveryContactReady } from "../_shared/applicationPatch.ts";
+import { splitProfilePatch, deliveryContactReady, resolveDeclaredAt } from "../_shared/applicationPatch.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const cors = {
@@ -261,8 +261,10 @@ Deno.serve(async (req) => {
          them here in one patch, so they are routed by key. Writing an identity
          field into application_profiles is the 42703 ("column does not exist")
          that had every keystroke of that step answering "Could not save". */
-      const { identity: idPatch, declarations: profPatch } =
+      const { identity: idPatch, declarations: rawDecl } =
         splitProfilePatch((body.patch ?? {}) as Record<string, unknown>);
+      // The declaration tick becomes declared_at, stamped with the server's time.
+      const profPatch = resolveDeclaredAt(rawDecl, new Date().toISOString());
 
       if (Object.keys(idPatch).length) {
         const { error } = await service.from("applications").update(idPatch).eq("id", app.id);

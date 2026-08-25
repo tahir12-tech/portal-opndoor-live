@@ -29,7 +29,7 @@ import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { FieldList } from './FieldInput';
 import {
-  ADDITIONAL_INCOME_TYPES, AGENT_FIELDS, BASIC_FIELDS, DECLARATION_FIELDS,
+  ADDITIONAL_INCOME_TYPES, AGENT_FIELDS, BASIC_FIELDS,
   EMPLOYMENT_TYPES, NATIONALITY_FIELDS, PROPERTY_FIELDS, REQUIRED_HISTORY_MONTHS,
   addressFields, additionalIncomeFields, employmentFields, historyMonths,
 } from '@/tenant/formSpec';
@@ -41,6 +41,8 @@ import { ApplicationStatus, statusView } from './ApplicationStatus';
 import { DocumentsPanel, FinancialsPanel, IdCheckPanel, StepFooter } from './Sections';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { useTenantDocumentTitle } from '@/hooks/useDocumentTitle';
+import { formatLongDate } from '@/lib/format';
+import { Field } from '@/components/ui/Field';
 import './Apply.css';
 
 type Tab = 'details' | 'id' | 'financials' | 'documents' | 'payment' | 'guarantee';
@@ -260,10 +262,15 @@ export function Apply() {
     address: months >= REQUIRED_HISTORY_MONTHS,
     income: incomes.length > 0 && incomes.some((i) => !i.is_additional),
     nationality: !!profile.nationality && !!profile.right_to_rent_category,
-    declaration: !!profile.declared_name && profile.declared_true === true,
+    declaration: !!profile.declared_name && !!profile.declared_at,
   }), [property, agent, profile, months, incomes, feePaid]);
 
   const doneCount = Object.values(stepDone).filter(Boolean).length;
+  // The other sections still to finish, shown on the final screen as a
+  // blocker. The declaration itself is excluded: its fields are right there.
+  const missing = STEPS.filter((st) => st.id !== 'declaration' && !stepDone[st.id]);
+  const sumLine = (k: string, v: unknown) =>
+    v ? <div key={k}><dt>{k}</dt><dd>{String(v)}</dd></div> : null;
 
   const payFee = async () => {
     setBusy(true); setErr(null);
@@ -700,40 +707,6 @@ export function Apply() {
                     </Button>
                   </div>
                 )}
-                {editable && footer('income')}
-              </CardBody></Card>
-            )}
-
-            {step === 'nationality' && (
-              <Card><CardHead title="Nationality and right to rent" /><CardBody>
-                <FieldList fields={NATIONALITY_FIELDS} values={profile} disabled={!editable}
-                  onChange={(n, v) => { setProfile((p) => ({ ...p, [n]: v })); profileSave.set(n, v); }} />
-                {editable && footer('nationality')}
-              </CardBody></Card>
-            )}
-
-            {step === 'declaration' && (
-              <Card><CardHead title="Declaration" /><CardBody>
-                {/* Asked once, on Property. The legacy form asked again here. */}
-                {/* Asked once, on Property. This used to render "Your tenancy
-                    starts not set yet at the property above", which is a
-                    sentence nobody would write on purpose. */}
-                {property.tenancy_start && property.prop_addr1 ? (
-                  <p className="ap-p">
-                    Your tenancy starts <strong>{String(property.tenancy_start)}</strong> at{' '}
-                    <strong>{String(property.prop_addr1)}</strong>.
-                    Change it on the Property step if that is wrong.
-                  </p>
-                ) : (
-                  <p className="ap-p">
-                    Add the property and your tenancy start date on the{' '}
-                    <button type="button" className="ap-link" onClick={() => void goStep('property')}>Property step</button>
-                    {' '}and they will show here.
-                  </p>
-                )}
-                <FieldList fields={DECLARATION_FIELDS} values={profile} disabled={!editable}
-                  onChange={(n, v) => { setProfile((p) => ({ ...p, [n]: v })); profileSave.set(n, v); }} />
-
                 {/* Only once there is something to assess. This used to render
                     "Nothing here rules you out" with every field empty, which
                     reassured about an assessment it had not made. */}
@@ -751,6 +724,77 @@ export function Apply() {
                     stands in the way. It is never a decision: the eligibility check makes that.
                   </div>
                 )}
+                {editable && footer('income')}
+              </CardBody></Card>
+            )}
+
+            {step === 'nationality' && (
+              <Card><CardHead title="Nationality and right to rent" /><CardBody>
+                <FieldList fields={NATIONALITY_FIELDS} values={profile} disabled={!editable}
+                  onChange={(n, v) => { setProfile((p) => ({ ...p, [n]: v })); profileSave.set(n, v); }} />
+                {editable && footer('nationality')}
+              </CardBody></Card>
+            )}
+
+            {step === 'declaration' && (
+              <Card><CardHead title="Review and send" /><CardBody>
+                <p className="ap-p">
+                  This is what we will send for your eligibility check. Check it over, then sign below.
+                </p>
+                <dl className="ap-summary">
+                  {sumLine('Name', [profile.first_name, profile.last_name].filter(Boolean).join(' '))}
+                  {sumLine('Property', [property.prop_addr1, property.prop_city, property.prop_postcode].filter(Boolean).join(', '))}
+                  {sumLine('Tenancy starts', property.tenancy_start ? formatLongDate(String(property.tenancy_start)) : '')}
+                  {sumLine('Monthly rent', property.monthly_rent ? `£${String(property.monthly_rent)}` : '')}
+                  {sumLine('Address history', `${months} month${months === 1 ? '' : 's'} of 36`)}
+                  {sumLine('Income sources', incomes.length ? String(incomes.length) : '')}
+                  {sumLine('Nationality', profile.nationality)}
+                  {sumLine('Application fee', feePaid ? 'Paid' : '')}
+                </dl>
+
+                {missing.length > 0 && (
+                  <div className="ap-pre ap-pre--wait ap-blocking">
+                    <strong>Before you can send, finish:</strong>
+                    <ul>
+                      {missing.map((st) => (
+                        <li key={st.id}>
+                          <button type="button" className="ap-link" onClick={() => void goStep(st.id)}>{st.label}</button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* The declaration and its signature, together: the statement, the
+                    typed name, and the tick that stamps declared_at, as one act. */}
+                <div className="ap-sign">
+                  <p className="ap-sign__statement">
+                    Everything I have given is true and complete to the best of my knowledge.
+                  </p>
+                  <Field label="Type your full name to confirm" htmlFor="declared_name">
+                    <input id="declared_name" className="input" type="text" autoComplete="name"
+                      disabled={!editable} value={String(profile.declared_name ?? '')}
+                      onChange={(e) => { setProfile((p) => ({ ...p, declared_name: e.target.value })); profileSave.set('declared_name', e.target.value); }} />
+                  </Field>
+                  <label className="ap-check">
+                    <input type="checkbox"
+                      disabled={!editable || !String(profile.declared_name ?? '').trim()}
+                      checked={!!profile.declared_at}
+                      onChange={(e) => {
+                        const at = e.target.checked;
+                        setProfile((p) => ({ ...p, declared_at: at ? new Date().toISOString() : null }));
+                        profileSave.set('declared_true', at);
+                      }} />
+                    <span>I confirm the details above are what I want to send, and that this declaration is true.</span>
+                  </label>
+                </div>
+
+                <details className="ap-more">
+                  <summary>Anything else you want to tell us? (optional)</summary>
+                  <textarea className="input" rows={3} disabled={!editable}
+                    value={String(profile.declaration_note ?? '')}
+                    onChange={(e) => { setProfile((p) => ({ ...p, declaration_note: e.target.value })); profileSave.set('declaration_note', e.target.value); }} />
+                </details>
 
                 {editable && (
                   <>
@@ -762,11 +806,6 @@ export function Apply() {
                       <Button variant="primary" disabled={busy || doneCount < STEPS.length} onClick={() => void submit()}>
                         {busy ? 'Sending…' : 'Send my application'}
                       </Button>
-                      {doneCount < STEPS.length && (
-                        <span className="soft">
-                          {STEPS.filter((s) => !stepDone[s.id]).map((s) => s.label).join(', ')} still to finish.
-                        </span>
-                      )}
                     </div>
                   </>
                 )}

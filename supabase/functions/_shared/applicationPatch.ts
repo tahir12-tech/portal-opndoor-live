@@ -66,3 +66,25 @@ export function deliveryContactReady(p: Record<string, unknown>): boolean {
   if (p.kind === "private_landlord") return has("last_name");
   return false;
 }
+
+
+/**
+ * The declaration tick, translated to a timestamp.
+ *
+ * The form's confirmation is a checkbox, but the schema stores the signing as
+ * declared_at (Option A: no boolean, "confirmed" is a time). So a patch that
+ * carries declared_true is rewritten: ticked stamps declared_at, unticked
+ * clears it, and declared_true itself never reaches the table (it has no
+ * column, and writing it is the 42703 this whole area kept producing).
+ *
+ * Pure: the caller passes the timestamp, so the signing time is the server's,
+ * not the browser's clock.
+ */
+export function resolveDeclaredAt(
+  declarations: Record<string, unknown>, nowIso: string,
+): Record<string, unknown> {
+  if (!('declared_true' in (declarations ?? {}))) return declarations;
+  const { declared_true, ...rest } = declarations;
+  const ticked = declared_true === true || declared_true === 'true';
+  return { ...rest, declared_at: ticked ? nowIso : null };
+}

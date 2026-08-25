@@ -11,7 +11,7 @@
    screen says, it is that mounting it and letting its effects resolve does not
    throw. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Apply } from './Apply';
 import * as auth from '@/tenant/tenantAuth';
@@ -145,6 +145,42 @@ describe('the post-payment poll', () => {
     expect(screen.getByText(/hello@opndoor\.co/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: /check again/i })).toBeTruthy();
     vi.useRealTimers();
+  });
+});
+
+describe('the declaration is a final confirmation', () => {
+  async function toDeclaration() {
+    stub('draft', true); // fee paid, so the declaration step is unlocked
+    mount();
+    await waitFor(() => expect(screen.getAllByText('GR-TEST', { exact: false }).length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByRole('button', { name: /declaration/i })[0]);
+    await waitFor(() => expect(screen.getByRole('button', { name: /send my application/i })).toBeTruthy());
+  }
+
+  it('shows the tenancy date in long form, not ISO', async () => {
+    await toDeclaration();
+    expect(screen.getByText('1 September 2026')).toBeTruthy(); // bundle tenancy_start 2026-09-01
+    expect(screen.queryByText('2026-09-01')).toBeNull();
+  });
+
+  it('will not let the tick be set until a name is typed', async () => {
+    await toDeclaration();
+    const check = screen.getByRole('checkbox') as HTMLInputElement;
+    expect(check.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText(/type your full name/i), { target: { value: 'Sam Okafor' } });
+    expect(check.disabled).toBe(false);
+  });
+
+  it('keeps Send disabled while other sections are unfinished, and lists them', async () => {
+    await toDeclaration();
+    expect((screen.getByRole('button', { name: /send my application/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/before you can send, finish/i)).toBeTruthy();
+  });
+
+  it('demotes the optional note into a disclosure rather than the top of the page', async () => {
+    await toDeclaration();
+    const note = screen.getByText(/anything else you want to tell us/i);
+    expect(note.closest('details')).not.toBeNull();
   });
 });
 
