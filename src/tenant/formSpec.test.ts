@@ -11,8 +11,10 @@ const shown = (fields: ReturnType<typeof employmentFields>, values: Record<strin
   fields.filter((f) => !f.when || f.when(values)).map((f) => f.name);
 
 describe('the document’s type lists are complete', () => {
-  it('nine employment types and eighteen additional income types', () => {
-    expect(EMPLOYMENT_TYPES).toHaveLength(9);
+  it('eleven situations (nine employment plus savings and benefits) and eighteen additional', () => {
+    expect(EMPLOYMENT_TYPES).toHaveLength(11);
+    expect(EMPLOYMENT_TYPES.map((t) => t.value)).toContain('savings');
+    expect(EMPLOYMENT_TYPES.map((t) => t.value)).toContain('universal_credit');
     expect(ADDITIONAL_INCOME_TYPES).toHaveLength(18);
   });
 });
@@ -43,12 +45,34 @@ describe('employment field sets follow the type', () => {
     expect(names).toEqual(expect.arrayContaining(['employer_name', 'referee_name', 'referee_email', 'pay_basis']));
   });
 
-  it('a homemaker is asked for a start date and nothing else', () => {
-    expect(shown(employmentFields('homemaker'), {})).toEqual(['start_date']);
+  it('a homemaker is asked for income, not a start date', () => {
+    // The wage assumption is gone: a non-employment situation has no start date.
+    const shownFields = shown(employmentFields('homemaker'), {});
+    expect(shownFields).not.toContain('start_date');
+    expect(shownFields).toContain('amount');
   });
 
-  it('a student is asked for a start date and nothing else', () => {
-    expect(shown(employmentFields('student'), {})).toEqual(['start_date']);
+  it('a student is asked for a maintenance loan, family support and part-time, not a start date', () => {
+    const shownFields = shown(employmentFields('student'), {});
+    expect(shownFields).toEqual(['maintenance_loan', 'family_support', 'amount']);
+  });
+
+  it('a savings-route applicant is asked only for savings, no income', () => {
+    const shownFields = shown(employmentFields('savings'), {});
+    expect(shownFields).toEqual(['savings_amount']);
+    // Complete on savings alone, no wage.
+    expect(fieldsComplete(employmentFields('savings'), { savings_amount: 20000 })).toBe(true);
+  });
+
+  it('benefits collect an amount and a frequency', () => {
+    const shownFields = shown(employmentFields('universal_credit'), {});
+    expect(shownFields).toEqual(['amount', 'amount_frequency']);
+  });
+
+  it('a retiree is asked for a pension, not a start date', () => {
+    const shownFields = shown(employmentFields('retired'), {});
+    expect(shownFields).not.toContain('start_date');
+    expect(shownFields).toContain('pension_income');
   });
 
   it('hourly pay reveals the hours question, salary does not', () => {

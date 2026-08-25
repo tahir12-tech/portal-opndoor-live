@@ -66,6 +66,8 @@ export const EMPLOYMENT_TYPES = [
   { value: 'unemployed_or_other',  label: 'Unemployed or other income' },
   { value: 'zero_hours',           label: 'Zero-hours employee' },
   { value: 'student',              label: 'Student' },
+  { value: 'savings',              label: 'Living on savings' },
+  { value: 'universal_credit',     label: 'Universal Credit or benefits' },
 ] as const;
 
 export const ADDITIONAL_INCOME_TYPES = [
@@ -117,6 +119,8 @@ const WITH_BANK_STATEMENT = ['permanent', 'self_employed', 'contract', 'temporar
 const WITH_END_DATE = ['contract', 'temporary'];
 const WITH_JOB_TITLE = ['contract', 'temporary', 'zero_hours'];
 const WITH_REFEREE = ['permanent', 'self_employed', 'contract', 'temporary', 'zero_hours'];
+const WITH_START_DATE = ['permanent', 'self_employed', 'contract', 'temporary', 'zero_hours'];
+const AMOUNT_FREQUENCY = [{ value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }, { value: 'annually', label: 'Annually' }];
 
 export function employmentFields(type: string): FieldSpec[] {
   const f: FieldSpec[] = [];
@@ -125,7 +129,9 @@ export function employmentFields(type: string): FieldSpec[] {
   if (has(WITH_EMPLOYER)) {
     f.push({ name: 'employer_name', label: "Your employer's business name", kind: 'text', required: true });
   }
-  f.push({ name: 'start_date', label: 'Start date', kind: 'date', required: true });
+  if (has(WITH_START_DATE)) {
+    f.push({ name: 'start_date', label: 'Start date', kind: 'date', required: true });
+  }
   if (has(WITH_END_DATE)) {
     f.push({ name: 'end_date', label: 'Contract end date', kind: 'date' });
   }
@@ -172,6 +178,36 @@ export function employmentFields(type: string): FieldSpec[] {
              when: (v) => v.pay_basis === 'hourly_rate' });
     f.push({ name: 'weekly_hours', label: 'Guaranteed minimum hours each week', kind: 'number',
              when: (v) => v.pay_basis === 'hourly_rate' });
+  }
+
+  if (type === 'student') {
+    // A student's income is a maintenance loan, help from family and any
+    // part-time work. Collected, not judged: the loan is the primary figure.
+    f.push({ name: 'maintenance_loan', label: 'Your maintenance loan', kind: 'money', required: true,
+             help: 'The amount for the year. Enter 0 if you do not receive one.' });
+    f.push({ name: 'family_support', label: 'Money from family or others', kind: 'money',
+             help: 'For the year, if anyone helps with your rent or living costs. Optional.' });
+    f.push({ name: 'amount', label: 'Part-time income, if you have any', kind: 'money' });
+    f.push({ name: 'amount_frequency', label: 'How often', kind: 'select', options: AMOUNT_FREQUENCY,
+             when: (v) => Number(v.amount) > 0 });
+  }
+
+  if (type === 'savings') {
+    // Savings alone, no income. We collect the figure; Lettings decide what it
+    // means. No affordability rule is applied here.
+    f.push({ name: 'savings_amount', label: 'Total savings or capital available', kind: 'money', required: true });
+  }
+
+  if (type === 'universal_credit') {
+    f.push({ name: 'amount', label: 'Your benefit income', kind: 'money', required: true });
+    f.push({ name: 'amount_frequency', label: 'How often do you receive it?', kind: 'select',
+             required: true, options: AMOUNT_FREQUENCY });
+  }
+
+  if (type === 'homemaker' || type === 'unemployed_or_other') {
+    f.push({ name: 'amount', label: 'Any income you receive', kind: 'money' });
+    f.push({ name: 'amount_frequency', label: 'How often', kind: 'select', options: AMOUNT_FREQUENCY,
+             when: (v) => Number(v.amount) > 0 });
   }
 
   if (type === 'retired') {

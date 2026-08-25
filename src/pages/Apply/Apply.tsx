@@ -104,7 +104,6 @@ export function Apply() {
   const [tab, setTab] = useState<Tab>('details');
   const [step, setStep] = useState<Step>('property');
   const [bundle, setBundle] = useState<api.ApplicationBundle | null>(null);
-  const [pre, setPre] = useState<api.Prequalification | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const appId = bundle?.application.id ?? 'demo-application';
@@ -138,7 +137,6 @@ export function Apply() {
       if (!first) { window.location.href = '/apply/register'; return; }
       const b = await api.getApplication(first.id);
       setBundle(b);
-      setPre(await api.prequalify(first.id));
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not load your application.');
     }
@@ -374,7 +372,7 @@ export function Apply() {
     about: 'We still need your date of birth, phone and the adverse credit question.',
     fee: 'The fee unlocks the rest of the form.',
     address: `We need three years. You have given us ${months} month${months === 1 ? '' : 's'}.`,
-    income: 'Add at least one main income.',
+    income: 'Tell us your situation and the amounts for your primary source.',
     nationality: 'Tell us your nationality and which description fits you.',
     declaration: 'Confirm your name and tick the declaration.',
   };
@@ -657,7 +655,7 @@ export function Apply() {
             {step === 'income' && (
               <Card><CardHead title="Your income" /><CardBody>
                 <p className="ap-p">
-                  Start with your main income, then add anything else you receive.
+                  Tell us your situation, then the amounts. Start with your main source, then add anything else.
                   {property.monthly_rent ? <> The rent here is £{String(property.monthly_rent)} a month.</> : null}
                 </p>
                 {incomes.map((row, i) => {
@@ -668,7 +666,7 @@ export function Apply() {
                     <section key={String(row.seq)} className="ap-row">
                       <header className="ap-row__head">
                         <h3 className="ap-h3">
-                          {additional ? 'Additional income' : 'Main income'}
+                          {additional ? 'Additional income' : 'Primary source'}
                           {i > 0 ? ` ${i + 1}` : ''}
                         </h3>
                         {editable && (
@@ -682,7 +680,7 @@ export function Apply() {
                       <FieldList
                         fields={[{
                           name: 'income_type',
-                          label: additional ? 'What kind of income?' : 'What best describes you?',
+                          label: additional ? 'What kind of income?' : 'What is your situation?',
                           kind: 'select', required: true,
                           options: (additional ? ADDITIONAL_INCOME_TYPES : EMPLOYMENT_TYPES).map((o) => ({ ...o })),
                         }]}
@@ -703,7 +701,7 @@ export function Apply() {
                         setIncomes((rs) => [...rs, { seq, is_additional: false }]);
                         void api.saveRow(appId, 'incomes', seq, { is_additional: false });
                       }}>
-                      <Icon name="plus" /> Add main income
+                      <Icon name="plus" /> Add a primary source
                     </Button>
                     <Button variant="quiet"
                       onClick={() => {
@@ -713,23 +711,6 @@ export function Apply() {
                       }}>
                       <Icon name="plus" /> Add additional income
                     </Button>
-                  </div>
-                )}
-                {/* Only once there is something to assess. This used to render
-                    "Nothing here rules you out" with every field empty, which
-                    reassured about an assessment it had not made. */}
-                {pre && pre.outcome && Number(property.monthly_rent) > 0 && incomes.length > 0 ? (
-                  <div className={`ap-pre ${pre.outcome === 'ruled_out' ? 'ap-pre--no' : 'ap-pre--ok'}`}>
-                    {pre.outcome === 'ruled_out'
-                      ? <>On what you have told us, the income here is under what this rent needs.
-                          You can still send it, and the eligibility check makes the decision.</>
-                      : <><strong>Nothing here rules you out.</strong> That is not a decision:
-                          it is made on the eligibility check, which sees things we cannot.</>}
-                  </div>
-                ) : (
-                  <div className="ap-pre ap-pre--wait">
-                    Once your rent and income are in, we will tell you whether anything obvious
-                    stands in the way. It is never a decision: the eligibility check makes that.
                   </div>
                 )}
                 {editable && footer('income')}
