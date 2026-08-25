@@ -134,10 +134,25 @@ export function Register() {
   const [existing, setExisting] = useState(false);
   const [sendFailed, setSendFailed] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  const ready = f.first_name && f.last_name && f.email.includes('@') && f.password.length >= 10;
+  // Field-level errors, shown against the field when they press, instead of a
+  // grey requirement above the field and a button that silently does nothing.
+  const [fieldErr, setFieldErr] = useState<Record<string, string>>({});
+  const setField = (k: string, v: string) => {
+    setF((prev) => ({ ...prev, [k]: v }));
+    setFieldErr((e) => (e[k] ? { ...e, [k]: '' } : e));
+  };
 
   const go = async () => {
+    // The press is allowed to happen; a failing requirement shows against its
+    // field rather than leaving a dead button and a hint nobody reread.
+    const problems: Record<string, string> = {};
+    if (!f.first_name.trim()) problems.first_name = 'Enter your first name.';
+    if (!f.last_name.trim()) problems.last_name = 'Enter your last name.';
+    if (!f.email.includes('@')) problems.email = 'Enter a valid email address.';
+    if (f.password.length < 10) problems.password = 'Use at least 10 characters.';
+    setFieldErr(problems);
+    if (Object.keys(problems).length) return;
+
     setBusy(true); setErr(null);
     try {
       const r = await auth.register({ ...f, invite }) as { sent?: boolean; exists?: boolean } | undefined;
@@ -191,17 +206,17 @@ export function Register() {
     <Shell eyebrow="Create an account" title="Apply for an opndoor guarantee"
       sub="Create an account first, so nothing you type is ever lost.">
         <div className="ap-grid">
-          <Field label="First name" htmlFor="ap-first"><input id="ap-first" className="input" value={f.first_name} onChange={(e) => setF({ ...f, first_name: e.target.value })} /></Field>
-          <Field label="Last name" htmlFor="ap-last"><input id="ap-last" className="input" value={f.last_name} onChange={(e) => setF({ ...f, last_name: e.target.value })} /></Field>
-          <Field label="Email address" htmlFor="ap-reg-email"><input id="ap-reg-email" className="input" type="email" autoComplete="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
-          <Field label="Mobile number" htmlFor="ap-phone"><input id="ap-phone" className="input" type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
-          <Field label="Password" htmlFor="ap-reg-password" hint="At least 10 characters. Longer is better than complicated.">
-            <PasswordInput id="ap-reg-password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} autoComplete="new-password" />
+          <Field label="First name" htmlFor="ap-first" error={fieldErr.first_name || undefined}><input id="ap-first" className="input" value={f.first_name} onChange={(e) => setField('first_name', e.target.value)} /></Field>
+          <Field label="Last name" htmlFor="ap-last" error={fieldErr.last_name || undefined}><input id="ap-last" className="input" value={f.last_name} onChange={(e) => setField('last_name', e.target.value)} /></Field>
+          <Field label="Email address" htmlFor="ap-reg-email" error={fieldErr.email || undefined}><input id="ap-reg-email" className="input" type="email" autoComplete="email" value={f.email} onChange={(e) => setField('email', e.target.value)} /></Field>
+          <Field label="Mobile number" htmlFor="ap-phone"><input id="ap-phone" className="input" type="tel" value={f.phone} onChange={(e) => setField('phone', e.target.value)} /></Field>
+          <Field label="Password" htmlFor="ap-reg-password" hint="At least 10 characters. Longer is better than complicated." error={fieldErr.password || undefined}>
+            <PasswordInput id="ap-reg-password" value={f.password} onChange={(e) => setField('password', e.target.value)} autoComplete="new-password" />
           </Field>
         </div>
         {err && <div className="ap-alert" role="alert">{err}</div>}
         <div className="ap-actions">
-          <Button variant="primary" disabled={!ready || busy} onClick={() => void go()}>
+          <Button variant="primary" disabled={busy} onClick={() => void go()}>
             {busy ? 'Creating…' : 'Create my account'}
           </Button>
         </div>
@@ -365,6 +380,7 @@ export function ResetPassword() {
   const [ready, setReady] = useState(false);
   const [password, setPassword] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [pwErr, setPwErr] = useState<string | null>(null);
 
   useEffect(() => {
     auth.exchangeLinkToken()
@@ -377,12 +393,17 @@ export function ResetPassword() {
         {err && <div className="ap-alert" role="alert">{err} <a href="/forgot-password?tab=tenant">Ask for a new link</a>.</div>}
         {ready && !err && (
           <>
-            <Field label="New password" htmlFor="ap-new-password" hint="At least 10 characters.">
-              <PasswordInput id="ap-new-password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+            <Field label="New password" htmlFor="ap-new-password" hint="At least 10 characters." error={pwErr || undefined}>
+              <PasswordInput id="ap-new-password" value={password}
+                onChange={(e) => { setPassword(e.target.value); if (pwErr) setPwErr(null); }}
+                autoComplete="new-password" />
             </Field>
             <div className="ap-actions">
-              <Button variant="primary" disabled={password.length < 10}
-                onClick={async () => { await auth.setPassword(password); nav('/apply'); }}>
+              <Button variant="primary"
+                onClick={async () => {
+                  if (password.length < 10) { setPwErr('Use at least 10 characters.'); return; }
+                  await auth.setPassword(password); nav('/apply');
+                }}>
                 Save and continue
               </Button>
             </div>

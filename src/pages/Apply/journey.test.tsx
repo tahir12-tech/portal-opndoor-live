@@ -50,10 +50,15 @@ function stubSignedIn(bundle: Partial<api.ApplicationBundle> = {}) {
 }
 
 describe('creating an account', () => {
-  it('will not submit until the form is actually complete', () => {
+  it('lets the press happen and shows the missing requirement against the field', () => {
+    // The button used to be silently disabled with the rule in grey above the
+    // field. Now the press is allowed and the reason shows against the field.
     at(<Register />, '/apply/register');
     const submit = screen.getByRole('button', { name: /create/i });
-    expect(submit.hasAttribute('disabled')).toBe(true);
+    expect(submit.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(submit);
+    expect(screen.getByText(/enter your first name/i)).toBeTruthy();
+    expect(screen.getByText(/use at least 10 characters/i)).toBeTruthy();
   });
 
   it('hands the typed address to the sign-in link rather than asking twice', () => {
@@ -66,17 +71,18 @@ describe('creating an account', () => {
     expect(link()).toBe('/login?tab=tenant&email=sam%40example.co.uk');
   });
 
-  it('requires a password of at least ten characters', () => {
+  it('flags a too-short password against the field, and clears it on edit', () => {
     at(<Register />, '/apply/register');
     fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Sam' } });
     fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Okafor' } });
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 's@example.invalid' } });
-    const submit = screen.getByRole('button', { name: /create/i });
-
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'short' } });
-    expect(submit.hasAttribute('disabled')).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
+    expect(screen.getByText(/use at least 10 characters/i)).toBeTruthy();
+    // Editing the field clears its error.
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'a-long-enough-one' } });
-    expect(submit.hasAttribute('disabled')).toBe(false);
+    expect(screen.queryByText(/use at least 10 characters/i)).toBeNull();
   });
 
   it('passes the invite token through, so the agent’s application is claimed', async () => {
