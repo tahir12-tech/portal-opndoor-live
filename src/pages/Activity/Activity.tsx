@@ -149,7 +149,7 @@ export function Activity() {
                 <span className="exp-chip exp-chip--notice"><span className="exp-chip__n">{counts.notice}</span><span className="exp-chip__l">within 30 days</span></span>
               </div>
               {SUPABASE_ENABLED && role === 'superadmin' && (
-                <Button variant="ghost" size="sm" onClick={runReminders} disabled={running} title="Run the daily expiry-reminder job now in test mode, against today's expiring guarantees">
+                <Button variant="ghost" size="sm" onClick={runReminders} disabled={running} title="Run the daily expiry-reminder job now in Live mode, against today's expiring guarantees">
                   <Icon name="bell" /> {running ? 'Running…' : 'Run reminders (test)'}
                 </Button>
               )}

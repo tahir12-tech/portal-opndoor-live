@@ -211,7 +211,7 @@ export function ApplicationDetail() {
     const r = await resendPaymentEmail(d.ref);
     setResendBusy(false);
     // Partner-safe confirmation; the test-mode redirect detail is opndoor-admin-only.
-    if (r.ok) { toast(role === 'superadmin' ? 'Payment email resent (test mode) to the review address.' : 'Payment email resent to the tenant.'); void loadPayment(); }
+    if (r.ok) { toast(role === 'superadmin' ? 'Payment email resent (Live mode) to the review address.' : 'Payment email resent to the tenant.'); void loadPayment(); }
     else toast(r.error || 'Could not resend the email.');
   };
 
