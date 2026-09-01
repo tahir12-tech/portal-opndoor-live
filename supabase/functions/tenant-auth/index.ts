@@ -101,11 +101,14 @@ function inMinutes(m: number): string {
   return m <= 1 ? "in a minute" : `in ${m} minutes`;
 }
 
-/** Six digits, from the CSPRNG. Math.random here would be a guessable code. */
+/** Six digits, from the CSPRNG. Math.random here would be a guessable code.
+    Ranged to 100000-999999 so it is a genuine six-digit number: a leading
+    zero from padStart was dropped when a tenant typed the code back, leaving
+    five digits the confirm button would never accept. */
 function sixDigits(): string {
   const b = new Uint32Array(1);
   crypto.getRandomValues(b);
-  return String(b[0] % 1_000_000).padStart(6, "0");
+  return String(100000 + (b[0] % 900000));
 }
 
 async function sha256Hex(input: string): Promise<string> {
