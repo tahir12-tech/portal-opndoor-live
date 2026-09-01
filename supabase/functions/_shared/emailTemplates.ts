@@ -89,6 +89,28 @@ export function tenantInviteEmail(p: {
   };
 }
 
+export function submissionReceivedEmail(p: {
+  firstName?: string | null; guaranteeRef: string; propertyAddr: string;
+}): Message {
+  const hi = p.firstName && p.firstName.trim() ? `Thanks, ${p.firstName.trim()}.` : "Thanks.";
+  return {
+    audience: "tenant",
+    subject: "Your opndoor application is in",
+    heading: "We have your application",
+    blocks: [
+      { p: `${hi} Your application for an opndoor guarantee on ${p.propertyAddr} is in, and there is nothing for you to do right now.` },
+      { rows: [["Reference", p.guaranteeRef], ["Property", p.propertyAddr]] },
+      { p: "If anything comes up, just reply to this email. You may also be asked for another document or two before it is finished." },
+      { h: "What happens next" },
+      { list: [
+        "We confirm your eligibility. This usually does not take long.",
+        "We email you either way, whatever we decide.",
+        "If you are approved, you sign back in, pay the guarantee fee of one month's rent, and sign the Deed of Guarantee.",
+      ] },
+    ],
+  };
+}
+
 export function paymentLinkEmail(p: {
   propertyAddr: string; guaranteeRef: string; amount: string;
   tenancyStartLabel?: string | null; payUrl: string;
