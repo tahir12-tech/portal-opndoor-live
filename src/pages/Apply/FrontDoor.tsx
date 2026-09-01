@@ -275,7 +275,9 @@ function CodeStep({ email, invite, onBack, purpose = 'verify_email', sendFailed 
   }
 
   const go = async () => {
-    setBusy(true); setErr(null);
+    setErr(null);
+    if (code.length !== 6) { setErr('Enter all six digits of the code we emailed you.'); return; }
+    setBusy(true);
     try {
       await auth.verifyCode(email, code, purpose);
       const failed = await afterSignIn(nav, invite);
@@ -306,7 +308,7 @@ function CodeStep({ email, invite, onBack, purpose = 'verify_email', sendFailed 
             autoFocus />
         </div>
         {err && <p className="auth__error" style={{ color: 'var(--danger)' }} role="alert">{err}</p>}
-        <Button variant="primary" block type="submit" arrow disabled={busy || code.length !== 6}>
+        <Button variant="primary" block type="submit" arrow disabled={busy}>
           {busy ? 'Checking…' : 'Confirm and continue'}
         </Button>
       </form>

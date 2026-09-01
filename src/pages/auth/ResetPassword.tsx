@@ -187,7 +187,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
         <input id="code" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="123456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} required />
       </div>
       {error && <p className="auth__error" role="alert" style={{ color: 'var(--danger, #c0392b)' }}>{error}</p>}
-      <Button variant="primary" block type="submit" arrow disabled={busy || code.length !== 6}>{busy ? 'Verifying…' : cta}</Button>
+      <Button variant="primary" block type="submit" arrow disabled={busy}>{busy ? 'Verifying…' : cta}</Button>
     </form>
   );
 

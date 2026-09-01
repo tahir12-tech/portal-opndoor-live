@@ -328,14 +328,15 @@ describe('a tenant gets two-factor too', () => {
     expect(screen.getByRole('button', { name: /confirm and continue/i })).toBeTruthy();
   });
 
-  it('will not accept fewer than six digits', async () => {
+  it('says why a short code is short, instead of sitting there dead', async () => {
     await toCodeStep();
     const confirm = screen.getByRole('button', { name: /confirm and continue/i });
-    expect(confirm.hasAttribute('disabled')).toBe(true);
-    fireEvent.change(screen.getByLabelText('Confirmation code'), { target: { value: '12345' } });
-    expect(confirm.hasAttribute('disabled')).toBe(true);
-    fireEvent.change(screen.getByLabelText('Confirmation code'), { target: { value: '123456' } });
+    // The button is live, not a dead grey rectangle. A five-digit code is a
+    // mistake we name on the press, not one we swallow in silence.
     expect(confirm.hasAttribute('disabled')).toBe(false);
+    fireEvent.change(screen.getByLabelText('Confirmation code'), { target: { value: '12345' } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(screen.getByText(/all six digits/i)).toBeTruthy());
   });
 
   it('strips anything that is not a digit', async () => {

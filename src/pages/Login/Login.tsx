@@ -603,8 +603,9 @@ function TenantSignInPanel(
 
   async function confirm(e: FormEvent) {
     e.preventDefault();
-    setTBusy(true);
     setTErr(null);
+    if (tCode.length !== 6) { setTErr('Enter all six digits of the code we emailed you.'); return; }
+    setTBusy(true);
     try {
       await tenantAuth.verifyCode(tEmail, tCode, 'sign_in');
       // afterSignIn is imported rather than reimplemented: it decides between
@@ -656,7 +657,7 @@ function TenantSignInPanel(
                  placeholder="000000" value={tCode} autoFocus
                  onChange={(e) => setTCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
         </div>
-        <Button variant="primary" block type="submit" arrow disabled={tBusy || tCode.length !== 6}>
+        <Button variant="primary" block type="submit" arrow disabled={tBusy}>
           {tBusy ? 'Checking\u2026' : 'Confirm and continue'}
         </Button>
       </form>
