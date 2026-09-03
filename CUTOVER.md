@@ -288,6 +288,8 @@ exercising the path.
 | `APP_URL` | 13 fns | The production portal origin | Links in emails point at the wrong host, or nowhere |
 | `STRIPE_SECRET_KEY` | 2 fns | `sk_live_...` | Payments cannot be created |
 | `STRIPE_SECRET_KEY_TEST` | 1 fn | `sk_test_...` | **Sandbox partners cannot transact.** SILENT for live traffic |
+| `STRIPE_PUBLISHABLE_KEY` | 1 fn | `pk_live_...` | The in-page (embedded) guarantee payment cannot mount for **live** applications; the tenant sees "Payments are not configured on this environment". The hosted `/pay` redirect flow is unaffected (it uses no publishable key) |
+| `STRIPE_PUBLISHABLE_KEY_TEST` | 1 fn | `pk_test_...` | **Sandbox applications' embedded checkout cannot mount** (the server returns no key, and the client will not fall back to a wrong-mode build key). SILENT for live traffic. Both publishable keys must match the mode of their secret key, since the server resolves them per application |
 | `STRIPE_WEBHOOK_SECRET` | webhook | Live endpoint signing secret | Every webhook fails signature. Payments never settle |
 | `PANDADOC_API_KEY` | 1 fn | Live PandaDoc key | Deeds cannot be issued |
 | `PANDADOC_API_KEY_TEST` | 1 fn | Sandbox key | Sandbox deeds fail |

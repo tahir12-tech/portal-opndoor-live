@@ -3,7 +3,8 @@
 **One file. Read this to know the state of everything; follow the links for why.**
 Kept current as work happens, not written up afterwards.
 
-Last updated **2026-08-19**.
+Last updated **2026-09-02**, re-verified against the live dev project itself
+(`functions list`, `secrets list`, a SQL snapshot of the database), not the docs.
 
 ---
 
@@ -15,6 +16,37 @@ through the API, and a referencing provider handing over. Rails 1 and 2 we check
 eligibility ourselves; rails 3 and 4 arrive already checked. There are two fee
 points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 (one month's rent) on all four. Only the tenant signs.
+
+---
+
+## Since 19 August, re-verified live on the database (2026-09-02)
+
+Read off the dev project `nfufwcpgrhfgwtphegca`, not the runbooks. What moved:
+
+- **Card payments settle.** The £20 eligibility fee has cleared six times and one
+  application has paid the guarantee fee (`stripe_events` 5, one app `paid`).
+  `STRIPE_WEBHOOK_SECRET` is set and live-mode events verify against the
+  `livemode = true` applications, so the old "dev cannot complete a card payment"
+  trap no longer holds.
+- **Email delivers**, but every recipient is redirected to one review inbox:
+  `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL` and `EMAIL_REVIEW_ADDRESS` are all set,
+  and the review address equals `OPS_ALERT_ADDRESS`. Codes, invites and reset links
+  are sent and land in that inbox; no real tenant or agent is contacted.
+- **All 28 edge functions are deployed and active.** The "14 of 27 never deployed"
+  cutover state is gone.
+
+What has NOT moved:
+
+- **Deed execution has not happened** on the dev database: every `deed_state` is
+  null and `pandadoc_events` is 0. Payment reaches `paid`; the deed has not issued.
+- **Rail 4 (Lettings in a Box) is still uncredentialed**: no `REFERENCING_API_*`
+  secrets, no inbound token seeded, `referencing_inbound_events` 0.
+- **The reminder, digest and cohort crons are not scheduled.** `cron.job` holds only
+  `hubspot-sync` and `rate-limit-cleanup`; those ledgers are empty. `partner-webhooks`
+  is deployed but unscheduled, so four deliveries sit undelivered.
+- **HubSpot has no token** (`hubspot_sync_events` 0), and the address-lookup key is
+  still unset.
+- **The decision inbound on rails 1 and 2 is still the gap** (below).
 
 ---
 
@@ -50,7 +82,7 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 | ---- | ----- | ----- |
 | **Rail 4 (provider hand-over)** | Receiver and callback built and deployed; **no token seeded and no credentials**, so nothing can arrive | `TENANT-PLATFORM.md` 6.2 |
 | **Joint tenancies** | Schema, group test and one-deed-per-tenancy built. The group test cannot be trusted until we know whether the provider assesses against the share or the full rent | HANDOVER 26 |
-| **Agent referrals end to end** | Form, hierarchy, positions and attribution built, and now walkable: `supabase/fixtures/agency-group.sql` builds a group over two brands on different rates. **The invite fork itself is still unwalked**, because dev sends no mail, so the invite link has to be read out of `tenant_invites` by hand | `supabase/fixtures/README.md` |
+| **Agent referrals end to end** | Form, hierarchy, positions and attribution built, and now walkable: `supabase/fixtures/agency-group.sql` builds a group over two brands on different rates. The invite fork is now walkable too: dev sends mail (Resend is set), redirected to the review inbox, so the invite link is read there rather than pulled out of `tenant_invites` by hand | `supabase/fixtures/README.md` |
 | **Tenant journey's later tabs** | Documents fully live. ID check and Financials have a working manual upload; the vendor path needs credentials | `TENANT-PLATFORM.md` 6.1 |
 | **HubSpot** | Syncs applicants and companies, cursor now per partner. **One pipeline, `channel` hardcoded to "Partner Referral"** | HANDOVER, HubSpot items |
 
@@ -72,7 +104,7 @@ points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
 | The developer | Yoti credentials and check ids; the Lettings endpoint that returns Kreditz data | Guided ID check, bank connection |
 | The provider | **Affordability against the share or the full rent. Still unanswered**: they confirmed there is no capacity NUMBER, which was the other half | Joint tenancies |
 | **Matt** | Whether a group's brands can be on different commercial terms | **Answered: yes, rate sits at the agency** |
-| Ops | `APP_URL`, a mail provider, a Stripe test webhook, an address-lookup key | Reset links, tenant codes, card payments, address lookup |
+| Ops | An address-lookup key. `APP_URL`, Resend and the Stripe webhook are all set now, so reset links, tenant codes and card payments are unblocked; mail lands in the review inbox | Address lookup only |
 
 **Answered 2026-08-19** by the developer: sandbox is `https://lettingsinabox.xyz`;
 `agency_secret_token` is **per agency**, created by the Lettings admin;
@@ -101,9 +133,16 @@ Things that have cost time once and will again.
   silently invisible to the client.
 - **A hook below an early return is a white page.** There is no ESLint here, so
   `react-hooks/rules-of-hooks` is not watching. REGRESSION H14 catches it.
-- **The dev project cannot complete a card payment.** Applications are
-  `livemode = true`, dev holds a test key, and the mismatch guard has no
-  non-production exemption.
+- **Card payments settle on dev now.** `STRIPE_WEBHOOK_SECRET` is set and live-mode
+  events verify against the `livemode = true` applications, so the old test-key
+  mismatch no longer blocks payment: the £20 fee has cleared six times and one
+  application has paid the guarantee fee. Deed execution has not followed
+  (`deed_state` null, `pandadoc_events` 0).
+- **Every outbound email is redirected to one review inbox** (`EMAIL_REVIEW_ADDRESS`),
+  so no real tenant or agent is contacted on dev even though mail is being sent.
+- **The reminder, digest and cohort crons are not scheduled** in `cron.job` (only
+  `hubspot-sync` and `rate-limit-cleanup` are), so nothing chases a payment or an
+  expiry automatically until they are added by hand.
 - **Deploy `hubspot-sync` with the migrations**, not after: `20260812030000`
   drops the signature the deployed one calls.
 
