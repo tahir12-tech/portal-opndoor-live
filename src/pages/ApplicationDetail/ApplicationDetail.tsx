@@ -12,7 +12,7 @@
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, deedDownloadUrl, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, pandadocSandbox, resendDeed, resendPaymentEmail, sendDeedToAgent, stripeMode, withdrawApplication, type AppNote, type PaymentInfo, type WithdrawReason } from '@/data';
+import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, deedDownloadUrl, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, pandadocSandbox, resendDeed, resendPaymentEmail, sendDeedToAgent, stripeMode, withdrawApplication, type AppNote, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
@@ -133,6 +133,8 @@ export function ApplicationDetail() {
   const [searchParams] = useSearchParams();
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
   const [resendBusy, setResendBusy] = useState(false);
+  const [approveBusy, setApproveBusy] = useState(false);
+  const [docs, setDocs] = useState<StaffDocument[]>([]);
   const [copied, setCopied] = useState(false);
   const [deedBusy, setDeedBusy] = useState(false);
   // #2 Withdraw (Sent, pre-payment only)
@@ -142,6 +144,10 @@ export function ApplicationDetail() {
   const [withdrawBusy, setWithdrawBusy] = useState(false);
   // #8 Operational notes (internal-only): admin + management + the owning referrer.
   const maySeeNotes = role === 'superadmin' || role === 'management' || (role === 'referrer' && d.owner === 1);
+  // The applicant's uploaded documents (bank statements, proof of address) are
+  // opndoor-internal: they are collected for the guarantee decision we make, not
+  // for the referring agent, so a referrer never sees this card.
+  const maySeeDocuments = role === 'superadmin' || role === 'management';
   const [notes, setNotes] = useState<AppNote[]>([]);
   const [noteBody, setNoteBody] = useState('');
   const [noteBusy, setNoteBusy] = useState(false);
@@ -179,6 +185,21 @@ export function ApplicationDetail() {
 
   useEffect(() => { void loadNotes(); }, [loadNotes]);
 
+  // Load the applicant's documents for review. RLS scopes the list; the card is
+  // internal, so this only runs for opndoor staff.
+  useEffect(() => {
+    if (!maySeeDocuments || !d.ref) { setDocs([]); return; }
+    let cancelled = false;
+    void listApplicationDocuments(d.ref).then((rows) => { if (!cancelled) setDocs(rows); });
+    return () => { cancelled = true; };
+  }, [d.ref, maySeeDocuments]);
+
+  const openDoc = async (docId: string) => {
+    const r = await applicationDocumentUrl(docId);
+    if (r.ok && r.url) window.open(r.url, '_blank', 'noopener');
+    else toast(r.error || 'Could not open the document.', 'error');
+  };
+
   const doAddNote = async () => {
     const body = noteBody.trim();
     if (!body) return;
@@ -213,6 +234,25 @@ export function ApplicationDetail() {
     // Partner-safe confirmation; the test-mode redirect detail is opndoor-admin-only.
     if (r.ok) { toast(role === 'superadmin' ? 'Payment email resent (test mode) to the review address.' : 'Payment email resent to the tenant.'); void loadPayment(); }
     else toast(r.error || 'Could not resend the email.', 'error');
+  };
+
+  // Approve a direct application awaiting the decision: sets it to Sent and emails
+  // the tenant to sign in and pay the guarantee fee. Superadmin only, matching
+  // set_application_status inside the function. The interim manual stand-in for the
+  // Lettings verdict handover (ASK-THE-DEVELOPER.md item 1).
+  const doApprove = async () => {
+    setApproveBusy(true);
+    const r = await approveApplication(d.ref);
+    setApproveBusy(false);
+    if (r.ok) {
+      toast(r.emailError
+        ? 'Approved. The tenant email could not be sent; resend it from the payment card.'
+        : 'Approved. The tenant has been emailed to sign in and pay the guarantee fee.');
+      await refresh();
+      void loadPayment();
+    } else {
+      toast(r.error || 'Could not approve the application.', 'error');
+    }
   };
 
   const doResendDeed = async () => {
@@ -263,7 +303,7 @@ export function ApplicationDetail() {
   // #105 Withdrawn/Expired are terminal pre-payment exits: only Sent was reached,
   // and the timeline must render the termination, never a false Paid/Deed tick.
   const timelineTerminated = d.status === 'withdrawn' || d.status === 'expired';
-  const reached = timelineTerminated ? 1 : d.status === 'sent' ? 1 : d.status === 'paid' ? 2 : 3;
+  const reached = timelineTerminated ? 1 : d.status === 'referencing' ? 0 : d.status === 'sent' ? 1 : d.status === 'paid' ? 2 : 3;
   // Third-node caption: on completion it states the outcome; while awaiting it
   // surfaces the deed's signing journey (sent / viewed / not yet viewed). The
   // three milestones themselves are unchanged.
@@ -364,7 +404,7 @@ export function ApplicationDetail() {
 
   // Withdraw is offered only at Sent, before payment, to the owner / management / admin.
   const showWithdraw = canWithdraw(role, d.status, owned) && !isTerminal;
-  const pillVariant: PillVariant = d.status === 'withdrawn' || d.status === 'expired' ? 'muted' : d.status;
+  const pillVariant: PillVariant = d.status === 'withdrawn' || d.status === 'expired' ? 'muted' : d.status === 'referencing' ? 'warn' : d.status;
   const statusLabel = d.statusLabel;
 
   // ---- amend permission + context ----
@@ -633,6 +673,7 @@ export function ApplicationDetail() {
           </div>
         </div>
         <div className="rec-head__actions">
+          {d.status === 'referencing' && isAdmin && <Button variant="primary" size="sm" onClick={doApprove} disabled={approveBusy}><Icon name="check" /> {approveBusy ? 'Approving…' : 'Approve'}</Button>}
           {isDeed && <Button variant="dark" size="sm" onClick={doDownloadDeed}><Icon name="download" /> Download deed</Button>}
           {showWithdraw && <Button variant="ghost" size="sm" onClick={() => { setWReason(''); setWNote(''); setWithdrawOpen(true); }}><Icon name="ban" /> Withdraw</Button>}
         </div>
@@ -715,6 +756,28 @@ export function ApplicationDetail() {
 
           {/* #8 Operational notes — internal only (opndoor admin + Management + owning
               Referrer). Append-only; never shared with tenants or agents, never exported. */}
+          {maySeeDocuments && (
+            <Card>
+              <CardHead title="Documents" sub="What the applicant uploaded on the Address and Financials steps." />
+              <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
+                {docs.length === 0 ? (
+                  <div className="drow__v" style={{ padding: '8px 0', color: 'var(--ink-mute)' }}>Nothing uploaded yet.</div>
+                ) : (
+                  docs.map((doc) => (
+                    <div className="docrow" key={doc.id}>
+                      <span className="docrow__ic"><Icon name="file" strokeWidth={1.8} /></span>
+                      <div className="docrow__txt">
+                        <div className="docrow__name">{doc.filename}</div>
+                        <div className="docrow__meta">{doc.label}{doc.bytes ? ` · ${Math.max(1, Math.round(doc.bytes / 1024))} KB` : ''}</div>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => void openDoc(doc.id)}><Icon name="download" /> Open</Button>
+                    </div>
+                  ))
+                )}
+              </CardBody>
+            </Card>
+          )}
+
           {maySeeNotes && (
             <Card>
               <CardHead title="Notes" sub="Internal operational notes. Not shared with tenants or agents, and never exported." />
@@ -823,7 +886,7 @@ export function ApplicationDetail() {
                     {pi.paymentUrl && (
                       <>
                         <div className="pay-link">
-                          <input readOnly value={pi.paymentUrl} onFocus={(e) => e.currentTarget.select()} aria-label="Checkout link" />
+                          <input readOnly value={pi.paymentUrl} onFocus={(e) => e.currentTarget.select()} aria-label="Payment link" />
                           <Button variant="ghost" size="sm" onClick={copyLink}>{copied ? 'Copied' : 'Copy'}</Button>
                         </div>
                         <div style={{ marginTop: 10 }}>

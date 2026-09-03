@@ -134,6 +134,33 @@ export function paymentLinkEmail(p: {
   };
 }
 
+/** The direct rail's approval. Unlike paymentLinkEmail, which sends a referred
+    tenant a tokenised /pay link because they have no account, a direct tenant
+    already has one, so this brings them back to their own portal to sign in and
+    pay the guarantee fee from their status screen. */
+export function directApprovalEmail(p: {
+  propertyAddr: string; guaranteeRef: string; amount: string;
+  tenancyStartLabel?: string | null; portalUrl: string;
+}): Message {
+  const rows: [string, string][] = [
+    ["Reference", p.guaranteeRef],
+    ["Property", p.propertyAddr],
+    ["Guarantee fee", p.amount],
+  ];
+  if (p.tenancyStartLabel) rows.push(["Tenancy starts", p.tenancyStartLabel]);
+  return {
+    audience: "tenant",
+    subject: "You are approved, and the last step is the guarantee fee",
+    heading: "Your guarantee is approved",
+    blocks: [
+      { p: `Good news. opndoor can act as guarantor for your tenancy at ${p.propertyAddr}. The last step is the guarantee fee.` },
+      { rows },
+      { small: "The fee is one month of rent and is payable once. Sign in to your application to pay it, and the Deed of Guarantee is issued as soon as it clears." },
+    ],
+    action: { label: "Sign in and pay", href: p.portalUrl },
+  };
+}
+
 export function paymentReminderEmail(p: {
   propertyAddr: string; guaranteeRef: string; amount: string;
   openUntilLabel?: string | null; payUrl: string; nudge: 1 | 2 | 3;

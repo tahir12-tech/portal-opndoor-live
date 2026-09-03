@@ -90,10 +90,18 @@ export async function getPaymentInfo(ref: string): Promise<PaymentInfo | null> {
     .select('kind, message, actor, at, visibility')
     .eq('application_id', data.id)
     .order('at', { ascending: false });
+  // The copy-link is the durable /pay?token page (mints a fresh Stripe session on
+  // click), never the raw Stripe URL that expires in 30 minutes. Only fetched for
+  // a payable application; the card hides the link otherwise.
+  let paymentUrl: string | null = null;
+  if (data.status === 'sent' || data.status === 'expired') {
+    const { data: token } = await client.rpc('staff_payment_page_token', { p_ref: ref });
+    if (token) paymentUrl = `${window.location.origin}/pay?token=${token}`;
+  }
   return {
     status: data.status,
     paymentState: data.payment_state ?? null,
-    paymentUrl: data.payment_url ?? null,
+    paymentUrl,
     paidAt: data.paid_at ?? null,
     paidAmount: data.paid_amount != null ? Number(data.paid_amount) : null,
     paymentRef: data.stripe_payment_intent_id ?? null,
@@ -123,6 +131,17 @@ export async function resendDeed(ref: string): Promise<{ ok: boolean; message?: 
   if (error) return { ok: false, error: await functionErrorMessage(error, 'Could not send the deed.') };
   if (!data?.ok) return { ok: false, error: data?.error || 'Could not send the deed.' };
   return { ok: true, message: data.message };
+}
+
+/** Approve a direct application awaiting the decision (status 'referencing'): sets
+    it to 'sent' and emails the tenant the portal payment link. Staff only, enforced
+    by set_application_status inside the function. The interim manual stand-in for
+    the Lettings verdict handover (ASK-THE-DEVELOPER.md item 1). */
+export async function approveApplication(ref: string): Promise<{ ok: boolean; emailError?: string | null; error?: string }> {
+  const { data, error } = await sb().functions.invoke('approve-application', { body: { ref } });
+  if (error) return { ok: false, error: await functionErrorMessage(error, 'Could not approve the application.') };
+  if (!data?.ok) return { ok: false, error: data?.error || 'Could not approve the application.' };
+  return { ok: true, emailError: data.emailError ?? null };
 }
 
 /** Void the outstanding deed and generate a fresh one (Management / opndoor admin). */

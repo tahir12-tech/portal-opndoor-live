@@ -47,8 +47,10 @@ export const LEAST_PRIVILEGED_ROLE: Role = 'referrer';
 export type PartnerScope = string;
 export const ALL_PARTNERS = 'all';
 
-/** Application lifecycle. */
-export type Status = 'sent' | 'paid' | 'deed' | 'withdrawn' | 'expired';
+/** Application lifecycle. 'referencing' is the direct rail's pre-approval state
+    (submitted, awaiting the eligibility decision); the referral and inbound rails
+    are created at 'sent' and never sit here. */
+export type Status = 'referencing' | 'sent' | 'paid' | 'deed' | 'withdrawn' | 'expired';
 export type WithdrawReason = 'another_guarantor' | 'tenancy_fell_through' | 'duplicate' | 'other';
 /** Deed sub-state while Paid (DB-enforced set), or null before a deed exists. */
 export type DeedState = 'awaiting_tenant' | 'executed' | 'declined' | 'voided' | 'error';

@@ -25,7 +25,7 @@ import { Pager } from '@/components/ui/Pager';
 import './Applications.css';
 
 const PAGE_SIZE = 20;
-const STATUS_LABEL: Record<Status, string> = { sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
+const STATUS_LABEL: Record<Status, string> = { referencing: 'Awaiting decision', sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function fmtDate(iso: string): string {
   const d = new Date(iso);
@@ -68,7 +68,7 @@ export function Applications() {
     // #93 delivery-failed is management + opndoor admin only.
     if (role !== 'referrer' && params.get('deed') === 'delivery-failed') return 'delivery-failed';
     const s = params.get('status');
-    return s === 'sent' || s === 'paid' || s === 'deed' || s === 'refunded' || s === 'withdrawn' || s === 'expired' ? s : 'all';
+    return s === 'sent' || s === 'paid' || s === 'deed' || s === 'refunded' || s === 'withdrawn' || s === 'expired' || s === 'referencing' ? s : 'all';
   });
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('Newest first');
@@ -132,6 +132,11 @@ export function Applications() {
 
   const tabs = [
     { id: 'all', label: 'All', count: counts.all },
+    // Awaiting decision: the direct rail's pre-approval state (referrers never see
+    // these rows). Shown when any exist or when the filter is deep-linked.
+    ...(role !== 'referrer' && (counts.referencing > 0 || status === 'referencing')
+      ? [{ id: 'referencing', label: <Pill variant="warn" style={{ background: 'none', padding: 0 }}>Awaiting decision</Pill>, count: counts.referencing }]
+      : []),
     { id: 'sent', label: <Pill variant="sent" style={{ background: 'none', padding: 0 }}>Sent</Pill>, count: counts.sent },
     { id: 'paid', label: <Pill variant="paid" style={{ background: 'none', padding: 0 }}>Paid</Pill>, count: counts.paid },
     { id: 'deed', label: <Pill variant="deed" style={{ background: 'none', padding: 0 }}>Deed Issued</Pill>, count: counts.deed },
@@ -289,7 +294,7 @@ export function Applications() {
                   <td>{r.prop}</td>
                   <td>{r.branch}<div className="dt__sub">{r.agency}</div></td>
                   <td style={{ textAlign: 'right' }}><span className="dt__rent">£{r.rent.toLocaleString('en-GB')}</span><div className="dt__sub">per month</div></td>
-                  <td><span className="status-cell"><Pill variant={r.status === 'withdrawn' || r.status === 'expired' ? 'muted' : (r.status as PillVariant)}>{STATUS_LABEL[r.status]}</Pill>{r.refunded && <span className="refund-tag" title="Guarantor fee refunded">Refunded</span>}</span></td>
+                  <td><span className="status-cell"><Pill variant={r.status === 'withdrawn' || r.status === 'expired' ? 'muted' : r.status === 'referencing' ? 'warn' : (r.status as PillVariant)}>{STATUS_LABEL[r.status]}</Pill>{r.refunded && <span className="refund-tag" title="Guarantor fee refunded">Refunded</span>}</span></td>
                   <td className="dt__num soft">{fmtDate(r.date)}</td>
                   <td><Icon name="chevronRight" className="dt__chev" size={16} /></td>
                 </tr>

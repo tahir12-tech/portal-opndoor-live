@@ -101,7 +101,7 @@ export function isHydrated(): boolean {
   return HYDRATED;
 }
 
-const STATUS_LABEL: Record<Status, string> = { sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
+const STATUS_LABEL: Record<Status, string> = { referencing: 'Awaiting decision', sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
 
 export interface AppScopeOpts {
   role: Role;
@@ -146,7 +146,7 @@ function inPeriod(r: ApplicationSummary, range?: [Date, Date]): boolean {
   return ts >= range[0].getTime() && ts <= range[1].getTime();
 }
 
-export function countByStatus(opts: AppFilterOpts): { all: number; sent: number; paid: number; deed: number; refunded: number; awaiting: number; deliveryFailed: number; withdrawn: number; expired: number } {
+export function countByStatus(opts: AppFilterOpts): { all: number; referencing: number; sent: number; paid: number; deed: number; refunded: number; awaiting: number; deliveryFailed: number; withdrawn: number; expired: number } {
   // #owner Chips recount within the selected period (sent-date bucketed), and
   // must follow the same partner/agency/branch/referrer filters as the rows.
   let set = scopedSet(opts);
@@ -162,10 +162,13 @@ export function countByStatus(opts: AppFilterOpts): { all: number; sent: number;
   // 'deliveryFailed' is a cross-cut of Deed (issued but no reachable agent contact).
   // #2/#13 'withdrawn' and 'expired' are terminal and OUT of the funnel: not part of
   // all/sent/paid/deed, only their own separate counts (surfaced via their chips).
-  const counts = { all: 0, sent: 0, paid: 0, deed: 0, refunded: 0, awaiting: 0, deliveryFailed: 0, withdrawn: 0, expired: 0 };
+  const counts = { all: 0, referencing: 0, sent: 0, paid: 0, deed: 0, refunded: 0, awaiting: 0, deliveryFailed: 0, withdrawn: 0, expired: 0 };
   set.forEach((r) => {
     if (r.status === 'withdrawn') { counts.withdrawn++; return; }
     if (r.status === 'expired') { counts.expired++; return; }
+    // Awaiting decision is pre-approval, out of the funnel like the terminal states:
+    // its own count and tab, never part of All/Sent/Paid/Deed.
+    if (r.status === 'referencing') { counts.referencing++; return; }
     counts.all++;
     counts[r.status]++;
     if (r.refunded) counts.refunded++;
@@ -183,7 +186,7 @@ export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
   rows = rows.filter((r) => {
     // #2/#13 Withdrawn and Expired are terminal and out of the default/every-other
     // view; each appears only when its own chip is selected.
-    if ((r.status === 'withdrawn' || r.status === 'expired') && opts.status !== r.status) return false;
+    if ((r.status === 'withdrawn' || r.status === 'expired' || r.status === 'referencing') && opts.status !== r.status) return false;
     if (opts.status === 'refunded') { if (!r.refunded) return false; }
     else if (opts.status === 'awaiting') { if (!r.awaitingSignature) return false; }
     else if (opts.status === 'delivery-failed') { if (opts.role === 'referrer' || !(r.status === 'deed' && !contactForApplication(r.agency, r.branch).contact)) return false; }
