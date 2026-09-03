@@ -411,12 +411,15 @@ export const AGENT_FIELDS: FieldSpec[] = [
     when: (v) => v.kind === 'letting_agent' },
   { name: 'title', label: 'Title', kind: 'select', when: (v) => v.kind === 'private_landlord',
     options: ['Mr', 'Mrs', 'Miss', 'Ms', 'Mx', 'Dr'].map((t) => ({ value: t, label: t })) },
-  { name: 'first_name', label: 'First name', kind: 'text', when: (v) => v.kind === 'private_landlord' },
-  { name: 'last_name', label: 'Last name', kind: 'text', required: true,
-    when: (v) => v.kind === 'private_landlord' },
+  // The named contact, for a letting agent as well as a private landlord: the deed
+  // goes to a person, not just an agency.
+  { name: 'first_name', label: 'Contact first name', kind: 'text',
+    when: (v) => v.kind === 'letting_agent' || v.kind === 'private_landlord' },
+  { name: 'last_name', label: 'Contact last name', kind: 'text', required: true,
+    when: (v) => v.kind === 'letting_agent' || v.kind === 'private_landlord' },
   { name: 'email', label: 'Email address', kind: 'email', required: true,
     help: 'We send the completed Deed of Guarantee here.' },
-  { name: 'phone', label: 'Contact number', kind: 'tel', validate: validatePhone },
+  { name: 'phone', label: 'Contact number', kind: 'tel', required: true, validate: validatePhone },
 ];
 
 export const PROPERTY_FIELDS: FieldSpec[] = [

@@ -53,16 +53,16 @@ export function splitProfilePatch(raw: Record<string, unknown>): SplitPatch {
 /**
  * Whether a delivery contact patch is complete enough to write.
  *
- * The delivery_contact_named check requires the naming field for the chosen
- * kind: an agency name for a letting agent, a surname for a private landlord.
- * kind and email are NOT NULL. Writing before all three are present is a
- * constraint violation, so the partial is held client side instead, exactly as
- * the form does while a section is half filled.
+ * kind, email and a contact phone are required for both kinds, plus a contact
+ * surname; a letting agent also needs the agency name. Writing before those are
+ * present would fail the delivery_contact_named check (agency name / surname) or
+ * leave a NOT NULL column empty, so the partial is held client side instead,
+ * exactly as the form does while a section is half filled.
  */
 export function deliveryContactReady(p: Record<string, unknown>): boolean {
   const has = (k: string) => String(p?.[k] ?? "").trim() !== "";
-  if (!has("kind") || !has("email")) return false;
-  if (p.kind === "letting_agent") return has("agency_name");
+  if (!has("kind") || !has("email") || !has("phone")) return false;
+  if (p.kind === "letting_agent") return has("agency_name") && has("last_name");
   if (p.kind === "private_landlord") return has("last_name");
   return false;
 }

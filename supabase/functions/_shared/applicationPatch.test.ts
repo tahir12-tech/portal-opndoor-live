@@ -45,15 +45,17 @@ Deno.test("a declaration blank is left as the client sent it", () => {
   assertEquals(declarations, { maiden_name: "" });
 });
 
-Deno.test("a letting agent is not written until the agency name arrives", () => {
+Deno.test("a letting agent is not written until agency name, surname and phone arrive", () => {
   assertEquals(deliveryContactReady({ kind: "letting_agent", email: "a@b.co" }), false);
-  assertEquals(deliveryContactReady({ kind: "letting_agent", email: "a@b.co", agency_name: "" }), false);
-  assertEquals(deliveryContactReady({ kind: "letting_agent", email: "a@b.co", agency_name: "Meridian" }), true);
+  assertEquals(deliveryContactReady({ kind: "letting_agent", email: "a@b.co", agency_name: "Meridian" }), false);
+  assertEquals(deliveryContactReady({ kind: "letting_agent", email: "a@b.co", agency_name: "Meridian", last_name: "Oakley" }), false);
+  assertEquals(deliveryContactReady({ kind: "letting_agent", email: "a@b.co", agency_name: "Meridian", last_name: "Oakley", phone: "07700900123" }), true);
 });
 
-Deno.test("a private landlord is not written until the surname arrives", () => {
+Deno.test("a private landlord is not written until the surname and phone arrive", () => {
   assertEquals(deliveryContactReady({ kind: "private_landlord", email: "a@b.co" }), false);
-  assertEquals(deliveryContactReady({ kind: "private_landlord", email: "a@b.co", last_name: "Oakley" }), true);
+  assertEquals(deliveryContactReady({ kind: "private_landlord", email: "a@b.co", last_name: "Oakley" }), false);
+  assertEquals(deliveryContactReady({ kind: "private_landlord", email: "a@b.co", last_name: "Oakley", phone: "07700900123" }), true);
 });
 
 Deno.test("kind or email missing is always held, whatever else is present", () => {

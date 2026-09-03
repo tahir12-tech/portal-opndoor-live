@@ -202,7 +202,7 @@ describe('coming back to a draft', () => {
     const saveProperty = vi.spyOn(api, 'saveProperty').mockResolvedValue(undefined as never);
     const saveAgent = vi.spyOn(api, 'saveAgent').mockResolvedValue(undefined as never);
     // A complete property + delivery contact, so the step button is enabled.
-    stubSignedIn({ agent: { kind: 'letting_agent', agency_name: 'Foo Lettings', email: 'foo@bar.co' } });
+    stubSignedIn({ agent: { kind: 'letting_agent', agency_name: 'Foo Lettings', last_name: 'Okafor', phone: '07700 900123', email: 'foo@bar.co' } });
     at(<Apply />, '/apply');
     const next = await screen.findByRole('button', { name: /save and continue/i });
     expect(next.hasAttribute('disabled')).toBe(false);
@@ -220,7 +220,7 @@ describe('coming back to a draft', () => {
   it('shows the failure against the step and does not advance when a save fails', async () => {
     vi.spyOn(api, 'saveProperty').mockRejectedValue(new Error('Could not save.'));
     vi.spyOn(api, 'saveAgent').mockResolvedValue(undefined as never);
-    stubSignedIn({ agent: { kind: 'letting_agent', agency_name: 'Foo Lettings', email: 'foo@bar.co' } });
+    stubSignedIn({ agent: { kind: 'letting_agent', agency_name: 'Foo Lettings', last_name: 'Okafor', phone: '07700 900123', email: 'foo@bar.co' } });
     at(<Apply />, '/apply');
     const next = await screen.findByRole('button', { name: /save and continue/i });
 
