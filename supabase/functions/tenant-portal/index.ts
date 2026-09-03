@@ -169,9 +169,13 @@ Deno.serve(async (req) => {
     if (action === "start_application") {
       const { data: existing } = await service
         .from("applications").select("id").eq("applicant_id", callerId)
-        .in("status", ["draft", "referencing"]).limit(1).maybeSingle();
-      // One live application per account. Somebody who reloads the start page
-      // should land back in the one they have, not collect drafts.
+        .in("status", ["draft", "referencing", "sent", "paid", "deed"])
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      // One live application per account, at ANY stage. This guard only looked for
+      // draft/referencing, so a tenant whose application had advanced to sent/paid/
+      // deed found no draft and collected a fresh empty one on the next sign-in.
+      // Terminal states (withdrawn/expired/declined) are excluded, so someone whose
+      // application closed can still start again.
       if (existing) return json({ ok: true, application_id: existing.id, resumed: true });
 
       const { data: app, error } = await service.rpc("create_direct_application", {

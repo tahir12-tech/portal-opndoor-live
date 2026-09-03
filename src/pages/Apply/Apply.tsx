@@ -145,7 +145,14 @@ export function Apply() {
       // to the demo application rather than a sign-in it cannot perform.
       if (!me && SUPABASE_ENABLED) { window.location.href = '/login?tab=tenant'; return; }
       const list = await api.listApplications();
-      const first = list.applications[0];
+      // A tenant should have one live application. If several exist (a stray draft
+      // left beside a submitted one, say), land on the one furthest along its
+      // lifecycle, never a newer empty draft over a live application.
+      const RANK: Record<string, number> = { deed: 5, paid: 4, sent: 3, referencing: 2, draft: 1 };
+      const first = [...list.applications]
+        .filter((a) => !['withdrawn', 'expired', 'declined'].includes(a.status))
+        .sort((a, b) => (RANK[b.status] ?? 0) - (RANK[a.status] ?? 0))[0]
+        ?? list.applications[0];
       // Signed in with nothing started. That is not an error, it is somebody
       // who has an account and has not begun, so send them to the front of the
       // journey rather than telling them their application is missing.
@@ -330,7 +337,13 @@ export function Apply() {
       }
     });
   };
-  const goTab = (t: Tab) => { setStepError(null); setTab(t); };
+  const goTab = (t: Tab) => {
+    setStepError(null);
+    // ID check and Financials sit behind the £20 fee, the same as the
+    // address/income/nationality steps: a locked tab bounces to the fee step.
+    if (!feePaid && (t === 'id' || t === 'financials')) { setTab('details'); setStep('fee'); return; }
+    setTab(t);
+  };
 
   /* ---- rows ------------------------------------------------------------- */
   // Local only. Rows are written when the step's Save and continue is pressed.
@@ -671,13 +684,13 @@ export function Apply() {
         {
           group: 'Before you send',
           items: TABS.filter((t) => t.id === 'id' || t.id === 'financials')
-            .map((t) => ({ id: t.id, label: t.label, icon: TAB_ICON[t.id], done: t.id === 'financials' ? financialsDone : undefined })),
+            .map((t) => ({ id: t.id, label: t.label, icon: TAB_ICON[t.id], done: t.id === 'financials' ? financialsDone : undefined, locked: !feePaid })),
         },
         {
           // Declaration is the review and the signature, so it sits AFTER the work
           // to finish, as the last thing a tenant does.
           group: 'Review and send',
-          items: [{ id: 'details:declaration', label: 'Declaration', icon: 'pen' as const, done: stepDone.declaration }],
+          items: [{ id: 'details:declaration', label: 'Declaration', icon: 'pen' as const, done: stepDone.declaration, locked: locked('declaration') }],
         },
       ];
 
