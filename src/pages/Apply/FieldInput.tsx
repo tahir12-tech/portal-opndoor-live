@@ -12,12 +12,13 @@
    three boxes. The server ignores fields whose parent answer says they do not
    apply, so a stale value is never read.
    ===================================================================== */
-import { useId, useState } from 'react';
+import { useContext, useId, useState, type ReactNode } from 'react';
 import { Field } from '@/components/ui/Field';
 import { PeriodSelect } from '@/components/ui/Select';
 import type { FieldSpec } from '@/tenant/formSpec';
 import { Button } from '@/components/ui/Button';
 import { addressLookupAvailable, lookupAddresses, type AddressOption } from '@/data';
+import { RevealMissingContext } from './reveal';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -44,7 +45,7 @@ function years(): { value: string; label: string }[] {
    done"). A tenant should never see a Find button that cannot work.
    --------------------------------------------------------------------------- */
 function PostcodeLookup({
-  id, value, spec, onChange, onApply, disabled,
+  id, value, spec, onChange, onApply, disabled, onBlur,
 }: {
   id: string;
   value: string;
@@ -52,6 +53,7 @@ function PostcodeLookup({
   onChange: (v: unknown) => void;
   onApply?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
+  onBlur?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -94,6 +96,7 @@ function PostcodeLookup({
           id={id} className="input" type="text" disabled={disabled} autoComplete="postal-code"
           value={value} placeholder="SW1A 1AA"
           onChange={(e) => onChange(e.target.value.toUpperCase())}
+          onBlur={onBlur}
           onKeyDown={(e) => { if (canLookup && e.key === 'Enter') { e.preventDefault(); void run(); } }}
         />
         {canLookup && (
@@ -129,6 +132,20 @@ export function FieldInput({
   const id = useId();
   const v = value ?? '';
   const label = spec.required ? <>{spec.label} <span className="ap-req" aria-hidden="true">*</span></> : spec.label;
+
+  // Format errors show once the field has been left, so a half-typed number
+  // does not flash red mid-entry. A value that arrives already invalid (a bad
+  // phone carried in from an earlier draft) counts as touched, so it is flagged
+  // on sight rather than only after the tenant happens to click into it.
+  const validationError = spec.validate && String(v).trim() ? spec.validate(String(v)) : null;
+  const [touched, setTouched] = useState<boolean>(() => validationError != null);
+  // After a blocked Continue, a required field left empty shows itself as missing,
+  // so pressing the button names the reason on the field, not only in the footer.
+  const reveal = useContext(RevealMissingContext);
+  const missing = reveal && !!spec.required && String(v).trim() === '';
+  const shownError = touched && validationError ? validationError
+    : missing ? 'Still needed'
+    : undefined;
 
   // Every select is the app's own component. A bare <select> here would be the
   // fifth time a new screen reintroduced one against the house style.
@@ -184,7 +201,8 @@ export function FieldInput({
     case 'postcode':
       control = (
         <PostcodeLookup id={id} value={String(v)} spec={spec}
-          onChange={onChange} onApply={onApply} disabled={disabled} />
+          onChange={onChange} onApply={onApply} disabled={disabled}
+          onBlur={() => setTouched(true)} />
       );
       break;
     default:
@@ -194,6 +212,7 @@ export function FieldInput({
           type={spec.kind === 'number' ? 'number' : spec.kind === 'date' ? 'date' : spec.kind === 'email' ? 'email' : spec.kind === 'tel' ? 'tel' : 'text'}
           inputMode={spec.kind === 'tel' ? 'tel' : undefined}
           value={String(v)} placeholder={spec.placeholder}
+          onBlur={() => setTouched(true)}
           onChange={(e) => onChange(e.target.value)} />
       );
   }
@@ -201,23 +220,26 @@ export function FieldInput({
   // A checkbox carries its own label, so wrapping it in one would read it twice
   // to a screen reader.
   if (spec.kind === 'checkbox') {
-    return <Field htmlFor={id} hint={spec.help} span2>{control}</Field>;
+    return <Field htmlFor={id} hint={spec.help} span2 error={shownError}>{control}</Field>;
   }
-  return <Field label={label} htmlFor={id} hint={spec.help}>{control}</Field>;
+  return <Field label={label} htmlFor={id} hint={spec.help} error={shownError}>{control}</Field>;
 }
 
 /** Render a spec list, honouring the conditional reveals. */
 export function FieldList({
-  fields, values, onChange, disabled,
+  fields, values, onChange, disabled, after,
 }: {
   fields: FieldSpec[];
   values: Record<string, unknown>;
   onChange: (name: string, v: unknown) => void;
   disabled?: boolean;
+  /** Rendered as the last item INSIDE the grid, so a non-spec control (the proof
+      of address upload) sits inline with the fields rather than tacked underneath. */
+  after?: ReactNode;
 }) {
   // A chosen address writes several fields at once. Each goes through the same
-  // onChange as a keystroke, so every one is autosaved by the same path rather
-  // than needing a second save route that could disagree with it.
+  // onChange as a keystroke, so all of them update the local mirror by one path
+  // and are written together when the step's button is pressed.
   const applyAll = (patch: Record<string, unknown>) => {
     for (const [k, val] of Object.entries(patch)) onChange(k, val);
   };
@@ -227,6 +249,7 @@ export function FieldList({
         <FieldInput key={f.name} spec={f} value={values[f.name]} disabled={disabled}
           onChange={(v) => onChange(f.name, v)} onApply={applyAll} />
       ))}
+      {after}
     </div>
   );
 }

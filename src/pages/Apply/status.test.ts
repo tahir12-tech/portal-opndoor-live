@@ -66,9 +66,12 @@ describe('what a tenant is told about their application', () => {
   });
 
   it('never offers to take money except when approved', () => {
+    // The money CTA is pay_guarantee. sign_deed and view_deed appear later but
+    // take no payment, so the guard is specifically against the pay CTA.
     for (const st of ['draft', 'referencing', 'declined', 'paid', 'deed', 'expired', 'withdrawn']) {
-      expect(statusView(st, true, 7, 7).cta).toBeUndefined();
+      expect(statusView(st, true, 7, 7).cta).not.toBe('pay_guarantee');
     }
+    expect(statusView('sent', true, 7, 7).cta).toBe('pay_guarantee');
   });
 });
 

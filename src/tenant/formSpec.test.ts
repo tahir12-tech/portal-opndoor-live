@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ADDITIONAL_INCOME_TYPES, BASIC_FIELDS, EMPLOYMENT_TYPES, REQUIRED_HISTORY_MONTHS,
   addressFields, additionalIncomeFields, employmentFields, fieldsComplete, incomeDocKinds, historyMonths,
+  validatePhone, validateUkPostcode,
   type FieldSpec,
 } from './formSpec';
 
@@ -122,11 +123,14 @@ describe('address history', () => {
     expect(shown(addressFields(true), { residency_type: 'homeowner' })).not.toContain('rental_arrears');
   });
 
-  it('asks which proof of address on the current address only, and no longer a broken file field', () => {
-    // The file itself is uploaded through the Documents flow now; the spec keeps
-    // only the "which kind of proof" dropdown, and only on the current address.
+  it('asks which proof of address on every address, and requires it', () => {
+    // The tenant states the kind of proof and uploads a document for each address,
+    // so the dropdown is required and present on current and previous alike.
     expect(shown(addressFields(true), {})).toContain('proof_type');
-    expect(shown(addressFields(false), {})).not.toContain('proof_type');
+    expect(shown(addressFields(false), {})).toContain('proof_type');
+    expect(addressFields(true).find((f) => f.name === 'proof_type')?.required).toBe(true);
+    expect(addressFields(false).find((f) => f.name === 'proof_type')?.required).toBe(true);
+    // The file itself is a Documents-flow upload, not a broken kind:'file' field.
     expect(shown(addressFields(true), {})).not.toContain('doc_proof_of_address');
   });
 
@@ -151,6 +155,20 @@ describe('address history', () => {
     expect(historyMonths([])).toBe(0);
     expect(historyMonths([{}])).toBe(0);
   });
+
+  it('a half-entered address counts for nothing, not invented coverage', () => {
+    // The selects arrive as '' when unset, and Number('') is 0: a blank month used
+    // to become December of the year before (a spurious early date), and a blank
+    // year silently dropped the row. A partial date must contribute zero.
+    expect(historyMonths([{ moved_in_month: '', moved_in_year: '2021' }])).toBe(0);
+    expect(historyMonths([{ moved_in_month: '3', moved_in_year: '' }])).toBe(0);
+    // A complete address alongside a half-entered one is not pulled off its anchor.
+    const now = new Date();
+    expect(historyMonths([
+      { moved_in_month: String(now.getMonth() + 1), moved_in_year: String(now.getFullYear() - 4) },
+      { moved_in_month: '', moved_in_year: '2010' },
+    ])).toBe(48);
+  });
 });
 
 describe('fieldsComplete — a step is done when its required questions are answered', () => {
@@ -174,5 +192,51 @@ describe('fieldsComplete — a step is done when its required questions are answ
   it('requires a conditional field only once its condition is met', () => {
     expect(fieldsComplete(spec, { a: 'show' })).toBe(false);   // c now visible and required
     expect(fieldsComplete(spec, { a: 'show', c: 'y' })).toBe(true);
+  });
+});
+
+
+describe('a tenant phone: UK, UK landline or international, but not an email', () => {
+  it('accepts a UK mobile, a UK landline, and an international number in + form', () => {
+    for (const ok of ['07700 900123', '07700900123', '020 7946 0000', '0161 496 0000',
+                      '+44 7700 900123', '+33 6 12 34 56 78', '+1 (415) 555 2671', '00 33 612345678']) {
+      expect(validatePhone(ok)).toBeNull();
+    }
+  });
+
+  it('rejects an email and obvious nonsense, with a UK-or-international message', () => {
+    expect(validatePhone('saddassa@shshs.com')).toMatch(/UK or international/);
+    expect(validatePhone('not a phone')).toMatch(/UK or international/);
+    expect(validatePhone('123')).toMatch(/UK or international/);
+  });
+
+  it('treats an empty phone as a required-check concern, not its own', () => {
+    expect(validatePhone('')).toBeNull();
+    expect(validatePhone('   ')).toBeNull();
+  });
+
+  it('the postcode check takes a full UK postcode and refuses a half-typed one', () => {
+    for (const ok of ['S1 1AA', 's11aa', 'SW1A 1AA', 'EC1A1BB']) expect(validateUkPostcode(ok)).toBeNull();
+    expect(validateUkPostcode('SW1')).toMatch(/UK postcode/);
+    expect(validateUkPostcode('')).toBeNull();
+  });
+});
+
+describe('fieldsComplete also blocks on a present-but-invalid value', () => {
+  const spec: FieldSpec[] = [
+    { name: 'phone', label: 'Mobile number', kind: 'tel', required: true, validate: validatePhone },
+  ];
+  it('is not done while a required phone is present but malformed', () => {
+    expect(fieldsComplete(spec, { phone: 'saddassa@shshs.com' })).toBe(false);
+  });
+  it('is done once the phone is a real number, UK or international', () => {
+    expect(fieldsComplete(spec, { phone: '07700 900123' })).toBe(true);
+    expect(fieldsComplete(spec, { phone: '+33 6 12 34 56 78' })).toBe(true);
+  });
+  it('blocks a present-but-invalid OPTIONAL value too', () => {
+    const opt: FieldSpec[] = [{ name: 'p', label: 'Contact', kind: 'tel', validate: validatePhone }];
+    expect(fieldsComplete(opt, { p: 'not a phone' })).toBe(false);
+    expect(fieldsComplete(opt, {})).toBe(true);            // empty optional is fine
+    expect(fieldsComplete(opt, { p: '020 7946 0000' })).toBe(true);
   });
 });

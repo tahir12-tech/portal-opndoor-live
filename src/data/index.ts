@@ -12,6 +12,7 @@ export * from './partnersService';
 export * from './orgService';
 export * from './orgShapeService';
 export * from './applicationsService';
+export * from './documentsService';
 export * from './analyticsService';
 export * from './activityService';
 export * from './leagueService';

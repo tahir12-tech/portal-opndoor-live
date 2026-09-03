@@ -24,6 +24,7 @@ import { Icon } from '@/components/ui/Icon';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import * as auth from '@/tenant/tenantAuth';
 import * as api from '@/tenant/tenantApi';
+import { validatePhone } from '@/tenant/formSpec';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import '@/pages/auth/auth.css';
 import './Apply.css';
@@ -40,7 +41,7 @@ import './Apply.css';
 
    What the left panel says is the only thing that changes, because a tenant is
    not a partner and "Refer with confidence" means nothing to them. */
-function Shell({
+export function Shell({
   // No misleading default. Every caller states its own, because a shared
   // default reading "Tenant sign in" is how a registration page ended up
   // labelled as a sign-in.
@@ -65,27 +66,30 @@ function Shell({
             opndoor stands as guarantor on your tenancy, so a failed reference does not cost you
             the property. Apply online, and we deal with whoever manages the property.
           </p>
-        </div>
-        <div className="auth__flow">
-          <div className="auth__flow-item">
-            <span className="auth__flow-ic"><Icon name="edit" /></span>
-            <div>
-              <div className="auth__flow-t">Do it in your own time</div>
-              <div className="auth__flow-s">Stop and come back whenever you like</div>
+          {/* The feature cards belong with the copy in the middle block, not in a
+              stretched bottom row that the tall register card squeezes until the
+              third card clips off the page. */}
+          <div className="auth__flow">
+            <div className="auth__flow-item">
+              <span className="auth__flow-ic"><Icon name="edit" /></span>
+              <div>
+                <div className="auth__flow-t">Do it in your own time</div>
+                <div className="auth__flow-s">Stop and come back whenever you like</div>
+              </div>
             </div>
-          </div>
-          <div className="auth__flow-item">
-            <span className="auth__flow-ic"><Icon name="clock" /></span>
-            <div>
-              <div className="auth__flow-t">Everything saves as you go</div>
-              <div className="auth__flow-s">Nothing you type is ever lost</div>
+            <div className="auth__flow-item">
+              <span className="auth__flow-ic"><Icon name="clock" /></span>
+              <div>
+                <div className="auth__flow-t">Saved when you continue</div>
+                <div className="auth__flow-s">Finish a section and nothing in it is lost</div>
+              </div>
             </div>
-          </div>
-          <div className="auth__flow-item">
-            <span className="auth__flow-ic"><Icon name="shield" /></span>
-            <div>
-              <div className="auth__flow-t">Your details stay yours</div>
-              <div className="auth__flow-s">Shared only with your eligibility check</div>
+            <div className="auth__flow-item">
+              <span className="auth__flow-ic"><Icon name="shield" /></span>
+              <div>
+                <div className="auth__flow-t">Your details stay yours</div>
+                <div className="auth__flow-s">Shared only with your eligibility check</div>
+              </div>
             </div>
           </div>
         </div>
@@ -149,6 +153,8 @@ export function Register() {
     if (!f.first_name.trim()) problems.first_name = 'Enter your first name.';
     if (!f.last_name.trim()) problems.last_name = 'Enter your last name.';
     if (!f.email.includes('@')) problems.email = 'Enter a valid email address.';
+    const phoneErr = f.phone.trim() ? validatePhone(f.phone) : null;
+    if (phoneErr) problems.phone = phoneErr;
     if (f.password.length < 10) problems.password = 'Use at least 10 characters.';
     setFieldErr(problems);
     if (Object.keys(problems).length) return;
@@ -204,12 +210,12 @@ export function Register() {
 
   return (
     <Shell eyebrow="Create an account" title="Apply for an opndoor guarantee"
-      sub="Create an account first, so nothing you type is ever lost.">
+      sub="Create an account first, so you can save your progress and come back.">
         <div className="ap-grid">
           <Field label="First name" htmlFor="ap-first" error={fieldErr.first_name || undefined}><input id="ap-first" className="input" value={f.first_name} onChange={(e) => setField('first_name', e.target.value)} /></Field>
           <Field label="Last name" htmlFor="ap-last" error={fieldErr.last_name || undefined}><input id="ap-last" className="input" value={f.last_name} onChange={(e) => setField('last_name', e.target.value)} /></Field>
           <Field label="Email address" htmlFor="ap-reg-email" error={fieldErr.email || undefined}><input id="ap-reg-email" className="input" type="email" autoComplete="email" value={f.email} onChange={(e) => setField('email', e.target.value)} /></Field>
-          <Field label="Mobile number" htmlFor="ap-phone"><input id="ap-phone" className="input" type="tel" value={f.phone} onChange={(e) => setField('phone', e.target.value)} /></Field>
+          <Field label="Mobile number" htmlFor="ap-phone" error={fieldErr.phone || undefined}><input id="ap-phone" className="input" type="tel" value={f.phone} onChange={(e) => setField('phone', e.target.value)} /></Field>
           <Field label="Password" htmlFor="ap-reg-password" hint="At least 10 characters. Longer is better than complicated." error={fieldErr.password || undefined}>
             <PasswordInput id="ap-reg-password" value={f.password} onChange={(e) => setField('password', e.target.value)} autoComplete="new-password" />
           </Field>
@@ -486,7 +492,7 @@ export function InviteLanding() {
         </dl>
         <p className="ap-p">
           You will not have to enter any of that again. We need your address history, your income and a
-          couple of documents. Everything saves as you go, so you can stop and come back whenever you like.
+          couple of documents. Each section is saved when you continue, so you can stop and come back whenever you like.
         </p>
         <div className="ap-actions">
           <Button variant="primary" onClick={() => nav(`/apply/register?invite=${encodeURIComponent(token)}`)}>

@@ -52,7 +52,15 @@ export async function getPayPage(token: string): Promise<PayPageData> {
   if (!SUPABASE_ENABLED) return DEMO;
   try {
     const { data, error } = await sb().functions.invoke('payment-page', { body: { token, action: 'view' } });
-    if (error) return { ok: false, transient: true, error: 'network' };
+    if (error) {
+      // A definitive 4xx is an answer about the link itself: 410 expired, 404/400
+      // invalid. Stop retrying and let the page show the expired/invalid state.
+      // Only a 5xx, a 429 or a network failure is a blip worth retrying, so the
+      // tenant no longer watches an endless spinner over a dead link.
+      const status = (error as { context?: { status?: number } })?.context?.status;
+      const definitive = typeof status === 'number' && status >= 400 && status < 500 && status !== 429;
+      return { ok: false, transient: !definitive, error: definitive ? 'link' : 'network' };
+    }
     return (data ?? { ok: false, transient: true }) as PayPageData;
   } catch {
     return { ok: false, transient: true, error: 'network' };

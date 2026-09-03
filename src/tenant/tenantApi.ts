@@ -20,6 +20,10 @@ export interface TenantApplication {
   id: string;
   guarantee_ref: string;
   status: string;
+  /** The Deed of Guarantee's own state, so the status screen can offer signing
+      once it is generated and viewing once it is executed. */
+  deed_state?: string | null;
+  payment_state?: string | null;
   monthly_rent: number | null;
   tenancy_start: string | null;
   prop_addr1: string | null;
@@ -58,9 +62,30 @@ async function callFn(action: string, payload: Record<string, unknown> = {}) {
     body: { action, ...payload },
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    // supabase-js hands back a generic "Edge Function returned a non-2xx status
+    // code" and hides the function's own message in the Response on error.context.
+    // The tenant should read the human line the function wrote, never that string.
+    const human = await readFnError(error);
+    throw new Error(human);
+  }
   if (data && (data as any).ok === false) throw new Error((data as any).error ?? 'Request failed.');
   return data as any;
+}
+
+// Pull the { error } line out of a non-2xx Edge Function response. Falls back to
+// a plain human sentence if the body is not the JSON we send (a real crash, a
+// gateway error), so the raw supabase string never reaches the screen.
+async function readFnError(error: unknown): Promise<string> {
+  const ctx = (error as { context?: unknown })?.context;
+  if (ctx && typeof (ctx as Response).json === 'function') {
+    try {
+      const body = await (ctx as Response).clone().json();
+      const msg = body?.error ?? body?.message;
+      if (typeof msg === 'string' && msg.trim()) return msg;
+    } catch { /* not our JSON: fall through */ }
+  }
+  return 'Something went wrong at our end. Please try again in a moment.';
 }
 
 /* ---------------------------------------------------------------------------
@@ -83,7 +108,7 @@ function seed(): MockState {
   return {
     applicant: { email: 'demo.tenant@example.invalid', first_name: 'Sam', last_name: 'Okafor' },
     application: {
-      id: 'demo-application', guarantee_ref: 'GR-DEMO', status: 'draft',
+      id: 'demo-application', guarantee_ref: 'GR-DEMO', status: 'draft', deed_state: null,
       monthly_rent: null, tenancy_start: null,
       prop_addr1: null, prop_addr2: null, prop_city: null, prop_county: null, prop_postcode: null,
       tenant_first_name: 'Sam', tenant_last_name: 'Okafor', tenant_email: 'demo.tenant@example.invalid',
@@ -158,8 +183,11 @@ export async function saveAgent(applicationId: string, patch: Record<string, unk
 export async function saveRow(applicationId: string, table: 'addresses' | 'incomes', seq: number, patch: Record<string, unknown>) {
   if (SUPABASE_ENABLED) return await callFn('save_row', { application_id: applicationId, table, seq, patch });
   const s = readMock();
-  upsertRow(table === 'addresses' ? s.addresses : s.incomes, seq, patch);
+  const row = upsertRow(table === 'addresses' ? s.addresses : s.incomes, seq, patch);
   writeMock(s);
+  // Mirror the edge function, which returns the new row id so a document can be
+  // attached to it (proof of address, income evidence) before the step is saved.
+  return { ok: true, id: row.id ? String(row.id) : null };
 }
 
 export async function deleteRow(applicationId: string, table: 'addresses' | 'incomes', seq: number) {
@@ -287,19 +315,87 @@ export async function guaranteePaymentUrl(applicationId: string): Promise<string
   return '';
 }
 
+/* The direct tenant pays the guarantee fee FROM the portal, not by being sent to
+   the tokenised /pay page. It reuses that page's one checkout implementation
+   (payment-page's checkout, which owns reissue, decline and 30-minute expiry) but
+   asks for a portal return, so Stripe lands the tenant back on their own status
+   screen at /apply?paid=guarantee rather than on /pay/confirmed. */
+export async function guaranteeCheckoutUrl(applicationId: string): Promise<string> {
+  if (!SUPABASE_ENABLED) return '';
+  const r = await callFn('guarantee_payment_link', { application_id: applicationId });
+  const token = r.token as string;
+  const { data, error } = await tsb().functions.invoke('payment-page', {
+    body: { token, action: 'checkout', utm_source: 'tenant_portal', return: 'portal' },
+  });
+  if (error) throw new Error(await readFnError(error));
+  if (!data || (data as { ok?: boolean }).ok === false) {
+    throw new Error((data as { error?: string })?.error ?? 'Could not start the payment.');
+  }
+  return (data as { url: string }).url;
+}
+
+/** Mint the PandaDoc signing-session link for the tenant's own deed. */
+export async function signDeedLink(applicationId: string): Promise<string> {
+  if (!SUPABASE_ENABLED) return 'https://app.pandadoc.com/s/demo';
+  const r = await callFn('sign_deed', { application_id: applicationId });
+  return r.url as string;
+}
+
+/** A short-lived signed URL for the tenant's own executed Deed of Guarantee. */
+export async function tenantDeedUrl(applicationId: string): Promise<string> {
+  if (!SUPABASE_ENABLED) throw new Error('Downloading the deed is available on live data only.');
+  const r = await callFn('deed_url', { application_id: applicationId });
+  return r.url as string;
+}
+
 export async function submitApplication(applicationId: string): Promise<{ ok: boolean; error?: string; history_months?: number }> {
   if (SUPABASE_ENABLED) {
     try { await callFn('submit', { application_id: applicationId }); return { ok: true }; }
     catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'Could not submit.' }; }
   }
   const s = readMock();
+  if (s.application.status !== 'draft') return { ok: false, error: 'This application has already been sent.' };
   if (!s.fee_paid) return { ok: false, error: 'The application fee has not been paid.' };
+
+  // The same gate the SQL submit holds, in the same order and words, so the mock
+  // rejects exactly what production rejects. A mock that gates differently is not
+  // testing production.
+  const p = s.profile;
+  const blank = (v: unknown) => String(v ?? '').trim() === '';
+  const stillNeeded: string[] = [];
+  if (blank(p.title))                               stillNeeded.push('title');
+  if (blank(p.dob))                                 stillNeeded.push('date of birth');
+  if (blank(p.phone))                               stillNeeded.push('phone');
+  if (Number(s.application.monthly_rent ?? 0) <= 0) stillNeeded.push('monthly rent');
+  if (blank(s.application.tenancy_start))            stillNeeded.push('tenancy start date');
+  if (blank(p.nationality))                         stillNeeded.push('nationality');
+  if (blank(p.right_to_rent_category))              stillNeeded.push('right to rent');
+  if (blank(p.declared_name))                       stillNeeded.push('your name on the declaration');
+  if (blank(p.declared_at))                         stillNeeded.push('the declaration tick');
+  if (stillNeeded.length) return { ok: false, error: `Still needed: ${stillNeeded.join(', ')}` };
+
   const pre = await prequalify(applicationId);
   if (pre.history_months < 36) {
     return { ok: false, error: `We need three years of address history. You have given us ${pre.history_months} months.`, history_months: pre.history_months };
   }
+
+  // Every address needs its proof type chosen AND its document, scoped to it.
+  const proofMissing = s.addresses.some((ad) => {
+    const aid = ad.id ? String(ad.id) : null;
+    return blank(ad.proof_type) || !aid
+      || !s.documents.some((d) => d.kind === 'proof_of_address' && d.address_id === aid);
+  });
+  if (proofMissing) return { ok: false, error: 'Each address needs its proof of address type chosen and document uploaded.' };
+
   if (!s.incomes.some((i) => !i.is_additional)) {
     return { ok: false, error: 'We need at least one main income.' };
+  }
+
+  // Financials: three months of bank statements OR a completed bank connection.
+  const connected = s.documents.some((d) => d.kind === 'bank_connection');
+  const statements = s.documents.filter((d) => d.kind === 'bank_statement').length;
+  if (!connected && statements < 3) {
+    return { ok: false, error: `We need three months of bank statements, or a connected bank. You have uploaded ${statements}.` };
   }
   // completed_at ONLY. Submitting marks the answers finished; it is the
   // eligibility payment that moves draft -> referencing, in
@@ -372,7 +468,10 @@ export async function demoSetStatus(status: DemoState): Promise<void> {
     throw new Error('Demo controls are not available against a real database.');
   }
   const s = readMock();
-  s.application = { ...s.application, status };
+  // The deed state follows the lifecycle state so the sign step (paid, awaiting
+  // signature) and the view step (deed, executed) are both walkable in the demo.
+  const deed_state = status === 'deed' ? 'executed' : status === 'paid' ? 'awaiting_tenant' : null;
+  s.application = { ...s.application, status, deed_state };
   // Reaching a state implies the ones before it. Otherwise "approved" renders
   // with an unpaid fee and the timeline contradicts the headline.
   if (status !== 'draft') s.fee_paid = true;

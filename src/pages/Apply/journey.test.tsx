@@ -85,6 +85,36 @@ describe('creating an account', () => {
     expect(screen.queryByText(/use at least 10 characters/i)).toBeNull();
   });
 
+  it('rejects an email typed into the Mobile number field, with a message, and does not register', async () => {
+    const register = vi.spyOn(auth, 'register').mockResolvedValue(undefined as never);
+    at(<Register />, '/apply/register');
+    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Sam' } });
+    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Okafor' } });
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 's@example.invalid' } });
+    fireEvent.change(screen.getByLabelText(/mobile number/i), { target: { value: 'saddassa@shshs.com' } });
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'a-long-enough-one' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
+    expect(screen.getByText(/enter a phone number, UK or international/i)).toBeTruthy();
+    expect(register).not.toHaveBeenCalled();
+    // Correcting it clears the error and lets the account be created.
+    fireEvent.change(screen.getByLabelText(/mobile number/i), { target: { value: '07700 900123' } });
+    expect(screen.queryByText(/enter a phone number, UK or international/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
+    await waitFor(() => expect(register).toHaveBeenCalled());
+  });
+
+  it('leaves the optional Mobile number empty without complaint', async () => {
+    const register = vi.spyOn(auth, 'register').mockResolvedValue(undefined as never);
+    at(<Register />, '/apply/register');
+    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Sam' } });
+    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Okafor' } });
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 's@example.invalid' } });
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: 'a-long-enough-one' } });
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
+    await waitFor(() => expect(register).toHaveBeenCalled());
+  });
+
   it('passes the invite token through, so the agent’s application is claimed', async () => {
     const register = vi.spyOn(auth, 'register').mockResolvedValue(undefined as never);
     vi.spyOn(api, 'claimInvite').mockResolvedValue('a1');
@@ -155,32 +185,49 @@ describe('coming back to a draft', () => {
     expect(api.getApplication).toHaveBeenCalledWith('a1');
   });
 
-  it('saves a section by patch, not by rewriting the record', async () => {
+  it('does not save while the tenant types: only the step button saves', async () => {
     const saveProperty = vi.spyOn(api, 'saveProperty').mockResolvedValue(undefined as never);
     stubSignedIn();
     at(<Apply />, '/apply');
     await waitFor(() => expect(screen.getByLabelText(/address line 1/i)).toBeTruthy());
 
     fireEvent.change(screen.getByLabelText(/address line 1/i), { target: { value: '2 New Road' } });
-    await waitFor(() => expect(saveProperty).toHaveBeenCalled(), { timeout: 3000 });
-
-    const [appId, patch] = saveProperty.mock.calls.at(-1)!;
-    expect(appId).toBe('a1');
-    // ONE key. The server upserts a patch, so sending the whole record would let
-    // a field they have not reached overwrite one they have.
-    expect(Object.keys(patch as object).length).toBe(1);
+    // No debounce, no blur save, no page-hide save. Typing writes nothing to the
+    // database that only accepts finished values.
+    await new Promise((r) => setTimeout(r, 120));
+    expect(saveProperty).not.toHaveBeenCalled();
   });
 
-  it('debounces, so typing a line is one save and not one per character', async () => {
+  it('writes the whole step when Save and continue is pressed, then advances', async () => {
     const saveProperty = vi.spyOn(api, 'saveProperty').mockResolvedValue(undefined as never);
-    stubSignedIn();
+    const saveAgent = vi.spyOn(api, 'saveAgent').mockResolvedValue(undefined as never);
+    // A complete property + delivery contact, so the step button is enabled.
+    stubSignedIn({ agent: { kind: 'letting_agent', agency_name: 'Foo Lettings', email: 'foo@bar.co' } });
     at(<Apply />, '/apply');
-    await waitFor(() => expect(screen.getByLabelText(/address line 1/i)).toBeTruthy());
+    const next = await screen.findByRole('button', { name: /save and continue/i });
+    expect(next.hasAttribute('disabled')).toBe(false);
 
-    const box = screen.getByLabelText(/address line 1/i);
-    for (const v of ['2', '2 ', '2 N', '2 Ne', '2 New']) fireEvent.change(box, { target: { value: v } });
-    await waitFor(() => expect(saveProperty).toHaveBeenCalled(), { timeout: 3000 });
-    expect(saveProperty).toHaveBeenCalledTimes(1);
+    fireEvent.click(next);
+    await waitFor(() => expect(saveProperty).toHaveBeenCalled());
+    const [appId, patch] = saveProperty.mock.calls.at(-1)!;
+    expect(appId).toBe('a1');
+    // The whole step is written on continue, every field it carries, because the
+    // step is complete before the button enables.
+    expect(Object.keys(patch as object).length).toBeGreaterThan(1);
+    expect(saveAgent).toHaveBeenCalledWith('a1', expect.objectContaining({ kind: 'letting_agent' }));
+  });
+
+  it('shows the failure against the step and does not advance when a save fails', async () => {
+    vi.spyOn(api, 'saveProperty').mockRejectedValue(new Error('Could not save.'));
+    vi.spyOn(api, 'saveAgent').mockResolvedValue(undefined as never);
+    stubSignedIn({ agent: { kind: 'letting_agent', agency_name: 'Foo Lettings', email: 'foo@bar.co' } });
+    at(<Apply />, '/apply');
+    const next = await screen.findByRole('button', { name: /save and continue/i });
+
+    fireEvent.click(next);
+    await waitFor(() => expect(screen.getByText(/could not save/i)).toBeTruthy());
+    // Still on the property step, its button still there to press again.
+    expect(screen.getByRole('button', { name: /save and continue/i })).toBeTruthy();
   });
 
   it('does not let a submitted application be edited', async () => {

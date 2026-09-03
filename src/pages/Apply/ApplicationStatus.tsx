@@ -34,7 +34,7 @@ export interface StatusView {
   headline: string;
   detail: string;
   tone: 'progress' | 'waiting' | 'good' | 'bad';
-  cta?: 'pay_guarantee';
+  cta?: 'pay_guarantee' | 'sign_deed' | 'view_deed';
 }
 
 /** "your letting agent", "your landlord", or a phrase committing to neither.
@@ -50,7 +50,7 @@ export function managedByLabel(kind?: string | null): string {
 
 export function statusView(
   status: string, feePaid: boolean, doneCount: number, total: number,
-  managedByKind?: string | null,
+  managedByKind?: string | null, deedState?: string | null,
 ): StatusView {
   const managedBy = managedByLabel(managedByKind);
   switch (status) {
@@ -66,7 +66,7 @@ export function statusView(
       return {
         reached: 2, terminated: false, tone: 'waiting',
         headline: 'Eligibility check in progress',
-        detail: 'We are checking your eligibility now. It usually takes a few working days. We will email you as soon as there is a decision, and you do not need to do anything in the meantime.',
+        detail: 'We are checking your eligibility now. This usually does not take long. We will email you as soon as there is a decision, and you do not need to do anything in the meantime.',
       };
     case 'declined':
       return {
@@ -81,16 +81,26 @@ export function statusView(
         detail: "You have been approved. The last step is the guarantee fee, one month's rent, and then we issue the Deed of Guarantee to whoever manages the property.",
       };
     case 'paid':
+      // Once the deed has been generated it is awaiting the tenant's signature,
+      // and the sign step happens here on the status screen, not only on the
+      // Stripe return page. Before that, it is still being prepared.
+      if (deedState === 'awaiting_tenant') {
+        return {
+          reached: 5, terminated: false, tone: 'good', cta: 'sign_deed',
+          headline: 'Your deed is ready to sign',
+          detail: `Thank you. Your Deed of Guarantee is ready. Sign it below and we issue it to ${managedBy}.`,
+        };
+      }
       return {
         reached: 5, terminated: false, tone: 'good',
         headline: 'Guarantee fee paid',
-        detail: 'Thank you. We are preparing your Deed of Guarantee now and will email it to you and to whoever manages the property.',
+        detail: `Thank you. We are preparing your Deed of Guarantee now and will email it to you and to ${managedBy}.`,
       };
     case 'deed':
       return {
-        reached: 6, terminated: false, tone: 'good',
+        reached: 6, terminated: false, tone: 'good', cta: 'view_deed',
         headline: 'Your guarantee is in place',
-        detail: 'The Deed of Guarantee has been issued. A copy is on the "Your guarantee" tab, and whoever manages the property has one too.',
+        detail: `Your Deed of Guarantee has been issued. You can view or download it below, and ${managedBy} has a copy too.`,
       };
     case 'withdrawn':
     case 'expired':
@@ -105,11 +115,13 @@ export function statusView(
 }
 
 export function ApplicationStatus({
-  view, guaranteeRef, onPayGuarantee, busy,
+  view, guaranteeRef, onPayGuarantee, onSignDeed, onViewDeed, busy,
 }: {
   view: StatusView;
   guaranteeRef: string;
   onPayGuarantee?: () => void;
+  onSignDeed?: () => void;
+  onViewDeed?: () => void;
   busy?: boolean;
 }) {
   return (
@@ -130,8 +142,21 @@ export function ApplicationStatus({
             {busy ? 'Taking you to payment…' : 'Pay the guarantee fee'}
           </button>
         )}
+        {view.cta === 'sign_deed' && onSignDeed && (
+          <button type="button" className="btn btn--primary" disabled={busy} onClick={onSignDeed}>
+            {busy ? 'Opening…' : 'Sign the deed'}
+          </button>
+        )}
+        {view.cta === 'view_deed' && onViewDeed && (
+          <button type="button" className="btn btn--primary" disabled={busy} onClick={onViewDeed}>
+            {busy ? 'Opening…' : 'View or download the deed'}
+          </button>
+        )}
       </div>
-      <StatusTimeline steps={STEPS} reached={view.reached} terminated={view.terminated} />
+      {/* A tenant's current stage is always a phase in progress, never a completed
+          event, so it shows its highlighted ring without a tick until it is done.
+          "Guarantee issued" only ticks once the deed executes (status 'deed'). */}
+      <StatusTimeline steps={STEPS} reached={view.reached} terminated={view.terminated} currentInProgress />
     </section>
   );
 }

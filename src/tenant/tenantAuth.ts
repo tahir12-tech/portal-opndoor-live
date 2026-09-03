@@ -197,7 +197,15 @@ export async function exchangeLinkToken(): Promise<'signup' | 'recovery' | null>
 export async function setPassword(password: string) {
   if (!SUPABASE_ENABLED) return;
   const { error } = await tsb().auth.updateUser({ password });
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Supabase's own wording ("AuthApiError: ...") must not reach the screen.
+    const code = (error as { code?: string }).code;
+    if (code === 'same_password') throw new Error('That is already your password. Choose a different one.');
+    if (code === 'weak_password' || /password/i.test(error.message)) {
+      throw new Error('Choose a stronger password, at least 10 characters.');
+    }
+    throw new Error('We could not set your password. Please try again.');
+  }
 }
 
 export async function currentTenant(): Promise<TenantIdentity | null> {

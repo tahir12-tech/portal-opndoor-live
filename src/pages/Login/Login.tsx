@@ -482,7 +482,7 @@ const BRAND: Record<Audience, {
     h1: 'Your application, start to finish.',
     copy: "Apply for an opndoor guarantee when referencing has not gone your way. opndoor stands as your guarantor so the landlord can let to you, and you can see exactly where your application is at any point.",
     flow: [
-      { icon: 'send',   t: 'Pick up where you left off', s: 'Every answer is saved as you type' },
+      { icon: 'send',   t: 'Pick up where you left off', s: 'Each section is saved when you continue' },
       { icon: 'trend',  t: 'See where you are',          s: 'From submitted through to approved' },
       { icon: 'shield', t: 'Secure by design',           s: 'A six-digit code to your email every sign in' },
     ],

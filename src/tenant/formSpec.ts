@@ -45,6 +45,38 @@ export interface FieldSpec {
     line1?: string; line2?: string; city?: string; county?: string; postcode?: string;
     single?: string;
   };
+  /**
+   * A format check for a value that IS present. Returns a human message to show
+   * against the field, or null when the value is fine. Emptiness is `required`'s
+   * job, so a blank value returns null here.
+   */
+  validate?: (value: string) => string | null;
+}
+
+/* ---------------------------------------------------------------------------
+   Shared field validators. A phone or a postcode that is present must be a real
+   one: an email address in the phone box is the bug these close. Emptiness is
+   `required`'s job, so each returns null for a blank value.
+   --------------------------------------------------------------------------- */
+const UK_POSTCODE = /^[a-z]{1,2}\d[a-z\d]? ?\d[a-z]{2}$/i;
+
+/**
+ * One rule for every tenant phone: a UK mobile, a UK landline, or an
+ * international number in + form. Many applicants are overseas and arrive with
+ * a foreign number, so this stays deliberately loose. Strip the separators
+ * people type, then require an optional leading + and 7 to 15 digits: enough to
+ * be a real number, which is what rules out an email or a scrap of nonsense.
+ */
+export function validatePhone(value: string): string | null {
+  const n = value.replace(/[\s()-]/g, '');
+  if (!n) return null;
+  return /^\+?\d{7,15}$/.test(n) ? null : 'Enter a phone number, UK or international.';
+}
+
+/** A UK postcode. Reused by the property step and by submission enforcement. */
+export function validateUkPostcode(value: string): string | null {
+  if (!value.trim()) return null;
+  return UK_POSTCODE.test(value.trim()) ? null : 'Enter a full UK postcode, like SW1A 1AA.';
 }
 
 const YES_NO_NA = [
@@ -54,7 +86,7 @@ const YES_NO_NA = [
 ];
 
 /* ---------------------------------------------------------------------------
-   Employment and income types. Nine of the first, eighteen of the second.
+   Employment and income types. Eleven of the first, eighteen of the second.
    --------------------------------------------------------------------------- */
 export const EMPLOYMENT_TYPES = [
   { value: 'permanent',            label: 'Permanent employee' },
@@ -69,6 +101,29 @@ export const EMPLOYMENT_TYPES = [
   { value: 'savings',              label: 'Living on savings' },
   { value: 'universal_credit',     label: 'Universal Credit or benefits' },
 ] as const;
+
+/* Once the tenant picks a situation, the section reframes to fit it: a heading,
+   and a lead line only where one earns its place (the no-wage routes, and retired
+   where the monthly basis would otherwise live only in a field label). This is
+   what stops the step reading as "your income / primary source" for the routes
+   that have neither. */
+export const SITUATION_COPY: Record<string, { heading: string; lead?: string }> = {
+  permanent:           { heading: 'Your job' },
+  self_employed:       { heading: 'Your business' },
+  contract:            { heading: 'Your contract' },
+  temporary:           { heading: 'Your job' },
+  zero_hours:          { heading: 'Your job' },
+  retired:             { heading: 'Your pension', lead: 'What you receive a month.' },
+  homemaker:           { heading: 'Any income of your own',
+                         lead: 'If you have income of your own, add it and how often. If not, leave it blank.' },
+  unemployed_or_other: { heading: 'Any income you have',
+                         lead: 'If you have any income, add it and how often. If not, leave it blank.' },
+  student:             { heading: 'Money you live on',
+                         lead: 'Your maintenance loan for the year (enter 0 if you have none), plus any family help and any part-time work.' },
+  savings:             { heading: 'Your savings',
+                         lead: "The savings or capital you'll pay the rent from. Give us the total available." },
+  universal_credit:    { heading: 'Your benefits', lead: 'What you receive, and how often.' },
+};
 
 export const ADDITIONAL_INCOME_TYPES = [
   { value: 'second_job',           label: 'Second job' },
@@ -164,7 +219,7 @@ export function employmentFields(type: string): FieldSpec[] {
     f.push({ name: 'referee_name', label: 'An appropriate referee', kind: 'text', required: true,
              help: 'Somebody who can confirm this income. We contact them, not you.' });
     f.push({ name: 'referee_email', label: "Their business email address", kind: 'email', required: true });
-    f.push({ name: 'referee_phone', label: 'Their telephone number', kind: 'tel' });
+    f.push({ name: 'referee_phone', label: 'Their telephone number', kind: 'tel', validate: validatePhone });
   }
 
   if (has(WITH_PAY_BASIS)) {
@@ -237,9 +292,11 @@ export function additionalIncomeFields(type: string): FieldSpec[] {
 }
 
 /* ---------------------------------------------------------------------------
-   One address in the history.
+   One address in the history. isCurrent is kept in the signature because callers
+   distinguish the current address from earlier ones, but the fields no longer
+   differ: proof of address is required on every address, so it is unused here.
    --------------------------------------------------------------------------- */
-export function addressFields(isCurrent: boolean): FieldSpec[] {
+export function addressFields(_isCurrent: boolean): FieldSpec[] {
   const f: FieldSpec[] = [
     { name: 'in_uk', label: 'Is this address in the UK?', kind: 'yesno' },
     { name: 'postcode', label: 'Postcode', kind: 'postcode', when: (v) => v.in_uk !== 'no',
@@ -258,24 +315,25 @@ export function addressFields(isCurrent: boolean): FieldSpec[] {
     { name: 'moved_in_month', label: 'Moved in, month', kind: 'month', required: true },
     { name: 'moved_in_year', label: 'Moved in, year', kind: 'year', required: true },
   ];
-  if (isCurrent) {
-    f.push({ name: 'proof_type', label: 'Proof of address', kind: 'select',
-             options: [
-               { value: 'mobile_phone_bill', label: 'Mobile phone bill' },
-               { value: 'utility_bill', label: 'Utility bill' },
-               { value: 'council_tax', label: 'Council tax bill' },
-               { value: 'bank_statement', label: 'Bank statement' },
-               { value: 'tenancy_agreement', label: 'Tenancy agreement' },
-             ] });
-    // The file is uploaded through the real Documents flow (kind
-    // proof_of_address) on the address step, not a kind:'file' form field, which
-    // has no renderer. The proof_type dropdown above stays, asking which kind.
-  }
   f.push({ name: 'rental_arrears', label: 'Have you had any rental arrears in the past 3 years?',
            kind: 'select', options: YES_NO_NA, required: true,
            when: (v) => ARREARS_APPLIES.includes(String(v.residency_type ?? '')) });
   f.push({ name: 'rental_arrears_detail', label: 'Please tell us about your rental arrears', kind: 'textarea',
            when: (v) => v.rental_arrears === 'yes' });
+  // Last in the list, so the "which proof" dropdown sits directly above the upload
+  // dropzone (rendered right after this field list) and the two read as one unit.
+  // Required on EVERY address, current or previous: the tenant states the kind of
+  // proof and uploads the matching document for each address they give. The file
+  // itself is uploaded through the Documents flow (kind proof_of_address), not a
+  // kind:'file' form field, which has no renderer; this dropdown only asks which.
+  f.push({ name: 'proof_type', label: 'Proof of address', kind: 'select', required: true,
+           options: [
+             { value: 'mobile_phone_bill', label: 'Mobile phone bill' },
+             { value: 'utility_bill', label: 'Utility bill' },
+             { value: 'council_tax', label: 'Council tax bill' },
+             { value: 'bank_statement', label: 'Bank statement' },
+             { value: 'tenancy_agreement', label: 'Tenancy agreement' },
+           ] });
   return f;
 }
 
@@ -290,7 +348,7 @@ export const BASIC_FIELDS: FieldSpec[] = [
   { name: 'other_names', label: 'Have you been known by any other name?', kind: 'yesno' },
   { name: 'maiden_name', label: 'Other name or maiden name', kind: 'text',
     when: (v) => v.other_names === 'yes' },
-  { name: 'phone', label: 'Mobile number', kind: 'tel', required: true },
+  { name: 'phone', label: 'Mobile number', kind: 'tel', required: true, validate: validatePhone },
   { name: 'dob', label: 'Date of birth', kind: 'date', required: true },
   { name: 'marital_status', label: 'Marital status', kind: 'select', options: [
       { value: 'single', label: 'Single' }, { value: 'married', label: 'Married' },
@@ -358,11 +416,11 @@ export const AGENT_FIELDS: FieldSpec[] = [
     when: (v) => v.kind === 'private_landlord' },
   { name: 'email', label: 'Email address', kind: 'email', required: true,
     help: 'We send the completed Deed of Guarantee here.' },
-  { name: 'phone', label: 'Contact number', kind: 'tel' },
+  { name: 'phone', label: 'Contact number', kind: 'tel', validate: validatePhone },
 ];
 
 export const PROPERTY_FIELDS: FieldSpec[] = [
-  { name: 'prop_postcode', label: 'Property postcode', kind: 'postcode', required: true,
+  { name: 'prop_postcode', label: 'Property postcode', kind: 'postcode', required: true, validate: validateUkPostcode,
     fills: { line1: 'prop_addr1', line2: 'prop_addr2', city: 'prop_city', county: 'prop_county', postcode: 'prop_postcode' } },
   { name: 'prop_addr1', label: 'Address line 1', kind: 'text', required: true },
   { name: 'prop_addr2', label: 'Address line 2', kind: 'text' },
@@ -376,8 +434,17 @@ export const PROPERTY_FIELDS: FieldSpec[] = [
 export function historyMonths(addresses: Record<string, unknown>[]): number {
   const dates = addresses
     .map((a) => {
-      const y = Number(a.moved_in_year); const m = Number(a.moved_in_month);
-      return Number.isFinite(y) && Number.isFinite(m) && y > 1900 ? new Date(y, m - 1, 1) : null;
+      // A move-in date counts only when BOTH the month and the year are set. The
+      // selects arrive as '' when unset, and Number('') is 0, not NaN: a blank
+      // month slipped past the old guard and became new Date(y, -1, 1), i.e.
+      // December of the year before, inventing coverage the tenant never entered.
+      // Guard the raw values and hold the month to 1..12 so a half-entered address
+      // contributes nothing rather than a wrong number.
+      const yr = a.moved_in_year; const mo = a.moved_in_month;
+      if (yr == null || yr === '' || mo == null || mo === '') return null;
+      const y = Number(yr); const m = Number(mo);
+      return Number.isFinite(y) && Number.isFinite(m) && y > 1900 && m >= 1 && m <= 12
+        ? new Date(y, m - 1, 1) : null;
     })
     .filter(Boolean) as Date[];
   if (!dates.length) return 0;
@@ -387,6 +454,9 @@ export function historyMonths(addresses: Record<string, unknown>[]): number {
 }
 
 export const REQUIRED_HISTORY_MONTHS = 36;
+
+/** Months of bank statements a tenant must upload when open banking is off. */
+export const REQUIRED_BANK_STATEMENTS = 3;
 
 /**
  * Whether every REQUIRED, currently-visible field in a spec list is answered.
@@ -417,8 +487,25 @@ export function incomeDocKinds(row: Record<string, unknown>): { kind: string; la
 export function fieldsComplete(fields: FieldSpec[], values: Record<string, unknown>): boolean {
   return fields.every((f) => {
     if (f.when && !f.when(values)) return true;
-    if (!f.required) return true;
     const v = values[f.name];
-    return v !== undefined && v !== null && String(v).trim() !== '';
+    const present = v !== undefined && v !== null && String(v).trim() !== '';
+    if (f.required && !present) return false;
+    // A present but badly formatted value is not "done" either, so Next stays
+    // blocked until it is fixed, the same set the field error shows on.
+    if (present && f.validate && f.validate(String(v))) return false;
+    return true;
   });
+}
+
+/** The first required, visible field that is missing or invalid, so a warning can
+    name what is actually needed rather than a coverage figure. Null when complete. */
+export function firstMissingField(fields: FieldSpec[], values: Record<string, unknown>): FieldSpec | null {
+  for (const f of fields) {
+    if (f.when && !f.when(values)) continue;
+    const v = values[f.name];
+    const present = v !== undefined && v !== null && String(v).trim() !== '';
+    if (f.required && !present) return f;
+    if (present && f.validate && f.validate(String(v))) return f;
+  }
+  return null;
 }

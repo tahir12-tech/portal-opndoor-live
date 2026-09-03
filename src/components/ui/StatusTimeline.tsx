@@ -15,7 +15,7 @@ export interface TimelineStep {
 // paying: steps up to `reached` are done, the NEXT step renders as 'terminated'
 // (greyed, never a success tick), and later steps stay 'todo'. This makes a false
 // Paid/Deed check impossible for a pre-payment exit.
-export function StatusTimeline({ steps, reached, terminated }: { steps: TimelineStep[]; reached: number; terminated?: boolean }) {
+export function StatusTimeline({ steps, reached, terminated, currentInProgress }: { steps: TimelineStep[]; reached: number; terminated?: boolean; currentInProgress?: boolean }) {
   return (
     <div className="timeline">
       {steps.map((s, i) => {
@@ -23,10 +23,15 @@ export function StatusTimeline({ steps, reached, terminated }: { steps: Timeline
         const state = terminated
           ? (n <= reached ? 'done' : n === reached + 1 ? 'terminated' : 'todo')
           : (n < reached ? 'done' : n === reached ? 'current' : 'todo');
+        // A done stage always ticks. A current stage ticks too by default (staff
+        // stages are events already reached), UNLESS it is still in progress: the
+        // tenant's stages are phases, and "Guarantee issued" must not show a tick
+        // until the deed executes. Then it shows only its highlighted ring.
+        const showTick = state === 'done' || (state === 'current' && !currentInProgress);
         return (
           <div className={`tl-step tl-step--${state}`} key={s.label}>
             <div className="tl-step__node">
-              {state === 'terminated' ? <Icon name="ban" strokeWidth={2.4} /> : state !== 'todo' && <Icon name="check" strokeWidth={2.4} />}
+              {state === 'terminated' ? <Icon name="ban" strokeWidth={2.4} /> : showTick && <Icon name="check" strokeWidth={2.4} />}
             </div>
             <div className="tl-step__label">{s.label}</div>
             <div className="tl-step__date">{s.date}</div>

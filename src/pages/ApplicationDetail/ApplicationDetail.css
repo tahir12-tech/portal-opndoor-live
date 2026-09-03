@@ -263,6 +263,21 @@
 .drow__v b {
   font-weight: 700;
 }
+.docrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.docrow:last-child { border-bottom: none; }
+.docrow__ic { color: var(--ink-mute); flex-shrink: 0; display: flex; }
+.docrow__txt { flex: 1; min-width: 0; }
+.docrow__name {
+  font-size: 14px; color: var(--ink); font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.docrow__meta { font-size: 12px; color: var(--ink-mute); margin-top: 2px; }
 @media (max-width: 540px) {
   .drow {
     grid-template-columns: 1fr;

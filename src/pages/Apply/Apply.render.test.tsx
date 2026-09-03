@@ -11,7 +11,7 @@
    screen says, it is that mounting it and letting its effects resolve does not
    throw. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Apply } from './Apply';
 import * as auth from '@/tenant/tenantAuth';
@@ -30,7 +30,7 @@ function bundle(status: string, feePaid: boolean): api.ApplicationBundle {
     },
     editable: status === 'draft',
     fee_paid: feePaid,
-    profile: { first_name: 'Sam', last_name: 'Okafor' },
+    profile: { first_name: 'Sam', last_name: 'Okafor', dob: '1990-05-14' },
     addresses: [], incomes: [], documents: [], agent: null,
   };
 }
@@ -86,10 +86,24 @@ describe('the tenant journey mounts', () => {
     await waitFor(() => expect(screen.getAllByText('Application fee').length).toBeGreaterThan(0));
   });
 
-  it('sends a signed-out visitor to sign in rather than throwing', async () => {
+  it('has no Payment tab after approval: Pay, Sign and View live on the Status card', async () => {
+    stub('sent', true);
+    mount();
+    await waitFor(() => expect(screen.getAllByText('GR-TEST', { exact: false }).length).toBeGreaterThan(0));
+    // The stale Payment tab is gone; the guarantee-fee CTA sits on the status card.
+    expect(screen.queryByText(/^Payment$/)).toBeNull();
+    expect(screen.getByRole('button', { name: /pay the guarantee fee/i })).toBeTruthy();
+  });
+
+  it('in the demo, lands on the application without a session and no interstitial page', async () => {
+    // Mock mode has no real auth, so a missing session must not bounce to sign-in
+    // (which the demo cannot do). It falls through to the demo application, and the
+    // old "sign in or create an account" interstitial is gone.
+    stub('draft');
     vi.spyOn(auth, 'currentTenant').mockResolvedValue(null);
     mount();
-    await waitFor(() => expect(screen.getByText('Sign in to continue')).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText('GR-TEST', { exact: false }).length).toBeGreaterThan(0));
+    expect(screen.queryByText('Sign in or create an account')).toBeNull();
   });
 });
 
@@ -157,10 +171,11 @@ describe('the declaration is a final confirmation', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /send my application/i })).toBeTruthy());
   }
 
-  it('shows the tenancy date in long form, not ISO', async () => {
+  it('shows a summary date in long form, not ISO', async () => {
     await toDeclaration();
-    expect(screen.getByText('1 September 2026')).toBeTruthy(); // bundle tenancy_start 2026-09-01
-    expect(screen.queryByText('2026-09-01')).toBeNull();
+    // Date of birth is the summary's date row now; it must read long-form.
+    expect(screen.getByText('14 May 1990')).toBeTruthy(); // profile dob 1990-05-14
+    expect(screen.queryByText('1990-05-14')).toBeNull();
   });
 
   it('will not let the tick be set until a name is typed', async () => {
@@ -171,10 +186,28 @@ describe('the declaration is a final confirmation', () => {
     expect(check.disabled).toBe(false);
   });
 
-  it('keeps Send disabled while other sections are unfinished, and lists them', async () => {
+  it('keeps Send blocked while other sections are unfinished, and reveals rather than submits', async () => {
     await toDeclaration();
-    expect((screen.getByRole('button', { name: /send my application/i }) as HTMLButtonElement).disabled).toBe(true);
+    const send = screen.getByRole('button', { name: /send my application/i }) as HTMLButtonElement;
+    // Not a dead disabled button: pressable, but marked blocked, with the reasons listed.
+    expect(send.disabled).toBe(false);
+    expect(send.getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText(/before you can send, finish/i)).toBeTruthy();
+    // A press reveals the reason (scrolls/flashes it) and does not submit.
+    (HTMLElement.prototype as unknown as { scrollIntoView: () => void }).scrollIntoView = () => {};
+    const submit = vi.spyOn(api, 'submitApplication');
+    fireEvent.click(send);
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it('lists ID check as outstanding, with a line that it is not switched on and on us', async () => {
+    await toDeclaration();
+    // It cannot gate Send yet, but it must not be silent: shown in the list, with
+    // a note that it is on us, not a step the tenant has skipped.
+    const block = screen.getByText(/before you can send, finish/i).closest('.ap-blocking') as HTMLElement;
+    expect(block).toBeTruthy();
+    expect(within(block).getByRole('button', { name: /^ID check$/i })).toBeTruthy();
+    expect(within(block).getByText(/not switched on yet\. we will come back to you/i)).toBeTruthy();
   });
 
   it('demotes the optional note into a disclosure rather than the top of the page', async () => {
