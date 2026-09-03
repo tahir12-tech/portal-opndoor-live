@@ -4,7 +4,6 @@ import { managedByFor, managedByLabel } from "./managedBy.ts";
 
 export async function deliverPaymentReceipt(service: any, p: { appId: string; tenantEmail: string; title: string; lastName: string; propertyAddr: string; amount: string; guaranteeRef: string }): Promise<void> {
   if (!p.tenantEmail) return;
-  const tpl = receiptTemplate({ title: p.title, lastName: p.lastName, propertyAddr: p.propertyAddr, amount: p.amount, guaranteeRef: p.guaranteeRef });
   // Says "your letting agent" or "your landlord" from what the tenant told us,
   // rather than assuming. managedByFor never throws: a copy decision must not
   // fail a send.

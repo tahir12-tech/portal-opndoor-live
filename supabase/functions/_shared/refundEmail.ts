@@ -3,7 +3,6 @@ import { refundEmail } from "./emailTemplates.ts";
 
 export async function deliverRefund(service: any, p: { appId: string; tenantEmail: string; title: string; lastName: string; propertyAddr: string; amount: string; guaranteeRef: string }): Promise<void> {
   if (!p.tenantEmail) return;
-  const tpl = refundEmailTemplate({ title: p.title, lastName: p.lastName, propertyAddr: p.propertyAddr, amount: p.amount, guaranteeRef: p.guaranteeRef });
   const res = await sendMessage({
     to: p.tenantEmail,
     message: refundEmail({ propertyAddr: p.propertyAddr, guaranteeRef: p.guaranteeRef, amount: p.amount }),
