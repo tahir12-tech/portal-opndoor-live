@@ -422,13 +422,20 @@ export async function generateDeed(service: any, appId: string, reissue = false)
     .maybeSingle();
   if (!app) return { ok: false, error: "Application not found." };
 
-  const { data: contact } = await service.rpc("effective_primary_contact", { p_branch: app.branch_id });
-  const c = Array.isArray(contact) ? contact[0] : contact;
-  const agentEmail = c?.email ?? null;
+  // Where the executed deed will eventually go must exist before we generate one.
+  // deed_delivery_target resolves the tenant-named delivery contact for a direct
+  // application, else the branch's primary contact for a referral (byte-identical
+  // to the old effective_primary_contact result on that path). Existence only, not
+  // verification: the verified gate lives on the executed-deed SEND (#6, in
+  // pandadoc-webhook), where an unverified tenant-typed address is held for review.
+  // Here we only need to know the signed deed has somewhere to land.
+  const { data: target } = await service.rpc("deed_delivery_target", { p_application: appId });
+  const dest = Array.isArray(target) ? target[0] : target;
+  const agentEmail = dest?.email ?? null;
   if (!agentEmail) {
     await service.from("applications").update({ deed_state: "error" }).eq("id", appId);
-    await service.from("activity_log").insert({ application_id: appId, kind: "deed_error", message: "Deed not generated: add an agent contact for this branch, then retry.", actor: "System", visibility: "internal" });
-    return { ok: false, error: "No agent contact for this branch. Add one, then retry." };
+    await service.from("activity_log").insert({ application_id: appId, kind: "deed_error", message: "Deed not generated: no contact to deliver it to. Add the letting agent or landlord (or the branch's primary contact for a referral), then retry.", actor: "System", visibility: "internal" });
+    return { ok: false, error: "No delivery contact for this application. Add one, then retry." };
   }
 
   // livemode comes from the row rather than from an argument, so all four
