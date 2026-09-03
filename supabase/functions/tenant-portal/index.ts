@@ -38,6 +38,8 @@
 // =====================================================================
 import { splitProfilePatch, deliveryContactReady, resolveDeclaredAt } from "../_shared/applicationPatch.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { sendMessage } from "../_shared/mailer.ts";
+import { submissionReceivedEmail } from "../_shared/emailTemplates.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -50,6 +52,27 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...cors, "Content-Type": "application/json" },
   });
+}
+
+// Minimal PandaDoc signing-session minting, mirroring payment-confirmation, so a
+// signed-in tenant can sign from their own status screen. Never falls back to the
+// live key for a test document.
+const PANDADOC_API = "https://api.pandadoc.com/public/v1";
+async function signingLink(documentId: string, recipientEmail: string, livemode: boolean): Promise<string | null> {
+  const KEY = ((livemode ? Deno.env.get("PANDADOC_API_KEY") : Deno.env.get("PANDADOC_API_KEY_TEST")) ?? "").trim();
+  if (!KEY || !recipientEmail) return null;
+  try {
+    const res = await fetch(`${PANDADOC_API}/documents/${documentId}/session`, {
+      method: "POST",
+      headers: { Authorization: `API-Key ${KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ recipient: recipientEmail, lifetime: 60 * 60 * 24 * 7 }),
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j.id ? `https://app.pandadoc.com/s/${j.id}` : null;
+  } catch {
+    return null;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -108,7 +131,7 @@ Deno.serve(async (req) => {
       if (!appId) return null;
       const { data } = await service
         .from("applications")
-        .select("id, status, guarantee_ref, monthly_rent, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_county, prop_postcode, tenant_title, tenant_first_name, tenant_last_name, tenant_dob, tenant_phone, tenant_email")
+        .select("id, status, deed_state, payment_state, pandadoc_document_id, executed_pdf_path, livemode, guarantee_ref, monthly_rent, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_county, prop_postcode, tenant_title, tenant_first_name, tenant_last_name, tenant_dob, tenant_phone, tenant_email")
         .eq("id", appId).eq("applicant_id", callerId).maybeSingle();
       return data ?? null;
     }
@@ -511,7 +534,32 @@ Deno.serve(async (req) => {
         console.log(JSON.stringify({ event: "guarantee_link_failed", message: error?.message }));
         return json({ ok: false, error: "Could not open the payment page." }, 500);
       }
-      return json({ ok: true, url: `/pay?token=${token}&utm_source=tenant_portal` });
+      return json({ ok: true, url: `/pay?token=${token}&utm_source=tenant_portal`, token });
+    }
+
+    if (action === "sign_deed") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      // Only once the deed has been generated and is awaiting the tenant. Before
+      // that there is nothing to sign; after execution it is already done.
+      if (app.status !== "paid" || app.deed_state !== "awaiting_tenant" || !app.pandadoc_document_id) {
+        return json({ ok: false, error: "Your deed is not ready to sign yet." }, 409);
+      }
+      const url = await signingLink(String(app.pandadoc_document_id), String(app.tenant_email ?? ""), app.livemode === true);
+      if (!url) return json({ ok: false, error: "We could not open the signing session. We will email your signing link shortly." }, 502);
+      return json({ ok: true, url });
+    }
+
+    if (action === "deed_url") {
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not found." }, 404);
+      // The tenant reaches only their OWN executed deed: ownedApplication has
+      // scoped to applicant_id, and the bytes come from the private deeds bucket
+      // via a short-lived signed URL, the same pattern as staff deed-download.
+      if (!app.executed_pdf_path) return json({ ok: false, error: "The deed is not ready to download yet." }, 409);
+      const { data: signed, error } = await service.storage.from("deeds").createSignedUrl(String(app.executed_pdf_path), 300);
+      if (error || !signed) return json({ ok: false, error: "Could not open the deed." }, 500);
+      return json({ ok: true, url: signed.signedUrl });
     }
 
     if (action === "submit") {
@@ -530,6 +578,26 @@ Deno.serve(async (req) => {
       const { error: matchErr } = await service.rpc("match_application_agency", { p_application: app.id });
       if (matchErr) {
         console.log(JSON.stringify({ event: "agency_match_failed", message: matchErr.message }));
+      }
+
+      // Confirmation that we have it, so a tenant does not press Send and hear
+      // nothing. Non-blocking: a mail failure is logged, never returned, so it
+      // cannot fail a submission that already succeeded. Dev mail is redirected
+      // to the review address by resolveRecipients inside the mailer.
+      try {
+        const propertyAddr = [app.prop_addr1, app.prop_city, app.prop_postcode]
+          .filter((x) => x && String(x).trim()).join(", ");
+        const mail = await sendMessage({
+          to: app.tenant_email,
+          message: submissionReceivedEmail({
+            firstName: app.tenant_first_name,
+            guaranteeRef: app.guarantee_ref,
+            propertyAddr,
+          }),
+        });
+        if (!mail.ok) console.log(JSON.stringify({ event: "submission_email_failed", message: mail.error }));
+      } catch (e) {
+        console.log(JSON.stringify({ event: "submission_email_error", message: String(e) }));
       }
 
       return json({ ok: true });
