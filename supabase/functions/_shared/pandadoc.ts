@@ -78,6 +78,10 @@ export interface DeedApp {
   /** When true, this is a reissue after a tenancy-start amendment: the signing
       email says the deed was updated and the previous document is now void. */
   reissue?: boolean;
+  /** True for the direct rail (the tenant signs from their application page), false
+      for the referral rail (the tenant signs from the payment confirmation page).
+      Steers the "already signed?" reassurance so it names the right place. */
+  direct?: boolean;
 }
 
 // The six merge tokens. The docx must define these token names (the naming is
@@ -160,7 +164,9 @@ export async function createAndSend(a: DeedApp, livemode: boolean): Promise<Deed
     // the payment confirmation page in the same generation window, so this email
     // can arrive after the fact. A reissue is admin-triggered later with no
     // confirmation-page path, so that race does not apply and the line is omitted.
-    const alreadySigned = " Already signed? If you've completed your deed through the payment confirmation page, no further action is needed, you can disregard this email.";
+    const alreadySigned = a.direct
+      ? " Already signed from your application page? No further action is needed, you can disregard this email."
+      : " Already signed? If you've completed your deed through the payment confirmation page, no further action is needed, you can disregard this email.";
     const message = a.reissue
       ? `Dear ${a.tenant_first_name} ${a.tenant_last_name}, your Deed of Guarantee has been updated to reflect a new tenancy start date of ${fmtDate(a.tenancy_start)}. The previous document is now void. Please review and sign this updated document to put your guarantee in place. Reference ${a.guarantee_ref}.`
       : `Dear ${a.tenant_first_name} ${a.tenant_last_name}, your opndoor guarantor fee has been received and your Deed of Guarantee is ready to sign. Please review and sign the document to put your guarantee in place. Reference ${a.guarantee_ref}.${alreadySigned}`;
@@ -421,7 +427,7 @@ export async function getSigningLink(
 export async function generateDeed(service: any, appId: string, reissue = false): Promise<DeedResult> {
   const { data: app } = await service
     .from("applications")
-    .select("id, guarantee_ref, tenant_first_name, tenant_last_name, tenant_email, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_postcode, branch_id, livemode")
+    .select("id, guarantee_ref, tenant_first_name, tenant_last_name, tenant_email, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_postcode, branch_id, livemode, referencing_mode")
     .eq("id", appId)
     .maybeSingle();
   if (!app) return { ok: false, error: "Application not found." };
@@ -445,7 +451,7 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   // livemode comes from the row rather than from an argument, so all four
   // callers of generateDeed stay unchanged and none of them can pass the wrong
   // one. === so a null never becomes live.
-  const res = await createAndSend({ ...app, agent_email: agentEmail, reissue }, app.livemode === true);
+  const res = await createAndSend({ ...app, agent_email: agentEmail, reissue, direct: app.referencing_mode === "opndoor_referenced" }, app.livemode === true);
   if (!res.ok) {
     await service.from("applications").update({ deed_state: "error" }).eq("id", appId);
     await service.from("activity_log").insert({ application_id: appId, kind: "deed_error", message: `Deed generation failed: ${res.error}`, actor: "System", visibility: "internal" });
