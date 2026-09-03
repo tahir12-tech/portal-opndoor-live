@@ -187,6 +187,7 @@ Deno.serve(async (req) => {
     }
 
     // Stripe test-mode Checkout Session for the guarantor fee (one month's rent).
+    // @ts-expect-error pinned apiVersion, older than the SDK types' latest literal
     const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
     const session = await stripe.checkout.sessions.create({
       // Bounds the window in DEFECTS.md 8. Without it a session stays payable
@@ -224,13 +225,16 @@ Deno.serve(async (req) => {
     // (/pay?token=...), not the raw Stripe URL. The page's Pay button mints a fresh
     // checkout session. utm_source tags the touch (initial send).
     const { data: pageToken } = await service.rpc("mint_payment_page_token", { p_ref: ref });
-    const payUrl = pageToken ? `${origin}/pay?token=${pageToken}&utm_source=initial` : session.url!;
 
-    // Branded payment email (redirected to the review address in test mode).
-    const emailRes = await sendMessage({
-      to: tenantEmail,
-      message: paymentLinkEmail({ propertyAddr, guaranteeRef: ref, amount: amountGBP, payUrl }),
-    });
+    // Never email a stale Stripe URL. Without a durable /pay?token link the send
+    // is recorded as failed rather than carrying the 30-minute eager session URL;
+    // the referral exists and an admin can resend, which mints a fresh link.
+    const emailRes = pageToken
+      ? await sendMessage({
+          to: tenantEmail,
+          message: paymentLinkEmail({ propertyAddr, guaranteeRef: ref, amount: amountGBP, payUrl: `${origin}/pay?token=${pageToken}&utm_source=initial` }),
+        })
+      : { ok: false as const, error: "Could not mint a payment link." };
     // Partner-safe business message; the test-mode redirect target stays admin-only
     // (a separate internal entry), so no partner-facing surface exposes the review
     // address regardless of how it renders the log.
