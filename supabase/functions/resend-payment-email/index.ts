@@ -70,7 +70,10 @@ Deno.serve(async (req) => {
     // raw Stripe link; the page mints a fresh checkout session on demand.
     const origin = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
     const { data: pageToken } = await service.rpc("mint_payment_page_token", { p_ref: app.guarantee_ref });
-    const payUrl = pageToken && origin ? `${origin}/pay?token=${pageToken}&utm_source=resend` : app.payment_url;
+    // Never resend a stale Stripe URL: a fresh durable link is required, or the
+    // resend fails and the admin retries rather than the tenant getting a dead link.
+    if (!pageToken || !origin) return json({ ok: false, error: "Could not create a fresh payment link. Please try again." }, 502);
+    const payUrl = `${origin}/pay?token=${pageToken}&utm_source=resend`;
 
     const emailRes = await sendMessage({
       to: app.tenant_email,

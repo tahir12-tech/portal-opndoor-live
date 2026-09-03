@@ -99,6 +99,22 @@ export function stripeSecretFor(livemode: boolean): CredResult<string> {
 }
 
 /**
+ * The Stripe PUBLISHABLE key for an application, resolved in the SAME mode as its
+ * secret key so an embedded checkout mounts with a key matching the session
+ * Stripe created: pk_live_ where the secret is sk_live_, pk_test_ where it is
+ * sk_test_. Reads STRIPE_PUBLISHABLE_KEY (live / base) or STRIPE_PUBLISHABLE_KEY_TEST.
+ */
+export function stripePublishableFor(livemode: boolean): CredResult<string> {
+  const key = secretFor("STRIPE_PUBLISHABLE_KEY", livemode);
+  if (!key) return { ok: false, error: missing("STRIPE_PUBLISHABLE_KEY", livemode) };
+  const want = livemode ? (requiredStripePrefix() === "sk_live_" ? "pk_live_" : "pk_test_") : "pk_test_";
+  if (!key.startsWith(want)) {
+    return { ok: false, error: `The configured Stripe publishable key is the wrong mode for this project: ${want} is required.` };
+  }
+  return { ok: true, value: key };
+}
+
+/**
  * Both Stripe webhook signing secrets, live first.
  *
  * Returned as a list rather than a choice because an INBOUND webhook has no

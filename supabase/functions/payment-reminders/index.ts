@@ -102,7 +102,15 @@ Deno.serve(async (req) => {
       const rent = Number(r.monthly_rent ?? 0);
       // #1/#2 Point the reminder at the confirmation page with a per-touch utm_source.
       const { data: pageToken } = await service.rpc("mint_payment_page_token", { p_ref: r.guarantee_ref });
-      const payUrl = pageToken && APP_URL ? `${APP_URL}/pay?token=${pageToken}&utm_source=reminder_${r.days}` : (r.payment_url ?? "");
+      // Never send a stale Stripe URL: if a fresh durable link cannot be minted,
+      // skip this nudge and let the next run try again, rather than fall back to
+      // the stored raw session URL that may be long expired.
+      if (!pageToken || !APP_URL) {
+        emailFailed += 1;
+        console.log(JSON.stringify({ event: "reminder_skipped_no_token", ref: r.guarantee_ref }));
+        continue;
+      }
+      const payUrl = `${APP_URL}/pay?token=${pageToken}&utm_source=reminder_${r.days}`;
       const res = await sendMessage({
         to: r.tenant_email ?? "",
         message: paymentReminderEmail({

@@ -62,6 +62,7 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const APP_URL = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
     const service = createClient(SUPABASE_URL, SERVICE);
 
     const body = await req.json().catch(() => ({}));
@@ -131,6 +132,16 @@ Deno.serve(async (req) => {
       return json({ found: true, deedReady: true, signingUrl: url });
     }
 
+    // "Return to payment" points at the durable /pay?token page, whose Pay button
+    // mints a FRESH Stripe session on click, never the stored raw Stripe URL that
+    // expires after 30 minutes. Null if the token cannot be minted, which the
+    // retry page renders as "use the link in your email".
+    let retryUrl: string | null = null;
+    if (!paid && APP_URL) {
+      const { data: token } = await service.rpc("mint_payment_page_token", { p_ref: app.guarantee_ref });
+      retryUrl = token ? `${APP_URL}/pay?token=${token}&utm_source=retry` : null;
+    }
+
     return json({
       found: true,
       firstName: app.tenant_first_name ?? "",
@@ -140,9 +151,7 @@ Deno.serve(async (req) => {
       deedReady,
       deedSigned,
       deedError,
-      // The tenant's own Stripe checkout link (not PII), returned only while the
-      // fee is unpaid so the cancel/retry page can offer "Return to payment".
-      ...(paid ? {} : { payUrl: app.payment_url ?? null }),
+      ...(paid ? {} : { payUrl: retryUrl }),
     });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "Unexpected error." }, 500);
