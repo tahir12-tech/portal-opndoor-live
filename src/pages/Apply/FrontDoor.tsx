@@ -410,7 +410,15 @@ export function ResetPassword() {
               <Button variant="primary"
                 onClick={async () => {
                   if (password.length < 10) { setPwErr('Use at least 10 characters.'); return; }
-                  await auth.setPassword(password); nav('/apply');
+                  // setPassword throws on same_password / weak_password / an expired
+                  // recovery session. Without this catch the throw was swallowed as an
+                  // unhandled rejection: no message and no navigation, just a dead press.
+                  try {
+                    await auth.setPassword(password);
+                    nav('/apply');
+                  } catch (e) {
+                    setPwErr(e instanceof Error ? e.message : 'We could not set your password. Please try again.');
+                  }
                 }}>
                 Save and continue
               </Button>
