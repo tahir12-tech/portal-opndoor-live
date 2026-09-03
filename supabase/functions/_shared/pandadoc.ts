@@ -277,11 +277,15 @@ export async function remindSignature(documentId: string, ctx: RemindContext, li
 // }
 
 async function signingLink(documentId: string, recipientEmail: string, key: string): Promise<{ link: string | null; detail?: string }> {
+  // Match the recipient the document was created with: createAndSend redirects the
+  // recipient to the review address wherever EMAIL_REVIEW_ADDRESS is set, so the
+  // session must redirect the same way or PandaDoc answers "no associated recipient".
+  const recipient = resolveRecipients(recipientEmail).to[0] ?? recipientEmail;
   try {
     const res = await fetch(`${API}/documents/${documentId}/session`, {
       method: "POST",
       headers: headers(key),
-      body: JSON.stringify({ recipient: recipientEmail, lifetime: 60 * 60 * 24 * 7 }),
+      body: JSON.stringify({ recipient, lifetime: 60 * 60 * 24 * 7 }),
     });
     if (!res.ok) return { link: null, detail: `PandaDoc session ${res.status}: ${(await res.text()).slice(0, 300)}` };
     const j = await res.json();

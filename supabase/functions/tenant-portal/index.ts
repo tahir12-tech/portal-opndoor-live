@@ -40,6 +40,8 @@ import { splitProfilePatch, deliveryContactReady, resolveDeclaredAt } from "../_
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { submissionReceivedEmail } from "../_shared/emailTemplates.ts";
+import { resolveRecipients } from "../_shared/emailRecipients.ts";
+import { pandadocConfigFor } from "../_shared/livemodeCredentials.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -59,18 +61,31 @@ function json(body: unknown, status = 200) {
 // live key for a test document.
 const PANDADOC_API = "https://api.pandadoc.com/public/v1";
 async function signingLink(documentId: string, recipientEmail: string, livemode: boolean): Promise<string | null> {
-  const KEY = ((livemode ? Deno.env.get("PANDADOC_API_KEY") : Deno.env.get("PANDADOC_API_KEY_TEST")) ?? "").trim();
-  if (!KEY || !recipientEmail) return null;
+  // Resolve the key the same way the document was created (pandadocConfigFor, with
+  // the non-production _TEST fallback), not a raw env read that had no fallback and
+  // would go empty for a sandbox document on dev.
+  const cfg = pandadocConfigFor(livemode);
+  // THE SESSION RECIPIENT MUST MATCH THE DOCUMENT'S RECIPIENT. createAndSend
+  // redirects the recipient to the review address wherever EMAIL_REVIEW_ADDRESS is
+  // set, so the session has to redirect the same way. Sending the raw tenant email
+  // made PandaDoc answer 400 "no associated recipient" and the session was swallowed
+  // to null: no link, no reason. Redirect here too, and log any failure.
+  const recipient = resolveRecipients(recipientEmail).to[0] ?? recipientEmail;
+  if (!cfg.ok || !recipient) return null;
   try {
     const res = await fetch(`${PANDADOC_API}/documents/${documentId}/session`, {
       method: "POST",
-      headers: { Authorization: `API-Key ${KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ recipient: recipientEmail, lifetime: 60 * 60 * 24 * 7 }),
+      headers: { Authorization: `API-Key ${cfg.value.key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ recipient, lifetime: 60 * 60 * 24 * 7 }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log(JSON.stringify({ event: "sign_deed_session_failed", status: res.status, detail: (await res.text()).slice(0, 300) }));
+      return null;
+    }
     const j = await res.json();
     return j.id ? `https://app.pandadoc.com/s/${j.id}` : null;
-  } catch {
+  } catch (e) {
+    console.log(JSON.stringify({ event: "sign_deed_session_error", message: e instanceof Error ? e.message : String(e) }));
     return null;
   }
 }
