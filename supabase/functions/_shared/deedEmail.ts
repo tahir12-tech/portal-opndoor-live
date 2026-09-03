@@ -10,6 +10,10 @@ export interface DeedTarget {
   postcode: string;
   /** ISO tenancy start date (yyyy-mm-dd); rendered dd/mm/yyyy in the email. */
   tenancyStart: string | null;
+  /** Optional pre-formatted label shown as the guarantee's expiry row. Left unset
+      by callers today, so the row is omitted; declared so the reference below
+      type-checks rather than reading a property the interface never had. */
+  tenancyStartLabel?: string | null;
   agencyName: string;
   pdfPath: string | null;
 }

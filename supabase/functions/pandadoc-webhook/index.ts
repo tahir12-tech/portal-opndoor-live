@@ -105,9 +105,17 @@ Deno.serve(async (req) => {
         // payload, and it would arrive carrying an executed Deed of Guarantee for
         // a tenancy that does not exist.
         const mayEmail = maySendOpndoorEmail(app.livemode === true);
-        const { data: contact } = await service.rpc("effective_primary_contact", { p_branch: app.branch_id });
-        const eff = Array.isArray(contact) ? contact[0] : contact;
-        if (eff?.email && mayEmail) {
+        // Where the executed deed goes, resolved in one place by deed_delivery_target:
+        // the tenant-named delivery contact when there is one (the direct rail), else
+        // the branch's effective primary contact (the referral rail, the byte-identical
+        // answer the old effective_primary_contact call returned). It also returns
+        // whether the address is verified. A delivery contact is an address a tenant
+        // typed and nobody has confirmed, and an executed Deed of Guarantee is a legal
+        // instrument, so an unverified address is held for a person to check rather
+        // than auto-sent to it.
+        const { data: target } = await service.rpc("deed_delivery_target", { p_application: app.id });
+        const dest = Array.isArray(target) ? target[0] : target;
+        if (dest?.email && dest.verified === true && mayEmail) {
           const agencyName = (Array.isArray(app.agency) ? app.agency[0]?.name : (app.agency as { name?: string } | null)?.name) ?? "";
           await deliverDeedToAgent(service, {
             appId: app.id,
@@ -120,9 +128,14 @@ Deno.serve(async (req) => {
             tenancyStart: app.tenancy_start ?? null,
             agencyName,
             pdfPath: path,
-          }, { email: eff.email, name: eff.name ?? "" }, "automatic");
+          }, { email: dest.email, name: dest.display_name ?? "" }, "automatic");
+        } else if (dest?.email && dest.verified !== true) {
+          // A contact resolved, but it is a tenant-named delivery address nobody has
+          // verified. Do not auto-send the legal deed there: surface it so a person
+          // verifies the address and sends it with the "Send deed to agent" button.
+          await service.from("activity_log").insert({ application_id: app.id, kind: "deed_delivery_failed", message: "Deed issued; the delivery contact is a tenant-named address that has not been verified. Held for review.", actor: "System", visibility: "business" });
         } else {
-          // No primary contact resolved: mark delivery as failed so it surfaces on
+          // No contact resolved at all: mark delivery as failed so it surfaces on
           // the delivery-failure/needs-attention surfaces (Delivery Failed).
           await service.from("activity_log").insert({ application_id: app.id, kind: "deed_delivery_failed", message: "Deed issued; no agent contact on file — delivery failed.", actor: "System", visibility: "business" });
         }

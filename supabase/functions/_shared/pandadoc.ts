@@ -24,6 +24,10 @@ import { titleCaseAddress } from "./text.ts";
 import { pandadocConfigFor, pandadocConfiguredFor, pandadocWebhookKeys } from "./livemodeCredentials.ts";
 import { timingSafeEqual } from "./partnerAuth.ts";
 import { sendMessage } from "./mailer.ts";
+// The deed recipient is redirected to the review address in test mode, the same
+// resolver the mailer uses. It was referenced below but never imported, so the
+// redirect that keeps a non-production deed off a real tenant never applied.
+import { resolveRecipients } from "./emailRecipients.ts";
 
 const API = "https://api.pandadoc.com/public/v1";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
