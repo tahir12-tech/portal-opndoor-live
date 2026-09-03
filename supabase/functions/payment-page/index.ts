@@ -17,7 +17,7 @@
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { titleCaseAddress } from "../_shared/text.ts";
-import { stripeSecretFor } from "../_shared/livemodeCredentials.ts";
+import { stripeSecretFor, stripePublishableFor } from "../_shared/livemodeCredentials.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -148,6 +148,10 @@ Deno.serve(async (req) => {
       // and validates once at the top of the handler, against the APPLICATION
       // rather than the project, which covers all three actions.
       const utm = typeof body.utm_source === "string" ? body.utm_source.slice(0, 40) : "confirmation_page";
+      // The Stripe API version is pinned at 2024-06-20 across every function; the
+      // SDK types only admit their latest literal, so this asserts the pin rather
+      // than bumping the version (which would change API behaviour).
+      // @ts-expect-error pinned apiVersion, older than the SDK types' latest literal
       const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
       const session = await stripe.checkout.sessions.create({
         // Bounds the window in DEFECTS.md 8. Without it a session stays payable
@@ -169,13 +173,57 @@ Deno.serve(async (req) => {
         }],
         metadata: { application_id: app.id, guarantee_ref: app.guarantee_ref, utm_source: utm },
         client_reference_id: app.id,
-        success_url: `${APP_URL}/pay/confirmed?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${APP_URL}/pay?token=${token}`,
+        // A signed-in tenant paying from the portal asks for a portal return, so
+        // Stripe lands them back on their own status screen rather than the
+        // referral confirmation page. One checkout, two return destinations.
+        success_url: body.return === "portal"
+          ? `${APP_URL}/apply?paid=guarantee`
+          : `${APP_URL}/pay/confirmed?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: body.return === "portal"
+          ? `${APP_URL}/apply?paid=cancelled`
+          : `${APP_URL}/pay?token=${token}`,
       });
       await service.from("applications").update({
         stripe_checkout_session_id: session.id, payment_url: session.url, payment_state: "awaiting",
       }).eq("id", app.id);
       return json({ ok: true, url: session.url });
+    }
+
+    if (action === "checkout_embedded") {
+      // Same session as `checkout`, but Stripe hosts the card fields inline in
+      // the tenant's own page (ui_mode:embedded, redirect_on_completion:never)
+      // instead of redirecting to Stripe. It still emits checkout.session.completed
+      // with the same metadata, so the webhook -> sent->paid -> deed -> receipt
+      // path is untouched. Returns the client_secret and the mode-matched
+      // publishable key for the mount.
+      if (!payable) {
+        const { data: full } = await service.from("applications").select("withdrawn_by_tenant, status").eq("id", app.id).maybeSingle();
+        const canReinstate = full?.status === "withdrawn" && full?.withdrawn_by_tenant === true;
+        if (!canReinstate) return json({ ok: false, error: isPaid ? "This fee has already been paid." : "This application is closed.", status: app.status }, 409);
+      }
+      // @ts-expect-error pinned apiVersion, older than the SDK types' latest literal
+      const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
+      const session = await stripe.checkout.sessions.create({
+        ui_mode: "embedded",
+        redirect_on_completion: "never",
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+        mode: "payment",
+        line_items: [{
+          price_data: {
+            currency: "gbp",
+            unit_amount: Math.round(rent * 100),
+            product_data: { name: `Guarantor fee - ${app.guarantee_ref}`, description: "One month's rent, for the opndoor Deed of Guarantee." },
+          },
+          quantity: 1,
+        }],
+        metadata: { application_id: app.id, guarantee_ref: app.guarantee_ref, utm_source: "embedded" },
+        client_reference_id: app.id,
+      });
+      await service.from("applications").update({
+        stripe_checkout_session_id: session.id, payment_state: "awaiting",
+      }).eq("id", app.id);
+      const pk = stripePublishableFor(app.livemode === true);
+      return json({ ok: true, clientSecret: session.client_secret, publishableKey: pk.ok ? pk.value : null });
     }
 
     return json({ ok: false, error: "Unknown action." }, 400);
