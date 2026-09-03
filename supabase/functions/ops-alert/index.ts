@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
         : type);
     const tpl = opsAlertEmail({ type, label, ref, message, link });
 
-    const res = await sendMessage({ to: dest, message: tpl });
+    const res = await sendMessage({ to: OPS_ADDRESS, message: tpl });
     // sendMessage returns a SendResult, not a fetch Response: the shared sender
     // already turned the provider's reply into ok plus a reason.
     if (!res.ok) return json({ ok: false, error: res.error ?? "Send failed." }, 502);
