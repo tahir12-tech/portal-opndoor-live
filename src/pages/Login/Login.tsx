@@ -136,21 +136,31 @@ export function Login() {
       navigate('/dashboard');
       return;
     }
-    if (!factorId) return;
+    if (!factorId) { setError('Your session has expired. Please sign in again.'); return; }
     setBusy(true);
-    const r = await authService.verifyCode(factorId, code);
-    setBusy(false);
-    if (!r.ok) {
-      setError(r.error ?? 'That code was not right. Try again.');
-      setCodes(['', '', '', '', '', '']);
-      focusFirst();
-      return;
+    try {
+      const r = await authService.verifyCode(factorId, code);
+      if (!r.ok) {
+        setError(r.error ?? 'That code was not right. Try again.');
+        setCodes(['', '', '', '', '', '']);
+        focusFirst();
+        return;
+      }
+      // TOTP verified in this runtime: grant the in-memory AAL2 trust, then route
+      // on DETERMINISTICALLY. markMfaVerified only flips the trust flag and starts
+      // the heartbeat; nothing re-runs resolve(), so the previous code relied on an
+      // onAuthStateChange firing after verify. When it does not (as it does not
+      // after a fresh enrolment) status never reached 'ready', the navigate effect
+      // never ran and RequireAuth would not route, so the button sat dead with no
+      // message. A full navigation forces a fresh resolve (now AAL2, heartbeat
+      // live) that lands on the dashboard instead of the needsMfa gate.
+      markMfaVerified();
+      window.location.assign('/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'We could not complete sign-in. Please try again.');
+    } finally {
+      setBusy(false);
     }
-    // TOTP verified in THIS runtime: grant the in-memory AAL2 trust BEFORE the
-    // onAuthStateChange-driven resolve() runs, so it routes on rather than
-    // bouncing back to the (restored-session) needsMfa gate.
-    markMfaVerified();
-    // AAL2 reached; SessionContext resolves to "ready" and the effect above routes on.
   }
 
   function setDigit(i: number, value: string) {
