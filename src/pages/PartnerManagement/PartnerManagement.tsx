@@ -114,10 +114,10 @@ export function PartnerManagement() {
       await setReferrerLeaderboardMode(editingId, next);
       await refreshData();
       getPartnerAudit(editingId).then(setAudit).catch(() => { /* keep prior */ });
-      toast('Referrer leaderboard visibility updated.');
+      toast('Referrer leaderboard visibility updated.', 'success');
     } catch (e) {
       setLbMode(prev);
-      toast(e instanceof Error ? e.message : 'Could not update the setting.');
+      toast(e instanceof Error ? e.message : 'Could not update the setting.', 'error');
     }
   }
 
@@ -133,12 +133,16 @@ export function PartnerManagement() {
     try {
       await updatePartnerSettings(id, input);
       await refreshData(); // live mode: re-read the partner (and its new live rate)
-      toast(`Updated ${input.name}. New applications will use ${fmtRatePct(input.partnerRate)} partner / ${fmtRatePct(input.agentRate)} agent; existing applications keep the rate recorded when they were created.`);
+      toast(`Updated ${input.name}. New applications will use ${fmtRatePct(input.partnerRate)} partner / ${fmtRatePct(input.agentRate)} agent; existing applications keep the rate recorded when they were created.`, 'success');
       setConfirm(null);
       setOpen(false);
       refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not save the partner.');
+      toast(e instanceof Error ? e.message : 'Could not save the partner.', 'error'
+
+
+        
+      );
     } finally {
       setSaving(false);
     }

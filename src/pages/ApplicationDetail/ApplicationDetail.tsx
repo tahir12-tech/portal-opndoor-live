@@ -188,7 +188,7 @@ export function ApplicationDetail() {
       setNoteBody('');
       await loadNotes();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not add the note.');
+      toast(e instanceof Error ? e.message : 'Could not add the note.', 'error');
     } finally {
       setNoteBusy(false);
     }
@@ -200,9 +200,9 @@ export function ApplicationDetail() {
       await navigator.clipboard.writeText(paymentInfo.paymentUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-      toast('Payment link copied.');
+      toast('Payment link copied.', 'success');
     } catch {
-      toast('Could not copy the link.');
+      toast('Could not copy the link.', 'error');
     }
   };
 
@@ -211,21 +211,21 @@ export function ApplicationDetail() {
     const r = await resendPaymentEmail(d.ref);
     setResendBusy(false);
     // Partner-safe confirmation; the test-mode redirect detail is opndoor-admin-only.
-    if (r.ok) { toast(role === 'superadmin' ? 'Payment email resent (Live mode) to the review address.' : 'Payment email resent to the tenant.'); void loadPayment(); }
-    else toast(r.error || 'Could not resend the email.');
+    if (r.ok) { toast(role === 'superadmin' ? 'Payment email resent (Live mode) to the review address.' : 'Payment email resent to the tenant.', 'success'); void loadPayment(); }
+    else toast(r.error || 'Could not resend the email.', 'error');
   };
 
   const doResendDeed = async () => {
     setDeedBusy(true);
     const r = await resendDeed(d.ref);
     setDeedBusy(false);
-    if (r.ok) { toast(r.message || 'Reminder sent to the tenant.'); void loadPayment(); }
-    else toast(r.error || 'Could not send the deed.');
+    if (r.ok) { toast(r.message || 'Reminder sent to the tenant.', 'success'); void loadPayment(); }
+    else toast(r.error || 'Could not send the deed.', 'error');
   };
 
   const doWithdraw = async () => {
     if (!wReason) return;
-    if (wReason === 'other' && !wNote.trim()) { toast('Please add a note explaining the reason.'); return; }
+    if (wReason === 'other' && !wNote.trim()) { toast('Please add a note explaining the reason.','info'); return; }
     setWithdrawBusy(true);
     try {
       await withdrawApplication(d.ref, wReason, wNote);
@@ -246,7 +246,7 @@ export function ApplicationDetail() {
       await refresh();
       void loadPayment();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not withdraw the application.');
+      toast(e instanceof Error ? e.message : 'Could not withdraw the application.', 'error');
     } finally {
       setWithdrawBusy(false);
     }
@@ -257,7 +257,7 @@ export function ApplicationDetail() {
     if (!SUPABASE_ENABLED) return;
     const r = await deedDownloadUrl(d.ref);
     if (r.ok && r.url) window.open(r.url, '_blank', 'noopener');
-    else toast(r.error || 'Could not open the deed.');
+    else toast(r.error || 'Could not open the deed.', 'error');
   };
 
   // #105 Withdrawn/Expired are terminal pre-payment exits: only Sent was reached,
@@ -431,7 +431,7 @@ export function ApplicationDetail() {
  async function saveAmend(confirmReissue = false) {
     const parsedDate = parseInput(amendInput);
     if (!parsedDate || parsedDate.getTime() === currentStart.getTime() || !isTenancyStartInAllowedRange(parsedDate)) {
-      toast('Enter a valid tenancy start date within 7 days in the past and 2 years in the future.');
+      toast('Enter a valid tenancy start date within 7 days in the past and 2 years in the future.', 'warning');
       return;
     }
     // #82 On a signed deed, require the explicit consequence confirmation first.
@@ -442,7 +442,7 @@ export function ApplicationDetail() {
     } catch (err) {
       // Defence in depth: if the server still asks for confirmation, prompt for it.
       if (err && typeof err === 'object' && (err as { needsConfirm?: boolean }).needsConfirm) { setConfirmReissueOpen(true); return; }
-      toast(err instanceof Error ? err.message : 'Could not amend the tenancy start date.');
+      toast(err instanceof Error ? err.message : 'Could not amend the tenancy start date.', 'warning');
       return;
     }
     setConfirmReissueOpen(false);
@@ -568,7 +568,7 @@ export function ApplicationDetail() {
       if (isReferrer) await sendDeedToAgent(d.ref);
       else await sendDeedToAgent(d.ref, c.email, sendSel === 'other' ? soSave : false);
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not send the deed.');
+      toast(err instanceof Error ? err.message : 'Could not send the deed.', 'error');
       return;
     } finally {
       setSendBusy(false);
@@ -579,7 +579,7 @@ export function ApplicationDetail() {
       ...prev,
     ]);
     setSendOpen(false);
-    toast(`Deed of Guarantee sent to ${c.name} at ${c.email}.`);
+    toast(`Deed of Guarantee sent to ${c.name} at ${c.email}.`, 'success');
   }
 
   // Honest not-found: the reference does not exist or is not accessible to this

@@ -811,7 +811,7 @@ export function OrgManagement() {
       after?.();
       toast(success);
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Something went wrong.');
+      toast(e instanceof Error ? e.message : 'Something went wrong.','error');
     } finally {
       setBusy(false);
     }
@@ -828,7 +828,7 @@ export function OrgManagement() {
       if (spec.success) toast(spec.success);
       setCtConfirm(null);
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Something went wrong.');
+      toast(e instanceof Error ? e.message : 'Something went wrong.','error');
     } finally {
       setBusy(false);
     }
@@ -841,7 +841,7 @@ function submitContact() {
   const email = ctEmail.trim();
 
   if (!email) {
-    toast('Enter a contact email.');
+    toast('Enter a contact email.','warning');
     return;
   }
 
@@ -1008,7 +1008,7 @@ function requestCloseContacts() {
   const canSaveAgency = !!agencyName.trim() && !!agencyPartner && agencyEmailOk && !busy;
   function saveAgency() {
     if (!canSaveAgency) {
-      if (!agencyPartner) toast('Select a specific partner before adding an agency.');
+      if (!agencyPartner) toast('Select a specific partner before adding an agency.','warning');
       return;
     }
     void runOrg(
@@ -1034,7 +1034,7 @@ function requestCloseContacts() {
   function saveBranch() {
     if (!canSaveBranch) return;
     const agency = findAgency(branchAgency);
-    if (!agency) { toast('Select a parent agency.'); return; }
+    if (!agency) { toast('Select a parent agency.','warning'); return; }
     void runOrg(
       () => createBranchLive(agency, {
         name: branchName.trim(), area: branchArea.trim() || undefined,

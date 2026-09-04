@@ -33,7 +33,7 @@ export function Reconciliation() {
     try {
       setQueue(await loadReconciliationQueue());
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not load the reconciliation queue.');
+      toast(e instanceof Error ? e.message : 'Could not load the reconciliation queue.', 'error');
     } finally {
       setLoading(false);
     }
@@ -65,10 +65,10 @@ export function Reconciliation() {
       // org appears in HubSpot within seconds; the 2-minute cron remains the backstop.
       void triggerHubspotSync().catch(() => {});
       await refreshData(); // re-hydrate so the sidebar pending badge decrements
-      toast(`Confirmed "${item.name}" as a new canonical ${item.type}. Syncing to HubSpot…`);
+      toast(`Confirmed "${item.name}" as a new canonical ${item.type}. Syncing to HubSpot…`, 'success');
       await reload();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not confirm the record.');
+      toast(e instanceof Error ? e.message : 'Could not confirm the record.', 'error');
     } finally {
       setBusyId(null);
     }
@@ -79,9 +79,9 @@ export function Reconciliation() {
     setSyncing(true);
     try {
       await triggerHubspotSync();
-      toast('HubSpot sync started — confirmed records update within ~2 minutes.');
+      toast('HubSpot sync started — confirmed records update within ~2 minutes.', 'success');
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not start the HubSpot sync.');
+      toast(e instanceof Error ? e.message : 'Could not start the HubSpot sync.', 'error');
     } finally {
       setSyncing(false);
     }

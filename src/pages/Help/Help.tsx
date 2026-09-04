@@ -162,7 +162,7 @@ export function Help() {
     } else if (r.file) {
       const u = fileToBlobUrl(r.file);
       if (!u) {
-        toast('Could not open this file.');
+        toast('Could not open this file.', 'warning');
         return;
       }
       a.href = u;
@@ -188,7 +188,7 @@ export function Help() {
     }
     const src = h ? h : fileToBlobUrl(r.file!);
     if (!src) {
-      toast('Could not open this file.');
+      toast('Could not open this file.', 'warning');
       return;
     }
     setViewer({ open: true, title: r.title || 'Resource', src, isImg: h ? false : imageMime(r.file?.mime), blob: h ? null : src, href: h ?? undefined });
@@ -211,7 +211,7 @@ export function Help() {
   }
   function readFile(file: File) {
     if (file.size > 4 * 1048576) {
-      toast('That file is over 4 MB. Please choose a smaller file for the demo.');
+      toast('That file is over 4 MB. Please choose a smaller file for the demo.','info');
       return;
     }
     const reader = new FileReader();
@@ -246,16 +246,16 @@ export function Help() {
         if (existing) delete existing.minRole;
       }
       if (!ok) return;
-      toast('Resource updated for all users.');
+      toast('Resource updated for all users.','success');
     } else {
       const draft: Omit<HelpResource, 'id'> = { ...base };
       if (pendingFile) draft.file = pendingFile;
       const res = helpService.addResource(resDraft.section, draft);
       if (!res.ok) {
-        toast('Storage limit reached. Try a smaller file or remove an old resource.');
+        toast('Storage limit reached. Try a smaller file or remove an old resource.','info');
         return;
       }
-      toast('Resource added and published to all users.');
+      toast('Resource added and published to all users.','success');
     }
     setResDraft(null);
     refresh();
@@ -265,7 +265,7 @@ export function Help() {
     helpService.deleteResource(resDraft.section, resDraft.id);
     setResDraft(null);
     refresh();
-    toast('Resource deleted for all users.');
+    toast('Resource deleted for all users.','success');
   }
 
   // ---- faq / manager ----
@@ -273,7 +273,7 @@ export function Help() {
     if (!faqDraft || !faqDraft.q.trim()) return;
     if (faqDraft.id) helpService.updateFaq(faqDraft.id, faqDraft.q.trim(), faqDraft.a.trim());
     else helpService.addFaq(faqDraft.q.trim(), faqDraft.a.trim());
-    toast(faqDraft.id ? 'FAQ updated for all users.' : 'FAQ added and published to all users.');
+    toast(faqDraft.id ? 'FAQ updated for all users.' : 'FAQ added and published to all users.','success');
     setFaqDraft(null);
     refresh();
   }
@@ -282,7 +282,7 @@ export function Help() {
     const payload = { name: mgrDraft.name.trim(), role: mgrDraft.role.trim() || 'opndoor Partnerships', email: mgrDraft.email.trim(), phone: mgrDraft.phone.trim() };
     if (mgrDraft.id) helpService.updateManager(mgrDraft.id, payload);
     else helpService.addManager(payload);
-    toast(mgrDraft.id ? 'Account manager updated.' : 'Account manager added.');
+    toast(mgrDraft.id ? 'Account manager updated.' : 'Account manager added.','success');
     setMgrDraft(null);
     refresh();
   }
@@ -297,7 +297,7 @@ export function Help() {
         {isAdmin && (
           <div className="res__admin">
             <button className="mini" title="Edit" onClick={(e) => { e.preventDefault(); e.stopPropagation(); openResource(section, r.id); }}><Icon name="edit" /></button>
-            <button className="mini mini--danger" title="Delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirm({ title: 'Delete resource?', body: <>Delete <b>{r.title || 'this resource'}</b>? It is removed for all users and cannot be undone.</>, run: () => { helpService.deleteResource(section, r.id); refresh(); toast('Resource deleted for all users.'); } }); }}><Icon name="trash" /></button>
+            <button className="mini mini--danger" title="Delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirm({ title: 'Delete resource?', body: <>Delete <b>{r.title || 'this resource'}</b>? It is removed for all users and cannot be undone.</>, run: () => { helpService.deleteResource(section, r.id); refresh(); toast('Resource deleted for all users.','success'); } }); }}><Icon name="trash" /></button>
           </div>
         )}
         {hasFile && <span className="res__dl" title={servableHref(r) ? 'Open' : 'Download'}><Icon name={servableHref(r) ? 'external' : 'download'} /></span>}
@@ -388,7 +388,7 @@ export function Help() {
                       {isAdmin && (
                         <span className="faq__admin">
                           <button className="mini" title="Edit" onClick={(e) => { e.preventDefault(); setFaqDraft({ id: f.id, q: f.q, a: f.a }); }}><Icon name="edit" /></button>
-                          <button className="mini mini--danger" title="Delete" onClick={(e) => { e.preventDefault(); setConfirm({ title: 'Delete FAQ?', body: <>Delete the FAQ <b>&ldquo;{f.q}&rdquo;</b>? It is removed for all users and cannot be undone.</>, run: () => { helpService.deleteFaq(f.id); refresh(); toast('FAQ deleted for all users.'); } }); }}><Icon name="trash" /></button>
+                          <button className="mini mini--danger" title="Delete" onClick={(e) => { e.preventDefault(); setConfirm({ title: 'Delete FAQ?', body: <>Delete the FAQ <b>&ldquo;{f.q}&rdquo;</b>? It is removed for all users and cannot be undone.</>, run: () => { helpService.deleteFaq(f.id); refresh(); toast('FAQ deleted for all users.','success'); } }); }}><Icon name="trash" /></button>
                         </span>
                       )}
                       <Icon name="chevronRight" className="faq__chev" size={18} strokeWidth={2.2} />
@@ -437,7 +437,7 @@ export function Help() {
                       {isAdmin && (
                         <div className="am-row__act">
                           <button className="mini" title="Edit" onClick={() => setMgrDraft({ id: m.id, name: m.name, role: m.role, email: m.email, phone: m.phone })}><Icon name="edit" /></button>
-                          <button className="mini mini--danger" title="Delete" onClick={() => setConfirm({ title: 'Remove account manager?', body: <>Remove <b>{m.name.trim() || 'this account manager'}</b>? They will no longer appear on the Help page. This cannot be undone.</>, run: () => { helpService.deleteManager(m.id); refresh(); toast('Account manager removed.'); } })}><Icon name="trash" /></button>
+                          <button className="mini mini--danger" title="Delete" onClick={() => setConfirm({ title: 'Remove account manager?', body: <>Remove <b>{m.name.trim() || 'this account manager'}</b>? They will no longer appear on the Help page. This cannot be undone.</>, run: () => { helpService.deleteManager(m.id); refresh(); toast('Account manager removed.','success'); } })}><Icon name="trash" /></button>
                         </div>
                       )}
                     </div>
@@ -515,7 +515,7 @@ export function Help() {
         sub="Visible to everyone in the portal."
         footer={
           <>
-            {faqDraft?.id && <Button variant="quiet" onClick={() => setConfirm({ title: 'Delete FAQ?', body: <>Delete this FAQ? It is removed for all users and cannot be undone.</>, run: () => { helpService.deleteFaq(faqDraft.id!); setFaqDraft(null); refresh(); toast('FAQ deleted for all users.'); } })} style={{ color: 'var(--danger)' }}>Delete</Button>}
+            {faqDraft?.id && <Button variant="quiet" onClick={() => setConfirm({ title: 'Delete FAQ?', body: <>Delete this FAQ? It is removed for all users and cannot be undone.</>, run: () => { helpService.deleteFaq(faqDraft.id!); setFaqDraft(null); refresh(); toast('FAQ deleted for all users.','success'); } })} style={{ color: 'var(--danger)' }}>Delete</Button>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
               <Button variant="ghost" onClick={() => setFaqDraft(null)}>Cancel</Button>
               <Button variant="primary" onClick={saveFaq}>Save</Button>
@@ -539,7 +539,7 @@ export function Help() {
         sub="Shown to the partner team on this page."
         footer={
           <>
-            {mgrDraft?.id && <Button variant="quiet" onClick={() => setConfirm({ title: 'Remove account manager?', body: <>Remove <b>{mgrDraft?.name.trim() || 'this account manager'}</b>? They will no longer appear on the Help page. This cannot be undone.</>, run: () => { helpService.deleteManager(mgrDraft.id!); setMgrDraft(null); refresh(); toast('Account manager removed.'); } })} style={{ color: 'var(--danger)' }}>Delete</Button>}
+            {mgrDraft?.id && <Button variant="quiet" onClick={() => setConfirm({ title: 'Remove account manager?', body: <>Remove <b>{mgrDraft?.name.trim() || 'this account manager'}</b>? They will no longer appear on the Help page. This cannot be undone.</>, run: () => { helpService.deleteManager(mgrDraft.id!); setMgrDraft(null); refresh(); toast('Account manager removed.', 'success'); } })} style={{ color: 'var(--danger)' }}>Delete</Button>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
               <Button variant="ghost" onClick={() => setMgrDraft(null)}>Cancel</Button>
               <Button variant="primary" onClick={saveManager}>Save</Button>

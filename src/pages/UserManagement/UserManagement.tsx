@@ -183,7 +183,7 @@ export function UserManagement() {
       toast(confirm.success);
       setConfirm(null);
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Something went wrong.');
+      toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
     } finally {
       setBusy(false);
     }
@@ -198,7 +198,7 @@ export function UserManagement() {
       refresh();
       toast(success);
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Something went wrong.');
+      toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
     } finally {
       setBusy(false);
     }
@@ -309,9 +309,9 @@ export function UserManagement() {
       await refreshData();
       refresh();
       setAddOpen(false);
-      toast(`Invitation sent to ${email} as ${ROLE_META[addRole][0]}${addRole === 'superadmin' ? '' : ` at ${partnerName(rec.partner)}`}.`);
+      toast(`Invitation sent to ${email} as ${ROLE_META[addRole][0]}${addRole === 'superadmin' ? '' : ` at ${partnerName(rec.partner)}`}.`, 'success');
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not send the invitation.');
+      toast(e instanceof Error ? e.message : 'Could not send the invitation.', 'error');
     } finally {
       setBusy(false);
     }
