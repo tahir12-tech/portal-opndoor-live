@@ -107,7 +107,15 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // everyone else, enforced in the function rather than by not calling it: a
     // client that skipped the call would be back to a TypeScript decision.
     client.rpc('application_commission_rates', { p_partner: null }),
-    client.from('agencies').select('id, name, group_name, review_state, partner_id, partner:partners(slug)'),
+    // partner:partners is named to its FK, not left bare. partner_agency_relationships
+    // (20260812110000) gave PostgREST a SECOND agencies<->partners relationship, the
+    // many-to-many of who-can-reach-whom, on top of the direct owner FK. A bare
+    // partners(...) embed is now ambiguous (PGRST201) and threw "Failed to load data"
+    // for every role, because this is the global hydrate. agencies_partner_id_fkey is
+    // the one meant here: the single owning partner, the same one partner_id resolves
+    // to. The many-to-many would return an array and, for a shared agency, the wrong
+    // partner.
+    client.from('agencies').select('id, name, group_name, review_state, partner_id, partner:partners!agencies_partner_id_fkey(slug)'),
     client.from('branches').select('id, name, area, review_state, agency_id, partner_id'),
     // Ordered oldest-first so the on-screen contact order matches the server's
     // promote-oldest primary backstop (org_*_contact RPCs): the "promotes X to
