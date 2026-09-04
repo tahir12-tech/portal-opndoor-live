@@ -477,15 +477,30 @@ describe('sign in and reset hand the tab and the email to each other', () => {
   const url = () => screen.getByTestId('loc').textContent;
   const clickTab = (name: string) => fireEvent.click(screen.getByRole('tab', { name }));
 
-  it('keeps the carried email when a tab is clicked', () => {
-    // The tab strip rebuilt the query string from tab alone, so touching the
-    // tabs wiped the address that had just been carried in, which is the exact
-    // retyping this whole thing exists to remove.
+  it('strips the carried email from the URL but keeps it in the field', () => {
+    /* ?email= exists only to prefill the field. Once it has, it is dropped from
+       the URL so a stale address can never sit in the address bar to be reloaded,
+       copied or shared. The value is not lost: it lives in the field, survives a
+       tab click, and still rides the forgot link, which is built from the field
+       and not the URL. */
     withUrl(`/login?tab=agent&email=${encodeURIComponent(EMAIL)}`);
+    // Stripped on mount, before anything is clicked; the tab it came with stays.
+    expect(url()).not.toContain('email=');
+    expect(url()).toContain('tab=agent');
     clickTab('Tenant');
-    expect(url()).toContain(`email=${encodeURIComponent(EMAIL)}`);
+    expect(url()).not.toContain('email=');
     expect((screen.getByLabelText(/email address/i) as HTMLInputElement).value).toBe(EMAIL);
     expect(forgot()).toContain(`email=${encodeURIComponent(EMAIL)}`);
+  });
+
+  it('strips email from the URL without taking the invite token with it', () => {
+    // The strip deletes only email. A tenant's invite is read live from the URL
+    // and must survive it, or they sign in to an empty draft instead of the
+    // application their agent already filled in.
+    withUrl(`/login?tab=tenant&invite=TOK123&email=${encodeURIComponent(EMAIL)}`);
+    expect(url()).not.toContain('email=');
+    expect(url()).toContain('invite=TOK123');
+    expect((screen.getByLabelText(/email address/i) as HTMLInputElement).value).toBe(EMAIL);
   });
 
   it('keeps an invite token when a tab is clicked', () => {

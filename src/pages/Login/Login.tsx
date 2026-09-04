@@ -35,7 +35,7 @@ type Step = 'creds' | '2fa' | 'enrol' | 'verify';
 export function Login() {
   useDocumentTitle('Sign in');
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   // Seeded from the URL so ?tab=tenant is a link somebody can be sent. Agent is
   // the default because that is who has been signing in here for a year, so a
   // missing or unknown tab lands there rather than on tenant.
@@ -66,6 +66,19 @@ export function Login() {
   useEffect(() => {
     if (SUPABASE_ENABLED && status === 'ready') navigate('/dashboard', { replace: true });
   }, [status, navigate]);
+
+  // Both address fields were seeded from ?email= at mount (above), so the param
+  // has done its one job. Drop it now, or a stale address sits in the address bar
+  // to be reloaded, copied or shared long after the field has moved on. Merge,
+  // never rebuild: ?tab and ?invite must survive (see AudienceTabs). Once, on
+  // mount: the fields hold the value in state from here, nothing re-adds email.
+  useEffect(() => {
+    if (!searchParams.has('email')) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('email');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const focusFirst = () => setTimeout(() => inputs.current[0]?.focus(), 0);
 
