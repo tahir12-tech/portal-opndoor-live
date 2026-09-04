@@ -1,19 +1,29 @@
-import { sendMessage } from "./mailer.ts";
+import { sendMessage, bytesToBase64, type Attachment } from "./mailer.ts";
 import { executedDeedTenantEmail } from "./emailTemplates.ts";
 
 export async function deliverExecutedDeedToTenant(service: any, p: { appId: string; ref: string; tenantEmail: string; tenantName: string; propertyAddr: string; tenancyStart: string | null; pdfPath: string | null }): Promise<void> {
   if (!p.tenantEmail) return;
-  let downloadUrl = "";
+  // The tenant's own signed copy rides as an ATTACHMENT now, not a download link.
+  // The PDF is already in the deeds bucket (the completion webhook uploads it just
+  // before this send). A missing PDF is left to the agent send's own note, since
+  // both fire for the same application in the same webhook.
+  const attachments: Attachment[] = [];
   if (p.pdfPath) {
-    const { data: signed } = await service.storage.from("deeds").createSignedUrl(p.pdfPath, 604800); // 7 days
-    downloadUrl = signed?.signedUrl ?? "";
+    const { data: blob } = await service.storage.from("deeds").download(p.pdfPath);
+    if (blob) {
+      attachments.push({
+        filename: `Deed of Guarantee ${p.ref}.pdf`,
+        content: bytesToBase64(new Uint8Array(await blob.arrayBuffer())),
+      });
+    }
   }
   const res = await sendMessage({
     to: p.tenantEmail,
     message: executedDeedTenantEmail({
       guaranteeRef: p.ref, propertyAddr: p.propertyAddr,
-      expiryLabel: null, downloadUrl,
+      expiryLabel: null,
     }),
+    attachments,
   });
   await service.from("activity_log").insert({
     application_id: p.appId,

@@ -226,7 +226,6 @@ export function Health() {
             { label: 'Applications stuck at sent', value: n.stuck_sent, bad: true },
             { label: 'Awaiting tenant signature', value: n.awaiting_signature, bad: true },
             { label: 'Pending reconciliation', value: n.pending_reconciliation, bad: true },
-            { label: 'Tenancy corrections to resolve', value: n.pending_tenancy_corrections, bad: true },
           ]} />
         </div>
       </Card>

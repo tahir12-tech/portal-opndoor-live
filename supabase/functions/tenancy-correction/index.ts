@@ -1,17 +1,24 @@
 // =====================================================================
 // tenancy-correction (verify_jwt = false)
 //
-// Public token exchange for #81. An agent opens the tokenised link from the deed
-// delivery email, sees the guarantee reference and the current tenancy start, and
-// proposes a corrected date with an optional note. Submitting NEVER writes the
-// application: it records the report on the token row (the opndoor needs-attention
-// queue) plus an activity_log entry. An opndoor admin reviews and applies the
-// change through the existing audited amend flow.
+// Public token exchange for #81. An agent opens the tokenised link from the
+// executed-deed email, sees the guarantee reference and the current tenancy
+// start, and enters the correct date. Submitting APPLIES the correction
+// automatically: the corrected date is written, the outstanding or executed deed
+// is voided (a signed PDF is archived first), a corrected deed is regenerated and
+// sent to the tenant to sign again, and once they sign the agent receives the new
+// executed deed automatically (the completion webhook re-fires for the new
+// document id). It is logged as an agent correction. There is no opndoor review.
 //
-// The token is a random uuid scoped to one deed, expiring 7 days after the deed
-// was delivered (the same lifetime as the signed download link).
+// The deed lifecycle mirrors amend-tenancy-start's (the staff path), keyed on the
+// deed state, and reuses the same shared primitives (voidDocument / generateDeed).
+// It runs with the SERVICE ROLE because the agent has no login: amend_tenancy_start
+// is gated on AAL2 + ownership and cannot be reached from here.
+//
+// The token is a random uuid scoped to one deed, expiring 7 days after delivery.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { voidDocument, generateDeed } from "../_shared/pandadoc.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -52,20 +59,83 @@ Deno.serve(async (req) => {
     if (b.action === "submit") {
       const proposed = String(b.proposedStart ?? "").trim(); // yyyy-mm-dd
       if (!/^\d{4}-\d{2}-\d{2}$/.test(proposed)) return json({ ok: false, error: "Enter a valid date." }, 200);
+      // Range check mirrors amend_tenancy_start's (2000-01-01 .. today + 5 years):
+      // the service-role write below bypasses that RPC, so its guard is repeated here.
+      const proposedMs = Date.parse(`${proposed}T00:00:00Z`);
+      const minMs = Date.parse("2000-01-01T00:00:00Z");
+      const maxMs = Date.now() + 5 * 365 * 24 * 60 * 60 * 1000;
+      if (Number.isNaN(proposedMs) || proposedMs < minMs || proposedMs > maxMs) {
+        return json({ ok: false, error: "That date is out of range." }, 200);
+      }
       const note = String(b.note ?? "").trim().slice(0, 500) || null;
-      // Record the report on the token row. This NEVER touches the application.
-      // Clear any prior resolution so a fresh submission re-enters the review queue
-      // (a re-submit after an earlier one was resolved is a new correction to review).
-      await service.from("tenancy_correction_tokens").update({ proposed_start: proposed, note, submitted_at: new Date().toISOString(), resolved_at: null, resolved_by: null }).eq("token", token);
-      // Needs-attention entry on the application's activity feed (opndoor-facing).
+
+      // Full deed state for the lifecycle decision. Read with the service role:
+      // the token is the authorisation here, there is no signed-in user.
+      const { data: full } = await service.from("applications")
+        .select("id, guarantee_ref, status, deed_state, pandadoc_document_id, executed_pdf_path, tenancy_start, livemode, withdrawn_at")
+        .eq("id", tok.application_id).maybeSingle();
+      if (!full) return json({ ok: false, error: "This link is not valid." }, 200);
+      if (full.withdrawn_at) return json({ ok: false, error: "This guarantee has been withdrawn, so its date cannot be changed here. Reply to the deed email if you need help." }, 200);
+
+      const dateChange = `from ${dmy(full.tenancy_start)} to ${dmy(proposed)}`;
+
+      // 1) Apply the corrected date (expiry_date is a generated column and follows).
+      await service.from("applications").update({ tenancy_start: proposed }).eq("id", full.id);
+
+      // 2) Record on the token AND resolve it in the same step: an agent
+      //    self-service correction has no review queue, so it is never "pending"
+      //    and the dashboard/health counts stay at zero.
+      const nowIso = new Date().toISOString();
+      await service.from("tenancy_correction_tokens").update({
+        proposed_start: proposed, note, submitted_at: nowIso, resolved_at: nowIso, resolved_by: null,
+      }).eq("token", token);
+
+      // 3) Deed lifecycle, keyed on the state at correction time. Mirrors
+      //    amend-tenancy-start (its executed / awaiting_tenant branches); the
+      //    dangerous primitives (void, regenerate + state reset) are shared in
+      //    pandadoc.ts, so only the branch choice lives in both places.
+      let reissued = false;
+      let archived = false;
+      if (full.deed_state === "executed" || full.status === "deed") {
+        // Destructive: archive the signed PDF, reopen to Paid, reissue for signing.
+        archived = !!full.executed_pdf_path;
+        if (archived) {
+          const archivePath = `${full.id}/archive/${full.guarantee_ref}-superseded-${full.pandadoc_document_id ?? "deed"}.pdf`;
+          await service.storage.from("deeds").copy(full.executed_pdf_path, archivePath);
+          await service.from("activity_log").insert({ application_id: full.id, kind: "deed_archived", message: `Signed deed archived before an agent correction of the tenancy start ${dateChange}.`, actor: "Agent", visibility: "business" });
+        }
+        await service.from("applications").update({
+          status: "paid", deed_state: null, deed_issued_at: null, deed_executed_at: null,
+          issue_date: null, executed_pdf_path: null, pandadoc_document_id: null, deed_viewed_at: null,
+        }).eq("id", full.id);
+        const gen = await generateDeed(service, full.id, true);
+        reissued = gen.ok;
+      } else if (full.deed_state === "awaiting_tenant" && full.pandadoc_document_id) {
+        // One-live-deed invariant: clear the id first (a late webhook for the old
+        // document is then inert), void best-effort, regenerate regardless.
+        const oldDocId = full.pandadoc_document_id;
+        await service.from("applications").update({ pandadoc_document_id: null, deed_state: null, deed_viewed_at: null }).eq("id", full.id);
+        const voided = await voidDocument(oldDocId, full.livemode === true);
+        await service.from("activity_log").insert({ application_id: full.id, kind: "deed_voided", message: voided.ok ? `Outstanding deed voided for an agent correction of the tenancy start ${dateChange}.` : `Outstanding deed could not be voided for an agent correction ${dateChange}; it is superseded by the reissued deed. Detail: ${voided.error}`, actor: "Agent", visibility: "internal" });
+        const gen = await generateDeed(service, full.id, true);
+        reissued = gen.ok;
+      }
+      // else: Sent, or Paid with no live deed (error / declined / voided / none):
+      // the date change alone, no reissue.
+
+      // 4) Log it as an agent correction: the single business entry.
+      const hadLiveDeed = full.deed_state === "executed" || full.status === "deed" || full.deed_state === "awaiting_tenant";
+      const suffix = reissued
+        ? (archived ? " The signed deed was archived and a corrected deed reissued to the tenant to sign." : " A corrected deed was reissued to the tenant to sign.")
+        : (hadLiveDeed ? " The corrected deed could not be reissued automatically; opndoor has been notified." : "");
       await service.from("activity_log").insert({
-        application_id: tok.application_id,
-        kind: "tenancy_correction_reported",
-        message: `${tok.guarantee_ref}: agent reports the tenancy start should be ${dmy(proposed)}${note ? ` (note: ${note})` : ""}. Review and amend if correct.`,
+        application_id: full.id,
+        kind: "tenancy_correction_applied",
+        message: `${full.guarantee_ref}: tenancy start corrected ${dateChange} by the agent.${suffix}${note ? ` Note: ${note}` : ""}`,
         actor: "Agent",
-        visibility: "internal",
+        visibility: "business",
       });
-      return json({ ok: true });
+      return json({ ok: true, newStart: dmy(proposed), reissued });
     }
 
     return json({ ok: false, error: "Unknown action." }, 400);

@@ -30,6 +30,19 @@ export interface SendResult {
 /** An attachment, already fetched. Resend wants base64. */
 export interface Attachment { filename: string; content: string }
 
+/** Base64 of raw bytes, for a Resend Attachment. Chunked, because
+    String.fromCharCode(...wholeArray) overflows the argument stack on a file of
+    any size, and the CSV path's btoa(unescape(encodeURIComponent(...))) corrupts
+    binary. A PDF is bytes, so this is the one correct encoder. */
+export function bytesToBase64(bytes: Uint8Array): string {
+  let bin = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+
 export async function sendMessage(opts: {
   to: string | string[];
   message: Message;

@@ -239,10 +239,13 @@ export function deedToSignEmail(p: {
   };
 }
 
-/** To the AGENT. Names the tenant, because they are not the recipient. */
+/** To the AGENT or a private landlord. Names the tenant, because they are not
+    the recipient. The signed deed rides as an attachment (added by the sender),
+    so this is now honest about "attached". The portal line is added only when a
+    portalUrl is passed: an agent has a login, a private landlord does not. */
 export function executedDeedAgentEmail(p: {
   guaranteeRef: string; tenantName: string; propertyAddr: string;
-  expiryLabel?: string | null; downloadUrl?: string;
+  expiryLabel?: string | null; portalUrl?: string;
 }): Message {
   const rows: [string, string][] = [
     ["Reference", p.guaranteeRef],
@@ -250,22 +253,25 @@ export function executedDeedAgentEmail(p: {
     ["Property", p.propertyAddr],
   ];
   if (p.expiryLabel) rows.push(["Guarantee expires", p.expiryLabel]);
+  const portalLine = p.portalUrl
+    ? ` You can also view it any time in <a href="${p.portalUrl}">the portal</a>.`
+    : "";
   return {
     subject: `Signed Deed of Guarantee for ${p.guaranteeRef}`,
     heading: "The Deed of Guarantee has been signed",
     blocks: [
-      { p: "The Deed of Guarantee for the tenancy below has been signed by all parties. A copy is attached for your records." },
+      { p: `Your signed copy is attached. Keep it with the tenancy paperwork, it is the reference for any claim under the guarantee.${portalLine}` },
       { rows },
       { small: "opndoor remains the guarantor for the term above. You remain the claim contact." },
     ],
-    ...(p.downloadUrl ? { action: { label: "Download the deed", href: p.downloadUrl } } : {}),
   };
 }
 
-/** To the TENANT. No Tenant line: they know who they are. */
+/** To the TENANT. No Tenant line: they know who they are. The signed deed rides
+    as an attachment (added by the sender); no portal line, a tenant has no login. */
 export function executedDeedTenantEmail(p: {
   guaranteeRef: string; propertyAddr: string;
-  expiryLabel?: string | null; downloadUrl?: string;
+  expiryLabel?: string | null;
 }): Message {
   const rows: [string, string][] = [["Reference", p.guaranteeRef], ["Property", p.propertyAddr]];
   if (p.expiryLabel) rows.push(["Guarantee expires", p.expiryLabel]);
@@ -278,7 +284,6 @@ export function executedDeedTenantEmail(p: {
       { rows },
       { small: "opndoor is your guarantor for the term above. opndoor is a professional guarantor service, not insurance, and is not a party to your tenancy agreement. If anything changes, speak to your letting agent first." },
     ],
-    ...(p.downloadUrl ? { action: { label: "Download your deed", href: p.downloadUrl } } : {}),
   };
 }
 

@@ -12,7 +12,7 @@ import { Link } from 'react-router-dom';
 import {
   ALL_PARTNERS, buildApplicationDoc, exportBordereauFile, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartners, getPeriods, getTrend, partnerName,
-  getBordereauRate, getBordereauRateMeta, setBordereauRate, pendingTenancyCorrections,
+  getBordereauRate, getBordereauRateMeta, setBordereauRate,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
 import { formatLondonDate } from '@/lib/format';
@@ -110,23 +110,17 @@ export function Dashboard() {
   const partnerDue = settlement.partners.reduce((s, p) => s + p.commission, 0);
   const agentDue = agentSettlement.agencies.reduce((s, a) => s + a.commission, 0);
   const settleDayMonth = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })}`;
-  // #81 Agent-reported tenancy-start corrections awaiting opndoor review.
-  const [corrections, setCorrections] = useState(0);
-  useEffect(() => {
-    if (role === 'referrer') { setCorrections(0); return; }
-    let alive = true;
-    pendingTenancyCorrections().then((n) => { if (alive) setCorrections(n); }).catch(() => { if (alive) setCorrections(0); });
-    return () => { alive = false; };
-  }, [role]);
+  // #81 Tenancy-start corrections now apply automatically from the agent's link
+  // (no opndoor review), so the "corrections to review" needs-attention line and
+  // its count are gone.
 
   const naAwaiting = d.live && d.awaiting > 0;
   const naStuckSent = d.stuckSent !== '0';
   const naSettlements = d.live && canSeeSettlements && (partnerDue > 0 || agentDue > 0);
   // #93 Deed-delivery failure is ops furniture: management + opndoor admin only.
   const naNoContact = d.live && canSeeSettlements && d.deedsNoContact > 0;
-  const naCorrections = canSeeSettlements && corrections > 0;
   const naLapsing = d.live && canSeeSettlements && d.lapsing14 > 0;
-  const hasNeedsAttention = naAwaiting || naStuckSent || naSettlements || naNoContact || naCorrections || naLapsing;
+  const hasNeedsAttention = naAwaiting || naStuckSent || naSettlements || naNoContact || naLapsing;
 
   // #25: the agent settlement can span many agencies, so show the top 5 inline and
   // collapse the rest behind a "View all" expander. The Performance export always
@@ -324,13 +318,6 @@ export function Dashboard() {
               <Link className="na-stat na-stat--warn" to="/applications?deed=delivery-failed" title="Deeds issued but not delivered to the agent (no reachable claim contact). Open the list to add a contact, then resend the deed.">
                 <span className="na-stat__n">{d.deedsNoContact}</span>
                 <span className="na-stat__l">deed{d.deedsNoContact === 1 ? '' : 's'} issued · delivery failed, view and resend</span>
-                <Icon name="arrowRight" className="na-stat__go" />
-              </Link>
-            )}
-            {naCorrections && (
-              <Link className="na-stat na-stat--warn" to="/activity" title="An agent reported that a deed's tenancy start date is incorrect. Review in the activity feed and amend the application if correct.">
-                <span className="na-stat__n">{corrections}</span>
-                <span className="na-stat__l">tenancy-start correction{corrections === 1 ? '' : 's'} reported by agents, review</span>
                 <Icon name="arrowRight" className="na-stat__go" />
               </Link>
             )}

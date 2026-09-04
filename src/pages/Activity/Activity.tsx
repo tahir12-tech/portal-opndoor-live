@@ -55,6 +55,7 @@ function feedText(kind: string, tenant: string) {
     case 'deed_regenerated': return <>Deed regenerated for {t}</>;
     case 'deed_reissued': return <>Deed reissued for {t}</>;
     case 'tenancy_amended': return <>Tenancy start amended for {t}</>;
+    case 'tenancy_correction_applied': return <>Tenancy start corrected by the agent for {t}</>;
     default: return <>Referral sent for {t}</>; // referral_created
   }
 }

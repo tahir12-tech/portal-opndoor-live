@@ -1,12 +1,12 @@
 /* =====================================================================
    Public tenancy-start correction page (#81). Reached from the tokenised link
-   in the deed-delivery email. The agent can propose a corrected tenancy start
-   with an optional note. Submitting NEVER changes the application: it records a
-   report for opndoor to review and apply via the audited amend flow.
+   in the executed-deed email. The agent enters the correct tenancy start and
+   submitting APPLIES it: the deed is voided and a corrected one is sent to the
+   tenant to sign again. There is no opndoor review step.
 
    Public route (outside RequireAuth). The token is exchanged with the
-   tenancy-correction Edge Function (verify_jwt off), which validates it and
-   records the report. No portal access or sign-in is required.
+   tenancy-correction Edge Function (verify_jwt off), which validates it and does
+   the correction with the service role. No portal access or sign-in is required.
    ===================================================================== */
 import { useEffect, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -28,6 +28,7 @@ export function TenancyCorrection() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [result, setResult] = useState<{ newStart: string; reissued: boolean } | null>(null);
 
   async function call(action: 'load' | 'submit', body: Record<string, unknown> = {}) {
     const { data, error: err } = await sb().functions.invoke('tenancy-correction', { body: { action, token, ...body } });
@@ -67,6 +68,7 @@ export function TenancyCorrection() {
       if (SUPABASE_ENABLED) {
         const d = await call('submit', { proposedStart: proposed, note });
         if (!d.ok) { setError(String(d.error ?? 'Could not submit. Please try again.')); return; }
+        setResult({ newStart: String(d.newStart ?? ''), reissued: !!d.reissued });
       }
       setPhase('done');
     } catch (err) {
@@ -92,15 +94,19 @@ export function TenancyCorrection() {
 
         {phase === 'already' && info && (
           <>
-            <h1 className="tcx__title">Thank you</h1>
-            <p className="tcx__muted">A correction for <b>{info.guaranteeRef}</b> has already been submitted. opndoor will review it and be in touch if anything is needed.</p>
+            <h1 className="tcx__title">Already corrected</h1>
+            <p className="tcx__muted">The tenancy start for <b>{info.guaranteeRef}</b> has already been corrected here. The reissued deed is with the tenant to sign again.</p>
           </>
         )}
 
         {phase === 'done' && (
           <>
-            <h1 className="tcx__title">Correction received</h1>
-            <p className="tcx__muted">Thank you. opndoor will review the proposed tenancy start date and update the deed if it is correct. Nothing has changed on your deed yet.</p>
+            <h1 className="tcx__title">Tenancy start corrected</h1>
+            {result && !result.reissued ? (
+              <p className="tcx__muted">The tenancy start{result.newStart ? <> is now <b>{result.newStart}</b></> : null} has been updated.</p>
+            ) : (
+              <p className="tcx__muted">{result?.newStart ? <>The deed now shows a tenancy start of <b>{result.newStart}</b>. </> : null}The tenant has been sent a corrected deed to sign again. Once they sign, the corrected signed deed will be emailed to you.</p>
+            )}
           </>
         )}
 
@@ -108,7 +114,7 @@ export function TenancyCorrection() {
           <>
             <h1 className="tcx__title">Correct the tenancy start date</h1>
             <p className="tcx__muted">
-              Deed <b>{info.guaranteeRef}</b>{info.property ? <> for {info.property}</> : null} shows a tenancy start of <b>{info.currentStart}</b>. If that is wrong, tell us the correct date. This does not change the deed: opndoor reviews every correction and reissues if needed.
+              Deed <b>{info.guaranteeRef}</b>{info.property ? <> for {info.property}</> : null} shows a tenancy start of <b>{info.currentStart}</b>. If that is wrong, enter the correct date below. We will void the current deed and send the tenant a corrected one to sign straight away.
             </p>
             <form className="tcx__form" onSubmit={submit} noValidate>
               <div className="field">
@@ -120,7 +126,7 @@ export function TenancyCorrection() {
                 <textarea id="tcx-note" rows={3} maxLength={500} placeholder="Optional note" value={note} onChange={(e) => setNote(e.target.value)} />
               </div>
               {error && <p className="tcx__error" role="alert">{error}</p>}
-              <button className="btn btn--primary btn--block" type="submit" disabled={busy}>{busy ? 'Submitting…' : 'Submit correction'}</button>
+              <button className="btn btn--primary btn--block" type="submit" disabled={busy}>{busy ? 'Correcting…' : 'Correct and reissue the deed'}</button>
             </form>
           </>
         )}
