@@ -34,10 +34,39 @@ export function AgencyMatchQueue({ onChanged }: { onChanged?: () => void }) {
   return (
     <div className="rq">
       {rows.map((row) => (
-        <MatchItem key={row.applicationId} row={row} onDone={after} />
+        row.matchedBy === 'email'
+          ? <AutoMatchItem key={row.applicationId} row={row} />
+          : <MatchItem key={row.applicationId} row={row} onDone={after} />
       ))}
       <div className={`empty${!loading && rows.length === 0 ? ' is-shown' : ''}`}>
         No direct applications waiting on an agency. The queue is clear.
+      </div>
+    </div>
+  );
+}
+
+/* An email auto-match: the contact email was exact and carried a branch, so it set
+   the agency and the branch itself, pinned to the direct route. Read-only, shown so
+   the tab records that it happened and how. */
+function AutoMatchItem({ row }: { row: AgencyMatchRow }) {
+  return (
+    <div className="rqitem">
+      <span className="rqitem__ic rqitem__ic--agency"><Icon name="building" /></span>
+      <div className="rqitem__main">
+        <div className="rqitem__top">
+          <span className="rqitem__name">Tenant typed “{row.typedName}”</span>
+          <span className="tag tag--admin">Email match</span>
+        </div>
+        <div className="rqitem__meta">
+          {row.guaranteeRef} · {row.tenantName}{row.property ? ` · ${row.property}` : ''} · {row.when}
+        </div>
+        <div className="match">
+          <span className="match__lbl">Matched</span>
+          <span className="match__txt">
+            Contact email matched <b>{row.autoAgencyName}</b>
+            {row.resolvedBranchName ? <> · <b>{row.resolvedBranchName}</b></> : null}. Auto-accepted; no review needed.
+          </span>
+        </div>
       </div>
     </div>
   );

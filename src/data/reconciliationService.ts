@@ -149,6 +149,13 @@ export interface AgencyMatchRow {
   /** Top fuzzy candidates, logged for calibration and shown as hints. Never auto-accepted. */
   candidates: MatchCandidate[];
   when: string;
+  /** 'needs_review' (a person picks the branch) or 'resolved' (auto-accepted). */
+  state: string;
+  /** 'email' when an exact agent-contact email set the branch and agency without a
+      person; null for a name candidate awaiting review. */
+  matchedBy: string | null;
+  /** The branch an email auto-match resolved to, for its read-only line. */
+  resolvedBranchName: string | null;
 }
 
 export interface MatchBranch { id: string; name: string; area: string | null }
@@ -168,6 +175,9 @@ export async function loadAgencyMatchQueue(): Promise<AgencyMatchRow[]> {
       autoAgencyName: r.auto_agency_name ?? null,
       candidates: Array.isArray(r.candidates) ? r.candidates : [],
       when: r.created_at ? fmtWhen(r.created_at) : '',
+      state: r.state ?? 'needs_review',
+      matchedBy: r.matched_by ?? null,
+      resolvedBranchName: r.resolved_branch_name ?? null,
     }));
   }
   return MOCK_AGENCY_MATCHES.slice();
@@ -206,10 +216,16 @@ export async function dismissAgencyMatch(applicationId: string, note?: string): 
 const MOCK_AGENCY_MATCHES: AgencyMatchRow[] = [
   { applicationId: 'am1', guaranteeRef: 'GR-1000', tenantName: 'Sam Okafor', property: 'Leeds LS1 4DY',
     typedName: 'Meridian Lettings', autoAgencyId: 'ag-meridian', autoAgencyName: 'Meridian Lettings',
-    candidates: [{ agency_id: 'ag-meridian', name: 'Meridian Lettings', partner_id: 'p1', sim: 1 }], when: '24/08/2026 · 12:00' },
+    candidates: [{ agency_id: 'ag-meridian', name: 'Meridian Lettings', partner_id: 'p1', sim: 1 }], when: '24/08/2026 · 12:00',
+    state: 'needs_review', matchedBy: null, resolvedBranchName: null },
   { applicationId: 'am2', guaranteeRef: 'GR-1001', tenantName: 'Alex Field', property: 'Sheffield S1 2HH',
     typedName: 'barnad & co', autoAgencyId: null, autoAgencyName: null,
-    candidates: [{ agency_id: 'ag-barnard', name: 'Barnard & Co', partner_id: 'p1', sim: 0.62 }], when: '24/08/2026 · 11:30' },
+    candidates: [{ agency_id: 'ag-barnard', name: 'Barnard & Co', partner_id: 'p1', sim: 0.62 }], when: '24/08/2026 · 11:30',
+    state: 'needs_review', matchedBy: null, resolvedBranchName: null },
+  { applicationId: 'am3', guaranteeRef: 'GR-1002', tenantName: 'Priya Shah', property: 'York YO1 9QL',
+    typedName: 'Harbour Lettings', autoAgencyId: 'ag-harbour', autoAgencyName: 'Harbour Lettings',
+    candidates: [], when: '24/08/2026 · 10:00',
+    state: 'resolved', matchedBy: 'email', resolvedBranchName: 'Riverside' },
 ];
 const MOCK_MATCH_BRANCHES: Record<string, MatchBranch[]> = {
   'ag-meridian': [{ id: 'br-m-city', name: 'City Centre', area: 'LS1' }, { id: 'br-m-hq', name: 'Head office', area: null }],

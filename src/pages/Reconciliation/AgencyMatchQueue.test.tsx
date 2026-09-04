@@ -42,6 +42,19 @@ describe('direct agency matches', () => {
     expect(screen.getByText(/62%/)).toBeTruthy();
   });
 
+  it('shows an email auto-match read-only, naming the agency, branch and how it was matched', async () => {
+    render(<AgencyMatchQueue />);
+    await waitFor(() => expect(screen.getByText(/Tenant typed .*Harbour Lettings/)).toBeTruthy());
+    const row = screen.getByText(/Tenant typed .*Harbour Lettings/).closest('.rqitem') as HTMLElement;
+    // Tagged as an email match; names the agency and the branch it set itself.
+    expect(within(row).getByText('Email match')).toBeTruthy();
+    expect(within(row).getByText(/Contact email matched/)).toBeTruthy();
+    expect(within(row).getByText('Riverside')).toBeTruthy();
+    // Auto-accepted, so it is read-only: no resolve or dismiss on this row.
+    expect(within(row).queryByRole('button', { name: /set branch/i })).toBeNull();
+    expect(within(row).queryByRole('button', { name: /not in network/i })).toBeNull();
+  });
+
   it('can dismiss a row as not in network', async () => {
     render(<AgencyMatchQueue />);
     await waitFor(() => expect(screen.getByText(/Tenant typed .*barnad & co/)).toBeTruthy());
