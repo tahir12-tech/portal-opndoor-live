@@ -100,7 +100,7 @@ function digestEmail(p: { partnerName: string; rangeLabel: string; d: DigestRow;
       </td></tr></table>`
     : "";
   const banner = p.redirected
-    ? `<tr><td style="padding:10px 16px;background:${LILAC};border-bottom:1px solid rgba(39,29,95,0.1);font:600 12px 'Manrope',system-ui,Arial,sans-serif;color:${INK};">Test mode. This email was intended for ${p.intended} and redirected to you for review.</td></tr>`
+    ? `<tr><td style="padding:10px 16px;background:${LILAC};border-bottom:1px solid rgba(39,29,95,0.1);font:600 12px 'Manrope',system-ui,Arial,sans-serif;color:${INK};"> This email was intended for ${p.intended} and redirected to you for review.</td></tr>`
     : "";
   const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;"><tr><td align="center">
