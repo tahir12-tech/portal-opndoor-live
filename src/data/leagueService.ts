@@ -33,6 +33,9 @@ export interface LeagueOpts {
   partner?: string;
   /** The dashboard period, driving the live date range (ignored in mock mode). */
   period?: Period;
+  /** Position-ladder narrowing: when set, the league is restricted to these branch
+      ids (the viewer's "my brand / my branches"). Undefined = the whole company. */
+  branchIds?: string[];
 }
 
 function feesOf(rec: Agency | Branch): number {
@@ -44,7 +47,7 @@ export function getLeague(view: LeagueView, opts: LeagueOpts): LeagueRow[] {
   const { role, scope } = opts;
   const partner = opts.partner || '';
   // Live mode: every tab (incl. referrers) computed from live records, period-scoped.
-  if (liveAvailable() && opts.period) return liveLeague(view, role, scope, partner, opts.period);
+  if (liveAvailable() && opts.period) return liveLeague(view, role, scope, partner, opts.period, opts.branchIds);
   const rates = getRatesFor(scope === ALL_PARTNERS ? partner || ALL_PARTNERS : scope);
 
   const inScope = (a: Agency): boolean => {
@@ -116,6 +119,10 @@ export interface ReferrerBoard {
   rows: ReferrerLeagueRow[];
 }
 
+/** Position-ladder scope for the leaderboard: the whole partner, or the viewer's
+    own branch(es) / brand. The toggle on the League page switches between them. */
+export type LeagueScope = 'company' | 'mine';
+
 /**
  * The referrer's own-partner leaderboard: positions and referral counts, plus
  * fees collected only in 'full' mode. Commission is never included. A referrer's
@@ -124,17 +131,19 @@ export interface ReferrerBoard {
  * synthesises the partner's referrers with the signed-in user (Priya Nair) as
  * self, honouring the same mode.
  */
-export async function getReferrerLeague(period: Period): Promise<ReferrerBoard> {
+export async function getReferrerLeague(period: Period, scope: LeagueScope = 'company'): Promise<ReferrerBoard> {
   const mode = getReferrerLeaderboardMode(homePartner());
   if (liveAvailable()) {
     const [start, end] = periodRange(period);
     // #5 Movement = rank change vs the SAME table 7 days earlier: run the ranking
     // again with the window end pulled back a week (on-the-fly, no snapshot store).
+    // The scope ('company' | 'mine') rides both calls so the movement diff compares
+    // like with like.
     const prevEnd = new Date(end.getTime() - 7 * DAY);
     const [cur, prev] = await Promise.all([
-      sb().rpc('referrer_league', { p_start: start.toISOString(), p_end: end.toISOString() }),
+      sb().rpc('referrer_league', { p_start: start.toISOString(), p_end: end.toISOString(), p_scope: scope }),
       prevEnd > start
-        ? sb().rpc('referrer_league', { p_start: start.toISOString(), p_end: prevEnd.toISOString() })
+        ? sb().rpc('referrer_league', { p_start: start.toISOString(), p_end: prevEnd.toISOString(), p_scope: scope })
         : Promise.resolve({ data: [], error: null }),
     ]);
     if (cur.error) throw new Error(cur.error.message);

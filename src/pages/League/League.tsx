@@ -18,10 +18,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  ALL_PARTNERS, buildLeagueDoc, exportBranded, fmtBig, getLeague, getPartners, getPeriods, partnerName,
+  ALL_PARTNERS, buildLeagueDoc, exportBranded, fmtBig, getAgencies, getLeague, getPartners, getPeriods, partnerName,
   getReferrerLeague,
-  type LeagueRow, type LeagueView, type ReferrerBoard, type Period,
+  type LeagueRow, type LeagueScope, type LeagueView, type ReferrerBoard, type Period,
 } from '@/data';
+import { getPositions, type Position } from '@/data/positionsService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -97,21 +98,56 @@ function Movement({ m }: { m: number | null }) {
   return <span className={`lt-move ${up ? 'lt-move--up' : 'lt-move--down'}`} title={`${up ? 'Up' : 'Down'} ${Math.abs(m)} since last week`}>{up ? '▲' : '▼'}{Math.abs(m)}</span>;
 }
 
+// The viewer's own branch set and a label for it, derived from their position(s).
+// A group scope (or no position) is already the whole company, so it gets no
+// narrower view and no toggle; an agency scope is "my brand"; branch scope(s) are
+// "my branch(es)". The branch set is expanded from the hydrated org tree, which is
+// itself scoped to the viewer, so it never reaches beyond what they may see.
+function scopeFromPositions(positions: Position[]): { branchIds: string[]; label: string; hasToggle: boolean } {
+  const branchScopes = positions.filter((p) => p.kind === 'branch');
+  const agencyScopes = positions.filter((p) => p.kind === 'agency');
+  const ids = new Set<string>();
+  branchScopes.forEach((p) => { if (p.targetId) ids.add(p.targetId); });
+  if (agencyScopes.length) {
+    const agencies = getAgencies(ALL_PARTNERS);
+    agencyScopes.forEach((p) => {
+      const ag = agencies.find((a) => a.id === p.targetId);
+      (ag?.branches ?? []).forEach((b) => { if (b.id) ids.add(b.id); });
+    });
+  }
+  const label = agencyScopes.length ? 'My brand' : branchScopes.length > 1 ? 'My branches' : 'My branch';
+  return { branchIds: [...ids], label, hasToggle: (agencyScopes.length > 0 || branchScopes.length > 0) && ids.size > 0 };
+}
+
+// The my-scope / whole-company switch. Shown only where both views apply.
+function ScopeToggle({ scope, setScope, mineLabel }: { scope: LeagueScope; setScope: (s: LeagueScope) => void; mineLabel: string }) {
+  return (
+    <div className="lt-scope" role="group" aria-label="League scope">
+      <Button size="sm" variant={scope === 'mine' ? 'dark' : 'ghost'} onClick={() => setScope('mine')}>{mineLabel}</Button>
+      <Button size="sm" variant={scope === 'company' ? 'dark' : 'ghost'} onClick={() => setScope('company')}>Whole company</Button>
+    </div>
+  );
+}
+
 // ---- Referrer view (#79): own-partner board, positions + counts (+ fees when Full). ----
 function ReferrerLeagueView() {
   usePageMeta('league', 'League table', ['Home', 'League table']);
   const [period, setPeriod] = useLeaguePeriod();
+  // A negotiator sees their branch's league and their company's. Their branch is
+  // resolved server-side (the branches they have referred at), so the toggle is
+  // always available; it opens on the branch, the nearer view.
+  const [scope, setScope] = useState<LeagueScope>('mine');
   const [board, setBoard] = useState<ReferrerBoard | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    getReferrerLeague(period)
+    getReferrerLeague(period, scope)
       .then((b) => { if (alive) { setBoard(b); setLoading(false); } })
       .catch(() => { if (alive) { setBoard({ mode: 'full', rows: [] }); setLoading(false); } });
     return () => { alive = false; };
-  }, [period]);
+  }, [period, scope]);
 
   const mode = board?.mode ?? 'full';
   const rows = board?.rows ?? [];
@@ -126,15 +162,18 @@ function ReferrerLeagueView() {
 
       <div className="page-head">
         <div>
-          <Eyebrow>Performance · {period.label}</Eyebrow>
+          <Eyebrow>Performance · {period.label} · {scope === 'mine' ? 'My branch' : 'Whole company'}</Eyebrow>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>Referrer leaderboard</h1>
           <p className="page-head__sub">
             {mode === 'private'
               ? 'Your own referral performance for the selected period.'
-              : 'How you rank among referrers at your partner, by referrals sent in the selected period.'}
+              : scope === 'mine'
+                ? 'How you rank among referrers at your branch, by referrals sent in the selected period.'
+                : 'How you rank among referrers across your whole company, by referrals sent in the selected period.'}
           </p>
         </div>
         <div className="page-head__actions">
+          <ScopeToggle scope={scope} setScope={setScope} mineLabel="My branch" />
           <PeriodSelect ariaLabel="League time period" value={period.id} onChange={setPeriod} options={getPeriods().map((p) => ({ value: p.id, label: p.label }))} />
         </div>
       </div>
@@ -186,10 +225,24 @@ function ReferrerLeagueView() {
 // ---- Full view (management / opndoor admin): unchanged tables + the #79 setting. ----
 function FullLeagueView() {
   usePageMeta('league', 'League tables', ['Home', 'League tables']);
-  const { role, partnerScope } = useSession(); 
+  const { role, partnerScope, currentUserId } = useSession();
   const [period, setPeriod] = useLeaguePeriod();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+
+  // The viewer's position in the org, which decides whether the league narrows to
+  // their brand/branches and what the "mine" toggle is called. A group director or
+  // a scope-less/opndoor admin has no narrower view (the whole company is theirs),
+  // so no toggle appears for them.
+  const [positions, setPositions] = useState<Position[]>([]);
+  useEffect(() => {
+    if (!currentUserId) { setPositions([]); return; }
+    let alive = true;
+    getPositions(currentUserId).then((p) => { if (alive) setPositions(p); }).catch(() => { if (alive) setPositions([]); });
+    return () => { alive = false; };
+  }, [currentUserId]);
+  const myScope = useMemo(() => scopeFromPositions(positions), [positions]);
+  const [scope, setScope] = useState<LeagueScope>('mine');
 
   const initialView = (params.get('view') as LeagueView) || 'agency';
   const [view, setView] = useState<LeagueView>(COLS[initialView] ? initialView : 'agency');
@@ -217,7 +270,10 @@ function FullLeagueView() {
   const cols = COLS[view];
   const activePartner = partnerScope === ALL_PARTNERS ? partner : partnerScope;
   const showPartner = partnerScope === ALL_PARTNERS && !partner;
-  const all = getLeague(view, { role, scope: ALL_PARTNERS, partner: activePartner, period });
+  // "My brand / branches" narrows every tab to the viewer's own branch set; "Whole
+  // company" (or no position) leaves it partner-wide as before.
+  const branchIds = myScope.hasToggle && scope === 'mine' ? myScope.branchIds : undefined;
+  const all = getLeague(view, { role, scope: ALL_PARTNERS, partner: activePartner, period, branchIds });
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -263,11 +319,12 @@ function FullLeagueView() {
         <div>
           {/* #100 Name the active scope truthfully (the table is scoped by the
               global partner selection even when the in-page selector is hidden). */}
-          <Eyebrow>Performance · {period.label}{partner ? ` · ${partnerName(partner)}` : partnerScope !== ALL_PARTNERS ? ` · ${partnerName(partnerScope)}` : ''}</Eyebrow>
+          <Eyebrow>Performance · {period.label}{partner ? ` · ${partnerName(partner)}` : partnerScope !== ALL_PARTNERS ? ` · ${partnerName(partnerScope)}` : ''}{myScope.hasToggle ? ` · ${scope === 'mine' ? myScope.label : 'Whole company'}` : ''}</Eyebrow>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>League tables</h1>
           <p className="page-head__sub">Every agency, branch and referrer ranked in full. Search, sort by any metric, and page through the whole book. The dashboard shows the top ten; this is the complete list.</p>
         </div>
         <div className="page-head__actions">
+          {myScope.hasToggle && <ScopeToggle scope={scope} setScope={setScope} mineLabel={myScope.label} />}
           <PeriodSelect ariaLabel="League time period" value={period.id} onChange={setPeriod} options={getPeriods().map((p) => ({ value: p.id, label: p.label }))} />
           <Button variant="dark" size="sm" onClick={() => void exportBranded(buildLeagueDoc(role, partnerScope, partner, period, view))} title={`Downloads the ${TABS.find((t) => t.id === view)?.label} table as a branded Excel workbook`}>
             <Icon name="download" /> Export

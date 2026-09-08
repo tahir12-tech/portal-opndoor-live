@@ -321,6 +321,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     partner: slugOfApp(a),
     agency: emb(a.agency)?.name ?? '',
     branch: emb(a.branch)?.name ?? '',
+    branchId: a.branch_id ?? '',
     // #97 Prefer the snapshotted referrer name (survives deactivation / users-RLS);
     // fall back to the live join, then a stable placeholder that is never counted.
     referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? '(unknown)',

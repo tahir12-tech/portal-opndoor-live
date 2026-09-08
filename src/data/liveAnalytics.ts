@@ -280,11 +280,19 @@ function leagueKey(r: LeagueRow): string {
   return r.key ?? `${r.name}|${r.sub}|${r.partner ?? ''}`;
 }
 
-export function liveLeague(view: LeagueView, role: Role, scope: PartnerScope, partner: string, period: Period): LeagueRow[] {
+export function liveLeague(view: LeagueView, role: Role, scope: PartnerScope, partner: string, period: Period, branchIds?: string[]): LeagueRow[] {
   const [start, end] = periodRange(period);
   // opndoor admin's in-page partner filter narrows an all-partners scope to one.
   const effScope: PartnerScope = scope === ALL_PARTNERS && partner ? partner : scope;
-  const set = scopeFull(allFull(), role, effScope);
+  let set = scopeFull(allFull(), role, effScope);
+  // Position ladder ("my branch(es) / my brand"): narrow the league (and only the
+  // league — scopeFull, which the dashboard shares, is left alone) to the viewer's
+  // own branch set. An empty list means the caller holds a scope that covers no
+  // branch, so the league is empty rather than the whole partner.
+  if (branchIds) {
+    const allow = new Set(branchIds);
+    set = set.filter((a) => a.branchId != null && allow.has(a.branchId));
+  }
   const cur = groupRows(set, view, start, end);
   // #107 Week-over-week movement: rank the SAME table as it stood 7 days ago (the
   // window pulled back a week) and diff positions by entity (on the fly, no store).
