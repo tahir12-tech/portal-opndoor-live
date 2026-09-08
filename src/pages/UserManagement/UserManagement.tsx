@@ -124,6 +124,7 @@ export function UserManagement() {
   const [addEmail, setAddEmail] = useState('');
   const [addRole, setAddRole] = useState<Role>('referrer');
   const [addPartnerId, setAddPartnerId] = useState('');
+  const [addBranch, setAddBranch] = useState('');
   // edit-role modal
   const [editUser, setEditUser] = useState<ManagedUser | null>(null);
   const [editRole, setEditRole] = useState<Role>('referrer');
@@ -273,6 +274,11 @@ export function UserManagement() {
     return out;
   }, [selectedPartner]);
 
+  // The branches a negotiator can be placed at on invite: the caller's own reach
+  // (same narrowing as the position options above). Recording one makes the new
+  // negotiator visible to the inviting manager from day one, before any referral.
+  const branchTargets = useMemo(() => scopeTargets.filter((t) => t.kind === 'branch'), [scopeTargets]);
+
   useEffect(() => {
     if (currentUserId) {
       positionsService.getPositions(currentUserId).then(setOwnPositions).catch(() => setOwnPositions([]));
@@ -378,15 +384,23 @@ export function UserManagement() {
     setAddEmail('');
     setAddRole(teamMode ? 'superadmin' : 'referrer');
     setAddPartnerId(selectedPartner !== ALL_PARTNERS ? selectedPartner : homePartner());
+    // Pre-pick the only branch a single-branch manager could mean; otherwise they choose.
+    setAddBranch(branchTargets.length === 1 ? branchTargets[0].id : '');
     setAddOpen(true);
   }
   async function sendInvite() {
     const email = addEmail.trim();
     if (busy) return;
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('Enter a valid work email to invite.'); return; }
+    // A partner manager placing a negotiator must say which branch, or the new user
+    // is invisible to a scoped inviter until their first referral. opndoor admins,
+    // who see everyone, may leave it unset.
+    if (addRole === 'referrer' && role === 'management' && branchTargets.length > 0 && !addBranch) {
+      toast('Choose the branch this negotiator will work at.'); return;
+    }
     setBusy(true);
     try {
-      const rec = await inviteUser({ firstName: addFirst.trim(), lastName: addLast.trim(), email, role: addRole, partner: addPartnerId });
+      const rec = await inviteUser({ firstName: addFirst.trim(), lastName: addLast.trim(), email, role: addRole, partner: addPartnerId, branch: addBranch });
       await refreshData();
       refresh();
       setAddOpen(false);
@@ -558,6 +572,14 @@ export function UserManagement() {
         <Field label="Role">
           <RoleOptions options={addOptions} selected={addRole} onSelect={setAddRole} />
         </Field>
+        {addRole === 'referrer' && branchTargets.length > 0 && (
+          <Field label="Branch" hint="Where this negotiator works. They show in your team from the moment you invite them.">
+            <select value={addBranch} onChange={(e) => setAddBranch(e.target.value)}>
+              <option value="">Select a branch</option>
+              {branchTargets.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </Field>
+        )}
       </Modal>
 
       {/* EDIT ROLE */}

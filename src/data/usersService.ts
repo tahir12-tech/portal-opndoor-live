@@ -210,6 +210,9 @@ export interface AddUserInput {
   email: string;
   role: Role;
   partner: string;
+  /** For a negotiator invite: the branch they will work at, recorded as their home
+      branch so the inviting manager sees them from day one. Ignored for other roles. */
+  branch?: string;
 }
 
 export function addUser(input: AddUserInput): ManagedUser {
@@ -228,7 +231,7 @@ export async function inviteUser(input: AddUserInput): Promise<ManagedUser> {
   if (SUPABASE_ENABLED) {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const { data, error } = await sb().functions.invoke('invite-user', {
-      body: { firstName: input.firstName.trim(), lastName: input.lastName.trim(), email: input.email.trim(), role: input.role, partner: input.partner, origin },
+      body: { firstName: input.firstName.trim(), lastName: input.lastName.trim(), email: input.email.trim(), role: input.role, partner: input.partner, branch: input.role === 'referrer' ? (input.branch ?? '') : '', origin },
     });
     if (error) throw new Error(await functionErrorMessage(error, 'Could not send the invitation.'));
     if (!data?.ok) throw new Error(data?.error || 'Could not send the invitation.');

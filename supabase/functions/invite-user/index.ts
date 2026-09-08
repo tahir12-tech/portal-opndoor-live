@@ -39,6 +39,7 @@ Deno.serve(async (req) => {
     const firstName = String(b.firstName ?? "").trim();
     const lastName = String(b.lastName ?? "").trim();
     const partnerSlug = String(b.partner ?? "").trim();
+    const branchId = String(b.branch ?? "").trim();
     const base = String(Deno.env.get("APP_URL") ?? b.origin ?? "").replace(/\/$/, "");
 
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ ok: false, error: "A valid email address is required." }, 400);
@@ -61,6 +62,7 @@ Deno.serve(async (req) => {
 
     // Resolve the invitee's partner + enforce who may invite whom.
     let inviteePartnerId: string | null = null;
+    let callerScoped = false;   // set for a management caller who holds a position
     if (caller.role === "superadmin") {
       if (role !== "superadmin") {
         const { data: p } = await service.from("partners").select("id").eq("slug", partnerSlug).maybeSingle();
@@ -82,6 +84,7 @@ Deno.serve(async (req) => {
       const { data: scopes } = await userClient
         .from("user_scopes").select("kind").eq("user_id", callerId);
       const kinds = new Set((scopes ?? []).map((r: { kind: string }) => r.kind));
+      callerScoped = kinds.size > 0;
 
       // No position at all is the pre-existing case: a partner-wide manager,
       // which is what management has always meant. They keep exactly what they
@@ -109,6 +112,25 @@ Deno.serve(async (req) => {
     }
 
     const fullName = `${firstName} ${lastName}`.trim() || email;
+
+    // Record the negotiator's home branch, so the scoped manager who invited them
+    // sees them from day one (before any referral). branches_select is already
+    // narrowed to the caller's position, so a row returned through the caller-scoped
+    // client is proof the caller may place a negotiator at that branch. A scoped
+    // manager MUST place them, or the new user would vanish from their Users screen
+    // until they refer.
+    let homeBranchId: string | null = null;
+    if (role === "referrer") {
+      if (branchId) {
+        const { data: br } = await userClient.from("branches").select("id, partner_id").eq("id", branchId).maybeSingle();
+        if (!br || br.partner_id !== inviteePartnerId) {
+          return json({ ok: false, error: "Choose a branch within your remit for this negotiator." }, 400);
+        }
+        homeBranchId = br.id;
+      } else if (callerScoped) {
+        return json({ ok: false, error: "Choose the branch this negotiator will work at." }, 400);
+      }
+    }
 
     // New vs re-invite: an existing portal user gets a recovery (set-password)
     // link; a new one is created by the invite link.
@@ -141,6 +163,7 @@ Deno.serve(async (req) => {
       if (targetUserId) {
         const { error: insErr } = await service.from("users").insert({
           id: targetUserId, email, full_name: fullName, role, partner_id: inviteePartnerId, status: "pending",
+          home_branch_id: homeBranchId,
         });
         if (insErr) return json({ ok: false, error: insErr.message }, 400);
       }
