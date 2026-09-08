@@ -236,6 +236,120 @@
   margin-top: 6px;
 }
 
+/* =====================================================================
+   Agent-rail nine-stage journey: phased bands, vertical spine.
+   A separate .jtl* class tree so the supplier three-stage .timeline strip
+   above is never touched. Progress only, never content.
+   ===================================================================== */
+.jtl { display: block; }
+.jtl__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.jtl__pos { font-family: var(--display); font-weight: 800; color: var(--ink); }
+
+.jtl-band + .jtl-band {
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.jtl-band__head { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
+.jtl-band__name {
+  font-family: var(--display);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ink-soft);
+}
+.jtl-chip {
+  font-family: var(--display);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.jtl-chip--done { background: var(--deed-bg); color: var(--deed); }
+.jtl-chip--inprogress { background: var(--paid-bg); color: var(--paid); }
+.jtl-chip--notstarted { background: var(--app-bg); color: var(--ink-mute); border: 1px solid var(--line-strong); }
+.jtl-chip--declined { background: var(--danger-bg); color: var(--danger); }
+
+/* One row per stage: node in a left rail, content to the right. Rows within a
+   band are contiguous (no gap), so the spine below spans node-centre to
+   node-centre exactly; the row's own height is set by its content. */
+.jtl-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  column-gap: 12px;
+  min-height: 46px;
+}
+.jtl-row--current { background: rgba(211, 100, 251, 0.06); border-radius: 12px; }
+.jtl-row__rail { position: relative; }
+.jtl-node {
+  position: relative;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  margin: 2px auto 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.jtl-node svg { width: 16px; height: 16px; }
+.jtl-node--done { background: var(--deed); color: #fff; }
+.jtl-node--current { background: var(--paid); color: #fff; box-shadow: 0 0 0 5px var(--paid-bg); }
+.jtl-node--todo,
+.jtl-node--terminated { background: var(--app-bg); color: var(--ink-mute); border: 1.5px solid var(--line-strong); }
+/* the vertical spine: node-centre (top:17px = 2px margin + 15px radius) down to
+   the next node; green below a done node, grey otherwise; not on a band's last row */
+.jtl-row:not(.jtl-row--last) .jtl-row__rail::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 17px;
+  width: 2px;
+  height: 100%;
+  transform: translateX(-1px);
+  background: var(--line-strong);
+  z-index: 0;
+}
+.jtl-row--seg:not(.jtl-row--last) .jtl-row__rail::after { background: var(--deed); }
+
+.jtl-cell { min-width: 0; padding: 4px 0 12px; }
+.jtl-row--current .jtl-cell { padding-right: 10px; }
+.jtl-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+.jtl-label {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 14.5px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.jtl-date {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.jtl-note { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+.jtl-row--current .jtl-label { color: var(--paid); }
+.jtl-row--todo .jtl-label { color: var(--ink-soft); }
+.jtl-row--terminated .jtl-label,
+.jtl-row--terminated .jtl-date { color: var(--ink-mute); }
+.jtl-row--terminated .jtl-note { color: var(--danger); font-weight: 600; }
+
+@media (max-width: 640px) {
+  .jtl-date { margin-left: 0; width: 100%; }
+}
+
 /* detail rows */
 .drow {
   display: grid;

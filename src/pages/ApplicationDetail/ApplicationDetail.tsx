@@ -25,7 +25,7 @@ import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { StatusTimeline } from '@/components/ui/StatusTimeline';
-import { buildAgentJourney, getApplicationJourney, type ApplicationJourney } from '@/data/journeyStages';
+import { buildAgentJourney, getApplicationJourney, AGENT_JOURNEY_BANDS, type ApplicationJourney } from '@/data/journeyStages';
 import { useToast } from '@/components/ui/Toast';
 import './ApplicationDetail.css';
 
@@ -345,8 +345,19 @@ export function ApplicationDetail() {
   // three-stage view. The supplier rail keeps the steps/reached computed above,
   // exactly as before.
   const agentRail = d.referencingMode === 'opndoor_referenced';
+  // Fee amounts for the journey notes. Application fee is the fixed £20 price
+  // (FEE_PENCE = 2000 in the tenant-portal function); the guarantee fee is one
+  // month's rent — the actual paid amount once paid, else the rent, both already
+  // on this page. No amount reaches the agent that was not already here.
+  const guaranteeFee = d.rentNum > 0
+    ? `£${(paymentInfo?.paidAmount ?? d.rentNum).toLocaleString('en-GB')}`
+    : '';
   const jview = agentRail && journey
-    ? buildAgentJourney(journey, (iso) => (iso ? formatLondonDate(new Date(iso)) : ''))
+    ? buildAgentJourney(
+        journey,
+        (iso) => (iso ? formatLondonDate(new Date(iso)) : ''),
+        { application: '£20', guarantee: guaranteeFee },
+      )
     : null;
   const timelineSteps = jview ? jview.steps : steps;
   const timelineReached = jview ? jview.reached : reached;
@@ -726,7 +737,7 @@ export function ApplicationDetail() {
       <Card style={{ marginBottom: 18 }}>
         <CardHead title="Status timeline" sub={jview ? 'Invited to Deed signed' : 'Sent to Paid to Deed Issued'} />
         <CardBody>
-          <StatusTimeline steps={timelineSteps} reached={timelineReached} terminated={timelineTerm} currentInProgress={timelineInProgress} />
+          <StatusTimeline steps={timelineSteps} reached={timelineReached} terminated={timelineTerm} currentInProgress={timelineInProgress} groups={jview ? AGENT_JOURNEY_BANDS : undefined} />
         </CardBody>
       </Card>
 

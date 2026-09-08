@@ -59,6 +59,14 @@ export interface JourneyView {
   currentInProgress: boolean;
 }
 
+/** The nine stages group into three named bands for the phased timeline:
+    Onboarding (1-3), Application (4-6), Outcome (7-9). */
+export const AGENT_JOURNEY_BANDS: { label: string; count: number }[] = [
+  { label: 'Onboarding', count: 3 },
+  { label: 'Application', count: 3 },
+  { label: 'Outcome', count: 3 },
+];
+
 /**
  * Build the nine-stage timeline from the journey markers. `fmt` turns an ISO
  * timestamp (or null) into a display string. Stages with no timestamp (Details,
@@ -66,7 +74,11 @@ export interface JourneyView {
  * a termination at the Decision stage; every other state has a current stage that
  * stays un-ticked until it truly completes (the deed is issued).
  */
-export function buildAgentJourney(j: ApplicationJourney, fmt: (iso: string | null) => string): JourneyView {
+export function buildAgentJourney(
+  j: ApplicationJourney,
+  fmt: (iso: string | null) => string,
+  fees?: { application?: string; guarantee?: string },
+): JourneyView {
   const declined = j.status === 'declined';
 
   // The current stage within a draft (1..6), read from the markers in order.
@@ -107,15 +119,22 @@ export function buildAgentJourney(j: ApplicationJourney, fmt: (iso: string | nul
       ? "Awaiting the tenant's signature"
       : 'Deed not yet issued';
 
+  // The fees carry their amount, not a bare label. The application fee is a
+  // fixed price; the guarantee fee is one month's rent (already on this page).
+  // The date on each stage shows the paid date once paid. Amounts fall back to
+  // a plain phrase if the caller did not supply them.
+  const appFeeNote = fees?.application ? fees.application : 'Application fee';
+  const guarFeeNote = fees?.guarantee ? `${fees.guarantee} · one month's rent` : "One month's rent";
+
   const steps = [
     { label: 'Invited', date: fmt(j.invited_at), note: 'Invite link sent to the tenant' },
     { label: 'Registered', date: fmt(j.registered_at), note: 'Tenant claimed the invite and created an account' },
     { label: 'Details', date: '', note: detailsNote },
-    { label: 'Application fee paid', date: fmt(j.fee_paid_at), note: 'The application fee' },
+    { label: 'Application fee paid', date: fmt(j.fee_paid_at), note: appFeeNote },
     { label: 'Documents', date: '', note: docsNote },
     { label: 'Submitted', date: fmt(j.submitted_at), note: 'Sent for the eligibility check' },
     { label: 'Decision', date: fmt(j.decided_at), note: decisionNote },
-    { label: 'Guarantee fee paid', date: fmt(j.guarantee_paid_at), note: 'The guarantee fee' },
+    { label: 'Guarantee fee paid', date: fmt(j.guarantee_paid_at), note: guarFeeNote },
     { label: 'Deed signed and issued', date: fmt(j.deed_at), note: deedNote },
   ];
   return { steps, reached, terminated, currentInProgress };
