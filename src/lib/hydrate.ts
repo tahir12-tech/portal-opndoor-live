@@ -138,7 +138,8 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         'payment_state, refunded_at, refunded_amount, paid_amount, refund_after_start, ' +
         'withdrawn_at, withdrawn_reason, withdrawn_note, ' +
         'deed_state, deed_sent_at, deed_viewed_at, expiry_reminders_sent, ' +
-        'referencing_mode, ' +
+        'referencing_mode, applicant_id, ' +
+        'elig:application_eligibility_payments(paid_at), ' +
         'referrer_id, referrer_name, branch_id, agency_id, partner_id, ' +
         'branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name, role), partner:partners(slug)',
     ),
@@ -306,6 +307,8 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     expired: a.status === 'expired',
     awaitingSignature: a.deed_state === 'awaiting_tenant',
     referencingMode: a.referencing_mode ?? undefined,
+    registered: a.applicant_id != null,
+    feePaid: (Array.isArray(a.elig) ? a.elig.some((e: { paid_at?: string | null }) => e?.paid_at) : !!(a.elig as { paid_at?: string | null } | null)?.paid_at),
   }));
 
   const toDate = (ts: any): Date | null => (ts ? new Date(ts) : null);

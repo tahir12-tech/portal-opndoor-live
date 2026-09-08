@@ -120,7 +120,7 @@ export interface AppFilterOpts extends AppScopeOpts {
   /** 'refunded' and 'awaiting' (deed out for signature) are cross-cuts of Paid;
       'delivery-failed' is a cross-cut of Deed (issued but not delivered to an
       agent contact, #84). */
-  status?: Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' | 'withdrawn' | 'expired';
+  status?: Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' | 'withdrawn' | 'expired' | 'invited' | 'fee-unpaid';
   agency?: string;
   branch?: string;
   /** #owner Referrer display-name filter (management + opndoor admin only). */
@@ -149,7 +149,7 @@ function inPeriod(r: ApplicationSummary, range?: [Date, Date]): boolean {
   return ts >= range[0].getTime() && ts <= range[1].getTime();
 }
 
-export function countByStatus(opts: AppFilterOpts): { all: number; referencing: number; sent: number; paid: number; deed: number; refunded: number; awaiting: number; deliveryFailed: number; withdrawn: number; expired: number } {
+export function countByStatus(opts: AppFilterOpts): { all: number; draft: number; invited: number; feeUnpaid: number; referencing: number; declined: number; sent: number; paid: number; deed: number; refunded: number; awaiting: number; deliveryFailed: number; withdrawn: number; expired: number } {
   // #owner Chips recount within the selected period (sent-date bucketed), and
   // must follow the same partner/agency/branch/referrer filters as the rows.
   let set = scopedSet(opts);
@@ -165,13 +165,16 @@ export function countByStatus(opts: AppFilterOpts): { all: number; referencing: 
   // 'deliveryFailed' is a cross-cut of Deed (issued but no reachable agent contact).
   // #2/#13 'withdrawn' and 'expired' are terminal and OUT of the funnel: not part of
   // all/sent/paid/deed, only their own separate counts (surfaced via their chips).
-  const counts = { all: 0, referencing: 0, sent: 0, paid: 0, deed: 0, refunded: 0, awaiting: 0, deliveryFailed: 0, withdrawn: 0, expired: 0 };
+  const counts = { all: 0, draft: 0, invited: 0, feeUnpaid: 0, referencing: 0, declined: 0, sent: 0, paid: 0, deed: 0, refunded: 0, awaiting: 0, deliveryFailed: 0, withdrawn: 0, expired: 0 };
   set.forEach((r) => {
     if (r.status === 'withdrawn') { counts.withdrawn++; return; }
     if (r.status === 'expired') { counts.expired++; return; }
     // Awaiting decision is pre-approval, out of the funnel like the terminal states:
     // its own count and tab, never part of All/Sent/Paid/Deed.
     if (r.status === 'referencing') { counts.referencing++; return; }
+    if (r.status === 'declined') { counts.declined++; return; }
+    // Agent-rail draft: its own tab, plus the two early sub-states.
+    if (r.status === 'draft') { counts.draft++; if (!r.registered) counts.invited++; if (!r.feePaid) counts.feeUnpaid++; return; }
     counts.all++;
     counts[r.status]++;
     if (r.refunded) counts.refunded++;
@@ -189,10 +192,20 @@ export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
   rows = rows.filter((r) => {
     // #2/#13 Withdrawn and Expired are terminal and out of the default/every-other
     // view; each appears only when its own chip is selected.
-    if ((r.status === 'withdrawn' || r.status === 'expired' || r.status === 'referencing') && opts.status !== r.status) return false;
+    // Pre-Sent (draft/referencing/declined) and terminal (withdrawn/expired) are
+    // out of the funnel/default 'all' view; each shows only under its own tab, or
+    // a draft sub-filter (invited = not yet registered, fee-unpaid). Supplier-rail
+    // applications never carry a pre-Sent status, so their view is unchanged.
+    if (r.status === 'draft' || r.status === 'referencing' || r.status === 'declined' || r.status === 'withdrawn' || r.status === 'expired') {
+      const shown = opts.status === r.status
+        || (opts.status === 'invited' && r.status === 'draft' && !r.registered)
+        || (opts.status === 'fee-unpaid' && r.status === 'draft' && !r.feePaid);
+      if (!shown) return false;
+    }
     if (opts.status === 'refunded') { if (!r.refunded) return false; }
     else if (opts.status === 'awaiting') { if (!r.awaitingSignature) return false; }
     else if (opts.status === 'delivery-failed') { if (opts.role === 'referrer' || !(r.status === 'deed' && !contactForApplication(r.agency, r.branch).contact)) return false; }
+    else if (opts.status === 'invited' || opts.status === 'fee-unpaid') { if (r.status !== 'draft') return false; }
     else if (opts.status && opts.status !== 'all' && r.status !== opts.status) return false;
     if (opts.branch && r.branch !== opts.branch) return false;
     if (opts.agency && r.agency !== opts.agency) return false;

@@ -208,6 +208,11 @@ export interface ApplicationSummary {
       agent rail with the nine-stage journey; the pre_referenced_* modes are the
       supplier rail with the three-stage view. */
   referencingMode?: ReferencingMode;
+  /** Agent-rail pre-Sent progress signals (progress only, never content), for the
+      list's early-stage filters. registered = the tenant has claimed the invite
+      and made an account; feePaid = the application fee has been paid. */
+  registered?: boolean;
+  feePaid?: boolean;
 }
 
 /** Display-ready record for the detail view (see applicationsService.getApplicationDetail). */

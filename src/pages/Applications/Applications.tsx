@@ -63,12 +63,13 @@ export function Applications() {
 
   // Initial filters from the drill-through URL (?agency= / ?branch= / ?status= / ?deed=).
   // 'refunded' and 'awaiting' are status chips that cross-cut Paid (status stays Paid).
-  const [status, setStatus] = useState<Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' | 'withdrawn' | 'expired'>(() => {
+  const [status, setStatus] = useState<Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' | 'withdrawn' | 'expired' | 'invited' | 'fee-unpaid'>(() => {
     if (params.get('deed') === 'awaiting') return 'awaiting';
     // #93 delivery-failed is management + opndoor admin only.
     if (role !== 'referrer' && params.get('deed') === 'delivery-failed') return 'delivery-failed';
     const s = params.get('status');
-    return s === 'sent' || s === 'paid' || s === 'deed' || s === 'refunded' || s === 'withdrawn' || s === 'expired' || s === 'referencing' ? s : 'all';
+    return s === 'sent' || s === 'paid' || s === 'deed' || s === 'refunded' || s === 'withdrawn' || s === 'expired' || s === 'referencing'
+      || s === 'draft' || s === 'declined' || s === 'invited' || s === 'fee-unpaid' ? s : 'all';
   });
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('Newest first');
@@ -132,10 +133,27 @@ export function Applications() {
 
   const tabs = [
     { id: 'all', label: 'All', count: counts.all },
-    // Awaiting decision: the direct rail's pre-approval state (referrers never see
-    // these rows). Shown when any exist or when the filter is deep-linked.
-    ...(role !== 'referrer' && (counts.referencing > 0 || status === 'referencing')
+    // Agent-rail pre-Sent stages (referencing_mode 'opndoor_referenced'). Each is
+    // shown only when rows exist or the filter is deep-linked, so a supplier-only
+    // partner never sees these tabs and its list is unchanged. Referrers DO see
+    // their own agent-rail apps here (this is the "goes blind from invite to
+    // approval" fix), so these are not gated to non-referrers.
+    ...(counts.draft > 0 || status === 'draft'
+      ? [{ id: 'draft', label: <Pill variant="muted" style={{ background: 'none', padding: 0 }}>In progress</Pill>, count: counts.draft }]
+      : []),
+    ...(counts.invited > 0 || status === 'invited'
+      ? [{ id: 'invited', label: <Pill variant="muted" style={{ background: 'none', padding: 0 }}>Invited, not registered</Pill>, count: counts.invited }]
+      : []),
+    ...(counts.feeUnpaid > 0 || status === 'fee-unpaid'
+      ? [{ id: 'fee-unpaid', label: <Pill variant="warn" style={{ background: 'none', padding: 0 }}>Fee unpaid</Pill>, count: counts.feeUnpaid }]
+      : []),
+    // Awaiting decision: submitted, awaiting the eligibility decision. Agent rail
+    // only (a supplier app is never here); shown to referrers too now.
+    ...(counts.referencing > 0 || status === 'referencing'
       ? [{ id: 'referencing', label: <Pill variant="warn" style={{ background: 'none', padding: 0 }}>Awaiting decision</Pill>, count: counts.referencing }]
+      : []),
+    ...(counts.declined > 0 || status === 'declined'
+      ? [{ id: 'declined', label: <Pill variant="danger" style={{ background: 'none', padding: 0 }}>Declined</Pill>, count: counts.declined }]
       : []),
     { id: 'sent', label: <Pill variant="sent" style={{ background: 'none', padding: 0 }}>Sent</Pill>, count: counts.sent },
     { id: 'paid', label: <Pill variant="paid" style={{ background: 'none', padding: 0 }}>Paid</Pill>, count: counts.paid },
@@ -205,7 +223,7 @@ export function Applications() {
       )}
 
       <div className="toolbar">
-        <FilterTabs tabs={tabs} active={status} onChange={(id) => setStatus(id as Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' | 'withdrawn' | 'expired')} />
+        <FilterTabs tabs={tabs} active={status} onChange={(id) => setStatus(id as Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' | 'withdrawn' | 'expired' | 'invited' | 'fee-unpaid')} />
       </div>
 
       <div className="toolbar">
@@ -294,7 +312,7 @@ export function Applications() {
                   <td>{r.prop}</td>
                   <td>{r.branch}<div className="dt__sub">{r.agency}</div></td>
                   <td style={{ textAlign: 'right' }}><span className="dt__rent">£{r.rent.toLocaleString('en-GB')}</span><div className="dt__sub">per month</div></td>
-                  <td><span className="status-cell"><Pill variant={r.status === 'withdrawn' || r.status === 'expired' ? 'muted' : r.status === 'referencing' ? 'warn' : (r.status as PillVariant)}>{STATUS_LABEL[r.status]}</Pill>{r.refunded && <span className="refund-tag" title="Guarantor fee refunded">Refunded</span>}</span></td>
+                  <td><span className="status-cell"><Pill variant={r.status === 'withdrawn' || r.status === 'expired' || r.status === 'draft' ? 'muted' : r.status === 'referencing' ? 'warn' : r.status === 'declined' ? 'danger' : (r.status as PillVariant)}>{STATUS_LABEL[r.status]}</Pill>{r.refunded && <span className="refund-tag" title="Guarantor fee refunded">Refunded</span>}</span></td>
                   <td className="dt__num soft">{fmtDate(r.date)}</td>
                   <td><Icon name="chevronRight" className="dt__chev" size={16} /></td>
                 </tr>
