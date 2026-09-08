@@ -613,7 +613,7 @@ function buildRealApplicationDoc(role: Role, period: Period, basis: ExportBasis,
   // activity bases reconcile with the performance export (whose Sent excludes
   // withdrawn) and a withdrawn row is never rendered as "Awaiting payment".
   const apps = scopeFull(allFull(), role, scopeFor(role)).filter((a) => !a.withdrawn && !a.expired && basisInPeriod(a, basis, start, end));
-  const STATUS: Record<FullApp['status'], string> = { sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
+  const STATUS: Record<FullApp['status'], string> = { draft: 'In progress', referencing: 'Awaiting decision', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
 
   const columns: Column[] = [
     { header: 'Partner', type: 'text' },

@@ -429,7 +429,7 @@ export function ApplicationDetail() {
 
   // Withdraw is offered only at Sent, before payment, to the owner / management / admin.
   const showWithdraw = canWithdraw(role, d.status, owned) && !isTerminal;
-  const pillVariant: PillVariant = d.status === 'withdrawn' || d.status === 'expired' ? 'muted' : d.status === 'referencing' ? 'warn' : d.status;
+  const pillVariant: PillVariant = d.status === 'withdrawn' || d.status === 'expired' || d.status === 'draft' ? 'muted' : d.status === 'referencing' ? 'warn' : d.status === 'declined' ? 'danger' : d.status;
   const statusLabel = d.statusLabel;
 
   // ---- amend permission + context ----
