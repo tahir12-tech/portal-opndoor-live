@@ -76,6 +76,13 @@ Deno.serve(async (req) => {
     }
 
     const service = createClient(SUPABASE_URL, SERVICE);
+    // Record the decision: this is a STAFF approval, and a staff decision is
+    // authoritative (a later Lettings verdict is logged but never overwrites it,
+    // see record_provider_verdict). set_application_status flipped the status; this
+    // stamps who decided and when for the journey view.
+    await service.from("applications")
+      .update({ decided_at: new Date().toISOString(), decided_by_kind: "staff" })
+      .eq("id", app.id);
     await service.from("activity_log").insert({
       application_id: app.id,
       kind: "application_approved",

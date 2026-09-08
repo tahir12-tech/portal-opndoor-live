@@ -116,6 +116,15 @@ export function Apply() {
   const [busy, setBusy] = useState(false);
   const appId = bundle?.application.id ?? 'demo-application';
 
+  // Persist the current form step (progress only, never content) so a scoped
+  // manager can see how far a mid-way tenant has got. Draft only, and
+  // fire-and-forget: it must never block or fail the form.
+  useEffect(() => {
+    if (!bundle || bundle.application.status !== 'draft') return;
+    void api.setStep(bundle.application.id, step).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, bundle?.application.id, bundle?.application.status]);
+
   // Declared here with the rest of the state, NOT beside the code that uses it.
   // It lived below the `if (!bundle) return` guard, so it did not run on the
   // first render and did on the second: "rendered more hooks than during the

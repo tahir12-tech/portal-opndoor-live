@@ -165,6 +165,13 @@ export async function listApplications(): Promise<{ applicant: MockState['applic
   return { applicant: s.applicant, applications: [s.application] };
 }
 
+/** Progress only, never content: record which form step the tenant is on so a
+    scoped manager can see how far a mid-way tenant has got. Draft-only server-side;
+    a no-op in mock mode. */
+export async function setStep(applicationId: string, step: string) {
+  if (SUPABASE_ENABLED) return await callFn('set_step', { application_id: applicationId, step });
+}
+
 export async function saveProfile(applicationId: string, patch: Record<string, unknown>) {
   if (SUPABASE_ENABLED) return await callFn('save_profile', { application_id: applicationId, patch });
   const s = readMock(); s.profile = { ...s.profile, ...patch }; writeMock(s);

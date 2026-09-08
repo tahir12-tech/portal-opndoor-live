@@ -327,6 +327,21 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "set_step") {
+      // Progress only, never content: record which form step the tenant is on, so
+      // a scoped manager can see how far a mid-way tenant has got. Only while the
+      // application is still a draft; a no-op once it has left the tenant's hands.
+      const app = await ownedApplication(body.application_id);
+      if (!app) return json({ ok: false, error: "Not permitted." }, 403);
+      const step = String(body.step ?? "");
+      const ALLOWED = ["property", "about", "fee", "address", "income", "nationality", "declaration"];
+      if (!ALLOWED.includes(step)) return json({ ok: false, error: "Unknown step." }, 400);
+      if (app.status === "draft") {
+        await service.from("applications").update({ current_step: step }).eq("id", app.id);
+      }
+      return json({ ok: true });
+    }
+
     if (action === "save_property") {
       const app = await ownedApplication(body.application_id);
       if (!app) return json({ ok: false, error: "Not found." }, 404);
