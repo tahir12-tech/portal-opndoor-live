@@ -7,7 +7,7 @@
      used by the detail builder to derive dates, contact details and
      guarantee info deterministically.
    ===================================================================== */
-import type { ApplicationSummary, Status, WithdrawReason } from '../types';
+import type { ApplicationSummary, ReferencingMode, Status, WithdrawReason } from '../types';
 
 export interface AppRecord {
   ref: string;
@@ -23,6 +23,8 @@ export interface AppRecord {
   date: string;
   referrer: string;
   owner: number;
+  /** The rail (snapshot). Live mode only; drives the agent-rail journey view. */
+  referencingMode?: ReferencingMode;
   /** #2 Withdrawal reason (present only on a withdrawn record). */
   withdrawnReason?: WithdrawReason | null;
   // Real tenant/property/timeline values from Supabase, present in live mode only.

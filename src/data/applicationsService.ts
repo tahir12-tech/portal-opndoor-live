@@ -104,7 +104,7 @@ export function isHydrated(): boolean {
   return HYDRATED;
 }
 
-const STATUS_LABEL: Record<Status, string> = { referencing: 'Awaiting decision', sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
+const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Awaiting decision', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
 
 export interface AppScopeOpts {
   role: Role;
@@ -408,6 +408,7 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
     ref: r.ref,
     status: r.status,
     statusLabel: STATUS_LABEL[r.status],
+    referencingMode: r.referencingMode,
     withdrawnReason: r.withdrawnReason ?? null,
     name: r.name,
     initials: initials(r.name),

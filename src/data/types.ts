@@ -50,7 +50,7 @@ export const ALL_PARTNERS = 'all';
 /** Application lifecycle. 'referencing' is the direct rail's pre-approval state
     (submitted, awaiting the eligibility decision); the referral and inbound rails
     are created at 'sent' and never sit here. */
-export type Status = 'referencing' | 'sent' | 'paid' | 'deed' | 'withdrawn' | 'expired';
+export type Status = 'draft' | 'referencing' | 'declined' | 'sent' | 'paid' | 'deed' | 'withdrawn' | 'expired';
 export type WithdrawReason = 'another_guarantor' | 'tenancy_fell_through' | 'duplicate' | 'other';
 /** Deed sub-state while Paid (DB-enforced set), or null before a deed exists. */
 export type DeedState = 'awaiting_tenant' | 'executed' | 'declined' | 'voided' | 'error';
@@ -204,6 +204,10 @@ export interface ApplicationSummary {
   /** True when the deed is out for signature (deed_state 'awaiting_tenant'); a
       sub-state of Paid, filterable from the list and the dashboard. */
   awaitingSignature?: boolean;
+  /** The rail this application runs on (snapshot). 'opndoor_referenced' is the
+      agent rail with the nine-stage journey; the pre_referenced_* modes are the
+      supplier rail with the three-stage view. */
+  referencingMode?: ReferencingMode;
 }
 
 /** Display-ready record for the detail view (see applicationsService.getApplicationDetail). */
@@ -211,6 +215,9 @@ export interface ApplicationDetail {
   ref: string;
   status: Status;
   statusLabel: string;
+  /** The rail (snapshot): 'opndoor_referenced' drives the nine-stage journey
+      timeline; the pre_referenced_* modes keep the three-stage view. */
+  referencingMode?: ReferencingMode;
   /** #2 Withdrawal reason when status is 'withdrawn' (else null). */
   withdrawnReason: WithdrawReason | null;
   name: string;

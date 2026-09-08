@@ -25,6 +25,7 @@ import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { StatusTimeline } from '@/components/ui/StatusTimeline';
+import { buildAgentJourney, getApplicationJourney, type ApplicationJourney } from '@/data/journeyStages';
 import { useToast } from '@/components/ui/Toast';
 import './ApplicationDetail.css';
 
@@ -135,6 +136,9 @@ export function ApplicationDetail() {
   const [resendBusy, setResendBusy] = useState(false);
   const [approveBusy, setApproveBusy] = useState(false);
   const [docs, setDocs] = useState<StaffDocument[]>([]);
+  // Agent-rail (opndoor_referenced) nine-stage journey, loaded for the timeline.
+  // Progress only, never content.
+  const [journey, setJourney] = useState<ApplicationJourney | null>(null);
   const [copied, setCopied] = useState(false);
   const [deedBusy, setDeedBusy] = useState(false);
   // #2 Withdraw (Sent, pre-payment only)
@@ -193,6 +197,15 @@ export function ApplicationDetail() {
     void listApplicationDocuments(d.ref).then((rows) => { if (!cancelled) setDocs(rows); });
     return () => { cancelled = true; };
   }, [d.ref, maySeeDocuments]);
+
+  // The agent-rail journey (nine stages) for the timeline; only for
+  // opndoor_referenced applications. dataVersion so it refreshes after an action.
+  useEffect(() => {
+    if (d.referencingMode !== 'opndoor_referenced' || !d.ref) { setJourney(null); return; }
+    let cancelled = false;
+    void getApplicationJourney(d.ref).then((jr) => { if (!cancelled) setJourney(jr); });
+    return () => { cancelled = true; };
+  }, [d.ref, d.referencingMode, dataVersion]);
 
   const openDoc = async (docId: string) => {
     const r = await applicationDocumentUrl(docId);
@@ -327,6 +340,18 @@ export function ApplicationDetail() {
     paidStep,
     { label: 'Deed Issued', date: deedDate, note: deedNote },
   ];
+
+  // Agent rail (opndoor_referenced): the nine-stage journey replaces the
+  // three-stage view. The supplier rail keeps the steps/reached computed above,
+  // exactly as before.
+  const agentRail = d.referencingMode === 'opndoor_referenced';
+  const jview = agentRail && journey
+    ? buildAgentJourney(journey, (iso) => (iso ? formatLondonDate(new Date(iso)) : ''))
+    : null;
+  const timelineSteps = jview ? jview.steps : steps;
+  const timelineReached = jview ? jview.reached : reached;
+  const timelineTerm = jview ? jview.terminated : timelineTerminated;
+  const timelineInProgress = jview ? jview.currentInProgress : false;
 
   const isDeed = d.status === 'deed';
   const deedName = `Guarantee_Deed_${d.ref}${deedVersion > 1 ? `_v${deedVersion}` : ''}.pdf`;
@@ -699,9 +724,9 @@ export function ApplicationDetail() {
       )}
 
       <Card style={{ marginBottom: 18 }}>
-        <CardHead title="Status timeline" sub="Sent to Paid to Deed Issued" />
+        <CardHead title="Status timeline" sub={jview ? 'Invited to Deed signed' : 'Sent to Paid to Deed Issued'} />
         <CardBody>
-          <StatusTimeline steps={steps} reached={reached} terminated={timelineTerminated} />
+          <StatusTimeline steps={timelineSteps} reached={timelineReached} terminated={timelineTerm} currentInProgress={timelineInProgress} />
         </CardBody>
       </Card>
 

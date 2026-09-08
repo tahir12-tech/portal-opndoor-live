@@ -138,6 +138,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         'payment_state, refunded_at, refunded_amount, paid_amount, refund_after_start, ' +
         'withdrawn_at, withdrawn_reason, withdrawn_note, ' +
         'deed_state, deed_sent_at, deed_viewed_at, expiry_reminders_sent, ' +
+        'referencing_mode, ' +
         'referrer_id, referrer_name, branch_id, agency_id, partner_id, ' +
         'branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name, role), partner:partners(slug)',
     ),
@@ -304,6 +305,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     withdrawn: a.status === 'withdrawn',
     expired: a.status === 'expired',
     awaitingSignature: a.deed_state === 'awaiting_tenant',
+    referencingMode: a.referencing_mode ?? undefined,
   }));
 
   const toDate = (ts: any): Date | null => (ts ? new Date(ts) : null);
@@ -368,6 +370,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     date: eventDate(a),
     referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? '(unknown)', // #97
     owner: ownerFlag(a),
+    referencingMode: a.referencing_mode ?? undefined,
     withdrawnReason: (a.withdrawn_reason ?? null) as AppRecord['withdrawnReason'],
     // Real values so the detail view shows exactly what was entered, and when.
     firstName: a.tenant_first_name ?? null,
