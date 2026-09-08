@@ -10,7 +10,7 @@
    (deed reissue applied server-side); payment and deed generation run on Stripe
    and PandaDoc. Send-deed emails the agent contact resolved by orgService.
    ===================================================================== */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, deedDownloadUrl, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, pandadocSandbox, resendDeed, resendPaymentEmail, sendDeedToAgent, stripeMode, withdrawApplication, type AppNote, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
@@ -359,6 +359,10 @@ export function ApplicationDetail() {
         { guarantee: guaranteeFee },
       )
     : null;
+  // Threaded layout is only possible once the journey has loaded. Until then (or
+  // if the journey RPC returns nothing) an agent-rail app falls back to the
+  // payment and deed cards, so nothing is ever missing.
+  const threaded = agentRail && jview != null;
   const timelineSteps = jview ? jview.steps : steps;
   const timelineReached = jview ? jview.reached : reached;
   const timelineTerm = jview ? jview.terminated : timelineTerminated;
@@ -689,6 +693,175 @@ export function ApplicationDetail() {
     );
   }
 
+  // The payment and deed blocks are extracted so they can render either as their
+  // own right-rail cards (supplier rail) or threaded into the agent-rail journey
+  // as the guarantee-fee (stage 8) and deed (stage 9) stages. Same JSX, same
+  // behaviour, two placements.
+  const paymentBadge = stripeMode() === 'test'
+    ? <span className="pay-badge pay-badge--test">Test mode</span>
+    : stripeMode() === 'live'
+      ? <span className="pay-badge">Live mode</span>
+      : null;
+  const deedBadge = SUPABASE_ENABLED && pandadocSandbox() ? <span className="pay-badge">Sandbox</span> : null;
+
+  const paymentBody = (
+    <>
+      {paymentAnomaly && (
+        <div className="pay-anomaly">
+          <strong>A payment was taken on this withdrawn application.</strong>
+          <p>
+            The tenant was charged after it was withdrawn, so no guarantee was issued and no
+            deed exists. <strong>This needs refunding in Stripe.</strong> Nothing refunds it
+            automatically.
+          </p>
+          <p className="soft">
+            Payment intent <code>{pi?.paymentRef}</code>. The tenant may have been shown a
+            confirmation page at the time.
+          </p>
+        </div>
+      )}
+      {payWithdrawn && !paymentAnomaly && (
+        <>
+          <div className="pay-state pay-state--refunded"><span className="pay-dot" />{isExpired ? 'Expired' : 'Withdrawn'}</div>
+          <div className="pay-note">{isExpired
+            ? 'This application expired before payment, so no guarantor fee was collected. A late payment automatically reinstates it to Paid.'
+            : 'This application was withdrawn before payment, so no guarantor fee was collected. It is excluded from conversion figures and receives no payment reminders.'}</div>
+        </>
+      )}
+      {payPaid && (
+        <>
+          <div className="pay-state pay-state--paid"><span className="pay-dot" />Paid</div>
+          <div className="drow"><span className="drow__k">Paid on</span><span className="drow__v">{pi?.paidAt ? fmtInput(new Date(pi.paidAt)) : '—'}</span></div>
+          <div className="drow"><span className="drow__k">Amount</span><span className="drow__v"><b>£{(pi?.paidAmount ?? d.rentNum).toLocaleString('en-GB')}</b></span></div>
+          <div className="drow"><span className="drow__k">Stripe reference</span><span className="drow__v pay-mono">{pi?.paymentRef ?? 'Seeded test record'}</span></div>
+          {pi?.paymentRef == null && (
+            <div className="pay-note">Seeded/test record: no Stripe payment reference. The amount shown is the guarantor fee (one month&rsquo;s rent) recorded against the application.</div>
+          )}
+        </>
+      )}
+      {payRefunded && (
+        <>
+          <div className="pay-state pay-state--refunded"><span className="pay-dot" />Refunded</div>
+          {pi?.refundAfterStart && (
+            <div className="pay-anomaly">
+              <Icon name="alert" strokeWidth={2.2} />
+              <span><b>Refunded after tenancy start, outside refund policy.</b> Review required. Recorded truthfully; nothing was reversed automatically.</span>
+            </div>
+          )}
+          <div className="drow"><span className="drow__k">Refunded on</span><span className="drow__v">{pi?.refundedAt ? fmtInput(new Date(pi.refundedAt)) : '—'}</span></div>
+          <div className="drow"><span className="drow__k">Refund reference</span><span className="drow__v pay-mono">{pi?.refundRef ?? '—'}</span></div>
+          <div className="pay-note">No commission or premium accrues on a refunded fee. The Sent to Paid transition is not reversed (by design).</div>
+        </>
+      )}
+      {payAwaiting && (
+        <>
+          <div className="pay-state pay-state--awaiting"><span className="pay-dot" />Awaiting payment</div>
+          <div className="drow"><span className="drow__k">Guarantor fee</span><span className="drow__v"><b>{d.rent}</b> · one month's rent</span></div>
+          {pi?.paymentUrl && (
+            <>
+              <div className="pay-link">
+                <input readOnly value={pi.paymentUrl} onFocus={(e) => e.currentTarget.select()} aria-label="Payment link" />
+                <Button variant="ghost" size="sm" onClick={copyLink}>{copied ? 'Copied' : 'Copy'}</Button>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <Button variant="primary" size="sm" block onClick={doResend} disabled={resendBusy}><Icon name="mail" /> {resendBusy ? 'Sending…' : 'Resend payment email'}</Button>
+              </div>
+            </>
+          )}
+          {lastEmailLog && (
+            <div className={`pay-note${lastEmailLog.kind === 'payment_email_failed' ? ' pay-note--warn' : ''}`}>
+              {lastEmailLog.kind === 'payment_email_failed' && !isAdmin
+                ? 'Payment email could not be sent. Use the copy link above to share it with the tenant; opndoor has been notified.'
+                : isAdmin ? lastEmailLog.message : (BUSINESS_LABEL[lastEmailLog.kind] ?? lastEmailLog.message)}
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+
+  const deedBody = (
+    isDeed ? (
+      <>
+        <div className="deed">
+          <span className="deed__ic"><Icon name="file" strokeWidth={1.8} /></span>
+          <div className="grow">
+            <div className="deed__t">{deedName}</div>
+            <div className="deed__s">{deedMeta}</div>
+          </div>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <Button variant="primary" block onClick={doDownloadDeed}><Icon name="download" /> Download deed</Button>
+        </div>
+        {canSend && (
+          <div style={{ marginTop: 10 }}>
+            <Button variant="ghost" block onClick={openSend}><Icon name="send" /> Send deed to agent</Button>
+          </div>
+        )}
+      </>
+    ) : SUPABASE_ENABLED && pi && d.status === 'paid' && pi.deedState ? (
+      pi.deedState === 'awaiting_tenant' ? (
+        <>
+          <div className="deed" style={{ opacity: 0.95 }}>
+            <span className="deed__ic" style={{ color: 'var(--sent)' }}><Icon name="clock" strokeWidth={1.8} /></span>
+            <div className="grow">
+              <div className="deed__t">Deed sent for signature, awaiting tenant</div>
+              <div className="deed__s">The tenant's signing journey so far</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--sent)', flex: '0 0 auto' }} />
+              <span style={{ fontWeight: 600 }}>Sent</span>
+              <span style={{ marginLeft: 'auto', color: 'var(--ink-mute)' }}>{pi.deedSentAt ? fmtStamp(new Date(pi.deedSentAt)) : '—'}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: pi.deedViewedAt ? 'var(--paid)' : 'rgba(39,29,95,0.18)', flex: '0 0 auto' }} />
+              <span style={{ fontWeight: 600, color: pi.deedViewedAt ? undefined : 'var(--ink-mute)' }}>{pi.deedViewedAt ? 'Viewed by tenant' : 'Not yet viewed'}</span>
+              {pi.deedViewedAt && <span style={{ marginLeft: 'auto', color: 'var(--ink-mute)' }}>{fmtStamp(new Date(pi.deedViewedAt))}</span>}
+            </div>
+          </div>
+          {pi.paymentState !== 'refunded' && (
+            <div style={{ marginTop: 12 }}>
+              <Button variant="primary" size="sm" block onClick={doResendDeed} disabled={deedBusy}><Icon name="send" /> {deedBusy ? 'Sending…' : 'Resend signature request'}</Button>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="pay-anomaly">
+            <Icon name="alert" strokeWidth={2.2} />
+            <span>{pi.deedState === 'declined' ? 'Tenant declined to sign the deed. Review required.' : pi.deedState === 'voided' ? 'Deed document voided in PandaDoc. Review required.' : 'Deed could not be generated. Check the branch has an agent contact, then retry.'}</span>
+          </div>
+          {pi.paymentState !== 'refunded' && (
+            <div style={{ marginTop: 10 }}>
+              <Button variant="primary" size="sm" block onClick={doResendDeed} disabled={deedBusy}><Icon name="file" /> {deedBusy ? 'Working…' : 'Generate deed'}</Button>
+            </div>
+          )}
+        </>
+      )
+    ) : (
+      <div className="deed" style={{ opacity: 0.85 }}>
+        <span className="deed__ic" style={{ color: 'var(--ink-mute)' }}><Icon name="clock" strokeWidth={1.8} /></span>
+        <div className="grow">
+          <div className="deed__t">Deed not yet issued</div>
+          <div className="deed__s">
+            {d.status === 'paid' ? 'Deed sent for signature shortly after payment' : 'Issued once the guarantor fee is paid'}
+          </div>
+        </div>
+      </div>
+    )
+  );
+
+  // Agent rail: thread the payment (stage 8) and deed (stage 9) blocks into the
+  // journey. Payment only when there is a payment record to show.
+  const journeySlots: Record<number, ReactNode> | undefined = jview
+    ? {
+        ...(SUPABASE_ENABLED && pi ? { 8: <>{paymentBadge && <div style={{ marginBottom: 10 }}>{paymentBadge}</div>}{paymentBody}</> } : {}),
+        9: <>{deedBadge && <div style={{ marginBottom: 10 }}>{deedBadge}</div>}{deedBody}</>,
+      }
+    : undefined;
+
   return (
     <>
       <div className="backbar">
@@ -734,12 +907,17 @@ export function ApplicationDetail() {
         </div>
       )}
 
-      <Card style={{ marginBottom: 18 }}>
-        <CardHead title="Status timeline" sub={jview ? 'Invited to Deed signed' : 'Sent to Paid to Deed Issued'} />
-        <CardBody>
-          <StatusTimeline steps={timelineSteps} reached={timelineReached} terminated={timelineTerm} currentInProgress={timelineInProgress} groups={jview ? AGENT_JOURNEY_BANDS : undefined} />
-        </CardBody>
-      </Card>
+      {/* Supplier rail: the three-stage strip keeps its full-width slot up top.
+          The agent rail's nine-stage journey lives in the right rail instead
+          (threaded with payment and the deed), so the details rise. */}
+      {!agentRail && (
+        <Card style={{ marginBottom: 18 }}>
+          <CardHead title="Status timeline" sub="Sent to Paid to Deed Issued" />
+          <CardBody>
+            <StatusTimeline steps={timelineSteps} reached={timelineReached} terminated={timelineTerm} currentInProgress={timelineInProgress} />
+          </CardBody>
+        </Card>
+      )}
 
       <div className="detail-grid">
         {/* LEFT */}
@@ -845,101 +1023,21 @@ export function ApplicationDetail() {
 
         {/* RIGHT */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {SUPABASE_ENABLED && pi && (
+          {threaded && jview && (
+            <Card>
+              <CardHead title="Journey" sub="Invited to Deed signed" />
+              <CardBody>
+                <StatusTimeline steps={jview.steps} reached={jview.reached} terminated={jview.terminated} currentInProgress={jview.currentInProgress} groups={AGENT_JOURNEY_BANDS} slots={journeySlots} />
+              </CardBody>
+            </Card>
+          )}
+          {!threaded && SUPABASE_ENABLED && pi && (
             <Card>
               {/* The label now follows the key rather than being a fixed string
                   next to an inverted predicate. Test mode is the one worth
                   seeing, so it is the one that stands out. */}
-              <CardHead title="Payment" actions={
-                stripeMode() === 'test'
-                  ? <span className="pay-badge pay-badge--test">Test mode</span>
-                  : stripeMode() === 'live'
-                    ? <span className="pay-badge">Live mode</span>
-                    : undefined
-              } />
-              <CardBody style={{ paddingTop: 6, paddingBottom: 12 }}>
-                {/* DEFECTS.md 8. A payment CAN land on a staff-withdrawn
-                    application: the Checkout Session outlives the withdrawal.
-                    apply_stripe_payment deliberately refuses to flip it to paid,
-                    but it does write the payment intent, so the money is real and
-                    sitting there. Without this the card said "no guarantor fee
-                    was collected" over the top of a real charge, which is the
-                    exact contradiction that let it go unnoticed. */}
-                {paymentAnomaly && (
-                  <div className="pay-anomaly">
-                    <strong>A payment was taken on this withdrawn application.</strong>
-                    <p>
-                      The tenant was charged after it was withdrawn, so no guarantee was issued and no
-                      deed exists. <strong>This needs refunding in Stripe.</strong> Nothing refunds it
-                      automatically.
-                    </p>
-                    <p className="soft">
-                      Payment intent <code>{pi.paymentRef}</code>. The tenant may have been shown a
-                      confirmation page at the time.
-                    </p>
-                  </div>
-                )}
-                {payWithdrawn && !paymentAnomaly && (
-                  <>
-                    <div className="pay-state pay-state--refunded"><span className="pay-dot" />{isExpired ? 'Expired' : 'Withdrawn'}</div>
-                    <div className="pay-note">{isExpired
-                      ? 'This application expired before payment, so no guarantor fee was collected. A late payment automatically reinstates it to Paid.'
-                      : 'This application was withdrawn before payment, so no guarantor fee was collected. It is excluded from conversion figures and receives no payment reminders.'}</div>
-                  </>
-                )}
-                {payPaid && (
-                  <>
-                    <div className="pay-state pay-state--paid"><span className="pay-dot" />Paid</div>
-                    <div className="drow"><span className="drow__k">Paid on</span><span className="drow__v">{pi.paidAt ? fmtInput(new Date(pi.paidAt)) : '—'}</span></div>
-                    {/* Seeded/test records carry no Stripe data: show the fee from the
-                        application (one month's rent) and an honest provenance note
-                        rather than a misleading £0 / "—". */}
-                    <div className="drow"><span className="drow__k">Amount</span><span className="drow__v"><b>£{(pi.paidAmount ?? d.rentNum).toLocaleString('en-GB')}</b></span></div>
-                    <div className="drow"><span className="drow__k">Stripe reference</span><span className="drow__v pay-mono">{pi.paymentRef ?? 'Seeded test record'}</span></div>
-                    {pi.paymentRef == null && (
-                      <div className="pay-note">Seeded/test record: no Stripe payment reference. The amount shown is the guarantor fee (one month&rsquo;s rent) recorded against the application.</div>
-                    )}
-                  </>
-                )}
-                {payRefunded && (
-                  <>
-                    <div className="pay-state pay-state--refunded"><span className="pay-dot" />Refunded</div>
-                    {pi.refundAfterStart && (
-                      <div className="pay-anomaly">
-                        <Icon name="alert" strokeWidth={2.2} />
-                        <span><b>Refunded after tenancy start, outside refund policy.</b> Review required. Recorded truthfully; nothing was reversed automatically.</span>
-                      </div>
-                    )}
-                    <div className="drow"><span className="drow__k">Refunded on</span><span className="drow__v">{pi.refundedAt ? fmtInput(new Date(pi.refundedAt)) : '—'}</span></div>
-                    <div className="drow"><span className="drow__k">Refund reference</span><span className="drow__v pay-mono">{pi.refundRef ?? '—'}</span></div>
-                    <div className="pay-note">No commission or premium accrues on a refunded fee. The Sent to Paid transition is not reversed (by design).</div>
-                  </>
-                )}
-                {payAwaiting && (
-                  <>
-                    <div className="pay-state pay-state--awaiting"><span className="pay-dot" />Awaiting payment</div>
-                    <div className="drow"><span className="drow__k">Guarantor fee</span><span className="drow__v"><b>{d.rent}</b> · one month's rent</span></div>
-                    {pi.paymentUrl && (
-                      <>
-                        <div className="pay-link">
-                          <input readOnly value={pi.paymentUrl} onFocus={(e) => e.currentTarget.select()} aria-label="Payment link" />
-                          <Button variant="ghost" size="sm" onClick={copyLink}>{copied ? 'Copied' : 'Copy'}</Button>
-                        </div>
-                        <div style={{ marginTop: 10 }}>
-                          <Button variant="primary" size="sm" block onClick={doResend} disabled={resendBusy}><Icon name="mail" /> {resendBusy ? 'Sending…' : 'Resend payment email'}</Button>
-                        </div>
-                      </>
-                    )}
-                    {lastEmailLog && (
-                      <div className={`pay-note${lastEmailLog.kind === 'payment_email_failed' ? ' pay-note--warn' : ''}`}>
-                        {lastEmailLog.kind === 'payment_email_failed' && !isAdmin
-                          ? 'Payment email could not be sent. Use the copy link above to share it with the tenant; opndoor has been notified.'
-                          : isAdmin ? lastEmailLog.message : (BUSINESS_LABEL[lastEmailLog.kind] ?? lastEmailLog.message)}
-                      </div>
-                    )}
-                  </>
-                )}
-              </CardBody>
+              <CardHead title="Payment" actions={paymentBadge} />
+              <CardBody style={{ paddingTop: 6, paddingBottom: 12 }}>{paymentBody}</CardBody>
             </Card>
           )}
           <Card className="gsum">
@@ -954,80 +1052,12 @@ export function ApplicationDetail() {
             </CardBody>
           </Card>
 
-          <Card>
-            <CardHead title="Guarantee deed" actions={SUPABASE_ENABLED && pandadocSandbox() ? <span className="pay-badge">Sandbox</span> : undefined} />
-            <CardBody>
-              {isDeed ? (
-                <>
-                  <div className="deed">
-                    <span className="deed__ic"><Icon name="file" strokeWidth={1.8} /></span>
-                    <div className="grow">
-                      <div className="deed__t">{deedName}</div>
-                      <div className="deed__s">{deedMeta}</div>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 14 }}>
-                    <Button variant="primary" block onClick={doDownloadDeed}><Icon name="download" /> Download deed</Button>
-                  </div>
-                  {canSend && (
-                    <div style={{ marginTop: 10 }}>
-                      <Button variant="ghost" block onClick={openSend}><Icon name="send" /> Send deed to agent</Button>
-                    </div>
-                  )}
-                </>
- ) : SUPABASE_ENABLED && pi && d.status === 'paid' && pi.deedState ? (
-                pi.deedState === 'awaiting_tenant' ? (
-                  <>
-                    <div className="deed" style={{ opacity: 0.95 }}>
-                      <span className="deed__ic" style={{ color: 'var(--sent)' }}><Icon name="clock" strokeWidth={1.8} /></span>
-                      <div className="grow">
-                        <div className="deed__t">Deed sent for signature, awaiting tenant</div>
-                        <div className="deed__s">The tenant's signing journey so far</div>
-                      </div>
-                    </div>
-                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--sent)', flex: '0 0 auto' }} />
-                        <span style={{ fontWeight: 600 }}>Sent</span>
-                        <span style={{ marginLeft: 'auto', color: 'var(--ink-mute)' }}>{pi.deedSentAt ? fmtStamp(new Date(pi.deedSentAt)) : '—'}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: pi.deedViewedAt ? 'var(--paid)' : 'rgba(39,29,95,0.18)', flex: '0 0 auto' }} />
-                        <span style={{ fontWeight: 600, color: pi.deedViewedAt ? undefined : 'var(--ink-mute)' }}>{pi.deedViewedAt ? 'Viewed by tenant' : 'Not yet viewed'}</span>
-                        {pi.deedViewedAt && <span style={{ marginLeft: 'auto', color: 'var(--ink-mute)' }}>{fmtStamp(new Date(pi.deedViewedAt))}</span>}
-                      </div>
-                    </div>
-                    {pi.paymentState !== 'refunded' && (
-                      <div style={{ marginTop: 12 }}>
-                        <Button variant="primary" size="sm" block onClick={doResendDeed} disabled={deedBusy}><Icon name="send" /> {deedBusy ? 'Sending…' : 'Resend signature request'}</Button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="pay-anomaly">
-                      <Icon name="alert" strokeWidth={2.2} />
-                      <span>{pi.deedState === 'declined' ? 'Tenant declined to sign the deed. Review required.' : pi.deedState === 'voided' ? 'Deed document voided in PandaDoc. Review required.' : 'Deed could not be generated. Check the branch has an agent contact, then retry.'}</span>
-                    </div>
-                    {pi.paymentState !== 'refunded' && (
-                      <div style={{ marginTop: 10 }}>
-                        <Button variant="primary" size="sm" block onClick={doResendDeed} disabled={deedBusy}><Icon name="file" /> {deedBusy ? 'Working…' : 'Generate deed'}</Button>
-                      </div>
-                    )}
-                  </>
-                )
-              ) : (
-  <div className="deed" style={{ opacity: 0.85 }}>
-    <span className="deed__ic" style={{ color: 'var(--ink-mute)' }}><Icon name="clock" strokeWidth={1.8} /></span>
-    <div className="grow">
-      <div className="deed__t">Deed not yet issued</div>
-      <div className="deed__s">
-        {d.status === 'paid' ? 'Deed sent for signature shortly after payment' : 'Issued once the guarantor fee is paid'}
-      </div>
-    </div>
-  </div>)}
-            </CardBody>
-          </Card>
+          {!threaded && (
+            <Card>
+              <CardHead title="Guarantee deed" actions={deedBadge} />
+              <CardBody>{deedBody}</CardBody>
+            </Card>
+          )}
 
           <Card>
             <CardHead title="Activity" />
