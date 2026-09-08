@@ -345,10 +345,10 @@ export function ApplicationDetail() {
   // three-stage view. The supplier rail keeps the steps/reached computed above,
   // exactly as before.
   const agentRail = d.referencingMode === 'opndoor_referenced';
-  // Fee amounts for the journey notes. Application fee is the fixed £20 price
-  // (FEE_PENCE = 2000 in the tenant-portal function); the guarantee fee is one
-  // month's rent — the actual paid amount once paid, else the rent, both already
-  // on this page. No amount reaches the agent that was not already here.
+  // The guarantee fee note carries the amount — one month's rent, the actual
+  // paid amount once paid, else the rent, both already on this page. No amount
+  // reaches the agent that was not already here. (The application fee shows no
+  // amount, only its paid date.)
   const guaranteeFee = d.rentNum > 0
     ? `£${(paymentInfo?.paidAmount ?? d.rentNum).toLocaleString('en-GB')}`
     : '';
@@ -356,7 +356,7 @@ export function ApplicationDetail() {
     ? buildAgentJourney(
         journey,
         (iso) => (iso ? formatLondonDate(new Date(iso)) : ''),
-        { application: '£20', guarantee: guaranteeFee },
+        { guarantee: guaranteeFee },
       )
     : null;
   const timelineSteps = jview ? jview.steps : steps;

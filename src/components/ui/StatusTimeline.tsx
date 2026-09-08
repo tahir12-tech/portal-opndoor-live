@@ -13,6 +13,7 @@
    "todo". A terminated (withdrawn / expired / declined) application stopped at
    `reached`: the NEXT stage renders 'terminated' (a ban glyph, never a tick).
    ===================================================================== */
+import { useState } from 'react';
 import { Icon } from './Icon';
 
 export interface TimelineStep {
@@ -78,6 +79,13 @@ function chipFor(states: StepState[]): { cls: string; label: string } {
   return { cls: 'notstarted', label: 'Not started' };
 }
 
+// The latest dated stage in a band — the date a completed band finished on.
+function lastDate(rows: { step: TimelineStep }[]): string {
+  let d = '';
+  for (const r of rows) if (r.step.date) d = r.step.date;
+  return d;
+}
+
 function PhasedTimeline({ steps, reached, terminated, currentInProgress, groups }: { steps: TimelineStep[]; reached: number; terminated?: boolean; currentInProgress?: boolean; groups: TimelineGroup[] }) {
   const total = steps.length;
 
@@ -93,46 +101,60 @@ function PhasedTimeline({ steps, reached, terminated, currentInProgress, groups 
     idx = end;
   });
 
-  // The summary caption, from the same reached/terminated source.
-  const posIdx = terminated ? reached : reached - 1; // 0-based index of the stage we are "at"
-  const posStage = steps[Math.max(0, Math.min(total - 1, posIdx))];
-  const posText = terminated ? `Stopped at ${reached + 1} of ${total}` : `Stage ${reached} of ${total}`;
+  // Only the band holding the active stage (the current stage, or the declined
+  // stop) is open; every other band collapses to a single line. The viewer can
+  // expand any band on click.
+  const activeN = terminated ? reached + 1 : reached;
+  const defaultOpen = Math.max(0, bands.findIndex((b) => b.rows.some((r) => r.n === activeN)));
+  const [open, setOpen] = useState<Set<number>>(() => new Set([defaultOpen]));
+  const toggle = (i: number) => setOpen((prev) => {
+    const next = new Set(prev);
+    if (next.has(i)) next.delete(i); else next.add(i);
+    return next;
+  });
 
   return (
     <div className="jtl">
-      <div className="jtl__summary">
-        <span className="jtl__pos">{posText}</span>
-        {posStage && <span>{posStage.label}</span>}
-      </div>
-      {bands.map((band) => {
+      {bands.map((band, bi) => {
         const chip = chipFor(band.rows.map((r) => r.state));
+        const isOpen = open.has(bi);
+        const doneDate = chip.cls === 'done' ? lastDate(band.rows) : '';
         return (
-          <div className="jtl-band" key={band.label}>
-            <div className="jtl-band__head">
+          <div className={`jtl-band jtl-band--${isOpen ? 'open' : 'closed'}`} key={band.label}>
+            <button type="button" className="jtl-band__head" aria-expanded={isOpen} onClick={() => toggle(bi)}>
+              <Icon name={isOpen ? 'chevronDown' : 'chevronRight'} size={15} className="jtl-band__chev" />
               <span className="jtl-band__name">{band.label}</span>
               <span className={`jtl-chip jtl-chip--${chip.cls}`}>{chip.label}</span>
-            </div>
-            {band.rows.map((r, j) => {
-              const showTick = ticksOf(r.state, currentInProgress);
-              const last = j === band.rows.length - 1;
-              const cls = `jtl-row jtl-row--${r.state}${r.state === 'done' ? ' jtl-row--seg' : ''}${last ? ' jtl-row--last' : ''}`;
-              return (
-                <div className={cls} key={r.step.label}>
-                  <div className="jtl-row__rail">
-                    <div className={`jtl-node jtl-node--${r.state}`}>
-                      {r.state === 'terminated' ? <Icon name="ban" strokeWidth={2.4} /> : showTick && <Icon name="check" strokeWidth={2.4} />}
+              {doneDate && <span className="jtl-band__date">{doneDate}</span>}
+            </button>
+            {isOpen && (
+              <div className="jtl-band__rows">
+                {band.rows.map((r, j) => {
+                  const showTick = ticksOf(r.state, currentInProgress);
+                  const last = j === band.rows.length - 1;
+                  // A row keeps its note only when it needs the detail: the
+                  // current (in-progress) stage or a declined stop.
+                  const showNote = (r.state === 'current' || r.state === 'terminated') && !!r.step.note;
+                  const cls = `jtl-row jtl-row--${r.state}${r.state === 'done' ? ' jtl-row--seg' : ''}${last ? ' jtl-row--last' : ''}`;
+                  return (
+                    <div className={cls} key={r.step.label}>
+                      <div className="jtl-row__rail">
+                        <div className={`jtl-node jtl-node--${r.state}`}>
+                          {r.state === 'terminated' ? <Icon name="ban" strokeWidth={2.4} /> : showTick && <Icon name="check" strokeWidth={2.4} />}
+                        </div>
+                      </div>
+                      <div className="jtl-cell">
+                        <div className="jtl-top">
+                          <span className="jtl-label">{r.step.label}</span>
+                          {r.step.date && <span className="jtl-date">{r.step.date}</span>}
+                        </div>
+                        {showNote && <div className="jtl-note">{r.step.note}</div>}
+                      </div>
                     </div>
-                  </div>
-                  <div className="jtl-cell">
-                    <div className="jtl-top">
-                      <span className="jtl-label">{r.step.label}</span>
-                      {r.step.date && <span className="jtl-date">{r.step.date}</span>}
-                    </div>
-                    <div className="jtl-note">{r.step.note}</div>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })}
