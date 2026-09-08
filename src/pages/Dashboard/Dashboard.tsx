@@ -11,12 +11,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ALL_PARTNERS, buildApplicationDoc, exportBordereauFile, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
-  fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartners, getPeriods, getTrend, partnerName,
+  fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartner, getPartners, getPeriods, getTrend, partnerName,
   getBordereauRate, getBordereauRateMeta, setBordereauRate,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
 import { formatLondonDate } from '@/lib/format';
 import { BASIS_META, type ExportBasis } from '@/data';
+import { getAgentRailFunnel, type AgentRailFunnel } from '@/data/agentFunnel';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -114,13 +115,32 @@ export function Dashboard() {
   // (no opndoor review), so the "corrections to review" needs-attention line and
   // its count are gone.
 
+  // Agent-rail partner: the funnel runs Invited to Deed and gains early stuck
+  // alerts. Per-partner decision (a supplier partner keeps the three-stage funnel);
+  // only meaningful when scoped to a single partner, and only for staff who see the
+  // funnel at all (canSeeSettlements). progress only, never content.
+  const agentRailPartner = partnerScope !== ALL_PARTNERS && getPartner(partnerScope)?.referencingMode === 'opndoor_referenced';
+  const [agentFunnel, setAgentFunnel] = useState<AgentRailFunnel | null>(null);
+  useEffect(() => {
+    if (!agentRailPartner || !canSeeSettlements) { setAgentFunnel(null); return; }
+    let alive = true;
+    getAgentRailFunnel(role === 'superadmin' ? partnerScope : undefined)
+      .then((f) => { if (alive) setAgentFunnel(f); })
+      .catch(() => { if (alive) setAgentFunnel(null); });
+    return () => { alive = false; };
+  }, [agentRailPartner, canSeeSettlements, partnerScope, role]);
+
   const naAwaiting = d.live && d.awaiting > 0;
   const naStuckSent = d.stuckSent !== '0';
   const naSettlements = d.live && canSeeSettlements && (partnerDue > 0 || agentDue > 0);
   // #93 Deed-delivery failure is ops furniture: management + opndoor admin only.
   const naNoContact = d.live && canSeeSettlements && d.deedsNoContact > 0;
   const naLapsing = d.live && canSeeSettlements && d.lapsing14 > 0;
-  const hasNeedsAttention = naAwaiting || naStuckSent || naSettlements || naNoContact || naLapsing;
+  // Agent-rail early-stage stuck alerts (only when this partner is on that rail).
+  const naStuckInvited = !!agentFunnel && agentFunnel.stuck_invited > 0;
+  const naStuckFee = !!agentFunnel && agentFunnel.stuck_fee > 0;
+  const naStuckRef = !!agentFunnel && agentFunnel.stuck_referencing > 0;
+  const hasNeedsAttention = naAwaiting || naStuckSent || naSettlements || naNoContact || naLapsing || naStuckInvited || naStuckFee || naStuckRef;
 
   // #25: the agent settlement can span many agencies, so show the top 5 inline and
   // collapse the rest behind a "View all" expander. The Performance export always
@@ -314,6 +334,27 @@ export function Dashboard() {
                 <Icon name="arrowRight" className="na-stat__go" />
               </Link>
             )}
+            {naStuckInvited && (
+              <Link className="na-stat na-stat--warn" to="/applications?status=invited" title="Agent-rail tenants invited but not registered after 7 days">
+                <span className="na-stat__n">{agentFunnel!.stuck_invited}</span>
+                <span className="na-stat__l">invited, not registered after 7 days</span>
+                <Icon name="arrowRight" className="na-stat__go" />
+              </Link>
+            )}
+            {naStuckFee && (
+              <Link className="na-stat na-stat--warn" to="/applications?status=fee-unpaid" title="Agent-rail tenants registered but the application fee is unpaid after 7 days">
+                <span className="na-stat__n">{agentFunnel!.stuck_fee}</span>
+                <span className="na-stat__l">application fee unpaid after 7 days</span>
+                <Icon name="arrowRight" className="na-stat__go" />
+              </Link>
+            )}
+            {naStuckRef && (
+              <Link className="na-stat na-stat--warn" to="/applications?status=referencing" title="Agent-rail applications awaiting the eligibility decision for over 7 days">
+                <span className="na-stat__n">{agentFunnel!.stuck_referencing}</span>
+                <span className="na-stat__l">awaiting decision over 7 days</span>
+                <Icon name="arrowRight" className="na-stat__go" />
+              </Link>
+            )}
             {naNoContact && (
               <Link className="na-stat na-stat--warn" to="/applications?deed=delivery-failed" title="Deeds issued but not delivered to the agent (no reachable claim contact). Open the list to add a contact, then resend the deed.">
                 <span className="na-stat__n">{d.deedsNoContact}</span>
@@ -342,11 +383,33 @@ export function Dashboard() {
         {/* FUNNEL */}
         <Card>
           <CardHead
-            title="Live referral funnel"
-            sub={d.funnelScope}
-            actions={<Pill variant="paid" style={{ fontSize: 12 }}>Sent to Paid is the headline metric</Pill>}
+            title={agentFunnel ? 'Live application journey' : 'Live referral funnel'}
+            sub={agentFunnel ? 'Invited to Deed signed' : d.funnelScope}
+            actions={agentFunnel ? undefined : <Pill variant="paid" style={{ fontSize: 12 }}>Sent to Paid is the headline metric</Pill>}
           />
           <CardBody>
+            {agentFunnel ? (
+              <div className="afunnel">
+                {[
+                  { k: 'Invited', n: agentFunnel.invited },
+                  { k: 'Registered', n: agentFunnel.registered },
+                  { k: 'Details', n: agentFunnel.details },
+                  { k: 'Application fee', n: agentFunnel.fee },
+                  { k: 'Documents', n: agentFunnel.documents },
+                  { k: 'Submitted', n: agentFunnel.submitted },
+                  { k: 'Decision', n: agentFunnel.approved + agentFunnel.declined, sub: `${agentFunnel.approved} approved · ${agentFunnel.declined} declined` },
+                  { k: 'Guarantee fee', n: agentFunnel.guarantee },
+                  { k: 'Deed', n: agentFunnel.deed },
+                ].map((s) => (
+                  <div key={s.k} className="afunnel__tile">
+                    <div className="afunnel__n">{s.n.toLocaleString('en-GB')}</div>
+                    <div className="afunnel__l">{s.k}</div>
+                    {s.sub && <div className="afunnel__sub">{s.sub}</div>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+            <>
             <div className="funnel">
               <div className="fstage fstage--sent">
                 <div className="fstage__top"><Pill variant="sent">Sent</Pill></div>
@@ -382,6 +445,8 @@ export function Dashboard() {
                 <Icon name="info" strokeWidth={2} />
                 <span>Conversion is <b>period throughput</b>: each stage counts the events that occurred within the period, so a rate can exceed 100% when payments or deeds land this period for referrals sent earlier.</span>
               </div>
+            )}
+            </>
             )}
           </CardBody>
           <CardFoot>

@@ -475,3 +475,11 @@
   margin-top: 1px;
 }
 
+
+/* Agent-rail journey funnel: a compact strip of the nine stages, scrollable when
+   the card is narrow. Neutral tiles; no accent competes with the KPIs. */
+.afunnel { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
+.afunnel__tile { flex: 0 0 auto; min-width: 96px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.afunnel__n { font-weight: 700; font-size: 20px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.afunnel__l { font-size: 12px; color: var(--ink-mute); margin-top: 5px; }
+.afunnel__sub { font-size: 10.5px; color: var(--ink-mute); margin-top: 3px; }
