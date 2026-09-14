@@ -124,7 +124,7 @@ export function PaymentConfirmed() {
             <button className="pay__btn pay__btn--primary" onClick={onSign} disabled={signing}>
               <Icon name="edit" strokeWidth={2} /> {signing ? 'Opening…' : 'Sign your deed now'}
             </button>
-            {signErr && <p className="pay__muted">We couldn&rsquo;t open the signing session just now &mdash; we&rsquo;ll email your signing link shortly.</p>}
+            {signErr && <p className="pay__muted">We couldn&rsquo;t open the signing session just now. We&rsquo;ll email your signing link shortly.</p>}
           </>
         ) : conf.deedError || gaveUp ? (
           <>

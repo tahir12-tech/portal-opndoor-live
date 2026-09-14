@@ -19,6 +19,7 @@
 // ids get a neutral { found: false } (no existence oracle).
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveRecipients } from "../_shared/emailRecipients.ts";
 
 // Minimal, self-contained PandaDoc signing-session minting (mirrors the shared
 // helper) so this public function bundles as a single file.
@@ -34,17 +35,28 @@ async function signingLink(documentId: string, recipientEmail: string, livemode:
   const KEY = livemode
     ? (Deno.env.get("PANDADOC_API_KEY") ?? "").trim()
     : (Deno.env.get("PANDADOC_API_KEY_TEST") ?? "").trim();
-  if (!KEY) return null;
+  // THE SESSION RECIPIENT MUST MATCH THE DOCUMENT'S RECIPIENT. createAndSend
+  // redirects the recipient to the review address wherever EMAIL_REVIEW_ADDRESS is
+  // set, so the session must redirect the same way. Sending the raw tenant email
+  // made PandaDoc answer 400 "no associated recipient" and the link was swallowed
+  // to null. The status screen was fixed this way on 3 Sep; this path was missed.
+  // Redirect here too, and log any failure instead of swallowing it.
+  const recipient = resolveRecipients(recipientEmail).to[0] ?? recipientEmail;
+  if (!KEY || !recipient) return null;
   try {
     const res = await fetch(`${PANDADOC_API}/documents/${documentId}/session`, {
       method: "POST",
       headers: { Authorization: `API-Key ${KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ recipient: recipientEmail, lifetime: 60 * 60 * 24 * 7 }),
+      body: JSON.stringify({ recipient, lifetime: 60 * 60 * 24 * 7 }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log(JSON.stringify({ event: "paysign_session_failed", status: res.status, detail: (await res.text()).slice(0, 300) }));
+      return null;
+    }
     const j = await res.json();
     return j.id ? `https://app.pandadoc.com/s/${j.id}` : null;
-  } catch {
+  } catch (e) {
+    console.log(JSON.stringify({ event: "paysign_session_error", message: e instanceof Error ? e.message : String(e) }));
     return null;
   }
 }

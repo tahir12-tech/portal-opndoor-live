@@ -118,6 +118,14 @@ export function buildAgentJourney(
     : j.deed_state === 'awaiting_tenant'
       ? "Awaiting the tenant's signature"
       : 'Deed not yet issued';
+  // The stage label follows the state: it only reads "signed and issued" once the
+  // deed is executed. While it is out for signature the label says so, so it can
+  // never claim the deed is done over a note that says it is still awaiting.
+  const deedLabel = j.status === 'deed'
+    ? 'Deed signed and issued'
+    : j.deed_state === 'awaiting_tenant'
+      ? 'Deed awaiting tenant'
+      : 'Deed signed and issued';
 
   // The application fee stage carries no note: its paid date on the row says it
   // all, and the amount (a fixed price) was noise. The guarantee fee keeps its
@@ -133,7 +141,7 @@ export function buildAgentJourney(
     { label: 'Submitted', date: fmt(j.submitted_at), note: 'Sent for the eligibility check' },
     { label: 'Decision', date: fmt(j.decided_at), note: decisionNote },
     { label: 'Guarantee fee paid', date: fmt(j.guarantee_paid_at), note: guarFeeNote },
-    { label: 'Deed signed and issued', date: fmt(j.deed_at), note: deedNote },
+    { label: deedLabel, date: fmt(j.deed_at), note: deedNote },
   ];
   return { steps, reached, terminated, currentInProgress };
 }
