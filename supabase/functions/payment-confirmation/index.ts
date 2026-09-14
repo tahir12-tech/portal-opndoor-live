@@ -19,47 +19,11 @@
 // ids get a neutral { found: false } (no existence oracle).
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { resolveRecipients } from "../_shared/emailRecipients.ts";
-
-// Minimal, self-contained PandaDoc signing-session minting (mirrors the shared
-// helper) so this public function bundles as a single file.
-const PANDADOC_API = "https://api.pandadoc.com/public/v1";
-// livemode picks the PandaDoc account. This function deliberately does not
-// import _shared/livemodeCredentials.ts: the comment above says it bundles as a
-// single file on purpose, so the resolution rule is duplicated here rather than
-// the bundling property being quietly broken. The rule it duplicates is the
-// important one, so it is spelled out: sandbox reads PANDADOC_API_KEY_TEST and
-// NEVER falls back to the live key, because falling back would mint a signing
-// session against the production account for a test document.
-async function signingLink(documentId: string, recipientEmail: string, livemode: boolean): Promise<string | null> {
-  const KEY = livemode
-    ? (Deno.env.get("PANDADOC_API_KEY") ?? "").trim()
-    : (Deno.env.get("PANDADOC_API_KEY_TEST") ?? "").trim();
-  // THE SESSION RECIPIENT MUST MATCH THE DOCUMENT'S RECIPIENT. createAndSend
-  // redirects the recipient to the review address wherever EMAIL_REVIEW_ADDRESS is
-  // set, so the session must redirect the same way. Sending the raw tenant email
-  // made PandaDoc answer 400 "no associated recipient" and the link was swallowed
-  // to null. The status screen was fixed this way on 3 Sep; this path was missed.
-  // Redirect here too, and log any failure instead of swallowing it.
-  const recipient = resolveRecipients(recipientEmail).to[0] ?? recipientEmail;
-  if (!KEY || !recipient) return null;
-  try {
-    const res = await fetch(`${PANDADOC_API}/documents/${documentId}/session`, {
-      method: "POST",
-      headers: { Authorization: `API-Key ${KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ recipient, lifetime: 60 * 60 * 24 * 7 }),
-    });
-    if (!res.ok) {
-      console.log(JSON.stringify({ event: "paysign_session_failed", status: res.status, detail: (await res.text()).slice(0, 300) }));
-      return null;
-    }
-    const j = await res.json();
-    return j.id ? `https://app.pandadoc.com/s/${j.id}` : null;
-  } catch (e) {
-    console.log(JSON.stringify({ event: "paysign_session_error", message: e instanceof Error ? e.message : String(e) }));
-    return null;
-  }
-}
+// The signing-session minting lives in _shared/pandadoc.ts (getSigningLink):
+// one implementation resolves both the key (with the sandbox _TEST fallback) and
+// the recipient (redirected to match the document), so this path and the tenant
+// status screen cannot drift apart again.
+import { getSigningLink } from "../_shared/pandadoc.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -140,8 +104,9 @@ Deno.serve(async (req) => {
       if (!deedReady) return json({ found: true, deedReady: false });
       const { data: mintOk } = await service.rpc("bump_rate_limit", { p_key: `paysign:${sessionId}`, p_limit: 10, p_window_secs: 3600 });
       if (mintOk === false) return json({ error: "Too many attempts, please try again later." }, 429);
-      const url = await signingLink(app.pandadoc_document_id as string, app.tenant_email as string, app.livemode === true);
-      return json({ found: true, deedReady: true, signingUrl: url });
+      const { link, detail } = await getSigningLink(app.pandadoc_document_id as string, app.tenant_email as string, app.livemode === true);
+      if (!link) console.log(JSON.stringify({ event: "paysign_session_failed", ref: app.guarantee_ref, detail: detail ?? null }));
+      return json({ found: true, deedReady: true, signingUrl: link });
     }
 
     // "Return to payment" points at the durable /pay?token page, whose Pay button

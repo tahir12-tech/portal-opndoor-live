@@ -40,8 +40,7 @@ import { splitProfilePatch, deliveryContactReady, resolveDeclaredAt } from "../_
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { submissionReceivedEmail } from "../_shared/emailTemplates.ts";
-import { resolveRecipients } from "../_shared/emailRecipients.ts";
-import { pandadocConfigFor } from "../_shared/livemodeCredentials.ts";
+import { getSigningLink } from "../_shared/pandadoc.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -54,40 +53,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...cors, "Content-Type": "application/json" },
   });
-}
-
-// Minimal PandaDoc signing-session minting, mirroring payment-confirmation, so a
-// signed-in tenant can sign from their own status screen. Never falls back to the
-// live key for a test document.
-const PANDADOC_API = "https://api.pandadoc.com/public/v1";
-async function signingLink(documentId: string, recipientEmail: string, livemode: boolean): Promise<string | null> {
-  // Resolve the key the same way the document was created (pandadocConfigFor, with
-  // the non-production _TEST fallback), not a raw env read that had no fallback and
-  // would go empty for a sandbox document on dev.
-  const cfg = pandadocConfigFor(livemode);
-  // THE SESSION RECIPIENT MUST MATCH THE DOCUMENT'S RECIPIENT. createAndSend
-  // redirects the recipient to the review address wherever EMAIL_REVIEW_ADDRESS is
-  // set, so the session has to redirect the same way. Sending the raw tenant email
-  // made PandaDoc answer 400 "no associated recipient" and the session was swallowed
-  // to null: no link, no reason. Redirect here too, and log any failure.
-  const recipient = resolveRecipients(recipientEmail).to[0] ?? recipientEmail;
-  if (!cfg.ok || !recipient) return null;
-  try {
-    const res = await fetch(`${PANDADOC_API}/documents/${documentId}/session`, {
-      method: "POST",
-      headers: { Authorization: `API-Key ${cfg.value.key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ recipient, lifetime: 60 * 60 * 24 * 7 }),
-    });
-    if (!res.ok) {
-      console.log(JSON.stringify({ event: "sign_deed_session_failed", status: res.status, detail: (await res.text()).slice(0, 300) }));
-      return null;
-    }
-    const j = await res.json();
-    return j.id ? `https://app.pandadoc.com/s/${j.id}` : null;
-  } catch (e) {
-    console.log(JSON.stringify({ event: "sign_deed_session_error", message: e instanceof Error ? e.message : String(e) }));
-    return null;
-  }
 }
 
 Deno.serve(async (req) => {
@@ -579,9 +544,12 @@ Deno.serve(async (req) => {
       if (app.status !== "paid" || app.deed_state !== "awaiting_tenant" || !app.pandadoc_document_id) {
         return json({ ok: false, error: "Your deed is not ready to sign yet." }, 409);
       }
-      const url = await signingLink(String(app.pandadoc_document_id), String(app.tenant_email ?? ""), app.livemode === true);
-      if (!url) return json({ ok: false, error: "We could not open the signing session. We will email your signing link shortly." }, 502);
-      return json({ ok: true, url });
+      const { link, detail } = await getSigningLink(String(app.pandadoc_document_id), String(app.tenant_email ?? ""), app.livemode === true);
+      if (!link) {
+        console.log(JSON.stringify({ event: "sign_deed_session_failed", detail: detail ?? null }));
+        return json({ ok: false, error: "We could not open the signing session. We will email your signing link shortly." }, 502);
+      }
+      return json({ ok: true, url: link });
     }
 
     if (action === "deed_url") {
