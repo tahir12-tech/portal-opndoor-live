@@ -1,5 +1,5 @@
 import { sendMessage, bytesToBase64, type SendResult, type Attachment } from "./mailer.ts";
-import { executedDeedAgentEmail } from "./emailTemplates.ts";
+import { executedDeedAgentEmail, executedDeedLandlordEmail } from "./emailTemplates.ts";
 import { managedByFor } from "./managedBy.ts";
 
 export interface DeedTarget {
@@ -98,6 +98,60 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
     await service.from("activity_log").insert({
       application_id: target.appId,
       kind: "deed_delivered",
+      message: `Redirected to ${res.to} (test mode).`,
+      actor: "System",
+      visibility: "internal",
+    });
+  }
+  return { ...res, to: recipient.email };
+}
+
+export interface LandlordRecipient { email: string; name: string; note?: string; actor?: string }
+
+// Sibling of deliverDeedToAgent for agency staff sending to their landlord. The
+// covering line the sender typed opens the email; no portal or correction link (a
+// private landlord has no login). The activity entry names who sent it (actor)
+// and to whom (message), so the feed reads as an audit line.
+export async function deliverDeedToLandlord(service: any, target: DeedTarget, recipient: LandlordRecipient): Promise<SendResult> {
+  const attachments: Attachment[] = [];
+  if (target.pdfPath) {
+    const { data: blob } = await service.storage.from("deeds").download(target.pdfPath);
+    if (blob) {
+      attachments.push({
+        filename: `Deed of Guarantee ${target.ref}.pdf`,
+        content: bytesToBase64(new Uint8Array(await blob.arrayBuffer())),
+      });
+    }
+  }
+  if (!attachments.length) {
+    await service.from("activity_log").insert({
+      application_id: target.appId, kind: "deed_attachment_missing",
+      message: "Executed-deed email to the landlord sent without the signed PDF: it could not be read from storage.",
+      actor: "System", visibility: "internal",
+    });
+  }
+
+  const message = executedDeedLandlordEmail({
+    guaranteeRef: target.ref,
+    tenantName: `${target.tenantTitle ?? ""} ${target.tenantName ?? ""}`.trim() || target.tenantName,
+    propertyAddr: [target.addr1, target.postcode].filter(Boolean).join(", "),
+    expiryLabel: target.tenancyStartLabel ?? null,
+    note: recipient.note,
+  });
+  const res = await sendMessage({ to: recipient.email, message, attachments });
+
+  const actor = recipient.actor && recipient.actor.trim() ? recipient.actor.trim() : "System";
+  await service.from("activity_log").insert({
+    application_id: target.appId,
+    kind: res.ok ? "deed_delivered_landlord" : "deed_delivery_failed",
+    message: res.ok ? `Deed of Guarantee sent to ${recipient.name} (${recipient.email})` : `Deed email to the landlord could not be sent: ${res.error}`,
+    actor: res.ok ? actor : "System",
+    visibility: res.ok ? "business" : "internal",
+  });
+  if (res.ok && res.to && res.to !== recipient.email) {
+    await service.from("activity_log").insert({
+      application_id: target.appId,
+      kind: "deed_delivered_landlord",
       message: `Redirected to ${res.to} (test mode).`,
       actor: "System",
       visibility: "internal",

@@ -267,6 +267,32 @@ export function executedDeedAgentEmail(p: {
   };
 }
 
+/** To a private LANDLORD, sent by their agent. Carries the agent's short
+    covering line, names the tenant, and the signed deed rides as an attachment.
+    No portal line: a private landlord has no login. */
+export function executedDeedLandlordEmail(p: {
+  guaranteeRef: string; tenantName: string; propertyAddr: string;
+  expiryLabel?: string | null; note?: string;
+}): Message {
+  const rows: [string, string][] = [
+    ["Reference", p.guaranteeRef],
+    ["Tenant", p.tenantName],
+    ["Property", p.propertyAddr],
+  ];
+  if (p.expiryLabel) rows.push(["Guarantee expires", p.expiryLabel]);
+  const note = (p.note ?? "").trim();
+  const blocks: Message["blocks"] = [];
+  if (note) blocks.push({ p: note });
+  blocks.push({ p: "The signed Deed of Guarantee is attached. Keep it with the tenancy paperwork, it is the reference for any claim under the guarantee." });
+  blocks.push({ rows });
+  blocks.push({ small: "opndoor is the guarantor for the term above." });
+  return {
+    subject: `Signed Deed of Guarantee for ${p.guaranteeRef}`,
+    heading: "The Deed of Guarantee has been signed",
+    blocks,
+  };
+}
+
 /** To the TENANT. No Tenant line: they know who they are. The signed deed rides
     as an attachment (added by the sender); no portal line, a tenant has no login. */
 export function executedDeedTenantEmail(p: {

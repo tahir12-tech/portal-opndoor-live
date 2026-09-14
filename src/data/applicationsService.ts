@@ -460,6 +460,8 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
     annual: `£${annual.toLocaleString('en-GB')}`,
     paymentDate: paidAt || null,
     owner: r.owner,
+    landlordName: r.landlordName ?? undefined,
+    landlordEmail: r.landlordEmail ?? undefined,
   };
 }
 
@@ -599,6 +601,30 @@ export async function sendDeedToAgent(ref: string, recipientEmail?: string, save
     throw new Error(msg || 'Could not send the deed to the agent.');
   }
   if (!data?.ok) throw new Error(data?.error || 'Could not send the deed to the agent.');
+  return { sentTo: data.sentTo as string | undefined };
+}
+
+/**
+ * Send the issued deed to the LANDLORD via the send-deed-to-landlord Edge
+ * Function. For agency staff (an owning referrer or a manager in scope) on their
+ * own application; the RPC re-checks the audience, stores the landlord's name and
+ * email on the application for a no-retype resend, and the function emails the
+ * signed deed as an attachment with the sender's covering line. No-op in mock mode.
+ */
+export async function sendDeedToLandlord(ref: string, name: string, email: string, note?: string): Promise<{ sentTo?: string }> {
+  if (!SUPABASE_ENABLED) return {};
+  const { data, error } = await sb().functions.invoke('send-deed-to-landlord', {
+    body: { ref, name, email, note: note ?? '' },
+  });
+  if (error) {
+    let msg = error.message as string;
+    try {
+      const ctx = await (error as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.();
+      if (ctx?.error) msg = ctx.error;
+    } catch { /* ignore */ }
+    throw new Error(msg || 'Could not send the deed to the landlord.');
+  }
+  if (!data?.ok) throw new Error(data?.error || 'Could not send the deed to the landlord.');
   return { sentTo: data.sentTo as string | undefined };
 }
 

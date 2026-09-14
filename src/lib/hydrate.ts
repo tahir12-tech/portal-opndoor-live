@@ -138,7 +138,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         'payment_state, refunded_at, refunded_amount, paid_amount, refund_after_start, ' +
         'withdrawn_at, withdrawn_reason, withdrawn_note, ' +
         'deed_state, deed_sent_at, deed_viewed_at, expiry_reminders_sent, ' +
-        'referencing_mode, applicant_id, ' +
+        'referencing_mode, applicant_id, landlord_name, landlord_email, ' +
         'elig:application_eligibility_payments(paid_at), ' +
         'referrer_id, referrer_name, branch_id, agency_id, partner_id, ' +
         'branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name, role), partner:partners(slug)',
@@ -375,6 +375,8 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     owner: ownerFlag(a),
     referencingMode: a.referencing_mode ?? undefined,
     withdrawnReason: (a.withdrawn_reason ?? null) as AppRecord['withdrawnReason'],
+    landlordName: a.landlord_name ?? null,
+    landlordEmail: a.landlord_email ?? null,
     // Real values so the detail view shows exactly what was entered, and when.
     firstName: a.tenant_first_name ?? null,
     lastName: a.tenant_last_name ?? null,

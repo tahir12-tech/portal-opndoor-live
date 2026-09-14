@@ -27,6 +27,9 @@ export interface AppRecord {
   referencingMode?: ReferencingMode;
   /** #2 Withdrawal reason (present only on a withdrawn record). */
   withdrawnReason?: WithdrawReason | null;
+  /** Landlord the executed deed was last sent to (live mode; agent rail). */
+  landlordName?: string | null;
+  landlordEmail?: string | null;
   // Real tenant/property/timeline values from Supabase, present in live mode only.
   // Mock seed records omit these and the detail builder synthesises deterministic
   // stand-ins instead; their presence is what makes getApplicationDetail show the

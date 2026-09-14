@@ -12,7 +12,7 @@
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, deedDownloadUrl, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, pandadocSandbox, resendDeed, resendPaymentEmail, sendDeedToAgent, stripeMode, withdrawApplication, type AppNote, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
+import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, deedDownloadUrl, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, pandadocSandbox, resendDeed, resendPaymentEmail, sendDeedToAgent, sendDeedToLandlord, stripeMode, withdrawApplication, type AppNote, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
@@ -129,6 +129,13 @@ export function ApplicationDetail() {
   const [soEmail, setSoEmail] = useState('');
   const [soSave, setSoSave] = useState(false);
   const [sendBusy, setSendBusy] = useState(false);
+
+  // send-deed-to-landlord (agency staff send to their own client)
+  const [landlordOpen, setLandlordOpen] = useState(false);
+  const [llName, setLlName] = useState('');
+  const [llEmail, setLlEmail] = useState('');
+  const [llNote, setLlNote] = useState('');
+  const [llBusy, setLlBusy] = useState(false);
 
   // payment (Stripe, real mode)
   const [searchParams] = useSearchParams();
@@ -673,6 +680,36 @@ export function ApplicationDetail() {
     toast(`Deed of Guarantee sent to ${c.name} at ${c.email}.`);
   }
 
+  function openLandlord() {
+    // Prefill from the last landlord we sent to, so a resend needs no retyping.
+    setLlName(d.landlordName ?? '');
+    setLlEmail(d.landlordEmail ?? '');
+    setLlNote(`Please find attached the signed Deed of Guarantee for ${d.name}.`);
+    setLandlordOpen(true);
+  }
+
+  async function confirmLandlord() {
+    const name = llName.trim();
+    const email = llEmail.trim();
+    if (!name || !email) return;
+    setLlBusy(true);
+    try {
+      await sendDeedToLandlord(d.ref, name, email, llNote.trim());
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not send the deed.', 'error');
+      return;
+    } finally {
+      setLlBusy(false);
+    }
+    const who = role === 'management' ? 'Management' : 'Referrer';
+    setExtraActivity((prev) => [
+      { color: 'var(--heliotrope)', text: <>Deed of Guarantee sent to <b>{name}</b> ({email})</>, time: `${SUPABASE_ENABLED ? fmtStamp(new Date()) : fmtShort(NOW)} · ${who}` },
+      ...prev,
+    ]);
+    setLandlordOpen(false);
+    toast(`Deed of Guarantee sent to ${name} at ${email}.`);
+  }
+
   // Honest not-found: the reference does not exist or is not accessible to this
   // viewer (RLS returned nothing). Never substitute another of their records.
   if (d.notFound) {
@@ -795,7 +832,11 @@ export function ApplicationDetail() {
         </div>
         {canSend && (
           <div style={{ marginTop: 10 }}>
-            <Button variant="ghost" block onClick={openSend}><Icon name="send" /> Send deed to agent</Button>
+            {/* Agency staff are the agent, so they send to their client, the
+                landlord. Opndoor staff keep the send-to-agent path. */}
+            {isAdmin
+              ? <Button variant="ghost" block onClick={openSend}><Icon name="send" /> Send deed to agent</Button>
+              : <Button variant="ghost" block onClick={openLandlord}><Icon name="send" /> Send deed to landlord</Button>}
           </div>
         )}
       </>
@@ -1251,6 +1292,34 @@ export function ApplicationDetail() {
           )}
           <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '14px 0 0' }}>A copy of Guarantee_Deed_{d.ref}.pdf will be emailed to the {isReferrer ? 'recipient above' : 'selected recipient'}.</p>
         </div>
+      </Modal>
+
+      {/* SEND DEED TO LANDLORD MODAL (agency staff) */}
+      <Modal
+        open={landlordOpen}
+        onClose={() => !llBusy && setLandlordOpen(false)}
+        width={460}
+        title="Send deed to landlord"
+        sub="Email the signed Deed of Guarantee to your landlord as an attachment. Their details are saved so you can resend without retyping."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => !llBusy && setLandlordOpen(false)} disabled={llBusy}>Cancel</Button>
+            <Button variant="primary" onClick={() => void confirmLandlord()} disabled={llBusy || !llName.trim() || !llEmail.trim()}>{llBusy ? 'Sending…' : 'Send deed'}</Button>
+          </>
+        }
+      >
+        <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="field"><label htmlFor="ll-name">Landlord name</label><input type="text" id="ll-name" autoComplete="off" placeholder="Full name" value={llName} onChange={(e) => setLlName(e.target.value)} disabled={llBusy} /></div>
+          <div className="field"><label htmlFor="ll-email">Landlord email</label><input type="email" id="ll-email" autoComplete="off" placeholder="name@example.co.uk" value={llEmail} onChange={(e) => setLlEmail(e.target.value)} disabled={llBusy} /></div>
+          <div className="field span-2"><label htmlFor="ll-note">Covering line <span className="hint">Optional</span></label><textarea id="ll-note" rows={2} value={llNote} onChange={(e) => setLlNote(e.target.value)} disabled={llBusy} /></div>
+        </div>
+        {llBusy && (
+          <div className="send-busy" role="status" aria-live="polite">
+            <span className="send-busy__spinner" />
+            <span>Sending the signed deed to the landlord…</span>
+          </div>
+        )}
+        <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '14px 0 0' }}>Guarantee_Deed_{d.ref}.pdf will be attached.</p>
       </Modal>
     </>
   );
