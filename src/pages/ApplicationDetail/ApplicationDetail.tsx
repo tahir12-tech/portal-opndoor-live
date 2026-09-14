@@ -783,14 +783,14 @@ export function ApplicationDetail() {
   const deedBody = (
     isDeed ? (
       <>
-        <div className="deed">
-          <span className="deed__ic"><Icon name="file" strokeWidth={1.8} /></span>
-          <div className="grow">
-            <div className="deed__t">{deedName}</div>
-            <div className="deed__s">{deedMeta}</div>
-          </div>
+        {/* Stacked, not a flex row: the filename gets its own line and the size
+            and issue date sit beneath it in muted text, so it does not squash
+            into one line in the narrow right rail. The action sits below. */}
+        <div className="deed-file">
+          <div className="deed-file__name">{deedName}</div>
+          <div className="deed-file__meta">{deedMeta}</div>
         </div>
-        <div style={{ marginTop: 14 }}>
+        <div style={{ marginTop: 12 }}>
           <Button variant="primary" block onClick={doDownloadDeed}><Icon name="download" /> Download deed</Button>
         </div>
         {canSend && (
