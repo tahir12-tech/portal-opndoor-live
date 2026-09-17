@@ -175,14 +175,16 @@ Deno.serve(async (req) => {
         visibility: inviteRes.ok ? "business" : "internal",
       });
 
-      // invited: inviteRes.ok, NOT a hardcoded true. The application and the
-      // invite token both exist by now, so refusing the request would strand
-      // them; what must not happen is claiming the tenant was contacted when
-      // nothing was sent. The caller gets the truth and the reason.
+      // emailSent/emailError, the same fields the Stripe branch returns and the
+      // client reads: the toast reported "Tenant email not sent" on every invite
+      // because this branch used `invited`/`email_error` instead. NOT a hardcoded
+      // true: the application and invite token both exist by now, so refusing the
+      // request would strand them; what must not happen is claiming the tenant was
+      // contacted when nothing was sent. The caller gets the truth and the reason.
       return json({
         ok: true, id: appId, ref,
-        invited: inviteRes.ok,
-        ...(inviteRes.ok ? {} : { email_error: inviteRes.error ?? "The invitation was not sent." }),
+        emailSent: inviteRes.ok,
+        emailError: inviteRes.ok ? null : (inviteRes.error ?? "The invitation was not sent."),
       });
     }
 
