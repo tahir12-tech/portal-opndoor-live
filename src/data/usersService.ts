@@ -152,6 +152,21 @@ export async function setUserStatus(id: string, status: 'active' | 'deactivated'
   u.status = status;
 }
 
+/** Cancel a pending invite: removes the pending user, invalidates their invite
+    link and frees the email to be invited again. Same authority as inviting
+    (the RPC re-checks). No-op-safe in mock mode. */
+export async function cancelInvite(id: string): Promise<void> {
+  const u = USERS.find((x) => x.id === id);
+  if (!u) throw new Error('User not found.');
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('admin_cancel_invite', { p_user: id });
+    if (error) throw new Error(error.message || 'Could not cancel the invitation.');
+    return;
+  }
+  const idx = USERS.findIndex((x) => x.id === id);
+  if (idx >= 0) USERS.splice(idx, 1);
+}
+
 /** Reset a user's 2FA: they re-enrol at next sign in. */
 export async function resetUserMfa(id: string): Promise<void> {
   const u = USERS.find((x) => x.id === id);

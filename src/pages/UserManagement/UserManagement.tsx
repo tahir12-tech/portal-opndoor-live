@@ -19,7 +19,7 @@ import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
   getPartner, getPartners, getUserAudit, getUsers, homePartner, inviteUser, partnerName,
-  resendInvite, resetUserMfa, resetUserPassword, setUserStatus, updateUserName, updateUserRole, userEmail, userPartnerName,
+  cancelInvite, resendInvite, resetUserMfa, resetUserPassword, setUserStatus, updateUserName, updateUserRole, userEmail, userPartnerName,
   type ManagedUser, type Role, type UserAuditEntry,
 } from '@/data';
 import { ALL_PARTNERS } from '@/data';
@@ -301,6 +301,17 @@ export function UserManagement() {
       void doDirect(() => resendInvite(u.id), `Invitation resent to ${userEmail(u)}.`);
       return;
     }
+    if (action === 'cancel-invite') {
+      setConfirm({
+        title: `Cancel the invite to ${userEmail(u)}?`,
+        body: <>The pending user is removed and their invite link stops working. You can invite this email again afterwards.</>,
+        confirmLabel: 'Cancel invite',
+        danger: true,
+        success: `Invitation to ${userEmail(u)} cancelled.`,
+        run: () => cancelInvite(u.id),
+      });
+      return;
+    }
     if (action === 'reset-2fa') {
       setConfirm({
         title: `Reset 2FA for ${u.name}?`,
@@ -361,6 +372,8 @@ export function UserManagement() {
           <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('resend', u); }}><Icon name="send" />Resend invite</button>
           {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-name', u); }}><Icon name="edit" />Edit name</button>}
           {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-role', u); }}><Icon name="edit" />Edit role</button>}
+          <div className="rowmenu__sep" />
+          <button className="rowmenu__item rowmenu__item--danger" onClick={() => { setMenuOpenId(null); handleAction('cancel-invite', u); }}><Icon name="ban" />Cancel invite</button>
         </>
       );
     }
