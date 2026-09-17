@@ -32,6 +32,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateDeed, voidDocument } from "../_shared/pandadoc.ts";
 import { deliverRefund } from "../_shared/refundEmail.ts";
 import { deliverPaymentReceipt } from "../_shared/paymentReceiptEmail.ts";
+import { notifyReferrer } from "../_shared/referrerNotify.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 import { stripeSecretFor, stripeWebhookSecrets, maySendOpndoorEmail } from "../_shared/livemodeCredentials.ts";
 
@@ -221,6 +222,8 @@ Deno.serve(async (req) => {
               guaranteeRef: appRow.guarantee_ref,
             });
           }
+          // Tell the referring agent the guarantee fee has been paid.
+          await notifyReferrer(service, appId, "paid");
         }
       }
     } else if (event.type === "charge.refunded") {

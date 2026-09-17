@@ -40,6 +40,7 @@ import { splitProfilePatch, deliveryContactReady, resolveDeclaredAt } from "../_
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { submissionReceivedEmail } from "../_shared/emailTemplates.ts";
+import { notifyReferrer } from "../_shared/referrerNotify.ts";
 import { getSigningLink } from "../_shared/pandadoc.ts";
 
 const cors = {
@@ -601,6 +602,9 @@ Deno.serve(async (req) => {
       if (matchErr) {
         console.log(JSON.stringify({ event: "agency_match_failed", message: matchErr.message }));
       }
+
+      // Tell the referring agent their tenant's application is being referenced.
+      await notifyReferrer(service, app.id, "submitted");
 
       // Confirmation that we have it, so a tenant does not press Send and hear
       // nothing. Non-blocking: a mail failure is logged, never returned, so it

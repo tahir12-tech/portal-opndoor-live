@@ -343,6 +343,53 @@ export function renewalNoticeEmail(p: { tenantName: string; propertyAddr: string
   };
 }
 
+/* ---- referrer (agent) lifecycle notices ---------------------------------- */
+
+// Short portal-audience notes to the agent who made the referral, at each
+// lifecycle point. Each names the tenant and property and links to the
+// application in the portal.
+function referrerRows(guaranteeRef: string, tenantName: string, propertyAddr: string): [string, string][] {
+  return [["Reference", guaranteeRef], ["Tenant", tenantName], ["Property", propertyAddr]];
+}
+function withAction(m: Message, portalUrl?: string): Message {
+  return portalUrl ? { ...m, action: { label: "Open the application", href: portalUrl } } : m;
+}
+
+export function referrerSubmittedEmail(p: { guaranteeRef: string; tenantName: string; propertyAddr: string; portalUrl?: string }): Message {
+  return withAction({
+    subject: `${p.tenantName}'s application is being referenced`,
+    heading: "Your referral is being referenced",
+    blocks: [
+      { p: `${p.tenantName}'s application for ${p.propertyAddr} has been submitted for referencing. We will email you the decision.` },
+      { rows: referrerRows(p.guaranteeRef, p.tenantName, p.propertyAddr) },
+    ],
+  }, p.portalUrl);
+}
+
+export function referrerDecisionEmail(p: { guaranteeRef: string; tenantName: string; propertyAddr: string; approved: boolean; portalUrl?: string }): Message {
+  return withAction({
+    subject: p.approved ? `${p.tenantName} has been approved` : `A decision on ${p.tenantName}`,
+    heading: p.approved ? "Your referral has been approved" : "A decision on your referral",
+    blocks: [
+      { p: p.approved
+          ? `${p.tenantName}'s application for ${p.propertyAddr} has been approved. The tenant pays the guarantee fee next.`
+          : `The decision on ${p.tenantName}'s application for ${p.propertyAddr} has come back declined.` },
+      { rows: referrerRows(p.guaranteeRef, p.tenantName, p.propertyAddr) },
+    ],
+  }, p.portalUrl);
+}
+
+export function referrerPaidEmail(p: { guaranteeRef: string; tenantName: string; propertyAddr: string; portalUrl?: string }): Message {
+  return withAction({
+    subject: `Guarantee fee paid for ${p.tenantName}`,
+    heading: "The guarantee fee has been paid",
+    blocks: [
+      { p: `${p.tenantName} has paid the guarantee fee for ${p.propertyAddr}. The Deed of Guarantee will be issued for signing.` },
+      { rows: referrerRows(p.guaranteeRef, p.tenantName, p.propertyAddr) },
+    ],
+  }, p.portalUrl);
+}
+
 /* ---- partner and staff --------------------------------------------------- */
 
 export function staffInviteEmail(p: { inviterName: string; partnerName: string; link: string }): Message {

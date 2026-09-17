@@ -18,6 +18,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { directApprovalEmail } from "../_shared/emailTemplates.ts";
+import { notifyReferrer } from "../_shared/referrerNotify.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 import { maySendOpndoorEmail } from "../_shared/livemodeCredentials.ts";
 
@@ -126,6 +127,9 @@ Deno.serve(async (req) => {
         await service.from("activity_log").insert({ application_id: app.id, kind: "approval_email_sent", message: `Redirected to ${emailRes.to} (test mode).`, actor: "System", visibility: "internal" });
       }
     }
+
+    // Tell the referring agent the decision came back approved.
+    await notifyReferrer(service, app.id, "approved");
 
     return json({ ok: true, emailError });
   } catch (e) {
