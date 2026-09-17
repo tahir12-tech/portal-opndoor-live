@@ -46,13 +46,16 @@ export function percentFromAmount(rent: number, amount: number): number | null {
  */
 export const DEFAULT_SHARE_PERCENT = 100;
 
-/** Whether a share is worth warning about, without blocking. */
-export function shareWarning(rent: number, percent: number, amount: number): string | null {
+/** Whether a share is worth warning about, without blocking. `amountSet` says
+    whether the amount field actually holds a value: an unset amount is not a
+    mismatch, so the disagreement warning only fires once both have been set and
+    they no longer agree. */
+export function shareWarning(rent: number, percent: number, amount: number, amountSet = true): string | null {
   if (!Number.isFinite(rent) || rent <= 0) return null;
   if (percent > 100) return 'A share cannot be more than the whole rent.';
   // A rounding gap of a penny or two is arithmetic, not a mistake.
   const implied = amountFromPercent(rent, percent);
-  if (implied !== null && Math.abs(implied - amount) > 0.02) {
+  if (amountSet && implied !== null && Math.abs(implied - amount) > 0.02) {
     return 'The percentage and the amount do not agree. Change either and the other follows.';
   }
   if (percent === 0) {

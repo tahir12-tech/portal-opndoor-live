@@ -50,6 +50,10 @@ export function NewApplication() {
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [dupWarn, setDupWarn] = useState<DuplicateMatch | null>(null); // #5 duplicate soft warning
+  // Which share field the user last set, so a rent change re-derives the OTHER
+  // one (the one they did not pin) rather than clobbering their figure. Default
+  // is the percentage: the agreed split, and the field with a default of 100%.
+  const [shareBasis, setShareBasis] = useState<'percent' | 'amount'>('percent');
 
   // On-the-fly org creation extras from the AgentBranchPicker (contact capture
   // and, for an admin, the target partner the referral lands under).
@@ -286,7 +290,26 @@ export function NewApplication() {
             <CardBody>
               <div className="form-grid">
                 <Field label={<>Monthly rent (£) <Req /></>} htmlFor="ty-rent" error={err('rent')}>
-                  <input id="ty-rent" type="number" min="1" step="1" placeholder="2450" value={values.rent} onChange={(e) => set('rent', e.target.value)} onBlur={() => markTouched('rent')} />
+                  <input id="ty-rent" type="number" min="1" step="1" placeholder="2450" value={values.rent}
+                    onChange={(e) => {
+                      // The share follows the rent as you type it: re-derive the
+                      // field the user did not pin, so the pair stays consistent
+                      // and the amount is never left blank against a set share.
+                      const rentVal = e.target.value;
+                      const rentNum = Number(rentVal);
+                      setValues((prev) => {
+                        const next = { ...prev, rent: rentVal };
+                        if (shareBasis === 'amount' && prev.shareAmount.trim() !== '') {
+                          const p = percentFromAmount(rentNum, Number(prev.shareAmount));
+                          if (p !== null) next.sharePercent = String(p);
+                        } else if (prev.sharePercent.trim() !== '') {
+                          const a = amountFromPercent(rentNum, Number(prev.sharePercent));
+                          if (a !== null) next.shareAmount = String(a);
+                        }
+                        return next;
+                      });
+                    }}
+                    onBlur={() => markTouched('rent')} />
                 </Field>
                 <Field label={<>Tenancy start date <Req /></>} htmlFor="ty-start" error={err('tenancyStart')}>
         
@@ -307,6 +330,7 @@ export function NewApplication() {
                     onChange={(e) => {
                       const pctVal = e.target.value;
                       const amt = amountFromPercent(Number(values.rent), Number(pctVal));
+                      setShareBasis('percent');
                       setValues((prev) => ({
                         ...prev, sharePercent: pctVal,
                         shareAmount: amt === null ? prev.shareAmount : String(amt),
@@ -320,6 +344,7 @@ export function NewApplication() {
                     onChange={(e) => {
                       const amtVal = e.target.value;
                       const p2 = percentFromAmount(Number(values.rent), Number(amtVal));
+                      setShareBasis('amount');
                       setValues((prev) => ({
                         ...prev, shareAmount: amtVal,
                         sharePercent: p2 === null ? prev.sharePercent : String(p2),
@@ -328,7 +353,7 @@ export function NewApplication() {
                 </Field>
               </div>
               {(() => {
-                const w = shareWarning(Number(values.rent), Number(values.sharePercent), Number(values.shareAmount));
+                const w = shareWarning(Number(values.rent), Number(values.sharePercent), Number(values.shareAmount), values.shareAmount.trim() !== '');
                 // Advisory, never blocking: a zero share is legitimate and a
                 // rounding gap is arithmetic.
                 return w ? <p className="soft" style={{ marginTop: 10 }}>{w}</p> : null;
