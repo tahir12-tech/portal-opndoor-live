@@ -251,6 +251,7 @@ const FEED_KINDS = [
   'deed_sent', 'deed_viewed', 'deed_signed', 'deed_issued',
   'deed_delivered', 'deed_delivered_landlord', 'deed_undelivered',
   'deed_regenerated', 'deed_reissued', 'tenancy_amended', 'tenancy_correction_applied',
+  'renewal_notice_sent',
 ];
 
 /**

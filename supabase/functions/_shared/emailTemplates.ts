@@ -266,6 +266,7 @@ export function executedDeedAgentEmail(p: {
     blocks: [
       { p: `Your signed copy is attached. Keep it with the tenancy paperwork, it is the reference for any claim under the guarantee.${portalLine}` },
       { rows },
+      { p: "We will email you a month before the guarantee ends." },
       { small: "opndoor remains the guarantor for the term above. You remain the claim contact." },
     ],
   };
@@ -291,6 +292,7 @@ export function executedDeedLandlordEmail(p: {
   if (note) blocks.push({ p: note });
   blocks.push({ p: "The signed Deed of Guarantee is attached. Keep it with the tenancy paperwork, it is the reference for any claim under the guarantee." });
   blocks.push({ rows });
+  blocks.push({ p: "We will email you a month before the guarantee ends." });
   blocks.push({ small: "opndoor is the guarantor for the term above." });
   return {
     // The landlord is not a portal user, so the header names the document, not
@@ -322,7 +324,21 @@ export function executedDeedTenantEmail(p: {
     blocks: [
       { p: "The Deed of Guarantee for your tenancy has been signed by all parties. A copy is attached for your records, and you do not need to do anything else." },
       { rows },
+      { p: "We will email you a month before the guarantee ends." },
       { small: "opndoor is your guarantor for the term above. opndoor is a professional guarantor service, not insurance, and is not a party to your tenancy agreement. If anything changes, speak to your letting agent first." },
+    ],
+  };
+}
+
+/** The month-before-expiry renewal notice, sent to the tenant, the agent or
+    landlord, and the referrer. Names the tenant and property because not every
+    recipient is the tenant; invites a reply to continue cover. */
+export function renewalNoticeEmail(p: { tenantName: string; propertyAddr: string; endDate: string }): Message {
+  return {
+    subject: `The opndoor guarantee for ${p.tenantName} ends on ${p.endDate}`,
+    heading: "The guarantee is ending soon",
+    blocks: [
+      { p: `The guarantee for ${p.tenantName} at ${p.propertyAddr} ends on ${p.endDate}. If the tenancy is continuing and you would like cover to continue, reply to this email.` },
     ],
   };
 }

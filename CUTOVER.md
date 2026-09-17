@@ -330,6 +330,7 @@ Two are created by migrations and will already exist: `hubspot-sync` and
 | `expiry-reminders-0700` / `-0800` | `0 7 * * *` / `0 8 * * *` | Guarantees expire with no warning |
 | `expiry-cohorts-0700` / `-0800` | `0 7 * * *` / `0 8 * * *` | The monthly expiry cohort is never sent |
 | `weekly-digest-0700` / `-0800` | `0 7 * * 1` / `0 8 * * 1` | Partners get no weekly digest |
+| `renewal-notices-0700` / `-0800` | `0 7 * * *` / `0 8 * * *` | Guarantees end with no renewal outreach to the tenant, agent/landlord or referrer |
 | `referencing-callback` | `*/10 * * * *` | Executed deeds never reach Lettings. Rail 4 only |
 | `hubspot-map-check` | daily | Field-map drift is never noticed. **SILENT by design** |
 

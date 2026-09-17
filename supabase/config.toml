@@ -61,6 +61,9 @@ verify_jwt = false
 [functions.payment-reminders]
 verify_jwt = false
 
+[functions.renewal-notices]
+verify_jwt = false
+
 [functions.ops-alert]
 verify_jwt = false
 
