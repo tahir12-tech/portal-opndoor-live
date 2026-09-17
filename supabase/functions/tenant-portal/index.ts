@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
       if (!appId) return null;
       const { data } = await service
         .from("applications")
-        .select("id, status, deed_state, payment_state, pandadoc_document_id, executed_pdf_path, livemode, guarantee_ref, monthly_rent, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_county, prop_postcode, tenant_title, tenant_first_name, tenant_last_name, tenant_dob, tenant_phone, tenant_email")
+        .select("id, status, deed_state, payment_state, pandadoc_document_id, executed_pdf_path, livemode, guarantee_ref, monthly_rent, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_county, prop_postcode, share_percent, share_amount, tenant_title, tenant_first_name, tenant_last_name, tenant_dob, tenant_phone, tenant_email")
         .eq("id", appId).eq("applicant_id", callerId).maybeSingle();
       return data ?? null;
     }
@@ -231,9 +231,14 @@ Deno.serve(async (req) => {
 
       const { data: feePaid } = await service.rpc("eligibility_fee_paid", { p_application: app.id });
 
+      // Agent-invited applications carry a tenant_invites row: the agent set the
+      // email, property, rent and share, so the form locks those four.
+      const { data: inviteRow } = await service.from("tenant_invites").select("id").eq("application_id", app.id).limit(1).maybeSingle();
+
       return json({
         ok: true,
         application: app,
+        invited: !!inviteRow,
         editable: editable(app.status),
         fee_paid: feePaid === true,
         // Identity read back from where it is written, so the details step
@@ -317,6 +322,21 @@ Deno.serve(async (req) => {
       const allowed = ["monthly_rent", "tenancy_start", "prop_addr1", "prop_addr2", "prop_city", "prop_county", "prop_postcode"];
       const patch: Record<string, unknown> = {};
       for (const k of allowed) if (k in (body.patch ?? {})) patch[k] = (body.patch as any)[k];
+      // On an agent-invited application the property address and monthly rent are
+      // the agent's, and locked. Reject a client that sends a changed value, and
+      // never rewrite them (an unchanged echo from the form is dropped). The
+      // tenancy start is not locked. Email and share have no tenant write path.
+      const { data: inviteRow } = await service.from("tenant_invites").select("id").eq("application_id", app.id).limit(1).maybeSingle();
+      if (inviteRow) {
+        for (const k of ["monthly_rent", "prop_addr1", "prop_addr2", "prop_city", "prop_county", "prop_postcode"]) {
+          if (!(k in patch)) continue;
+          const same = k === "monthly_rent"
+            ? Number(patch[k]) === Number((app as Record<string, unknown>)[k])
+            : String(patch[k] ?? "") === String((app as Record<string, unknown>)[k] ?? "");
+          if (!same) return json({ ok: false, error: "Your agent set the property address and rent; they can't be changed." }, 403);
+          delete patch[k];
+        }
+      }
       if (!Object.keys(patch).length) return json({ ok: true });
       const { error } = await service.from("applications").update(patch).eq("id", app.id);
       if (error) return json({ ok: false, error: "Could not save." }, 500);

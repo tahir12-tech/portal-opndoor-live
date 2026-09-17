@@ -31,6 +31,9 @@ export interface TenantApplication {
   prop_city: string | null;
   prop_county: string | null;
   prop_postcode: string | null;
+  /** The applicant's agreed share of the rent, set by the agent on an invite. */
+  share_percent?: number | null;
+  share_amount?: number | null;
   tenant_first_name?: string | null;
   tenant_last_name?: string | null;
   tenant_email?: string | null;
@@ -38,6 +41,9 @@ export interface TenantApplication {
 
 export interface ApplicationBundle {
   application: TenantApplication;
+  /** True when an agent invited this tenant: email, property, rent and share
+      were set by the agent and are shown locked. */
+  invited?: boolean;
   editable: boolean;
   /** Has the application fee cleared? The sections after the basics lock on this. */
   fee_paid: boolean;

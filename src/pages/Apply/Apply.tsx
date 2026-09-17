@@ -212,6 +212,18 @@ export function Apply() {
   const editable = bundle?.editable !== false;
   const feePaid = bundle?.fee_paid === true;
   const locked = (id: Step) => !feePaid && LOCKED_UNTIL_PAID.includes(id);
+  // An agent-invited application: the agent set the email, property, rent and
+  // share, so those four are shown but not editable (and the server rejects a
+  // change). Everything else on the form stays editable.
+  const invited = bundle?.invited === true;
+  const shareLine = (): string => {
+    const pct = bundle?.application.share_percent;
+    const amt = bundle?.application.share_amount;
+    const parts: string[] = [];
+    if (pct != null) parts.push(`${Number(pct)}%`);
+    if (amt != null) parts.push(`£${Number(amt).toLocaleString('en-GB')}`);
+    return parts.join(' · ') || '—';
+  };
 
   // While confirming, POLL for the webhook to record the payment. A single fixed
   // wait was a guess; a slow webhook left a paying tenant on a locked form,
@@ -817,8 +829,19 @@ export function Apply() {
           <div className="ap-panel">
             {step === 'property' && (
               <Card><CardHead title="The property you are renting" /><CardBody>
-                <FieldList fields={PROPERTY_FIELDS} values={property} disabled={!editable}
-                  onChange={(n, v) => setProperty((p) => ({ ...p, [n]: v }))} />
+                {invited ? (
+                  <>
+                    <p className="ap-hint">Your agent set the property, rent and share when they invited you. They are shown here but cannot be changed. The tenancy start date is yours to edit.</p>
+                    <FieldList fields={PROPERTY_FIELDS.filter((f) => f.name !== 'tenancy_start')} values={property} disabled
+                      onChange={() => {}} />
+                    <p className="ap-p"><strong>Your share of the rent:</strong> {shareLine()}</p>
+                    <FieldList fields={PROPERTY_FIELDS.filter((f) => f.name === 'tenancy_start')} values={property} disabled={!editable}
+                      onChange={(n, v) => setProperty((p) => ({ ...p, [n]: v }))} />
+                  </>
+                ) : (
+                  <FieldList fields={PROPERTY_FIELDS} values={property} disabled={!editable}
+                    onChange={(n, v) => setProperty((p) => ({ ...p, [n]: v }))} />
+                )}
                 <h3 className="ap-h3">Who manages it?</h3>
                 <p className="ap-p">
                   We send the finished Deed of Guarantee to whoever manages the property.
@@ -835,6 +858,9 @@ export function Apply() {
                 <p className="ap-p">
                   We have your name and number from when you signed up. Change them here if they are wrong.
                 </p>
+                {invited && bundle?.application.tenant_email && (
+                  <p className="ap-hint">Your agent set your email to <b>{bundle.application.tenant_email}</b>. It can&rsquo;t be changed here.</p>
+                )}
                 <FieldList fields={BASIC_FIELDS} values={profile} disabled={!editable}
                   onChange={(n, v) => setProfile((p) => ({ ...p, [n]: v }))} />
                 {editable && footer('about')}
