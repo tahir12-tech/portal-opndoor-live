@@ -59,6 +59,10 @@ export interface Message {
       application; everything else as the referral portal. Defaults to portal so
       an unmarked template keeps today's branding. */
   audience?: "tenant" | "portal";
+  /** Overrides the audience-based brand line in the header, for a recipient who
+      is not a portal user (e.g. the executed deed emailed to a private
+      landlord). */
+  brandLabel?: string;
 }
 
 const esc = (s: string) =>
@@ -131,7 +135,7 @@ export function renderHtml(m: Message, r?: Recipients): string {
         <span style="font:800 24px/1 ${FONT};color:${VALHALLA};letter-spacing:-.02em;">opndoor</span>
         <span style="display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid ${LINE};
               font:600 10px/1.35 ${FONT};color:${INK_MUTE};letter-spacing:.08em;vertical-align:middle;">
-          ${m.audience === "tenant" ? "GUARANTOR<br>APPLICATION" : "GUARANTEE<br>REFERRAL PORTAL"}</span>
+          ${m.brandLabel ? esc(m.brandLabel).toUpperCase() : (m.audience === "tenant" ? "GUARANTOR<br>APPLICATION" : "GUARANTEE<br>REFERRAL PORTAL")}</span>
       </td></tr>
 
       <tr><td style="background:#fff;border:1px solid ${LINE};border-radius:14px;padding:32px 28px;">
@@ -163,7 +167,7 @@ export function renderText(m: Message, r?: Recipients): string {
     out.push("[REVIEW COPY] This was addressed to " + (r.intended.join(", ") || "an unknown recipient")
       + " and redirected here. Nobody real received it.", "");
   }
-  out.push(`opndoor | ${m.audience === "tenant" ? "Guarantor application" : "Guarantee Referral Portal"}`, "", m.heading.toUpperCase(), "");
+  out.push(`opndoor | ${m.brandLabel ?? (m.audience === "tenant" ? "Guarantor application" : "Guarantee Referral Portal")}`, "", m.heading.toUpperCase(), "");
   for (const b of m.blocks) {
     if ("h" in b) out.push("", strip(b.h).toUpperCase(), "");
     else if ("p" in b) out.push(strip(b.p), "");

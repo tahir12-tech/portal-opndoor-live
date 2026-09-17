@@ -245,14 +245,18 @@ export function deedToSignEmail(p: {
     portalUrl is passed: an agent has a login, a private landlord does not. */
 export function executedDeedAgentEmail(p: {
   guaranteeRef: string; tenantName: string; propertyAddr: string;
-  expiryLabel?: string | null; portalUrl?: string;
+  tenancyStartLabel?: string | null; portalUrl?: string;
 }): Message {
-  const rows: [string, string][] = [
-    ["Reference", p.guaranteeRef],
-    ["Tenant", p.tenantName],
-    ["Property", p.propertyAddr],
-  ];
-  if (p.expiryLabel) rows.push(["Guarantee expires", p.expiryLabel]);
+  // Tenancy start + the 12-month period first, so "the guarantor for the term
+  // above" in the small print has a term above it to point at.
+  const rows: [string, string][] = [];
+  if (p.tenancyStartLabel) {
+    rows.push(["Tenancy start", p.tenancyStartLabel]);
+    rows.push(["Guarantee period", "12 months"]);
+  }
+  rows.push(["Reference", p.guaranteeRef]);
+  rows.push(["Tenant", p.tenantName]);
+  rows.push(["Property", p.propertyAddr]);
   const portalLine = p.portalUrl
     ? ` You can also view it any time in <a href="${p.portalUrl}">the portal</a>.`
     : "";
@@ -272,14 +276,16 @@ export function executedDeedAgentEmail(p: {
     No portal line: a private landlord has no login. */
 export function executedDeedLandlordEmail(p: {
   guaranteeRef: string; tenantName: string; propertyAddr: string;
-  expiryLabel?: string | null; note?: string;
+  tenancyStartLabel?: string | null; note?: string;
 }): Message {
-  const rows: [string, string][] = [
-    ["Reference", p.guaranteeRef],
-    ["Tenant", p.tenantName],
-    ["Property", p.propertyAddr],
-  ];
-  if (p.expiryLabel) rows.push(["Guarantee expires", p.expiryLabel]);
+  const rows: [string, string][] = [];
+  if (p.tenancyStartLabel) {
+    rows.push(["Tenancy start", p.tenancyStartLabel]);
+    rows.push(["Guarantee period", "12 months"]);
+  }
+  rows.push(["Reference", p.guaranteeRef]);
+  rows.push(["Tenant", p.tenantName]);
+  rows.push(["Property", p.propertyAddr]);
   const note = (p.note ?? "").trim();
   const blocks: Message["blocks"] = [];
   if (note) blocks.push({ p: note });
@@ -287,6 +293,9 @@ export function executedDeedLandlordEmail(p: {
   blocks.push({ rows });
   blocks.push({ small: "opndoor is the guarantor for the term above." });
   return {
+    // The landlord is not a portal user, so the header names the document, not
+    // the portal.
+    brandLabel: "Deed of Guarantee",
     subject: `Signed Deed of Guarantee for ${p.guaranteeRef}`,
     heading: "The Deed of Guarantee has been signed",
     blocks,
@@ -297,10 +306,15 @@ export function executedDeedLandlordEmail(p: {
     as an attachment (added by the sender); no portal line, a tenant has no login. */
 export function executedDeedTenantEmail(p: {
   guaranteeRef: string; propertyAddr: string;
-  expiryLabel?: string | null;
+  tenancyStartLabel?: string | null;
 }): Message {
-  const rows: [string, string][] = [["Reference", p.guaranteeRef], ["Property", p.propertyAddr]];
-  if (p.expiryLabel) rows.push(["Guarantee expires", p.expiryLabel]);
+  const rows: [string, string][] = [];
+  if (p.tenancyStartLabel) {
+    rows.push(["Tenancy start", p.tenancyStartLabel]);
+    rows.push(["Guarantee period", "12 months"]);
+  }
+  rows.push(["Reference", p.guaranteeRef]);
+  rows.push(["Property", p.propertyAddr]);
   return {
     audience: "tenant",
     subject: `Your signed Deed of Guarantee for ${p.guaranteeRef}`,

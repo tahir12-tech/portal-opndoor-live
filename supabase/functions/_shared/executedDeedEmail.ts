@@ -1,5 +1,6 @@
 import { sendMessage, bytesToBase64, type Attachment } from "./mailer.ts";
 import { executedDeedTenantEmail } from "./emailTemplates.ts";
+import { formatTenancyStart } from "./deedEmail.ts";
 
 export async function deliverExecutedDeedToTenant(service: any, p: { appId: string; ref: string; tenantEmail: string; tenantName: string; propertyAddr: string; tenancyStart: string | null; pdfPath: string | null }): Promise<void> {
   if (!p.tenantEmail) return;
@@ -21,7 +22,7 @@ export async function deliverExecutedDeedToTenant(service: any, p: { appId: stri
     to: p.tenantEmail,
     message: executedDeedTenantEmail({
       guaranteeRef: p.ref, propertyAddr: p.propertyAddr,
-      expiryLabel: null,
+      tenancyStartLabel: formatTenancyStart(p.tenancyStart),
     }),
     attachments,
   });

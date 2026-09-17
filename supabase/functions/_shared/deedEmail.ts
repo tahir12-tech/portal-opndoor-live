@@ -2,6 +2,16 @@ import { sendMessage, bytesToBase64, type SendResult, type Attachment } from "./
 import { executedDeedAgentEmail, executedDeedLandlordEmail } from "./emailTemplates.ts";
 import { managedByFor } from "./managedBy.ts";
 
+/** ISO tenancy start (yyyy-mm-dd) as a readable date for the email, e.g.
+    "1 September 2026". Parsed from the parts so a timezone cannot shift the day. */
+export function formatTenancyStart(iso: string | null): string | null {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return null;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" }).format(d);
+}
+
 export interface DeedTarget {
   appId: string;
   ref: string;
@@ -74,7 +84,7 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
     guaranteeRef: target.ref,
     tenantName: `${target.tenantTitle ?? ""} ${target.tenantName ?? ""}`.trim() || target.tenantName,
     propertyAddr: [target.addr1, target.postcode].filter(Boolean).join(", "),
-    expiryLabel: target.tenancyStartLabel ?? null,
+    tenancyStartLabel: target.tenancyStartLabel ?? formatTenancyStart(target.tenancyStart),
     portalUrl,
   });
   // The correction link sits in the small print as its own line.
@@ -135,7 +145,7 @@ export async function deliverDeedToLandlord(service: any, target: DeedTarget, re
     guaranteeRef: target.ref,
     tenantName: `${target.tenantTitle ?? ""} ${target.tenantName ?? ""}`.trim() || target.tenantName,
     propertyAddr: [target.addr1, target.postcode].filter(Boolean).join(", "),
-    expiryLabel: target.tenancyStartLabel ?? null,
+    tenancyStartLabel: target.tenancyStartLabel ?? formatTenancyStart(target.tenancyStart),
     note: recipient.note,
   });
   const res = await sendMessage({ to: recipient.email, message, attachments });
