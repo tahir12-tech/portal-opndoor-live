@@ -144,6 +144,16 @@ export async function approveApplication(ref: string): Promise<{ ok: boolean; em
   return { ok: true, emailError: data.emailError ?? null };
 }
 
+/** Decline an application awaiting the decision (status 'referencing'): sets it to
+    'declined' with an optional reason and emails the referring agent. Staff only,
+    enforced by decline_application inside the function. Companion to approveApplication. */
+export async function declineApplication(ref: string, reason?: string): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await sb().functions.invoke('decline-application', { body: { ref, reason: reason?.trim() || null } });
+  if (error) return { ok: false, error: await functionErrorMessage(error, 'Could not decline the application.') };
+  if (!data?.ok) return { ok: false, error: data?.error || 'Could not decline the application.' };
+  return { ok: true };
+}
+
 /** Void the outstanding deed and generate a fresh one (Management / opndoor admin). */
 export async function voidRegenerateDeed(ref: string): Promise<{ ok: boolean; message?: string; error?: string }> {
   const { data, error } = await sb().functions.invoke('pandadoc-void-regenerate', { body: { ref } });

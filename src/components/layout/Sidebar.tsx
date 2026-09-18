@@ -5,7 +5,7 @@
    ===================================================================== */
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { reconciliationPendingCount } from '@/data';
+import { reconciliationPendingCount, awaitingDecisionCount } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { NAV } from '@/constants/nav';
 import { useOnClickOutside } from '@/hooks/useOnClickOutside';
@@ -23,6 +23,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
   const { active } = usePageMetaValue();
   const reconcileBadge = reconciliationPendingCount();
+  const decisionsBadge = awaitingDecisionCount();
   const [menuOpen, setMenuOpen] = useState(false);
   const footRef = useRef<HTMLDivElement>(null);
   useOnClickOutside(footRef, () => setMenuOpen(false), menuOpen);
@@ -48,7 +49,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <div className="sb__group" key={grp.group}>
               <div className="sb__group-label">{grp.group}</div>
               {items.map((it) => {
-                const badge = it.badge === 'reconcile' ? reconcileBadge : undefined;
+                const badge = it.badge === 'reconcile' ? reconcileBadge : it.badge === 'decisions' ? decisionsBadge : undefined;
                 return (
                   <Link key={it.id} className={`sb__link${active === it.id ? ' is-active' : ''}`} to={it.to} onClick={onNavigate}>
                     <Icon name={it.icon} />

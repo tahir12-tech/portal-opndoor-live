@@ -38,6 +38,13 @@ export function allSummaries(): ApplicationSummary[] {
   return LIST;
 }
 
+/** How many applications are awaiting the eligibility decision (status
+    'referencing'), for the superadmin Awaiting-decision queue badge. Superadmin
+    sees every partner, so this counts the whole set. */
+export function awaitingDecisionCount(): number {
+  return LIST.filter((r) => r.status === 'referencing').length;
+}
+
 /** Full per-application record (real mode) for analytics and exports. */
 export interface FullApp {
   ref: string;

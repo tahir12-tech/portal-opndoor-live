@@ -12,7 +12,7 @@
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, deedDownloadUrl, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, pandadocSandbox, resendDeed, resendPaymentEmail, sendDeedToAgent, sendDeedToLandlord, stripeMode, withdrawApplication, type AppNote, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
+import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedDownloadUrl, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, pandadocSandbox, resendDeed, resendPaymentEmail, sendDeedToAgent, sendDeedToLandlord, stripeMode, withdrawApplication, type AppNote, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
@@ -151,6 +151,10 @@ export function ApplicationDetail() {
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
   const [resendBusy, setResendBusy] = useState(false);
   const [approveBusy, setApproveBusy] = useState(false);
+  // Decline (status 'referencing') — the companion to Approve, with an optional reason.
+  const [declineOpen, setDeclineOpen] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
+  const [declineBusy, setDeclineBusy] = useState(false);
   const [docs, setDocs] = useState<StaffDocument[]>([]);
   // Agent-rail (opndoor_referenced) nine-stage journey, loaded for the timeline.
   // Progress only, never content.
@@ -281,6 +285,23 @@ export function ApplicationDetail() {
       void loadPayment();
     } else {
       toast(r.error || 'Could not approve the application.', 'error');
+    }
+  };
+
+  // Decline an application awaiting the decision: sets it to Declined with the
+  // optional reason and emails the referring agent. Superadmin only, matching
+  // decline_application inside the function. The reason is shown to the tenant.
+  const doDecline = async () => {
+    setDeclineBusy(true);
+    const r = await declineApplication(d.ref, declineReason);
+    setDeclineBusy(false);
+    if (r.ok) {
+      setDeclineOpen(false);
+      toast('Application declined. The referring agent has been notified.');
+      await refresh();
+      void loadPayment();
+    } else {
+      toast(r.error || 'Could not decline the application.', 'error');
     }
   };
 
@@ -935,7 +956,8 @@ export function ApplicationDetail() {
           </div>
         </div>
         <div className="rec-head__actions">
-          {d.status === 'referencing' && isAdmin && <Button variant="primary" size="sm" onClick={doApprove} disabled={approveBusy}><Icon name="check" /> {approveBusy ? 'Approving…' : 'Approve'}</Button>}
+          {d.status === 'referencing' && isAdmin && <Button variant="primary" size="sm" onClick={doApprove} disabled={approveBusy || declineBusy}><Icon name="check" /> {approveBusy ? 'Approving…' : 'Approve'}</Button>}
+          {d.status === 'referencing' && isAdmin && <Button variant="ghost" size="sm" className="btn--danger" onClick={() => { setDeclineReason(''); setDeclineOpen(true); }} disabled={approveBusy || declineBusy}><Icon name="x" /> Decline</Button>}
           {isDeed && <Button variant="dark" size="sm" onClick={doDownloadDeed}><Icon name="download" /> Download deed</Button>}
           {showWithdraw && <Button variant="ghost" size="sm" onClick={() => { setWReason(''); setWNote(''); setWithdrawOpen(true); }}><Icon name="ban" /> Withdraw</Button>}
         </div>
@@ -1191,6 +1213,26 @@ export function ApplicationDetail() {
         <div className="field">
           <label htmlFor="withdraw-note">Note{wReason === 'other' ? '' : ' (optional)'}</label>
           <textarea id="withdraw-note" rows={3} placeholder={wReason === 'other' ? 'Explain the reason for withdrawing' : 'Add any context (optional)'} value={wNote} onChange={(e) => setWNote(e.target.value)} />
+        </div>
+      </Modal>
+
+      {/* Decision: decline an application awaiting the eligibility decision. */}
+      <Modal
+        open={declineOpen}
+        onClose={() => setDeclineOpen(false)}
+        width={460}
+        title="Decline application"
+        sub="This records the outcome as declined and notifies the referring agent. A staff decision is authoritative and is not overwritten by a later provider verdict. This cannot be undone."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDeclineOpen(false)} disabled={declineBusy}>Cancel</Button>
+            <Button variant="primary" className="btn--danger" onClick={() => void doDecline()} disabled={declineBusy}>{declineBusy ? 'Declining…' : 'Decline application'}</Button>
+          </>
+        }
+      >
+        <div className="field">
+          <label htmlFor="decline-reason">Reason (optional)</label>
+          <textarea id="decline-reason" rows={3} placeholder="A short reason, shown to the tenant" value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} />
         </div>
       </Modal>
 

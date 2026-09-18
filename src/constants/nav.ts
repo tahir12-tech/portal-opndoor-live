@@ -12,8 +12,9 @@ export interface NavItem {
   to: string;
   icon: IconName;
   roles: Role[];
-  /** Set on the reconciliation item; the sidebar fills the count from the queue. */
-  badge?: 'reconcile';
+  /** The sidebar fills the count from the matching queue: 'reconcile' from the
+      org-review queue, 'decisions' from applications awaiting the decision. */
+  badge?: 'reconcile' | 'decisions';
 }
 
 export interface NavGroup {
@@ -83,6 +84,9 @@ export const NAV: NavGroup[] = [
     adminGroup: true,
     items: [
       { id: 'opteam', label: 'opndoor team', to: '/users?team=opndoor', icon: 'users', roles: ['superadmin'] },
+      // Applications awaiting the eligibility decision. Deep-links to the list's
+      // Awaiting-decision cohort; the badge counts how many are waiting.
+      { id: 'decisions', label: 'Awaiting decision', to: '/applications?status=referencing', icon: 'clock', roles: ['superadmin'], badge: 'decisions' },
       { id: 'reconcile', label: 'Reconciliation', to: '/reconciliation', icon: 'reconcile', roles: ['superadmin'], badge: 'reconcile' },
       { id: 'health', label: 'Health', to: '/health', icon: 'shield', roles: ['superadmin'] },
     ],
