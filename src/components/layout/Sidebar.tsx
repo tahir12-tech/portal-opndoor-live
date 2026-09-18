@@ -3,9 +3,9 @@
    signed-in user footer. Ported from portal.js buildSidebar. The
    reconciliation badge count comes from the queue.
    ===================================================================== */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { reconciliationPendingCount, awaitingDecisionCount } from '@/data';
+import { reconciliationPendingCount, awaitingDecisionCount, loadAgencyMatchQueue } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { NAV } from '@/constants/nav';
 import { useOnClickOutside } from '@/hooks/useOnClickOutside';
@@ -15,14 +15,27 @@ import { Icon } from '@/components/ui/Icon';
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   // useSession() re-renders on dataVersion bumps (re-hydration), so the badge
   // reflects the current pending-review count after a confirm or a new referral.
-  const { role, user, signOut } = useSession();
+  const { role, user, signOut, dataVersion } = useSession();
 
   // The sidebar filters on ROLE ONLY. A capability gate used to live here and
   // hid the Dev Centre from every developer; see the note on the Dev Centre item
   // in constants/nav.ts for why that was wrong and why it is not coming back.
   const navigate = useNavigate();
   const { active } = usePageMetaValue();
-  const reconcileBadge = reconciliationPendingCount();
+  // The direct-signup agency-match backlog is a separate, async queue (superadmin
+  // RPC); it lived on the Reconciliation page with no badge, so it could silently
+  // back up. Fold its needs-action count into the Reconciliation badge, refreshing
+  // on dataVersion so a match resolved on a record clears it here too.
+  const [matchCount, setMatchCount] = useState(0);
+  useEffect(() => {
+    if (role !== 'superadmin') { setMatchCount(0); return; }
+    let cancelled = false;
+    void loadAgencyMatchQueue()
+      .then((rows) => { if (!cancelled) setMatchCount(rows.filter((r) => r.state === 'needs_review').length); })
+      .catch(() => { if (!cancelled) setMatchCount(0); });
+    return () => { cancelled = true; };
+  }, [role, dataVersion]);
+  const reconcileBadge = reconciliationPendingCount() + matchCount;
   const decisionsBadge = awaitingDecisionCount();
   const [menuOpen, setMenuOpen] = useState(false);
   const footRef = useRef<HTMLDivElement>(null);

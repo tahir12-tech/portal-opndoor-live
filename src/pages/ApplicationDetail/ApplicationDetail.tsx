@@ -12,7 +12,7 @@
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedDownloadUrl, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, pandadocSandbox, resendDeed, resendPaymentEmail, sendDeedToAgent, sendDeedToLandlord, stripeMode, withdrawApplication, type AppNote, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
+import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedDownloadUrl, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
@@ -155,6 +155,13 @@ export function ApplicationDetail() {
   const [declineOpen, setDeclineOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
   const [declineBusy, setDeclineBusy] = useState(false);
+  // Direct-signup agency match (superadmin), when this record is a Direct tenant
+  // whose typed letting agent has not yet been resolved to a branch.
+  const [matchRow, setMatchRow] = useState<AgencyMatchRow | null>(null);
+  const [matchBranches, setMatchBranches] = useState<MatchBranch[]>([]);
+  const [matchAgencyId, setMatchAgencyId] = useState('');
+  const [matchBranchId, setMatchBranchId] = useState('');
+  const [matchBusy, setMatchBusy] = useState(false);
   const [docs, setDocs] = useState<StaffDocument[]>([]);
   // Agent-rail (opndoor_referenced) nine-stage journey, loaded for the timeline.
   // Progress only, never content.
@@ -226,6 +233,34 @@ export function ApplicationDetail() {
     void getApplicationJourney(d.ref).then((jr) => { if (!cancelled) setJourney(jr); });
     return () => { cancelled = true; };
   }, [d.ref, d.referencingMode, dataVersion]);
+
+  // Direct-signup agency match for this record (superadmin only). Reuses the queue
+  // RPC and finds this application; keyed on dataVersion so it clears after a
+  // resolve/dismiss. Non-Direct records and non-admins never fetch it.
+  useEffect(() => {
+    if (role !== 'superadmin' || d.channel !== 'Direct' || !d.ref) { setMatchRow(null); return; }
+    let cancelled = false;
+    void loadAgencyMatchQueue()
+      .then((rows) => {
+        if (cancelled) return;
+        const row = rows.find((r) => r.guaranteeRef === d.ref && r.state === 'needs_review') ?? null;
+        setMatchRow(row);
+        setMatchAgencyId(row?.autoAgencyId ?? '');
+        setMatchBranchId('');
+      })
+      .catch(() => { if (!cancelled) setMatchRow(null); });
+    return () => { cancelled = true; };
+  }, [d.ref, d.channel, role, dataVersion]);
+
+  // Branch options for the chosen agency in the inline match.
+  useEffect(() => {
+    if (!matchAgencyId) { setMatchBranches([]); return; }
+    let cancelled = false;
+    void loadMatchBranchOptions(matchAgencyId)
+      .then((bs) => { if (!cancelled) setMatchBranches(bs); })
+      .catch(() => { if (!cancelled) setMatchBranches([]); });
+    return () => { cancelled = true; };
+  }, [matchAgencyId]);
 
   const openDoc = async (docId: string) => {
     const r = await applicationDocumentUrl(docId);
@@ -302,6 +337,36 @@ export function ApplicationDetail() {
       void loadPayment();
     } else {
       toast(r.error || 'Could not decline the application.', 'error');
+    }
+  };
+
+  // Match a direct tenant's typed letting agent to a real branch, or mark it not
+  // in the network. Reuses the reconciliation RPCs; refresh re-hydrates so the
+  // record, the queue and the sidebar badge recompute together.
+  const doResolveMatch = async () => {
+    if (!matchRow || !matchBranchId) return;
+    setMatchBusy(true);
+    try {
+      await resolveAgencyMatch(matchRow.applicationId, matchBranchId);
+      toast('Matched to the branch.');
+      await refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not match the agent.', 'error');
+    } finally {
+      setMatchBusy(false);
+    }
+  };
+  const doDismissMatch = async () => {
+    if (!matchRow) return;
+    setMatchBusy(true);
+    try {
+      await dismissAgencyMatch(matchRow.applicationId);
+      toast('Marked not in the network.');
+      await refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not update the match.', 'error');
+    } finally {
+      setMatchBusy(false);
     }
   };
 
@@ -483,6 +548,19 @@ export function ApplicationDetail() {
   const showWithdraw = canWithdraw(role, d.status, owned) && !isTerminal;
   const pillVariant: PillVariant = d.status === 'withdrawn' || d.status === 'expired' || d.status === 'draft' ? 'muted' : d.status === 'referencing' ? 'warn' : d.status === 'declined' ? 'danger' : d.status;
   const statusLabel = d.statusLabel;
+
+  // ---- direct-tenant delivery contact + inline match ----
+  const isDirect = d.channel === 'Direct';
+  // The agencies offered in the inline match: the exact-name auto match first,
+  // then the fuzzy candidates as hints (their similarity shown, never auto-accepted).
+  const matchAgencyOptions = matchRow
+    ? [
+        ...(matchRow.autoAgencyId ? [{ id: matchRow.autoAgencyId, name: matchRow.autoAgencyName ?? 'Suggested agency' }] : []),
+        ...matchRow.candidates
+          .filter((c) => c.agency_id !== matchRow.autoAgencyId)
+          .map((c) => ({ id: c.agency_id, name: `${c.name} · ${Math.round(c.sim * 100)}% match` })),
+      ]
+    : [];
 
   // ---- amend permission + context ----
   const PAYMENT = d.paymentDate;
@@ -1018,16 +1096,63 @@ export function ApplicationDetail() {
             </CardBody>
           </Card>
 
-          <Card>
-            <CardHead title="Referring agent" sub="Claim contact. The deed is in favour of the property." />
-            <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
-              <div className="drow"><span className="drow__k">Agency</span><span className="drow__v"><b>{d.agency}</b></span></div>
-              <div className="drow"><span className="drow__k">Branch</span><span className="drow__v">{d.branch}</span></div>
-              {role !== 'referrer' && d.partnerName && <div className="drow"><span className="drow__k">Partner</span><span className="drow__v">{d.partnerName}</span></div>}
-              <div className="drow"><span className="drow__k">Address</span><span className="drow__v">{titleCaseAddress(d.agentAddr)}</span></div>
-              <div className="drow"><span className="drow__k">Deed in favour of</span><span className="drow__v">{titleCaseAddress(d.addr1)}, {d.postcode}</span></div>
-            </CardBody>
-          </Card>
+          {isDirect ? (
+            /* A direct tenant: nobody referred them. Show where the deed goes -- the
+               agent or private landlord they named -- and, for staff, the inline
+               agency match, so the "who's the agent" decision lives on the record
+               rather than only in a queue tab. */
+            <Card>
+              <CardHead title="Delivery contact" sub="Nobody referred this tenant. The deed goes to the contact they named." />
+              <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
+                {d.landlordName ? (
+                  <>
+                    <div className="drow"><span className="drow__k">Private landlord</span><span className="drow__v"><b>{d.landlordName}</b></span></div>
+                    {d.landlordEmail && <div className="drow"><span className="drow__k">Email</span><span className="drow__v">{d.landlordEmail}</span></div>}
+                  </>
+                ) : (
+                  <>
+                    <div className="drow"><span className="drow__k">Letting agent</span><span className="drow__v"><b>{matchRow?.typedName || d.agency || 'Not given'}</b></span></div>
+                    {!matchRow && d.branch && <div className="drow"><span className="drow__k">Branch</span><span className="drow__v">{d.branch}</span></div>}
+                  </>
+                )}
+                <div className="drow"><span className="drow__k">Deed in favour of</span><span className="drow__v">{titleCaseAddress(d.addr1)}, {d.postcode}</span></div>
+
+                {isAdmin && matchRow && (
+                  <div style={{ marginTop: 10, padding: 12, border: '1px dashed var(--line-strong)', borderRadius: 'var(--r-md)', background: 'var(--app-bg-2)' }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>Match to a branch in the network</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginBottom: 8 }}>The tenant typed “{matchRow.typedName}”. Point this application at a real branch, or mark it not in the network.</div>
+                    <div className="field">
+                      <select value={matchAgencyId} onChange={(e) => { setMatchAgencyId(e.target.value); setMatchBranchId(''); }}>
+                        <option value="">Select an agency…</option>
+                        {matchAgencyOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <select value={matchBranchId} onChange={(e) => setMatchBranchId(e.target.value)} disabled={!matchAgencyId}>
+                        <option value="">{matchAgencyId ? 'Select a branch…' : 'Choose an agency first'}</option>
+                        {matchBranches.map((b) => <option key={b.id} value={b.id}>{b.name}{b.area ? ` · ${b.area}` : ''}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <Button variant="primary" size="sm" onClick={() => void doResolveMatch()} disabled={matchBusy || !matchBranchId}>Match to branch</Button>
+                      <Button variant="ghost" size="sm" onClick={() => void doDismissMatch()} disabled={matchBusy}>Not in network</Button>
+                    </div>
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+          ) : (
+            <Card>
+              <CardHead title="Referring agent" sub="Claim contact. The deed is in favour of the property." />
+              <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
+                <div className="drow"><span className="drow__k">Agency</span><span className="drow__v"><b>{d.agency}</b></span></div>
+                <div className="drow"><span className="drow__k">Branch</span><span className="drow__v">{d.branch}</span></div>
+                {role !== 'referrer' && d.partnerName && <div className="drow"><span className="drow__k">Partner</span><span className="drow__v">{d.partnerName}</span></div>}
+                <div className="drow"><span className="drow__k">Address</span><span className="drow__v">{titleCaseAddress(d.agentAddr)}</span></div>
+                <div className="drow"><span className="drow__k">Deed in favour of</span><span className="drow__v">{titleCaseAddress(d.addr1)}, {d.postcode}</span></div>
+              </CardBody>
+            </Card>
+          )}
 
           <Card>
             <CardHead
