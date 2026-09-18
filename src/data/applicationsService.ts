@@ -15,6 +15,7 @@ import type { ApplicationDetail, ApplicationSummary, DeedState, PartnerScope, Ro
 import { ALL_PARTNERS } from './types';
 import { AGENT_ADDR, APPLICATION_RECORDS as RECORDS_SEED, APPLICATIONS_LIST as LIST_SEED, type AppRecord } from './mock/applications';
 import { partnerName } from './partnersService';
+import { channelOf, type Channel } from './channel';
 import { contactForApplication } from './orgService';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 
@@ -125,8 +126,16 @@ export interface AppFilterOpts extends AppScopeOpts {
   branch?: string;
   /** #owner Referrer display-name filter (management + opndoor admin only). */
   referrer?: string;
+  /** Route filter: one of the four channels (Direct / Agent / Partner / Provider),
+      derived per row from partner slug + rail. Visible to every role. */
+  channel?: Channel;
   q?: string;
   sort?: string;
+}
+
+/** How an application arrived, from its summary row (partner slug + rail). */
+function channelOfRow(r: ApplicationSummary): Channel {
+  return channelOf({ partnerSlug: r.partner, referencingMode: r.referencingMode });
 }
 
 /** Role + partner isolation only (drives counts and the "total" figure). */
@@ -158,6 +167,7 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
     if (opts.branch && r.branch !== opts.branch) return false;
     if (opts.agency && r.agency !== opts.agency) return false;
     if (opts.referrer && r.referrer !== opts.referrer) return false;
+    if (opts.channel && channelOfRow(r) !== opts.channel) return false;
     return inPeriod(r, opts.periodRange);
   });
   // 'refunded' and 'awaiting' overlap 'paid' (both keep status Paid by design), so
@@ -211,6 +221,7 @@ export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
     if (opts.agency && r.agency !== opts.agency) return false;
     // #owner Referrer filter (management + opndoor admin) and period (sent-date).
     if (opts.referrer && r.referrer !== opts.referrer) return false;
+    if (opts.channel && channelOfRow(r) !== opts.channel) return false;
     if (!inPeriod(r, opts.periodRange)) return false;
     if (opts.q) {
       const hay = `${r.tenant} ${r.prop} ${r.ref} ${r.ben} ${r.branch}`.toLowerCase();
@@ -417,11 +428,14 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
   const county = real ? (r.county ?? '') : 'Greater London';
   const annual = r.rent * 12;
 
+  // Partner is only on the summary LIST (both mock and live), not AppRecord.
+  const summarySlug = LIST.find((x) => x.ref === r.ref)?.partner ?? '';
   return {
     ref: r.ref,
     status: r.status,
     statusLabel: STATUS_LABEL[r.status],
     referencingMode: r.referencingMode,
+    channel: channelOf({ partnerSlug: summarySlug, referencingMode: r.referencingMode }),
     withdrawnReason: r.withdrawnReason ?? null,
     name: r.name,
     initials: initials(r.name),
@@ -438,8 +452,7 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
     postcode: r.postcode,
     agency: r.agency,
     branch: r.branch,
-    // Partner is only on the summary LIST (both mock and live), not AppRecord.
-    partnerName: partnerName(LIST.find((x) => x.ref === r.ref)?.partner ?? ''),
+    partnerName: partnerName(summarySlug),
     agentAddr: AGENT_ADDR[r.branch] || `${r.branch}, London`,
     rent: `£${r.rent.toLocaleString('en-GB')}`,
     rentNum: r.rent,

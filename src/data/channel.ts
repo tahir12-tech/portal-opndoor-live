@@ -13,6 +13,17 @@ export type Channel = 'Direct' | 'Agent referral' | 'Partner referral' | 'Provid
 
 export const CHANNELS: Channel[] = ['Direct', 'Agent referral', 'Partner referral', 'Provider hand-over'];
 
+/** The label the UI shows for each channel. channelOf mirrors the SQL and keeps
+    the SQL's wording ('Agent referral', 'Partner referral'); the product names
+    the actors as agencies and suppliers, so the screen labels differ. Change the
+    label here, never channelOf's return values (a test locks those to the SQL). */
+export const ROUTE_LABEL: Record<Channel, string> = {
+  'Direct': 'Direct',
+  'Agent referral': 'Agency referral',
+  'Partner referral': 'Supplier referral',
+  'Provider hand-over': 'Provider hand-over',
+};
+
 /** The house-route slugs, which are stable and set by migration. */
 const DIRECT = 'opndoor-direct';
 const PROVIDER = 'referencing-partner';

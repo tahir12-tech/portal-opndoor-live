@@ -18,6 +18,16 @@ import { Icon } from '@/components/ui/Icon';
 import { Card } from '@/components/ui/Card';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
+import { channelOf, ROUTE_LABEL, CHANNELS, type Channel } from '@/data/channel';
+
+/** The pill variant per route, reusing the portal's status palette so the four
+    routes read distinctly and on-brand. */
+const ROUTE_PILL: Record<Channel, PillVariant> = {
+  'Direct': 'muted',
+  'Agent referral': 'paid',
+  'Partner referral': 'sent',
+  'Provider hand-over': 'warn',
+};
 import { FilterTabs } from '@/components/ui/FilterTabs';
 import { RoleOnly } from '@/components/ui/RoleOnly';
 import { RoleNote } from '@/components/ui/RoleNote';
@@ -80,6 +90,9 @@ export function Applications() {
   // see their own applications, so the filter is never offered to them and a
   // ?referrer= they craft is ignored (scopedSet already restricts them to owner rows).
   const [referrer, setReferrer] = useState(() => (role !== 'referrer' ? params.get('referrer') || '' : ''));
+  // Route filter (Direct / Agency / Supplier / Provider), for every role — the one
+  // list, filterable by how each application arrived. Empty = all routes.
+  const [route, setRoute] = useState<Channel | ''>('');
   // #owner Period filter — the dashboard's options, bucketed on sent date. Defaults
   // to All time so the page's default view (every application) is unchanged.
   const periods = getPeriods();
@@ -97,6 +110,7 @@ export function Applications() {
     setAgency('');
     setBranch('');
     setReferrer('');
+    setRoute('');
   }, [role]);
 
   // const scopeOpts = { role, scope: partnerScope, partner: partner || undefined };
@@ -104,15 +118,15 @@ export function Applications() {
   const effectiveScope = role === 'superadmin' ? ALL_PARTNERS : partnerScope;
   const scopeOpts = { role, scope: effectiveScope, partner: partner || undefined };
   // #owner Chips recount within the selected period and the current filter state.
-  const counts = countByStatus({ ...scopeOpts, agency: agency || undefined, branch: branch || undefined, referrer: referrer || undefined, periodRange: range });
+  const counts = countByStatus({ ...scopeOpts, agency: agency || undefined, branch: branch || undefined, referrer: referrer || undefined, channel: route || undefined, periodRange: range });
   // #13: the "Showing X of Y" denominator must match the active status tab.
   // Withdrawn/Expired are terminal and excluded from counts.all, so on those tabs
   // Y must be the tab's own count, not the operational total.
   const total = (counts as Record<string, number>)[status] ?? counts.all;
   const visibleRows = useMemo(
-    () => getApplications({ ...scopeOpts, status, agency: agency || undefined, branch: branch || undefined, referrer: referrer || undefined, q, sort, periodRange: range }),
+    () => getApplications({ ...scopeOpts, status, agency: agency || undefined, branch: branch || undefined, referrer: referrer || undefined, channel: route || undefined, q, sort, periodRange: range }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [role, partnerScope, partner, status, agency, branch, referrer, q, sort, period],
+    [role, partnerScope, partner, status, agency, branch, referrer, route, q, sort, period],
   );
 
   // Pagination. Reset to the first page whenever the filtered set changes, and
@@ -120,7 +134,7 @@ export function Applications() {
   const [page, setPage] = useState(1);
   useEffect(() => {
     setPage(1);
-  }, [role, partnerScope, partner, status, agency, branch, referrer, q, sort, period]);
+  }, [role, partnerScope, partner, status, agency, branch, referrer, route, q, sort, period]);
   const pageCount = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
   const pagedRows = visibleRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -274,6 +288,11 @@ export function Applications() {
               {referrerOptions.map((n) => <option key={n} value={n}>{n}</option>)}
             </FilterChip>
           )}
+          <FilterChip icon={<Icon name="filter" />} label="Route:" display={route ? ROUTE_LABEL[route] : 'All'} value={route}
+            onChange={(e) => setRoute(e.target.value as Channel | '')}>
+            <option value="">All</option>
+            {CHANNELS.map((c) => <option key={c} value={c}>{ROUTE_LABEL[c]}</option>)}
+          </FilterChip>
           <FilterChip icon={<Icon name="chevronDown" />} label="Sort:" display={sort} value={sort}
             onChange={(e) => setSort(e.target.value)}>
             <option>Newest first</option>
@@ -290,6 +309,7 @@ export function Applications() {
             <thead>
               <tr>
                 <th>Tenant</th>
+                <th>Route</th>
                 {showPartner && <th>Partner</th>}
                 <th>Property</th>
                 <th>Branch</th>
@@ -300,7 +320,9 @@ export function Applications() {
               </tr>
             </thead>
             <tbody>
-              {pagedRows.map((r) => (
+              {pagedRows.map((r) => {
+                const ch = channelOf({ partnerSlug: r.partner, referencingMode: r.referencingMode });
+                return (
                 <tr key={r.ref} onClick={() => navigate(`/applications/${encodeURIComponent(r.ref)}`)}>
                   <td>
                     <div className="who">
@@ -308,6 +330,7 @@ export function Applications() {
                       <div><div className="dt__name">{r.tenant}</div><div className="dt__sub">{r.ref}</div></div>
                     </div>
                   </td>
+                  <td><Pill variant={ROUTE_PILL[ch]}>{ROUTE_LABEL[ch]}</Pill></td>
                   {showPartner && <td>{partnerName(r.partner)}</td>}
                   <td>{r.prop}</td>
                   <td>{r.branch}<div className="dt__sub">{r.agency}</div></td>
@@ -316,7 +339,8 @@ export function Applications() {
                   <td className="dt__num soft">{fmtDate(r.date)}</td>
                   <td><Icon name="chevronRight" className="dt__chev" size={16} /></td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -2,7 +2,7 @@
    These lock the four answers so a drift between them is a failing test rather
    than a CRM record attributed to the wrong rail. */
 import { describe, expect, it } from 'vitest';
-import { CHANNELS, HOUSE_PARTNER_SLUGS, channelOf, houseRouteLabel, isHousePartner } from './channel';
+import { CHANNELS, HOUSE_PARTNER_SLUGS, ROUTE_LABEL, channelOf, houseRouteLabel, isHousePartner } from './channel';
 
 describe('how an application arrived', () => {
   it('the direct house route is Direct', () => {
@@ -29,6 +29,13 @@ describe('how an application arrived', () => {
 
   it('the four values are the four the SQL returns', () => {
     expect(CHANNELS).toEqual(['Direct', 'Agent referral', 'Partner referral', 'Provider hand-over']);
+  });
+
+  it('the UI shows agencies and suppliers by name, not the SQL wording', () => {
+    expect(ROUTE_LABEL['Direct']).toBe('Direct');
+    expect(ROUTE_LABEL['Agent referral']).toBe('Agency referral');
+    expect(ROUTE_LABEL['Partner referral']).toBe('Supplier referral');
+    expect(ROUTE_LABEL['Provider hand-over']).toBe('Provider hand-over');
   });
 });
 

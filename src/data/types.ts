@@ -4,6 +4,7 @@
    (src/data/*) returns these shapes today from mock data; a real back end
    would return the same shapes from API calls.
    ===================================================================== */
+import type { Channel } from './channel';
 
 /** The three portal roles. "superadmin" is opndoor admin in code. */
 /**
@@ -227,6 +228,9 @@ export interface ApplicationDetail {
   /** The rail (snapshot): 'opndoor_referenced' drives the nine-stage journey
       timeline; the pre_referenced_* modes keep the three-stage view. */
   referencingMode?: ReferencingMode;
+  /** How the application arrived (derived from partner slug + rail), for the route
+      badge on the record. See channelOf; the UI label is ROUTE_LABEL[channel]. */
+  channel?: Channel;
   /** #2 Withdrawal reason when status is 'withdrawn' (else null). */
   withdrawnReason: WithdrawReason | null;
   name: string;

@@ -27,6 +27,7 @@ import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { StatusTimeline } from '@/components/ui/StatusTimeline';
 import { buildAgentJourney, getApplicationJourney, AGENT_JOURNEY_BANDS, type ApplicationJourney } from '@/data/journeyStages';
 import { useToast } from '@/components/ui/Toast';
+import { ROUTE_LABEL, type Channel } from '@/data/channel';
 import './ApplicationDetail.css';
 
 
@@ -34,6 +35,14 @@ import './ApplicationDetail.css';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const NOW = new Date(2026, 5, 26);
+
+// Route badge palette, matching the Applications list (portal status variants).
+const ROUTE_PILL: Record<Channel, PillVariant> = {
+  'Direct': 'muted',
+  'Agent referral': 'paid',
+  'Partner referral': 'sent',
+  'Provider hand-over': 'warn',
+};
 
 const fmtLong = (x: Date) => `${x.getDate()} ${MONTHS_LONG[x.getMonth()]} ${x.getFullYear()}`;
 const fmtShort = (x: Date) => `${String(x.getDate()).padStart(2, '0')} ${MONTHS[x.getMonth()]} ${x.getFullYear()}`;
@@ -916,9 +925,12 @@ export function ApplicationDetail() {
             <div className="rec-head__name">{d.name}</div>
             <div className="rec-head__meta">
               <Pill variant={pillVariant}>{statusLabel}</Pill>
+              {d.channel && <Pill variant={ROUTE_PILL[d.channel]}>{ROUTE_LABEL[d.channel]}</Pill>}
               <span>·</span><span>Reference {d.ref}</span>
               <span>·</span><span>{d.branch} · {d.agency}</span>
-              {role !== 'referrer' && d.partnerName && <><span>·</span><span>{d.partnerName}</span></>}
+              {/* The supplier's own name, when there is one; hidden for house routes,
+                  where partnerName is already the route label the badge shows. */}
+              {role !== 'referrer' && d.partnerName && (!d.channel || d.partnerName !== ROUTE_LABEL[d.channel]) && <><span>·</span><span>{d.partnerName}</span></>}
             </div>
           </div>
         </div>
