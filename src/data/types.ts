@@ -69,6 +69,10 @@ export interface Partner {
   /** Demo analytics weight; a real back end would sum real records instead. */
   weight: number;
   primary?: boolean;
+  /** An Opndoor house / plumbing partner (opndoor-direct, referencing-partner,
+      opndoor-agents). Never offered as a selectable partner or named in a screen;
+      its name is shown as its route label instead. */
+  isHouse?: boolean;
   users: number;
   apps: number;
   /** Per-partner commission rates (fractions of one month's rent). Never hard-coded. */

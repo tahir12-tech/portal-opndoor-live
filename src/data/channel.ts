@@ -16,6 +16,30 @@ export const CHANNELS: Channel[] = ['Direct', 'Agent referral', 'Partner referra
 /** The house-route slugs, which are stable and set by migration. */
 const DIRECT = 'opndoor-direct';
 const PROVIDER = 'referencing-partner';
+/** The house partner that carries direct agency referrals. It is deliberately
+    NOT is_house_route in the DB: application_channel maps is_house_route to
+    'Direct', and this rail is 'Agent referral', so the flag would misclassify it.
+    It is plumbing all the same and must never surface as a partner in a screen. */
+const AGENTS = 'opndoor-agents';
+
+/** Every Opndoor house / plumbing partner. These exist only so an application's
+    NOT NULL partner FK resolves; they must never appear in a screen as a
+    selectable or named partner. Stable slugs, set by migration (see above). */
+export const HOUSE_PARTNER_SLUGS: readonly string[] = [DIRECT, PROVIDER, AGENTS];
+
+/** True if a partner slug is one of Opndoor's own house/plumbing partners. */
+export function isHousePartner(slug: string | null | undefined): boolean {
+  return !!slug && HOUSE_PARTNER_SLUGS.includes(slug);
+}
+
+/** The route label shown in place of a house partner's name, so a row still
+    reads truthfully (its route) without ever naming the plumbing partner. */
+export function houseRouteLabel(slug: string | null | undefined): string {
+  if (slug === DIRECT) return 'Direct';
+  if (slug === PROVIDER) return 'Provider hand-over';
+  if (slug === AGENTS) return 'Agency referral';
+  return '';
+}
 
 export function channelOf(input: {
   partnerSlug: string | null | undefined;

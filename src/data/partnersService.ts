@@ -12,6 +12,7 @@
 import type { CommissionRates, LeaderboardMode, Partner, PartnerScope, PartnerStatus, ReferencingMode, Role } from './types';
 import { fmtRatePct } from '@/lib/format';
 import { ALL_PARTNERS } from './types';
+import { houseRouteLabel } from './channel';
 import { KEYS, clone, loadJSON, loadString, saveJSON, saveString } from './storage';
 import { DEFAULT_AGENT_RATE, DEFAULT_PARTNER_RATE, HOME_PARTNER, PARTNERS_SEED } from './mock/partners';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
@@ -38,8 +39,13 @@ export function setHomePartner(id: string): void {
   HOME = id;
 }
 
+// House / plumbing partners (opndoor-agents, opndoor-direct, referencing-partner)
+// are never offered as a selectable partner: they are excluded from the list every
+// picker and the Partners screen render from. They remain in the working copy
+// (getPartner still resolves them) only so a row's partner can be named — as its
+// route label, never the plumbing name (see partnerName).
 export function getPartners(): Partner[] {
-  return PARTNERS.slice();
+  return PARTNERS.filter((p) => !p.isHouse);
 }
 
 export function getPartner(id: string): Partner | null {
@@ -48,6 +54,7 @@ export function getPartner(id: string): Partner | null {
 
 export function partnerName(id: string): string {
   const p = getPartner(id);
+  if (p?.isHouse) return houseRouteLabel(p.id);
   return p ? p.name : id === ALL_PARTNERS ? 'All partners' : id;
 }
 

@@ -16,6 +16,7 @@ import { LEAST_PRIVILEGED_ROLE,
 } from '@/data';
 import type { AppRecord } from '@/data/mock/applications';
 import type { UpcomingGuaranteeSeed } from '@/data/mock/guarantees';
+import { isHousePartner } from '@/data/channel';
 
 const DAY = 86400000;
 
@@ -217,6 +218,10 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     since: p.live_from ? String(p.live_from).slice(0, 7) : '',
     weight: (appsByPartner[p.slug] || 0) / maxApps || 0.05,
     ...(p.is_primary ? { primary: true } : {}),
+    // House / plumbing partners stay in the working copy so a row's partner can
+    // still be resolved, but this flag hides them from every selector and swaps
+    // their name for the route label. See isHousePartner / houseRouteLabel.
+    ...(isHousePartner(p.slug) ? { isHouse: true } : {}),
     users: usersByPartner[p.slug] || 0,
     apps: appsByPartner[p.slug] || 0,
     partnerRate: num(p.partner_rate),
