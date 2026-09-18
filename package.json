@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run --environment jsdom",
-    "smoke": "vitest run --environment jsdom"
+    "smoke": "vitest run --environment jsdom",
+    "test:db": "supabase test db"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.0",
