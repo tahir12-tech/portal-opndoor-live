@@ -14,7 +14,6 @@ const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
 
 interface SendResult { ok: boolean; error?: string; to?: string }
 
-<<<<<<< HEAD
 // export async function sendEmail(opts: { subject: string; html: string; to?: string }): Promise<SendResult> {
 //   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
 //   if (!REVIEW_ADDRESS) return { ok: false, error: "Test review address (EMAIL_REVIEW_ADDRESS) is not set." };
@@ -41,15 +40,7 @@ export async function sendEmail(opts: { subject: string; html: string; to: strin
   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
   if (!opts.to) return { ok: false, error: "No recipient email provided." };
   const recipients = [opts.to];
-=======
-//update email fun by tahir
 
-export async function sendEmail(opts: { subject: string; html: string; to?: string }): Promise<SendResult> {
-  if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
-  if (!REVIEW_ADDRESS) return { ok: false, error: "Test review address (EMAIL_REVIEW_ADDRESS) is not set." };
-  const recipients = [REVIEW_ADDRESS];
-  if (opts.to && opts.to !== REVIEW_ADDRESS) recipients.push(opts.to);
->>>>>>> 6fd73bd (Review address remove from email)
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -188,11 +179,11 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
     correctionUrl,
     intendedFor: recipient.email,
   });
-<<<<<<< HEAD
+
   const res = await sendEmail({ subject: tpl.subject, html: tpl.html, to: recipient.email });
-=======
-  const res =  await sendEmail({ subject: tpl.subject, html: tpl.html, to: recipient.email });
->>>>>>> 6fd73bd (Review address remove from email)
+
+
+
 
   // Partner-safe business entry names the intended agent contact; the test-mode
   // redirect target stays admin-only (a separate internal entry).
