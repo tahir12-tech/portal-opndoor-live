@@ -30,10 +30,14 @@ credentials and no network to the dev/prod projects.
   name — a red test instead of a silent "permission denied for table
   applications" in front of a staff user.
 
-## The gap this does not close by itself
+## When it runs
 
-There is **no CI in this repo**, so nothing runs `npm run test:db`
-automatically. Until a CI step does (`supabase db reset` + `supabase test db` on
-an ephemeral Postgres), this must be part of the pre-deploy checklist for any
-migration that touches a table with column-level grants (`applications`,
-`partners`). A red `test:db` is the point — it makes the omission loud.
+`.github/workflows/ci.yml` runs this on **every push**: the `db-tests` job
+installs the Supabase CLI, `supabase db start` applies every migration to a
+throwaway Postgres, and `supabase test db --local` runs these tests. So a
+migration that adds a client-visible column without its grant turns the push
+red — the omission is loud, not a silent 500 in front of a staff user. Run it
+locally the same way with `npm run test:db` (needs the Supabase CLI + Docker).
+
+Note the same column-level-grant pattern also applies to `public.partners`
+(`partner_rate`/`agent_rate`); a future guard could cover it the same way.

@@ -1,0 +1,40 @@
+name: CI
+
+# Runs on every push (and can be triggered by hand). The two jobs are
+# independent: a red web build never hides a red database test, or vice versa.
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  db-tests:
+    name: Database grants (pgTAP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # Start a local Postgres and apply every migration in supabase/migrations,
+      # so the guard runs against the real, freshly-migrated schema. No remote
+      # project is touched and no credentials are needed.
+      - name: Start local database
+        run: supabase db start
+      # Runs supabase/tests/*.test.sql, including the applications column-grant
+      # guard: a client-visible column added without its authenticated SELECT
+      # grant fails here, with its own name, instead of 500ing a staff dashboard.
+      - name: Run pgTAP tests
+        run: supabase test db --local
+
+  web:
+    name: Typecheck, tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
