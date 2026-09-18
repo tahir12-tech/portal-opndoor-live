@@ -373,15 +373,56 @@ export async function voidDocument(documentId: string): Promise<{ ok: boolean; a
 }
 
 /** Download the executed PDF (available once the document is completed). */
+
 export async function downloadPdf(documentId: string): Promise<Uint8Array | null> {
-  try {
-    const res = await fetch(`${API}/documents/${documentId}/download`, { headers: { Authorization: `API-Key ${KEY}` } });
-    if (!res.ok) return null;
-    return new Uint8Array(await res.arrayBuffer());
-  } catch {
-    return null;
+  const maxDelayMs = 14000;
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < maxDelayMs) {
+    try {
+      const res = await fetch(
+        `${API}/documents/${documentId}/download`,
+        {
+          headers: {
+            Authorization: `API-Key ${KEY}`,
+          },
+        }
+      );
+
+      if (res.ok) {
+        return new Uint8Array(await res.arrayBuffer());
+      }
+
+      // PandaDoc is still generating the PDF
+      if (res.status === 409) {
+        const elapsed = Date.now() - startTime;
+        const remaining = maxDelayMs - elapsed;
+
+        if (remaining <= 0) return null;
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.min(1000, remaining))
+        );
+
+        continue;
+      }
+
+      return null;
+    } catch {
+      const elapsed = Date.now() - startTime;
+      const remaining = maxDelayMs - elapsed;
+
+      if (remaining <= 0) return null;
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(1000, remaining))
+      );
+    }
   }
+
+  return null;
 }
+
 
 /** PandaDoc signs webhooks with HMAC-SHA256 of the raw body using the shared key. */
 export async function verifyWebhook(rawBody: string, signature: string): Promise<boolean> {
