@@ -30,6 +30,7 @@ import { NewApplication } from '@/pages/NewApplication/NewApplication';
 import { OrgManagement } from '@/pages/OrgManagement/OrgManagement';
 import { AgencyHome } from '@/pages/Agencies/AgencyHome';
 import { PartnerManagement } from '@/pages/PartnerManagement/PartnerManagement';
+import { PartnerHome } from '@/pages/PartnerManagement/PartnerHome';
 import { UserManagement } from '@/pages/UserManagement/UserManagement';
 import { Reconciliation } from '@/pages/Reconciliation/Reconciliation';
 import { Health } from '@/pages/Health/Health';
@@ -159,6 +160,7 @@ export function App() {
         {/* opndoor admin only: the sensitive-settings surfaces. */}
         <Route element={<RequireRole roles={['superadmin']} />}>
           <Route path="/partners" element={<PartnerManagement />} />
+          <Route path="/partners/:key" element={<PartnerHome />} />
           <Route path="/health" element={<Health />} />
         </Route>
       </Route>

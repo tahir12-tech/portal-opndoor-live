@@ -5,7 +5,7 @@
    (including their per-partner commission rates) via the add/manage modal.
    ===================================================================== */
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { addPartner, getPartner, getPartners, getReferrerLeaderboardMode, orgCounts, setReferrerLeaderboardMode, updatePartnerSettings, getPartnerAudit, type LeaderboardMode, type PartnerAuditEntry, type PartnerSettingsInput, type PartnerStatus, partnerActiveKeyCount, REFERENCING_MODES, type ReferencingMode } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { fmtRatePct } from '@/lib/format';
@@ -235,7 +235,7 @@ export function PartnerManagement() {
         <div>
           <div className="rec-eyebrow"><span className="opx">opndoor</span> · internal admin</div>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>Partners</h1>
-          <p className="page-head__sub">Every partner company on the portal. A partner sits at the top of the hierarchy, with its own users, agencies, branches and applications beneath it. Click a partner to manage its users.</p>
+          <p className="page-head__sub">Every partner company on the portal. A partner sits at the top of the hierarchy, with its own users, agencies, branches and applications beneath it. Click a partner to open its page; <b>Manage</b> edits its settings.</p>
         </div>
         <div className="page-head__actions">
           <Button variant="primary" size="sm" onClick={openAdd}><Icon name="plus" /> Add partner</Button>
@@ -276,7 +276,7 @@ export function PartnerManagement() {
                       <div className="pco">
                         <span className="pco__logo">{initials(p.name)}</span>
                         <div>
-                          <div className="pco__name">{p.name}{p.primary && <> <Tag variant="primary">Primary</Tag></>}</div>
+                          <div className="pco__name"><Link className="pco__namelink" to={`/partners/${encodeURIComponent(p.id)}`} title={`Open ${p.name}`}>{p.name}</Link>{p.primary && <> <Tag variant="primary">Primary</Tag></>}</div>
                           <div className="pco__since">Live from {p.since || '—'} · Partner {fmtRatePct(p.partnerRate ?? 0.25)} / Agent {fmtRatePct(p.agentRate ?? 0.1)}</div>
                         </div>
                       </div>

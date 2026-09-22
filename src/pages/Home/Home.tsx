@@ -67,6 +67,18 @@ export function Home() {
     { label: 'Delivery failed', n: deliveryFailed, meta: 'deed not delivered', to: '/applications?deed=delivery-failed', tone: 'danger' as const },
   ];
 
+  // Direct signups — tenants who came to Opndoor directly (route 'Direct', no
+  // agency or supplier). They start at Awaiting decision, then Sent -> Paid -> Deed.
+  // Each stage links to the applications list pre-filtered to Direct + that stage.
+  const direct = countByStatus({ ...scopeOpts, channel: 'Direct' });
+  const directStages = [
+    { label: 'Awaiting decision', n: direct.referencing, to: '/applications?route=Direct&status=referencing' },
+    { label: 'Sent', n: direct.sent, to: '/applications?route=Direct&status=sent' },
+    { label: 'Paid', n: direct.paid, to: '/applications?route=Direct&status=paid' },
+    { label: 'Deed issued', n: direct.deed, to: '/applications?route=Direct&status=deed' },
+  ];
+  const directTotal = direct.referencing + direct.sent + direct.paid + direct.deed;
+
   return (
     <>
       <div className="page-head">
@@ -87,6 +99,26 @@ export function Home() {
           </Link>
         ))}
       </div>
+
+      {/* DIRECT SIGNUPS — the one route with no agency/supplier home of its own;
+          its stages get a first-class panel here, each deep-linking to the list. */}
+      <Card>
+        <CardHead
+          title="Direct signups"
+          sub={`Tenants who came to Opndoor directly · ${directTotal} in flight`}
+          actions={<Link className="home-viewall" to="/applications?route=Direct">View all Direct <Icon name="arrowRight" size={13} /></Link>}
+        />
+        <CardBody>
+          <div className="home-stages">
+            {directStages.map((s) => (
+              <Link key={s.label} to={s.to} className={`home-stage${s.n > 0 ? '' : ' home-stage--empty'}`}>
+                <div className="home-stage__n">{s.n}</div>
+                <div className="home-stage__l">{s.label}</div>
+              </Link>
+            ))}
+          </div>
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHead

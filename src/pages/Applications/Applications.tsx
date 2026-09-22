@@ -83,7 +83,10 @@ export function Applications() {
   });
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('Newest first');
-  const [partner, setPartner] = useState('');
+  // Partner sub-filter (opndoor admin). Seeded from ?partner= so a supplier's page
+  // can deep-link to its own applications; a non-superadmin is already confined to
+  // their own partner by scope, so a crafted value only ever narrows to nothing.
+  const [partner, setPartner] = useState(() => params.get('partner') || '');
   const [agency, setAgency] = useState(() => params.get('agency') || (params.get('branch') ? agencyOfBranch(params.get('branch')!) : ''));
   const [branch, setBranch] = useState(() => params.get('branch') || '');
   // #owner Referrer filter (management + opndoor admin only). Referrers only ever
@@ -91,8 +94,13 @@ export function Applications() {
   // ?referrer= they craft is ignored (scopedSet already restricts them to owner rows).
   const [referrer, setReferrer] = useState(() => (role !== 'referrer' ? params.get('referrer') || '' : ''));
   // Route filter (Direct / Agency / Supplier / Provider), for every role — the one
-  // list, filterable by how each application arrived. Empty = all routes.
-  const [route, setRoute] = useState<Channel | ''>('');
+  // list, filterable by how each application arrived. Empty = all routes. Seeded
+  // from ?route= (validated against the four channels) so Home's Direct tile and
+  // other deep-links can open the list pre-filtered by route.
+  const [route, setRoute] = useState<Channel | ''>(() => {
+    const r = params.get('route');
+    return (CHANNELS as readonly string[]).includes(r ?? '') ? (r as Channel) : '';
+  });
   // #owner Period filter — the dashboard's options, bucketed on sent date. Defaults
   // to All time so the page's default view (every application) is unchanged.
   const periods = getPeriods();

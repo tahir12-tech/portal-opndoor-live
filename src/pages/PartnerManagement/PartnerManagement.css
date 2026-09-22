@@ -28,6 +28,9 @@
   font-size: 15.5px;
   letter-spacing: -0.01em;
 }
+/* The partner name opens its home page; it still reads as the name. */
+.pco__namelink { color: var(--ink); text-decoration: none; }
+.pco__namelink:hover { color: var(--heliotrope-deep); }
 .pco__since {
   font-size: 12px;
   color: var(--ink-mute);

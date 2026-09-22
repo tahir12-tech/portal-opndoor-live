@@ -1,0 +1,78 @@
+/* =====================================================================
+   PartnerHome — the supplier page. Portal brand (indigo ink, heliotrope accent,
+   lilac field, Sora/Manrope), reusing .card / .dt; only the partner-specific
+   layout lives here. Mirrors AgencyHome's structure.
+   ===================================================================== */
+
+.ph-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 700; color: var(--ink-mute); text-decoration: none;
+}
+.ph-back:hover { color: var(--heliotrope-deep); }
+
+.ph-sub.ph-sub { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 8px; }
+.ph-sub span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* KPI strip */
+.ph-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+.ph-kpi {
+  background: #fff; border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm); padding: 16px 18px;
+}
+.ph-kpi__v { font-family: var(--display); font-size: 24px; font-weight: 700; letter-spacing: -.02em; color: var(--ink); }
+.ph-kpi__l { font-size: 12px; color: var(--ink-mute); margin-top: 4px; text-transform: uppercase; letter-spacing: .04em; }
+
+/* two-up grid for commission + API */
+.ph-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+.ph-grid > * { min-width: 0; }
+
+/* commission */
+.ph-rates { display: flex; gap: 14px; }
+.ph-rate { flex: 1; background: var(--white-lilac); border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px 16px; }
+.ph-rate__v { font-family: var(--display); font-size: 26px; font-weight: 700; color: var(--heliotrope-deep); letter-spacing: -.02em; }
+.ph-rate__l { font-size: 12.5px; font-weight: 700; color: var(--ink); margin-top: 2px; }
+.ph-note { font-size: 12.5px; color: var(--ink-soft); margin: 12px 0 0; line-height: 1.5; }
+.ph-note.muted { color: var(--ink-mute); }
+.ph-note a { color: var(--heliotrope-deep); font-weight: 700; }
+
+/* API access capabilities */
+.ph-caps { display: flex; flex-direction: column; gap: 10px; }
+.ph-cap { display: flex; align-items: center; gap: 9px; font-size: 13.5px; color: var(--ink); }
+.ph-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.ph-dot--on { background: var(--deed); }
+.ph-dot--off { background: var(--ink-mute); }
+
+/* agencies + branches tree */
+.ph-tree { display: flex; flex-direction: column; }
+.ph-tree__agency { border-bottom: 1px solid var(--line); }
+.ph-tree__agency:last-child { border-bottom: 0; }
+.ph-tree__arow { display: flex; align-items: center; gap: 10px; padding: 14px 22px; flex-wrap: wrap; }
+.ph-tree__ic { color: var(--heliotrope-deep); display: inline-flex; }
+.ph-tree__name { font-family: var(--display); font-weight: 700; font-size: 14.5px; color: var(--ink); text-decoration: none; }
+.ph-tree__name:hover { color: var(--heliotrope-deep); }
+.ph-tree__meta { margin-left: auto; font-size: 12px; color: var(--ink-mute); }
+.ph-tree__branches { padding: 0 22px 8px 30px; }
+.ph-tree__branch { display: flex; align-items: center; gap: 9px; padding: 7px 0; border-top: 1px dashed var(--line); flex-wrap: wrap; }
+.ph-tree__bic { color: var(--ink-mute); display: inline-flex; }
+.ph-tree__bname { font-weight: 600; font-size: 13px; color: var(--ink); text-decoration: none; }
+.ph-tree__bname:hover { color: var(--heliotrope-deep); }
+.ph-tree__barea { font-size: 12px; color: var(--ink-mute); }
+
+.ph-tag {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--warn); background: var(--warn-bg); border-radius: 999px; padding: 1px 7px;
+}
+
+/* users table */
+.ph-table { width: 100%; }
+.ph-table td.soft { color: var(--ink-mute); }
+.ph-user { display: inline-flex; align-items: center; gap: 10px; }
+.ph-user .dt__name { display: block; font-weight: 600; }
+.ph-user .dt__sub { display: block; font-size: 11.5px; color: var(--ink-mute); }
+.ph-viewall { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--heliotrope-deep); text-decoration: none; }
+.ph-empty { padding: 22px; text-align: center; color: var(--ink-mute); font-size: 13px; }
+
+@media (max-width: 860px) {
+  .ph-kpis { grid-template-columns: repeat(2, 1fr); }
+  .ph-grid { grid-template-columns: 1fr; }
+}
