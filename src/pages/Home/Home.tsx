@@ -6,7 +6,7 @@
    several. Uses the existing services and route model; no new data.
    ===================================================================== */
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import {
   awaitingDecisionCount, reconciliationPendingCount, loadAgencyMatchQueue, countByStatus,
   getApplications, ALL_PARTNERS,
@@ -30,6 +30,7 @@ const initials = (n: string) => n.split(' ').map((p) => p[0]).slice(0, 2).join('
 export function Home() {
   usePageMeta('home', 'Home', ['Home']);
   const { role, dataVersion } = useSession();
+  const isOpndoorStaff = role === 'superadmin' || role === 'opndoor_manager';
   const scopeOpts = { role, scope: ALL_PARTNERS as string };
 
   const awaiting = awaitingDecisionCount();
@@ -39,12 +40,13 @@ export function Home() {
   // The direct-match backlog is an async, superadmin-scoped RPC (see Sidebar).
   const [matches, setMatches] = useState(0);
   useEffect(() => {
+    if (!isOpndoorStaff) { setMatches(0); return; }
     let cancelled = false;
     void loadAgencyMatchQueue()
       .then((rows) => { if (!cancelled) setMatches(rows.filter((r) => r.state === 'needs_review').length); })
       .catch(() => { if (!cancelled) setMatches(0); });
     return () => { cancelled = true; };
-  }, [dataVersion]);
+  }, [dataVersion, isOpndoorStaff]);
 
   // The awaiting-decision cohort, route-badged — the clearest "needs a person" list.
   const needs = useMemo(
@@ -52,6 +54,10 @@ export function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [role, dataVersion],
   );
+
+  // Per-actor landing: only opndoor staff see the ops Home. A developer's home is
+  // the Dev Centre; every other role lands on their book (Reporting).
+  if (!isOpndoorStaff) return <Navigate to={role === 'developer' ? '/dev-centre' : '/dashboard'} replace />;
 
   const tiles = [
     { label: 'Awaiting decision', n: awaiting, meta: 'need an eligibility decision', to: '/applications?status=referencing', tone: 'warn' as const },

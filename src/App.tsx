@@ -90,12 +90,10 @@ export function App() {
             which resources are listed. */}
         <Route path="/help" element={<Help />} />
 
-        {/* The Opndoor-staff home (queues first). Every post-auth redirect targets
-            /home; a non-opndoor role bounces to /dashboard via redirectTo, so this
-            doubles as the per-actor landing: admins land here, partners on their book. */}
-        <Route element={<RequireRole roles={['superadmin', 'opndoor_manager']} redirectTo="/dashboard" />}>
-          <Route path="/home" element={<Home />} />
-        </Route>
+        {/* /home is the single post-auth landing target and the per-actor resolver:
+            opndoor staff get the queues-first Home; Home itself sends a developer to
+            the Dev Centre and every other role to their book (Reporting). */}
+        <Route path="/home" element={<Home />} />
 
         {/* Dev Centre. Management is here only to revoke a leaked key; the page
             renders them the keys panel alone. The RPCs scope themselves, so this
