@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState, type ReactNode, type Dispatch, type SetSt
 import { Link, useParams } from 'react-router-dom';
 import {
   getAgencies, getGroup, getGroups, getRatesFor, setAgencyRates, setGroupRates,
-  getApplications, getUsers, ALL_PARTNERS,
+  getApplications, getUsers, maySeeCommission, ALL_PARTNERS,
   type Agency, type AgencyGroup, type ManagedUser, type Status,
 } from '@/data';
 import { getPositionsForUsers } from '@/data/positionsService';
@@ -82,7 +82,7 @@ export function AgencyHome() {
   // The brands and their branches, flattened, plus the owning partner slug (used
   // only to scope the people/referrals reads — never shown).
   const brands = org ? (org.kind === 'group' ? org.brands : [org.brand]) : [];
-  const partner = org ? (org.kind === 'group' ? (org.brands[0]?.partner ?? '') : org.brand.partner) : '';
+  const partner = org ? (org.kind === 'group' ? org.group.partner : org.brand.partner) : '';
   const branchesFlat = useMemo(
     () => brands.flatMap((b) => (b.branches ?? []).map((br) => ({ brand: b, branch: br }))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -243,14 +243,17 @@ export function AgencyHome() {
           </div>
         </div>
 
-        {/* COMMISSION — tier editor */}
+        {/* COMMISSION — tier editor. Commercially sensitive: only opndoor admin and
+            a partner's own management may see it (matches maySeeCommission everywhere
+            else); this route also admits referrers/opndoor_manager, who must not. */}
+        {maySeeCommission(role) && (
         <div className="block card">
           <div className="block-h"><h4>Commission</h4>{isAdmin && <span className="ah-newtag">editor</span>}<span className="block-sub" style={{ marginLeft: 'auto' }}>share of the guarantee fee</span></div>
           <div className="ah-comm">
             <div className="ah-crow ah-crow--head"><span>Tier</span><span>Opndoor</span><span>Agent</span></div>
             {grp && (
               <RateRow
-                label={<><b>Group override</b><br /><span>applies to all brands unless a brand sets its own</span></>}
+                label={<><b>Group override</b><br /><span>applies to all brands; overrides a brand's own rate</span></>}
                 rowKey={`group:${grp.id}`} draft={draft} setDraft={setDraft} editable={isAdmin}
                 saving={savingRow === `group:${grp.id}`} onSave={() => saveRow(`group:${grp.id}`)}
               />
@@ -275,6 +278,7 @@ export function AgencyHome() {
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* PEOPLE & POSITIONS — bucketed by level, invite from the level */}
@@ -314,7 +318,7 @@ export function AgencyHome() {
           sub="route: Agency"
           actions={org.kind === 'brand'
             ? <Link className="ah-viewall" to={`/applications?agency=${encodeURIComponent(org.brand.name)}`}>Open in Applications <Icon name="arrowRight" size={13} /></Link>
-            : <Link className="ah-viewall" to="/applications?route=Agent%20referral">Open in Applications <Icon name="arrowRight" size={13} /></Link>}
+            : undefined}
         />
         <CardBody style={{ padding: recent.length === 0 ? undefined : 0 }}>
           {recent.length === 0 ? (

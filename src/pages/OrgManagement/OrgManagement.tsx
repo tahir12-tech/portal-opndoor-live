@@ -341,7 +341,7 @@
 //         name: agencyName.trim(), group: agencyGroup.trim() || undefined,
 //         contactEmail: agencyContact.email.trim(), contactName: agencyContact.name.trim() || undefined, contactPhone: agencyContact.phone.trim() || undefined,
 //       }, partnerScope),
-//       'Agency added.',
+//       'Brand added.',
 //       () => setAgencyOpen(false),
 //     );
 //   }
@@ -820,7 +820,7 @@ export function OrgManagement() {
       }
       await attachAgencyToGroup(groupAgency.id, gid);
       setGroupAgency(null);
-      toast(gid ? 'Agency added to the group.' : 'Agency detached from its group.');
+      toast(gid ? 'Brand added to the group.' : 'Brand detached from its group.');
       await refreshData();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not update the group.', 'error');
@@ -1110,7 +1110,7 @@ function requestCloseContacts() {
         name: agencyName.trim(), group: agencyGroup.trim() || undefined,
         contactEmail: agencyContact.email.trim(), contactName: agencyContact.name.trim() || undefined, contactPhone: agencyContact.phone.trim() || undefined,
       }, agencyPartner),
-      'Agency added.',
+      'Brand added.',
       () => setAgencyOpen(false),
     );
   }
@@ -1149,20 +1149,26 @@ function requestCloseContacts() {
       : role === 'management' ? <>You can view, add and edit the brands and branches you manage, and your changes apply straight away. Keeping opndoor's own records in step is handled by <b>opndoor</b>.</>
         : <>You can view every agency and branch. Adding and editing records is handled by your management team and <b>opndoor</b>.</>;
 
-  // Filtered, with expand-all while searching (mirrors org-management.html).
+  // Real groups (agency_groups) for the current scope, keyed by id — used both to
+  // match a group-name search and to build the group -> brand -> branch tree.
+  const listGroups = getGroups(listScope);
+  const groupById = new Map(listGroups.map((g) => [g.id, g]));
+
+  // Filtered, with expand-all while searching (mirrors org-management.html). A brand
+  // matches on its own name OR its group's name, so searching a group keeps all its
+  // brands (and their branches) — matching the "Search groups, brands or branches" copy.
   const shownAgencies = pool
     .map((a) => {
-      const agencyMatch = a.name.toLowerCase().includes(q);
+      const groupName = a.groupId ? (groupById.get(a.groupId)?.name.toLowerCase() ?? '') : '';
+      const agencyMatch = a.name.toLowerCase().includes(q) || (!!q && groupName.includes(q));
       const branches = a.branches.filter((b) => !q || agencyMatch || b.name.toLowerCase().includes(q));
       return { a, agencyMatch, branches };
     })
     .filter(({ agencyMatch, branches }) => !(q && !agencyMatch && branches.length === 0));
 
-  // Group the shown brands into their real group (agency_groups), so the list is a
-  // group -> brand -> branch tree. Brands with no group render at the top level.
+  // Group the shown brands into their real group, so the list is a group -> brand ->
+  // branch tree. Brands with no group render at the top level.
   type ShownBrand = (typeof shownAgencies)[number];
-  const listGroups = getGroups(listScope);
-  const groupById = new Map(listGroups.map((g) => [g.id, g]));
   const groupSections = new Map<string, { group: AgencyGroup; items: ShownBrand[] }>();
   const ungroupedBrands: ShownBrand[] = [];
   for (const item of shownAgencies) {
