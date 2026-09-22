@@ -627,7 +627,7 @@ import { useState, type MouseEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ALL_PARTNERS, addContactLive, createAgencyLive, createBranchLive, effectivePrimary, findAgency,
-  getAgencies, getGroup, getPartners, getRatesFor, setAgencyRates, removeContactLive, setPrimaryLive, updateContactLive,
+  getAgencies, getGroup, getGroups, getPartners, getRatesFor, setAgencyRates, createAgencyGroup, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
   type Agency, type AgentContact, type Branch,
 } from '@/data';
 import { fmtRatePct } from '@/lib/format';
@@ -791,6 +791,40 @@ export function OrgManagement() {
       await refreshData();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not update commission.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Group editor (superadmin/management): put a brand (agency) into a real group,
+  // create one on the fly, or detach. This is what makes "a whole group" position
+  // and the group commission tier reachable, replacing the dead group_name label.
+  const [groupAgency, setGroupAgency] = useState<Agency | null>(null);
+  const [groupChoice, setGroupChoice] = useState<string>('');
+  const [newGroupName, setNewGroupName] = useState('');
+  function openGroup(a: Agency) {
+    setGroupAgency(a);
+    setGroupChoice(a.groupId ?? '');
+    setNewGroupName('');
+  }
+  async function saveGroup() {
+    if (!groupAgency?.id) return;
+    setBusy(true);
+    try {
+      let gid: string | null;
+      if (groupChoice === 'new') {
+        const nm = newGroupName.trim();
+        if (!nm) { toast('Enter a name for the new group.', 'error'); setBusy(false); return; }
+        gid = (await createAgencyGroup(groupAgency.partner, nm)).id;
+      } else {
+        gid = groupChoice || null;
+      }
+      await attachAgencyToGroup(groupAgency.id, gid);
+      setGroupAgency(null);
+      toast(gid ? 'Agency added to the group.' : 'Agency detached from its group.');
+      await refreshData();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not update the group.', 'error');
     } finally {
       setBusy(false);
     }
@@ -1203,6 +1237,7 @@ function requestCloseContacts() {
                 </Link>
                 {role === 'superadmin' && (
                   <div className="agency__actions" data-stop>
+                    {a.id && <button className="iconbtn iconbtn--sm" title="Group" onClick={() => openGroup(a)}><Icon name="org" /></button>}
                     {a.id && <button className="iconbtn iconbtn--sm" title="Commission" onClick={() => openCommission(a)}><Icon name="trend" /></button>}
                     <button className="iconbtn iconbtn--sm" title="Edit"  onClick={() => openContacts(a.name, null)}><Icon name="edit" /></button>
                   </div>
@@ -1408,6 +1443,38 @@ function requestCloseContacts() {
             </>
           );
         })()}
+      </Modal>
+
+      {/* Group editor: put a brand into a real agency_groups row, create one, or detach. */}
+      <Modal
+        open={!!groupAgency}
+        onClose={() => setGroupAgency(null)}
+        width={460}
+        title={`Group — ${groupAgency?.name ?? ''}`}
+        sub="Put this agency into a group. A group is the top commission tier and can be covered by a single director's position."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setGroupAgency(null)} disabled={busy}>Cancel</Button>
+            <Button variant="primary" onClick={() => void saveGroup()} disabled={busy}>{busy ? 'Saving…' : 'Save group'}</Button>
+          </>
+        }
+      >
+        {groupAgency && (
+          <div className="form-grid">
+            <Field label="Group" span2 hint="Groups are within this agency's partner.">
+              <select value={groupChoice} onChange={(e) => setGroupChoice(e.target.value)}>
+                <option value="">None (ungrouped)</option>
+                {getGroups(groupAgency.partner).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                <option value="new">＋ New group…</option>
+              </select>
+            </Field>
+            {groupChoice === 'new' && (
+              <Field label="New group name" span2>
+                <input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="Northgate Property Group" />
+              </Field>
+            )}
+          </div>
+        )}
       </Modal>
     </>
   );
