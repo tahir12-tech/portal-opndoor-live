@@ -11,7 +11,7 @@ import { GlobalSearch } from './GlobalSearch';
 import { HelpMenu, NotificationsMenu, type Pop } from './TopbarMenus';
 import { Icon } from '@/components/ui/Icon';
 import { useOnClickOutside } from '@/hooks/useOnClickOutside';
-import { getNotifications, markNotificationsRead, notificationsUnread, type NotificationItem } from '@/data';
+import { getNotifications, markNotificationsRead, notificationsUnread, partnerName, ALL_PARTNERS, type NotificationItem } from '@/data';
 import { useSession } from '@/session/SessionContext';
 
 // Breadcrumb segments that map to a real landing route become links (#63).
@@ -23,7 +23,9 @@ const CRUMB_ROUTES: Record<string, string> = {
   Applications: '/applications',
   'League tables': '/league',
   Activity: '/activity',
+  Agencies: '/agencies',
   'Agencies & branches': '/agencies',
+  Suppliers: '/partners',
   Partners: '/partners',
   Users: '/users',
   Reconciliation: '/reconciliation',
@@ -33,7 +35,11 @@ const CRUMB_ROUTES: Record<string, string> = {
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const { title, crumbs } = usePageMetaValue();
-  const { currentUserId } = useSession();
+  const { currentUserId, role, selectedPartner, setSelectedPartner } = useSession();
+  // View as: a superadmin who has narrowed to one partner is "viewing as" that
+  // org (the scope selector drives it and logs an audit entry). Show it and offer
+  // an exit back to the unscoped master view.
+  const viewingAs = role === 'superadmin' && selectedPartner !== ALL_PARTNERS ? partnerName(selectedPartner) : null;
   const [pop, setPop] = useState<Pop>(null);
   const [notifs, setNotifs] = useState<NotificationItem[]>([]);
   // Read state persists per user (item #64), so reopening the panel does not
@@ -85,6 +91,16 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       <GlobalSearch />
 
       <div className="topbar__actions" ref={actionsRef}>
+        {viewingAs && (
+          <button
+            className="viewas-pill"
+            onClick={() => setSelectedPartner(ALL_PARTNERS)}
+            title="Exit — back to all partners"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--heliotrope-deep)', background: 'var(--white-lilac)', border: '1px solid var(--line-strong)', borderRadius: 999, padding: '5px 11px' }}
+          >
+            Viewing as <b>{viewingAs}</b> <Icon name="x" size={12} />
+          </button>
+        )}
         <RoleSwitch />
         <HelpMenu open={pop === 'help'} onToggle={() => toggle('help')} />
         <NotificationsMenu open={pop === 'notif'} onToggle={() => toggle('notif')} read={notifRead} onClear={clearNotifs} items={notifs} />

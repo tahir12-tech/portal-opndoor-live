@@ -13,6 +13,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   ALL_PARTNERS, authService, getSelectedPartner, homePartner, setHomePartner,
   setSelectedPartner as persistPartner, getSelectedPeriod, setSelectedPeriod as persistPeriod,
+  logViewAs, partnerName,
   LEAST_PRIVILEGED_ROLE, type PartnerScope, type Period, type Role,
 } from '@/data';
 import { KEYS, loadString, saveString } from '@/data/storage';
@@ -116,6 +117,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const setSelectedPartner = useCallback((id: PartnerScope) => {
     persistPartner(id);
     setSelectedPartnerState(id);
+    // Entering a partner's view is an audited "view as" (the server refuses the
+    // log for non-staff, so this is safe to fire for the superadmin selector).
+    if (id !== ALL_PARTNERS) void logViewAs('partner', partnerName(id));
   }, []);
 
   const setPeriod = useCallback((id: string) => {

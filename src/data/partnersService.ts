@@ -320,6 +320,13 @@ export function getRatesFor(scope: PartnerScope): CommissionRates {
   };
 }
 
+/** Record a view-as entry (who, as whom, when). Non-blocking; the server refuses
+    it for anyone who is not Opndoor staff, so it is safe to call optimistically. */
+export async function logViewAs(kind: 'partner' | 'agency', label: string): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  try { await sb().rpc('log_view_as', { p_kind: kind, p_label: label }); } catch { /* audit is best-effort */ }
+}
+
 /* ---- opndoor admin's selected partner scope (persisted UI preference) ---- */
 export function getSelectedPartner(): PartnerScope {
   return loadString(KEYS.partner) || ALL_PARTNERS;
