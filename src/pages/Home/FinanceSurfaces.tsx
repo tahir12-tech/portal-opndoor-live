@@ -1,0 +1,270 @@
+/* =====================================================================
+   FinanceSurfaces — the opndoor money-operations surfaces, lifted out of the
+   Reporting dashboard so they live on the ops Home (the single Operations home):
+   the partner commission settlement, the agent commission settlement, and the
+   underwriter bordereau.
+
+   Reads the SAME settlement services the dashboard does (getCommissionSettlement /
+   getAgentCommissionSettlement, same role + scope), so a figure here and a
+   downloaded statement foot to exactly the same numbers. This is the opndoor-staff
+   (superadmin) view of settlement; a partner still sees its own payable on its
+   own Reporting dashboard (management-gated there).
+
+   Styling reuses the dashboard's .settle / .bdx classes (Dashboard.css is global).
+   ===================================================================== */
+import { useState } from 'react';
+import {
+  exportBranded, buildPartnerStatementDoc, buildAgentStatementDoc, exportBordereauFile,
+  getCommissionSettlement, getAgentCommissionSettlement, liveAvailable,
+  getBordereauRate, getBordereauRateMeta, setBordereauRate,
+  type PartnerScope, type Role,
+} from '@/data';
+import { formatLondonDate } from '@/lib/format';
+import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
+import { Eyebrow } from '@/components/ui/Eyebrow';
+import { useToast } from '@/components/ui/Toast';
+import '@/pages/Dashboard/Dashboard.css';
+
+export function FinanceSurfaces({ role, partnerScope }: { role: Role; partnerScope: PartnerScope }) {
+  const toast = useToast();
+  // Same services, same role + scope as the dashboard: figures reconcile exactly.
+  const settlement = getCommissionSettlement(role, partnerScope);
+  const agentSettlement = getAgentCommissionSettlement(role, partnerScope);
+  const live = liveAvailable();
+
+  // Money-reconciliation surface: pence on every row and total so rows always sum.
+  const gbpPence = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const dmyShort = (x: Date) => formatLondonDate(x);
+  const settleDate = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${settlement.settlementDate.getFullYear()}`;
+  const agentSettleDate = `${agentSettlement.settlementDate.getDate()} ${agentSettlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${agentSettlement.settlementDate.getFullYear()}`;
+  const settleDayMonth = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })}`;
+  const partnerDue = settlement.partners.reduce((s, p) => s + p.commission, 0);
+  const agentDue = agentSettlement.agencies.reduce((s, a) => s + a.commission, 0);
+
+  // Branded, self-footing statements — read the same settlement data as the rows below.
+  const downloadPartnerStatement = (partnerId: string) => void exportBranded(buildPartnerStatementDoc(role, partnerScope, partnerId));
+  const downloadAgentStatement = (partner: string, agency: string) => void exportBranded(buildAgentStatementDoc(role, partnerScope, partner, agency));
+
+  // Agent settlement can span many agencies: top 5 inline, the rest behind an expander.
+  const agentTop = agentSettlement.agencies.slice(0, 5);
+  const agentRest = agentSettlement.agencies.slice(5);
+  const agentAgencyRow = (a: (typeof agentSettlement.agencies)[number]) => (
+    <div key={`${a.partner}-${a.agency}`} className="settle__partner">
+      <div className="settle__row">
+        <span>Agent commission payable to <b>{a.agency}</b></span>
+        <span className="settle__amt">{gbpPence(a.commission)}</span>
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <Button variant="ghost" size="sm" onClick={() => downloadAgentStatement(a.partner, a.agency)} title={`Download a branded agent commission statement for ${a.agency} (${agentSettlement.monthLabel}). Foots to the figure above.`}>
+          <Icon name="download" /> Download statement
+        </Button>
+      </div>
+      <details className="settle__exp">
+        <summary>Show applications ({a.apps.length})</summary>
+        <div className="settle__apps">
+          <table>
+            <thead>
+              <tr><th>Reference</th><th>Branch</th><th className="num">Paid</th><th className="num">Fee</th><th className="num">Agent commission</th></tr>
+            </thead>
+            <tbody>
+              {a.apps.map((ap) => (
+                <tr key={ap.ref}>
+                  <td>{ap.ref}</td>
+                  <td>{ap.branch}</td>
+                  <td className="num">{dmyShort(ap.paidAt)}</td>
+                  <td className="num">{gbpPence(ap.rent)}</td>
+                  <td className="num">{gbpPence(ap.commission)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  );
+
+  // ---- underwriter bordereau (opndoor admin only) ----
+  const [bdxOpen, setBdxOpen] = useState(false);
+  const [bdxMonth, setBdxMonth] = useState('2026-06');
+  const [bdxRate, setBdxRate] = useState(String(getBordereauRate()));
+  const [bdxBusy, setBdxBusy] = useState(false);
+  function openBordereau() {
+    setBdxRate(String(getBordereauRate()));
+    setBdxOpen(true);
+  }
+  async function exportBordereau() {
+    if (bdxBusy) return;
+    const mv = (bdxMonth || '2026-06').split('-');
+    const parsed = parseFloat(bdxRate);
+    const rate = isNaN(parsed) ? getBordereauRate() : parsed;
+    setBdxBusy(true);
+    try {
+      // Persist the applied rate (audited if it changed) so the next export defaults to it.
+      await setBordereauRate(rate);
+      await exportBordereauFile(role, +mv[0], +mv[1] - 1, rate);
+      setBdxOpen(false);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not save the insurance rate.', 'error');
+    } finally {
+      setBdxBusy(false);
+    }
+  }
+
+  const hasPartner = live && settlement.partners.length > 0;
+  const hasAgent = live && agentSettlement.agencies.length > 0;
+  const isAdmin = role === 'superadmin';
+
+  return (
+    <div className="dash-grid">
+      <div className="section-label" style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+        <Eyebrow>Settlements</Eyebrow>
+        {live && (partnerDue > 0 || agentDue > 0) && (
+          <span className="muted" style={{ fontSize: 12.5 }}>
+            Due <b>{settleDayMonth}</b>: {gbpPence(partnerDue)} partner · {gbpPence(agentDue)} agent
+          </span>
+        )}
+      </div>
+
+      {!hasPartner && !hasAgent && (
+        <section className="card">
+          <div className="muted" style={{ fontSize: 13 }}>
+            {live
+              ? `No commission is payable for ${settlement.monthLabel}. Settlement figures appear here once payments accrue in the prior calendar month.`
+              : 'Commission settlement appears here in live mode.'}
+          </div>
+        </section>
+      )}
+
+      {/* COMMISSION SETTLEMENT (partner, prior calendar month, payable the 15th) */}
+      {hasPartner && (
+        <section className="card settle">
+          <div className="settle__head">
+            <div>
+              <div className="kpi__label">Partner commission settlement</div>
+              <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
+                Partner commission accrued on payments in <b>{settlement.monthLabel}</b> (calendar month, net of refunds), payable on <b>{settleDate}</b>.
+              </div>
+            </div>
+          </div>
+          {settlement.partners.map((p) => (
+            <div key={p.partner} className="settle__partner">
+              <div className="settle__row">
+                <span>Commission payable to <b>{p.partnerName}</b></span>
+                <span className="settle__amt">{gbpPence(p.commission)}</span>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <Button variant="ghost" size="sm" onClick={() => downloadPartnerStatement(p.partner)} title={`Download a branded partner commission statement for ${p.partnerName} (${settlement.monthLabel}). Foots to the figure above.`}>
+                  <Icon name="download" /> Download statement
+                </Button>
+              </div>
+              <details className="settle__exp">
+                <summary>Show applications ({p.apps.length})</summary>
+                <div className="settle__apps">
+                  <table>
+                    <thead>
+                      <tr><th>Reference</th><th>Branch</th><th className="num">Paid</th><th className="num">Fee</th><th className="num">Commission</th></tr>
+                    </thead>
+                    <tbody>
+                      {p.apps.map((ap) => (
+                        <tr key={ap.ref}>
+                          <td>{ap.ref}</td>
+                          <td>{ap.branch}{ap.agency ? ` · ${ap.agency}` : ''}</td>
+                          <td className="num">{dmyShort(ap.paidAt)}</td>
+                          <td className="num">{gbpPence(ap.rent)}</td>
+                          <td className="num">{gbpPence(ap.commission)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* AGENT COMMISSION SETTLEMENT (agency level, prior calendar month, payable the 15th) */}
+      {hasAgent && (
+        <section className="card settle">
+          <div className="settle__head">
+            <div>
+              <div className="kpi__label">Agent commission settlement</div>
+              <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
+                Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each agency on <b>{agentSettleDate}</b>.
+              </div>
+            </div>
+          </div>
+          <div className="settle__row settle__row--agg">
+            <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.agencies.length}</b> {agentSettlement.agencies.length === 1 ? 'agency' : 'agencies'}</span>
+            <span className="settle__amt">{gbpPence(agentDue)}</span>
+          </div>
+          {agentTop.map(agentAgencyRow)}
+          {agentRest.length > 0 && (
+            <details className="settle__exp settle__exp--more">
+              <summary>View all {agentSettlement.agencies.length} agencies</summary>
+              {agentRest.map(agentAgencyRow)}
+            </details>
+          )}
+        </section>
+      )}
+
+      {/* UNDERWRITER BORDEREAU (opndoor admin only) */}
+      {isAdmin && (
+        <section className="card">
+          <div className="settle__head">
+            <div>
+              <div className="kpi__label">Underwriter bordereau</div>
+              <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
+                Monthly export (C&amp;C format) with full tenant details, for one calendar month by tenancy start date. Contains personal data — for the underwriter only.
+              </div>
+            </div>
+            <Button variant="primary" size="sm" onClick={openBordereau} title="Monthly underwriter bordereau (C&C format) with full tenant details. opndoor admin only.">
+              <Icon name="shield" /> Bordereau
+            </Button>
+          </div>
+        </section>
+      )}
+
+      {/* BORDEREAU MODAL (opndoor admin only) */}
+      {bdxOpen && isAdmin && (
+        <div className="bdx-scrim is-open" onMouseDown={(e) => e.target === e.currentTarget && setBdxOpen(false)}>
+          <div className="bdx" role="dialog" aria-modal="true">
+            <div className="bdx__head">
+              <div>
+                <div className="bdx__title">Monthly bordereau</div>
+                <div className="bdx__sub">Underwriter export (C&amp;C format) with full tenant details, for one calendar month by tenancy start date. opndoor admin only.</div>
+              </div>
+              <button className="bdx__close" aria-label="Close" onClick={() => setBdxOpen(false)}><Icon name="x" /></button>
+            </div>
+            <div className="bdx__body">
+              <div className="field">
+                <label htmlFor="bdx-month">Month (by tenancy start date)</label>
+                <input type="month" id="bdx-month" min="2024-09" max="2026-12" value={bdxMonth} onChange={(e) => setBdxMonth(e.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="bdx-rate">Insurance rate applied to every row</label>
+                <div className="bdx__rate">
+                  <input type="number" id="bdx-rate" step="0.1" min="0" max="100" value={bdxRate} onChange={(e) => setBdxRate(e.target.value)} />
+                  <span>%</span>
+                </div>
+                <span className="hint">
+                  {(() => { const m = getBordereauRateMeta(); return `Current rate: ${m.rate}%${m.changedAt ? ` · last changed ${dmyShort(m.changedAt)} by ${m.changedBy ?? 'an administrator'}` : ' (default)'}.`; })()}
+                  {' '}Changing it here saves the new rate for future exports and records who changed it and when.
+                </span>
+              </div>
+              <div className="bdx__warn">
+                <Icon name="alert" />
+                <span>Contains full tenant personal data. For the underwriter only. Never share with partner users.</span>
+              </div>
+            </div>
+            <div className="bdx__foot">
+              <Button variant="ghost" onClick={() => setBdxOpen(false)} disabled={bdxBusy}>Cancel</Button>
+              <Button variant="primary" onClick={exportBordereau} disabled={bdxBusy}>{bdxBusy ? 'Saving…' : 'Export bordereau'}</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

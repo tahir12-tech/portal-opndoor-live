@@ -17,6 +17,7 @@ import { usePageMeta } from '@/components/layout/pageMeta';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { Icon } from '@/components/ui/Icon';
+import { FinanceSurfaces } from './FinanceSurfaces';
 import './Home.css';
 
 const ROUTE_PILL: Record<Channel, PillVariant> = {
@@ -123,6 +124,11 @@ export function Home() {
           )}
         </CardBody>
       </Card>
+
+      {/* Finance lives on the ops Home (Operations stays one home): commission
+          settlement + the underwriter bordereau, for opndoor admin. A partner
+          still sees its own settlement on its own Reporting dashboard. */}
+      {role === 'superadmin' && <FinanceSurfaces role={role} partnerScope={ALL_PARTNERS} />}
     </>
   );
 }

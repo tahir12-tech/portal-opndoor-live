@@ -10,9 +10,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ALL_PARTNERS, buildApplicationDoc, exportBordereauFile, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
+  ALL_PARTNERS, buildApplicationDoc, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartner, getPartners, getPeriods, getTrend, partnerName,
-  getBordereauRate, getBordereauRateMeta, setBordereauRate,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
 import { formatLondonDate } from '@/lib/format';
@@ -30,7 +29,6 @@ import { RoleOnly } from '@/components/ui/RoleOnly';
 import { RoleNote } from '@/components/ui/RoleNote';
 import { BarChart, type BarRow } from '@/components/ui/BarChart';
 import { MeasureSelect, PeriodSelect, TrendSelect } from '@/components/ui/Select';
-import { useToast } from '@/components/ui/Toast';
 import './Dashboard.css';
 
 type ChartKey = 'branch' | 'agency' | 'referrer';
@@ -76,7 +74,6 @@ function buildChartRows(key: ChartKey, rows: LeagueRow[], m: Measure): { bars: B
 export function Dashboard() {
   usePageMeta('dashboard', 'Reporting', ['Home', 'Reporting']);
   const { role, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod } = useSession();
-  const toast = useToast();
 
   // Every figure comes from getDashboardData: live records in Supabase mode
   // (d.live), the deterministic synthetic model in mock/test mode.
@@ -132,7 +129,10 @@ export function Dashboard() {
 
   const naAwaiting = d.live && d.awaiting > 0;
   const naStuckSent = d.stuckSent !== '0';
-  const naSettlements = d.live && canSeeSettlements && (partnerDue > 0 || agentDue > 0);
+  // Settlement moved to the ops Home for opndoor admin; on Reporting the settlement
+  // needs-attention line (and the #settlements anchor it jumps to) is a partner's
+  // own payable, so it is management-only here.
+  const naSettlements = d.live && role === 'management' && (partnerDue > 0 || agentDue > 0);
   // #93 Deed-delivery failure is ops furniture: management + opndoor admin only.
   const naNoContact = d.live && canSeeSettlements && d.deedsNoContact > 0;
   const naLapsing = d.live && canSeeSettlements && d.lapsing14 > 0;
@@ -216,10 +216,6 @@ export function Dashboard() {
   const trendSub = `${measureLabel(trendMeasure)} · ${trendView === 'month' ? 'last 12 months' : `by ${trendView} · total over the last 12 months`}`;
 
   // ---- exports ----
-  const [bdxOpen, setBdxOpen] = useState(false);
-  const [bdxMonth, setBdxMonth] = useState('2026-06');
-  const [bdxRate, setBdxRate] = useState(String(getBordereauRate()));
-  const [bdxBusy, setBdxBusy] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
   const [appsBasis, setAppsBasis] = useState<ExportBasis>('referred');
   // #86 Expiries export, defaulting to the month ~6 weeks out (the cron cohort).
@@ -234,36 +230,12 @@ export function Dashboard() {
     if (built) void exportBranded(built);
     setAppsOpen(false);
   }
-  function openBordereau() {
-    // Default to the stored rate (not a hard-coded value), so it no longer reverts.
-    setBdxRate(String(getBordereauRate()));
-    setBdxOpen(true);
-  }
   function runExpiries() {
     const mv = (expMonth || '2026-06').split('-');
     const out = buildExpiriesCsv(role, +mv[0], +mv[1] - 1);
     if (out) downloadCsv(out.csv, out.filename);
     setExpOpen(false);
   }
-  async function exportBordereau() {
-    if (bdxBusy) return;
-    const mv = (bdxMonth || '2026-06').split('-');
-    const parsed = parseFloat(bdxRate);
-    const rate = isNaN(parsed) ? getBordereauRate() : parsed;
-    setBdxBusy(true);
-    try {
-      // Persist the applied rate (audited if it changed) so the next export defaults
-      // to it and there is a record of what was applied when, and by whom.
-      await setBordereauRate(rate);
-      await exportBordereauFile(role, +mv[0], +mv[1] - 1, rate);
-      setBdxOpen(false);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not save the insurance rate.', 'error');
-    } finally {
-      setBdxBusy(false);
-    }
-  }
-
   return (
     <>
       <div className="page-head">
@@ -302,11 +274,8 @@ export function Dashboard() {
               <Icon name="calendar" /> Expiries
             </Button>
           </RoleOnly>
-          <RoleOnly roles={['superadmin']}>
-            <Button variant="primary" size="sm" onClick={openBordereau} title="Monthly underwriter bordereau (C&C format) with full tenant details. opndoor admin only.">
-              <Icon name="shield" /> Bordereau
-            </Button>
-          </RoleOnly>
+          {/* #Ops: the underwriter bordereau moved to the ops Home (Operations),
+              alongside commission settlement. opndoor admin runs it there. */}
         </div>
       </div>
 
@@ -674,14 +643,14 @@ export function Dashboard() {
 
         {/* SETTLEMENTS (below performance) — payable totals; applications collapsed. */}
         {(naSettlements || (d.live && (settlement.partners.length > 0 || agentSettlement.agencies.length > 0))) && (
-          <RoleOnly roles={['superadmin', 'management']}>
+          <RoleOnly roles={['management']}>
             <div id="settlements" className="section-label"><Eyebrow>Settlements</Eyebrow></div>
           </RoleOnly>
         )}
 
         {/* COMMISSION SETTLEMENT (partner, prior calendar month, payable the 15th) */}
         {d.live && settlement.partners.length > 0 && (
-          <RoleOnly roles={['superadmin', 'management']}>
+          <RoleOnly roles={['management']}>
             <section className="card settle">
               <div className="settle__head">
                 <div>
@@ -731,7 +700,7 @@ export function Dashboard() {
 
         {/* AGENT COMMISSION SETTLEMENT (agency level, prior calendar month, payable the 15th) */}
         {d.live && agentSettlement.agencies.length > 0 && (
-          <RoleOnly roles={['superadmin', 'management']}>
+          <RoleOnly roles={['management']}>
             <section className="card settle">
               <div className="settle__head">
                 <div>
@@ -841,45 +810,6 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* BORDEREAU MODAL (opndoor admin only) */}
-      {bdxOpen && role === 'superadmin' && (
-        <div className="bdx-scrim is-open" onMouseDown={(e) => e.target === e.currentTarget && setBdxOpen(false)}>
-          <div className="bdx" role="dialog" aria-modal="true">
-            <div className="bdx__head">
-              <div>
-                <div className="bdx__title">Monthly bordereau</div>
-                <div className="bdx__sub">Underwriter export (C&amp;C format) with full tenant details, for one calendar month by tenancy start date. opndoor admin only.</div>
-              </div>
-              <button className="bdx__close" aria-label="Close" onClick={() => setBdxOpen(false)}><Icon name="x" /></button>
-            </div>
-            <div className="bdx__body">
-              <div className="field">
-                <label htmlFor="bdx-month">Month (by tenancy start date)</label>
-                <input type="month" id="bdx-month" min="2024-09" max="2026-12" value={bdxMonth} onChange={(e) => setBdxMonth(e.target.value)} />
-              </div>
-              <div className="field">
-                <label htmlFor="bdx-rate">Insurance rate applied to every row</label>
-                <div className="bdx__rate">
-                  <input type="number" id="bdx-rate" step="0.1" min="0" max="100" value={bdxRate} onChange={(e) => setBdxRate(e.target.value)} />
-                  <span>%</span>
-                </div>
-                <span className="hint">
-                  {(() => { const m = getBordereauRateMeta(); return `Current rate: ${m.rate}%${m.changedAt ? ` · last changed ${dmyShort(m.changedAt)} by ${m.changedBy ?? 'an administrator'}` : ' (default)'}.`; })()}
-                  {' '}Changing it here saves the new rate for future exports and records who changed it and when.
-                </span>
-              </div>
-              <div className="bdx__warn">
-                <Icon name="alert" />
-                <span>Contains full tenant personal data. For the underwriter only. Never share with partner users.</span>
-              </div>
-            </div>
-            <div className="bdx__foot">
-              <Button variant="ghost" onClick={() => setBdxOpen(false)} disabled={bdxBusy}>Cancel</Button>
-              <Button variant="primary" onClick={exportBordereau} disabled={bdxBusy}>{bdxBusy ? 'Saving…' : 'Export bordereau'}</Button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

@@ -21,7 +21,7 @@ import {
 import { getRatesFor, weightFor } from './partnersService';
 import { liveAvailable, liveAggregate, liveVolume, liveTrend, deedsWithoutContact, lapsingWithin14, type LiveAgg, type TrendRow } from './liveAnalytics';
 export type { TrendRow } from './liveAnalytics';
-export { getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown } from './liveAnalytics';
+export { getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, liveAvailable } from './liveAnalytics';
 export type { CommissionSettlement, PartnerSettlement, SettlementApp, AgentCommissionSettlement, AgentSettlementAgency, PartnerCommissionRow } from './liveAnalytics';
 
 export function getPeriods(): Period[] {
