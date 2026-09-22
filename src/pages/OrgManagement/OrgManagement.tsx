@@ -627,9 +627,10 @@ import { useState, type MouseEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ALL_PARTNERS, addContactLive, createAgencyLive, createBranchLive, effectivePrimary, findAgency,
-  getAgencies, getPartners, getRatesFor, removeContactLive, setPrimaryLive, updateContactLive,
+  getAgencies, getGroup, getPartners, getRatesFor, setAgencyRates, removeContactLive, setPrimaryLive, updateContactLive,
   type Agency, type AgentContact, type Branch,
 } from '@/data';
+import { fmtRatePct } from '@/lib/format';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { useToast } from '@/components/ui/Toast';
@@ -761,6 +762,39 @@ export function OrgManagement() {
   const [ctPhone, setCtPhone] = useState('');
   const [ctPrimary, setCtPrimary] = useState(false);
   const [ctConfirm, setCtConfirm] = useState<CtConfirm | null>(null);
+
+  // Commission editor (superadmin): set this agency's own override, or clear to
+  // inherit the next tier up. Server-side set_agency_rates is superadmin-only.
+  const [commAgency, setCommAgency] = useState<Agency | null>(null);
+  const [commPartner, setCommPartner] = useState('');
+  const [commAgent, setCommAgent] = useState('');
+  function openCommission(a: Agency) {
+    setCommAgency(a);
+    setCommPartner(a.partnerRate != null ? String(a.partnerRate) : '');
+    setCommAgent(a.agentRate != null ? String(a.agentRate) : '');
+  }
+  async function saveCommission() {
+    if (!commAgency?.id) return;
+    const parse = (s: string): number | null => (s.trim() === '' ? null : Number(s.trim()));
+    const pr = parse(commPartner); const ar = parse(commAgent);
+    for (const [v, label] of [[pr, 'Opndoor rate'], [ar, 'Agent rate']] as const) {
+      if (v !== null && (Number.isNaN(v) || v < 0 || v > 1)) {
+        toast(`${label} must be a fraction between 0 and 1 (e.g. 0.30), or blank to inherit.`, 'error');
+        return;
+      }
+    }
+    setBusy(true);
+    try {
+      await setAgencyRates(commAgency.id, pr, ar);
+      setCommAgency(null);
+      toast('Commission updated. It applies to new applications; existing ones keep their snapshot.');
+      await refreshData();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not update commission.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const rates = getRatesFor(partnerScope);
   const isMgmt = role === 'management';
@@ -1169,6 +1203,7 @@ function requestCloseContacts() {
                 </Link>
                 {role === 'superadmin' && (
                   <div className="agency__actions" data-stop>
+                    {a.id && <button className="iconbtn iconbtn--sm" title="Commission" onClick={() => openCommission(a)}><Icon name="trend" /></button>}
                     <button className="iconbtn iconbtn--sm" title="Edit"  onClick={() => openContacts(a.name, null)}><Icon name="edit" /></button>
                   </div>
                 )}
@@ -1335,6 +1370,44 @@ function requestCloseContacts() {
             {ctEditIndex !== null && <Button variant="ghost" size="sm" onClick={resetContactForm} disabled={busy}>Cancel edit</Button>}
           </div>
         </div>
+      </Modal>
+
+      {/* Commission editor (superadmin): the agency's own override across the
+          resolve_rates tiers. Blank = inherit the group, then partner, rate. */}
+      <Modal
+        open={!!commAgency}
+        onClose={() => setCommAgency(null)}
+        width={460}
+        title={`Commission — ${commAgency?.name ?? ''}`}
+        sub="This agency's share of the guarantee fee. Leave a field blank to inherit the group, then the partner, rate. Applies to new applications; existing ones keep their snapshot."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCommAgency(null)} disabled={busy}>Cancel</Button>
+            <Button variant="primary" onClick={() => void saveCommission()} disabled={busy}>{busy ? 'Saving…' : 'Save commission'}</Button>
+          </>
+        }
+      >
+        {commAgency && (() => {
+          const grp = commAgency.groupId ? getGroup(commAgency.groupId) : undefined;
+          const base = getRatesFor(commAgency.partner);
+          const resolvedPartner = grp?.partnerRate ?? commAgency.partnerRate ?? base.partner;
+          const resolvedAgent = grp?.agentRate ?? commAgency.agentRate ?? base.agent;
+          return (
+            <>
+              <div className="form-grid">
+                <Field label="Opndoor rate" hint="Fraction, e.g. 0.30. Blank = inherit.">
+                  <input type="text" inputMode="decimal" placeholder={`inherit (${fmtRatePct(resolvedPartner)})`} value={commPartner} onChange={(e) => setCommPartner(e.target.value)} />
+                </Field>
+                <Field label="Agent rate" hint="Fraction, e.g. 0.12. Blank = inherit.">
+                  <input type="text" inputMode="decimal" placeholder={`inherit (${fmtRatePct(resolvedAgent)})`} value={commAgent} onChange={(e) => setCommAgent(e.target.value)} />
+                </Field>
+              </div>
+              <p style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-soft)' }}>
+                Currently resolves to <b>{fmtRatePct(resolvedPartner)}</b> Opndoor / <b>{fmtRatePct(resolvedAgent)}</b> agent{grp ? <> · in group <b>{grp.name}</b></> : null}.
+              </p>
+            </>
+          );
+        })()}
       </Modal>
     </>
   );
