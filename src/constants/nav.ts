@@ -70,14 +70,19 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    group: 'Organisation',
-    items: [{ id: 'org', label: 'Agencies & branches', to: '/agencies', icon: 'org', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer'] }],
+    // Two relationships, two homes. Suppliers are the partners at the top of the
+    // tree (Rightmove, RMT); direct agencies live in Agencies (the house partner
+    // that plumbs them never appears). Supplier settings stay superadmin-only.
+    group: 'Relationships',
+    items: [
+      { id: 'partners', label: 'Suppliers', to: '/partners', icon: 'partners', roles: ['superadmin'] },
+      { id: 'org', label: 'Agencies', to: '/agencies', icon: 'org', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer'] },
+    ],
   },
   {
     group: 'Administration',
     adminGroup: true,
     items: [
-      { id: 'partners', label: 'Partners', to: '/partners', icon: 'partners', roles: ['superadmin'] },
       { id: 'users', label: 'Users', to: '/users', icon: 'users', roles: ['management'] },
     ],
   },

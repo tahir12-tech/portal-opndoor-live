@@ -51,7 +51,7 @@ const dmy = (d: Date) =>
 interface RateChange { label: string; from: string; to: string; }
 
 export function PartnerManagement() {
-  usePageMeta('partners', 'Partners', ['Home', 'Administration', 'Partners']);
+  usePageMeta('partners', 'Suppliers', ['Home', 'Relationships', 'Suppliers']);
   const navigate = useNavigate();
   const toast = useToast();
   const { refresh: refreshData } = useSession();

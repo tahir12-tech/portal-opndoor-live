@@ -726,7 +726,7 @@ function ContactSummary({ agency, branch, canManage, onManage }: { agency: Agenc
 }
 
 export function OrgManagement() {
-  usePageMeta('org', 'Agencies & branches', ['Home', 'Administration', 'Agencies & branches']);
+  usePageMeta('org', 'Agencies', ['Home', 'Relationships', 'Agencies']);
   const { role, partnerScope, selectedPartner, setSelectedPartner, refresh: refreshData } = useSession();
   const toast = useToast();
 
