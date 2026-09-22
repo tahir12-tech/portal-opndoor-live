@@ -19,7 +19,7 @@ import type { Channel } from './channel';
  * negation implies, which is how the fourth role would have inherited the
  * commission columns.
  */
-export type Role = 'superadmin' | 'management' | 'referrer' | 'developer';
+export type Role = 'superadmin' | 'management' | 'referrer' | 'developer' | 'opndoor_manager';
 
 /**
  * May this role see commission, fees and the league?

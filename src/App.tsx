@@ -112,20 +112,25 @@ export function App() {
             partners_select each gained a developer arm (20260811190000), and the
             commission columns are off the table grant entirely so no route can
             surface them. */}
-        <Route element={<RequireRole roles={['superadmin', 'management', 'referrer', 'developer']} redirectTo="/dev-centre" />}>
+        {/* opndoor_manager is Opndoor ops staff: it reads the whole book like an
+            admin (its RLS read arms mirror superadmin) but cannot create referrals
+            or reach the sensitive-settings routes below. */}
+        <Route element={<RequireRole roles={['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer']} redirectTo="/dev-centre" />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/league" element={<League />} />
           <Route path="/applications" element={<Applications />} />
           <Route path="/applications/:ref" element={<ApplicationDetail />} />
         </Route>
 
-        {/* Still closed to a developer. /new-application creates fee-bearing
-            referrals and create_referral refuses them in SQL; /agencies and
-            /activity are staff tools for people who work the book. */}
-        <Route element={<RequireRole roles={['superadmin', 'management', 'referrer']} redirectTo="/dev-centre" />}>
+        {/* Staff tools for people who work the book. opndoor_manager works the
+            org here; it is NOT on /new-application, which create_referral refuses
+            for it in SQL (only is_admin or a partner's own management/referrer). */}
+        <Route element={<RequireRole roles={['superadmin', 'opndoor_manager', 'management', 'referrer']} redirectTo="/dev-centre" />}>
           <Route path="/activity" element={<Activity />} />
-          <Route path="/new-application" element={<NewApplication />} />
           <Route path="/agencies" element={<OrgManagement />} />
+        </Route>
+        <Route element={<RequireRole roles={['superadmin', 'management', 'referrer']} redirectTo="/dev-centre" />}>
+          <Route path="/new-application" element={<NewApplication />} />
         </Route>
 
         {/* Users: opndoor admin + Management */}
@@ -133,10 +138,14 @@ export function App() {
           <Route path="/users" element={<UserManagement />} />
         </Route>
 
-        {/* opndoor admin only */}
+        {/* The reconciliation + direct-match queues: opndoor ops staff work these. */}
+        <Route element={<RequireRole roles={['superadmin', 'opndoor_manager']} redirectTo="/dashboard" />}>
+          <Route path="/reconciliation" element={<Reconciliation />} />
+        </Route>
+
+        {/* opndoor admin only: the sensitive-settings surfaces. */}
         <Route element={<RequireRole roles={['superadmin']} />}>
           <Route path="/partners" element={<PartnerManagement />} />
-          <Route path="/reconciliation" element={<Reconciliation />} />
           <Route path="/health" element={<Health />} />
         </Route>
       </Route>

@@ -66,9 +66,10 @@ export interface GetUsersOpts {
 /** Users visible to the viewer, following the partner-isolation and team rules. */
 export function getUsers(opts: GetUsersOpts): ManagedUser[] {
   const scope = opts.viewer === 'superadmin' ? opts.scope ?? getSelectedPartner() : homePartner();
+  const isOpndoorStaff = (r: ManagedUser['role']) => r === 'superadmin' || r === 'opndoor_manager';
   return USERS.filter((u) => {
-    if (opts.team) return u.role === 'superadmin'; // opndoor team: opndoor's own staff only
-    if (u.role === 'superadmin') return false; // partner lists never include opndoor staff
+    if (opts.team) return isOpndoorStaff(u.role); // opndoor team: opndoor's own staff (admin + manager)
+    if (isOpndoorStaff(u.role)) return false; // partner lists never include opndoor staff
     if (opts.viewer === 'superadmin') return scope === ALL_PARTNERS || u.partner === scope;
     // Default deny. Every non-superadmin viewer is confined to their own partner,
     // including any role added later. The previous `return true` fallthrough meant

@@ -77,7 +77,7 @@ function servableHref(r: HelpResource): string | null {
 // junior to it, and several referrer-level guides describe commission. Rank 0
 // means they see only resources with no minRole at all, which is the honest
 // answer when a model does not fit.
-const ROLE_RANK: Record<Role, number> = { developer: 0, referrer: 1, management: 2, superadmin: 3 };
+const ROLE_RANK: Record<Role, number> = { developer: 0, referrer: 1, management: 2, opndoor_manager: 3, superadmin: 3 };
 function visibleTo(r: HelpResource, role: Role): boolean {
   return !r.minRole || ROLE_RANK[role] >= ROLE_RANK[r.minRole];
 }

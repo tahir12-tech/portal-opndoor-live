@@ -30,9 +30,9 @@ export const NAV: NavGroup[] = [
       // A developer is partner staff and reads these, scoped to their partner.
       // They are NOT on 'new': a developer creates nothing, and create_referral
       // refuses them in SQL regardless of what the nav shows.
-      { id: 'dashboard', label: 'Dashboard', to: '/dashboard', icon: 'dashboard', roles: ['superadmin', 'management', 'referrer', 'developer'] },
-      { id: 'applications', label: 'Applications', to: '/applications', icon: 'apps', roles: ['superadmin', 'management', 'referrer', 'developer'] },
-      { id: 'league', label: 'League', to: '/league', icon: 'trend', roles: ['superadmin', 'management', 'referrer', 'developer'] },
+      { id: 'dashboard', label: 'Dashboard', to: '/dashboard', icon: 'dashboard', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'] },
+      { id: 'applications', label: 'Applications', to: '/applications', icon: 'apps', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'] },
+      { id: 'league', label: 'League', to: '/league', icon: 'trend', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'] },
       { id: 'new', label: 'New application', to: '/new-application', icon: 'plus', roles: ['superadmin', 'management', 'referrer'] },
     ],
   },
@@ -69,7 +69,7 @@ export const NAV: NavGroup[] = [
   },
   {
     group: 'Organisation',
-    items: [{ id: 'org', label: 'Agencies & branches', to: '/agencies', icon: 'org', roles: ['superadmin', 'management', 'referrer'] }],
+    items: [{ id: 'org', label: 'Agencies & branches', to: '/agencies', icon: 'org', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer'] }],
   },
   {
     group: 'Administration',
@@ -86,8 +86,8 @@ export const NAV: NavGroup[] = [
       { id: 'opteam', label: 'opndoor team', to: '/users?team=opndoor', icon: 'users', roles: ['superadmin'] },
       // Applications awaiting the eligibility decision. Deep-links to the list's
       // Awaiting-decision cohort; the badge counts how many are waiting.
-      { id: 'decisions', label: 'Awaiting decision', to: '/applications?status=referencing', icon: 'clock', roles: ['superadmin'], badge: 'decisions' },
-      { id: 'reconcile', label: 'Reconciliation', to: '/reconciliation', icon: 'reconcile', roles: ['superadmin'], badge: 'reconcile' },
+      { id: 'decisions', label: 'Awaiting decision', to: '/applications?status=referencing', icon: 'clock', roles: ['superadmin', 'opndoor_manager'], badge: 'decisions' },
+      { id: 'reconcile', label: 'Reconciliation', to: '/reconciliation', icon: 'reconcile', roles: ['superadmin', 'opndoor_manager'], badge: 'reconcile' },
       { id: 'health', label: 'Health', to: '/health', icon: 'shield', roles: ['superadmin'] },
     ],
   },

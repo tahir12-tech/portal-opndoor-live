@@ -195,7 +195,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // "Pending invite" / "Never signed in" placeholder from status.
     lastActive: relTime(u.last_sign_in_at, u.status),
     status: u.status,
-    partner: u.role === 'superadmin' ? 'opndoor' : (u.partner_slug ?? ''),
+    partner: (u.role === 'superadmin' || u.role === 'opndoor_manager') ? 'opndoor' : (u.partner_slug ?? ''),
   }));
 
   /* ---- partners (with derived weight/users/apps counts) ---- */

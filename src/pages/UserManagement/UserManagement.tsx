@@ -36,6 +36,7 @@ import './UserManagement.css';
 
 const ROLE_META: Record<Role, [string, string]> = {
   superadmin: ['opndoor admin', 'role-tag--super'],
+  opndoor_manager: ['opndoor manager', 'role-tag--super'],
   management: ['Management', 'role-tag--mgmt'],
   referrer: ['Referrer', 'role-tag--ref'],
   developer: ['Developer', 'role-tag--dev'],
@@ -58,6 +59,7 @@ interface RoleOption {
 }
 const ROLE_OPTIONS: RoleOption[] = [
   { id: 'superadmin', name: 'opndoor admin (Super-admin)', desc: "opndoor's internal admin. Full control of the portal: manages agencies, branches and users, keeps opndoor's own records in step, edits help resources, and sees every referral." },
+  { id: 'opndoor_manager', name: 'opndoor manager', desc: "opndoor operations staff. Sees every referral across all partners and works the day-to-day queues — the eligibility decision, reconciliation and direct-agency matches. Cannot change partner settings or commission, create partners, or manage the opndoor team." },
   { id: 'management', name: 'Management', desc: "Partner management. The same screens and tools as a referrer, but across the whole partner with full visibility of all tracking and analytics. Manages the partner's own agencies, branches and team, with edits applying straight away. Cannot change portal settings." },
   { id: 'referrer', name: 'Referrer', desc: 'Sees and tracks only their own referrals. Can add agencies and branches on the fly while referring.' },
   // "Sees the Dev Centre only" read as seeing nothing, which made the role look
@@ -417,7 +419,7 @@ export function UserManagement() {
       await refreshData();
       refresh();
       setAddOpen(false);
-      toast(`Invitation sent to ${email} as ${ROLE_META[addRole][0]}${addRole === 'superadmin' ? '' : ` at ${partnerName(rec.partner)}`}.`);
+      toast(`Invitation sent to ${email} as ${ROLE_META[addRole][0]}${(addRole === 'superadmin' || addRole === 'opndoor_manager') ? '' : ` at ${partnerName(rec.partner)}`}.`);
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not send the invitation.', 'error');
     } finally {
@@ -457,10 +459,17 @@ export function UserManagement() {
     });
   }
 
-  const addOptions = teamMode ? ROLE_OPTIONS.filter((o) => o.id === 'superadmin') : ROLE_OPTIONS.filter((o) => o.id !== 'superadmin');
+  // The opndoor team screen offers the two Opndoor-internal roles; a partner-side
+  // invite offers neither (opndoor_manager is opndoor staff, and invite-user
+  // rejects it from a management caller anyway).
+  const addOptions = teamMode
+    ? ROLE_OPTIONS.filter((o) => o.id === 'superadmin' || o.id === 'opndoor_manager')
+    : ROLE_OPTIONS.filter((o) => o.id !== 'superadmin' && o.id !== 'opndoor_manager');
   // Role-model wall: the edit dialog only offers roles on the target's side of it.
   const editTargetIsTeam = !!editUser && (editUser.partner === 'opndoor' || editUser.role === 'superadmin');
-  const editRoleOptions = editTargetIsTeam ? ROLE_OPTIONS.filter((o) => o.id === 'superadmin') : ROLE_OPTIONS.filter((o) => o.id !== 'superadmin');
+  const editRoleOptions = editTargetIsTeam
+    ? ROLE_OPTIONS.filter((o) => o.id === 'superadmin' || o.id === 'opndoor_manager')
+    : ROLE_OPTIONS.filter((o) => o.id !== 'superadmin' && o.id !== 'opndoor_manager');
 
   return (
     <>
@@ -567,14 +576,14 @@ export function UserManagement() {
         onClose={() => setAddOpen(false)}
         width={560}
         title={teamMode ? 'Add opndoor team member' : 'Add user'}
-        sub={teamMode ? 'Add an opndoor admin. They sit above all partners with full control of the portal.' : 'Invite a partner team member and set their access level.'}
+        sub={teamMode ? 'Add opndoor staff. An admin has full control of the portal; a manager runs the queues across all partners but not the sensitive settings.' : 'Invite a partner team member and set their access level.'}
         footer={<><Button variant="ghost" onClick={() => setAddOpen(false)} disabled={busy}>Cancel</Button><Button variant="primary" onClick={sendInvite} arrow disabled={busy}>{busy ? 'Sending…' : 'Send invite'}</Button></>}
       >
         <div className="form-grid">
           <Field label="First name"><input type="text" placeholder="James" value={addFirst} onChange={(e) => setAddFirst(e.target.value)} /></Field>
           <Field label="Last name"><input type="text" placeholder="Okafor" value={addLast} onChange={(e) => setAddLast(e.target.value)} /></Field>
           <Field label="Work email" span2><input type="email" placeholder="james@brackenhouse.co.uk" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} /></Field>
-          {addRole !== 'superadmin' && (
+          {addRole !== 'superadmin' && addRole !== 'opndoor_manager' && (
             <Field label="Partner company" span2 hint="The partner company this user belongs to.">
               <select value={addPartnerId} onChange={(e) => setAddPartnerId(e.target.value)}>
                 {getPartners().map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

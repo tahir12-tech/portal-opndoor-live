@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     // 'developer' was missing here while the User Management screen offered it
     // as a full option with a written description. The screen and the server
     // disagreed, so every agency wanting an API key needed opndoor to run SQL.
-    if (!["superadmin", "management", "referrer", "developer"].includes(role)) {
+    if (!["superadmin", "management", "referrer", "developer", "opndoor_manager"].includes(role)) {
       return json({ ok: false, error: "Invalid role." }, 400);
     }
 
@@ -64,7 +64,11 @@ Deno.serve(async (req) => {
     let inviteePartnerId: string | null = null;
     let callerScoped = false;   // set for a management caller who holds a position
     if (caller.role === "superadmin") {
-      if (role !== "superadmin") {
+      // superadmin and opndoor_manager are Opndoor staff: no partner (the
+      // users_partner_by_role CHECK requires their partner_id to be null). Only a
+      // superadmin can create an opndoor_manager; a management caller's allowlist
+      // below excludes it.
+      if (role !== "superadmin" && role !== "opndoor_manager") {
         const { data: p } = await service.from("partners").select("id").eq("slug", partnerSlug).maybeSingle();
         if (!p?.id) return json({ ok: false, error: "Select a valid partner for this user." }, 400);
         inviteePartnerId = p.id;
