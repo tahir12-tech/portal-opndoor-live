@@ -30,7 +30,9 @@ export const NAV: NavGroup[] = [
       // A developer is partner staff and reads these, scoped to their partner.
       // They are NOT on 'new': a developer creates nothing, and create_referral
       // refuses them in SQL regardless of what the nav shows.
-      { id: 'dashboard', label: 'Dashboard', to: '/dashboard', icon: 'dashboard', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'] },
+      // opndoor staff land here (queues first); partners land on Reporting.
+      { id: 'home', label: 'Home', to: '/home', icon: 'home', roles: ['superadmin', 'opndoor_manager'] },
+      { id: 'dashboard', label: 'Reporting', to: '/dashboard', icon: 'dashboard', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'] },
       { id: 'applications', label: 'Applications', to: '/applications', icon: 'apps', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'] },
       { id: 'league', label: 'League', to: '/league', icon: 'trend', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'] },
       { id: 'new', label: 'New application', to: '/new-application', icon: 'plus', roles: ['superadmin', 'management', 'referrer'] },

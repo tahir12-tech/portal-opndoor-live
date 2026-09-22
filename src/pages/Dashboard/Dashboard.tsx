@@ -74,7 +74,7 @@ function buildChartRows(key: ChartKey, rows: LeagueRow[], m: Measure): { bars: B
 }
 
 export function Dashboard() {
-  usePageMeta('dashboard', 'Dashboard', ['Home', 'Dashboard']);
+  usePageMeta('dashboard', 'Reporting', ['Home', 'Reporting']);
   const { role, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod } = useSession();
   const toast = useToast();
 

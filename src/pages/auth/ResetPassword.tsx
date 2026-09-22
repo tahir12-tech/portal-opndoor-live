@@ -73,7 +73,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
   // Once TOTP is verified (invite completion) the session reaches AAL2 and
   // SessionContext resolves to 'ready'; route on to the app then (mirrors Login).
   useEffect(() => {
-    if (SUPABASE_ENABLED && status === 'ready') navigate('/dashboard', { replace: true });
+    if (SUPABASE_ENABLED && status === 'ready') navigate('/home', { replace: true });
   }, [status, navigate]);
 
   useEffect(() => {

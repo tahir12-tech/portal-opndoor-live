@@ -20,6 +20,7 @@ import { PaymentConfirmed } from '@/pages/Pay/PaymentConfirmed';
 import { PaymentRetry } from '@/pages/Pay/PaymentRetry';
 import { PayLanding } from '@/pages/Pay/PayLanding';
 import { TenancyCorrection } from '@/pages/TenancyCorrection/TenancyCorrection';
+import { Home } from '@/pages/Home/Home';
 import { Dashboard } from '@/pages/Dashboard/Dashboard';
 import { League } from '@/pages/League/League';
 import { Activity } from '@/pages/Activity/Activity';
@@ -89,6 +90,13 @@ export function App() {
             which resources are listed. */}
         <Route path="/help" element={<Help />} />
 
+        {/* The Opndoor-staff home (queues first). Every post-auth redirect targets
+            /home; a non-opndoor role bounces to /dashboard via redirectTo, so this
+            doubles as the per-actor landing: admins land here, partners on their book. */}
+        <Route element={<RequireRole roles={['superadmin', 'opndoor_manager']} redirectTo="/dashboard" />}>
+          <Route path="/home" element={<Home />} />
+        </Route>
+
         {/* Dev Centre. Management is here only to revoke a leaked key; the page
             renders them the keys panel alone. The RPCs scope themselves, so this
             guard decides what renders, not what is permitted. */}
@@ -151,8 +159,8 @@ export function App() {
       </Route>
       </Route>
 
-      {/* unknown → dashboard */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* unknown → /home; a non-opndoor role bounces on to /dashboard. */}
+      <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
   );
 }

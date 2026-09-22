@@ -1,0 +1,44 @@
+/* Admin home — queue tiles + a route-badged needs-attention list. */
+.home-queues {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 22px;
+}
+@media (max-width: 900px) { .home-queues { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 520px) { .home-queues { grid-template-columns: 1fr; } }
+
+.home-q {
+  position: relative;
+  display: block;
+  padding: 15px 16px 14px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg, 16px);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.home-q::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ink-mute); }
+.home-q--warn::before { background: var(--warn); }
+.home-q--danger::before { background: var(--danger); }
+.home-q--accent::before { background: var(--heliotrope); }
+.home-q:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.home-q--empty { opacity: .62; }
+.home-q--empty:hover { transform: none; }
+
+.home-q__label { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+.home-q__n { font-family: var(--display); font-size: 30px; font-weight: 800; letter-spacing: -.02em; margin-top: 6px; line-height: 1; }
+.home-q__meta { font-size: 11.5px; color: var(--ink-mute); margin-top: 4px; }
+.home-q__go { position: absolute; top: 15px; right: 14px; display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; color: var(--heliotrope-deep); }
+
+.home-viewall { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--heliotrope-deep); text-decoration: none; }
+.home-empty { padding: 26px 20px; text-align: center; color: var(--ink-mute); font-size: 13.5px; }
+
+.home-table { width: 100%; }
+.home-table th { text-align: left; }
+.home-tenant { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+.home-tenant .dt__name { display: block; font-weight: 600; }
+.home-tenant .dt__sub { display: block; font-size: 11.5px; color: var(--ink-mute); }

@@ -64,7 +64,7 @@ export function Login() {
 
   // Already authenticated (AAL2) -> straight to the app.
   useEffect(() => {
-    if (SUPABASE_ENABLED && status === 'ready') navigate('/dashboard', { replace: true });
+    if (SUPABASE_ENABLED && status === 'ready') navigate('/home', { replace: true });
   }, [status, navigate]);
 
   // Both address fields were seeded from ?email= at mount (above), so the param
@@ -146,7 +146,7 @@ export function Login() {
     const code = codes.join('');
     if (!SUPABASE_ENABLED) {
       authService.verify2fa(code);
-      navigate('/dashboard');
+      navigate('/home');
       return;
     }
     if (!factorId) { setError('Your session has expired. Please sign in again.'); return; }
@@ -168,7 +168,7 @@ export function Login() {
       // message. A full navigation forces a fresh resolve (now AAL2, heartbeat
       // live) that lands on the dashboard instead of the needsMfa gate.
       markMfaVerified();
-      window.location.assign('/dashboard');
+      window.location.assign('/home');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'We could not complete sign-in. Please try again.');
     } finally {
