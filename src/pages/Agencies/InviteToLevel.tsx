@@ -40,16 +40,23 @@ export function InviteToLevel({ ctx, onClose, onInvited }: { ctx: InviteContext;
   const role: Role = ctx.level === 'branch' ? branchRole : 'management';
   const levelWord = ctx.level === 'group' ? 'group' : ctx.level === 'brand' ? 'brand' : 'branch';
   const titleFor = ctx.level === 'group' ? 'Invite a group director' : ctx.level === 'brand' ? 'Invite a brand manager' : 'Invite to this branch';
-  const placesNow = ctx.level === 'branch' && role === 'referrer';
 
   const canSend = !!email.trim() && EMAIL_RE.test(email.trim()) && !busy && !!ctx.partner;
+
+  // The position granted on creation. A negotiator (referrer) is placed by their
+  // home branch instead of a scope; a group/brand/branch manager gets a scope.
+  const scope: { scopeKind?: 'group' | 'agency' | 'branch'; scopeTarget?: string } =
+    ctx.level === 'group' && ctx.groupId ? { scopeKind: 'group', scopeTarget: ctx.groupId }
+    : ctx.level === 'brand' && ctx.agencyId ? { scopeKind: 'agency', scopeTarget: ctx.agencyId }
+    : ctx.level === 'branch' && role === 'management' && ctx.branchId ? { scopeKind: 'branch', scopeTarget: ctx.branchId }
+    : {};
 
   const send = async () => {
     if (!canSend) { if (!EMAIL_RE.test(email.trim())) toast('Enter a valid email address.', 'error'); return; }
     setBusy(true);
     try {
-      await inviteUser({ firstName: first.trim(), lastName: last.trim(), email: email.trim(), role, partner: ctx.partner, branch: ctx.branchId });
-      toast(placesNow ? `Invited to ${ctx.name}.` : `Invited. Set their ${levelWord} position from Users once they accept.`, 'ok');
+      await inviteUser({ firstName: first.trim(), lastName: last.trim(), email: email.trim(), role, partner: ctx.partner, branch: ctx.branchId, ...scope });
+      toast(`Invited — placed at ${ctx.name}.`, 'ok');
       onInvited();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not send the invitation.', 'error');
@@ -79,11 +86,9 @@ export function InviteToLevel({ ctx, onClose, onInvited }: { ctx: InviteContext;
           </select>
         </Field>
       )}
-      {!placesNow && (
-        <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '10px 0 0' }}>
-          They are invited as a manager for this organisation; their exact {levelWord} position is assigned from <b>Users</b> once they accept the invite.
-        </p>
-      )}
+      <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '10px 0 0' }}>
+        They are placed on this {levelWord} the moment they are invited, and can work it as soon as they accept.
+      </p>
     </Modal>
   );
 }

@@ -40,6 +40,11 @@ Deno.serve(async (req) => {
     const lastName = String(b.lastName ?? "").trim();
     const partnerSlug = String(b.partner ?? "").trim();
     const branchId = String(b.branch ?? "").trim();
+    // Optional org position to grant on creation, so a brand/group manager (or a
+    // branch manager) is placed the moment they are invited rather than in a second
+    // step on the Users screen. '' = none (e.g. a negotiator, placed by home branch).
+    const scopeKind = String(b.scopeKind ?? "").trim();
+    const scopeTarget = String(b.scopeTarget ?? "").trim();
     const base = String(Deno.env.get("APP_URL") ?? b.origin ?? "").replace(/\/$/, "");
 
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ ok: false, error: "A valid email address is required." }, 400);
@@ -136,6 +141,20 @@ Deno.serve(async (req) => {
       }
     }
 
+    // A position to grant on creation must sit within the invitee's own partner.
+    // The grant itself is authorised by set_user_scope (the positions ladder),
+    // called as the inviter after the account exists; here we only fail fast on a
+    // malformed level or a cross-partner target before creating anything.
+    if (scopeKind) {
+      if (!["group", "agency", "branch"].includes(scopeKind)) return json({ ok: false, error: "Invalid position level." }, 400);
+      if (!scopeTarget) return json({ ok: false, error: "Choose the group, brand or branch for this position." }, 400);
+      const tbl = scopeKind === "group" ? "agency_groups" : scopeKind === "agency" ? "agencies" : "branches";
+      const { data: node } = await service.from(tbl).select("partner_id").eq("id", scopeTarget).maybeSingle();
+      if (!node || node.partner_id !== inviteePartnerId) {
+        return json({ ok: false, error: "That group, brand or branch is not within this partner." }, 400);
+      }
+    }
+
     // New vs re-invite: an existing portal user gets a recovery (set-password)
     // link; a new one is created by the invite link.
     const { data: existing } = await service.from("users").select("id, role, partner_id").ilike("email", email).maybeSingle();
@@ -174,6 +193,17 @@ Deno.serve(async (req) => {
     }
     if (!link) return json({ ok: false, error: "Could not generate the invitation link." }, 400);
 
+    // Grant the org position AS THE INVITER, so set_user_scope's ladder decides
+    // (an admin or a group/agency manager may; a branch-only manager may not) and
+    // the target is checked against their own scope. The account now exists, so the
+    // scope lands on it immediately. Best-effort: the invite already stands, so a
+    // refusal here is reported as a soft error rather than unwinding the invite.
+    let positionError: string | null = null;
+    if (scopeKind && targetUserId) {
+      const { error: scErr } = await userClient.rpc("set_user_scope", { p_user: targetUserId, p_kind: scopeKind, p_target: scopeTarget });
+      if (scErr) positionError = scErr.message;
+    }
+
     // Branded invite email (redirected to the review address in test mode).
     const partnerName = inviteePartnerId
       ? (await service.from("partners").select("name").eq("id", inviteePartnerId).maybeSingle()).data?.name ?? ""
@@ -198,7 +228,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    return json({ ok: true, emailSent: emailRes.ok, emailError: emailRes.ok ? null : emailRes.error });
+    return json({ ok: true, emailSent: emailRes.ok, emailError: emailRes.ok ? null : emailRes.error, positioned: !!scopeKind && !positionError, positionError });
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "Unexpected error." }, 500);
   }
