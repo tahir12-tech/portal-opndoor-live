@@ -70,6 +70,38 @@ export async function getPositions(userId: string): Promise<Position[]> {
   });
 }
 
+/**
+ * Positions for many users in one query — the reverse of getPositions, so a
+ * group/brand/branch page can show "who covers what" without a request per user.
+ * Returns a map keyed by user id (every requested id present, [] when none).
+ */
+export async function getPositionsForUsers(userIds: string[]): Promise<Record<string, Position[]>> {
+  const out: Record<string, Position[]> = {};
+  for (const id of userIds) out[id] = [];
+  if (!userIds.length) return out;
+  if (!SUPABASE_ENABLED) {
+    for (const id of userIds) out[id] = MOCK.get(id) ?? [];
+    return out;
+  }
+  const { data, error } = await sb()
+    .from('user_scopes')
+    .select('id, user_id, kind, group_id, agency_id, branch_id, agency_groups(name), agencies(name), branches(name)')
+    .in('user_id', userIds);
+  if (error) throw new Error(error.message);
+  const emb = (v: unknown) => (v && typeof v === 'object' ? (v as { name?: string }).name : undefined);
+  (data ?? []).forEach((r: Record<string, unknown>) => {
+    const uid = String(r.user_id);
+    if (!out[uid]) out[uid] = [];
+    out[uid].push({
+      id: String(r.id),
+      kind: r.kind as ScopeKind,
+      targetId: String(r.group_id ?? r.agency_id ?? r.branch_id ?? ''),
+      targetName: emb(r.agency_groups) ?? emb(r.agencies) ?? emb(r.branches) ?? 'Unknown',
+    });
+  });
+  return out;
+}
+
 export async function addPosition(userId: string, kind: ScopeKind, targetId: string, targetName: string): Promise<void> {
   if (!SUPABASE_ENABLED) {
     const list = MOCK.get(userId) ?? [];

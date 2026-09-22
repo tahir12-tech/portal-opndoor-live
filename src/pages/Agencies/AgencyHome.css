@@ -1,103 +1,82 @@
 /* =====================================================================
-   AgencyHome — the first-class agency screen. Built in the portal brand
-   (indigo ink, heliotrope accent, lilac field, Sora display / Manrope body)
-   and reuses .card / .dt from portal.css; only the agency-specific layout
-   lives here.
+   AgencyHome — group → brand → branch, in the portal brand. Group reads indigo,
+   brand heliotrope, branch slate; reuses .card / .dt from portal.css.
    ===================================================================== */
 
-.ah-back {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12.5px; font-weight: 700; color: var(--ink-mute);
-  text-decoration: none;
-}
+.ah-back { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ink-mute); text-decoration: none; }
 .ah-back:hover { color: var(--heliotrope-deep); }
+.ah-sub.ah-sub { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 8px; }
 
-.ah-sub.ah-sub {
-  display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center;
-  margin-top: 8px;
-}
-.ah-sub span { display: inline-flex; align-items: center; gap: 6px; }
-
-/* ---- KPI strip ---- */
-.ah-kpis {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
-  margin-bottom: 18px;
-}
-.ah-kpi {
-  background: #fff; border: 1px solid var(--line); border-radius: var(--r-lg);
-  box-shadow: var(--shadow-sm); padding: 16px 18px;
-}
-.ah-kpi__v { font-family: var(--display); font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
-.ah-kpi__l { font-size: 12px; color: var(--ink-mute); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
-
-/* ---- two-column grid for commission + structure ---- */
-.ah-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
-  margin-bottom: 18px;
-}
+.ah-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; align-items: start; }
 .ah-grid > * { min-width: 0; }
+@media (max-width: 900px) { .ah-grid { grid-template-columns: 1fr; } }
 
-/* ---- commission ---- */
-.ah-rates { display: flex; gap: 14px; }
-.ah-rate {
-  flex: 1; background: var(--white-lilac); border: 1px solid var(--line);
-  border-radius: var(--r-md); padding: 14px 16px;
-}
-.ah-rate__v { font-family: var(--display); font-size: 26px; font-weight: 700; color: var(--heliotrope-deep); letter-spacing: -0.02em; }
-.ah-rate__l { font-size: 12.5px; font-weight: 700; color: var(--ink); margin-top: 2px; }
-.ah-rate__src { font-size: 11.5px; color: var(--ink-mute); margin-top: 4px; }
-.ah-note { font-size: 12.5px; color: var(--ink-soft); margin: 12px 0 0; line-height: 1.5; }
-.ah-note.muted { color: var(--ink-mute); }
-.ah-note a { color: var(--heliotrope-deep); font-weight: 700; }
+/* block header inside a .card */
+.block { overflow: hidden; }
+.block-h { display: flex; align-items: center; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--line); }
+.block-h h4 { font-family: var(--display); font-size: 14px; font-weight: 700; margin: 0; }
+.block-sub { font-size: 11.5px; color: var(--ink-mute); }
+.ah-newtag { font-family: var(--display); font-size: 9px; letter-spacing: .05em; background: var(--heliotrope-deep); color: #fff; padding: 1px 7px; border-radius: 999px; text-transform: uppercase; font-weight: 700; }
 
-/* ---- people ---- */
-.ah-people-block { margin-top: 4px; }
-.ah-people-block + .ah-people-block { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
-.ah-people-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
-.ah-inherit { font-size: 11.5px; color: var(--ink-mute); font-style: italic; }
-.ah-people { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+/* structure tree */
+.ah-tree { padding: 10px 14px; font-size: 13px; }
+.ah-node { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 8px; }
+.ah-node:hover { background: var(--white-lilac); }
+.ah-node.lv2 { margin-left: 20px; }
+.ah-node.lv3 { margin-left: 44px; }
+.ah-tick { width: 16px; height: 16px; border-radius: 5px; display: grid; place-items: center; font-size: 9px; font-weight: 800; color: #fff; flex: none; }
+.ah-tick.t-group { background: var(--ink); }
+.ah-tick.t-brand { background: var(--heliotrope-deep); }
+.ah-tick.t-branch { background: #64748b; }
+.ah-nm { font-weight: 600; color: var(--ink); }
+.ah-nm--link { text-decoration: none; }
+.ah-nm--link:hover { color: var(--heliotrope-deep); }
+.ah-mt { color: var(--ink-mute); font-size: 11.5px; margin-left: auto; }
 
-.ah-person { display: flex; gap: 12px; align-items: flex-start; }
-.ah-person__av {
-  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%;
-  background: var(--white-lilac); color: var(--heliotrope-deep);
-  display: grid; place-items: center; font-size: 12px; font-weight: 800;
-  font-family: var(--display); border: 1px solid var(--line);
-}
-.ah-person__body { min-width: 0; }
-.ah-person__top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.ah-person__name { font-weight: 700; font-size: 13.5px; color: var(--ink); }
-.ah-person__role {
-  font-size: 11px; color: var(--ink-mute); text-transform: uppercase;
-  letter-spacing: 0.04em; background: var(--app-bg); border-radius: 999px; padding: 2px 8px;
-}
-.ah-person__contact { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12.5px; color: var(--ink-soft); }
-.ah-person__contact span { display: inline-flex; align-items: center; gap: 5px; }
+/* commission tier editor */
+.ah-comm { padding: 14px 16px; }
+.ah-crow { display: grid; grid-template-columns: 1fr 84px 84px auto; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+.ah-crow:first-of-type { border-top: none; }
+.ah-crow--head { font-size: 10px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+.ah-crow--head span:nth-child(2), .ah-crow--head span:nth-child(3) { text-align: right; }
+.ah-clbl b { font-weight: 700; font-size: 12.5px; }
+.ah-clbl span { color: var(--ink-mute); font-size: 11px; }
+.ah-inp { background: var(--white-lilac); border: 1px solid var(--line-strong); border-radius: 7px; padding: 5px 9px; font-size: 12px; color: var(--ink); text-align: right; width: 100%; font-variant-numeric: tabular-nums; }
+.ah-inp.set { border-color: var(--heliotrope-deep); background: rgba(211, 100, 251, 0.1); color: var(--heliotrope-deep); font-weight: 700; }
+.ah-inp--ro { background: transparent; border-color: transparent; color: var(--ink-mute); }
+.ah-crow__save { border: 1px solid var(--heliotrope-deep); background: var(--heliotrope-deep); color: #fff; border-radius: 7px; padding: 4px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.ah-crow__save:disabled { opacity: .6; cursor: default; }
+.ah-resolved { margin-top: 12px; padding: 10px 12px; background: var(--white-lilac); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; color: var(--ink); display: flex; gap: 6px; align-items: center; }
+.ah-resolved svg { color: var(--deed); flex: none; }
 
-.ah-contact-warn {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12.5px; color: var(--warn); background: var(--warn-bg);
-  border-radius: var(--r-sm); padding: 10px 12px;
-}
+/* people by level */
+.ah-people-block { padding-top: 14px; }
+.ah-people-block + .ah-people-block { margin-top: 6px; border-top: 1px solid var(--line); }
+.ah-people-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ah-people-eyebrow { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+.ah-pos { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--app-bg); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .04em; }
+.ah-pos--grp { background: rgba(39, 29, 95, 0.1); color: var(--ink); }
+.ah-pos--brand { background: rgba(211, 100, 251, 0.12); color: var(--heliotrope-deep); }
+.ah-invite { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line-strong); background: #fff; color: var(--heliotrope-deep); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.ah-invite:hover { border-color: var(--heliotrope-deep); }
+.ah-people { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 16px; }
+@media (max-width: 620px) { .ah-people { grid-template-columns: 1fr; } }
+.ah-person { display: flex; align-items: center; gap: 11px; }
+.ah-person__av { width: 30px; height: 30px; border-radius: 50%; background: var(--white-lilac); color: var(--heliotrope-deep); display: grid; place-items: center; font-weight: 700; font-size: 11px; flex: none; border: 1px solid var(--line); }
+.ah-person__name { font-weight: 600; font-size: 13px; color: var(--ink); }
+.ah-person__em { font-size: 11.5px; color: var(--ink-mute); }
+.ah-people-empty { font-size: 12.5px; color: var(--ink-mute); }
 
-/* ---- tables (branches, referrals) ---- */
+/* referrals */
 .ah-table { width: 100%; }
-.ah-table th.num, .ah-table td.num { text-align: right; }
 .ah-table td.soft { color: var(--ink-mute); }
-.ah-branchlink { color: var(--ink); font-weight: 600; text-decoration: none; }
-.ah-branchlink:hover { color: var(--heliotrope-deep); }
-.ah-tag {
-  margin-left: 8px; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.04em; color: var(--warn); background: var(--warn-bg);
-  border-radius: 999px; padding: 1px 7px;
-}
 .ah-tenant { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
-.ah-status { text-transform: capitalize; font-size: 12.5px; color: var(--ink-soft); }
+.ah-tenant .dt__name { display: block; font-weight: 600; }
+.ah-tenant .dt__sub { display: block; font-size: 11.5px; color: var(--ink-mute); }
+.ah-st { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 6px; }
+.ah-st.st-wait { background: var(--warn-bg); color: var(--warn); }
+.ah-st.st-live { background: var(--white-lilac); color: var(--heliotrope-deep); }
+.ah-st.st-ok { background: rgba(34, 160, 100, 0.12); color: var(--deed); }
+.ah-st.st-neutral { background: var(--app-bg); color: var(--ink-mute); }
 .ah-viewall { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--heliotrope-deep); text-decoration: none; }
 .ah-empty { padding: 22px; text-align: center; color: var(--ink-mute); font-size: 13px; }
-
-@media (max-width: 860px) {
-  .ah-kpis { grid-template-columns: repeat(2, 1fr); }
-  .ah-grid { grid-template-columns: 1fr; }
-  .ah-people { grid-template-columns: 1fr; }
-}
