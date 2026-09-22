@@ -481,3 +481,21 @@ mark.hl {
 /* The per-row line, now a warning rather than a neutral "not filled in". */
 .contact-line--none { color: #b91c1c; }
 .contact-line--none .cl-none { color: inherit; }
+
+/* ---- group tree node (group → brand → branch) ---- */
+.orggroup { margin-bottom: 10px; }
+.orggroup__head { display: flex; align-items: center; gap: 10px; padding: 10px 6px 8px; }
+.orggroup__tick {
+  width: 20px; height: 20px; border-radius: 6px; flex: none;
+  background: var(--ink); color: #fff; display: grid; place-items: center;
+  font-family: var(--display); font-weight: 800; font-size: 11px;
+}
+.orggroup__txt { min-width: 0; }
+.orggroup__name {
+  font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: -.01em;
+  color: var(--ink); text-decoration: none;
+}
+.orggroup__name:hover { color: var(--heliotrope-deep); }
+.orggroup__meta { font-size: 11.5px; color: var(--ink-mute); margin-top: 1px; }
+/* brands sit indented under their group node */
+.orggroup__brands { margin-left: 18px; border-left: 2px solid var(--line); padding-left: 12px; }

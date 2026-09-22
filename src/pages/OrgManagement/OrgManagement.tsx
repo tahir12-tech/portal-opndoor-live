@@ -509,19 +509,19 @@
 //         open={branchOpen}
 //         onClose={() => { if (!busy) setBranchOpen(false); }}
 //         title="Add branch"
-//         sub="Add a branch to an agency. A branch with no contact of its own inherits the agency default."
+//         sub="Add a branch to a brand. A branch with no contact of its own inherits the brand default."
 //         footer={<><Button variant="ghost" onClick={() => setBranchOpen(false)} disabled={busy}>Cancel</Button><Button variant="primary" onClick={saveBranch} disabled={!canSaveBranch}>{busy ? 'Saving…' : 'Save branch'}</Button></>}
 //       >
 //         <Field label="Branch name" htmlFor="branch-name"><input id="branch-name" type="text" placeholder="e.g. Notting Hill" autoComplete="off" value={branchName} onChange={(e) => setBranchName(e.target.value)} /></Field>
 //         <Field label="Postcode / area" htmlFor="branch-area" hint="Optional"><input id="branch-area" type="text" placeholder="e.g. W11" autoComplete="off" value={branchArea} onChange={(e) => setBranchArea(e.target.value)} /></Field>
-//         <Field label="Parent agency" htmlFor="branch-agency">
+//         <Field label="Parent brand" htmlFor="branch-agency">
 //           <select id="branch-agency" value={branchAgency} onChange={(e) => setBranchAgency(e.target.value)}>
 //             {partnerPoolForBranch.map((a) => <option key={agencyId(a)} value={a.name}>{a.name}</option>)}
 //           </select>
 //         </Field>
 //         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14, marginTop: 6 }}>
 //           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Branch contact <span style={{ fontWeight: 400, color: 'var(--ink-mute)' }}>(optional)</span></div>
-//           <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Leave blank to inherit the agency default contact.</p>
+//           <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Leave blank to inherit the brand default contact.</p>
 //           <div className="form-grid">
 //             <Field span2 label="Contact email" htmlFor="branch-cemail" hint="Optional"><input id="branch-cemail" type="email" placeholder="branch@agency.co.uk" autoComplete="off" value={branchContact.email} onChange={(e) => setBranchContact((c) => ({ ...c, email: e.target.value }))} /></Field>
 //             <Field label="Contact name" htmlFor="branch-cname" hint="Optional"><input id="branch-cname" type="text" placeholder="e.g. Sam Rivers" autoComplete="off" value={branchContact.name} onChange={(e) => setBranchContact((c) => ({ ...c, name: e.target.value }))} /></Field>
@@ -535,7 +535,7 @@
 //         open={ctOpen}
 //         onClose={requestCloseContacts}
 //         title={`${ctBranchName || ctAgencyName} contacts`}
-//         sub={ctBranchName ? 'Agent contacts for this branch. Who the Deed of Guarantee is sent to.' : 'Agency contacts. Used as the default for branches with no contact of their own.'}
+//         sub={ctBranchName ? 'Agent contacts for this branch. Who the Deed of Guarantee is sent to.' : 'Brand contacts. Used as the default for branches with no contact of their own.'}
 //         footer={<Button variant="primary" onClick={requestCloseContacts} disabled={busy}>Done</Button>}
 //       >
 //         {ctConfirm && (
@@ -627,8 +627,8 @@ import { useState, type MouseEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ALL_PARTNERS, addContactLive, createAgencyLive, createBranchLive, effectivePrimary, findAgency,
-  getAgencies, getGroup, getGroups, getPartners, getRatesFor, setAgencyRates, createAgencyGroup, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
-  type Agency, type AgentContact, type Branch,
+  getAgencies, getGroup, getGroups, getRatesFor, setAgencyRates, createAgencyGroup, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
+  type Agency, type AgencyGroup, type AgentContact, type Branch,
 } from '@/data';
 import { fmtRatePct } from '@/lib/format';
 import { useSession } from '@/session/SessionContext';
@@ -639,7 +639,6 @@ import { Icon } from '@/components/ui/Icon';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
-import { PartnerSelect } from '@/components/ui/Select';
 import './OrgManagement.css';
 
 const agencyId = (a: Agency) => `${a.partner || 'northwind'}:${a.name}`;
@@ -727,7 +726,7 @@ function ContactSummary({ agency, branch, canManage, onManage }: { agency: Agenc
 
 export function OrgManagement() {
   usePageMeta('org', 'Agencies', ['Home', 'Relationships', 'Agencies']);
-  const { role, partnerScope, selectedPartner, setSelectedPartner, refresh: refreshData } = useSession();
+  const { role, partnerScope, selectedPartner, refresh: refreshData } = useSession();
   const toast = useToast();
 
   const [, setVersion] = useState(0);
@@ -833,9 +832,13 @@ export function OrgManagement() {
   const rates = getRatesFor(partnerScope);
   const isMgmt = role === 'management';
   const q = query.trim().toLowerCase();
-  const pool = getAgencies(partnerScope);
+  // The Agencies section is addressed by the org itself, never by a partner: an
+  // admin sees every group/brand/branch; a partner manager sees their own. There
+  // is no partner selector on this screen.
+  const listScope = role === 'superadmin' ? ALL_PARTNERS : partnerScope;
+  const pool = getAgencies(listScope);
 
-  const partnerPoolForBranch = getAgencies(partnerScope);
+  const partnerPoolForBranch = getAgencies(listScope);
 
   /* DEFECTS.md 6. Branches that cannot issue a deed, surfaced BEFORE an
      application fails against one rather than after.
@@ -1143,7 +1146,7 @@ function requestCloseContacts() {
     // in the same bundle any logged-in user can read. Route-gating a screen does
     // not gate the strings on it. See REGRESSION.md section C.
     role === 'superadmin' ? <>As an <b>opndoor admin</b> you have full control: add, edit and reorganise agencies and branches, and sync the hierarchy to the CRM.</>
-      : role === 'management' ? <>You can view, add and edit your partner's agencies and branches, and your changes apply straight away. Keeping opndoor's own records in step is handled by <b>opndoor</b>.</>
+      : role === 'management' ? <>You can view, add and edit the brands and branches you manage, and your changes apply straight away. Keeping opndoor's own records in step is handled by <b>opndoor</b>.</>
         : <>You can view every agency and branch. Adding and editing records is handled by your management team and <b>opndoor</b>.</>;
 
   // Filtered, with expand-all while searching (mirrors org-management.html).
@@ -1154,6 +1157,89 @@ function requestCloseContacts() {
       return { a, agencyMatch, branches };
     })
     .filter(({ agencyMatch, branches }) => !(q && !agencyMatch && branches.length === 0));
+
+  // Group the shown brands into their real group (agency_groups), so the list is a
+  // group -> brand -> branch tree. Brands with no group render at the top level.
+  type ShownBrand = (typeof shownAgencies)[number];
+  const listGroups = getGroups(listScope);
+  const groupById = new Map(listGroups.map((g) => [g.id, g]));
+  const groupSections = new Map<string, { group: AgencyGroup; items: ShownBrand[] }>();
+  const ungroupedBrands: ShownBrand[] = [];
+  for (const item of shownAgencies) {
+    const g = item.a.groupId ? groupById.get(item.a.groupId) : undefined;
+    if (g) {
+      const sec = groupSections.get(g.id) ?? { group: g, items: [] };
+      sec.items.push(item);
+      groupSections.set(g.id, sec);
+    } else {
+      ungroupedBrands.push(item);
+    }
+  }
+  const groupList = [...groupSections.values()];
+
+  // One brand (an agencies row) with its branches — reused under each group node
+  // and for ungrouped brands.
+  const renderBrand = ({ a, branches }: ShownBrand) => {
+    const id = agencyId(a);
+    const open = q ? true : openSet.has(id);
+    const fees = feesOf(a, true);
+    const meta = `${a.branches.length} ${a.branches.length === 1 ? 'branch' : 'branches'}`;
+    return (
+      <div className={`agency${open ? ' is-open' : ''}`} key={id}>
+        <div className="agency__head" onClick={(e) => onHeadClick(e, id)}>
+          <span className="agency__chev"><Icon name="chevronRight" size={18} strokeWidth={2.2} /></span>
+          <span className="agency__ic"><Icon name="org" /></span>
+          <div className="agency__txt">
+            <Link className="agency__name agency__namelink" to={`/agencies/${encodeURIComponent(a.id ?? a.name)}`} data-stop title={`Open ${a.name}`}>{highlight(a.name, q)}</Link>
+            <div className="agency__meta">{meta}</div>
+            <ContactSummary agency={a} branch={null} canManage={canManageContacts} onManage={() => openContacts(a.name, null)} />
+          </div>
+          <Link className="statlink statlink--agency" to={`/applications?agency=${encodeURIComponent(a.name)}`} title={`View all applications for ${a.name}`}>
+            <div className="agency__stat"><div className="n">{a.referrals}</div><div className="l">Referrals</div></div>
+            <div className="agency__stat"><div className="n">{fmtK(fees)}</div><div className="l">Fees collected</div></div>
+            {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * rates.partner)}</div><div className="l">Your commission</div></div>}
+            {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * rates.agent)}</div><div className="l">Agent comm.</div></div>}
+            {goIcon}
+          </Link>
+          {role === 'superadmin' && (
+            <div className="agency__actions" data-stop>
+              {a.id && <button className="iconbtn iconbtn--sm" title="Group" onClick={() => openGroup(a)}><Icon name="org" /></button>}
+              {a.id && <button className="iconbtn iconbtn--sm" title="Commission" onClick={() => openCommission(a)}><Icon name="trend" /></button>}
+              <button className="iconbtn iconbtn--sm" title="Edit"  onClick={() => openContacts(a.name, null)}><Icon name="edit" /></button>
+            </div>
+          )}
+        </div>
+        <div className="branches">
+          {branches.map((b) => {
+            const bFees = feesOf(b, false);
+            return (
+              <div className="branch" key={b.name}>
+                <span className="branch__line">│</span>
+                <span className="branch__ic"><Icon name="home" /></span>
+                <div className="branch__txt">
+                  <div className="branch__name">{highlight(b.name, q)}</div>
+                  <div className="branch__meta">{b.area}</div>
+                  <ContactSummary agency={a} branch={b} canManage={canManageContacts} onManage={() => openContacts(a.name, b.name)} />
+                </div>
+                <Link className="statlink statlink--branch" to={`/applications?branch=${encodeURIComponent(b.name)}`} title={`View applications for ${b.name}`}>
+                  <div className="branch__stat"><b>{b.referrals}</b>referrals</div>
+                  <div className="branch__stat"><b>{fmtK(bFees)}</b>fees collected</div>
+                  {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * rates.partner)}</b>your comm.</div>}
+                  {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * rates.agent)}</b>agent comm.</div>}
+                  {goIcon}
+                </Link>
+              </div>
+            );
+          })}
+          {!q && canManageOrg && (
+            <div className="branch__add">
+              <Button variant="ghost" size="sm" onClick={() => openAddBranch(a.name)}><Icon name="plus" /> Add branch</Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -1182,21 +1268,12 @@ function requestCloseContacts() {
       <div className="page-head">
         <div>
           <Eyebrow>{eyebrow}</Eyebrow>
-          <h1 className="page-head__title" style={{ marginTop: 10 }}>Agencies &amp; branches</h1>
-          <p className="page-head__sub">Manage the partner organisation hierarchy. Search to find an agency or branch, expand to see branches, or click any figure to view the applications behind it.</p>
+          <h1 className="page-head__title" style={{ marginTop: 10 }}>Agencies</h1>
+          <p className="page-head__sub">The group → brand → branch hierarchy. Search a group, brand or branch, expand to see branches, or click any figure to view the applications behind it.</p>
         </div>
         <div className="page-head__actions">
-          {role === 'superadmin' && (
-            <PartnerSelect
-              ariaLabel="Partner"
-              value={selectedPartner}
-              onChange={setSelectedPartner}
-              options={[{ value: ALL_PARTNERS, label: 'All partners' }, ...getPartners().map((p) => ({ value: p.id, label: p.name }))]}
-            />
-          )}
-        
           {canManageOrg && (
-            <Button variant="primary" size="sm" onClick={() => { setAgencyName(''); setAgencyGroup(''); setAgencyPartner(selectedPartner !== ALL_PARTNERS ? selectedPartner : ''); setAgencyContact({ name: '', email: '', phone: '' }); setAgencyOpen(true); }}><Icon name="plus" /> Add agency</Button>
+            <Button variant="primary" size="sm" onClick={() => { setAgencyName(''); setAgencyGroup(''); setAgencyPartner(role === 'superadmin' ? 'opndoor-agents' : partnerScope); setAgencyContact({ name: '', email: '', phone: '' }); setAgencyOpen(true); }}><Icon name="plus" /> Add brand</Button>
           )}
         </div>
       </div>
@@ -1208,93 +1285,44 @@ function requestCloseContacts() {
 
       <div className={`org-search${query.trim() ? ' has-q' : ''}`}>
         <Icon name="search" />
-        <input type="text" placeholder="Search agencies or branches" autoComplete="off" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input type="text" placeholder="Search groups, brands or branches" autoComplete="off" value={query} onChange={(e) => setQuery(e.target.value)} />
         <button className="org-search__clear" aria-label="Clear search" onClick={() => setQuery('')}><Icon name="x" size={16} /></button>
       </div>
 
       <div className="org">
-        {shownAgencies.map(({ a, branches }) => {
-          const id = agencyId(a);
-          const open = q ? true : openSet.has(id);
-          const fees = feesOf(a, true);
-          const meta = `${a.group ? `${a.group} · ` : ''}${a.branches.length} ${a.branches.length === 1 ? 'branch' : 'branches'}`;
+        {groupList.map(({ group, items }) => {
+          const brandCount = items.length;
+          const branchCount = items.reduce((s, it) => s + it.a.branches.length, 0);
           return (
-            <div className={`agency${open ? ' is-open' : ''}`} key={id}>
-              <div className="agency__head" onClick={(e) => onHeadClick(e, id)}>
-                <span className="agency__chev"><Icon name="chevronRight" size={18} strokeWidth={2.2} /></span>
-                <span className="agency__ic"><Icon name="org" /></span>
-                <div className="agency__txt">
-                  <Link className="agency__name agency__namelink" to={`/agencies/${encodeURIComponent(a.id ?? a.name)}`} data-stop title={`Open ${a.name}`}>{highlight(a.name, q)}</Link>
-                  <div className="agency__meta">{meta}</div>
-                  <ContactSummary agency={a} branch={null} canManage={canManageContacts} onManage={() => openContacts(a.name, null)} />
+            <div className="orggroup" key={group.id}>
+              <div className="orggroup__head">
+                <span className="orggroup__tick">G</span>
+                <div className="orggroup__txt">
+                  <Link className="orggroup__name" to={`/agencies/${encodeURIComponent(group.id)}`} title={`Open ${group.name}`}>{highlight(group.name, q)}</Link>
+                  <div className="orggroup__meta">{brandCount} {brandCount === 1 ? 'brand' : 'brands'} · {branchCount} {branchCount === 1 ? 'branch' : 'branches'}</div>
                 </div>
-                <Link className="statlink statlink--agency" to={`/applications?agency=${encodeURIComponent(a.name)}`} title={`View all applications for ${a.name}`}>
-                  <div className="agency__stat"><div className="n">{a.referrals}</div><div className="l">Referrals</div></div>
-                  <div className="agency__stat"><div className="n">{fmtK(fees)}</div><div className="l">Fees collected</div></div>
-                  {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * rates.partner)}</div><div className="l">Your commission</div></div>}
-                  {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * rates.agent)}</div><div className="l">Agent comm.</div></div>}
-                  {goIcon}
-                </Link>
-                {role === 'superadmin' && (
-                  <div className="agency__actions" data-stop>
-                    {a.id && <button className="iconbtn iconbtn--sm" title="Group" onClick={() => openGroup(a)}><Icon name="org" /></button>}
-                    {a.id && <button className="iconbtn iconbtn--sm" title="Commission" onClick={() => openCommission(a)}><Icon name="trend" /></button>}
-                    <button className="iconbtn iconbtn--sm" title="Edit"  onClick={() => openContacts(a.name, null)}><Icon name="edit" /></button>
-                  </div>
-                )}
               </div>
-              <div className="branches">
-                {branches.map((b) => {
-                  const bFees = feesOf(b, false);
-                  return (
-                    <div className="branch" key={b.name}>
-                      <span className="branch__line">│</span>
-                      <span className="branch__ic"><Icon name="home" /></span>
-                      <div className="branch__txt">
-                        <div className="branch__name">{highlight(b.name, q)}</div>
-                        <div className="branch__meta">{b.area}</div>
-                        <ContactSummary agency={a} branch={b} canManage={canManageContacts} onManage={() => openContacts(a.name, b.name)} />
-                      </div>
-                      <Link className="statlink statlink--branch" to={`/applications?branch=${encodeURIComponent(b.name)}`} title={`View applications for ${b.name}`}>
-                        <div className="branch__stat"><b>{b.referrals}</b>referrals</div>
-                        <div className="branch__stat"><b>{fmtK(bFees)}</b>fees collected</div>
-                        {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * rates.partner)}</b>your comm.</div>}
-                        {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * rates.agent)}</b>agent comm.</div>}
-                        {goIcon}
-                      </Link>
-                    </div>
-                  );
-                })}
-                {!q && canManageOrg && (
-                  <div className="branch__add">
-                    <Button variant="ghost" size="sm" onClick={() => openAddBranch(a.name)}><Icon name="plus" /> Add branch</Button>
-                  </div>
-                )}
+              <div className="orggroup__brands">
+                {items.map(renderBrand)}
               </div>
             </div>
           );
         })}
+        {ungroupedBrands.map(renderBrand)}
       </div>
-      <div className={`org-empty${shownAgencies.length ? '' : ' is-shown'}`}>No agencies or branches match your search.</div>
+      <div className={`org-empty${shownAgencies.length ? '' : ' is-shown'}`}>No groups, brands or branches match your search.</div>
 
       {/* ADD AGENCY */}
       <Modal
         open={agencyOpen}
         onClose={() => { if (!busy) setAgencyOpen(false); }}
-        title="Add agency"
-        sub="Create a new agency in the hierarchy. A default contact is required so deeds and the bordereau resolve to someone reachable."
-        footer={<><Button variant="ghost" onClick={() => setAgencyOpen(false)} disabled={busy}>Cancel</Button><Button variant="primary" onClick={saveAgency} disabled={!canSaveAgency}>{busy ? 'Saving…' : 'Save agency'}</Button></>}
+        title="Add brand"
+        sub="Create a new brand in the hierarchy. A default contact is required so deeds and the bordereau resolve to someone reachable. Add it to a group afterwards from its Group action."
+        footer={<><Button variant="ghost" onClick={() => setAgencyOpen(false)} disabled={busy}>Cancel</Button><Button variant="primary" onClick={saveAgency} disabled={!canSaveAgency}>{busy ? 'Saving…' : 'Save brand'}</Button></>}
       >
-        <Field label="Agency name" htmlFor="agency-name"><input id="agency-name" type="text" placeholder="e.g. Riverside Lettings" autoComplete="off" value={agencyName} onChange={(e) => setAgencyName(e.target.value)} /></Field>
-        <Field label="Agency partner" htmlFor="agency-partner">
-          <select id="agency-partner" value={agencyPartner} onChange={(e) => setAgencyPartner(e.target.value)}>
-            <option value="">Select a partner</option>
-            {getPartners().map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Group / network" htmlFor="agency-group" hint="Optional"><input id="agency-group" type="text" placeholder="e.g. ABC group" autoComplete="off" value={agencyGroup} onChange={(e) => setAgencyGroup(e.target.value)} /></Field>
+        <Field label="Brand name" htmlFor="agency-name"><input id="agency-name" type="text" placeholder="e.g. Riverside Lettings" autoComplete="off" value={agencyName} onChange={(e) => setAgencyName(e.target.value)} /></Field>
         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14, marginTop: 6 }}>
-          <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Default agency contact</div>
+          <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Default brand contact</div>
           <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Its branches inherit this contact unless they have their own.</p>
           <div className="form-grid">
             <Field span2 label={<>Contact email <span className="req" aria-hidden="true">*</span></>} htmlFor="agency-cemail"><input id="agency-cemail" type="email" placeholder="agent@agency.co.uk" autoComplete="off" value={agencyContact.email} onChange={(e) => setAgencyContact((c) => ({ ...c, email: e.target.value }))} /></Field>
@@ -1309,19 +1337,19 @@ function requestCloseContacts() {
         open={branchOpen}
         onClose={() => { if (!busy) setBranchOpen(false); }}
         title="Add branch"
-        sub="Add a branch to an agency. A branch with no contact of its own inherits the agency default."
+        sub="Add a branch to a brand. A branch with no contact of its own inherits the brand default."
         footer={<><Button variant="ghost" onClick={() => setBranchOpen(false)} disabled={busy}>Cancel</Button><Button variant="primary" onClick={saveBranch} disabled={!canSaveBranch}>{busy ? 'Saving…' : 'Save branch'}</Button></>}
       >
         <Field label="Branch name" htmlFor="branch-name"><input id="branch-name" type="text" placeholder="e.g. Notting Hill" autoComplete="off" value={branchName} onChange={(e) => setBranchName(e.target.value)} /></Field>
         <Field label="Postcode / area" htmlFor="branch-area" hint="Optional"><input id="branch-area" type="text" placeholder="e.g. W11" autoComplete="off" value={branchArea} onChange={(e) => setBranchArea(e.target.value)} /></Field>
-        <Field label="Parent agency" htmlFor="branch-agency">
+        <Field label="Parent brand" htmlFor="branch-agency">
           <select id="branch-agency" value={branchAgency} onChange={(e) => setBranchAgency(e.target.value)}>
             {partnerPoolForBranch.map((a) => <option key={agencyId(a)} value={a.name}>{a.name}</option>)}
           </select>
         </Field>
         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14, marginTop: 6 }}>
           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Branch contact <span style={{ fontWeight: 400, color: 'var(--ink-mute)' }}>(optional)</span></div>
-          <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Leave blank to inherit the agency default contact.</p>
+          <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Leave blank to inherit the brand default contact.</p>
           <div className="form-grid">
             <Field span2 label="Contact email" htmlFor="branch-cemail" hint="Optional"><input id="branch-cemail" type="email" placeholder="branch@agency.co.uk" autoComplete="off" value={branchContact.email} onChange={(e) => setBranchContact((c) => ({ ...c, email: e.target.value }))} /></Field>
             <Field label="Contact name" htmlFor="branch-cname" hint="Optional"><input id="branch-cname" type="text" placeholder="e.g. Sam Rivers" autoComplete="off" value={branchContact.name} onChange={(e) => setBranchContact((c) => ({ ...c, name: e.target.value }))} /></Field>
@@ -1335,7 +1363,7 @@ function requestCloseContacts() {
         open={ctOpen}
         onClose={requestCloseContacts}
         title={`${ctBranchName || ctAgencyName} contacts`}
-        sub={ctBranchName ? 'Agent contacts for this branch. Who the Deed of Guarantee is sent to.' : 'Agency contacts. Used as the default for branches with no contact of their own.'}
+        sub={ctBranchName ? 'Agent contacts for this branch. Who the Deed of Guarantee is sent to.' : 'Brand contacts. Used as the default for branches with no contact of their own.'}
         footer={<Button variant="primary" onClick={requestCloseContacts} disabled={busy}>Done</Button>}
       >
         {ctConfirm && (
@@ -1414,7 +1442,7 @@ function requestCloseContacts() {
         onClose={() => setCommAgency(null)}
         width={460}
         title={`Commission — ${commAgency?.name ?? ''}`}
-        sub="This agency's share of the guarantee fee. Leave a field blank to inherit the group, then the partner, rate. Applies to new applications; existing ones keep their snapshot."
+        sub="This brand's share of the guarantee fee. Leave a field blank to inherit the group, then the Opndoor base, rate. Applies to new applications; existing ones keep their snapshot."
         footer={
           <>
             <Button variant="ghost" onClick={() => setCommAgency(null)} disabled={busy}>Cancel</Button>
@@ -1451,7 +1479,7 @@ function requestCloseContacts() {
         onClose={() => setGroupAgency(null)}
         width={460}
         title={`Group — ${groupAgency?.name ?? ''}`}
-        sub="Put this agency into a group. A group is the top commission tier and can be covered by a single director's position."
+        sub="Put this brand into a group. A group is the top commission tier and can be covered by a single director's position."
         footer={
           <>
             <Button variant="ghost" onClick={() => setGroupAgency(null)} disabled={busy}>Cancel</Button>
@@ -1461,7 +1489,7 @@ function requestCloseContacts() {
       >
         {groupAgency && (
           <div className="form-grid">
-            <Field label="Group" span2 hint="Groups are within this agency's partner.">
+            <Field label="Group" span2 hint="Groups available for this brand.">
               <select value={groupChoice} onChange={(e) => setGroupChoice(e.target.value)}>
                 <option value="">None (ungrouped)</option>
                 {getGroups(groupAgency.partner).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
