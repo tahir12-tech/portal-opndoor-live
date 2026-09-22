@@ -1224,7 +1224,7 @@ function requestCloseContacts() {
                 <span className="agency__chev"><Icon name="chevronRight" size={18} strokeWidth={2.2} /></span>
                 <span className="agency__ic"><Icon name="org" /></span>
                 <div className="agency__txt">
-                  <div className="agency__name">{highlight(a.name, q)}</div>
+                  <Link className="agency__name agency__namelink" to={`/agencies/${encodeURIComponent(a.id ?? a.name)}`} data-stop title={`Open ${a.name}`}>{highlight(a.name, q)}</Link>
                   <div className="agency__meta">{meta}</div>
                   <ContactSummary agency={a} branch={null} canManage={canManageContacts} onManage={() => openContacts(a.name, null)} />
                 </div>

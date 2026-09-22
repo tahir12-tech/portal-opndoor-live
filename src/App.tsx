@@ -28,6 +28,7 @@ import { Applications } from '@/pages/Applications/Applications';
 import { ApplicationDetail } from '@/pages/ApplicationDetail/ApplicationDetail';
 import { NewApplication } from '@/pages/NewApplication/NewApplication';
 import { OrgManagement } from '@/pages/OrgManagement/OrgManagement';
+import { AgencyHome } from '@/pages/Agencies/AgencyHome';
 import { PartnerManagement } from '@/pages/PartnerManagement/PartnerManagement';
 import { UserManagement } from '@/pages/UserManagement/UserManagement';
 import { Reconciliation } from '@/pages/Reconciliation/Reconciliation';
@@ -134,6 +135,7 @@ export function App() {
         <Route element={<RequireRole roles={['superadmin', 'opndoor_manager', 'management', 'referrer']} redirectTo="/dev-centre" />}>
           <Route path="/activity" element={<Activity />} />
           <Route path="/agencies" element={<OrgManagement />} />
+          <Route path="/agencies/:key" element={<AgencyHome />} />
         </Route>
         <Route element={<RequireRole roles={['superadmin', 'management', 'referrer']} redirectTo="/dev-centre" />}>
           <Route path="/new-application" element={<NewApplication />} />

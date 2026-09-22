@@ -1,0 +1,103 @@
+/* =====================================================================
+   AgencyHome — the first-class agency screen. Built in the portal brand
+   (indigo ink, heliotrope accent, lilac field, Sora display / Manrope body)
+   and reuses .card / .dt from portal.css; only the agency-specific layout
+   lives here.
+   ===================================================================== */
+
+.ah-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 700; color: var(--ink-mute);
+  text-decoration: none;
+}
+.ah-back:hover { color: var(--heliotrope-deep); }
+
+.ah-sub.ah-sub {
+  display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center;
+  margin-top: 8px;
+}
+.ah-sub span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---- KPI strip ---- */
+.ah-kpis {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+  margin-bottom: 18px;
+}
+.ah-kpi {
+  background: #fff; border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm); padding: 16px 18px;
+}
+.ah-kpi__v { font-family: var(--display); font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+.ah-kpi__l { font-size: 12px; color: var(--ink-mute); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ---- two-column grid for commission + structure ---- */
+.ah-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+  margin-bottom: 18px;
+}
+.ah-grid > * { min-width: 0; }
+
+/* ---- commission ---- */
+.ah-rates { display: flex; gap: 14px; }
+.ah-rate {
+  flex: 1; background: var(--white-lilac); border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: 14px 16px;
+}
+.ah-rate__v { font-family: var(--display); font-size: 26px; font-weight: 700; color: var(--heliotrope-deep); letter-spacing: -0.02em; }
+.ah-rate__l { font-size: 12.5px; font-weight: 700; color: var(--ink); margin-top: 2px; }
+.ah-rate__src { font-size: 11.5px; color: var(--ink-mute); margin-top: 4px; }
+.ah-note { font-size: 12.5px; color: var(--ink-soft); margin: 12px 0 0; line-height: 1.5; }
+.ah-note.muted { color: var(--ink-mute); }
+.ah-note a { color: var(--heliotrope-deep); font-weight: 700; }
+
+/* ---- people ---- */
+.ah-people-block { margin-top: 4px; }
+.ah-people-block + .ah-people-block { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.ah-people-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.ah-inherit { font-size: 11.5px; color: var(--ink-mute); font-style: italic; }
+.ah-people { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+.ah-person { display: flex; gap: 12px; align-items: flex-start; }
+.ah-person__av {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--white-lilac); color: var(--heliotrope-deep);
+  display: grid; place-items: center; font-size: 12px; font-weight: 800;
+  font-family: var(--display); border: 1px solid var(--line);
+}
+.ah-person__body { min-width: 0; }
+.ah-person__top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ah-person__name { font-weight: 700; font-size: 13.5px; color: var(--ink); }
+.ah-person__role {
+  font-size: 11px; color: var(--ink-mute); text-transform: uppercase;
+  letter-spacing: 0.04em; background: var(--app-bg); border-radius: 999px; padding: 2px 8px;
+}
+.ah-person__contact { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12.5px; color: var(--ink-soft); }
+.ah-person__contact span { display: inline-flex; align-items: center; gap: 5px; }
+
+.ah-contact-warn {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12.5px; color: var(--warn); background: var(--warn-bg);
+  border-radius: var(--r-sm); padding: 10px 12px;
+}
+
+/* ---- tables (branches, referrals) ---- */
+.ah-table { width: 100%; }
+.ah-table th.num, .ah-table td.num { text-align: right; }
+.ah-table td.soft { color: var(--ink-mute); }
+.ah-branchlink { color: var(--ink); font-weight: 600; text-decoration: none; }
+.ah-branchlink:hover { color: var(--heliotrope-deep); }
+.ah-tag {
+  margin-left: 8px; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--warn); background: var(--warn-bg);
+  border-radius: 999px; padding: 1px 7px;
+}
+.ah-tenant { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+.ah-status { text-transform: capitalize; font-size: 12.5px; color: var(--ink-soft); }
+.ah-viewall { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--heliotrope-deep); text-decoration: none; }
+.ah-empty { padding: 22px; text-align: center; color: var(--ink-mute); font-size: 13px; }
+
+@media (max-width: 860px) {
+  .ah-kpis { grid-template-columns: repeat(2, 1fr); }
+  .ah-grid { grid-template-columns: 1fr; }
+  .ah-people { grid-template-columns: 1fr; }
+}
