@@ -93,12 +93,14 @@ function RoleOptions({ options, selected, onSelect }: { options: RoleOption[]; s
   );
 }
 
-export function UserManagement() {
+export function UserManagement({ team = false }: { team?: boolean } = {}) {
   const { role, currentUserId, selectedPartner, setSelectedPartner, refresh: refreshData } = useSession();
   const toast = useToast();
   const [params] = useSearchParams();
   const partnerParam = params.get('partner');
-  const teamMode = params.get('team') === 'opndoor' && role === 'superadmin';
+  // The Opndoor team is its own route (/opndoor-team) now; the legacy ?team=opndoor
+  // query param is still honoured so old links keep working.
+  const teamMode = (team || params.get('team') === 'opndoor') && role === 'superadmin';
 
   usePageMeta(teamMode ? 'opteam' : 'users', 'Users', ['Home', 'Administration', 'Users']);
 

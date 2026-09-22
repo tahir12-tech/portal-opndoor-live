@@ -141,9 +141,14 @@ export function App() {
           <Route path="/new-application" element={<NewApplication />} />
         </Route>
 
-        {/* Users: opndoor admin + Management */}
+        {/* Users: opndoor admin + Management (partner staff) */}
         <Route element={<RequireRole roles={['superadmin', 'management']} />}>
           <Route path="/users" element={<UserManagement />} />
+        </Route>
+
+        {/* The opndoor team, its own route rather than a ?team= fork on /users. */}
+        <Route element={<RequireRole roles={['superadmin']} redirectTo="/home" />}>
+          <Route path="/opndoor-team" element={<UserManagement team />} />
         </Route>
 
         {/* The reconciliation + direct-match queues: opndoor ops staff work these. */}

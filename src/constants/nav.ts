@@ -85,7 +85,7 @@ export const NAV: NavGroup[] = [
     group: 'opndoor',
     adminGroup: true,
     items: [
-      { id: 'opteam', label: 'opndoor team', to: '/users?team=opndoor', icon: 'users', roles: ['superadmin'] },
+      { id: 'opteam', label: 'opndoor team', to: '/opndoor-team', icon: 'users', roles: ['superadmin'] },
       // Applications awaiting the eligibility decision. Deep-links to the list's
       // Awaiting-decision cohort; the badge counts how many are waiting.
       { id: 'decisions', label: 'Awaiting decision', to: '/applications?status=referencing', icon: 'clock', roles: ['superadmin', 'opndoor_manager'], badge: 'decisions' },
