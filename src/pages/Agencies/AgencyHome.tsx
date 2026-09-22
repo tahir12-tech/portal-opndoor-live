@@ -187,8 +187,9 @@ export function AgencyHome() {
   // Resolved rate for a representative brand → branch (group → brand → base).
   const sampleBrand = brands.find((b) => (b.branches ?? []).length > 0) ?? brands[0];
   const sampleBranch = sampleBrand?.branches?.[0];
-  const resolvedP = grp?.partnerRate ?? sampleBrand?.partnerRate ?? base.partner;
-  const resolvedA = grp?.agentRate ?? sampleBrand?.agentRate ?? base.agent;
+  // Most specific wins: brand override, then group, then base — mirrors resolve_rates.
+  const resolvedP = sampleBrand?.partnerRate ?? grp?.partnerRate ?? base.partner;
+  const resolvedA = sampleBrand?.agentRate ?? grp?.agentRate ?? base.agent;
 
   const inviteBtn = (ctx: InviteContext, label: string, variant: 'primary' | 'ghost' = 'ghost') => (
     <Button variant={variant} size="sm" onClick={() => setInvite(ctx)}><Icon name="send" /> {label}</Button>
@@ -253,7 +254,7 @@ export function AgencyHome() {
             <div className="ah-crow ah-crow--head"><span>Tier</span><span>Opndoor</span><span>Agent</span></div>
             {grp && (
               <RateRow
-                label={<><b>Group override</b><br /><span>applies to all brands; overrides a brand's own rate</span></>}
+                label={<><b>Group override</b><br /><span>applies to all brands unless a brand sets its own</span></>}
                 rowKey={`group:${grp.id}`} draft={draft} setDraft={setDraft} editable={isAdmin}
                 saving={savingRow === `group:${grp.id}`} onSave={() => saveRow(`group:${grp.id}`)}
               />

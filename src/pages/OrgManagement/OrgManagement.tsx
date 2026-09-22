@@ -1459,8 +1459,9 @@ function requestCloseContacts() {
         {commAgency && (() => {
           const grp = commAgency.groupId ? getGroup(commAgency.groupId) : undefined;
           const base = getRatesFor(commAgency.partner);
-          const resolvedPartner = grp?.partnerRate ?? commAgency.partnerRate ?? base.partner;
-          const resolvedAgent = grp?.agentRate ?? commAgency.agentRate ?? base.agent;
+          // Most specific wins: brand (this agency) override, then group, then base.
+          const resolvedPartner = commAgency.partnerRate ?? grp?.partnerRate ?? base.partner;
+          const resolvedAgent = commAgency.agentRate ?? grp?.agentRate ?? base.agent;
           return (
             <>
               <div className="form-grid">
