@@ -84,9 +84,13 @@ export function Applications() {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('Newest first');
   // Partner sub-filter (opndoor admin). Seeded from ?partner= so a supplier's page
-  // can deep-link to its own applications; a non-superadmin is already confined to
-  // their own partner by scope, so a crafted value only ever narrows to nothing.
-  const [partner, setPartner] = useState(() => params.get('partner') || '');
+  // can deep-link to its own applications; validated against the real partner list
+  // (unknown/stale slugs fall back to no filter rather than an empty, mislabelled
+  // list). A non-superadmin is already confined to their own partner by scope.
+  const [partner, setPartner] = useState(() => {
+    const p = params.get('partner');
+    return p && getPartners().some((x) => x.id === p) ? p : '';
+  });
   const [agency, setAgency] = useState(() => params.get('agency') || (params.get('branch') ? agencyOfBranch(params.get('branch')!) : ''));
   const [branch, setBranch] = useState(() => params.get('branch') || '');
   // #owner Referrer filter (management + opndoor admin only). Referrers only ever
@@ -123,7 +127,10 @@ export function Applications() {
 
   // const scopeOpts = { role, scope: partnerScope, partner: partner || undefined };
 
-  const effectiveScope = role === 'superadmin' ? ALL_PARTNERS : partnerScope;
+  // opndoor staff (superadmin + opndoor_manager) read the whole book across every
+  // partner — RLS permits it and Home counts the same way — so both see all
+  // partners here. Everyone else is confined to their own partner scope.
+  const effectiveScope = role === 'superadmin' || role === 'opndoor_manager' ? ALL_PARTNERS : partnerScope;
   const scopeOpts = { role, scope: effectiveScope, partner: partner || undefined };
   // #owner Chips recount within the selected period and the current filter state.
   const counts = countByStatus({ ...scopeOpts, agency: agency || undefined, branch: branch || undefined, referrer: referrer || undefined, channel: route || undefined, periodRange: range });

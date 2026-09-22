@@ -75,7 +75,10 @@ export function PartnerHome() {
     return () => { alive = false; };
   }, [partner, dataVersion]);
 
-  if (!partner) {
+  // getPartner resolves house/plumbing partners too (opndoor-direct etc.), which
+  // are never shown as suppliers (their name is an internal route label). Treat
+  // them as not-found so this page never surfaces one.
+  if (!partner || partner.isHouse) {
     return (
       <>
         <div className="page-head">
@@ -95,7 +98,9 @@ export function PartnerHome() {
   const sp = STATUS_PILL[partner.status] || STATUS_PILL.active;
 
   const kpis = [
-    { l: 'Users', v: String(partner.users) },
+    // Drive the count from the same list the Users card renders (getUsers), not the
+    // denormalized partner.users aggregate, so the KPI and the table always agree.
+    { l: 'Users', v: String(users.length) },
     { l: 'Agencies', v: String(agencies.length) },
     { l: 'Branches', v: String(branchCount) },
     { l: 'Applications', v: partner.apps.toLocaleString('en-GB') },

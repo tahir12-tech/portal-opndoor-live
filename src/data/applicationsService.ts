@@ -197,7 +197,11 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
     if (r.refunded) counts.refunded++;
     if (r.awaitingSignature) counts.awaiting++;
     // #93 Delivery-failure is an ops surface: never counted for referrers.
-    if ((opts.role === 'superadmin' || opts.role === 'management') && r.status === 'deed' && !contactForApplication(r.agency, r.branch).contact) counts.deliveryFailed++;
+    // Delivery-failure is an ops surface for everyone who works the book (opndoor
+    // admin + opndoor management + a partner's management), never referrers. Must
+    // match the list gate below (opts.status === 'delivery-failed'), which excludes
+    // only referrers — otherwise opndoor_manager sees the rows but a 0 count.
+    if (opts.role !== 'referrer' && r.status === 'deed' && !contactForApplication(r.agency, r.branch).contact) counts.deliveryFailed++;
   });
   return counts;
 }

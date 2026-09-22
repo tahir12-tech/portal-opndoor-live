@@ -77,7 +77,6 @@ export function Home() {
     { label: 'Paid', n: direct.paid, to: '/applications?route=Direct&status=paid' },
     { label: 'Deed issued', n: direct.deed, to: '/applications?route=Direct&status=deed' },
   ];
-  const directTotal = direct.referencing + direct.sent + direct.paid + direct.deed;
 
   return (
     <>
@@ -105,7 +104,7 @@ export function Home() {
       <Card>
         <CardHead
           title="Direct signups"
-          sub={`Tenants who came to Opndoor directly · ${directTotal} in flight`}
+          sub="Tenants who came to Opndoor directly — no agency or supplier — by stage."
           actions={<Link className="home-viewall" to="/applications?route=Direct">View all Direct <Icon name="arrowRight" size={13} /></Link>}
         />
         <CardBody>

@@ -14,7 +14,7 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  getAgencies, getGroup, getRatesFor, getApplications, partnerName, fmtBig,
+  getAgencies, getGroup, getRatesFor, getApplications, partnerName, fmtBig, ALL_PARTNERS,
   effectiveContacts, type Agency, type Branch, type AgentContact,
 } from '@/data';
 import { channelOf, ROUTE_LABEL, type Channel } from '@/data/channel';
@@ -67,15 +67,20 @@ export function AgencyHome() {
   usePageMeta('agency-home', 'Agency', ['Home', 'Relationships', 'Agencies', 'Agency']);
 
   const decoded = decodeURIComponent(key ?? '');
+  // A superadmin resolves agencies across every partner, not through a narrowed
+  // "viewing as" scope — otherwise an agency reached from a supplier's page (which
+  // ignores scope) would dead-end here when the selected scope is a different
+  // partner. RLS still bounds a real partner user server-side.
+  const scope = role === 'superadmin' ? ALL_PARTNERS : partnerScope;
   const agency = useMemo(
-    () => getAgencies(partnerScope).find((a) => agencyKey(a) === decoded),
-    [partnerScope, decoded, dataVersion],
+    () => getAgencies(scope).find((a) => agencyKey(a) === decoded),
+    [scope, decoded, dataVersion],
   );
 
   // Referrals for this agency, route-badged. Scoped to the viewer (RLS in live mode).
   const referrals = useMemo(
-    () => (agency ? getApplications({ role, scope: partnerScope, agency: agency.name }) : []),
-    [agency, role, partnerScope, dataVersion],
+    () => (agency ? getApplications({ role, scope, agency: agency.name }) : []),
+    [agency, role, scope, dataVersion],
   );
 
   if (!agency) {
