@@ -128,6 +128,19 @@ export interface AgentContact {
   primary: boolean;
 }
 
+/** An agency group (a brand family under a partner) — the top commission tier and
+    the target of a "whole group" position. */
+export interface AgencyGroup {
+  id: string;
+  /** Owning partner id (slug in the client working copy). */
+  partner: string;
+  name: string;
+  /** Group-tier commission override (fractions of one month's rent), or null to
+      inherit the partner tier. */
+  partnerRate?: number | null;
+  agentRate?: number | null;
+}
+
 export interface Branch {
   /** DB row id (Supabase mode). Absent in mock/test mode. */
   id?: string;
@@ -148,7 +161,15 @@ export interface Agency {
   /** Owning partner id. The same name under two partners is two records. */
   partner: string;
   name: string;
+  /** Legacy free-text group label (agencies.group_name). Superseded by groupId. */
   group?: string;
+  /** The real agency_groups row this agency belongs to (its brand's group), or
+      absent when ungrouped. */
+  groupId?: string;
+  /** This agency's own commission override (fractions of one month's rent), or
+      null/absent to inherit the next tier up. resolve_rates: group -> agency -> partner. */
+  partnerRate?: number | null;
+  agentRate?: number | null;
   users?: number;
   referrals: number;
   guaranteed: string;

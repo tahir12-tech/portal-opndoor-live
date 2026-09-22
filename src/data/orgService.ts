@@ -8,7 +8,7 @@
    search endpoints; createAgency/BranchOnTheFly -> POST that returns the
    new id and FLAGS the record for reconciliation (unreviewed = true).
    ===================================================================== */
-import type { Agency, AgentContact, Branch, PartnerScope } from './types';
+import type { Agency, AgencyGroup, AgentContact, Branch, PartnerScope } from './types';
 import { ALL_PARTNERS } from './types';
 import { KEYS, clone, loadJSON, saveJSON } from './storage';
 import { ORG_SEED } from './mock/org';
@@ -40,6 +40,72 @@ export function getAgencies(scope: PartnerScope): Agency[] {
 
 export function findAgency(name: string): Agency | undefined {
   return AGENCIES.find((a) => a.name === name);
+}
+
+/* ---- Agency groups (the top commission tier + "whole group" position target) ----
+   Hydrated from agency_groups in Supabase mode; empty in mock unless created. */
+let GROUPS: AgencyGroup[] = [];
+
+/** Replace the agency-groups working copy from the back end (Supabase mode). */
+export function hydrateGroups(groups: AgencyGroup[]): void {
+  GROUPS = groups.slice();
+}
+
+/** Groups within a partner scope ("all" returns every partner's groups). */
+export function getGroups(scope: PartnerScope): AgencyGroup[] {
+  if (scope === ALL_PARTNERS) return GROUPS.slice();
+  return GROUPS.filter((g) => g.partner === scope);
+}
+
+export function getGroup(id: string): AgencyGroup | undefined {
+  return GROUPS.find((g) => g.id === id);
+}
+
+/* ---- Commission overrides + group management (Phase 5) --------------------
+   The write path for the tiers resolve_rates already reads (group -> agency ->
+   partner). Commission edits are superadmin-only server-side (set_*_rates);
+   group create/attach is org management. The working copy is updated on success
+   so the screen reflects the change before the next re-hydrate. A null rate means
+   "inherit the next tier up". */
+export async function setAgencyRates(agencyId: string, partnerRate: number | null, agentRate: number | null): Promise<void> {
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('set_agency_rates', { p_agency: agencyId, p_partner_rate: partnerRate, p_agent_rate: agentRate });
+    if (error) throw new Error(error.message);
+  }
+  const a = AGENCIES.find((x) => x.id === agencyId);
+  if (a) { a.partnerRate = partnerRate; a.agentRate = agentRate; persist(); }
+}
+
+export async function setGroupRates(groupId: string, partnerRate: number | null, agentRate: number | null): Promise<void> {
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('set_group_rates', { p_group: groupId, p_partner_rate: partnerRate, p_agent_rate: agentRate });
+    if (error) throw new Error(error.message);
+  }
+  const g = GROUPS.find((x) => x.id === groupId);
+  if (g) { g.partnerRate = partnerRate; g.agentRate = agentRate; }
+}
+
+export async function createAgencyGroup(partnerSlug: string, name: string): Promise<AgencyGroup> {
+  let id: string;
+  if (SUPABASE_ENABLED) {
+    const { data, error } = await sb().rpc('create_agency_group', { p_partner_slug: partnerSlug, p_name: name });
+    if (error) throw new Error(error.message);
+    id = String(data);
+  } else {
+    id = `grp-${name.toLowerCase().replace(/[^a-z0-9]+/g, '')}-${GROUPS.length + 1}`;
+  }
+  const rec: AgencyGroup = { id, partner: partnerSlug, name: name.trim(), partnerRate: null, agentRate: null };
+  GROUPS.push(rec);
+  return rec;
+}
+
+export async function setAgencyGroup(agencyId: string, groupId: string | null): Promise<void> {
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('set_agency_group', { p_agency: agencyId, p_group: groupId });
+    if (error) throw new Error(error.message);
+  }
+  const a = AGENCIES.find((x) => x.id === agencyId);
+  if (a) { a.groupId = groupId ?? undefined; persist(); }
 }
 
 /** Same as findAgency but returns null. Internal helper for createBranchOnTheFly. */

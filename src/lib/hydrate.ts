@@ -10,8 +10,8 @@
    ===================================================================== */
 import { sb } from '@/lib/supabase';
 import { LEAST_PRIVILEGED_ROLE,
-  hydratePartners, hydrateUsers, hydrateOrg, hydrateApplications, hydrateUpcoming, hydrateFull, hydrateSettings,
-  type Agency, type AgentContact, type ApplicationSummary, type Branch, type FullApp, type ManagedUser, type Role,
+  hydratePartners, hydrateUsers, hydrateOrg, hydrateGroups, hydrateApplications, hydrateUpcoming, hydrateFull, hydrateSettings,
+  type Agency, type AgencyGroup, type AgentContact, type ApplicationSummary, type Branch, type FullApp, type ManagedUser, type Role,
   type Partner, type Status,
 } from '@/data';
 import type { AppRecord } from '@/data/mock/applications';
@@ -85,7 +85,7 @@ function toContact(c: any): AgentContact {
    removing it would be an unrelated change to every call site. */
 export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LEAST_PRIVILEGED_ROLE): Promise<void> {
   const client = sb();
-  const [partnersRes, partnerRatesRes, usersRes, ratesRes, agenciesRes, branchesRes, contactsRes, appsRes] = await Promise.all([
+  const [partnersRes, partnerRatesRes, usersRes, ratesRes, agenciesRes, groupsRes, branchesRes, contactsRes, appsRes] = await Promise.all([
     // THE RATES ARE NO LONGER SELECTABLE HERE BY ANYONE, exactly as on
     // applications. They came off the table grant for `authenticated`
     // (20260815030000), because this string was never enforcement: it decided
@@ -116,7 +116,10 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // the one meant here: the single owning partner, the same one partner_id resolves
     // to. The many-to-many would return an array and, for a shared agency, the wrong
     // partner.
-    client.from('agencies').select('id, name, group_name, review_state, partner_id, partner:partners!agencies_partner_id_fkey(slug)'),
+    client.from('agencies').select('id, name, group_name, group_id, partner_rate, agent_rate, review_state, partner_id, partner:partners!agencies_partner_id_fkey(slug)'),
+    // Agency groups — the top commission tier and the target of a "whole group"
+    // position. RLS scopes them to the caller's partner (or all, for admin/staff).
+    client.from('agency_groups').select('id, name, partner_id, partner_rate, agent_rate'),
     client.from('branches').select('id, name, area, review_state, agency_id, partner_id'),
     // Ordered oldest-first so the on-screen contact order matches the server's
     // promote-oldest primary backstop (org_*_contact RPCs): the "promotes X to
@@ -149,7 +152,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   // ratesRes is deliberately absent from this list. It returns nothing for a
   // referrer or a developer by design, and treating that as a hydration failure
   // would break login for two roles to protect a figure they are not shown.
-  for (const res of [partnersRes, usersRes, agenciesRes, branchesRes, contactsRes, appsRes]) {
+  for (const res of [partnersRes, usersRes, agenciesRes, groupsRes, branchesRes, contactsRes, appsRes]) {
     if (res.error) throw new Error(`Failed to load data: ${res.error.message}`);
   }
 
@@ -165,6 +168,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   const partners = ((partnersRes.data ?? []) as any[]).map((p) => ({ ...p, ...(ratesFromRpc.get(p.id) ?? {}) }));
   const users = (usersRes.data ?? []) as any[];
   const agencies = (agenciesRes.data ?? []) as any[];
+  const groups = (groupsRes.data ?? []) as any[];
   const branches = (branchesRes.data ?? []) as any[];
   const contacts = (contactsRes.data ?? []) as any[];
   const apps = (appsRes.data ?? []) as any[];
@@ -285,9 +289,21 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
       branches: brs,
     };
     if (a.group_name) agency.group = a.group_name;
+    if (a.group_id) agency.groupId = a.group_id;
+    // Preserve null (inherit) rather than coercing to 0 (a real 0% override).
+    agency.partnerRate = a.partner_rate == null ? null : Number(a.partner_rate);
+    agency.agentRate = a.agent_rate == null ? null : Number(a.agent_rate);
     if (a.review_state === 'pending_review') agency.unreviewed = true;
     return agency;
   });
+
+  const groupsOut: AgencyGroup[] = groups.map((g) => ({
+    id: g.id,
+    partner: partnerSlug.get(g.partner_id) ?? '',
+    name: g.name,
+    partnerRate: g.partner_rate == null ? null : Number(g.partner_rate),
+    agentRate: g.agent_rate == null ? null : Number(g.agent_rate),
+  }));
 
   /* ---- applications: summaries + detail records ---- */
   const listOut: ApplicationSummary[] = apps.map((a) => ({
@@ -418,6 +434,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   hydratePartners(partnersOut);
   hydrateUsers(usersOut);
   hydrateOrg(agenciesOut);
+  hydrateGroups(groupsOut);
   hydrateApplications(listOut, recordsOut);
   hydrateUpcoming(upcomingOut);
   hydrateFull(fullOut);

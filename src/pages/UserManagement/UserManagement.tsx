@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { PositionModal, type ScopeTarget } from './PositionModal';
 import * as positionsService from '@/data/positionsService';
-import { getAgencies } from '@/data';
+import { getAgencies, getGroups } from '@/data';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -267,6 +267,10 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     const out: ScopeTarget[] = [];
     // Scoped by the caller's own partner selection, so the options are already
     // narrowed by the same rule that will judge the write.
+    // A whole group first (this option was dead until groups were loaded).
+    for (const g of getGroups(selectedPartner)) {
+      if (g.id) out.push({ id: g.id, name: g.name, kind: 'group' });
+    }
     for (const a of getAgencies(selectedPartner)) {
       // Mock mode has no ids. A position needs one, so those rows are skipped
       // rather than offered as options that cannot be saved.
