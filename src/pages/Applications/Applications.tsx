@@ -157,7 +157,9 @@ export function Applications() {
   const agencyOptions = agencyNamesForScope(scopeOpts);
   const branchOptions = branchNamesForScope(scopeOpts, agency || undefined);
   const referrerOptions = referrerNamesForScope(scopeOpts);
-  const showPartner = role === 'superadmin';
+  // opndoor staff (superadmin + opndoor_manager) view every partner's book, so
+  // both get the Partner column and the Partner filter chip to sub-filter by one.
+  const showPartner = role === 'superadmin' || role === 'opndoor_manager';
   const showReferrer = role !== 'referrer';
 
   const tabs = [
