@@ -239,7 +239,10 @@ export interface AddUserInput {
 export function addUser(input: AddUserInput): ManagedUser {
   const name = `${input.firstName || 'New'} ${input.lastName || 'User'}`;
   const partner = input.role === 'superadmin' ? 'opndoor' : input.partner || homePartner();
-  const rec: ManagedUser = { id: `u${USERS.length}_${Math.round(performance.now())}`, name, email: input.email.trim() || emailOf(name), role: input.role, lastActive: 'Pending invite', status: 'pending', partner };
+  // A negotiator (referrer) invited to a branch carries it as their home branch, so
+  // mock mode shows them on that branch node just as live mode does.
+  const homeBranchId = input.role === 'referrer' ? (input.branch ?? null) : null;
+  const rec: ManagedUser = { id: `u${USERS.length}_${Math.round(performance.now())}`, name, email: input.email.trim() || emailOf(name), role: input.role, lastActive: 'Pending invite', status: 'pending', partner, homeBranchId };
   USERS.push(rec);
   return rec;
 }

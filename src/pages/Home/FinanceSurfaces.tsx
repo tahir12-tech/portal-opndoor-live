@@ -121,7 +121,7 @@ export function FinanceSurfaces({ role, partnerScope }: { role: Role; partnerSco
         <Eyebrow>Settlements</Eyebrow>
         {live && (partnerDue > 0 || agentDue > 0) && (
           <span className="muted" style={{ fontSize: 12.5 }}>
-            Due <b>{settleDayMonth}</b>: {gbpPence(partnerDue)} partner · {gbpPence(agentDue)} agent
+            Due <b>{settleDayMonth}</b>: {gbpPence(partnerDue)} supplier · {gbpPence(agentDue)} agent
           </span>
         )}
       </div>
@@ -141,9 +141,9 @@ export function FinanceSurfaces({ role, partnerScope }: { role: Role; partnerSco
         <section className="card settle">
           <div className="settle__head">
             <div>
-              <div className="kpi__label">Partner commission settlement</div>
+              <div className="kpi__label">Supplier commission settlement</div>
               <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                Partner commission accrued on payments in <b>{settlement.monthLabel}</b> (calendar month, net of refunds), payable on <b>{settleDate}</b>.
+                Supplier commission accrued on payments in <b>{settlement.monthLabel}</b> (calendar month, net of refunds), payable on <b>{settleDate}</b>.
               </div>
             </div>
           </div>

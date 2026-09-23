@@ -121,6 +121,11 @@ export function AgencyHome() {
             else if (p.kind === 'agency' && agencyIds.has(p.targetId)) put(ag[p.targetId] ||= []);
             else if (p.kind === 'branch' && branchIdSet.has(p.targetId)) put(br[p.targetId] ||= []);
           }
+          // A negotiator is a referrer with a home branch and no user_scope position.
+          // Show them on that branch node too, labelled "Negotiator".
+          if (!seen.has(u.id) && u.role === 'referrer' && u.homeBranchId && branchIdSet.has(u.homeBranchId)) {
+            put(br[u.homeBranchId] ||= []);
+          }
         }
         setPeople({ group: g, agency: ag, branch: br, total: seen.size });
       })
@@ -142,24 +147,27 @@ export function AgencyHome() {
   // chain (nominee, branch/agency/group manager) cannot receive a deed.
   const isAgentRail = getPartner(partner)?.referencingMode === 'opndoor_referenced';
 
-  // ---- per-node rate editor ----
+  // ---- per-node rate editor. The Agencies section edits ONE rate: the agency
+  // commission (agent_rate). partner_rate (the supplier/Opndoor cut, never paid on
+  // the agent rail) is preserved untouched — we pass the node's current value back.
   const [editRow, setEditRow] = useState<string | null>(null); // 'group:<id>' | 'agency:<id>'
-  const [draftP, setDraftP] = useState('');
   const [draftA, setDraftA] = useState('');
+  const [preserveP, setPreserveP] = useState<number | null>(null);
   const [savingRow, setSavingRow] = useState(false);
   const openRate = (rowKey: string, ownP: number | null | undefined, ownA: number | null | undefined) => {
     setEditRow(rowKey);
-    setDraftP(ownP == null ? '' : String(+(ownP * 100).toFixed(2)));
+    setPreserveP(ownP ?? null);
     setDraftA(ownA == null ? '' : String(+(ownA * 100).toFixed(2)));
   };
   const saveRate = async () => {
     if (!editRow) return;
-    const p = pctToFrac(draftP); const a = pctToFrac(draftA);
-    if (p === undefined || a === undefined) { toast('Enter a percentage between 0 and 100, or leave blank to inherit.', 'error'); return; }
+    const a = pctToFrac(draftA);
+    if (a === undefined) { toast('Enter a percentage between 0 and 100, or leave blank to inherit.', 'error'); return; }
     const [kind, id] = editRow.split(':');
     setSavingRow(true);
     try {
-      if (kind === 'group') await setGroupRates(id, p, a); else await setAgencyRates(id, p, a);
+      // partner_rate is left exactly as it was (preserveP); only agent_rate changes.
+      if (kind === 'group') await setGroupRates(id, preserveP, a); else await setAgencyRates(id, preserveP, a);
       refreshSession(); bump(); setEditRow(null);
       toast('Commission saved.', 'ok');
     } catch (e) { toast(e instanceof Error ? e.message : 'Could not save the commission.', 'error'); }
@@ -207,39 +215,35 @@ export function AgencyHome() {
   // Resolution is most-specific-wins per column: own -> group -> Opndoor standard.
   const CommissionChip = ({ kind, ownP, ownA, ownName, rowKey }: { kind: Level; ownP?: number | null; ownA?: number | null; ownName: string; rowKey?: string }) => {
     if (!canSeeCommission) return null;
-    const gP = kind === 'group' ? null : (group?.partnerRate ?? null);
+    // ONE rate in the Agencies section: the agency commission (agent_rate). The
+    // agent-rail's other rate is the house/Opndoor cut, never paid to anyone, so it
+    // is not shown here; the supplier side shows partner_rate as "Supplier commission".
     const gA = kind === 'group' ? null : (group?.agentRate ?? null);
-    const col = (ownV: number | null | undefined, gv: number | null, baseV: number): { v: number; src: 'own' | 'group' | 'base' } =>
-      ownV != null ? { v: ownV, src: 'own' } : gv != null ? { v: gv, src: 'group' } : { v: baseV, src: 'base' };
-    const P = col(ownP, gP, base.partner);
-    const A = col(ownA, gA, base.agent);
-    // "own" means different things by level: the group/agency's own custom rate, or
-    // (for a branch) the agency rate it inherits.
+    const A: { v: number; src: 'own' | 'group' | 'base' } =
+      ownA != null ? { v: ownA, src: 'own' } : gA != null ? { v: gA, src: 'group' } : { v: base.agent, src: 'base' };
     const srcText = (src: 'own' | 'group' | 'base') =>
       src === 'own' ? (kind === 'branch' ? `inherited from ${ownName}` : 'custom rate')
         : src === 'group' ? `inherited from ${group?.name ?? 'the group'}` : 'Opndoor standard rate';
     const editing = rowKey && editRow === rowKey;
     return (
       <span className="ah-comm-wrap">
-        <span className="ah-chip" title="Opndoor rate · Agent commission (the agency's share of the fee)">
-          <b>{pct(P.v)}</b> Opndoor · <b>{pct(A.v)}</b> agent
+        <span className="ah-chip" title="Agency commission — this agency's share of the guarantee fee">
+          <b>{pct(A.v)}</b> agency commission
         </span>
-        <span className="ah-chip-src">{srcText(P.src)}</span>
+        <span className="ah-chip-src">{srcText(A.src)}</span>
         {isAdmin && rowKey && !editing && (
           <button className="ah-linkbtn" onClick={() => openRate(rowKey, ownP, ownA)}>Set custom rate</button>
         )}
         {editing && (
           <span className="ah-rate-edit">
-            <label>Opndoor <input inputMode="decimal" value={draftP} onChange={(e) => setDraftP(e.target.value)} placeholder="inherit" />%</label>
-            <label>Agent commission <input inputMode="decimal" value={draftA} onChange={(e) => setDraftA(e.target.value)} placeholder="inherit" />%</label>
+            <label>Agency commission <input inputMode="decimal" value={draftA} onChange={(e) => setDraftA(e.target.value)} placeholder="inherit" />%</label>
             <button className="ah-linkbtn" onClick={saveRate} disabled={savingRow}>{savingRow ? '…' : 'Save'}</button>
             <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setEditRow(null)}>Cancel</button>
           </span>
         )}
         <details className="ah-how"><summary>How this rate is worked out</summary>
           <div className="ah-how__body">
-            <div>Opndoor rate: {pct(P.v)} — {srcText(P.src)}</div>
-            <div>Agent commission: {pct(A.v)} — {srcText(A.src)}</div>
+            <div>Agency commission: {pct(A.v)} — {srcText(A.src)}</div>
             <div className="muted">Most specific wins: the agency's rate, then the group, then the Opndoor standard.</div>
           </div>
         </details>

@@ -200,6 +200,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     lastActive: relTime(u.last_sign_in_at, u.status),
     status: u.status,
     partner: (u.role === 'superadmin' || u.role === 'opndoor_manager') ? 'opndoor' : (u.partner_slug ?? ''),
+    homeBranchId: u.home_branch_id ?? null,
   }));
 
   /* ---- partners (with derived weight/users/apps counts) ---- */

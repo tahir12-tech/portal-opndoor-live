@@ -31,7 +31,7 @@ const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 
 const asPct = (frac: number | undefined, fallback: number) => Number(((frac != null ? frac : fallback) * 100).toFixed(1));
 
 const AUDIT_LABEL: Record<string, string> = {
-  partner_rate: 'Partner commission', agent_rate: 'Agent commission',
+  partner_rate: 'Supplier commission', agent_rate: 'Agent commission',
   status: 'Status', live_from: 'Live from', name: 'Name',
   referrer_leaderboard: 'Referrer leaderboard',
 };
@@ -154,7 +154,7 @@ export function PartnerManagement() {
     try {
       await updatePartnerSettings(id, input);
       await refreshData(); // live mode: re-read the partner (and its new live rate)
-      toast(`Updated ${input.name}. New applications will use ${fmtRatePct(input.partnerRate)} partner / ${fmtRatePct(input.agentRate)} agent; existing applications keep the rate recorded when they were created.`);
+      toast(`Updated ${input.name}. New applications will use ${fmtRatePct(input.partnerRate)} supplier / ${fmtRatePct(input.agentRate)} agent; existing applications keep the rate recorded when they were created.`);
       setConfirm(null);
       setOpen(false);
       refresh();
@@ -179,7 +179,7 @@ export function PartnerManagement() {
       // A rate change needs explicit confirmation (current -> new), since it sets
       // the rate for new applications going forward.
       const changes: RateChange[] = [];
-      if (cur.partnerRate !== pr) changes.push({ label: 'Partner commission', from: fmtRatePct(cur.partnerRate ?? 0.25), to: fmtRatePct(pr) });
+      if (cur.partnerRate !== pr) changes.push({ label: 'Supplier commission', from: fmtRatePct(cur.partnerRate ?? 0.25), to: fmtRatePct(pr) });
       if (cur.agentRate !== ar) changes.push({ label: 'Agent commission', from: fmtRatePct(cur.agentRate ?? 0.1), to: fmtRatePct(ar) });
       if ((cur.referencingMode ?? 'pre_referenced_screened') !== refMode) {
         changes.push({
@@ -220,7 +220,7 @@ export function PartnerManagement() {
       })
         .then(async (rec) => {
           await refreshData();
-          toast(`Partner "${rec.name}" created at ${Math.round(pr * 100)}% partner / ${Math.round(ar * 100)}% agent. Add users, agencies and branches under it next.`);
+          toast(`Partner "${rec.name}" created at ${Math.round(pr * 100)}% supplier / ${Math.round(ar * 100)}% agent. Add users, agencies and branches under it next.`);
           setOpen(false);
           refresh();
         })
@@ -277,7 +277,7 @@ export function PartnerManagement() {
                         <span className="pco__logo">{initials(p.name)}</span>
                         <div>
                           <div className="pco__name"><Link className="pco__namelink" to={`/partners/${encodeURIComponent(p.id)}`} title={`Open ${p.name}`}>{p.name}</Link>{p.primary && <> <Tag variant="primary">Primary</Tag></>}</div>
-                          <div className="pco__since">Live from {p.since || '—'} · Partner {fmtRatePct(p.partnerRate ?? 0.25)} / Agent {fmtRatePct(p.agentRate ?? 0.1)}</div>
+                          <div className="pco__since">Live from {p.since || '—'} · Supplier {fmtRatePct(p.partnerRate ?? 0.25)} / Agent {fmtRatePct(p.agentRate ?? 0.1)}</div>
                         </div>
                       </div>
                     </td>
@@ -375,7 +375,7 @@ export function PartnerManagement() {
             Each a share of the guarantor fee (one month's rent). These are the rates for <b>new applications from now on</b>. Applications already created keep the rate recorded when they were created, so past settlements and reports never change.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label="Partner commission %" htmlFor="pm-partner-rate"><input id="pm-partner-rate" type="number" step="0.5" min="0" max="100" placeholder="25" value={partnerRate} onChange={(e) => setPartnerRate(e.target.value)} /></Field>
+            <Field label="Supplier commission %" htmlFor="pm-partner-rate"><input id="pm-partner-rate" type="number" step="0.5" min="0" max="100" placeholder="25" value={partnerRate} onChange={(e) => setPartnerRate(e.target.value)} /></Field>
             <Field label="Agent commission %" htmlFor="pm-agent-rate"><input id="pm-agent-rate" type="number" step="0.5" min="0" max="100" placeholder="10" value={agentRate} onChange={(e) => setAgentRate(e.target.value)} /></Field>
           </div>
         </div>

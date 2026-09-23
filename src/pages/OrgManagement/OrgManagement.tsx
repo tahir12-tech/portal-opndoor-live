@@ -1160,8 +1160,7 @@ function requestCloseContacts() {
           <Link className="statlink statlink--agency" to={`/applications?agency=${encodeURIComponent(a.name)}`} title={`View all applications for ${a.name}`}>
             <div className="agency__stat"><div className="n">{a.referrals}</div><div className="l">Referrals</div></div>
             <div className="agency__stat"><div className="n">{fmtK(fees)}</div><div className="l">Fees collected</div></div>
-            {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * rates.partner)}</div><div className="l">Your commission</div></div>}
-            {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * rates.agent)}</div><div className="l">Agent comm.</div></div>}
+            {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * rates.agent)}</div><div className="l">Agency commission</div></div>}
             {goIcon}
           </Link>
           {role === 'superadmin' && (
@@ -1186,8 +1185,7 @@ function requestCloseContacts() {
                 <Link className="statlink statlink--branch" to={`/applications?branch=${encodeURIComponent(b.name)}`} title={`View applications for ${b.name}`}>
                   <div className="branch__stat"><b>{b.referrals}</b>referrals</div>
                   <div className="branch__stat"><b>{fmtK(bFees)}</b>fees collected</div>
-                  {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * rates.partner)}</b>your comm.</div>}
-                  {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * rates.agent)}</b>agent comm.</div>}
+                  {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * rates.agent)}</b>agency comm.</div>}
                   {goIcon}
                 </Link>
               </div>

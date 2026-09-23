@@ -198,6 +198,9 @@ export interface User {
   status: UserStatus;
   /** Partner id, or "opndoor" for opndoor admin staff (who belong to no partner). */
   partner: string;
+  /** A negotiator's home branch id (referrer placed at a branch); null for managers,
+      admins and legacy referrers. Lets the agency tree show negotiators on branches. */
+  homeBranchId?: string | null;
 }
 
 /* ---------- Application (referral) ---------- */

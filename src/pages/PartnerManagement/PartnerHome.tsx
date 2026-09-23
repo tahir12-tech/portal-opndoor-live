@@ -144,7 +144,7 @@ export function PartnerHome() {
             <div className="ph-rates">
               <div className="ph-rate">
                 <div className="ph-rate__v">{fmtRatePct(rates.partner)}</div>
-                <div className="ph-rate__l">Opndoor rate</div>
+                <div className="ph-rate__l">Supplier commission</div>
               </div>
               <div className="ph-rate">
                 <div className="ph-rate__v">{fmtRatePct(rates.agent)}</div>

@@ -37,7 +37,6 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
   const [addrOptions, setAddrOptions] = useState<AddressOption[]>([]);
   const [addrLine, setAddrLine] = useState(''); // the chosen/typed address, stored as the branch area
   const [looking, setLooking] = useState(false);
-  const [opndoorPct, setOpndoorPct] = useState(String(+(base.partner * 100).toFixed(2)));
   const [agentPct, setAgentPct] = useState(String(+(base.agent * 100).toFixed(2)));
   const [invFirst, setInvFirst] = useState('');
   const [invLast, setInvLast] = useState('');
@@ -47,7 +46,7 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
 
   const reset = () => {
     setName(''); setBranchName(''); setPostcode(''); setAddrOptions([]); setAddrLine('');
-    setOpndoorPct(String(+(base.partner * 100).toFixed(2))); setAgentPct(String(+(base.agent * 100).toFixed(2)));
+    setAgentPct(String(+(base.agent * 100).toFixed(2)));
     setInvFirst(''); setInvLast(''); setInvEmail(''); setInvLevel('agency');
   };
   const close = () => { if (!busy) { reset(); onClose(); } };
@@ -70,21 +69,22 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
   const validPct = (s: string) => { const n = parseFloat(s.replace('%', '').trim()); return !isNaN(n) && n >= 0 && n <= 100; };
 
   const emailOk = !invEmail.trim() || EMAIL_RE.test(invEmail.trim());
-  const canSave = !!name.trim() && !!branchName.trim() && validPct(opndoorPct) && validPct(agentPct) && emailOk && !busy;
+  const canSave = !!name.trim() && !!branchName.trim() && validPct(agentPct) && emailOk && !busy;
 
   const save = async () => {
     if (!canSave) { if (invEmail.trim() && !emailOk) toast('Enter a valid invite email, or clear it.', 'error'); return; }
     setBusy(true);
     try {
-      // Store an override only when the admin changed it from the standard; equal to
-      // the standard means inherit (null), so the agency tracks the standard.
-      const pFrac = pctToFrac(opndoorPct); const aFrac = pctToFrac(agentPct);
-      const partnerRate = pFrac != null && Math.abs(pFrac - base.partner) > 1e-9 ? pFrac : null;
+      // ONE rate: the agency commission (agent_rate). Store an override only when the
+      // admin changed it from the standard; equal to standard means inherit (null).
+      // partner_rate is left null — on the agent rail it is the house/Opndoor cut,
+      // never paid to anyone and never overridden per agency.
+      const aFrac = pctToFrac(agentPct);
       const agentRate = aFrac != null && Math.abs(aFrac - base.agent) > 1e-9 ? aFrac : null;
       const { agencyId, branchId } = await createAgencyWithBranch({
         agencyName: name.trim(), branchName: branchName.trim(),
         branchArea: addrLine.trim() || postcode.trim() || undefined,
-        partnerRate, agentRate,
+        partnerRate: null, agentRate,
       });
       if (invEmail.trim()) {
         await inviteUser({
@@ -137,11 +137,8 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
       </div>
 
       <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14, marginTop: 6 }}>
-        <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>Commission <span style={{ fontWeight: 400, color: 'var(--ink-mute)' }}>· default is the Opndoor standard ({fmtRatePct(base.partner)} / {fmtRatePct(base.agent)})</span></div>
-        <div className="form-grid">
-          <Field label="Opndoor rate %" htmlFor="ac-opndoor"><input id="ac-opndoor" inputMode="decimal" value={opndoorPct} onChange={(e) => setOpndoorPct(e.target.value)} /></Field>
-          <Field label="Agent commission %" htmlFor="ac-agent"><input id="ac-agent" inputMode="decimal" value={agentPct} onChange={(e) => setAgentPct(e.target.value)} /></Field>
-        </div>
+        <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>Commission <span style={{ fontWeight: 400, color: 'var(--ink-mute)' }}>· default is the Opndoor standard ({fmtRatePct(base.agent)})</span></div>
+        <Field label="Agency commission %" htmlFor="ac-agent" hint="This agency's share of the guarantee fee."><input id="ac-agent" inputMode="decimal" value={agentPct} onChange={(e) => setAgentPct(e.target.value)} /></Field>
       </div>
 
       <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14, marginTop: 6 }}>
