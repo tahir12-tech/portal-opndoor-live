@@ -393,6 +393,54 @@ export async function createAgencyWithBranch(input: CreateAgencyFlowInput): Prom
   return { agencyId: ag.id ?? ag.name, branchId: br?.id ?? br?.name ?? '' };
 }
 
+/** One payee line for a branch, as SQL resolved it. */
+export interface SplitLine {
+  branchId: string;
+  level: 'group' | 'agency' | 'branch';
+  orgId: string | null;
+  orgName: string;
+  rate: number;
+}
+
+/** Every payee line for a page of branches, in ONE call.
+
+    There is deliberately no client-side copy of the additive rule: SQL
+    (commission_split) is the only implementation, and it is the same function
+    create_referral freezes onto an application, so the page cannot show a split
+    that differs from the one that would actually be paid. */
+export async function getCommissionSplits(branchIds: string[]): Promise<Map<string, SplitLine[]>> {
+  const out = new Map<string, SplitLine[]>();
+  if (!orgLive() || !branchIds.length) return out;
+  const { data, error } = await sb().rpc('commission_split_batch', { p_branches: branchIds });
+  if (error) throw new Error(cleanRpcError(error.message));
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const id = String(r.branch_id);
+    const list = out.get(id) ?? [];
+    list.push({
+      branchId: id,
+      level: r.level as SplitLine['level'],
+      orgId: (r.org_id as string) ?? null,
+      orgName: String(r.org_name ?? ''),
+      rate: Number(r.rate ?? 0),
+    });
+    out.set(id, list);
+  }
+  return out;
+}
+
+/** What a pending rate change WOULD produce, without writing it. Same rule, same
+    function: the preview and the save cannot disagree. */
+export async function previewNodeRate(
+  level: 'group' | 'agency' | 'branch', id: string, rate: number | null,
+): Promise<{ worstTotal: number; worstBranch: string | null } | null> {
+  if (!orgLive()) return null;
+  const { data, error } = await sb().rpc('commission_preview', { p_level: level, p_id: id, p_rate: rate });
+  if (error) throw new Error(cleanRpcError(error.message));
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+  return { worstTotal: Number(row.worst_total ?? 0), worstBranch: (row.worst_branch as string) ?? null };
+}
+
 /** Set or clear ONE node's commission line (group, agency or branch).
     Returns the worst branch total the change produces, which the editor shows
     before the user commits. The 50% refusal is raised by SQL and surfaced

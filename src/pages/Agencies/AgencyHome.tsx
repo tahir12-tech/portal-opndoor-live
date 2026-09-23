@@ -15,13 +15,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  getAgencies, getGroup, getGroups, getPartner, getRatesFor,
+  getAgencies, getGroup, getGroups, getPartner,
   getApplications, getUsers, maySeeCommission, ALL_PARTNERS,
   type Agency, type AgencyGroup, type ManagedUser, type Status,
 } from '@/data';
 import { getPositionsForUsers, getDeedRecipients, nominateDeedRecipient, clearDeedRecipient, getOrgDeedReadiness, type DeedReadiness } from '@/data/positionsService';
-import { setNodeRate } from '@/data/orgService';
-import { splitTotal, payoutSentence, pctLabel, type SplitInput } from '@/data/commissionModel';
+import { setNodeRate, getCommissionSplits, previewNodeRate, type SplitLine } from '@/data/orgService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
@@ -40,6 +39,17 @@ const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 
 type Level = 'group' | 'agency' | 'branch';
 interface Placed { userId: string; name: string; email: string; role: string; }
 type Org = { kind: 'group'; group: AgencyGroup; agencies: Agency[] } | { kind: 'agency'; agency: Agency };
+
+/** "12%" from 0.12. Formatting only: the arithmetic all lives in SQL. */
+const pctLabel = (frac: number): string => `${+(frac * 100).toFixed(2)}%`;
+
+/** The one plain line a branch shows, built from the lines SQL returned. */
+const payoutSentence = (lines: SplitLine[]): string => {
+  if (!lines.length) return 'A referral here pays out nothing.';
+  const parts = lines.map((l) => `${l.orgName} ${pctLabel(l.rate)}`);
+  const total = pctLabel(lines.reduce((s, l) => s + l.rate, 0));
+  return `A referral here pays out: ${parts.join(' + ')} = ${total} of the fee`;
+};
 
 const roleLabelFor = (level: Level, role: string) =>
   level === 'group' ? 'Group director' : level === 'agency' ? 'Agency manager' : role === 'referrer' ? 'Negotiator' : 'Branch manager';
@@ -141,7 +151,6 @@ export function AgencyHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org, partner, role, dataVersion, tick]);
 
-  const base = getRatesFor(partner || ALL_PARTNERS);
   // Agent-rail orgs deliver deeds to their people; a branch with no one in the whole
   // chain (nominee, branch/agency/group manager) cannot receive a deed.
   const isAgentRail = getPartner(partner)?.referencingMode === 'opndoor_referenced';
@@ -159,6 +168,16 @@ export function AgencyHome() {
     if (org?.kind === 'agency' && org.agency.id) setSel({ level: 'agency', id: org.agency.id, name: org.agency.name });
     else setSel(null);
   }, [org?.kind, org?.kind === 'agency' ? org.agency.id : org?.kind === 'group' ? org.group.id : '']);
+
+  // Every branch's payee lines, ONE call per page load. No client-side copy of
+  // the rule exists: this is the same function create_referral freezes.
+  const [splits, setSplits] = useState<Map<string, SplitLine[]>>(new Map());
+  useEffect(() => {
+    let alive = true;
+    const ids = branchesFlat.map((x) => x.branch.id).filter(Boolean) as string[];
+    getCommissionSplits(ids).then((m) => { if (alive) setSplits(m); }).catch(() => { if (alive) setSplits(new Map()); });
+    return () => { alive = false; };
+  }, [branchesFlat, dataVersion, tick]);
 
   // Deed readiness, the SAME answer the Agencies list uses, so the two surfaces
   // cannot disagree: one RPC, active people only, pending does not clear it.
@@ -228,34 +247,23 @@ export function AgencyHome() {
 
   const goApplications = (agencyName: string) => `/applications?agency=${encodeURIComponent(agencyName)}`;
 
-  /* ---- The split for one branch, using the same rule SQL freezes at creation. */
-  const splitFor = (a: Agency, b: { id?: string; name: string; agentRate?: number | null }): SplitInput => ({
-    branchRate: b.agentRate ?? null,
-    agencyRate: a.agentRate ?? null,
-    groupRate: group?.agentRate ?? null,
-    standard: base.agent,
-    branchName: b.name, agencyName: a.name, groupName: group?.name ?? null,
-    branchId: b.id ?? null, agencyId: a.id ?? null, groupId: group?.id ?? null,
-  });
-
-  /* The worst branch total this pending edit would produce. SQL enforces the 50%
-     rule and is the authority; this is the same arithmetic shown BEFORE saving so
-     the refusal is never a surprise. */
-  const previewWorst = (level: 'group' | 'agency' | 'branch', id: string, draft: number | null): number => {
-    let worst = 0;
-    for (const { agency: a, branch: b } of branchesFlat) {
-      const affected = level === 'branch' ? b.id === id
-        : level === 'agency' ? a.id === id
-        : true; // a group rate touches every branch under it
-      const base0 = splitFor(a, b);
-      const withDraft: SplitInput = !affected ? base0
-        : level === 'branch' ? { ...base0, branchRate: draft }
-        : level === 'agency' ? { ...base0, agencyRate: draft }
-        : { ...base0, groupRate: draft };
-      worst = Math.max(worst, splitTotal(withDraft));
-    }
-    return worst;
-  };
+  /* The worst branch total a pending edit would produce, answered by SQL
+     (commission_preview) with the draft substituted into the same rule that will
+     judge the save. Debounced so typing does not chatter. */
+  const [preview, setPreview] = useState<{ worstTotal: number; worstBranch: string | null } | null>(null);
+  useEffect(() => {
+    if (!editRow) { setPreview(null); return; }
+    const [level, id] = editRow.split(':');
+    const draft = pctToFrac(draftA);
+    if (draft === undefined) { setPreview(null); return; }
+    let alive = true;
+    const t = setTimeout(() => {
+      previewNodeRate(level as 'group' | 'agency' | 'branch', id, draft)
+        .then((p) => { if (alive) setPreview(p); })
+        .catch(() => { if (alive) setPreview(null); });
+    }, 250);
+    return () => { alive = false; clearTimeout(t); };
+  }, [editRow, draftA]);
 
   /* ---- A node's OWN commission line. Shown ONLY where a rate is explicitly set:
      an inheriting node shows no chip at all, because repeating an inherited figure
@@ -267,8 +275,7 @@ export function AgencyHome() {
     const on = level === 'group' ? 'referrals through this group'
       : level === 'branch' ? 'referrals from this branch'
       : 'its referrals';
-    const draft = editing ? pctToFrac(draftA) : undefined;
-    const worst = editing && id && draft !== undefined ? previewWorst(level, id, draft) : null;
+    const worst = editing ? preview?.worstTotal ?? null : null;
     return (
       <span className="ah-comm-wrap">
         {own != null && (
@@ -284,7 +291,9 @@ export function AgencyHome() {
             <label>Rate <input inputMode="decimal" value={draftA} autoFocus onChange={(e) => setDraftA(e.target.value)} placeholder="none" />%</label>
             {worst != null && (
               <span className={`ah-rate-preview${worst > 0.5 ? ' is-over' : ''}`}>
-                Worst branch total: <b>{pctLabel(worst)}</b>{worst > 0.5 ? ' — over the 50% limit' : ''}
+                Worst branch total: <b>{pctLabel(worst)}</b>
+                {preview?.worstBranch ? ` (${preview.worstBranch})` : ''}
+                {worst > 0.5 ? ' — over the 50% limit' : ''}
               </span>
             )}
             <button className="ah-linkbtn" onClick={() => { void saveRate(level, id); }} disabled={savingRow}>{savingRow ? '…' : 'Save'}</button>
@@ -387,7 +396,7 @@ export function AgencyHome() {
                           {!bOpen && <span className="ah-node-meta">{bPeople.length} {bPeople.length === 1 ? 'person' : 'people'} · {b.referrals} referrals</span>}
                         </div>
                         {/* The whole question in one line, whoever is paid. */}
-                        {canSeeCommission && <div className="ah-payout">{payoutSentence(splitFor(a, b))}</div>}
+                        {canSeeCommission && b.id && splits.has(b.id) && <div className="ah-payout">{payoutSentence(splits.get(b.id)!)}</div>}
                         {isAgentRail && branchReady === false && (
                           <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this branch can receive the deed. Invite a branch manager or nominate a recipient.</div>
                         )}

@@ -39,7 +39,12 @@ type Col = [SortKey, string, boolean]; // [key, label, sortable]
 
 const COLS: Record<LeagueView, Col[]> = {
   agency: [['name', 'Agency', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true], ['partnerComm', 'Partner comm.', true], ['agentComm', 'Agent comm.', true]],
-  branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true], ['partnerComm', 'Partner comm.', true], ['agentComm', 'Agent comm.', true]],
+  /* A BRANCH generates fees; it only EARNS commission when it holds a rate of its
+     own, because under the additive model the agency (or group) is the payee
+     otherwise. So the branch board leads on fees generated, and the commission
+     column shows a dash wherever the branch is not itself a payee — rather than
+     repeating its agency's earnings against every branch name. */
+  branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees generated', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true], ['partnerComm', 'Partner comm.', true], ['agentComm', 'Own commission', true]],
   referrer: [['name', 'Referrer', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true]],
 };
 
@@ -60,7 +65,7 @@ function ConvChip({ cv }: { cv: number }) {
   );
 }
 
-function cellFor(col: SortKey, r: LeagueRow) {
+function cellFor(col: SortKey, r: LeagueRow, view?: LeagueView) {
   switch (col) {
     case 'refs': return r.refs.toLocaleString('en-GB');
     case 'fees': return fmtBig(r.fees);
@@ -69,7 +74,11 @@ function cellFor(col: SortKey, r: LeagueRow) {
     case 'sp': return <ConvChip cv={r.sp} />;
     case 'conv': return <ConvChip cv={r.conv} />;
     case 'partnerComm': return fmtBig(r.partnerComm);
-    case 'agentComm': return fmtBig(r.agentComm);
+    case 'agentComm':
+      // On the branch board an empty figure means "this branch holds no rate of
+      // its own", which is a different statement from "it earned nothing".
+      if (view === 'branch' && !r.agentComm) return <span className="soft">—</span>;
+      return fmtBig(r.agentComm);
     default: return r.name;
   }
 }
@@ -401,7 +410,7 @@ function FullLeagueView() {
                           <div className="lt-sub">{r.sub}</div>
                         </td>
                       ) : (
-                        <td key={c[0]} className="num">{cellFor(c[0], r)}</td>
+                        <td key={c[0]} className="num">{cellFor(c[0], r, view)}</td>
                       ),
                     )}
                   </tr>
