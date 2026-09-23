@@ -80,3 +80,40 @@
   border-radius: 8px; padding: 8px 12px;
 }
 .ah-deed-warn svg { flex: none; }
+
+
+/* ---- drill-down: a node name is the control that scopes the page ---- */
+.ah-node-btn {
+  background: none; border: 0; padding: 0; cursor: pointer; text-align: left;
+  font: inherit; color: inherit;
+}
+.ah-node-btn:hover { text-decoration: underline; }
+.ah-node.is-sel > .ah-node-main { background: var(--white-lilac, #f7f6fb); }
+.ah-node-meta { font-size: 11.5px; color: var(--ink-mute); margin-left: auto; padding-left: 10px; }
+
+/* the one plain line a branch shows: who is paid, added up */
+.ah-payout {
+  font-size: 12px; color: var(--ink-mute); padding: 2px 0 6px 28px;
+}
+
+/* breadcrumb over the referrals list */
+.ah-crumb {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 12.5px;
+}
+.ah-crumb__seg {
+  background: none; border: 0; padding: 2px 4px; cursor: pointer;
+  font: inherit; color: var(--heliotrope-deep, #5b4bd6); border-radius: 4px;
+}
+.ah-crumb__seg:hover { background: var(--white-lilac, #f7f6fb); }
+.ah-crumb__seg.is-cur { color: var(--ink); font-weight: 700; cursor: default; }
+.ah-crumb__sep { color: var(--ink-mute); }
+
+/* rate editor: the total the change produces, before it is committed */
+.ah-rate-preview { font-size: 12px; color: var(--ink-mute); }
+.ah-rate-preview.is-over { color: var(--danger, #c0392b); font-weight: 700; }
+.ah-rate-hint { font-size: 11.5px; color: var(--ink-mute); }
+.ah-rate-err {
+  display: block; width: 100%; margin-top: 4px;
+  font-size: 12px; color: var(--danger, #c0392b);
+}

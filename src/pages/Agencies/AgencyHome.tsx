@@ -15,11 +15,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  getAgencies, getGroup, getGroups, getPartner, getRatesFor, setAgencyRates, setGroupRates,
+  getAgencies, getGroup, getGroups, getPartner, getRatesFor,
   getApplications, getUsers, maySeeCommission, ALL_PARTNERS,
   type Agency, type AgencyGroup, type ManagedUser, type Status,
 } from '@/data';
-import { getPositionsForUsers, getDeedRecipients, nominateDeedRecipient, clearDeedRecipient } from '@/data/positionsService';
+import { getPositionsForUsers, getDeedRecipients, nominateDeedRecipient, clearDeedRecipient, getOrgDeedReadiness, type DeedReadiness } from '@/data/positionsService';
+import { setNodeRate } from '@/data/orgService';
+import { splitTotal, payoutSentence, pctLabel, type SplitInput } from '@/data/commissionModel';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
@@ -27,7 +29,6 @@ import { Pill } from '@/components/ui/Pill';
 import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
-import { fmtRatePct } from '@/lib/format';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
 import { AgencyGrow } from './AgencyGrow';
 import './AgencyHome.css';
@@ -35,7 +36,6 @@ import './AgencyHome.css';
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
 const STATUS_ST: Partial<Record<Status, string>> = { referencing: 'st-wait', sent: 'st-live', paid: 'st-live', deed: 'st-ok' };
 const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
-const pct = (frac: number | null | undefined) => fmtRatePct(frac ?? 0);
 
 type Level = 'group' | 'agency' | 'branch';
 interface Placed { userId: string; name: string; email: string; role: string; }
@@ -67,7 +67,6 @@ export function AgencyHome() {
   const bump = () => setTick((t) => t + 1);
   const [invite, setInvite] = useState<InviteContext | null>(null);
   const [grow, setGrow] = useState<'branch' | 'agency' | null>(null);
-  const [filterBranch, setFilterBranch] = useState<string | null>(null);
 
   const org = useMemo<Org | null>(() => {
     void dataVersion; void tick;
@@ -147,31 +146,52 @@ export function AgencyHome() {
   // chain (nominee, branch/agency/group manager) cannot receive a deed.
   const isAgentRail = getPartner(partner)?.referencingMode === 'opndoor_referenced';
 
-  // ---- per-node rate editor. The Agencies section edits ONE rate: the agency
-  // commission (agent_rate). partner_rate (the supplier/Opndoor cut, never paid on
-  // the agent rail) is preserved untouched — we pass the node's current value back.
-  const [editRow, setEditRow] = useState<string | null>(null); // 'group:<id>' | 'agency:<id>'
+  /* ---- DRILL-DOWN. The page opens at the top node expanded ONE level; clicking
+     an agency expands it and scopes the Referrals section to it, clicking a branch
+     scopes to the branch. `sel` is the scope, and the breadcrumb walks back. */
+  type Sel = { level: 'group' | 'agency' | 'branch'; id: string; name: string };
+  const [sel, setSel] = useState<Sel | null>(null);
+  const selAgency = sel?.level === 'agency' ? sel.id : sel?.level === 'branch' ? (branchesFlat.find((x) => x.branch.id === sel.id)?.agency.id ?? null) : null;
+
+  // An independent agency page opens AT its agency, expanded one level; a group
+  // page opens at the group with its agencies collapsed.
+  useEffect(() => {
+    if (org?.kind === 'agency' && org.agency.id) setSel({ level: 'agency', id: org.agency.id, name: org.agency.name });
+    else setSel(null);
+  }, [org?.kind, org?.kind === 'agency' ? org.agency.id : org?.kind === 'group' ? org.group.id : '']);
+
+  // Deed readiness, the SAME answer the Agencies list uses, so the two surfaces
+  // cannot disagree: one RPC, active people only, pending does not clear it.
+  const [readiness, setReadiness] = useState<DeedReadiness | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getOrgDeedReadiness().then((r) => { if (alive) setReadiness(r); }).catch(() => { if (alive) setReadiness(null); });
+    return () => { alive = false; };
+  }, [dataVersion, tick]);
+
+  /* ---- per-node rate editor. Every level can hold a line now, including a
+     branch. The editor previews the worst branch total the change produces and
+     surfaces the 50% refusal from SQL verbatim. */
+  const [editRow, setEditRow] = useState<string | null>(null); // '<level>:<id>'
   const [draftA, setDraftA] = useState('');
-  const [preserveP, setPreserveP] = useState<number | null>(null);
   const [savingRow, setSavingRow] = useState(false);
-  const openRate = (rowKey: string, ownP: number | null | undefined, ownA: number | null | undefined) => {
-    setEditRow(rowKey);
-    setPreserveP(ownP ?? null);
-    setDraftA(ownA == null ? '' : String(+(ownA * 100).toFixed(2)));
+  const [rateErr, setRateErr] = useState('');
+  const openRate = (rowKey: string, own: number | null | undefined) => {
+    setEditRow(rowKey); setRateErr('');
+    setDraftA(own == null ? '' : String(+(own * 100).toFixed(2)));
   };
-  const saveRate = async () => {
-    if (!editRow) return;
+  const saveRate = async (level: 'group' | 'agency' | 'branch', id: string) => {
     const a = pctToFrac(draftA);
-    if (a === undefined) { toast('Enter a percentage between 0 and 100, or leave blank to inherit.', 'error'); return; }
-    const [kind, id] = editRow.split(':');
-    setSavingRow(true);
+    if (a === undefined) { toast('Enter a percentage between 0 and 100, or leave blank to clear.', 'error'); return; }
+    setSavingRow(true); setRateErr('');
     try {
-      // partner_rate is left exactly as it was (preserveP); only agent_rate changes.
-      if (kind === 'group') await setGroupRates(id, preserveP, a); else await setAgencyRates(id, preserveP, a);
+      await setNodeRate(level, id, a);
       refreshSession(); bump(); setEditRow(null);
-      toast('Commission saved.', 'ok');
-    } catch (e) { toast(e instanceof Error ? e.message : 'Could not save the commission.', 'error'); }
-    finally { setSavingRow(false); }
+      toast(a == null ? 'Rate cleared.' : 'Rate saved.', 'ok');
+    } catch (e) {
+      // The 50% rule lives in SQL; show exactly what it said.
+      setRateErr(e instanceof Error ? e.message : 'Could not save the rate.');
+    } finally { setSavingRow(false); }
   };
 
   // ---- deed recipient nomination ----
@@ -208,45 +228,71 @@ export function AgencyHome() {
 
   const goApplications = (agencyName: string) => `/applications?agency=${encodeURIComponent(agencyName)}`;
 
-  // ---- node commission chip. `ownP/ownA` is the rate that applies AT this node:
-  //   group node   -> the group's own rate
-  //   agency node  -> the agency's own rate
-  //   branch node  -> its agency's rate (a branch has no rate of its own)
-  // Resolution is most-specific-wins per column: own -> group -> Opndoor standard.
-  const CommissionChip = ({ kind, ownP, ownA, ownName, rowKey }: { kind: Level; ownP?: number | null; ownA?: number | null; ownName: string; rowKey?: string }) => {
+  /* ---- The split for one branch, using the same rule SQL freezes at creation. */
+  const splitFor = (a: Agency, b: { id?: string; name: string; agentRate?: number | null }): SplitInput => ({
+    branchRate: b.agentRate ?? null,
+    agencyRate: a.agentRate ?? null,
+    groupRate: group?.agentRate ?? null,
+    standard: base.agent,
+    branchName: b.name, agencyName: a.name, groupName: group?.name ?? null,
+    branchId: b.id ?? null, agencyId: a.id ?? null, groupId: group?.id ?? null,
+  });
+
+  /* The worst branch total this pending edit would produce. SQL enforces the 50%
+     rule and is the authority; this is the same arithmetic shown BEFORE saving so
+     the refusal is never a surprise. */
+  const previewWorst = (level: 'group' | 'agency' | 'branch', id: string, draft: number | null): number => {
+    let worst = 0;
+    for (const { agency: a, branch: b } of branchesFlat) {
+      const affected = level === 'branch' ? b.id === id
+        : level === 'agency' ? a.id === id
+        : true; // a group rate touches every branch under it
+      const base0 = splitFor(a, b);
+      const withDraft: SplitInput = !affected ? base0
+        : level === 'branch' ? { ...base0, branchRate: draft }
+        : level === 'agency' ? { ...base0, agencyRate: draft }
+        : { ...base0, groupRate: draft };
+      worst = Math.max(worst, splitTotal(withDraft));
+    }
+    return worst;
+  };
+
+  /* ---- A node's OWN commission line. Shown ONLY where a rate is explicitly set:
+     an inheriting node shows no chip at all, because repeating an inherited figure
+     on every branch was what made the old page unreadable. */
+  const RateLine = ({ level, id, name, own }: { level: 'group' | 'agency' | 'branch'; id?: string; name: string; own?: number | null }) => {
     if (!canSeeCommission) return null;
-    // ONE rate in the Agencies section: the agency commission (agent_rate). The
-    // agent-rail's other rate is the house/Opndoor cut, never paid to anyone, so it
-    // is not shown here; the supplier side shows partner_rate as "Supplier commission".
-    const gA = kind === 'group' ? null : (group?.agentRate ?? null);
-    const A: { v: number; src: 'own' | 'group' | 'base' } =
-      ownA != null ? { v: ownA, src: 'own' } : gA != null ? { v: gA, src: 'group' } : { v: base.agent, src: 'base' };
-    const srcText = (src: 'own' | 'group' | 'base') =>
-      src === 'own' ? (kind === 'branch' ? `inherited from ${ownName}` : 'custom rate')
-        : src === 'group' ? `inherited from ${group?.name ?? 'the group'}` : 'Opndoor standard rate';
-    const editing = rowKey && editRow === rowKey;
+    const rowKey = id ? `${level}:${id}` : undefined;
+    const editing = !!rowKey && editRow === rowKey;
+    const on = level === 'group' ? 'referrals through this group'
+      : level === 'branch' ? 'referrals from this branch'
+      : 'its referrals';
+    const draft = editing ? pctToFrac(draftA) : undefined;
+    const worst = editing && id && draft !== undefined ? previewWorst(level, id, draft) : null;
     return (
       <span className="ah-comm-wrap">
-        <span className="ah-chip" title="Agency commission — this agency's share of the guarantee fee">
-          <b>{pct(A.v)}</b> agency commission
-        </span>
-        <span className="ah-chip-src">{srcText(A.src)}</span>
-        {isAdmin && rowKey && !editing && (
-          <button className="ah-linkbtn" onClick={() => openRate(rowKey, ownP, ownA)}>Set custom rate</button>
-        )}
-        {editing && (
-          <span className="ah-rate-edit">
-            <label>Agency commission <input inputMode="decimal" value={draftA} onChange={(e) => setDraftA(e.target.value)} placeholder="inherit" />%</label>
-            <button className="ah-linkbtn" onClick={saveRate} disabled={savingRow}>{savingRow ? '…' : 'Save'}</button>
-            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setEditRow(null)}>Cancel</button>
+        {own != null && (
+          <span className="ah-chip" title={`Paid to ${name}`}>
+            Earns <b>{pctLabel(own)}</b> of the guarantee fee on {on} · paid to {name}
           </span>
         )}
-        <details className="ah-how"><summary>How this rate is worked out</summary>
-          <div className="ah-how__body">
-            <div>Agency commission: {pct(A.v)} — {srcText(A.src)}</div>
-            <div className="muted">Most specific wins: the agency's rate, then the group, then the Opndoor standard.</div>
-          </div>
-        </details>
+        {isAdmin && rowKey && !editing && (
+          <button className="ah-linkbtn" onClick={() => openRate(rowKey, own)}>{own != null ? 'Change rate' : 'Set rate'}</button>
+        )}
+        {editing && id && (
+          <span className="ah-rate-edit">
+            <label>Rate <input inputMode="decimal" value={draftA} autoFocus onChange={(e) => setDraftA(e.target.value)} placeholder="none" />%</label>
+            {worst != null && (
+              <span className={`ah-rate-preview${worst > 0.5 ? ' is-over' : ''}`}>
+                Worst branch total: <b>{pctLabel(worst)}</b>{worst > 0.5 ? ' — over the 50% limit' : ''}
+              </span>
+            )}
+            <button className="ah-linkbtn" onClick={() => { void saveRate(level, id); }} disabled={savingRow}>{savingRow ? '…' : 'Save'}</button>
+            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setEditRow(null)}>Cancel</button>
+            <span className="ah-rate-hint">Leave blank to clear.</span>
+            {rateErr && <span className="ah-rate-err" role="alert">{rateErr}</span>}
+          </span>
+        )}
       </span>
     );
   };
@@ -283,52 +329,70 @@ export function AgencyHome() {
         <CardBody style={{ padding: 0 }}>
           <div className="ah-tree">
             {org.kind === 'group' && (
-              <div className="ah-node ah-node--group">
+              <div className={`ah-node ah-node--group${sel === null ? ' is-sel' : ''}`}>
                 <div className="ah-node-main">
                   <span className="ah-tick t-group">G</span>
-                  <span className="ah-node-name">{org.group.name}</span>
+                  <button className="ah-node-name ah-node-btn" onClick={() => setSel(null)}>{org.group.name}</button>
                   <span className="ah-node-level">Group</span>
-                  <CommissionChip kind="group" ownP={org.group.partnerRate} ownA={org.group.agentRate} ownName={org.group.name} rowKey={`group:${org.group.id}`} />
+                  <RateLine level="group" id={org.group.id} name={org.group.name} own={org.group.agentRate} />
                 </div>
                 <PeopleInline level="group" list={people.group} ctx={{ level: 'group', partner, groupId: org.group.id, name: org.group.name }} />
               </div>
             )}
             {agencies.map((a) => {
               const agencyPeople = a.id ? (people.agency[a.id] ?? []) : [];
-              const agencyRefs = (a.branches ?? []).reduce((s, b) => s + b.referrals, 0);
+              const agencyRefs = (a.branches ?? []).reduce((s2, b) => s2 + b.referrals, 0);
+              const branchCount = (a.branches ?? []).length;
+              const peopleCount = agencyPeople.length + (a.branches ?? []).reduce((s2, b) => s2 + (b.id ? (people.branch[b.id] ?? []).length : 0), 0);
+              const open = selAgency === a.id;
+              const agencyReady = a.id ? readiness?.agencies.get(a.id) : undefined;
               return (
                 <div key={a.id ?? a.name}>
-                  <div className={`ah-node ah-node--agency${org.kind === 'group' ? ' lv2' : ''}`}>
+                  <div className={`ah-node ah-node--agency${org.kind === 'group' ? ' lv2' : ''}${open ? ' is-open is-sel' : ''}`}>
                     <div className="ah-node-main">
                       <span className="ah-tick t-agency">A</span>
-                      <span className="ah-node-name">{a.name}</span>
+                      <button
+                        className="ah-node-name ah-node-btn"
+                        onClick={() => setSel(open && org.kind === 'group' ? null : { level: 'agency', id: a.id ?? a.name, name: a.name })}
+                      >{a.name}</button>
                       <span className="ah-node-level">Agency</span>
-                      <CommissionChip kind="agency" ownP={a.partnerRate} ownA={a.agentRate} ownName={a.name} rowKey={a.id ? `agency:${a.id}` : undefined} />
-                      <button className="ah-refs" onClick={() => setFilterBranch(null)} title={`${agencyRefs} referrals across this agency`}>{agencyRefs} referrals</button>
+                      <RateLine level="agency" id={a.id} name={a.name} own={a.agentRate} />
+                      {!open && (
+                        <span className="ah-node-meta">
+                          {peopleCount} {peopleCount === 1 ? 'person' : 'people'} · {branchCount} {branchCount === 1 ? 'branch' : 'branches'} · {agencyRefs} referrals
+                        </span>
+                      )}
                     </div>
-                    <PeopleInline level="agency" list={agencyPeople} ctx={{ level: 'brand', partner, agencyId: a.id, name: a.name }} />
+                    {isAgentRail && agencyReady === false && (
+                      <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this agency can receive the deed. Invite a manager or nominate a recipient.</div>
+                    )}
+                    {open && <PeopleInline level="agency" list={agencyPeople} ctx={{ level: 'brand', partner, agencyId: a.id, name: a.name }} />}
                   </div>
-                  {(a.branches ?? []).map((b) => {
+                  {open && (a.branches ?? []).map((b) => {
                     const bPeople = b.id ? (people.branch[b.id] ?? []) : [];
                     const nomineeId = b.id ? deedRecipients[b.id] : undefined;
                     const nominee = nomineeId ? usersById[nomineeId] : undefined;
-                    // Agent-rail deeds resolve to a person; nobody in the whole chain
-                    // (nominee, this branch, this agency, the group) means none can receive.
-                    const chainEmpty = !nominee && bPeople.length === 0 && agencyPeople.length === 0 && people.group.length === 0;
+                    const bOpen = sel?.level === 'branch' && sel.id === b.id;
+                    const branchReady = b.id ? readiness?.branches.get(b.id) : undefined;
                     return (
-                      <div key={b.id ?? b.name} className={`ah-node ah-node--branch${org.kind === 'group' ? ' lv3' : ' lv2'}`}>
+                      <div key={b.id ?? b.name} className={`ah-node ah-node--branch${org.kind === 'group' ? ' lv3' : ' lv2'}${bOpen ? ' is-open is-sel' : ''}`}>
                         <div className="ah-node-main">
                           <span className="ah-tick t-branch">•</span>
-                          <span className="ah-node-name">{b.name}</span>
+                          <button
+                            className="ah-node-name ah-node-btn"
+                            onClick={() => setSel(bOpen ? { level: 'agency', id: a.id ?? a.name, name: a.name } : { level: 'branch', id: b.id ?? b.name, name: b.name })}
+                          >{b.name}</button>
                           <span className="ah-node-level">Branch</span>
-                          <CommissionChip kind="branch" ownP={a.partnerRate} ownA={a.agentRate} ownName={a.name} />
-                          <button className="ah-refs" onClick={() => setFilterBranch(b.name)} title={`Filter referrals to ${b.name}`}>{b.referrals} referrals</button>
+                          <RateLine level="branch" id={b.id} name={b.name} own={b.agentRate} />
+                          {!bOpen && <span className="ah-node-meta">{bPeople.length} {bPeople.length === 1 ? 'person' : 'people'} · {b.referrals} referrals</span>}
                         </div>
-                        {isAgentRail && chainEmpty && (
+                        {/* The whole question in one line, whoever is paid. */}
+                        {canSeeCommission && <div className="ah-payout">{payoutSentence(splitFor(a, b))}</div>}
+                        {isAgentRail && branchReady === false && (
                           <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this branch can receive the deed. Invite a branch manager or nominate a recipient.</div>
                         )}
-                        <PeopleInline level="branch" list={bPeople} ctx={{ level: 'branch', partner, branchId: b.id, name: b.name }} />
-                        {isAdmin && (
+                        {bOpen && <PeopleInline level="branch" list={bPeople} ctx={{ level: 'branch', partner, branchId: b.id, name: b.name }} />}
+                        {bOpen && isAdmin && (
                           <div className="ah-deed">
                             {nominee ? (
                               <>Deed recipient: <b>{nominee.name || nominee.email}</b> <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => b.id && doClear(b.id)}>Clear</button></>
@@ -356,19 +420,46 @@ export function AgencyHome() {
         </CardBody>
       </Card>
 
-      {/* REFERRALS — below the tree; a branch's referral count filters this. */}
+      {/* REFERRALS — follows the selected node, with one click back to the top. */}
       <Card>
         <CardHead
           title="Referrals"
-          sub={filterBranch ? `route: Agency · ${filterBranch}` : 'route: Agency'}
-          actions={filterBranch
-            ? <button className="ah-viewall" onClick={() => setFilterBranch(null)}>Clear branch filter</button>
-            : (org.kind === 'agency' ? <Link className="ah-viewall" to={goApplications(org.agency.name)}>Open in Applications <Icon name="arrowRight" size={13} /></Link> : undefined)}
+          sub={sel ? `Scoped to ${sel.name}` : (org.kind === 'group' ? 'Whole group' : 'Whole agency')}
+          actions={org.kind === 'agency'
+            ? <Link className="ah-viewall" to={goApplications(org.agency.name)}>Open in Applications <Icon name="arrowRight" size={13} /></Link>
+            : undefined}
         />
         <CardBody style={{ padding: 0 }}>
+          <div className="ah-crumb">
+            <button className={`ah-crumb__seg${sel === null ? ' is-cur' : ''}`} onClick={() => setSel(null)}>
+              {org.kind === 'group' ? 'Whole group' : 'Whole agency'}
+            </button>
+            {sel && selAgency && (() => {
+              const a = agencies.find((x) => (x.id ?? x.name) === selAgency);
+              if (!a) return null;
+              return (
+                <>
+                  <span className="ah-crumb__sep">›</span>
+                  <button
+                    className={`ah-crumb__seg${sel.level === 'agency' ? ' is-cur' : ''}`}
+                    onClick={() => setSel({ level: 'agency', id: a.id ?? a.name, name: a.name })}
+                  >{a.name}</button>
+                </>
+              );
+            })()}
+            {sel?.level === 'branch' && (
+              <>
+                <span className="ah-crumb__sep">›</span>
+                <span className="ah-crumb__seg is-cur">{sel.name}</span>
+              </>
+            )}
+          </div>
           {(() => {
-            const rows = (filterBranch ? referrals.filter((r) => r.branch === filterBranch) : referrals).slice(0, 12);
-            if (rows.length === 0) return <div className="ah-empty">No referrals{filterBranch ? ` for ${filterBranch}` : ''} yet.</div>;
+            const scoped = sel === null ? referrals
+              : sel.level === 'branch' ? referrals.filter((r) => r.branch === sel.name)
+              : referrals.filter((r) => r.agency === sel.name);
+            const rows = scoped.slice(0, 12);
+            if (rows.length === 0) return <div className="ah-empty">No referrals{sel ? ` for ${sel.name}` : ''} yet.</div>;
             return (
               <table className="dt ah-table">
                 <thead><tr><th>Tenant</th><th>Branch</th><th>Stage</th></tr></thead>

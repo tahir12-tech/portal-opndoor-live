@@ -120,7 +120,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // Agency groups — the top commission tier and the target of a "whole group"
     // position. RLS scopes them to the caller's partner (or all, for admin/staff).
     client.from('agency_groups').select('id, name, partner_id, partner_rate, agent_rate'),
-    client.from('branches').select('id, name, area, review_state, is_placeholder, agency_id, partner_id'),
+    client.from('branches').select('id, name, area, review_state, is_placeholder, agency_id, partner_id, agent_rate'),
     // Ordered oldest-first so the on-screen contact order matches the server's
     // promote-oldest primary backstop (org_*_contact RPCs): the "promotes X to
     // primary" consequence text then names the contact the backstop will pick.
@@ -272,6 +272,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
       const branch: Branch = {
         id: b.id,
         name: b.name,
+        agentRate: b.agent_rate == null ? null : Number(b.agent_rate),
         area: b.area || '—',
         referrers: new Set(bApps.map((x) => x.referrer_id)).size,
         referrals: bApps.length,
@@ -349,6 +350,12 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     const p = String(s).slice(0, 10).split('-');
     return new Date(+p[0], +p[1] - 1, +p[2]);
   };
+  // agency id -> group id, so an application can name the group it sits under
+  // without a second lookup downstream.
+  const groupOfAgency = new Map<string, string | null>(
+    (agencies as any[]).map((a) => [String(a.id), a.group_id ?? null]),
+  );
+
   const linesByApp = new Map<string, CommissionLine[]>();
   for (const r of (linesRes.data ?? []) as any[]) {
     const list = linesByApp.get(String(r.application_id)) ?? [];
@@ -362,6 +369,8 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     agency: emb(a.agency)?.name ?? '',
     branch: emb(a.branch)?.name ?? '',
     branchId: a.branch_id ?? '',
+    agencyId: a.agency_id ?? '',
+    groupId: a.agency_id ? (groupOfAgency.get(String(a.agency_id)) ?? null) : null,
     // #97 Prefer the snapshotted referrer name (survives deactivation / users-RLS);
     // fall back to the live join, then a stable placeholder that is never counted.
     referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? '(unknown)',

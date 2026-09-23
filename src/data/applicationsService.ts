@@ -54,6 +54,9 @@ export interface FullApp {
   /** Branch id, for scoping the league to a viewer's position (the name is for
       display; the id is what app_scope_branches / a manager's scope match on). */
   branchId?: string;
+  /** DB ids, so downstream joins address an org rather than a display name. */
+  agencyId?: string;
+  groupId?: string | null;
   referrer: string;
   /** The referring user's actual role (superadmin/management/referrer), so the
       league can label who generated the referral truthfully. */

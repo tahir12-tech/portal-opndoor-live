@@ -65,6 +65,30 @@ export function payeesFor(app: FullApp, feeBase: number): PayeeAmount[] {
   }));
 }
 
+/**
+ * The share THIS org earns on this application.
+ *
+ * League and the volume charts rank ORGS, so an agency row must show what the
+ * agency itself earns, not the whole payout: under a group taking 2%, the agency
+ * earns 12% of a 14% payout and attributing all 14% to it would double-count the
+ * group's cut against the agency's name.
+ *
+ * Matched by id where both sides have one, else by name, which is how a historic
+ * row (one reconstructed agency line, no ids) still attributes to its agency.
+ */
+export function orgRate(
+  app: FullApp,
+  level: CommissionLine['level'],
+  orgId?: string | null,
+  orgName?: string,
+): number {
+  const norm = (x?: string | null) => (x ?? '').trim().toLowerCase();
+  return linesFor(app)
+    .filter((l) => l.level === level
+      && (l.orgId && orgId ? l.orgId === orgId : norm(l.orgName) === norm(orgName)))
+    .reduce((s, l) => s + (l.rate || 0), 0);
+}
+
 /** Accumulator for "sum commission per payee across many applications". */
 export class PayeeTotals {
   private readonly map = new Map<string, PayeeAmount>();

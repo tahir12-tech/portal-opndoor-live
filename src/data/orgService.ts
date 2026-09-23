@@ -393,6 +393,24 @@ export async function createAgencyWithBranch(input: CreateAgencyFlowInput): Prom
   return { agencyId: ag.id ?? ag.name, branchId: br?.id ?? br?.name ?? '' };
 }
 
+/** Set or clear ONE node's commission line (group, agency or branch).
+    Returns the worst branch total the change produces, which the editor shows
+    before the user commits. The 50% refusal is raised by SQL and surfaced
+    verbatim: the rule lives in one place and the screen does not restate it. */
+export async function setNodeRate(level: 'group' | 'agency' | 'branch', id: string, rate: number | null): Promise<number> {
+  if (!orgLive()) {
+    // Mock mode: apply locally so the screen still reflects the edit.
+    if (level === 'agency') { const a = AGENCIES.find((x) => x.id === id); if (a) a.agentRate = rate; }
+    else if (level === 'group') { const g = GROUPS.find((x) => x.id === id); if (g) g.agentRate = rate; }
+    else { for (const a of AGENCIES) { const b = (a.branches ?? []).find((x) => x.id === id); if (b) b.agentRate = rate; } }
+    persist();
+    return 0;
+  }
+  const { data, error } = await sb().rpc('set_node_rate', { p_level: level, p_id: id, p_rate: rate });
+  if (error) throw new Error(cleanRpcError(error.message));
+  return Number(data ?? 0);
+}
+
 /** Add a contact to an agency (branch = null) or a branch. */
 export async function addContactLive(agency: Agency, branch: Branch | null, rec: AgentContact): Promise<void> {
   if (orgLive()) {

@@ -27,7 +27,7 @@ import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp } from '
 import { getPartners, partnerName } from './partnersService';
 import { contactForApplication } from './orgService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
-import { payeesFor } from './commissionSplit';
+import { payeesFor, orgRate, totalRate } from './commissionSplit';
 
 const DAY = 86_400_000;
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -234,7 +234,13 @@ function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date): Leagu
     if (app.withdrawn || app.expired) continue;
     const k = keyOf(app, key, monthLabel);
     if (!k) continue;
-    const r = { partner: app.partnerRate, agent: app.agentRate };
+    // PER-ORG ATTRIBUTION. An agency/branch row earns its OWN lines; a referrer or
+    // month row is not an org, so it carries the whole payout. partnerRate is the
+    // supplier rail and is untouched.
+    const agentShare = key === 'agency' ? orgRate(app, 'agency', app.agencyId, app.agency)
+      : key === 'branch' ? orgRate(app, 'branch', app.branchId, app.branch)
+      : totalRate(app);
+    const r = { partner: app.partnerRate, agent: agentShare };
     const sentIn = inRange(app.sentAt, start, end);
     const paidIn = inRange(app.paidAt, start, end);
     const deedIn = inRange(app.deedAt, start, end);

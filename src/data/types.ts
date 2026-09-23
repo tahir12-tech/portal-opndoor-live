@@ -152,6 +152,8 @@ export interface AgencyGroup {
 }
 
 export interface Branch {
+  /** This branch's OWN commission line, or null when it is not in the split. */
+  agentRate?: number | null;
   /** DB row id (Supabase mode). Absent in mock/test mode. */
   id?: string;
   name: string;
