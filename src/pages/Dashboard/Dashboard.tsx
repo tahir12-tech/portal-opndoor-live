@@ -106,7 +106,9 @@ export function Dashboard() {
   // Same scoped figures shown everywhere; each line renders only when non-zero.
   const canSeeSettlements = role === 'superadmin' || role === 'management';
   const partnerDue = settlement.partners.reduce((s, p) => s + p.commission, 0);
-  const agentDue = agentSettlement.agencies.reduce((s, a) => s + a.commission, 0);
+  // AUTHORITATIVE total: the sum of every payee line. The agencies rollup holds
+  // agency-level lines only, so summing it would miss group and branch payees.
+  const agentDue = agentSettlement.total;
   const settleDayMonth = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })}`;
   // #81 Tenancy-start corrections now apply automatically from the agent's link
   // (no opndoor review), so the "corrections to review" needs-attention line and
@@ -145,9 +147,9 @@ export function Dashboard() {
   // #25: the agent settlement can span many agencies, so show the top 5 inline and
   // collapse the rest behind a "View all" expander. The Performance export always
   // carries the full list. (The partner settlement is a bounded set and stays full.)
-  const agentTop = agentSettlement.agencies.slice(0, 5);
-  const agentRest = agentSettlement.agencies.slice(5);
-  const agentAgencyRow = (a: (typeof agentSettlement.agencies)[number]) => (
+  const agentTop = agentSettlement.payees.slice(0, 5);
+  const agentRest = agentSettlement.payees.slice(5);
+  const agentAgencyRow = (a: (typeof agentSettlement.payees)[number]) => (
     <div key={`${a.partner}-${a.agency}`} className="settle__partner">
       <div className="settle__row">
         <span>Agent commission payable to <b>{a.agency}</b></span>
@@ -642,7 +644,7 @@ export function Dashboard() {
         </RoleOnly>
 
         {/* SETTLEMENTS (below performance) — payable totals; applications collapsed. */}
-        {(naSettlements || (d.live && (settlement.partners.length > 0 || agentSettlement.agencies.length > 0))) && (
+        {(naSettlements || (d.live && (settlement.partners.length > 0 || agentSettlement.payees.length > 0))) && (
           <RoleOnly roles={['management']}>
             <div id="settlements" className="section-label"><Eyebrow>Settlements</Eyebrow></div>
           </RoleOnly>
@@ -699,25 +701,25 @@ export function Dashboard() {
         )}
 
         {/* AGENT COMMISSION SETTLEMENT (agency level, prior calendar month, payable the 15th) */}
-        {d.live && agentSettlement.agencies.length > 0 && (
+        {d.live && agentSettlement.payees.length > 0 && (
           <RoleOnly roles={['management']}>
             <section className="card settle">
               <div className="settle__head">
                 <div>
                   <div className="kpi__label">Agent commission settlement</div>
                   <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                    Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each agency on <b>{agentSettleDate}</b>.
+                    Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each payee on <b>{agentSettleDate}</b>.
                   </div>
                 </div>
               </div>
               <div className="settle__row settle__row--agg">
-                <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.agencies.length}</b> {agentSettlement.agencies.length === 1 ? 'agency' : 'agencies'}</span>
+                <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.payees.length}</b> {agentSettlement.payees.length === 1 ? 'payee' : 'payees'}</span>
                 <span className="settle__amt">{gbpPence(agentDue)}</span>
               </div>
               {agentTop.map(agentAgencyRow)}
               {agentRest.length > 0 && (
                 <details className="settle__exp settle__exp--more">
-                  <summary>View all {agentSettlement.agencies.length} agencies</summary>
+                  <summary>View all {agentSettlement.payees.length} payees</summary>
                   {agentRest.map(agentAgencyRow)}
                 </details>
               )}

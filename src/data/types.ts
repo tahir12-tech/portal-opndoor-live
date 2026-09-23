@@ -130,6 +130,16 @@ export interface AgentContact {
 
 /** An agency group (a brand family under a partner) — the top commission tier and
     the target of a "whole group" position. */
+/** One payee on an application's commission split, frozen at creation. */
+export interface CommissionLine {
+  level: 'group' | 'agency' | 'branch';
+  /** DB id of the org paid. Null for a historic row reconstructed from the scalar. */
+  orgId: string | null;
+  orgName: string;
+  /** Share of the guarantee fee, as a fraction. */
+  rate: number;
+}
+
 export interface AgencyGroup {
   id: string;
   /** Owning partner id (slug in the client working copy). */

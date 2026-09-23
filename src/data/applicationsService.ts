@@ -11,7 +11,7 @@
    amendTenancyStartDb -> amend-tenancy-start (deed-state-aware reissue),
    sendDeedToAgent -> send_deed_to_agent RPC. Mock/test mode uses the seed.
    ===================================================================== */
-import type { ApplicationDetail, ApplicationSummary, DeedState, PartnerScope, Role, Status, WithdrawReason } from './types';
+import type { CommissionLine, ApplicationDetail, ApplicationSummary, DeedState, PartnerScope, Role, Status, WithdrawReason } from './types';
 import { ALL_PARTNERS } from './types';
 import { AGENT_ADDR, APPLICATION_RECORDS as RECORDS_SEED, APPLICATIONS_LIST as LIST_SEED, type AppRecord } from './mock/applications';
 import { partnerName } from './partnersService';
@@ -66,6 +66,8 @@ export interface FullApp {
       partner's live rate, so editing a partner's rate never moves history. */
   partnerRate: number;
   agentRate: number;
+  /** The frozen split, one entry per payee. Absent on historic rows. */
+  commissionLines?: CommissionLine[];
   sentAt: Date | null;
   paidAt: Date | null;
   deedAt: Date | null;

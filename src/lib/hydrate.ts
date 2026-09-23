@@ -11,7 +11,7 @@
 import { sb } from '@/lib/supabase';
 import { LEAST_PRIVILEGED_ROLE,
   hydratePartners, hydrateUsers, hydrateOrg, hydrateGroups, hydrateApplications, hydrateUpcoming, hydrateFull, hydrateSettings,
-  type Agency, type AgencyGroup, type AgentContact, type ApplicationSummary, type Branch, type FullApp, type ManagedUser, type Role,
+  type Agency, type AgencyGroup, type AgentContact, type ApplicationSummary, type Branch, type CommissionLine, type FullApp, type ManagedUser, type Role,
   type Partner, type Status,
 } from '@/data';
 import type { AppRecord } from '@/data/mock/applications';
@@ -85,7 +85,7 @@ function toContact(c: any): AgentContact {
    removing it would be an unrelated change to every call site. */
 export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LEAST_PRIVILEGED_ROLE): Promise<void> {
   const client = sb();
-  const [partnersRes, partnerRatesRes, usersRes, ratesRes, agenciesRes, groupsRes, branchesRes, contactsRes, appsRes] = await Promise.all([
+  const [partnersRes, partnerRatesRes, usersRes, ratesRes, agenciesRes, groupsRes, branchesRes, contactsRes, appsRes, linesRes] = await Promise.all([
     // THE RATES ARE NO LONGER SELECTABLE HERE BY ANYONE, exactly as on
     // applications. They came off the table grant for `authenticated`
     // (20260815030000), because this string was never enforcement: it decided
@@ -147,6 +147,10 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         'referrer_id, referrer_name, branch_id, agency_id, partner_id, ' +
         'branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name, role), partner:partners(slug)',
     ),
+    // The frozen commission split, one row per payee. Deliberately OUTSIDE the
+    // throw-list below: a row with no lines is a historic row, not a failure, and
+    // losing the payee breakdown must never cost anybody their sign-in.
+    client.from('application_commission_lines').select('application_id, level, org_id, org_name, rate'),
   ]);
 
   // ratesRes is deliberately absent from this list. It returns nothing for a
@@ -345,6 +349,13 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     const p = String(s).slice(0, 10).split('-');
     return new Date(+p[0], +p[1] - 1, +p[2]);
   };
+  const linesByApp = new Map<string, CommissionLine[]>();
+  for (const r of (linesRes.data ?? []) as any[]) {
+    const list = linesByApp.get(String(r.application_id)) ?? [];
+    list.push({ level: r.level, orgId: r.org_id ?? null, orgName: String(r.org_name ?? ''), rate: Number(r.rate ?? 0) });
+    linesByApp.set(String(r.application_id), list);
+  }
+
   const fullOut: FullApp[] = apps.map((a) => ({
     ref: a.guarantee_ref,
     partner: slugOfApp(a),
@@ -365,6 +376,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // see" rather than a wrong number.
     partnerRate: rateById.get(a.id)?.partner ?? (partnerRateById.get(a.partner_id) ?? 0),
     agentRate: rateById.get(a.id)?.agent ?? (agentRateById.get(a.partner_id) ?? 0),
+    commissionLines: linesByApp.get(a.id),
     sentAt: toDate(a.sent_at),
     paidAt: toDate(a.paid_at),
     deedAt: toDate(a.deed_issued_at),

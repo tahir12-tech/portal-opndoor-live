@@ -27,6 +27,7 @@ import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp } from '
 import { getPartners, partnerName } from './partnersService';
 import { contactForApplication } from './orgService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
+import { payeesFor } from './commissionSplit';
 
 const DAY = 86_400_000;
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -443,7 +444,23 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
    month accrual on the payment date, net of refunds, payable the 15th, with the
    constituent applications listed. */
 export interface AgentSettlementAgency { agency: string; partner: string; partnerName: string; commission: number; apps: SettlementApp[]; }
-export interface AgentCommissionSettlement { monthLabel: string; settlementDate: Date; agencies: AgentSettlementAgency[]; }
+/** One PAYEE for the period. A group, an agency or a branch may each be one. */
+export interface AgentSettlementPayee extends AgentSettlementAgency {
+  level: 'group' | 'agency' | 'branch';
+  orgId: string | null;
+  /** Stable identity, so a statement addresses a payee rather than a name. */
+  key: string;
+}
+export interface AgentCommissionSettlement {
+  monthLabel: string;
+  settlementDate: Date;
+  /** The agency ROLLUP: agency-level lines only. Kept for every existing reader. */
+  agencies: AgentSettlementAgency[];
+  /** AUTHORITATIVE. One line per payee; the period total is their sum. */
+  payees: AgentSettlementPayee[];
+  /** Sum of every payee line. Use this, not the agencies rollup, for a total. */
+  total: number;
+}
 
 export function getAgentCommissionSettlement(role: Role, scope: PartnerScope): AgentCommissionSettlement {
   const now = nowRef();
@@ -452,21 +469,35 @@ export function getAgentCommissionSettlement(role: Role, scope: PartnerScope): A
   const settlementDate = new Date(now.getFullYear(), now.getMonth(), 15);
   const monthLabel = `${MONTH_LONG[bStart.getMonth()]} ${bStart.getFullYear()}`;
   const set = scopeFull(allFull(), role, scope);
-  const byAgency = new Map<string, AgentSettlementAgency>();
+  const byPayee = new Map<string, AgentSettlementPayee>();
   for (const a of set) {
     if (!inRange(a.paidAt, bStart, bEnd)) continue;
     if (a.refunded) continue; // net of refunds
-    const commission = a.rent * a.agentRate;
-    // Key by partner + agency so same-named agencies under different partners never merge.
-    const key = `${a.partner}${a.agency}`;
-    let ag = byAgency.get(key);
-    if (!ag) { ag = { agency: a.agency || '(unknown agency)', partner: a.partner, partnerName: partnerName(a.partner), commission: 0, apps: [] }; byAgency.set(key, ag); }
-    ag.commission += commission;
-    ag.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, commission, tenantInitials: tenantInitialsFor(a.ref) });
+    // ONE LINE PER PAYEE. A historic row has no split and resolves to a single
+    // agency line at the scalar rate, so it lands exactly where it always did.
+    for (const p of payeesFor(a, a.rent)) {
+      // Namespaced by partner as well, so same-named orgs under different
+      // partners never merge -- what the old `${a.partner}${a.agency}` key was for.
+      const key = `${a.partner}|${p.key}`;
+      let row = byPayee.get(key);
+      if (!row) {
+        row = {
+          key, level: p.level, orgId: p.orgId,
+          agency: p.orgName || '(unknown agency)',
+          partner: a.partner, partnerName: partnerName(a.partner),
+          commission: 0, apps: [],
+        };
+        byPayee.set(key, row);
+      }
+      row.commission += p.amount;
+      row.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, commission: p.amount, tenantInitials: tenantInitialsFor(a.ref) });
+    }
   }
-  const agencies = [...byAgency.values()].sort((x, y) => y.commission - x.commission);
-  agencies.forEach((a) => a.apps.sort((x, y) => y.commission - x.commission));
-  return { monthLabel, settlementDate, agencies };
+  const payees = [...byPayee.values()].sort((x, y) => y.commission - x.commission);
+  payees.forEach((p) => p.apps.sort((x, y) => y.commission - x.commission));
+  const agencies: AgentSettlementAgency[] = payees.filter((p) => p.level === 'agency');
+  const total = payees.reduce((s2, p) => s2 + p.commission, 0);
+  return { monthLabel, settlementDate, agencies, payees, total };
 }
 
 export interface TrendRow { label: string; count: number; fees: number; comm: number; sub?: string; }

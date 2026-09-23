@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
       // surfaces on the delivery-failure/needs-attention surfaces. Keep the
       // client informed by returning a structured error.
       const service = createClient(SUPABASE_URL, SERVICE);
+      await service.from("applications").update({ awaiting_staff_send: true }).eq("id", app.id);
       await service.from("activity_log").insert({ application_id: app.id, kind: "deed_delivery_failed", message: "Deed issued; no agent contact on file — delivery failed.", actor: "System", visibility: "business" });
       return json({ ok: false, sentTo: null, error: "No agent contact on file for this branch. Add one, then resend." }, 400);
     }
@@ -81,6 +82,10 @@ Deno.serve(async (req) => {
       agencyName,
       pdfPath: app.executed_pdf_path,
     }, { email: sentTo, name: recipientName }, `sent by ${actor}`);
+
+    // It has been sent by a human, so it leaves the awaiting-staff-send queue.
+    // Only on success: a failed send stays queued, which is the point of the queue.
+    if (out.ok) await service.from("applications").update({ awaiting_staff_send: false }).eq("id", app.id);
 
     return json({ ok: out.ok, sentTo, emailError: out.ok ? null : out.error });
   } catch (e) {

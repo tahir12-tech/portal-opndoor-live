@@ -924,17 +924,22 @@ export function buildPartnerStatementDoc(role: Role, scope: PartnerScope, partne
 export function buildAgentStatementDoc(role: Role, scope: PartnerScope, partner: string, agency: string): BrandedExport {
   if (!maySeeCommission(role)) return emptyExport('Agent statement');
   const st = getAgentCommissionSettlement(role, scope);
-  const ag = st.agencies.find((a) => a.partner === partner && a.agency === agency);
+  // Search PAYEES, not the agency rollup: a payee may now be a group or a branch,
+  // and addressing only the rollup would produce an empty statement for those.
+  const ag = st.payees.find((a) => a.partner === partner && a.agency === agency);
   const payee = ag ? ag.agency : agency;
   const partnerLabel = ag ? ag.partnerName : partnerName(partner);
-  const ref = statementRef('STMT-AG', `${partner} ${agency}`, st.monthLabel);
+  // The reference carries the payee LEVEL, so an agency and a branch that share a
+  // name cannot produce the same statement reference in the same month.
+  const ref = statementRef('STMT-AG', `${partner} ${ag ? ag.level : 'agency'} ${agency}`, st.monthLabel);
   const generated = dmyhm(new Date());
   const blocks: BrandedDoc['blocks'] = [
     { kind: 'section', title: 'Commission statement' },
     {
       kind: 'keyvalue',
       items: [
-        { label: 'Payee (agency)', value: payee },
+        { label: 'Payee', value: payee },
+        { label: 'Payee level', value: ag ? ag.level : 'agency' },
         { label: 'Partner', value: partnerLabel },
         { label: 'Commission type', value: 'Agent commission' },
         { label: 'Period (month)', value: st.monthLabel },

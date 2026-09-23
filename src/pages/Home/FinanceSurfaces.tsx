@@ -40,16 +40,18 @@ export function FinanceSurfaces({ role, partnerScope }: { role: Role; partnerSco
   const agentSettleDate = `${agentSettlement.settlementDate.getDate()} ${agentSettlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${agentSettlement.settlementDate.getFullYear()}`;
   const settleDayMonth = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })}`;
   const partnerDue = settlement.partners.reduce((s, p) => s + p.commission, 0);
-  const agentDue = agentSettlement.agencies.reduce((s, a) => s + a.commission, 0);
+  // AUTHORITATIVE total: the sum of every payee line. The agencies rollup holds
+  // agency-level lines only, so summing it would miss group and branch payees.
+  const agentDue = agentSettlement.total;
 
   // Branded, self-footing statements — read the same settlement data as the rows below.
   const downloadPartnerStatement = (partnerId: string) => void exportBranded(buildPartnerStatementDoc(role, partnerScope, partnerId));
   const downloadAgentStatement = (partner: string, agency: string) => void exportBranded(buildAgentStatementDoc(role, partnerScope, partner, agency));
 
   // Agent settlement can span many agencies: top 5 inline, the rest behind an expander.
-  const agentTop = agentSettlement.agencies.slice(0, 5);
-  const agentRest = agentSettlement.agencies.slice(5);
-  const agentAgencyRow = (a: (typeof agentSettlement.agencies)[number]) => (
+  const agentTop = agentSettlement.payees.slice(0, 5);
+  const agentRest = agentSettlement.payees.slice(5);
+  const agentAgencyRow = (a: (typeof agentSettlement.payees)[number]) => (
     <div key={`${a.partner}-${a.agency}`} className="settle__partner">
       <div className="settle__row">
         <span>Agent commission payable to <b>{a.agency}</b></span>
@@ -112,7 +114,7 @@ export function FinanceSurfaces({ role, partnerScope }: { role: Role; partnerSco
   }
 
   const hasPartner = live && settlement.partners.length > 0;
-  const hasAgent = live && agentSettlement.agencies.length > 0;
+  const hasAgent = live && agentSettlement.payees.length > 0;
   const isAdmin = role === 'superadmin';
 
   return (
@@ -191,18 +193,18 @@ export function FinanceSurfaces({ role, partnerScope }: { role: Role; partnerSco
             <div>
               <div className="kpi__label">Agent commission settlement</div>
               <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each agency on <b>{agentSettleDate}</b>.
+                Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each payee on <b>{agentSettleDate}</b>.
               </div>
             </div>
           </div>
           <div className="settle__row settle__row--agg">
-            <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.agencies.length}</b> {agentSettlement.agencies.length === 1 ? 'agency' : 'agencies'}</span>
+            <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.payees.length}</b> {agentSettlement.payees.length === 1 ? 'payee' : 'payees'}</span>
             <span className="settle__amt">{gbpPence(agentDue)}</span>
           </div>
           {agentTop.map(agentAgencyRow)}
           {agentRest.length > 0 && (
             <details className="settle__exp settle__exp--more">
-              <summary>View all {agentSettlement.agencies.length} agencies</summary>
+              <summary>View all {agentSettlement.payees.length} payees</summary>
               {agentRest.map(agentAgencyRow)}
             </details>
           )}

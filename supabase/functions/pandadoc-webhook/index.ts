@@ -137,6 +137,9 @@ Deno.serve(async (req) => {
           // as failed so it surfaces on the delivery-failure/needs-attention
           // surfaces (Delivery Failed) for a staff send.
           const heldForPeople = !!dest?.email && dest?.auto_send === false;
+          // Queryable queue, so "what is waiting for a human to send?" is a filter
+          // rather than a scan of activity. The activity row and its ops alert stay.
+          await service.from("applications").update({ awaiting_staff_send: true }).eq("id", app.id);
           await service.from("activity_log").insert({
             application_id: app.id,
             kind: "deed_delivery_failed",
