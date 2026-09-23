@@ -626,7 +626,7 @@
 import { useState, type MouseEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ALL_PARTNERS, addContactLive, createAgencyLive, createBranchLive, effectivePrimary, findAgency,
+  ALL_PARTNERS, addContactLive, createBranchLive, effectivePrimary, findAgency,
   getAgencies, getGroup, getGroups, getPartner, getRatesFor, setAgencyRates, createAgencyGroup, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
   type Agency, type AgencyGroup, type AgentContact, type Branch,
 } from '@/data';
@@ -639,6 +639,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
+import { AgencyCreate } from '@/pages/Agencies/AgencyCreate';
 import './OrgManagement.css';
 
 const agencyId = (a: Agency) => `${a.partner || 'northwind'}:${a.name}`;
@@ -726,21 +727,17 @@ function ContactSummary({ agency, branch, canManage, onManage }: { agency: Agenc
 
 export function OrgManagement() {
   usePageMeta('org', 'Agencies', ['Home', 'Relationships', 'Agencies']);
-  const { role, partnerScope, selectedPartner, refresh: refreshData } = useSession();
+  const { role, partnerScope, refresh: refreshData } = useSession();
   const toast = useToast();
 
   const [, setVersion] = useState(0);
   const refresh = () => setVersion((v) => v + 1);
+  const [createOpen, setCreateOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState('');
   const [openSet, setOpenSet] = useState<Set<string>>(() => new Set(getAgencies(ALL_PARTNERS).filter((a) => a.open).map(agencyId)));
 
   // add-agency modal (+ its required default contact)
-  const [agencyOpen, setAgencyOpen] = useState(false);
-  const [agencyName, setAgencyName] = useState('');
-  const [agencyGroup, setAgencyGroup] = useState('');
-  const [agencyPartner, setAgencyPartner] = useState<string>(selectedPartner !== ALL_PARTNERS ? selectedPartner : '');
-  const [agencyContact, setAgencyContact] = useState({ name: '', email: '', phone: '' });
   // add-branch modal (+ its optional own contact)
   const [branchOpen, setBranchOpen] = useState(false);
   const [branchName, setBranchName] = useState('');
@@ -1104,23 +1101,6 @@ function requestCloseContacts() {
     toggle(id);
   }
 
-  const agencyEmailOk = EMAIL_RE.test(agencyContact.email.trim());
-  const canSaveAgency = !!agencyName.trim() && !!agencyPartner && agencyEmailOk && !busy;
-  function saveAgency() {
-    if (!canSaveAgency) {
-      if (!agencyPartner) toast('Select a specific partner before adding an agency.');
-      return;
-    }
-    void runOrg(
-      () => createAgencyLive({
-        name: agencyName.trim(), group: agencyGroup.trim() || undefined,
-        contactEmail: agencyContact.email.trim(), contactName: agencyContact.name.trim() || undefined, contactPhone: agencyContact.phone.trim() || undefined,
-      }, agencyPartner),
-      'Agency added.',
-      () => setAgencyOpen(false),
-    );
-  }
-
   function openAddBranch(name?: string) {
     setBranchName('');
     setBranchArea('');
@@ -1285,7 +1265,7 @@ function requestCloseContacts() {
         </div>
         <div className="page-head__actions">
           {canManageOrg && (
-            <Button variant="primary" size="sm" onClick={() => { setAgencyName(''); setAgencyGroup(''); setAgencyPartner(role === 'superadmin' ? 'opndoor-agents' : partnerScope); setAgencyContact({ name: '', email: '', phone: '' }); setAgencyOpen(true); }}><Icon name="plus" /> Add agency</Button>
+            <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}><Icon name="plus" /> Add agency</Button>
           )}
         </div>
       </div>
@@ -1324,25 +1304,8 @@ function requestCloseContacts() {
       </div>
       <div className={`org-empty${shownAgencies.length ? '' : ' is-shown'}`}>No groups, agencies or branches match your search.</div>
 
-      {/* ADD AGENCY */}
-      <Modal
-        open={agencyOpen}
-        onClose={() => { if (!busy) setAgencyOpen(false); }}
-        title="Add agency"
-        sub="Create a new agency in the hierarchy. A default contact is required so deeds and the bordereau resolve to someone reachable. Add it to a group afterwards from its Group action."
-        footer={<><Button variant="ghost" onClick={() => setAgencyOpen(false)} disabled={busy}>Cancel</Button><Button variant="primary" onClick={saveAgency} disabled={!canSaveAgency}>{busy ? 'Saving…' : 'Save agency'}</Button></>}
-      >
-        <Field label="Agency name" htmlFor="agency-name"><input id="agency-name" type="text" placeholder="e.g. Riverside Lettings" autoComplete="off" value={agencyName} onChange={(e) => setAgencyName(e.target.value)} /></Field>
-        <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14, marginTop: 6 }}>
-          <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Default agency contact</div>
-          <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Its branches inherit this contact unless they have their own.</p>
-          <div className="form-grid">
-            <Field span2 label={<>Contact email <span className="req" aria-hidden="true">*</span></>} htmlFor="agency-cemail"><input id="agency-cemail" type="email" placeholder="agent@agency.co.uk" autoComplete="off" value={agencyContact.email} onChange={(e) => setAgencyContact((c) => ({ ...c, email: e.target.value }))} /></Field>
-            <Field label="Contact name" htmlFor="agency-cname" hint="Optional"><input id="agency-cname" type="text" placeholder="e.g. Jordan Blake" autoComplete="off" value={agencyContact.name} onChange={(e) => setAgencyContact((c) => ({ ...c, name: e.target.value }))} /></Field>
-            <Field label="Contact phone" htmlFor="agency-cphone" hint="Optional"><input id="agency-cphone" type="tel" placeholder="020 7946 0000" autoComplete="off" value={agencyContact.phone} onChange={(e) => setAgencyContact((c) => ({ ...c, phone: e.target.value }))} /></Field>
-          </div>
-        </div>
-      </Modal>
+      {/* Agency onboarding flow (name, first branch + address, commission, first invite). */}
+      <AgencyCreate open={createOpen} onClose={() => setCreateOpen(false)} />
 
       {/* ADD BRANCH */}
       <Modal

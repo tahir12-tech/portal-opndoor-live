@@ -360,6 +360,39 @@ export async function createBranchLive(agency: Agency, input: CreateBranchInput)
   }
 }
 
+export interface CreateAgencyFlowInput {
+  agencyName: string;
+  branchName: string;
+  branchArea?: string;
+  /** Commission overrides as fractions (null = inherit the Opndoor standard). */
+  partnerRate?: number | null;
+  agentRate?: number | null;
+}
+
+/** Admin onboarding: create an independent agent-rail agency + its first branch in
+    one call, returning the new ids so the caller can send the first invite. No group;
+    the agency is independent until it grows. */
+export async function createAgencyWithBranch(input: CreateAgencyFlowInput): Promise<{ agencyId: string; branchId: string }> {
+  if (orgLive()) {
+    const { data, error } = await sb().rpc('admin_create_agency_and_branch', {
+      p_agency_name: input.agencyName,
+      p_branch_name: input.branchName,
+      p_branch_area: input.branchArea ?? null,
+      p_partner_rate: input.partnerRate ?? null,
+      p_agent_rate: input.agentRate ?? null,
+    });
+    if (error) throw new Error(cleanRpcError(error.message));
+    const row = Array.isArray(data) ? data[0] : data;
+    return { agencyId: String(row?.agency_id ?? ''), branchId: String(row?.branch_id ?? '') };
+  }
+  const ag = addAgency({ name: input.agencyName }, 'opndoor-agents');
+  if (input.partnerRate != null) ag.partnerRate = input.partnerRate;
+  if (input.agentRate != null) ag.agentRate = input.agentRate;
+  const br = addBranch(ag.name, { name: input.branchName, area: input.branchArea });
+  persist();
+  return { agencyId: ag.id ?? ag.name, branchId: br?.id ?? br?.name ?? '' };
+}
+
 /** Add a contact to an agency (branch = null) or a branch. */
 export async function addContactLive(agency: Agency, branch: Branch | null, rec: AgentContact): Promise<void> {
   if (orgLive()) {
