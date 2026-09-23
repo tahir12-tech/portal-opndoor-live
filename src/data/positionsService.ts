@@ -125,6 +125,31 @@ export async function removePosition(userId: string, positionId: string): Promis
   if (error) throw new Error(error.message);
 }
 
+/** Nominated deed recipients for a set of branches: branchId -> userId. The agent
+    rail resolves the deed to this user first (else the branch/agency/group manager). */
+export async function getDeedRecipients(branchIds: string[]): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  if (!SUPABASE_ENABLED || !branchIds.length) return out;
+  const { data, error } = await sb().from('branch_deed_recipient').select('branch_id, user_id').in('branch_id', branchIds);
+  if (error) throw new Error(error.message);
+  (data ?? []).forEach((r: Record<string, unknown>) => { out[String(r.branch_id)] = String(r.user_id); });
+  return out;
+}
+
+/** Nominate a user as the deed recipient for a branch (agent rail). */
+export async function nominateDeedRecipient(branchId: string, userId: string): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  const { error } = await sb().rpc('set_branch_deed_recipient', { p_branch: branchId, p_user: userId });
+  if (error) throw new Error(error.message);
+}
+
+/** Clear a branch's nominated deed recipient (falls back to the manager chain). */
+export async function clearDeedRecipient(branchId: string): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  const { error } = await sb().rpc('clear_branch_deed_recipient', { p_branch: branchId });
+  if (error) throw new Error(error.message);
+}
+
 /** Records that somebody works at an agency. The bootstrap for cross-route reach. */
 export async function attachToAgency(userId: string, agencyId: string): Promise<void> {
   if (!SUPABASE_ENABLED) return;

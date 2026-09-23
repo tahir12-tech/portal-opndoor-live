@@ -38,8 +38,8 @@ export function InviteToLevel({ ctx, onClose, onInvited }: { ctx: InviteContext;
   const [busy, setBusy] = useState(false);
 
   const role: Role = ctx.level === 'branch' ? branchRole : 'management';
-  const levelWord = ctx.level === 'group' ? 'group' : ctx.level === 'brand' ? 'brand' : 'branch';
-  const titleFor = ctx.level === 'group' ? 'Invite a group director' : ctx.level === 'brand' ? 'Invite a brand manager' : 'Invite to this branch';
+  const levelWord = ctx.level === 'group' ? 'group' : ctx.level === 'brand' ? 'agency' : 'branch';
+  const titleFor = ctx.level === 'group' ? 'Invite group director' : ctx.level === 'brand' ? 'Invite agency manager' : 'Invite branch manager or negotiator';
 
   const canSend = !!email.trim() && EMAIL_RE.test(email.trim()) && !busy && !!ctx.partner;
 

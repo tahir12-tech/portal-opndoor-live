@@ -1,27 +1,25 @@
 /* =====================================================================
-   AgencyHome — the first-class agency screen, top down: GROUP → BRAND → BRANCH.
+   AgencyHome — the whole page is ONE org tree: Group → Agency → Branch.
 
-   Addressed by the org itself (a group, or a standalone brand), never by a
-   supplier or partner — the house partner that plumbs direct agencies is never
-   named here. Gathers, in one place and at every scale:
-     · Structure   — the group → brand → branch tree
-     · People       — who covers what, bucketed by the level they sit at, each
-                      with a position (Group director / Brand · X / Branch · Y),
-                      invited from that level
-     · Commission   — the tier editor (Group override → Brand override → Opndoor
-                      base) that already resolves in SQL, with the resolved rate
-     · Referrals    — the Agency-route applications beneath it
+   Each node carries, inline: its name and level, the people at that level with
+   role labels and a level-specific invite, the resolved commission for that node
+   as a chip (with a per-node "Set custom rate" editor and a "How this rate is
+   worked out" expander), and — for branches — a referral count that filters the
+   Referrals section below, and a nominated deed recipient.
 
-   "Brand" is the UI word for an agencies row; "group" for an agency_groups row.
+   Vocabulary is Group / Agency / Branch only; never "brand", "partner" or
+   "supplier" on screen ("brand" survives in the schema as the agencies table).
+   The status badge states what the org actually is. Rates are percentages
+   everywhere. Commission is admin-only to see (maySeeCommission) and edit.
    ===================================================================== */
-import { useEffect, useMemo, useState, type ReactNode, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   getAgencies, getGroup, getGroups, getRatesFor, setAgencyRates, setGroupRates,
   getApplications, getUsers, maySeeCommission, ALL_PARTNERS,
   type Agency, type AgencyGroup, type ManagedUser, type Status,
 } from '@/data';
-import { getPositionsForUsers } from '@/data/positionsService';
+import { getPositionsForUsers, getDeedRecipients, nominateDeedRecipient, clearDeedRecipient } from '@/data/positionsService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
@@ -36,14 +34,24 @@ import './AgencyHome.css';
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
 const STATUS_ST: Partial<Record<Status, string>> = { referencing: 'st-wait', sent: 'st-live', paid: 'st-live', deed: 'st-ok' };
 const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+const pct = (frac: number | null | undefined) => fmtRatePct(frac ?? 0);
 
-// A person placed on this org, with the level they cover.
-interface Placed { userId: string; name: string; email: string; }
+type Level = 'group' | 'agency' | 'branch';
+interface Placed { userId: string; name: string; email: string; role: string; }
+type Org = { kind: 'group'; group: AgencyGroup; agencies: Agency[] } | { kind: 'agency'; agency: Agency };
 
-/** A group, or a standalone brand — the org this page is addressed by. */
-type Org =
-  | { kind: 'group'; group: AgencyGroup; brands: Agency[] }
-  | { kind: 'brand'; brand: Agency };
+const roleLabelFor = (level: Level, role: string) =>
+  level === 'group' ? 'Group director' : level === 'agency' ? 'Agency manager' : role === 'referrer' ? 'Negotiator' : 'Branch manager';
+const inviteLabelFor = (level: Level) =>
+  level === 'group' ? 'Invite group director' : level === 'agency' ? 'Invite agency manager' : 'Invite branch manager or negotiator';
+
+// A parsed percentage input -> fraction. '' -> null (inherit); invalid -> undefined.
+const pctToFrac = (s: string): number | null | undefined => {
+  const t = s.replace('%', '').trim();
+  if (t === '') return null;
+  const n = parseFloat(t);
+  return isNaN(n) || n < 0 || n > 100 ? undefined : n / 100;
+};
 
 export function AgencyHome() {
   const { key } = useParams<{ key: string }>();
@@ -51,155 +59,199 @@ export function AgencyHome() {
   const toast = useToast();
   const decoded = decodeURIComponent(key ?? '');
   const isAdmin = role === 'superadmin';
-  // Superadmin resolves across all partners (a group reached from anywhere must
-  // resolve); everyone else through their own scope. RLS bounds it server-side.
+  const canSeeCommission = maySeeCommission(role);
   const scope = isAdmin ? ALL_PARTNERS : partnerScope;
 
-  const [tick, setTick] = useState(0); // local bump after a rate save
+  const [tick, setTick] = useState(0);
   const bump = () => setTick((t) => t + 1);
   const [invite, setInvite] = useState<InviteContext | null>(null);
+  const [filterBranch, setFilterBranch] = useState<string | null>(null);
 
-  // Resolve the org: a group by key, or a brand — and if that brand belongs to a
-  // group, render the whole group so the page always shows the top of the tree.
   const org = useMemo<Org | null>(() => {
     void dataVersion; void tick;
     const groups = getGroups(scope);
-    const brands = getAgencies(scope);
-    const groupByKey = groups.find((g) => (g.id ?? g.name) === decoded);
-    if (groupByKey) return { kind: 'group', group: groupByKey, brands: brands.filter((a) => a.groupId === groupByKey.id) };
-    const brand = brands.find((a) => (a.id ?? a.name) === decoded);
-    if (!brand) return null;
-    if (brand.groupId) {
-      const g = getGroup(brand.groupId);
-      if (g) return { kind: 'group', group: g, brands: brands.filter((a) => a.groupId === g.id) };
+    const agencies = getAgencies(scope);
+    const g = groups.find((x) => (x.id ?? x.name) === decoded);
+    if (g) return { kind: 'group', group: g, agencies: agencies.filter((a) => a.groupId === g.id) };
+    const a = agencies.find((x) => (x.id ?? x.name) === decoded);
+    if (!a) return null;
+    if (a.groupId) {
+      const parent = getGroup(a.groupId);
+      if (parent) return { kind: 'group', group: parent, agencies: agencies.filter((x) => x.groupId === parent.id) };
     }
-    return { kind: 'brand', brand };
+    return { kind: 'agency', agency: a };
   }, [scope, decoded, dataVersion, tick]);
 
-  const title = org ? (org.kind === 'group' ? org.group.name : org.brand.name) : 'Agency';
+  const title = org ? (org.kind === 'group' ? org.group.name : org.agency.name) : 'Agency';
   usePageMeta('agency-home', title, ['Home', 'Relationships', 'Agencies', title]);
 
-  // The brands and their branches, flattened, plus the owning partner slug (used
-  // only to scope the people/referrals reads — never shown).
-  const brands = org ? (org.kind === 'group' ? org.brands : [org.brand]) : [];
-  const partner = org ? (org.kind === 'group' ? org.group.partner : org.brand.partner) : '';
+  const agencies = org ? (org.kind === 'group' ? org.agencies : [org.agency]) : [];
+  const partner = org ? (org.kind === 'group' ? org.group.partner : org.agency.partner) : '';
+  const group = org?.kind === 'group' ? org.group : (org?.kind === 'agency' && org.agency.groupId ? getGroup(org.agency.groupId) : undefined);
   const branchesFlat = useMemo(
-    () => brands.flatMap((b) => (b.branches ?? []).map((br) => ({ brand: b, branch: br }))),
+    () => agencies.flatMap((a) => (a.branches ?? []).map((br) => ({ agency: a, branch: br }))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [org, tick],
   );
-  const branchCount = branchesFlat.length;
 
-  // People, bucketed by the level they hold a position on within this subtree.
-  const [people, setPeople] = useState<{ group: Placed[]; brand: Record<string, Placed[]>; branch: Record<string, Placed[]>; total: number }>({ group: [], brand: {}, branch: {}, total: 0 });
+  // People placed at each node, and the nominated deed recipient per branch.
+  const [people, setPeople] = useState<{ group: Placed[]; agency: Record<string, Placed[]>; branch: Record<string, Placed[]>; total: number }>({ group: [], agency: {}, branch: {}, total: 0 });
+  const [usersById, setUsersById] = useState<Record<string, ManagedUser>>({});
+  const [deedRecipients, setDeedRecipients] = useState<Record<string, string>>({});
   useEffect(() => {
-    if (!org || !partner) { setPeople({ group: [], brand: {}, branch: {}, total: 0 }); return; }
+    if (!org || !partner) { setPeople({ group: [], agency: {}, branch: {}, total: 0 }); setDeedRecipients({}); return; }
     let alive = true;
     const groupId = org.kind === 'group' ? org.group.id : undefined;
-    const brandIds = new Set(brands.map((b) => b.id).filter(Boolean) as string[]);
-    const branchIds = new Set(branchesFlat.map((x) => x.branch.id).filter(Boolean) as string[]);
+    const agencyIds = new Set(agencies.map((a) => a.id).filter(Boolean) as string[]);
+    const branchIds = branchesFlat.map((x) => x.branch.id).filter(Boolean) as string[];
+    const branchIdSet = new Set(branchIds);
     const users = getUsers({ viewer: role, team: false, scope: partner });
+    setUsersById(Object.fromEntries(users.map((u) => [u.id, u])));
     getPositionsForUsers(users.map((u) => u.id))
       .then((byUser) => {
         if (!alive) return;
-        const g: Placed[] = []; const brand: Record<string, Placed[]> = {}; const branch: Record<string, Placed[]> = {};
+        const g: Placed[] = []; const ag: Record<string, Placed[]> = {}; const br: Record<string, Placed[]> = {};
         const seen = new Set<string>();
-        const place = (bucket: Placed[], u: ManagedUser) => { bucket.push({ userId: u.id, name: u.name, email: u.email }); seen.add(u.id); };
         for (const u of users) {
+          const put = (bucket: Placed[]) => { bucket.push({ userId: u.id, name: u.name, email: u.email, role: u.role }); seen.add(u.id); };
           for (const p of byUser[u.id] ?? []) {
-            if (p.kind === 'group' && groupId && p.targetId === groupId) place(g, u);
-            else if (p.kind === 'agency' && brandIds.has(p.targetId)) { (brand[p.targetId] ||= []).push({ userId: u.id, name: u.name, email: u.email }); seen.add(u.id); }
-            else if (p.kind === 'branch' && branchIds.has(p.targetId)) { (branch[p.targetId] ||= []).push({ userId: u.id, name: u.name, email: u.email }); seen.add(u.id); }
+            if (p.kind === 'group' && groupId && p.targetId === groupId) put(g);
+            else if (p.kind === 'agency' && agencyIds.has(p.targetId)) put(ag[p.targetId] ||= []);
+            else if (p.kind === 'branch' && branchIdSet.has(p.targetId)) put(br[p.targetId] ||= []);
           }
         }
-        setPeople({ group: g, brand, branch, total: seen.size });
+        setPeople({ group: g, agency: ag, branch: br, total: seen.size });
       })
-      .catch(() => { if (alive) setPeople({ group: [], brand: {}, branch: {}, total: 0 }); });
+      .catch(() => { if (alive) setPeople({ group: [], agency: {}, branch: {}, total: 0 }); });
+    getDeedRecipients(branchIds).then((m) => { if (alive) setDeedRecipients(m); }).catch(() => { if (alive) setDeedRecipients({}); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org, partner, role, dataVersion, tick]);
 
-  // Referrals beneath this org (route: Agency). Scoped to the partner, then to the
-  // brands under it, so a group gathers all its brands' applications.
   const referrals = useMemo(() => {
     if (!org || !partner) return [];
-    const names = new Set(brands.map((b) => b.name));
+    const names = new Set(agencies.map((a) => a.name));
     return getApplications({ role, scope: partner }).filter((r) => names.has(r.agency));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org, partner, role, dataVersion, tick]);
 
-  // ---- commission tier editor state (superadmin) ----
   const base = getRatesFor(partner || ALL_PARTNERS);
-  const grp = org?.kind === 'group' ? org.group : (org?.kind === 'brand' && org.brand.groupId ? getGroup(org.brand.groupId) : undefined);
-  const rateStr = (n: number | null | undefined) => (n == null ? '' : String(n));
-  // Draft rows keyed by tier id ("group:<id>" | "brand:<id>").
-  const [draft, setDraft] = useState<Record<string, { p: string; a: string }>>({});
-  const [savingRow, setSavingRow] = useState<string | null>(null);
-  // Seed the draft whenever the org (or a save) changes the underlying rates.
-  useEffect(() => {
-    const d: Record<string, { p: string; a: string }> = {};
-    if (grp) d[`group:${grp.id}`] = { p: rateStr(grp.partnerRate), a: rateStr(grp.agentRate) };
-    for (const b of brands) if (b.id) d[`brand:${b.id}`] = { p: rateStr(b.partnerRate), a: rateStr(b.agentRate) };
-    setDraft(d);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [org, tick]);
+
+  // ---- per-node rate editor ----
+  const [editRow, setEditRow] = useState<string | null>(null); // 'group:<id>' | 'agency:<id>'
+  const [draftP, setDraftP] = useState('');
+  const [draftA, setDraftA] = useState('');
+  const [savingRow, setSavingRow] = useState(false);
+  const openRate = (rowKey: string, ownP: number | null | undefined, ownA: number | null | undefined) => {
+    setEditRow(rowKey);
+    setDraftP(ownP == null ? '' : String(+(ownP * 100).toFixed(2)));
+    setDraftA(ownA == null ? '' : String(+(ownA * 100).toFixed(2)));
+  };
+  const saveRate = async () => {
+    if (!editRow) return;
+    const p = pctToFrac(draftP); const a = pctToFrac(draftA);
+    if (p === undefined || a === undefined) { toast('Enter a percentage between 0 and 100, or leave blank to inherit.', 'error'); return; }
+    const [kind, id] = editRow.split(':');
+    setSavingRow(true);
+    try {
+      if (kind === 'group') await setGroupRates(id, p, a); else await setAgencyRates(id, p, a);
+      refreshSession(); bump(); setEditRow(null);
+      toast('Commission saved.', 'ok');
+    } catch (e) { toast(e instanceof Error ? e.message : 'Could not save the commission.', 'error'); }
+    finally { setSavingRow(false); }
+  };
+
+  // ---- deed recipient nomination ----
+  const [nominateBranch, setNominateBranch] = useState<string | null>(null); // branchId
+  const [nomineeId, setNomineeId] = useState('');
+  const doNominate = async () => {
+    if (!nominateBranch || !nomineeId) return;
+    try { await nominateDeedRecipient(nominateBranch, nomineeId); bump(); setNominateBranch(null); setNomineeId(''); toast('Deed recipient nominated.', 'ok'); }
+    catch (e) { toast(e instanceof Error ? e.message : 'Could not nominate.', 'error'); }
+  };
+  const doClear = async (branchId: string) => {
+    try { await clearDeedRecipient(branchId); bump(); toast('Deed recipient cleared.', 'ok'); }
+    catch (e) { toast(e instanceof Error ? e.message : 'Could not clear.', 'error'); }
+  };
 
   if (!org) {
     return (
       <>
-        <div className="page-head">
-          <div>
-            <div className="page-head__eyebrow">Agencies</div>
-            <h1 className="page-head__title">Agency not found</h1>
-            <p className="page-head__sub">This group or brand is not in your view, or the link is out of date.</p>
-          </div>
-        </div>
+        <div className="page-head"><div>
+          <div className="page-head__eyebrow">Agencies</div>
+          <h1 className="page-head__title">Agency not found</h1>
+          <p className="page-head__sub">This group or agency is not in your view, or the link is out of date.</p>
+        </div></div>
         <Card><CardBody><Link className="ah-back" to="/agencies"><Icon name="arrowLeft" size={14} /> Back to agencies</Link></CardBody></Card>
       </>
     );
   }
 
-  const parseRate = (s: string): number | null | undefined => {
-    const t = s.trim();
-    if (t === '') return null; // inherit
-    const n = parseFloat(t);
-    return isNaN(n) || n < 0 || n > 1 ? undefined : n; // undefined = invalid
-  };
-  const saveRow = async (rowKey: string) => {
-    const cur = draft[rowKey]; if (!cur) return;
-    const p = parseRate(cur.p); const a = parseRate(cur.a);
-    if (p === undefined || a === undefined) { toast('Rates must be a fraction between 0 and 1, e.g. 0.30. Blank inherits the tier above.', 'error'); return; }
-    const [kind, id] = rowKey.split(':');
-    setSavingRow(rowKey);
-    try {
-      if (kind === 'group') await setGroupRates(id, p, a);
-      else await setAgencyRates(id, p, a);
-      refreshSession();
-      bump();
-      toast('Commission saved.', 'ok');
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not save the commission.', 'error');
-    } finally {
-      setSavingRow(null);
-    }
-  };
-
-  // Resolved rate for a representative brand → branch (group → brand → base).
-  const sampleBrand = brands.find((b) => (b.branches ?? []).length > 0) ?? brands[0];
-  const sampleBranch = sampleBrand?.branches?.[0];
-  // Most specific wins: brand override, then group, then base — mirrors resolve_rates.
-  const resolvedP = sampleBrand?.partnerRate ?? grp?.partnerRate ?? base.partner;
-  const resolvedA = sampleBrand?.agentRate ?? grp?.agentRate ?? base.agent;
-
-  const inviteBtn = (ctx: InviteContext, label: string, variant: 'primary' | 'ghost' = 'ghost') => (
-    <Button variant={variant} size="sm" onClick={() => setInvite(ctx)}><Icon name="send" /> {label}</Button>
-  );
-
+  const branchCount = branchesFlat.length;
+  const statusBadge = org.kind === 'group' ? 'Group' : 'Agency';
   const summary = org.kind === 'group'
-    ? `Group · ${brands.length} ${brands.length === 1 ? 'brand' : 'brands'} · ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'} · ${people.total} ${people.total === 1 ? 'person' : 'people'} · ${referrals.length} referrals`
-    : `Brand · ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'} · ${people.total} ${people.total === 1 ? 'person' : 'people'} · ${referrals.length} referrals`;
+    ? `${agencies.length} ${agencies.length === 1 ? 'agency' : 'agencies'} · ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'} · ${people.total} ${people.total === 1 ? 'person' : 'people'} · ${referrals.length} referrals`
+    : `${branchCount} ${branchCount === 1 ? 'branch' : 'branches'} · ${people.total} ${people.total === 1 ? 'person' : 'people'} · ${referrals.length} referrals`;
 
-  const recent = referrals.slice(0, 12);
+  const goApplications = (agencyName: string) => `/applications?agency=${encodeURIComponent(agencyName)}`;
+
+  // ---- node commission chip. `ownP/ownA` is the rate that applies AT this node:
+  //   group node   -> the group's own rate
+  //   agency node  -> the agency's own rate
+  //   branch node  -> its agency's rate (a branch has no rate of its own)
+  // Resolution is most-specific-wins per column: own -> group -> Opndoor standard.
+  const CommissionChip = ({ kind, ownP, ownA, ownName, rowKey }: { kind: Level; ownP?: number | null; ownA?: number | null; ownName: string; rowKey?: string }) => {
+    if (!canSeeCommission) return null;
+    const gP = kind === 'group' ? null : (group?.partnerRate ?? null);
+    const gA = kind === 'group' ? null : (group?.agentRate ?? null);
+    const col = (ownV: number | null | undefined, gv: number | null, baseV: number): { v: number; src: 'own' | 'group' | 'base' } =>
+      ownV != null ? { v: ownV, src: 'own' } : gv != null ? { v: gv, src: 'group' } : { v: baseV, src: 'base' };
+    const P = col(ownP, gP, base.partner);
+    const A = col(ownA, gA, base.agent);
+    // "own" means different things by level: the group/agency's own custom rate, or
+    // (for a branch) the agency rate it inherits.
+    const srcText = (src: 'own' | 'group' | 'base') =>
+      src === 'own' ? (kind === 'branch' ? `inherited from ${ownName}` : 'custom rate')
+        : src === 'group' ? `inherited from ${group?.name ?? 'the group'}` : 'Opndoor standard rate';
+    const editing = rowKey && editRow === rowKey;
+    return (
+      <span className="ah-comm-wrap">
+        <span className="ah-chip" title="Opndoor rate · Agent commission (the agency's share of the fee)">
+          <b>{pct(P.v)}</b> Opndoor · <b>{pct(A.v)}</b> agent
+        </span>
+        <span className="ah-chip-src">{srcText(P.src)}</span>
+        {isAdmin && rowKey && !editing && (
+          <button className="ah-linkbtn" onClick={() => openRate(rowKey, ownP, ownA)}>Set custom rate</button>
+        )}
+        {editing && (
+          <span className="ah-rate-edit">
+            <label>Opndoor <input inputMode="decimal" value={draftP} onChange={(e) => setDraftP(e.target.value)} placeholder="inherit" />%</label>
+            <label>Agent commission <input inputMode="decimal" value={draftA} onChange={(e) => setDraftA(e.target.value)} placeholder="inherit" />%</label>
+            <button className="ah-linkbtn" onClick={saveRate} disabled={savingRow}>{savingRow ? '…' : 'Save'}</button>
+            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setEditRow(null)}>Cancel</button>
+          </span>
+        )}
+        <details className="ah-how"><summary>How this rate is worked out</summary>
+          <div className="ah-how__body">
+            <div>Opndoor rate: {pct(P.v)} — {srcText(P.src)}</div>
+            <div>Agent commission: {pct(A.v)} — {srcText(A.src)}</div>
+            <div className="muted">Most specific wins: the agency's rate, then the group, then the Opndoor standard.</div>
+          </div>
+        </details>
+      </span>
+    );
+  };
+
+  const PeopleInline = ({ level, list, ctx }: { level: Level; list: Placed[]; ctx: InviteContext }) => (
+    <div className="ah-node-people">
+      {list.map((p) => (
+        <span key={p.userId} className="ah-chip-person" title={p.email}>
+          <span className="ah-av">{initials(p.name || p.email)}</span>{p.name || p.email}<span className="ah-role">{roleLabelFor(level, p.role)}</span>
+        </span>
+      ))}
+      {isAdmin && <button className="ah-linkbtn ah-invite-inline" onClick={() => setInvite(ctx)}><Icon name="send" size={12} /> {inviteLabelFor(level)}</button>}
+    </div>
+  );
 
   return (
     <>
@@ -207,197 +259,122 @@ export function AgencyHome() {
         <div>
           <Link className="ah-back" to="/agencies"><Icon name="arrowLeft" size={14} /> Agencies</Link>
           <h1 className="page-head__title" style={{ marginTop: 8 }}>{title}</h1>
-          <p className="page-head__sub ah-sub"><Pill variant="paid">Agency</Pill> <span>{summary}</span></p>
+          <p className="page-head__sub ah-sub"><Pill variant={org.kind === 'group' ? 'sent' : 'paid'}>{statusBadge}</Pill> <span>{summary}</span></p>
         </div>
-        <div className="page-head__actions">
-          {isAdmin && inviteBtn(
-            org.kind === 'group' ? { level: 'group', partner, groupId: org.group.id, name: org.group.name } : { level: 'brand', partner, agencyId: org.brand.id, name: org.brand.name },
-            'Invite manager', 'primary',
-          )}
-        </div>
-      </div>
-
-      <div className="ah-grid">
-        {/* STRUCTURE — group -> brand -> branch tree */}
-        <div className="block card">
-          <div className="block-h"><h4>Structure</h4><span className="block-sub">group → brand → branch</span></div>
-          <div className="ah-tree">
-            {org.kind === 'group' && (
-              <div className="ah-node"><span className="ah-tick t-group">G</span><span className="ah-nm">{org.group.name}</span><span className="ah-mt">group</span></div>
-            )}
-            {brands.map((b) => (
-              <div key={b.id ?? b.name}>
-                <div className={`ah-node${org.kind === 'group' ? ' lv2' : ''}`}>
-                  <span className="ah-tick t-brand">B</span>
-                  <span className="ah-nm">{b.name}</span>
-                  <span className="ah-mt">{(b.branches ?? []).length} {(b.branches ?? []).length === 1 ? 'branch' : 'branches'}</span>
-                </div>
-                {(b.branches ?? []).map((br) => (
-                  <div key={br.id ?? br.name} className={org.kind === 'group' ? 'ah-node lv3' : 'ah-node lv2'}>
-                    <span className="ah-tick t-branch">•</span>
-                    <Link className="ah-nm ah-nm--link" to={`/applications?branch=${encodeURIComponent(br.name)}`}>{br.name}</Link>
-                    <span className="ah-mt">{br.referrals} refs</span>
-                  </div>
-                ))}
-              </div>
-            ))}
+        {isAdmin && (
+          <div className="page-head__actions">
+            {org.kind === 'group'
+              ? <Button variant="ghost" size="sm" onClick={() => setInvite({ level: 'group', partner, groupId: org.group.id, name: org.group.name })}><Icon name="send" /> Invite group director</Button>
+              : null}
           </div>
-        </div>
-
-        {/* COMMISSION — tier editor. Commercially sensitive: only opndoor admin and
-            a partner's own management may see it (matches maySeeCommission everywhere
-            else); this route also admits referrers/opndoor_manager, who must not. */}
-        {maySeeCommission(role) && (
-        <div className="block card">
-          <div className="block-h"><h4>Commission</h4>{isAdmin && <span className="ah-newtag">editor</span>}<span className="block-sub" style={{ marginLeft: 'auto' }}>share of the guarantee fee</span></div>
-          <div className="ah-comm">
-            <div className="ah-crow ah-crow--head"><span>Tier</span><span>Opndoor</span><span>Agent</span></div>
-            {grp && (
-              <RateRow
-                label={<><b>Group override</b><br /><span>applies to all brands unless a brand sets its own</span></>}
-                rowKey={`group:${grp.id}`} draft={draft} setDraft={setDraft} editable={isAdmin}
-                saving={savingRow === `group:${grp.id}`} onSave={() => saveRow(`group:${grp.id}`)}
-              />
-            )}
-            {brands.filter((b) => b.id).map((b) => (
-              <RateRow
-                key={b.id}
-                label={<><b>{b.name}</b><br /><span>brand override</span></>}
-                rowKey={`brand:${b.id}`} draft={draft} setDraft={setDraft} editable={isAdmin}
-                saving={savingRow === `brand:${b.id}`} onSave={() => saveRow(`brand:${b.id}`)}
-              />
-            ))}
-            <div className="ah-crow">
-              <div className="ah-clbl"><b>Opndoor base</b><br /><span>fallback for anything unset</span></div>
-              <span className="ah-inp ah-inp--ro">{base.partner}</span>
-              <span className="ah-inp ah-inp--ro">{base.agent}</span>
-            </div>
-            {sampleBrand && sampleBranch && (
-              <div className="ah-resolved">
-                <Icon name="check" size={14} /> Resolved for <b>{sampleBrand.name} → {sampleBranch.name}</b>: <b style={{ margin: '0 4px' }}>{fmtRatePct(resolvedP)} / {fmtRatePct(resolvedA)}</b>
-              </div>
-            )}
-          </div>
-        </div>
         )}
       </div>
 
-      {/* PEOPLE & POSITIONS — bucketed by level, invite from the level */}
+      {/* THE TREE — one spine, people/commission/invite/referrals inline per node */}
       <Card>
-        <CardHead title="People & positions" sub="who covers what — invited from the level they sit at" />
-        <CardBody>
-          {org.kind === 'group' && (
-            <PeopleBlock
-              eyebrow={<><span className="ah-pos ah-pos--grp">Group director</span> · {org.group.name}</>}
-              people={people.group} emptyRole="group director"
-              invite={isAdmin ? () => setInvite({ level: 'group', partner, groupId: org.group.id, name: org.group.name }) : undefined}
-            />
-          )}
-          {brands.map((b) => (
-            <PeopleBlock
-              key={`ppl-brand-${b.id ?? b.name}`}
-              eyebrow={<><span className="ah-pos ah-pos--brand">Brand</span> · {b.name}</>}
-              people={b.id ? (people.brand[b.id] ?? []) : []} emptyRole="brand manager"
-              invite={isAdmin && b.id ? () => setInvite({ level: 'brand', partner, agencyId: b.id, name: b.name }) : undefined}
-            />
-          ))}
-          {branchesFlat.map(({ brand, branch }) => (
-            <PeopleBlock
-              key={`ppl-branch-${branch.id ?? `${brand.name}-${branch.name}`}`}
-              eyebrow={<><span className="ah-pos">Branch</span> · {branch.name}{org.kind === 'group' ? ` · ${brand.name}` : ''}</>}
-              people={branch.id ? (people.branch[branch.id] ?? []) : []} emptyRole="branch manager or negotiator"
-              invite={isAdmin && branch.id ? () => setInvite({ level: 'branch', partner, branchId: branch.id, name: branch.name }) : undefined}
-            />
-          ))}
+        <CardBody style={{ padding: 0 }}>
+          <div className="ah-tree">
+            {org.kind === 'group' && (
+              <div className="ah-node ah-node--group">
+                <div className="ah-node-main">
+                  <span className="ah-tick t-group">G</span>
+                  <span className="ah-node-name">{org.group.name}</span>
+                  <span className="ah-node-level">Group</span>
+                  <CommissionChip kind="group" ownP={org.group.partnerRate} ownA={org.group.agentRate} ownName={org.group.name} rowKey={`group:${org.group.id}`} />
+                </div>
+                <PeopleInline level="group" list={people.group} ctx={{ level: 'group', partner, groupId: org.group.id, name: org.group.name }} />
+              </div>
+            )}
+            {agencies.map((a) => {
+              const agencyPeople = a.id ? (people.agency[a.id] ?? []) : [];
+              const agencyRefs = (a.branches ?? []).reduce((s, b) => s + b.referrals, 0);
+              return (
+                <div key={a.id ?? a.name}>
+                  <div className={`ah-node ah-node--agency${org.kind === 'group' ? ' lv2' : ''}`}>
+                    <div className="ah-node-main">
+                      <span className="ah-tick t-agency">A</span>
+                      <span className="ah-node-name">{a.name}</span>
+                      <span className="ah-node-level">Agency</span>
+                      <CommissionChip kind="agency" ownP={a.partnerRate} ownA={a.agentRate} ownName={a.name} rowKey={a.id ? `agency:${a.id}` : undefined} />
+                      <button className="ah-refs" onClick={() => setFilterBranch(null)} title={`${agencyRefs} referrals across this agency`}>{agencyRefs} referrals</button>
+                    </div>
+                    <PeopleInline level="agency" list={agencyPeople} ctx={{ level: 'brand', partner, agencyId: a.id, name: a.name }} />
+                  </div>
+                  {(a.branches ?? []).map((b) => {
+                    const bPeople = b.id ? (people.branch[b.id] ?? []) : [];
+                    const nomineeId = b.id ? deedRecipients[b.id] : undefined;
+                    const nominee = nomineeId ? usersById[nomineeId] : undefined;
+                    return (
+                      <div key={b.id ?? b.name} className={`ah-node ah-node--branch${org.kind === 'group' ? ' lv3' : ' lv2'}`}>
+                        <div className="ah-node-main">
+                          <span className="ah-tick t-branch">•</span>
+                          <span className="ah-node-name">{b.name}</span>
+                          <span className="ah-node-level">Branch</span>
+                          <CommissionChip kind="branch" ownP={a.partnerRate} ownA={a.agentRate} ownName={a.name} />
+                          <button className="ah-refs" onClick={() => setFilterBranch(b.name)} title={`Filter referrals to ${b.name}`}>{b.referrals} referrals</button>
+                        </div>
+                        <PeopleInline level="branch" list={bPeople} ctx={{ level: 'branch', partner, branchId: b.id, name: b.name }} />
+                        {isAdmin && (
+                          <div className="ah-deed">
+                            {nominee ? (
+                              <>Deed recipient: <b>{nominee.name || nominee.email}</b> <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => b.id && doClear(b.id)}>Clear</button></>
+                            ) : nominateBranch === b.id ? (
+                              <>
+                                <select value={nomineeId} onChange={(e) => setNomineeId(e.target.value)} aria-label="Nominate deed recipient">
+                                  <option value="">Choose a person…</option>
+                                  {Object.values(usersById).map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+                                </select>
+                                <button className="ah-linkbtn" onClick={doNominate} disabled={!nomineeId}>Nominate</button>
+                                <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => { setNominateBranch(null); setNomineeId(''); }}>Cancel</button>
+                              </>
+                            ) : (
+                              <button className="ah-linkbtn" onClick={() => { setNominateBranch(b.id ?? null); setNomineeId(''); }}>Nominate deed recipient</button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </CardBody>
       </Card>
 
-      {/* REFERRALS — route: Agency */}
+      {/* REFERRALS — below the tree; a branch's referral count filters this. */}
       <Card>
         <CardHead
           title="Referrals"
-          sub="route: Agency"
-          actions={org.kind === 'brand'
-            ? <Link className="ah-viewall" to={`/applications?agency=${encodeURIComponent(org.brand.name)}`}>Open in Applications <Icon name="arrowRight" size={13} /></Link>
-            : undefined}
+          sub={filterBranch ? `route: Agency · ${filterBranch}` : 'route: Agency'}
+          actions={filterBranch
+            ? <button className="ah-viewall" onClick={() => setFilterBranch(null)}>Clear branch filter</button>
+            : (org.kind === 'agency' ? <Link className="ah-viewall" to={goApplications(org.agency.name)}>Open in Applications <Icon name="arrowRight" size={13} /></Link> : undefined)}
         />
-        <CardBody style={{ padding: recent.length === 0 ? undefined : 0 }}>
-          {recent.length === 0 ? (
-            <div className="ah-empty">No referrals beneath this {org.kind === 'group' ? 'group' : 'brand'} yet.</div>
-          ) : (
-            <table className="dt ah-table">
-              <thead><tr><th>Tenant</th><th>Branch</th><th>Stage</th></tr></thead>
-              <tbody>
-                {recent.map((r) => (
-                  <tr key={r.ref}>
-                    <td><Link className="ah-tenant" to={`/applications/${encodeURIComponent(r.ref)}`}><span className="who__av">{initials(r.tenant)}</span><span><span className="dt__name">{r.tenant}</span><span className="dt__sub">{r.ref}</span></span></Link></td>
-                    <td className="soft">{r.branch}</td>
-                    <td><span className={`ah-st ${STATUS_ST[r.status] ?? 'st-neutral'}`}>{STATUS_LABEL[r.status]}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+        <CardBody style={{ padding: 0 }}>
+          {(() => {
+            const rows = (filterBranch ? referrals.filter((r) => r.branch === filterBranch) : referrals).slice(0, 12);
+            if (rows.length === 0) return <div className="ah-empty">No referrals{filterBranch ? ` for ${filterBranch}` : ''} yet.</div>;
+            return (
+              <table className="dt ah-table">
+                <thead><tr><th>Tenant</th><th>Branch</th><th>Stage</th></tr></thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.ref}>
+                      <td><Link className="ah-tenant" to={`/applications/${encodeURIComponent(r.ref)}`}><span className="who__av">{initials(r.tenant)}</span><span><span className="dt__name">{r.tenant}</span><span className="dt__sub">{r.ref}</span></span></Link></td>
+                      <td className="soft">{r.branch}</td>
+                      <td><span className={`ah-st ${STATUS_ST[r.status] ?? 'st-neutral'}`}>{STATUS_LABEL[r.status]}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
+          })()}
         </CardBody>
       </Card>
 
       {invite && <InviteToLevel ctx={invite} onClose={() => setInvite(null)} onInvited={() => { setInvite(null); refreshSession(); bump(); }} />}
     </>
-  );
-}
-
-/** One editable commission tier row (two rate inputs + a per-row save). */
-function RateRow({ label, rowKey, draft, setDraft, editable, saving, onSave }: {
-  label: ReactNode; rowKey: string;
-  draft: Record<string, { p: string; a: string }>;
-  setDraft: Dispatch<SetStateAction<Record<string, { p: string; a: string }>>>;
-  editable: boolean; saving: boolean; onSave: () => void;
-}) {
-  const v = draft[rowKey] ?? { p: '', a: '' };
-  const set = (patch: Partial<{ p: string; a: string }>) => setDraft((d) => ({ ...d, [rowKey]: { ...(d[rowKey] ?? { p: '', a: '' }), ...patch } }));
-  return (
-    <div className="ah-crow">
-      <div className="ah-clbl">{label}</div>
-      {editable ? (
-        <>
-          <input className={`ah-inp${v.p ? ' set' : ''}`} inputMode="decimal" placeholder="inherit" value={v.p} onChange={(e) => set({ p: e.target.value })} aria-label="Opndoor rate" />
-          <input className={`ah-inp${v.a ? ' set' : ''}`} inputMode="decimal" placeholder="inherit" value={v.a} onChange={(e) => set({ a: e.target.value })} aria-label="Agent rate" />
-          <button className="ah-crow__save" onClick={onSave} disabled={saving} title="Save this tier">{saving ? '…' : 'Save'}</button>
-        </>
-      ) : (
-        <>
-          <span className={`ah-inp${v.p ? ' set' : ' ah-inp--ro'}`}>{v.p || '—'}</span>
-          <span className={`ah-inp${v.a ? ' set' : ' ah-inp--ro'}`}>{v.a || '—'}</span>
-        </>
-      )}
-    </div>
-  );
-}
-
-/** People at one level: a labelled block with rows and an invite-from-here action. */
-function PeopleBlock({ eyebrow, people, emptyRole, invite }: { eyebrow: ReactNode; people: Placed[]; emptyRole: string; invite?: () => void }) {
-  return (
-    <div className="ah-people-block">
-      <div className="ah-people-head">
-        <span className="ah-people-eyebrow">{eyebrow}</span>
-        {invite && <button className="ah-invite" onClick={invite}><Icon name="send" size={12} /> Invite</button>}
-      </div>
-      {people.length > 0 ? (
-        <div className="ah-people">
-          {people.map((p) => (
-            <div key={p.userId} className="ah-person">
-              <span className="ah-person__av">{initials(p.name || p.email)}</span>
-              <div className="ah-person__body">
-                <div className="ah-person__name">{p.name || p.email}</div>
-                <div className="ah-person__em">{p.email}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="ah-people-empty">No {emptyRole} yet.{invite ? ' Invite one from here.' : ''}</div>
-      )}
-    </div>
   );
 }
 

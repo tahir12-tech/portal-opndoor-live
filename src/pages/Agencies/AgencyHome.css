@@ -1,73 +1,62 @@
 /* =====================================================================
-   AgencyHome — group → brand → branch, in the portal brand. Group reads indigo,
-   brand heliotrope, branch slate; reuses .card / .dt from portal.css.
+   AgencyHome — one org tree. Group = indigo, Agency = heliotrope, Branch = slate.
+   Reuses .card / .dt from portal.css; everything else is the tree + its inline
+   node chrome (people, commission chip, invite, referral count, deed recipient).
    ===================================================================== */
 
 .ah-back { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ink-mute); text-decoration: none; }
 .ah-back:hover { color: var(--heliotrope-deep); }
 .ah-sub.ah-sub { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 8px; }
 
-.ah-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; align-items: start; }
-.ah-grid > * { min-width: 0; }
-@media (max-width: 900px) { .ah-grid { grid-template-columns: 1fr; } }
+/* tree */
+.ah-tree { display: flex; flex-direction: column; }
+.ah-node { padding: 14px 20px; border-top: 1px solid var(--line); }
+.ah-node:first-child { border-top: none; }
+.ah-node.lv2 { padding-left: 40px; }
+.ah-node.lv3 { padding-left: 64px; }
+.ah-node--group { background: rgba(39, 29, 95, 0.03); }
+.ah-node--branch { background: var(--white-lilac); }
 
-/* block header inside a .card */
-.block { overflow: hidden; }
-.block-h { display: flex; align-items: center; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--line); }
-.block-h h4 { font-family: var(--display); font-size: 14px; font-weight: 700; margin: 0; }
-.block-sub { font-size: 11.5px; color: var(--ink-mute); }
-.ah-newtag { font-family: var(--display); font-size: 9px; letter-spacing: .05em; background: var(--heliotrope-deep); color: #fff; padding: 1px 7px; border-radius: 999px; text-transform: uppercase; font-weight: 700; }
-
-/* structure tree */
-.ah-tree { padding: 10px 14px; font-size: 13px; }
-.ah-node { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 8px; }
-.ah-node:hover { background: var(--white-lilac); }
-.ah-node.lv2 { margin-left: 20px; }
-.ah-node.lv3 { margin-left: 44px; }
-.ah-tick { width: 16px; height: 16px; border-radius: 5px; display: grid; place-items: center; font-size: 9px; font-weight: 800; color: #fff; flex: none; }
+.ah-node-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ah-tick { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #fff; flex: none; }
 .ah-tick.t-group { background: var(--ink); }
-.ah-tick.t-brand { background: var(--heliotrope-deep); }
+.ah-tick.t-agency { background: var(--heliotrope-deep); }
 .ah-tick.t-branch { background: #64748b; }
-.ah-nm { font-weight: 600; color: var(--ink); }
-.ah-nm--link { text-decoration: none; }
-.ah-nm--link:hover { color: var(--heliotrope-deep); }
-.ah-mt { color: var(--ink-mute); font-size: 11.5px; margin-left: auto; }
+.ah-node-name { font-family: var(--display); font-weight: 700; font-size: 14.5px; color: var(--ink); }
+.ah-node-level { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-mute); background: var(--app-bg); border-radius: 999px; padding: 2px 8px; }
 
-/* commission tier editor */
-.ah-comm { padding: 14px 16px; }
-.ah-crow { display: grid; grid-template-columns: 1fr 84px 84px auto; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
-.ah-crow:first-of-type { border-top: none; }
-.ah-crow--head { font-size: 10px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
-.ah-crow--head span:nth-child(2), .ah-crow--head span:nth-child(3) { text-align: right; }
-.ah-clbl b { font-weight: 700; font-size: 12.5px; }
-.ah-clbl span { color: var(--ink-mute); font-size: 11px; }
-.ah-inp { background: var(--white-lilac); border: 1px solid var(--line-strong); border-radius: 7px; padding: 5px 9px; font-size: 12px; color: var(--ink); text-align: right; width: 100%; font-variant-numeric: tabular-nums; }
-.ah-inp.set { border-color: var(--heliotrope-deep); background: rgba(211, 100, 251, 0.1); color: var(--heliotrope-deep); font-weight: 700; }
-.ah-inp--ro { background: transparent; border-color: transparent; color: var(--ink-mute); }
-.ah-crow__save { border: 1px solid var(--heliotrope-deep); background: var(--heliotrope-deep); color: #fff; border-radius: 7px; padding: 4px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer; }
-.ah-crow__save:disabled { opacity: .6; cursor: default; }
-.ah-resolved { margin-top: 12px; padding: 10px 12px; background: var(--white-lilac); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; color: var(--ink); display: flex; gap: 6px; align-items: center; }
-.ah-resolved svg { color: var(--deed); flex: none; }
+/* commission chip + editor + expander (inline on the node) */
+.ah-comm-wrap { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.ah-chip { font-size: 12px; color: var(--ink); background: var(--white-lilac); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-variant-numeric: tabular-nums; }
+.ah-node--branch .ah-chip { background: #fff; }
+.ah-chip b { color: var(--heliotrope-deep); }
+.ah-chip-src { font-size: 11px; color: var(--ink-mute); }
+.ah-linkbtn { border: none; background: none; padding: 0; font-size: 12px; font-weight: 700; color: var(--heliotrope-deep); cursor: pointer; }
+.ah-linkbtn:hover { text-decoration: underline; }
+.ah-linkbtn--quiet { color: var(--ink-mute); font-weight: 600; }
+.ah-rate-edit { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; }
+.ah-rate-edit label { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-soft); }
+.ah-rate-edit input { width: 54px; text-align: right; border: 1px solid var(--line-strong); border-radius: 6px; padding: 3px 6px; font-variant-numeric: tabular-nums; }
+.ah-how { font-size: 11.5px; }
+.ah-how summary { color: var(--ink-mute); cursor: pointer; list-style: none; }
+.ah-how summary::-webkit-details-marker { display: none; }
+.ah-how__body { margin-top: 6px; padding: 8px 10px; background: var(--white-lilac); border-radius: 8px; color: var(--ink-soft); display: flex; flex-direction: column; gap: 3px; }
+.ah-how__body .muted { color: var(--ink-mute); }
 
-/* people by level */
-.ah-people-block { padding-top: 14px; }
-.ah-people-block + .ah-people-block { margin-top: 6px; border-top: 1px solid var(--line); }
-.ah-people-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.ah-people-eyebrow { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
-.ah-pos { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--app-bg); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .04em; }
-.ah-pos--grp { background: rgba(39, 29, 95, 0.1); color: var(--ink); }
-.ah-pos--brand { background: rgba(211, 100, 251, 0.12); color: var(--heliotrope-deep); }
-.ah-invite { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line-strong); background: #fff; color: var(--heliotrope-deep); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer; }
-.ah-invite:hover { border-color: var(--heliotrope-deep); }
-.ah-people { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 16px; }
-@media (max-width: 620px) { .ah-people { grid-template-columns: 1fr; } }
-.ah-person { display: flex; align-items: center; gap: 11px; }
-.ah-person__av { width: 30px; height: 30px; border-radius: 50%; background: var(--white-lilac); color: var(--heliotrope-deep); display: grid; place-items: center; font-weight: 700; font-size: 11px; flex: none; border: 1px solid var(--line); }
-.ah-person__name { font-weight: 600; font-size: 13px; color: var(--ink); }
-.ah-person__em { font-size: 11.5px; color: var(--ink-mute); }
-.ah-people-empty { font-size: 12.5px; color: var(--ink-mute); }
+.ah-refs { border: none; background: none; padding: 0; font-size: 12px; color: var(--ink-mute); cursor: pointer; white-space: nowrap; }
+.ah-refs:hover { color: var(--heliotrope-deep); text-decoration: underline; }
 
-/* referrals */
+/* people, inline on the node */
+.ah-node-people { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding-left: 28px; }
+.ah-chip-person { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px 2px 3px; }
+.ah-av { width: 22px; height: 22px; border-radius: 50%; background: var(--white-lilac); color: var(--heliotrope-deep); display: grid; place-items: center; font-size: 9.5px; font-weight: 800; }
+.ah-role { font-size: 10.5px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: .03em; }
+.ah-invite-inline { display: inline-flex; align-items: center; gap: 5px; }
+
+.ah-deed { margin-top: 8px; padding-left: 28px; font-size: 12px; color: var(--ink-soft); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ah-deed select { border: 1px solid var(--line-strong); border-radius: 6px; padding: 3px 8px; font-size: 12px; }
+
+/* referrals table */
 .ah-table { width: 100%; }
 .ah-table td.soft { color: var(--ink-mute); }
 .ah-tenant { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
@@ -78,5 +67,9 @@
 .ah-st.st-live { background: var(--white-lilac); color: var(--heliotrope-deep); }
 .ah-st.st-ok { background: rgba(34, 160, 100, 0.12); color: var(--deed); }
 .ah-st.st-neutral { background: var(--app-bg); color: var(--ink-mute); }
-.ah-viewall { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--heliotrope-deep); text-decoration: none; }
+.ah-viewall { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--heliotrope-deep); text-decoration: none; background: none; border: none; cursor: pointer; }
 .ah-empty { padding: 22px; text-align: center; color: var(--ink-mute); font-size: 13px; }
+
+@media (max-width: 720px) {
+  .ah-comm-wrap { margin-left: 0; width: 100%; }
+}
