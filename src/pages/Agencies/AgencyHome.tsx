@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { fmtRatePct } from '@/lib/format';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
+import { AgencyGrow } from './AgencyGrow';
 import './AgencyHome.css';
 
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
@@ -65,6 +66,7 @@ export function AgencyHome() {
   const [tick, setTick] = useState(0);
   const bump = () => setTick((t) => t + 1);
   const [invite, setInvite] = useState<InviteContext | null>(null);
+  const [grow, setGrow] = useState<'branch' | 'agency' | null>(null);
   const [filterBranch, setFilterBranch] = useState<string | null>(null);
 
   const org = useMemo<Org | null>(() => {
@@ -263,9 +265,8 @@ export function AgencyHome() {
         </div>
         {isAdmin && (
           <div className="page-head__actions">
-            {org.kind === 'group'
-              ? <Button variant="ghost" size="sm" onClick={() => setInvite({ level: 'group', partner, groupId: org.group.id, name: org.group.name })}><Icon name="send" /> Invite group director</Button>
-              : null}
+            <Button variant="ghost" size="sm" onClick={() => setGrow('branch')}><Icon name="plus" /> Add a branch</Button>
+            <Button variant="ghost" size="sm" onClick={() => setGrow('agency')}><Icon name="plus" /> {org.kind === 'group' ? 'Add agency' : 'Add another agency'}</Button>
           </div>
         )}
       </div>
@@ -374,6 +375,7 @@ export function AgencyHome() {
       </Card>
 
       {invite && <InviteToLevel ctx={invite} onClose={() => setInvite(null)} onInvited={() => { setInvite(null); refreshSession(); bump(); }} />}
+      {grow && <AgencyGrow mode={grow} agencies={agencies} group={group} onClose={() => setGrow(null)} onDone={() => { setGrow(null); refreshSession(); bump(); }} />}
     </>
   );
 }
