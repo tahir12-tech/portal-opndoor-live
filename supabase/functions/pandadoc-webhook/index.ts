@@ -113,7 +113,12 @@ Deno.serve(async (req) => {
         // which is enough. Sandbox still sends nothing.
         const { data: target } = await service.rpc("deed_delivery_target", { p_application: app.id });
         const dest = Array.isArray(target) ? target[0] : target;
-        if (dest?.email && mayEmail) {
+        // auto_send is false when an AGENT-RAIL deed has no ACTIVE person to receive
+        // it — the only manager is still pending, say. A pending account cannot be
+        // opened, so emailing it would be a silent loss; it goes to the same
+        // needs-attention surface below instead, for a staff send. Supplier and
+        // direct rails always set it true, so they are unaffected.
+        if (dest?.email && dest?.auto_send !== false && mayEmail) {
           const agencyName = (Array.isArray(app.agency) ? app.agency[0]?.name : (app.agency as { name?: string } | null)?.name) ?? "";
           await deliverDeedToAgent(service, {
             appId: app.id,
@@ -128,9 +133,19 @@ Deno.serve(async (req) => {
             pdfPath: path,
           }, { email: dest.email, name: dest.display_name ?? "" }, "automatic");
         } else {
-          // No contact resolved at all: mark delivery as failed so it surfaces on
-          // the delivery-failure/needs-attention surfaces (Delivery Failed).
-          await service.from("activity_log").insert({ application_id: app.id, kind: "deed_delivery_failed", message: "Deed issued; no agent contact on file — delivery failed.", actor: "System", visibility: "business" });
+          // Nothing to deliver to, or nobody who may receive it yet: mark delivery
+          // as failed so it surfaces on the delivery-failure/needs-attention
+          // surfaces (Delivery Failed) for a staff send.
+          const heldForPeople = !!dest?.email && dest?.auto_send === false;
+          await service.from("activity_log").insert({
+            application_id: app.id,
+            kind: "deed_delivery_failed",
+            message: heldForPeople
+              ? "Deed issued; nobody active at this agency can receive it — held for a staff send. Invite or activate a manager, or nominate a recipient."
+              : "Deed issued; no agent contact on file — delivery failed.",
+            actor: "System",
+            visibility: "business",
+          });
         }
              // Resend allows 2 req/sec; a short gap keeps the agent + tenant emails
         // (and any review-copy send inside them) from landing in the same window.

@@ -1351,7 +1351,11 @@ function requestCloseContacts() {
           <p className="page-head__sub">The group → agency → branch hierarchy. Search a group, agency or branch, expand to see branches, or click any figure to view the applications behind it.</p>
         </div>
         <div className="page-head__actions">
-          {canManageOrg && (
+          {/* Opndoor onboards agencies: admin_create_agency_and_branch refuses
+              anyone but an admin, so drawing this for an agency manager offered a
+              button that could only fail. Add BRANCH stays on canManageOrg, which
+              management may genuinely do. */}
+          {role === 'superadmin' && (
             <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}><Icon name="plus" /> Add agency</Button>
           )}
         </div>
