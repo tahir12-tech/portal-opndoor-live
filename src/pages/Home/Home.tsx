@@ -12,6 +12,7 @@ import {
   getApplications, ALL_PARTNERS,
 } from '@/data';
 import { channelOf, ROUTE_LABEL, type Channel } from '@/data/channel';
+import { getPositions } from '@/data/positionsService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
@@ -57,8 +58,9 @@ export function Home() {
   );
 
   // Per-actor landing: only opndoor staff see the ops Home. A developer's home is
-  // the Dev Centre; every other role lands on their book (Reporting).
-  if (!isOpndoorStaff) return <Navigate to={role === 'developer' ? '/dev-centre' : '/dashboard'} replace />;
+  // the Dev Centre; an agency/group manager lands on THEIR agency home (per the
+  // invited-manager decision); everyone else lands on their book (Reporting).
+  if (!isOpndoorStaff) return <ManagerLanding />;
 
   const tiles = [
     { label: 'Awaiting decision', n: awaiting, meta: 'need an eligibility decision', to: '/applications?status=referencing', tone: 'warn' as const },
@@ -162,4 +164,27 @@ export function Home() {
       {role === 'superadmin' && <FinanceSurfaces role={role} partnerScope={ALL_PARTNERS} />}
     </>
   );
+}
+
+/** Non-staff landing. A developer goes to the Dev Centre; an agency or group
+    manager (a position holder) lands on their own agency home; everyone else on
+    their book (Reporting). Async because positions are read per user. */
+function ManagerLanding() {
+  const { role, currentUserId } = useSession();
+  const [dest, setDest] = useState<string | null>(null);
+  useEffect(() => {
+    if (role === 'developer') { setDest('/dev-centre'); return; }
+    if (role !== 'management') { setDest('/dashboard'); return; }
+    let alive = true;
+    getPositions(currentUserId ?? '')
+      .then((ps) => {
+        if (!alive) return;
+        const node = ps.find((p) => p.kind === 'agency') ?? ps.find((p) => p.kind === 'group');
+        setDest(node ? `/agencies/${encodeURIComponent(node.targetId)}` : '/dashboard');
+      })
+      .catch(() => { if (alive) setDest('/dashboard'); });
+    return () => { alive = false; };
+  }, [role, currentUserId]);
+  if (!dest) return null;
+  return <Navigate to={dest} replace />;
 }

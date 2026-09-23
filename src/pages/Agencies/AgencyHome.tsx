@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  getAgencies, getGroup, getGroups, getRatesFor, setAgencyRates, setGroupRates,
+  getAgencies, getGroup, getGroups, getPartner, getRatesFor, setAgencyRates, setGroupRates,
   getApplications, getUsers, maySeeCommission, ALL_PARTNERS,
   type Agency, type AgencyGroup, type ManagedUser, type Status,
 } from '@/data';
@@ -138,6 +138,9 @@ export function AgencyHome() {
   }, [org, partner, role, dataVersion, tick]);
 
   const base = getRatesFor(partner || ALL_PARTNERS);
+  // Agent-rail orgs deliver deeds to their people; a branch with no one in the whole
+  // chain (nominee, branch/agency/group manager) cannot receive a deed.
+  const isAgentRail = getPartner(partner)?.referencingMode === 'opndoor_referenced';
 
   // ---- per-node rate editor ----
   const [editRow, setEditRow] = useState<string | null>(null); // 'group:<id>' | 'agency:<id>'
@@ -305,6 +308,9 @@ export function AgencyHome() {
                     const bPeople = b.id ? (people.branch[b.id] ?? []) : [];
                     const nomineeId = b.id ? deedRecipients[b.id] : undefined;
                     const nominee = nomineeId ? usersById[nomineeId] : undefined;
+                    // Agent-rail deeds resolve to a person; nobody in the whole chain
+                    // (nominee, this branch, this agency, the group) means none can receive.
+                    const chainEmpty = !nominee && bPeople.length === 0 && agencyPeople.length === 0 && people.group.length === 0;
                     return (
                       <div key={b.id ?? b.name} className={`ah-node ah-node--branch${org.kind === 'group' ? ' lv3' : ' lv2'}`}>
                         <div className="ah-node-main">
@@ -314,6 +320,9 @@ export function AgencyHome() {
                           <CommissionChip kind="branch" ownP={a.partnerRate} ownA={a.agentRate} ownName={a.name} />
                           <button className="ah-refs" onClick={() => setFilterBranch(b.name)} title={`Filter referrals to ${b.name}`}>{b.referrals} referrals</button>
                         </div>
+                        {isAgentRail && chainEmpty && (
+                          <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this branch can receive the deed. Invite a branch manager or nominate a recipient.</div>
+                        )}
                         <PeopleInline level="branch" list={bPeople} ctx={{ level: 'branch', partner, branchId: b.id, name: b.name }} />
                         {isAdmin && (
                           <div className="ah-deed">

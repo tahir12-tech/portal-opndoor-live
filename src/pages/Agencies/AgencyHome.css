@@ -73,3 +73,10 @@
 @media (max-width: 720px) {
   .ah-comm-wrap { margin-left: 0; width: 100%; }
 }
+
+.ah-deed-warn {
+  margin-top: 8px; margin-left: 28px; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--warn); background: var(--warn-bg);
+  border-radius: 8px; padding: 8px 12px;
+}
+.ah-deed-warn svg { flex: none; }
