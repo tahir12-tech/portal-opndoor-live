@@ -497,5 +497,41 @@ mark.hl {
 }
 .orggroup__name:hover { color: var(--heliotrope-deep); }
 .orggroup__meta { font-size: 11.5px; color: var(--ink-mute); margin-top: 1px; }
+/* A group is a COLLAPSED one-line row until opened, so a long list is a list of
+   groups rather than the whole tree. Same mechanism as .agency/.branches. */
+.orggroup__head { cursor: pointer; }
+.orggroup__chev {
+  color: var(--ink-mute);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.orggroup.is-open .orggroup__chev { transform: rotate(90deg); }
+.orggroup__stats { margin-left: auto; display: flex; align-items: center; gap: 18px; padding-right: 6px; }
 /* brands sit indented under their group node */
-.orggroup__brands { margin-left: 18px; border-left: 2px solid var(--line); padding-left: 12px; }
+.orggroup__brands {
+  margin-left: 18px; border-left: 2px solid var(--line); padding-left: 12px;
+  display: none;
+}
+.orggroup.is-open .orggroup__brands { display: block; }
+
+/* list toolbar: how much is drawn, and expand/collapse everything listed */
+.org-tools {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; margin-bottom: 10px;
+}
+.org-tools__count { font-size: 12.5px; color: var(--ink-mute); }
+.org-tools__actions { display: flex; gap: 8px; }
+.org-tools__btn {
+  font-family: var(--display); font-size: 12px; font-weight: 700; letter-spacing: .02em;
+  color: var(--ink); background: none; border: 1px solid var(--line);
+  border-radius: 8px; padding: 5px 10px; cursor: pointer;
+}
+.org-tools__btn:hover { border-color: var(--ink); }
+.org-more { display: flex; justify-content: center; margin-top: 12px; }
+
+@media (max-width: 720px) {
+  .orggroup__stats { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orggroup__chev, .agency__chev { transition: none; }
+}

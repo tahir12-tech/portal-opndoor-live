@@ -150,6 +150,38 @@ export async function clearDeedRecipient(branchId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/** Whether each agency/branch can receive a deed from its own people. */
+export interface DeedReadiness {
+  /** agency id -> somebody at or under this agency can receive a deed. */
+  agencies: Map<string, boolean>;
+  /** branch id -> the ladder resolves for this branch specifically. */
+  branches: Map<string, boolean>;
+}
+
+/** Agent-rail deed readiness for every agency and branch the caller can see, in ONE
+    call (org_deed_readiness). The Agencies list must work at thousands of rows, so the
+    people ladder — nominated recipient, else branch/agency/group manager — is resolved
+    server-side and set-based rather than recomputed per row here.
+
+    Only ACTIVE people count: a pending invitee has not accepted and cannot receive
+    anything, so they do not clear the warning.
+
+    Supplier-introduced orgs are absent from the result by design; a missing agency
+    means "not agent rail, or not visible", and the caller keeps the agent_contacts
+    warning for those. Returns null in mock mode, which reads the same way. */
+export async function getOrgDeedReadiness(): Promise<DeedReadiness | null> {
+  if (!SUPABASE_ENABLED) return null;
+  const { data, error } = await sb().rpc('org_deed_readiness');
+  if (error) throw new Error(error.message);
+  const agencies = new Map<string, boolean>();
+  const branches = new Map<string, boolean>();
+  for (const r of (data ?? []) as Array<{ agency_id: string; branch_id: string | null; ready: boolean }>) {
+    if (r.branch_id) branches.set(String(r.branch_id), !!r.ready);
+    else agencies.set(String(r.agency_id), !!r.ready);
+  }
+  return { agencies, branches };
+}
+
 /** Records that somebody works at an agency. The bootstrap for cross-route reach. */
 export async function attachToAgency(userId: string, agencyId: string): Promise<void> {
   if (!SUPABASE_ENABLED) return;

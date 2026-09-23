@@ -623,8 +623,9 @@
    next hydration. Admin-created records land confirmed; management-created
    land pending_review. In mock/test mode the same edits apply locally.
    ===================================================================== */
-import { useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { getOrgDeedReadiness, type DeedReadiness } from '@/data/positionsService';
 import {
   ALL_PARTNERS, addContactLive, createBranchLive, effectivePrimary, findAgency,
   getAgencies, getGroups, getPartner, getRatesFor, createAgencyGroup, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
@@ -642,6 +643,11 @@ import { AgencyCreate } from '@/pages/Agencies/AgencyCreate';
 import './OrgManagement.css';
 
 const agencyId = (a: Agency) => `${a.partner || 'northwind'}:${a.name}`;
+/** Expand-state keys. Prefixed so a group id can never collide with an agency key. */
+const GK = (groupId: string) => `g:${groupId}`;
+const AK = (a: Agency) => `a:${agencyId(a)}`;
+/** Top-level nodes drawn per page. The tree below them is collapsed by default. */
+const PAGE = 50;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /** An inline, consequence-aware confirmation rendered inside the contacts modal. */
@@ -693,12 +699,53 @@ const realName = (name: string, email: string): string => {
   return n;
 };
 
-/** The effective-primary-contact summary line shown under an agency or branch name. */
-function ContactSummary({ agency, branch, canManage, onManage }: { agency: Agency; branch: Branch | null; canManage: boolean; onManage: () => void }) {
+/** The deed/contact summary line shown under an agency or branch name.
+
+    TWO RAILS, TWO QUESTIONS. On a supplier-introduced org the agent_contacts
+    mailbox IS the deed path, so a missing contact is the warning. On the AGENT
+    rail the deed goes to the org's PEOPLE — a nominated recipient, else the
+    branch/agency/group manager — so the mailbox says nothing about whether a deed
+    can be issued, and warning from it fired on agencies that are perfectly able to
+    receive one.
+
+    `ready` carries the people answer, resolved server-side by org_deed_readiness
+    for the whole list in one call (it must scale to thousands of rows, so it is
+    not recomputed here per row). It is undefined for supplier-introduced orgs and
+    in mock mode, and that case keeps the mailbox warning exactly as before. */
+function ContactSummary({ agency, branch, canManage, onManage, ready }: { agency: Agency; branch: Branch | null; canManage: boolean; onManage: () => void; ready?: boolean }) {
   const ep = effectivePrimary(agency, branch);
   const manageBtn = canManage ? (
     <button className="contact-manage" onClick={(e) => { e.stopPropagation(); onManage(); }}>Manage</button>
   ) : null;
+  const contactLine = ep.contact ? (
+    <div className="contact-line">
+      <Icon name="mail" />
+      <span>{realName(ep.contact.name, ep.contact.email) ? <><b>{realName(ep.contact.name, ep.contact.email)}</b> · {ep.contact.email}</> : <b>{ep.contact.email}</b>}</span>
+      {branch && ep.inherited && <span className="cl-inherit">(agency default)</span>}
+      {manageBtn}
+    </div>
+  ) : null;
+
+  if (ready !== undefined) {
+    // Agent rail. No Manage button on the warning: the fix is inviting a manager or
+    // nominating a recipient on the agency's own page, not editing a mailbox.
+    if (!ready) {
+      return (
+        <div className="contact-line contact-line--none">
+          <Icon name="alert" />
+          <span className="cl-none">
+            {branch
+              ? 'No one at this branch can receive the deed. Invite a branch manager or nominate a recipient.'
+              : 'No one at this agency can receive the deed. Invite a manager or nominate a recipient.'}
+          </span>
+        </div>
+      );
+    }
+    // A mailbox is still worth showing when there is one, but on this rail it is
+    // information rather than a deed requirement.
+    return contactLine;
+  }
+
   if (!ep.contact) {
     // DEFECTS.md 6. This is not a cosmetic gap: a branch with no resolvable
     // primary contact CANNOT ISSUE A DEED, and the failure happens after the
@@ -714,27 +761,53 @@ function ContactSummary({ agency, branch, canManage, onManage }: { agency: Agenc
       </div>
     );
   }
-  return (
-    <div className="contact-line">
-      <Icon name="mail" />
-      <span>{realName(ep.contact.name, ep.contact.email) ? <><b>{realName(ep.contact.name, ep.contact.email)}</b> · {ep.contact.email}</> : <b>{ep.contact.email}</b>}</span>
-      {branch && ep.inherited && <span className="cl-inherit">(agency default)</span>}
-      {manageBtn}
-    </div>
-  );
+  return contactLine;
 }
 
 export function OrgManagement() {
   usePageMeta('org', 'Agencies', ['Home', 'Relationships', 'Agencies']);
-  const { role, partnerScope, refresh: refreshData } = useSession();
+  const { role, partnerScope, currentUserId, dataVersion, refresh: refreshData } = useSession();
   const toast = useToast();
 
-  const [, setVersion] = useState(0);
+  const [version, setVersion] = useState(0);
   const refresh = () => setVersion((v) => v + 1);
   const [createOpen, setCreateOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState('');
-  const [openSet, setOpenSet] = useState<Set<string>>(() => new Set(getAgencies(ALL_PARTNERS).filter((a) => a.open).map(agencyId)));
+
+  /* EXPAND STATE. Groups and agencies are COLLAPSED by default, so a thousand
+     agencies is a thousand one-line rows rather than the whole tree. Keys are
+     prefixed (GK/AK) so a group and an agency can never collide. Kept per user for
+     the session: sessionStorage survives navigating away and back, and does not
+     follow them into tomorrow. */
+  const expandKey = `org-expand:${currentUserId ?? 'anon'}`;
+  const [openSet, setOpenSet] = useState<Set<string>>(() => {
+    try {
+      const raw = sessionStorage.getItem(`org-expand:${currentUserId ?? 'anon'}`);
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* private window or blocked storage: start collapsed, which is correct anyway */ }
+    return new Set();
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem(expandKey, JSON.stringify([...openSet])); } catch { /* losing the expand state is not worth an error */ }
+  }, [expandKey, openSet]);
+
+  /* How many TOP-LEVEL nodes (groups + independent agencies) are drawn. Collapsed
+     rows are cheap, but the top level itself can be thousands, so it is paged. */
+  const [shownCount, setShownCount] = useState(PAGE);
+  useEffect(() => { setShownCount(PAGE); }, [query]);
+
+  /* Agent-rail deed readiness for every visible agency and branch, resolved
+     server-side in ONE call rather than per row. Null (mock mode, or a failure)
+     reads as "unknown", which keeps the old agent-contact warning. */
+  const [readiness, setReadiness] = useState<DeedReadiness | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getOrgDeedReadiness()
+      .then((r) => { if (alive) setReadiness(r); })
+      .catch(() => { if (alive) setReadiness(null); });
+    return () => { alive = false; };
+  }, [dataVersion]);
 
   // add-agency modal (+ its required default contact)
   // add-branch modal (+ its optional own contact)
@@ -804,9 +877,13 @@ export function OrgManagement() {
   // admin sees every group/brand/branch; a partner manager sees their own. There
   // is no partner selector on this screen.
   const listScope = role === 'superadmin' ? ALL_PARTNERS : partnerScope;
-  const pool = getAgencies(listScope);
+  /* getAgencies allocates a fresh filtered array on every call, so these are
+     memoised on the things that can actually change the org tree: the scope, a
+     re-hydration (dataVersion) and a local mutation (version). Without this the
+     whole pool is rescanned on every keystroke in the search box. */
+  const pool = useMemo(() => getAgencies(listScope), [listScope, version, dataVersion]);
 
-  const partnerPoolForBranch = getAgencies(listScope);
+  const partnerPoolForBranch = pool;
 
   /* DEFECTS.md 6. Branches that cannot issue a deed, surfaced BEFORE an
      application fails against one rather than after.
@@ -817,13 +894,15 @@ export function OrgManagement() {
   // Agent-rail orgs (partner referencing_mode 'opndoor_referenced') resolve the deed
   // from their PEOPLE — a nominated recipient, else the branch/agency/group manager —
   // which the agency detail page surfaces per branch; the mailbox check does not apply.
-  const deedBlocked = pool
+  // Memoised: this walks every agency and every branch and calls getPartner (a
+  // linear find) per agency, so unmemoised it ran on every keystroke.
+  const deedBlocked = useMemo(() => pool
     .filter((a) => getPartner(a.partner)?.referencingMode !== 'opndoor_referenced')
     .flatMap((a) =>
       a.branches
         .filter((b) => !effectivePrimary(a, b).contact)
         .map((b) => ({ agency: a.name, branch: b.name })),
-    );
+    ), [pool]);
 
   // Resolve the contacts-modal owner fresh each render (reflects mutations + re-hydration).
   const ctAgency = ctOpen ? findAgency(ctAgencyName) ?? null : null;
@@ -1108,43 +1187,77 @@ function requestCloseContacts() {
 
   // Real groups (agency_groups) for the current scope, keyed by id — used both to
   // match a group-name search and to build the group -> brand -> branch tree.
-  const listGroups = getGroups(listScope);
-  const groupById = new Map(listGroups.map((g) => [g.id, g]));
+  const listGroups = useMemo(() => getGroups(listScope), [listScope, version, dataVersion]);
+  const groupById = useMemo(() => new Map(listGroups.map((g) => [g.id, g])), [listGroups]);
 
   // Filtered, with expand-all while searching (mirrors org-management.html). A brand
   // matches on its own name OR its group's name, so searching a group keeps all its
   // brands (and their branches) — matching the "Search groups, brands or branches" copy.
-  const shownAgencies = pool
+  const shownAgencies = useMemo(() => pool
     .map((a) => {
       const groupName = a.groupId ? (groupById.get(a.groupId)?.name.toLowerCase() ?? '') : '';
       const agencyMatch = a.name.toLowerCase().includes(q) || (!!q && groupName.includes(q));
+      // A BRANCH-level hit is what auto-expands an agency while searching. An
+      // agency-name hit does not: the matching row is the agency itself, and
+      // opening its branches would be expanding past the match.
+      const branchHit = !!q && a.branches.some((b) => b.name.toLowerCase().includes(q));
       const branches = a.branches.filter((b) => !q || agencyMatch || b.name.toLowerCase().includes(q));
-      return { a, agencyMatch, branches };
+      return { a, agencyMatch, branchHit, branches };
     })
-    .filter(({ agencyMatch, branches }) => !(q && !agencyMatch && branches.length === 0));
+    .filter(({ agencyMatch, branches }) => !(q && !agencyMatch && branches.length === 0)),
+    [pool, groupById, q]);
 
   // Group the shown brands into their real group, so the list is a group -> brand ->
   // branch tree. Brands with no group render at the top level.
   type ShownBrand = (typeof shownAgencies)[number];
-  const groupSections = new Map<string, { group: AgencyGroup; items: ShownBrand[] }>();
-  const ungroupedBrands: ShownBrand[] = [];
-  for (const item of shownAgencies) {
-    const g = item.a.groupId ? groupById.get(item.a.groupId) : undefined;
-    if (g) {
-      const sec = groupSections.get(g.id) ?? { group: g, items: [] };
-      sec.items.push(item);
-      groupSections.set(g.id, sec);
-    } else {
-      ungroupedBrands.push(item);
+  /* The top level of the list — group nodes and independent agencies — as ONE
+     sequence, so paging counts what is actually drawn rather than guessing. Only
+     the first `shownCount` are rendered, and everything below a COLLAPSED node is
+     not rendered at all. */
+  type TopNode =
+    | { kind: 'group'; group: AgencyGroup; items: ShownBrand[] }
+    | { kind: 'agency'; item: ShownBrand };
+
+  const { groupList, topNodes } = useMemo(() => {
+    const sections = new Map<string, { group: AgencyGroup; items: ShownBrand[] }>();
+    const ungrouped: ShownBrand[] = [];
+    for (const item of shownAgencies) {
+      const g = item.a.groupId ? groupById.get(item.a.groupId) : undefined;
+      if (g) {
+        const sec = sections.get(g.id) ?? { group: g, items: [] };
+        sec.items.push(item);
+        sections.set(g.id, sec);
+      } else {
+        ungrouped.push(item);
+      }
     }
-  }
-  const groupList = [...groupSections.values()];
+    const gl = [...sections.values()];
+    const nodes: TopNode[] = [
+      ...gl.map((g) => ({ kind: 'group' as const, group: g.group, items: g.items })),
+      ...ungrouped.map((item) => ({ kind: 'agency' as const, item })),
+    ];
+    return { groupList: gl, topNodes: nodes };
+  }, [shownAgencies, groupById]);
+
+  const visibleNodes = topNodes.slice(0, shownCount);
+
+  // Expand-all applies to what is currently listed, which is what the reader means
+  // by "all" when a filter is on.
+  const expandAll = () => {
+    const next = new Set<string>();
+    groupList.forEach(({ group }) => next.add(GK(group.id)));
+    shownAgencies.forEach(({ a }) => next.add(AK(a)));
+    setOpenSet(next);
+  };
+  const collapseAll = () => setOpenSet(new Set());
 
   // One brand (an agencies row) with its branches — reused under each group node
   // and for ungrouped brands.
-  const renderBrand = ({ a, branches }: ShownBrand) => {
-    const id = agencyId(a);
-    const open = q ? true : openSet.has(id);
+  const renderBrand = ({ a, branchHit, branches }: ShownBrand) => {
+    const id = AK(a);
+    // While searching, expansion follows the match rather than the saved state, so
+    // only the path to a hit opens.
+    const open = q ? branchHit : openSet.has(id);
     const fees = feesOf(a, true);
     const meta = `${a.branches.length} ${a.branches.length === 1 ? 'branch' : 'branches'}`;
     return (
@@ -1155,7 +1268,7 @@ function requestCloseContacts() {
           <div className="agency__txt">
             <Link className="agency__name agency__namelink" to={`/agencies/${encodeURIComponent(a.id ?? a.name)}`} data-stop title={`Open ${a.name}`}>{highlight(a.name, q)}</Link>
             <div className="agency__meta">{meta}</div>
-            <ContactSummary agency={a} branch={null} canManage={canManageContacts} onManage={() => openContacts(a.name, null)} />
+            <ContactSummary agency={a} branch={null} canManage={canManageContacts} onManage={() => openContacts(a.name, null)} ready={a.id ? readiness?.agencies.get(a.id) : undefined} />
           </div>
           <Link className="statlink statlink--agency" to={`/applications?agency=${encodeURIComponent(a.name)}`} title={`View all applications for ${a.name}`}>
             <div className="agency__stat"><div className="n">{a.referrals}</div><div className="l">Referrals</div></div>
@@ -1170,6 +1283,11 @@ function requestCloseContacts() {
             </div>
           )}
         </div>
+        {/* UNMOUNTED when closed, not merely hidden. The old tree rendered every
+            branch and let CSS display:none it, so "collapsed" cost exactly as much
+            DOM as expanded — which is the thing that has to stop at a thousand
+            agencies. */}
+        {open && (
         <div className="branches">
           {branches.map((b) => {
             const bFees = feesOf(b, false);
@@ -1180,7 +1298,7 @@ function requestCloseContacts() {
                 <div className="branch__txt">
                   <div className="branch__name">{highlight(b.name, q)}</div>
                   <div className="branch__meta">{b.area}</div>
-                  <ContactSummary agency={a} branch={b} canManage={canManageContacts} onManage={() => openContacts(a.name, b.name)} />
+                  <ContactSummary agency={a} branch={b} canManage={canManageContacts} onManage={() => openContacts(a.name, b.name)} ready={b.id ? readiness?.branches.get(b.id) : undefined} />
                 </div>
                 <Link className="statlink statlink--branch" to={`/applications?branch=${encodeURIComponent(b.name)}`} title={`View applications for ${b.name}`}>
                   <div className="branch__stat"><b>{b.referrals}</b>referrals</div>
@@ -1197,6 +1315,7 @@ function requestCloseContacts() {
             </div>
           )}
         </div>
+        )}
       </div>
     );
   };
@@ -1249,27 +1368,65 @@ function requestCloseContacts() {
         <button className="org-search__clear" aria-label="Clear search" onClick={() => setQuery('')}><Icon name="x" size={16} /></button>
       </div>
 
+      {topNodes.length > 0 && (
+        <div className="org-tools">
+          <div className="org-tools__count">
+            Showing <b>{Math.min(shownCount, topNodes.length)}</b> of {topNodes.length} {topNodes.length === 1 ? 'row' : 'rows'}
+            {' · '}{shownAgencies.length} {shownAgencies.length === 1 ? 'agency' : 'agencies'}
+          </div>
+          {/* While searching, expansion follows the match, so these would be dead. */}
+          {!q && (
+            <div className="org-tools__actions">
+              <button type="button" className="org-tools__btn" onClick={expandAll}>Expand all</button>
+              <button type="button" className="org-tools__btn" onClick={collapseAll}>Collapse all</button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="org">
-        {groupList.map(({ group, items }) => {
+        {visibleNodes.map((node) => {
+          if (node.kind === 'agency') return renderBrand(node.item);
+          const { group, items } = node;
           const brandCount = items.length;
           const branchCount = items.reduce((s, it) => s + it.a.branches.length, 0);
+          // Rolled up from the agencies underneath, so a collapsed group still
+          // answers "how much business is in here?" without being opened.
+          const groupRefs = items.reduce((s, it) => s + (it.a.referrals || 0), 0);
+          const groupFees = items.reduce((s, it) => s + feesOf(it.a, true), 0);
+          const gOpen = q ? true : openSet.has(GK(group.id));
           return (
-            <div className="orggroup" key={group.id}>
-              <div className="orggroup__head">
+            <div className={`orggroup${gOpen ? ' is-open' : ''}`} key={group.id}>
+              <div className="orggroup__head" onClick={(e) => onHeadClick(e, GK(group.id))}>
+                <span className="orggroup__chev"><Icon name="chevronRight" size={18} strokeWidth={2.2} /></span>
                 <span className="orggroup__tick">G</span>
                 <div className="orggroup__txt">
-                  <Link className="orggroup__name" to={`/agencies/${encodeURIComponent(group.id)}`} title={`Open ${group.name}`}>{highlight(group.name, q)}</Link>
+                  <Link className="orggroup__name" to={`/agencies/${encodeURIComponent(group.id)}`} data-stop title={`Open ${group.name}`}>{highlight(group.name, q)}</Link>
                   <div className="orggroup__meta">{brandCount} {brandCount === 1 ? 'agency' : 'agencies'} · {branchCount} {branchCount === 1 ? 'branch' : 'branches'}</div>
                 </div>
+                <div className="orggroup__stats">
+                  <div className="agency__stat"><div className="n">{groupRefs}</div><div className="l">Referrals</div></div>
+                  <div className="agency__stat"><div className="n">{fmtK(groupFees)}</div><div className="l">Fees collected</div></div>
+                  {isMgmt && <div className="agency__stat"><div className="n">{fmtK(groupFees * rates.agent)}</div><div className="l">Agency commission</div></div>}
+                </div>
               </div>
-              <div className="orggroup__brands">
-                {items.map(renderBrand)}
-              </div>
+              {/* Unmounted when closed, so a collapsed group costs one row. */}
+              {gOpen && (
+                <div className="orggroup__brands">
+                  {items.map(renderBrand)}
+                </div>
+              )}
             </div>
           );
         })}
-        {ungroupedBrands.map(renderBrand)}
       </div>
+      {shownCount < topNodes.length && (
+        <div className="org-more">
+          <Button variant="ghost" size="sm" onClick={() => setShownCount((n) => n + PAGE)}>
+            Show {Math.min(PAGE, topNodes.length - shownCount)} more
+          </Button>
+        </div>
+      )}
       <div className={`org-empty${shownAgencies.length ? '' : ' is-shown'}`}>No groups, agencies or branches match your search.</div>
 
       {/* Agency onboarding flow (name, first branch + address, commission, first invite). */}
