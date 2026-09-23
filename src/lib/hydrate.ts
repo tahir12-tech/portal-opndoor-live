@@ -116,11 +116,11 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // the one meant here: the single owning partner, the same one partner_id resolves
     // to. The many-to-many would return an array and, for a shared agency, the wrong
     // partner.
-    client.from('agencies').select('id, name, group_name, group_id, partner_rate, agent_rate, review_state, partner_id, partner:partners!agencies_partner_id_fkey(slug)'),
+    client.from('agencies').select('id, name, group_name, group_id, partner_rate, agent_rate, review_state, is_placeholder, partner_id, partner:partners!agencies_partner_id_fkey(slug)'),
     // Agency groups — the top commission tier and the target of a "whole group"
     // position. RLS scopes them to the caller's partner (or all, for admin/staff).
     client.from('agency_groups').select('id, name, partner_id, partner_rate, agent_rate'),
-    client.from('branches').select('id, name, area, review_state, agency_id, partner_id'),
+    client.from('branches').select('id, name, area, review_state, is_placeholder, agency_id, partner_id'),
     // Ordered oldest-first so the on-screen contact order matches the server's
     // promote-oldest primary backstop (org_*_contact RPCs): the "promotes X to
     // primary" consequence text then names the contact the backstop will pick.
@@ -275,6 +275,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         contacts: (contactsByBranch[b.id] ?? []).map(toContact),
       };
       if (b.review_state === 'pending_review') branch.unreviewed = true;
+      if (b.is_placeholder) branch.isPlaceholder = true;
       return branch;
     });
     const aApps = appsByAgency[a.id] ?? [];
@@ -294,6 +295,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     agency.partnerRate = a.partner_rate == null ? null : Number(a.partner_rate);
     agency.agentRate = a.agent_rate == null ? null : Number(a.agent_rate);
     if (a.review_state === 'pending_review') agency.unreviewed = true;
+    if (a.is_placeholder) agency.isPlaceholder = true;
     return agency;
   });
 

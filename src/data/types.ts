@@ -153,6 +153,10 @@ export interface Branch {
   contacts?: AgentContact[];
   /** Set when a referrer created this on the fly; surfaced in reconciliation. */
   unreviewed?: boolean;
+  /** A house-partner placeholder ("Unattached") that only exists to satisfy the
+      applications NOT NULL FKs for unmatched direct signups. Never a real agency;
+      excluded from the Agencies list and its deed warning. */
+  isPlaceholder?: boolean;
 }
 
 export interface Agency {
@@ -179,6 +183,9 @@ export interface Agency {
   open?: boolean;
   branches: Branch[];
   unreviewed?: boolean;
+  /** A house-partner placeholder ("Unattached") — see Branch.isPlaceholder. Never a
+      real agency; excluded from the Agencies list and its deed warning. */
+  isPlaceholder?: boolean;
 }
 
 /* ---------- User ---------- */

@@ -32,10 +32,14 @@ function partnerOf(a: Agency): string {
   return a.partner || homePartner();
 }
 
-/** All agencies within a partner scope ("all" returns every partner's agencies). */
+/** All agencies within a partner scope ("all" returns every partner's agencies).
+    House-partner placeholders ("Unattached", is_placeholder) are never real agencies
+    and are excluded everywhere — the list, the detail page, branch pickers and
+    position targets. Unmatched direct signups live in the Reconciliation match queue. */
 export function getAgencies(scope: PartnerScope): Agency[] {
-  if (scope === ALL_PARTNERS) return AGENCIES.slice();
-  return AGENCIES.filter((a) => partnerOf(a) === scope);
+  const real = AGENCIES.filter((a) => !a.isPlaceholder);
+  if (scope === ALL_PARTNERS) return real.slice();
+  return real.filter((a) => partnerOf(a) === scope);
 }
 
 export function findAgency(name: string): Agency | undefined {
