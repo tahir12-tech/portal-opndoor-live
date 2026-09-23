@@ -15,6 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { staffInviteEmail } from "../_shared/emailTemplates.ts";
+import { placeOrRollback } from "../_shared/placeOrRollback.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -196,12 +197,16 @@ Deno.serve(async (req) => {
     // Grant the org position AS THE INVITER, so set_user_scope's ladder decides
     // (an admin or a group/agency manager may; a branch-only manager may not) and
     // the target is checked against their own scope. The account now exists, so the
-    // scope lands on it immediately. Best-effort: the invite already stands, so a
-    // refusal here is reported as a soft error rather than unwinding the invite.
-    let positionError: string | null = null;
+    // scope lands on it immediately. FATAL, not best-effort: a refusal rolls back a
+    // just-created account (placeOrRollback) rather than leaving it unscoped, and
+    // fails the whole call. Ordered before the email and audit below.
     if (scopeKind && targetUserId) {
-      const { error: scErr } = await userClient.rpc("set_user_scope", { p_user: targetUserId, p_kind: scopeKind, p_target: scopeTarget });
-      if (scErr) positionError = scErr.message;
+      const grantErr = await placeOrRollback(
+        () => userClient.rpc("set_user_scope", { p_user: targetUserId, p_kind: scopeKind, p_target: scopeTarget }),
+        () => service.auth.admin.deleteUser(targetUserId!),
+        !existing,
+      );
+      if (grantErr) return json({ ok: false, error: `Could not grant the position, so the invitation was cancelled: ${grantErr}` }, 400);
     }
 
     // Branded invite email (redirected to the review address in test mode).
@@ -228,7 +233,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    return json({ ok: true, emailSent: emailRes.ok, emailError: emailRes.ok ? null : emailRes.error, positioned: !!scopeKind && !positionError, positionError });
+    // A refused grant returned above, so if we are here the position (when one was
+    // requested) is placed; positionError is retired.
+    return json({ ok: true, emailSent: emailRes.ok, emailError: emailRes.ok ? null : emailRes.error, positioned: !!scopeKind });
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "Unexpected error." }, 500);
   }
