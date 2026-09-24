@@ -21,12 +21,12 @@ import {
 } from '@/data';
 import { getPositionsForUsers, getDeedRecipients, nominateDeedRecipient, clearDeedRecipient, getOrgDeedReadiness, type DeedReadiness } from '@/data/positionsService';
 import { setNodeRate, getCommissionSplits, previewNodeRate, type SplitLine } from '@/data/orgService';
+import { cancelInvite } from '@/data/usersService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { Icon } from '@/components/ui/Icon';
-import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
 import { AgencyGrow } from './AgencyGrow';
@@ -76,7 +76,9 @@ export function AgencyHome() {
   const [tick, setTick] = useState(0);
   const bump = () => setTick((t) => t + 1);
   const [invite, setInvite] = useState<InviteContext | null>(null);
-  const [grow, setGrow] = useState<'branch' | 'agency' | null>(null);
+  /* Creation is anchored to a node, so the modal can say what it is adding and
+     where. `growAgency` is the agency a branch is being added to. */
+  const [grow, setGrow] = useState<null | { mode: 'branch' | 'agency'; agencyId?: string }>(null);
 
   const org = useMemo<Org | null>(() => {
     void dataVersion; void tick;
@@ -151,6 +153,36 @@ export function AgencyHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org, partner, role, dataVersion, tick]);
 
+  /* One flat row per person in this org, for the People tab. Built from the same
+     buckets the tree draws, so the two can never disagree about who is here. */
+  const peopleRows = useMemo(() => {
+    const rows: { userId: string; name: string; email: string; role: string; level: Level; agency: string; branch: string; status: string }[] = [];
+    const statusOf = (id: string) => usersById[id]?.status ?? 'active';
+    people.group.forEach((p) => rows.push({ ...p, level: 'group', agency: '—', branch: '—', status: statusOf(p.userId) }));
+    agencies.forEach((a) => {
+      (a.id ? people.agency[a.id] ?? [] : []).forEach((p) =>
+        rows.push({ ...p, level: 'agency', agency: a.name, branch: '—', status: statusOf(p.userId) }));
+      (a.branches ?? []).forEach((b) => {
+        (b.id ? people.branch[b.id] ?? [] : []).forEach((p) =>
+          rows.push({ ...p, level: 'branch', agency: a.name, branch: b.name, status: statusOf(p.userId) }));
+      });
+    });
+    return rows;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [people, agencies, usersById]);
+
+  const [pFilter, setPFilter] = useState({ level: '', position: '', agency: '', branch: '', status: '', q: '' });
+  const peopleShown = useMemo(() => {
+    const q = pFilter.q.trim().toLowerCase();
+    return peopleRows.filter((r) =>
+      (!pFilter.level || r.level === pFilter.level)
+      && (!pFilter.position || roleLabelFor(r.level, r.role) === pFilter.position)
+      && (!pFilter.agency || r.agency === pFilter.agency)
+      && (!pFilter.branch || r.branch === pFilter.branch)
+      && (!pFilter.status || r.status === pFilter.status)
+      && (!q || r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q)));
+  }, [peopleRows, pFilter]);
+
   // Agent-rail orgs deliver deeds to their people; a branch with no one in the whole
   // chain (nominee, branch/agency/group manager) cannot receive a deed.
   const isAgentRail = getPartner(partner)?.referencingMode === 'opndoor_referenced';
@@ -158,6 +190,9 @@ export function AgencyHome() {
   /* ---- DRILL-DOWN. The page opens at the top node expanded ONE level; clicking
      an agency expands it and scopes the Referrals section to it, clicking a branch
      scopes to the branch. `sel` is the scope, and the breadcrumb walks back. */
+  type Tab = 'overview' | 'people' | 'commission' | 'referrals';
+  const [tab, setTab] = useState<Tab>('overview');
+
   type Sel = { level: 'group' | 'agency' | 'branch'; id: string; name: string };
   const [sel, setSel] = useState<Sel | null>(null);
   const selAgency = sel?.level === 'agency' ? sel.id : sel?.level === 'branch' ? (branchesFlat.find((x) => x.branch.id === sel.id)?.agency.id ?? null) : null;
@@ -213,6 +248,12 @@ export function AgencyHome() {
     } finally { setSavingRow(false); }
   };
 
+  // A pending person has not accepted; withdrawing the invitation removes them.
+  const doCancelInvite = async (userId: string, who: string) => {
+    try { await cancelInvite(userId); refreshSession(); bump(); toast(`Invitation to ${who} cancelled.`, 'ok'); }
+    catch (e) { toast(e instanceof Error ? e.message : 'Could not cancel that invitation.', 'error'); }
+  };
+
   // ---- deed recipient nomination ----
   const [nominateBranch, setNominateBranch] = useState<string | null>(null); // branchId
   const [nomineeId, setNomineeId] = useState('');
@@ -241,9 +282,6 @@ export function AgencyHome() {
 
   const branchCount = branchesFlat.length;
   const statusBadge = org.kind === 'group' ? 'Group' : 'Agency';
-  const summary = org.kind === 'group'
-    ? `${agencies.length} ${agencies.length === 1 ? 'agency' : 'agencies'} · ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'} · ${people.total} ${people.total === 1 ? 'person' : 'people'} · ${referrals.length} referrals`
-    : `${branchCount} ${branchCount === 1 ? 'branch' : 'branches'} · ${people.total} ${people.total === 1 ? 'person' : 'people'} · ${referrals.length} referrals`;
 
   const goApplications = (agencyName: string) => `/applications?agency=${encodeURIComponent(agencyName)}`;
 
@@ -306,6 +344,151 @@ export function AgencyHome() {
     );
   };
 
+  /* ---- PEOPLE. One table of everyone in the org, filterable. Scoped to this org
+     and, through getUsers, to the caller's own reach. */
+  const PeopleTab = () => {
+    const uniq = (xs: string[]) => [...new Set(xs.filter((x) => x && x !== '—'))].sort();
+    const positions = uniq(peopleRows.map((r) => roleLabelFor(r.level, r.role)));
+    const set = (k: keyof typeof pFilter, v: string) => setPFilter((f) => ({ ...f, [k]: v }));
+    return (
+      <Card>
+        <CardHead
+          title="People"
+          sub={`${peopleShown.length} of ${peopleRows.length} shown`}
+          actions={isAdmin && org.kind === 'group'
+            ? <button className="ah-linkbtn" onClick={() => setInvite({ level: 'group', partner, groupId: org.group.id, name: org.group.name })}>Invite a group director</button>
+            : undefined}
+        />
+        <CardBody>
+          <div className="ah-filters">
+            <input className="ah-filter-q" type="text" placeholder="Search name or email" value={pFilter.q} onChange={(e) => set('q', e.target.value)} />
+            <select value={pFilter.level} onChange={(e) => set('level', e.target.value)} aria-label="Level">
+              <option value="">All levels</option>
+              <option value="group">Group</option><option value="agency">Agency</option><option value="branch">Branch</option>
+            </select>
+            <select value={pFilter.position} onChange={(e) => set('position', e.target.value)} aria-label="Position">
+              <option value="">All positions</option>
+              {positions.map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+            <select value={pFilter.agency} onChange={(e) => set('agency', e.target.value)} aria-label="Agency">
+              <option value="">All agencies</option>
+              {uniq(peopleRows.map((r) => r.agency)).map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+            <select value={pFilter.branch} onChange={(e) => set('branch', e.target.value)} aria-label="Branch">
+              <option value="">All branches</option>
+              {uniq(peopleRows.map((r) => r.branch)).map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+            <select value={pFilter.status} onChange={(e) => set('status', e.target.value)} aria-label="Status">
+              <option value="">Any status</option>
+              <option value="active">Active</option><option value="pending">Pending</option>
+            </select>
+            {(pFilter.q || pFilter.level || pFilter.position || pFilter.agency || pFilter.branch || pFilter.status) && (
+              <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setPFilter({ level: '', position: '', agency: '', branch: '', status: '', q: '' })}>Clear filters</button>
+            )}
+          </div>
+          {peopleShown.length === 0 ? (
+            <div className="ah-empty">Nobody matches those filters.</div>
+          ) : (
+            <table className="dt ah-table">
+              <thead><tr><th>Name</th><th>Position</th><th>Level</th><th>Agency</th><th>Branch</th><th>Status</th><th /></tr></thead>
+              <tbody>
+                {peopleShown.map((r) => (
+                  <tr key={r.userId}>
+                    <td><span className="who__av">{initials(r.name || r.email)}</span> <span className="dt__name">{r.name || r.email}</span><span className="dt__sub">{r.email}</span></td>
+                    <td>{roleLabelFor(r.level, r.role)}</td>
+                    <td className="soft">{r.level}</td>
+                    <td className="soft">{r.agency}</td>
+                    <td className="soft">{r.branch}</td>
+                    <td>{r.status === 'pending' ? <Pill variant="sent">Pending</Pill> : <Pill variant="paid">Active</Pill>}</td>
+                    <td className="num">
+                      {isAdmin && r.status === 'pending' && (
+                        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doCancelInvite(r.userId, r.name || r.email)}>Cancel invite</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardBody>
+      </Card>
+    );
+  };
+
+  /* ---- COMMISSION. Rates that are actually SET, and what each branch pays out.
+     Both read the split SQL resolved; nothing is recomputed here. */
+  const CommissionTab = () => {
+    const set: { level: 'group' | 'agency' | 'branch'; id?: string; name: string; rate: number }[] = [];
+    if (group?.agentRate != null) set.push({ level: 'group', id: group.id, name: group.name, rate: group.agentRate });
+    agencies.forEach((a) => {
+      if (a.agentRate != null) set.push({ level: 'agency', id: a.id, name: a.name, rate: a.agentRate });
+      (a.branches ?? []).forEach((b) => {
+        if (b.agentRate != null) set.push({ level: 'branch', id: b.id, name: b.name, rate: b.agentRate });
+      });
+    });
+    return (
+      <>
+        <Card>
+          <CardHead title="Rates set" sub={set.length ? `${set.length} ${set.length === 1 ? 'rate' : 'rates'} explicitly set` : 'No rate is set anywhere; every branch earns the Opndoor standard'} />
+          <CardBody style={{ padding: 0 }}>
+            {set.length === 0 ? (
+              <div className="ah-empty">Nothing is set. Every branch below pays the Opndoor standard to its agency.</div>
+            ) : (
+              <table className="dt ah-table">
+                <thead><tr><th>Paid to</th><th>Level</th><th>Rate</th><th /></tr></thead>
+                <tbody>
+                  {set.map((r) => (
+                    <tr key={`${r.level}:${r.id}`}>
+                      <td className="dt__name">{r.name}</td>
+                      <td className="soft">{r.level}</td>
+                      <td><b>{pctLabel(r.rate)}</b> of the guarantee fee</td>
+                      <td className="num"><RateLine level={r.level} id={r.id} name={r.name} own={r.rate} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHead title="What each branch pays out" sub="Every payee on a referral made here, added up" />
+          <CardBody style={{ padding: 0 }}>
+            {branchesFlat.length === 0 ? (
+              <div className="ah-empty">No branches yet, so there is nothing to pay out against.</div>
+            ) : (
+              <table className="dt ah-table">
+                <thead><tr><th>Branch</th><th>Pays out</th><th>Total</th></tr></thead>
+                <tbody>
+                  {branchesFlat.map(({ agency: a, branch: b }) => {
+                    const lines = b.id ? splits.get(b.id) ?? [] : [];
+                    const total = lines.reduce((t, l) => t + l.rate, 0);
+                    const standardOnly = lines.length === 1 && lines[0].level === 'agency' && a.agentRate == null && b.agentRate == null;
+                    return (
+                      <tr key={b.id ?? b.name}>
+                        <td className="dt__name">{b.name}<span className="dt__sub">{a.name}</span></td>
+                        <td>
+                          {lines.length === 0 ? <span className="soft">—</span>
+                            : standardOnly
+                              ? <>Opndoor standard {pctLabel(lines[0].rate)} · paid to {lines[0].orgName}</>
+                              : lines.map((l, i) => (
+                                  <span key={`${l.level}:${l.orgId ?? l.orgName}`}>
+                                    {i > 0 ? ' + ' : ''}{l.orgName} {pctLabel(l.rate)}
+                                  </span>
+                                ))}
+                        </td>
+                        <td><b>{pctLabel(total)}</b></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </CardBody>
+        </Card>
+      </>
+    );
+  };
+
   const PeopleInline = ({ level, list, ctx }: { level: Level; list: Placed[]; ctx: InviteContext }) => (
     <div className="ah-node-people">
       {list.map((p) => (
@@ -323,17 +506,52 @@ export function AgencyHome() {
         <div>
           <Link className="ah-back" to="/agencies"><Icon name="arrowLeft" size={14} /> Agencies</Link>
           <h1 className="page-head__title" style={{ marginTop: 8 }}>{title}</h1>
-          <p className="page-head__sub ah-sub"><Pill variant={org.kind === 'group' ? 'sent' : 'paid'}>{statusBadge}</Pill> <span>{summary}</span></p>
+          {/* Each figure is the way into the tab that explains it. */}
+          <p className="page-head__sub ah-sub">
+            <Pill variant={org.kind === 'group' ? 'sent' : 'paid'}>{statusBadge}</Pill>
+            <span className="ah-figs">
+              {org.kind === 'group' && (
+                <>
+                  <button className="ah-fig" onClick={() => setTab('overview')}>
+                    <b>{agencies.length}</b> {agencies.length === 1 ? 'agency' : 'agencies'}
+                  </button>
+                  <span className="ah-fig-sep">·</span>
+                </>
+              )}
+              <button className="ah-fig" onClick={() => setTab('overview')}>
+                <b>{branchCount}</b> {branchCount === 1 ? 'branch' : 'branches'}
+              </button>
+              <span className="ah-fig-sep">·</span>
+              <button className="ah-fig" onClick={() => setTab('people')}>
+                <b>{people.total}</b> {people.total === 1 ? 'person' : 'people'}
+              </button>
+              <span className="ah-fig-sep">·</span>
+              <button className="ah-fig" onClick={() => setTab('referrals')}>
+                <b>{referrals.length}</b> referrals
+              </button>
+            </span>
+          </p>
         </div>
-        {isAdmin && (
-          <div className="page-head__actions">
-            <Button variant="ghost" size="sm" onClick={() => setGrow('branch')}><Icon name="plus" /> Add a branch</Button>
-            <Button variant="ghost" size="sm" onClick={() => setGrow('agency')}><Icon name="plus" /> {org.kind === 'group' ? 'Add agency' : 'Add another agency'}</Button>
-          </div>
-        )}
       </div>
 
-      {/* THE TREE — one spine, people/commission/invite/referrals inline per node */}
+      {/* Creation lives on the NODES it creates into, never floating up here where
+          it cannot say what it is adding to. */}
+      <div className="ah-tabs" role="tablist">
+        {([['overview', 'Overview'], ['people', 'People'], ['commission', 'Commission'], ['referrals', 'Referrals']] as [Tab, string][])
+          .filter(([id]) => id !== 'commission' || canSeeCommission)
+          .map(([id, label]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={tab === id}
+              className={`ah-tab${tab === id ? ' is-on' : ''}`}
+              onClick={() => setTab(id)}
+            >{label}</button>
+          ))}
+      </div>
+
+      {/* OVERVIEW — the tree. */}
+      {tab === 'overview' && (
       <Card>
         <CardBody style={{ padding: 0 }}>
           <div className="ah-tree">
@@ -346,6 +564,13 @@ export function AgencyHome() {
                   <RateLine level="group" id={org.group.id} name={org.group.name} own={org.group.agentRate} />
                 </div>
                 <PeopleInline level="group" list={people.group} ctx={{ level: 'group', partner, groupId: org.group.id, name: org.group.name }} />
+                {isAdmin && (
+                  <div className="ah-node-add">
+                    <button className="ah-linkbtn" onClick={() => setGrow({ mode: 'agency' })}>
+                      <Icon name="plus" size={12} /> Add agency to {org.group.name}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             {agencies.map((a) => {
@@ -372,10 +597,28 @@ export function AgencyHome() {
                         </span>
                       )}
                     </div>
-                    {isAgentRail && agencyReady === false && (
+                    {isAgentRail && agencyReady === false && branchCount > 0 && (
                       <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this agency can receive the deed. Invite a manager or nominate a recipient.</div>
                     )}
                     {open && <PeopleInline level="agency" list={agencyPeople} ctx={{ level: 'brand', partner, agencyId: a.id, name: a.name }} />}
+                    {open && branchCount === 0 && (
+                      <div className="ah-node-note">
+                        No branches yet — {a.name}'s manager can add them, or add one here.
+                      </div>
+                    )}
+                    {open && isAdmin && (
+                      <div className="ah-node-add">
+                        <button className="ah-linkbtn" onClick={() => setGrow({ mode: 'branch', agencyId: a.id })}>
+                          <Icon name="plus" size={12} /> Add branch to {a.name}
+                        </button>
+                        {org.kind === 'agency' && (
+                          <button className="ah-linkbtn" onClick={() => setGrow({ mode: 'agency' })}>
+                            <Icon name="plus" size={12} /> Add another agency
+                            <span className="ah-node-add__why">creates a group above {a.name} and moves it in</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {open && (a.branches ?? []).map((b) => {
                     const bPeople = b.id ? (people.branch[b.id] ?? []) : [];
@@ -428,8 +671,13 @@ export function AgencyHome() {
           </div>
         </CardBody>
       </Card>
+      )}
+
+      {tab === 'people' && <PeopleTab />}
+      {tab === 'commission' && canSeeCommission && <CommissionTab />}
 
       {/* REFERRALS — follows the selected node, with one click back to the top. */}
+      {tab === 'referrals' && (
       <Card>
         <CardHead
           title="Referrals"
@@ -486,9 +734,19 @@ export function AgencyHome() {
           })()}
         </CardBody>
       </Card>
+      )}
 
       {invite && <InviteToLevel ctx={invite} onClose={() => setInvite(null)} onInvited={() => { setInvite(null); refreshSession(); bump(); }} />}
-      {grow && <AgencyGrow mode={grow} agencies={agencies} group={group} onClose={() => setGrow(null)} onDone={() => { setGrow(null); refreshSession(); bump(); }} />}
+      {grow && (
+        <AgencyGrow
+          mode={grow.mode}
+          anchorAgencyId={grow.agencyId}
+          agencies={agencies}
+          group={group}
+          onClose={() => setGrow(null)}
+          onDone={() => { setGrow(null); refreshSession(); bump(); }}
+        />
+      )}
     </>
   );
 }

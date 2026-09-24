@@ -231,7 +231,12 @@ export interface AddAgencyInput {
 /** Add an agency from the Agencies & branches screen (stamped to the active partner). */
 export function addAgency(input: AddAgencyInput, scope: PartnerScope): Agency {
   const partner = scope === ALL_PARTNERS ? homePartner() : scope;
-  const agency: Agency = { name: input.name, partner, users: 0, referrals: 0, guaranteed: '£0', fees: 0, open: true, branches: [] };
+  /* A LOCAL id, even in mock mode. Everything that re-parents, nominates or sets
+     a rate addresses an agency by id, and without one those calls silently found
+     nothing and did nothing — so the grow path appeared to work and changed
+     nothing. Supabase mode overwrites this with the real row id on hydrate. */
+  const id = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const agency: Agency = { id, name: input.name, partner, users: 0, referrals: 0, guaranteed: '£0', fees: 0, open: true, branches: [] };
   if (input.group) agency.group = input.group;
   AGENCIES.push(agency);
   persist();
@@ -362,7 +367,11 @@ export async function createBranchLive(agency: Agency, input: CreateBranchInput)
 
 export interface CreateAgencyFlowInput {
   agencyName: string;
-  branchName: string;
+  /** Optional: a skeleton agency whose manager adds branches on first login. */
+  branchName?: string;
+  /** Parent the agency at creation. Same result as creating it independent and
+      re-parenting, which is what the grow path does. */
+  groupId?: string;
   branchArea?: string;
   /** Commission overrides as fractions (null = inherit the Opndoor standard). */
   partnerRate?: number | null;
@@ -376,10 +385,11 @@ export async function createAgencyWithBranch(input: CreateAgencyFlowInput): Prom
   if (orgLive()) {
     const { data, error } = await sb().rpc('admin_create_agency_and_branch', {
       p_agency_name: input.agencyName,
-      p_branch_name: input.branchName,
+      p_branch_name: input.branchName ?? null,
       p_branch_area: input.branchArea ?? null,
       p_partner_rate: input.partnerRate ?? null,
       p_agent_rate: input.agentRate ?? null,
+      p_group_id: input.groupId ?? null,
     });
     if (error) throw new Error(cleanRpcError(error.message));
     const row = Array.isArray(data) ? data[0] : data;
@@ -388,9 +398,25 @@ export async function createAgencyWithBranch(input: CreateAgencyFlowInput): Prom
   const ag = addAgency({ name: input.agencyName }, 'opndoor-agents');
   if (input.partnerRate != null) ag.partnerRate = input.partnerRate;
   if (input.agentRate != null) ag.agentRate = input.agentRate;
-  const br = addBranch(ag.name, { name: input.branchName, area: input.branchArea });
+  if (input.groupId) ag.groupId = input.groupId;
+  const br = input.branchName ? addBranch(ag.name, { name: input.branchName, area: input.branchArea }) : null;
   persist();
   return { agencyId: ag.id ?? ag.name, branchId: br?.id ?? br?.name ?? '' };
+}
+
+/** Undo what a creation flow made, when a later step of it failed. Admin only;
+    refuses to remove anything that already carries applications. */
+export async function deleteOrgShape(agencyIds: string[], groupId?: string): Promise<void> {
+  if (!orgLive()) {
+    AGENCIES = AGENCIES.filter((a) => !a.id || !agencyIds.includes(a.id));
+    if (groupId) GROUPS = GROUPS.filter((g) => g.id !== groupId);
+    persist();
+    return;
+  }
+  const { error } = await sb().rpc('admin_delete_org_shape', {
+    p_agency_ids: agencyIds, p_group_id: groupId ?? null,
+  });
+  if (error) throw new Error(cleanRpcError(error.message));
 }
 
 /** One payee line for a branch, as SQL resolved it. */

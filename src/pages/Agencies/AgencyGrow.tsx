@@ -17,10 +17,12 @@ import { Field } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 
-export function AgencyGrow({ mode, agencies, group, onClose, onDone }: {
+export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onDone }: {
   mode: 'branch' | 'agency';
   agencies: Agency[];
   group?: AgencyGroup;
+  /** The node this was launched from, so the modal can name the parent. */
+  anchorAgencyId?: string;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -29,7 +31,7 @@ export function AgencyGrow({ mode, agencies, group, onClose, onDone }: {
   const [busy, setBusy] = useState(false);
 
   // add-branch fields
-  const [branchAgencyId, setBranchAgencyId] = useState(agencies[0]?.id ?? '');
+  const [branchAgencyId, setBranchAgencyId] = useState(anchorAgencyId ?? agencies[0]?.id ?? '');
   const [branchName, setBranchName] = useState('');
   const [postcode, setPostcode] = useState('');
   const [addrOptions, setAddrOptions] = useState<AddressOption[]>([]);
@@ -50,6 +52,15 @@ export function AgencyGrow({ mode, agencies, group, onClose, onDone }: {
       if (!res.available) toast('Address lookup is not configured — enter it manually.', 'error');
     } finally { setLooking(false); }
   };
+
+  /* THE SENTENCE. Every creation modal opens by saying what it is making and
+     where it is going, in full, including the group above when there is one. */
+  const targetAgency = agencies.find((a) => a.id === branchAgencyId) ?? agencies[0];
+  const sentence = mode === 'branch'
+    ? `You're adding a branch to ${targetAgency?.name ?? 'this agency'}${group ? `, part of ${group.name}` : ''}.`
+    : group
+      ? `You're adding an agency to ${group.name}.`
+      : `You're creating the group ${groupName.trim() || '…'} above ${agencies[0]?.name ?? 'this agency'}, moving it in, and adding a second agency alongside it.`;
 
   const canBranch = mode === 'branch' && !!branchName.trim() && !!branchAgencyId && !busy;
   const canAgency = mode === 'agency' && !!newAgency.trim() && !!newBranch.trim() && (group ? true : !!groupName.trim()) && !busy;
@@ -95,16 +106,16 @@ export function AgencyGrow({ mode, agencies, group, onClose, onDone }: {
     <Modal
       open
       onClose={() => { if (!busy) onClose(); }}
-      title={mode === 'branch' ? 'Add a branch' : group ? 'Add an agency to the group' : 'Add another agency'}
-      sub={mode === 'branch'
-        ? 'Add a branch under this organisation.'
-        : group ? 'Add a new agency to this group.' : 'This creates the group above and moves the existing agency into it.'}
+      title={mode === 'branch'
+        ? `Add branch to ${targetAgency?.name ?? 'agency'}`
+        : group ? `Add agency to ${group.name}` : 'Add another agency'}
+      sub={sentence}
       footer={<><Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
         <Button variant="primary" onClick={mode === 'branch' ? saveBranch : saveAgency} disabled={mode === 'branch' ? !canBranch : !canAgency}>{busy ? 'Saving…' : mode === 'branch' ? 'Add branch' : 'Add agency'}</Button></>}
     >
       {mode === 'branch' ? (
         <>
-          {agencies.length > 1 && (
+          {agencies.length > 1 && !anchorAgencyId && (
             <Field label="Agency" htmlFor="ag-branch-agency">
               <select id="ag-branch-agency" value={branchAgencyId} onChange={(e) => setBranchAgencyId(e.target.value)}>
                 {agencies.filter((a) => a.id).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
