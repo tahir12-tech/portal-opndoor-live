@@ -162,6 +162,10 @@ export function Applications() {
   const pageCount = Math.max(1, pages.length);
   const safePage = Math.min(page, pageCount);
   const pagedRows = pages[safePage - 1] ?? [];
+  // The Pager cannot derive its own range here: pages are not uniform, because a
+  // tenancy moves to the next page whole rather than being split.
+  const shownFrom = pages.slice(0, safePage - 1).reduce((n, p) => n + p.length, 0) + 1;
+  const pageRange: [number, number] = [shownFrom, shownFrom + pagedRows.length - 1];
 
   const agencyOptions = agencyNamesForScope(scopeOpts);
   const branchOptions = branchNamesForScope(scopeOpts, agency || undefined);
@@ -421,7 +425,7 @@ export function Applications() {
           </table>
         </div>
         {visibleRows.length === 0 && <div className="empty is-shown">No applications match your filters.</div>}
-        <Pager page={safePage} pageSize={PAGE_SIZE} total={visibleRows.length} onPage={setPage} noun="applications" />
+        <Pager page={safePage} pageSize={PAGE_SIZE} total={visibleRows.length} pageCount={pageCount} range={pageRange} onPage={setPage} noun="applications" />
       </Card>
     </>
   );

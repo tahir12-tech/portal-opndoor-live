@@ -141,4 +141,22 @@ describe('a tenancy is never split across a page boundary', () => {
   it('gives an empty list one empty page rather than none, so the pager has something to show', () => {
     expect(pageWithoutSplitting([], new Map(), 20)).toEqual([[]]);
   });
+
+  it('can need MORE pages than a division says, which is why the pager is told the count', () => {
+    /* Three singles, a pair, three singles, four to a page. Dividing says two
+       pages; keeping the pair whole needs three. A pager that divided would
+       disable Next on page two and the eighth row would simply not exist as far
+       as anyone could tell. */
+    const rows = [
+      row(), row(), row(),
+      joint(1, 'deed', { ref: 'J1' }), joint(2, 'paid', { ref: 'J2' }),
+      row(), row(), row(),
+    ];
+    const groups = groupTenancies(rows);
+    const pages = pageWithoutSplitting(collateTenancies(rows, groups), groups, 4);
+    expect(Math.ceil(rows.length / 4)).toBe(2);
+    expect(pages).toHaveLength(3);
+    // Every row is still reachable, which is the property that matters.
+    expect(pages.flat()).toHaveLength(rows.length);
+  });
 });
