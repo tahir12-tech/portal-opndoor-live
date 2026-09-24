@@ -42,6 +42,12 @@ jobs:
       #                               everybody, once everybody has paid, reminded
       #                               and expired once — and a sole tenant's path is
       #                               asserted unchanged in the same file.
+      #   all_in_ancestor_guard       the mirror of the coverage guard: a line added
+      #                               ABOVE an all-in deal breaches it and is refused
+      #                               by name, through set_node_rate, set_group_rates
+      #                               and a raw UPDATE alike, unless deliberately
+      #                               confirmed and audited against both parties.
+      #                               Also: a joint tenancy is agent-rail only.
       #
       # A failing assertion prints "not ok N" and the runner exits non-zero, which
       # fails this step and the build.
