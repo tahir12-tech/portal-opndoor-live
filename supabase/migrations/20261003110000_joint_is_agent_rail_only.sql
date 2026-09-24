@@ -171,6 +171,11 @@ begin
   if p_partner_slug is not null and btrim(p_partner_slug) <> '' then
     select id into v_partner from public.partners where slug = p_partner_slug;
   end if;
+  -- Only an admin may ask about a partner other than their own.
+  if v_partner is not null and not public.is_admin()
+     and v_partner is distinct from public.app_partner() then
+    return null;
+  end if;
 
   select b.id into v_branch
   from public.branches b join public.agencies a on a.id = b.agency_id
