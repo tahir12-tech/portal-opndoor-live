@@ -257,7 +257,12 @@ begin
   end if;
 
   if new.coverage = 'all_in' then
-    select count(*) into v_n from public.agreement_conflicts(new.scope_level, new.scope_id, 'all_in');
+    -- Not counting itself: converting a party's existing agreement to all-in is
+    -- legitimate, and agreement_conflicts lists that agreement because it lists
+    -- the party's live one. The same-node case is settled above, by id.
+    select count(*) into v_n
+    from public.agreement_conflicts(new.scope_level, new.scope_id, 'all_in') c
+    where not (c.kind = 'agreement' and c.level = new.scope_level and c.node_id = new.scope_id);
     if v_n > 0 then
       raise exception 'An all-in agreement is the whole commission for everything under this %, but % arrangement(s) inside it are still set. Clear them first.',
         new.scope_level, v_n using errcode = '22023';

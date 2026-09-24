@@ -33,6 +33,15 @@ jobs:
       #                               the preview that the rate editor shows before
       #                               a save — so the money rule cannot change
       #                               silently.
+      #   one_rate_per_party          a party holds an explicit rate OR a negotiated
+      #                               agreement, never both, refused by trigger
+      #                               rather than by RPC guard; plus what an
+      #                               agreement's coverage reaches and what the 50%
+      #                               cap measures.
+      #   tenancy_firing_unit         a joint tenancy gets ONE deed, named for
+      #                               everybody, once everybody has paid, reminded
+      #                               and expired once — and a sole tenant's path is
+      #                               asserted unchanged in the same file.
       #
       # A failing assertion prints "not ok N" and the runner exits non-zero, which
       # fails this step and the build.
