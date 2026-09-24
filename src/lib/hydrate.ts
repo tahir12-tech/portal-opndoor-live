@@ -116,7 +116,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // the one meant here: the single owning partner, the same one partner_id resolves
     // to. The many-to-many would return an array and, for a shared agency, the wrong
     // partner.
-    client.from('agencies').select('id, name, group_name, group_id, partner_rate, agent_rate, review_state, is_placeholder, partner_id, partner:partners!agencies_partner_id_fkey(slug)'),
+    client.from('agencies').select('id, name, group_name, group_id, partner_rate, agent_rate, referencing_mode, review_state, is_placeholder, partner_id, partner:partners!agencies_partner_id_fkey(slug)'),
     // Agency groups — the top commission tier and the target of a "whole group"
     // position. RLS scopes them to the caller's partner (or all, for admin/staff).
     client.from('agency_groups').select('id, name, partner_id, partner_rate, agent_rate'),
@@ -137,7 +137,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         // arrive through application_commission_rates() below, for the roles
         // entitled to them, and Postgres refuses the columns to everyone else
         // whatever they ask.
-        'monthly_rent, ' +
+        'monthly_rent, fee_amount, fee_basis_weeks, ' +
         'status, beneficiary, tenancy_start, sent_at, paid_at, deed_issued_at, expiry_date, ' +
         'payment_state, refunded_at, refunded_amount, paid_amount, refund_after_start, ' +
         'withdrawn_at, withdrawn_reason, withdrawn_note, ' +
@@ -300,6 +300,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // Preserve null (inherit) rather than coercing to 0 (a real 0% override).
     agency.partnerRate = a.partner_rate == null ? null : Number(a.partner_rate);
     agency.agentRate = a.agent_rate == null ? null : Number(a.agent_rate);
+    agency.referencingMode = a.referencing_mode ?? null;
     if (a.review_state === 'pending_review') agency.unreviewed = true;
     if (a.is_placeholder) agency.isPlaceholder = true;
     return agency;
@@ -378,6 +379,9 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     owner: ownerFlag(a),
     status: a.status as Status,
     rent: num(a.monthly_rent),
+    // The FEE, which is what commission is a share of. Falls back to rent so a
+    // row created before M1 (or a mock row) reads exactly as it always did.
+    fee: a.fee_amount == null ? num(a.monthly_rent) : num(a.fee_amount),
     // From the RPC when entitled, otherwise the partner's current rate as the
     // display fallback, which is what this did before for rows with no snapshot.
     // A role with no entitlement gets zero and every commission figure computed

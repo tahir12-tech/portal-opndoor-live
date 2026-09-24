@@ -7,7 +7,8 @@
    The three human-facing exports (Performance, Application, League) are
    branded .xlsx built from one shared template (xlsxTemplate.ts). The
    Bordereau stays a clean, unbranded CSV: its audience is the underwriter's
-   import process, and branding risks breaking it.
+   import { feeBaseFor } from './commissionSplit';
+import process, and branding risks breaking it.
 
    Live mode builds every figure from the hydrated live application set (the
    buildLive and buildReal paths), with the same scoping and gating; mock/test
@@ -30,6 +31,7 @@ import { liveAvailable, liveAggregate, liveVolume, liveMonths, getCommissionSett
 // heavy xlsx library is not pulled into the main bundle. It is dynamically
 // imported in exportBranded, on demand, when an export is actually run.
 import type { BrandedDoc, Column, TableRow } from './xlsxTemplate';
+import { feeBaseFor } from './commissionSplit';
 
 /** A named branded sheet + the download filename (the xlsx-free document spec). */
 export interface BrandedExport {
@@ -649,8 +651,8 @@ function buildRealApplicationDoc(role: Role, period: Period, basis: ExportBasis,
     // rows both read £0, not earned-looking money). Rates are the application's
     // SNAPSHOT (frozen at creation), so a past-period export stays immune to edits.
     const earned = !!a.paidAt && !a.refunded;
-    const partnerComm = earned ? a.rent * a.partnerRate : 0;
-    const agentComm = earned ? a.rent * a.agentRate : 0;
+    const partnerComm = earned ? feeBaseFor(a) * a.partnerRate : 0;
+    const agentComm = earned ? feeBaseFor(a) * a.agentRate : 0;
     const row: TableRow = [
       partnerName(a.partner), a.ref, a.agency, a.branch, a.referrer, STATUS[a.status], payState,
       a.sentAt ? dmy(a.sentAt) : '', a.paidAt ? dmy(a.paidAt) : '', a.deedAt ? dmy(a.deedAt) : '',

@@ -69,6 +69,8 @@ export interface FullApp {
       partner's live rate, so editing a partner's rate never moves history. */
   partnerRate: number;
   agentRate: number;
+  /** The guarantee fee charged, snapshotted. Equal to rent until deal-shape pricing. */
+  fee: number;
   /** The frozen split, one entry per payee. Absent on historic rows. */
   commissionLines?: CommissionLine[];
   sentAt: Date | null;

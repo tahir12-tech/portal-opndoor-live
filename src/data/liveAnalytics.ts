@@ -27,7 +27,7 @@ import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp } from '
 import { getPartners, partnerName } from './partnersService';
 import { contactForApplication } from './orgService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
-import { payeesFor, orgRate, totalRate } from './commissionSplit';
+import { payeesFor, orgRate, totalRate, feeBaseFor } from './commissionSplit';
 
 const DAY = 86_400_000;
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -107,11 +107,11 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
       if (app.refunded) {
         a.refundCount += 1;
         a.refundValue += app.refundedAmount ?? app.rent;
-        a.partnerCommExcl += app.rent * r.partner;
-        a.agentCommExcl += app.rent * r.agent;
+        a.partnerCommExcl += feeBaseFor(app) * r.partner;
+        a.agentCommExcl += feeBaseFor(app) * r.agent;
       } else {
-        a.partnerCommNet += app.rent * r.partner;
-        a.agentCommNet += app.rent * r.agent;
+        a.partnerCommNet += feeBaseFor(app) * r.partner;
+        a.agentCommNet += feeBaseFor(app) * r.agent;
       }
     }
     if (inRange(app.deedAt, start, end)) { a.deed += 1; a.guaranteed += app.rent * 12; }
@@ -250,8 +250,8 @@ function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date): Leagu
     if (paidIn) {
       // Same rule as liveAggregate: refunded application earns no net commission.
       g.paid += 1; g.feesGross += app.rent;
-      if (app.refunded) { g.refundValue += app.refundedAmount ?? app.rent; g.partnerCommExcl += app.rent * r.partner; g.agentCommExcl += app.rent * r.agent; }
-      else { g.partnerComm += app.rent * r.partner; g.agentComm += app.rent * r.agent; }
+      if (app.refunded) { g.refundValue += app.refundedAmount ?? app.rent; g.partnerCommExcl += feeBaseFor(app) * r.partner; g.agentCommExcl += feeBaseFor(app) * r.agent; }
+      else { g.partnerComm += feeBaseFor(app) * r.partner; g.agentComm += feeBaseFor(app) * r.agent; }
     }
     if (deedIn) g.deed += 1;
   }
@@ -378,7 +378,7 @@ export function getCommissionSettlement(role: Role, scope: PartnerScope): Commis
   for (const a of set) {
     if (!inRange(a.paidAt, bStart, bEnd)) continue;
     if (a.refunded) continue; // net of refunds: a refunded application earns no commission
-    const commission = a.rent * a.partnerRate;
+    const commission = feeBaseFor(a) * a.partnerRate;
     let ps = byPartner.get(a.partner);
     if (!ps) { ps = { partner: a.partner, partnerName: partnerName(a.partner), commission: 0, apps: [] }; byPartner.set(a.partner, ps); }
     ps.commission += commission;
@@ -421,13 +421,13 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
     }
     row.paid += 1;
     row.feesGross += app.rent;
-    row.partnerCommGross += app.rent * r.partner;
-    row.agentCommGross += app.rent * r.agent;
+    row.partnerCommGross += feeBaseFor(app) * r.partner;
+    row.agentCommGross += feeBaseFor(app) * r.agent;
     if (app.refunded) {
       row.refundValue += app.refundedAmount ?? app.rent;
     } else {
-      row.partnerCommNet += app.rent * r.partner;
-      row.agentCommNet += app.rent * r.agent;
+      row.partnerCommNet += feeBaseFor(app) * r.partner;
+      row.agentCommNet += feeBaseFor(app) * r.agent;
     }
   }
   // #85 Under All-partners scope, list every active partner even with no paid
@@ -481,7 +481,7 @@ export function getAgentCommissionSettlement(role: Role, scope: PartnerScope): A
     if (a.refunded) continue; // net of refunds
     // ONE LINE PER PAYEE. A historic row has no split and resolves to a single
     // agency line at the scalar rate, so it lands exactly where it always did.
-    for (const p of payeesFor(a, a.rent)) {
+    for (const p of payeesFor(a, feeBaseFor(a))) {
       // Namespaced by partner as well, so same-named orgs under different
       // partners never merge -- what the old `${a.partner}${a.agency}` key was for.
       const key = `${a.partner}|${p.key}`;

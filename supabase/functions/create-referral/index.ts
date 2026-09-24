@@ -120,6 +120,11 @@ Deno.serve(async (req) => {
     const appId = app.id as string;
     const ref = app.guarantee_ref as string;
     const rent = Number(app.monthly_rent);
+    // M1: the CHARGE is the snapshotted fee, not the rent. They are equal on every
+    // application today, so this changes no amount; it changes where the amount
+    // comes from, which is what lets a 3- or 5-week fee arrive later without
+    // touching Stripe code again.
+    const feeAmount = Number(app.fee_amount ?? app.monthly_rent);
     const tenantEmail = app.tenant_email as string;
     const tenantTitle = (app.tenant_title as string) ?? "";
     const tenantLast = app.tenant_last_name as string;
@@ -204,7 +209,7 @@ Deno.serve(async (req) => {
       line_items: [{
         price_data: {
           currency: "gbp",
-          unit_amount: Math.round(rent * 100),
+          unit_amount: Math.round(feeAmount * 100),
           product_data: { name: `Guarantor fee - ${ref}`, description: "One month's rent, for the opndoor Deed of Guarantee." },
         },
         quantity: 1,

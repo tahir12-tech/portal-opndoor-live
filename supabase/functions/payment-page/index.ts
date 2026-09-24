@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     if (new Date(tok.expires_at).getTime() < Date.now()) return json({ ok: false, error: "This link has expired." }, 410);
 
     const { data: app } = await service.from("applications")
-      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, tenancy_start, status, payment_state, livemode, partner:partners(name)")
+      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, fee_amount, tenancy_start, status, payment_state, livemode, partner:partners(name)")
       .eq("id", tok.application_id).maybeSingle();
     if (!app) return json({ ok: false, error: "This link is not valid." }, 404);
 
@@ -79,6 +79,8 @@ Deno.serve(async (req) => {
     // deno-lint-ignore no-explicit-any
     const partnerName = (Array.isArray(app.partner) ? (app.partner as any)[0]?.name : (app.partner as any)?.name) ?? "your letting agent";
     const rent = Number(app.monthly_rent ?? 0);
+    // M1: charge the snapshotted fee. Identical to rent on every current row.
+    const feeAmount = Number(app.fee_amount ?? app.monthly_rent ?? 0);
     const feeGBP = `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
     const tenantName = [app.tenant_title, app.tenant_first_name, app.tenant_last_name].filter((x) => (x ?? "").toString().trim()).join(" ").trim();
     // #8 Display-layer title-casing of the property address (postcode left raw).
@@ -166,7 +168,7 @@ Deno.serve(async (req) => {
         line_items: [{
           price_data: {
             currency: "gbp",
-            unit_amount: Math.round(rent * 100),
+            unit_amount: Math.round(feeAmount * 100),
             product_data: { name: `Guarantor fee - ${app.guarantee_ref}`, description: "One month's rent, for the opndoor Deed of Guarantee." },
           },
           quantity: 1,
@@ -211,7 +213,7 @@ Deno.serve(async (req) => {
         line_items: [{
           price_data: {
             currency: "gbp",
-            unit_amount: Math.round(rent * 100),
+            unit_amount: Math.round(feeAmount * 100),
             product_data: { name: `Guarantor fee - ${app.guarantee_ref}`, description: "One month's rent, for the opndoor Deed of Guarantee." },
           },
           quantity: 1,

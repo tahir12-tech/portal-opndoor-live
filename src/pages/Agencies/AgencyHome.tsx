@@ -20,7 +20,7 @@ import {
   type Agency, type AgencyGroup, type ManagedUser, type Status,
 } from '@/data';
 import { getPositionsForUsers, getDeedRecipients, nominateDeedRecipient, clearDeedRecipient, getOrgDeedReadiness, type DeedReadiness } from '@/data/positionsService';
-import { setNodeRate, getCommissionSplits, previewNodeRate, type SplitLine } from '@/data/orgService';
+import { setNodeRate, getCommissionSplits, previewNodeRate, agencyReferencingMode, setAgencyReferencingMode, type SplitLine } from '@/data/orgService';
 import { cancelInvite } from '@/data/usersService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -185,7 +185,15 @@ export function AgencyHome() {
 
   // Agent-rail orgs deliver deeds to their people; a branch with no one in the whole
   // chain (nominee, branch/agency/group manager) cannot receive a deed.
-  const isAgentRail = getPartner(partner)?.referencingMode === 'opndoor_referenced';
+  /* AUDIT (M3). This read the PARTNER's mode for the whole page, which stops being
+     the right answer the moment two agencies under one partner differ. The rail is
+     now asked per AGENCY, with the partner as the fallback. */
+  const partnerMode = getPartner(partner)?.referencingMode ?? null;
+  const agentRailFor = (a: Agency) => agencyReferencingMode(a, partnerMode) === 'opndoor_referenced';
+  const doSetMode = async (agencyId: string, mode: string | null) => {
+    try { await setAgencyReferencingMode(agencyId, mode); refreshSession(); bump(); toast('Referencing route saved.', 'ok'); }
+    catch (e) { toast(e instanceof Error ? e.message : 'Could not save the referencing route.', 'error'); }
+  };
 
   /* ---- DRILL-DOWN. The page opens at the top node expanded ONE level; clicking
      an agency expands it and scopes the Referrals section to it, clicking a branch
@@ -597,13 +605,34 @@ export function AgencyHome() {
                         </span>
                       )}
                     </div>
-                    {isAgentRail && agencyReady === false && branchCount > 0 && (
+                    {agentRailFor(a) && agencyReady === false && branchCount > 0 && (
                       <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this agency can receive the deed. Invite a manager or nominate a recipient.</div>
                     )}
                     {open && <PeopleInline level="agency" list={agencyPeople} ctx={{ level: 'brand', partner, agencyId: a.id, name: a.name }} />}
                     {open && branchCount === 0 && (
                       <div className="ah-node-note">
                         No branches yet — {a.name}'s manager can add them, or add one here.
+                      </div>
+                    )}
+                    {open && isAdmin && a.id && (
+                      <div className="ah-route">
+                        <span className="ah-route__lbl">Referrals from this agency</span>
+                        <select
+                          value={a.referencingMode ?? ''}
+                          onChange={(e) => { void doSetMode(a.id!, e.target.value || null); }}
+                          aria-label={`Referencing route for ${a.name}`}
+                        >
+                          <option value="">
+                            Follow the default ({partnerMode === 'opndoor_referenced' ? 'go through eligibility checks' : 'arrive already referenced'})
+                          </option>
+                          <option value="opndoor_referenced">Go through eligibility checks</option>
+                          <option value="pre_referenced_open">Arrive already referenced</option>
+                        </select>
+                        <span className="ah-route__why">
+                          {agencyReferencingMode(a, partnerMode) === 'opndoor_referenced'
+                            ? 'The tenant is invited to complete eligibility before paying.'
+                            : 'The tenant is sent straight to payment.'}
+                        </span>
                       </div>
                     )}
                     {open && isAdmin && (
@@ -640,7 +669,7 @@ export function AgencyHome() {
                         </div>
                         {/* The whole question in one line, whoever is paid. */}
                         {canSeeCommission && b.id && splits.has(b.id) && <div className="ah-payout">{payoutSentence(splits.get(b.id)!)}</div>}
-                        {isAgentRail && branchReady === false && (
+                        {agentRailFor(a) && branchReady === false && (
                           <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this branch can receive the deed. Invite a branch manager or nominate a recipient.</div>
                         )}
                         {bOpen && <PeopleInline level="branch" list={bPeople} ctx={{ level: 'branch', partner, branchId: b.id, name: b.name }} />}

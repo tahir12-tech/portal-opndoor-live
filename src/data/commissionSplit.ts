@@ -18,6 +18,19 @@
 import type { CommissionLine } from './types';
 import type { FullApp } from './applicationsService';
 
+/**
+ * The amount commission is a share OF.
+ *
+ * Historically this was the rent, because the guarantee fee WAS one month's rent
+ * and no fee was stored. M1 made the fee a real snapshotted value, so this is the
+ * fee — identical to the rent on every application created before deal-shape
+ * pricing, and the single line that makes a 3- or 5-week fee flow through every
+ * surface at once. Callers must not reach for `rent` themselves.
+ */
+export function feeBaseFor(app: FullApp): number {
+  return app.fee ?? app.rent ?? 0;
+}
+
 /** A payee with money attached, for a specific application. */
 export interface PayeeAmount {
   key: string;

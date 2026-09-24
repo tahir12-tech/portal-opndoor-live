@@ -173,3 +173,15 @@
   border: 1px solid var(--line); border-radius: 999px; background: var(--app-bg);
 }
 .ac-groupopt.is-on { border-color: var(--ink); background: var(--ink); color: #fff; }
+
+/* ---- per-agency referencing route (admin) ---- */
+.ah-route {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 4px 0 8px 28px; font-size: 12.5px;
+}
+.ah-route__lbl { color: var(--ink-mute); }
+.ah-route select {
+  font: inherit; font-size: 12.5px; padding: 4px 8px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--app-bg);
+}
+.ah-route__why { color: var(--ink-mute); font-style: italic; }

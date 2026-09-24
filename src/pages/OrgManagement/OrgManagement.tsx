@@ -897,7 +897,10 @@ export function OrgManagement() {
   // Memoised: this walks every agency and every branch and calls getPartner (a
   // linear find) per agency, so unmemoised it ran on every keystroke.
   const deedBlocked = useMemo(() => pool
-    .filter((a) => getPartner(a.partner)?.referencingMode !== 'opndoor_referenced')
+    // AUDIT (M3). This asked the PARTNER whether the org was agent rail, which is
+    // wrong once an agency can choose for itself: the mailbox warning applies to
+    // supplier-introduced orgs, and that is now an agency-level fact.
+    .filter((a) => (a.referencingMode ?? getPartner(a.partner)?.referencingMode) !== 'opndoor_referenced')
     .flatMap((a) =>
       a.branches
         .filter((b) => !effectivePrimary(a, b).contact)

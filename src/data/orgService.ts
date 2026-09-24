@@ -419,6 +419,24 @@ export async function deleteOrgShape(agencyIds: string[], groupId?: string): Pro
   if (error) throw new Error(cleanRpcError(error.message));
 }
 
+/** An agency's effective referencing route: its own if set, else its partner's.
+    Mirrors resolve_referencing_mode in SQL, which is what actually decides the
+    journey; this exists so a screen can label a row without a round trip. */
+export function agencyReferencingMode(agency: Agency, partnerMode: string | null | undefined): string | null {
+  return agency.referencingMode ?? partnerMode ?? null;
+}
+
+/** Set or clear an agency's own referencing route. Admin only. */
+export async function setAgencyReferencingMode(agencyId: string, mode: string | null): Promise<void> {
+  if (!orgLive()) {
+    const a = AGENCIES.find((x) => x.id === agencyId);
+    if (a) { a.referencingMode = mode; persist(); }
+    return;
+  }
+  const { error } = await sb().rpc('set_agency_referencing_mode', { p_agency: agencyId, p_mode: mode });
+  if (error) throw new Error(cleanRpcError(error.message));
+}
+
 /** One payee line for a branch, as SQL resolved it. */
 export interface SplitLine {
   branchId: string;

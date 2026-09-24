@@ -172,6 +172,9 @@ export interface Branch {
 }
 
 export interface Agency {
+  /** This agency's own referencing route, or null/undefined to inherit its partner. */
+  referencingMode?: string | null;
+
   /** DB row id (Supabase mode). Absent in mock/test mode. */
   id?: string;
   /** Owning partner id. The same name under two partners is two records. */
