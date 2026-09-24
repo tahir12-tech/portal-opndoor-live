@@ -441,6 +441,9 @@ export async function setAgencyReferencingMode(agencyId: string, mode: string | 
 export interface AgreementView {
   agreementId: string;
   scopeLevel: string;
+  /** 'additive' — the party's own line, everything else still adds — or 'all_in',
+      the whole commission for everything under the party. */
+  coverage: 'additive' | 'all_in';
   period: string;
   countingScope: string;
   isStandard: boolean;
@@ -464,6 +467,7 @@ export async function getAgreementForAgency(agencyId: string): Promise<Agreement
   return {
     agreementId: String(r.agreement_id),
     scopeLevel: String(r.scope_level),
+    coverage: r.coverage === 'all_in' ? 'all_in' : 'additive',
     period: String(r.period),
     countingScope: String(r.counting_scope),
     isStandard: !!r.is_standard,

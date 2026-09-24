@@ -457,10 +457,18 @@ export function AgencyHome() {
       <Card>
         <CardHead
           title="Agreement"
-          sub={`Negotiated · volume counted per ${agreement.countingScope} per ${agreement.period}`}
+          sub={`Negotiated · ${agreement.coverage === 'all_in' ? 'all-in' : 'additive'} · volume counted per ${agreement.countingScope} per ${agreement.period}`}
         />
         <CardBody>
           {agreement.note && <p className="ah-agr__note">{agreement.note}</p>}
+          {/* An all-in deal is the whole commission for everything beneath it.
+              Showing the bands without saying so describes half the deal, and
+              somebody will then wonder why a branch rate cannot be set. */}
+          <p className="ah-agr__std">
+            {agreement.coverage === 'all_in'
+              ? 'All-in: this agreement is the entire commission for every branch under this agency. No branch below may hold a rate of its own. A rate set above, at group level, still adds.'
+              : 'Additive: this agreement is this party’s own line. Rates set at other levels still add on top, exactly as they would on top of an explicit rate.'}
+          </p>
           <table className="dt ah-table">
             <thead><tr><th>Deal shape</th><th>Fee</th><th>Rate</th></tr></thead>
             <tbody>
