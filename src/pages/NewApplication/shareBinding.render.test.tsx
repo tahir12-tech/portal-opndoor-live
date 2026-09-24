@@ -99,6 +99,24 @@ describe.each(['management', 'superadmin'] as const)('multi-tenant is agent-rail
 });
 
 describe('changing the origin under tenants already entered', () => {
+  it('SURVIVES a keystroke in the branch box, which is not a change of rail', async () => {
+    /* The picker clears its branch selection on every keystroke, so a form that
+       keyed on "multi-tenant not currently allowed" threw away everything the
+       moment somebody went back to fix a typo in that field. Only a settled
+       answer of "this origin cannot carry them" may remove a tenant. */
+    const { q, chooseOrigin, addTenant, view } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
+    addTenant();
+    fireEvent.change(q('#x0-first'), { target: { value: 'Daniel' } });
+
+    fireEvent.change(q('#br-name'), { target: { value: 'South Kensingto' } });
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+    expect(view.container.querySelector('#x0-first')).toBeTruthy();
+    expect(q('#x0-first').value).toBe('Daniel');
+    expect(view.container.textContent).not.toMatch(/additional tenants were removed/i);
+  });
+
   it('drops them rather than carrying tenants it cannot send, and says so', async () => {
     const { chooseOrigin, addTenant, view } = await openForm();
     await chooseOrigin(AGENT_RAIL);
@@ -108,6 +126,16 @@ describe('changing the origin under tenants already entered', () => {
     await chooseOrigin(PRE_REFERENCED);
     expect(view.container.querySelector('.shares')).toBeNull();
     expect(view.container.textContent).toMatch(/additional tenants were removed/i);
+  });
+
+  it('takes the removal notice back down once multi-tenant is on offer again', async () => {
+    const { chooseOrigin, addTenant, view } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
+    addTenant();
+    await chooseOrigin(PRE_REFERENCED);
+    expect(view.container.textContent).toMatch(/additional tenants were removed/i);
+    await chooseOrigin(AGENT_RAIL);
+    expect(view.container.textContent).not.toMatch(/additional tenants were removed/i);
   });
 });
 

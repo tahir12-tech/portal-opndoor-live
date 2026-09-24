@@ -194,3 +194,5 @@
 @media (max-width: 720px) {
   .jt-head__prog { float: none; display: block; margin-top: 3px; }
 }
+.jt-head__prog { display: inline-flex; align-items: center; gap: 8px; }
+.jt-head__sep { color: var(--ink-mute); }

@@ -77,12 +77,23 @@ describe('the applications list', () => {
     expect(rowFor(SIBLING)!.textContent).toMatch(/50% share/);
   });
 
-  it('gives BOTH rows the tenancy’s deed status, not the sibling’s own', async () => {
-    // The whole point: the sibling's row says 'paid' in the data and must not
-    // say "Paid" on screen while the guarantee it is covered by is in force.
+  it('puts the tenancy’s deed status on the heading, where the deed actually lives', async () => {
+    /* The deed is the tenancy's and only the lead ever carries one, so it cannot
+       sit on a row: put it on every sibling and each one contradicts the tab it
+       is counted under. The heading is the tenancy level, so that is where it
+       goes. */
+    const { view } = await openList();
+    expect(view.container.querySelector('.jt-head')!.textContent).toMatch(/Deed Issued/);
+  });
+
+  it('leaves each row showing its OWN status, so the rows and the tabs agree', async () => {
+    // countByStatus counts the sibling under Paid; the row must say Paid, or the
+    // "Showing 22 of 22" and the status chips are describing a different list.
     const { rowFor } = await openList();
-    expect(rowFor(LEAD)!.textContent).toMatch(/Deed Issued/);
-    expect(rowFor(SIBLING)!.textContent).toMatch(/Deed Issued/);
+    const statusOf = (ref: string) => rowFor(ref)!.querySelector('.status-cell')!.textContent;
+    expect(statusOf(LEAD)).toMatch(/Deed Issued/);
+    expect(statusOf(SIBLING)).toMatch(/Paid/);
+    expect(statusOf(SIBLING)).not.toMatch(/Deed Issued/);
   });
 
   it('leaves a sole applicant completely untouched', async () => {

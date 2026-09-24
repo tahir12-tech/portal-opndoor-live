@@ -219,6 +219,18 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
 }
 
 /**
+ * Every row in this viewer's scope, BEFORE the page's own filters.
+ *
+ * Tenancy grouping has to be computed from this rather than from the filtered
+ * rows: filter to "Paid" and the lead (which is in 'deed') disappears, and a
+ * group derived from what is left promotes the wrong applicant to lead, retitles
+ * the others, and reports the tenancy's status from a sibling.
+ */
+export function scopedSummaries(opts: AppScopeOpts): ApplicationSummary[] {
+  return scopedSet(opts);
+}
+
+/**
  * The other applicants on this application's tenancy, this viewer's scope only.
  *
  * Derived from the summary rows rather than fetched: the tenancy shape is

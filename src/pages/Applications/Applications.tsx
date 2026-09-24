@@ -10,7 +10,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications, getPartners,
   partnerName, referrerNamesForScope, getPeriods, periodRange, ALL_PARTNERS, type Status, type Period,
-  collateTenancies, groupTenancies, memberLabel, pageWithoutSplitting, tenancyProgress,
+  collateTenancies, groupTenancies, memberLabel, pageWithoutSplitting, scopedSummaries, tenancyProgress,
 } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -68,7 +68,7 @@ function FilterChip({ icon, label, display, value, onChange, children }: {
 
 export function Applications() {
   usePageMeta('applications', 'Applications', ['Home', 'Applications']);
-  const { role, partnerScope } = useSession();
+  const { role, partnerScope, dataVersion } = useSession();
   const navigate = useNavigate();
   const [params] = useSearchParams();
 
@@ -156,7 +156,16 @@ export function Applications() {
      under whatever sort is active, its members follow in entry order, and a page
      may run a row or two over PAGE_SIZE rather than leave the third tenant
      stranded at the top of the next page. */
-  const tenancies = useMemo(() => groupTenancies(visibleRows), [visibleRows]);
+  /* Grouped from the SCOPED set, not the filtered one. Filter to "Paid" and the
+     lead disappears (it is in 'deed'), and a group built from what is left
+     promotes the wrong applicant to lead, renumbers the others and reports the
+     tenancy's status from a sibling. The tenancy is a fact about the data, not
+     about the filter. */
+  const tenancies = useMemo(
+    () => groupTenancies(scopedSummaries(scopeOpts)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [role, partnerScope, partner, dataVersion],
+  );
   const collated = useMemo(() => collateTenancies(visibleRows, tenancies), [visibleRows, tenancies]);
   const pages = useMemo(() => pageWithoutSplitting(collated, tenancies, PAGE_SIZE), [collated, tenancies]);
   const pageCount = Math.max(1, pages.length);
@@ -359,11 +368,7 @@ export function Applications() {
                 const first = !!g && pagedRows[i - 1]?.tenancyId !== r.tenancyId;
                 const last = !!g && pagedRows[i + 1]?.tenancyId !== r.tenancyId;
                 const me = g?.members.find((m) => m.ref === r.ref);
-                // The DEED belongs to the tenancy, and only its lead ever carries
-                // one — apply_deed_executed keys on the PandaDoc document. So a
-                // sibling asked for its own status answers "Paid" forever while
-                // the guarantee is in force. Every member shows the tenancy's.
-                const st = g ? g.status : r.status;
+                const shown = g ? pagedRows.filter((x) => x.tenancyId === r.tenancyId).length : 0;
                 const cols = 7 + (showPartner ? 1 : 0) + 1;
                 return (
                 <Fragment key={r.ref}>
@@ -373,8 +378,17 @@ export function Applications() {
                         <span className="jt-head__tag">Joint tenancy</span>
                         <span className="jt-head__txt">
                           {g!.members.length} tenants · {g!.prop} · one guarantee, one deed
+                          {shown < g!.members.length && ` · ${shown} shown by this filter`}
                         </span>
-                        <span className="jt-head__prog">{tenancyProgress(g!)}</span>
+                        {/* THE DEED IS THE TENANCY'S, so its status belongs here
+                            and not on the member rows. Only the lead ever reaches
+                            'deed' — apply_deed_executed keys on the PandaDoc
+                            document — so putting it on every row would have each
+                            sibling contradict the tab it is counted under. */}
+                        <span className="jt-head__prog">
+                          <Pill variant={g!.status === 'withdrawn' || g!.status === 'expired' || g!.status === 'draft' ? 'muted' : g!.status === 'referencing' ? 'warn' : g!.status === 'declined' ? 'danger' : (g!.status as PillVariant)}>{STATUS_LABEL[g!.status]}</Pill>
+                          <span className="jt-head__sep">{tenancyProgress(g!)}</span>
+                        </span>
                       </td>
                     </tr>
                   )}
@@ -407,7 +421,7 @@ export function Applications() {
                     </td>
                     <td>
                       <span className="status-cell">
-                        <Pill variant={st === 'withdrawn' || st === 'expired' || st === 'draft' ? 'muted' : st === 'referencing' ? 'warn' : st === 'declined' ? 'danger' : (st as PillVariant)}>{STATUS_LABEL[st]}</Pill>
+                        <Pill variant={r.status === 'withdrawn' || r.status === 'expired' || r.status === 'draft' ? 'muted' : r.status === 'referencing' ? 'warn' : r.status === 'declined' ? 'danger' : (r.status as PillVariant)}>{STATUS_LABEL[r.status]}</Pill>
                         {r.refunded && <span className="refund-tag" title="Guarantor fee refunded">Refunded</span>}
                         {/* Payment is per applicant: each tenant pays their own
                             share through their own link, so it is theirs to show

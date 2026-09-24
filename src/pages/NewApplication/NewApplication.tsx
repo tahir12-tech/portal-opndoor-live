@@ -49,6 +49,15 @@ const EMPTY: ReferralValues = {
 
 const EMPTY_TENANT: TenantValues = { title: '', first: '', middle: '', last: '', dob: '', email: '', phone: '' };
 
+/* Extra tenants carry an id of their own.
+   Keying their fields by array index means removing the middle of three shifts
+   every one below it: React reuses the DOM node, and the "you have touched this
+   field" flags — which are keyed by the same index — light up validation errors
+   against a tenant whose box nobody has been near. */
+let tenantSeq = 0;
+type ExtraTenant = TenantValues & { key: string };
+const newTenant = (): ExtraTenant => { tenantSeq += 1; return { ...EMPTY_TENANT, key: `t${tenantSeq}` }; };
+
 export function NewApplication() {
   usePageMeta('new', 'New application', ['Home', 'Applications', 'New']);
   const navigate = useNavigate();
@@ -58,7 +67,7 @@ export function NewApplication() {
   const [values, setValues] = useState<ReferralValues>(EMPTY);
   // Tenants 2 and up. Empty is the overwhelmingly common case and is what makes
   // the sole-tenant path identical: no shares, no rows, the same RPC.
-  const [extra, setExtra] = useState<TenantValues[]>([]);
+  const [extra, setExtra] = useState<ExtraTenant[]>([]);
   // Every tenant's share of the rent as a percentage, index 0 being tenant 1.
   // Held as strings because a half-typed "3" must not become 3%.
   const [percents, setPercents] = useState<string[]>([String(DEFAULT_SHARE_PERCENT)]);
@@ -70,9 +79,13 @@ export function NewApplication() {
   const [fee, setFee] = useState<FeePreview | null>(null);
   // THE RAIL the selected origin runs on. A joint tenancy is an agent-rail
   // thing: a pre-referenced referral arrives with its references already done
-  // and covers one tenant, and create_joint_referral refuses the rest. Null
-  // until an origin is chosen, or when the route cannot be confirmed.
+  // and covers one tenant, and create_joint_referral refuses the rest.
+  //
+  // Three states, not two, and the difference matters: "no origin chosen yet"
+  // and "asked, and the answer is not the agent rail" must not be confused,
+  // because only the second is grounds for throwing away tenants somebody typed.
   const [rail, setRail] = useState<string | null>(null);
+  const [railState, setRailState] = useState<'none' | 'loading' | 'ready'>('none');
   // Said once, when adding a tenant stops being possible and tenants were
   // already entered. Silence would be worse than the interruption.
   const [railNote, setRailNote] = useState('');
@@ -100,8 +113,7 @@ export function NewApplication() {
 
   const joint = extra.length > 0;
   const tenantCount = 1 + extra.length;
-  const originChosen = !!values.agency && !!values.branch;
-  const jointAllowed = originChosen && rail === 'opndoor_referenced';
+  const jointAllowed = railState === 'ready' && rail === 'opndoor_referenced';
   const rentNum = Number(values.rent);
   const pctNums = percents.map((p) => Number(p));
 
@@ -136,7 +148,7 @@ export function NewApplication() {
      something nobody chose. */
   function addTenant() {
     const n = tenantCount + 1;
-    setExtra((prev) => [...prev, { ...EMPTY_TENANT }]);
+    setExtra((prev) => [...prev, newTenant()]);
     setPercents(equalSharePercents(n).map(String));
   }
   function removeTenant(i: number) {
@@ -165,8 +177,8 @@ export function NewApplication() {
   };
   const markTouched = (k: string) => setTouched((t) => new Set(t).add(k));
   const err = (k: keyof ReferralValues) => ((submitted || touched.has(k)) ? errors[k] : undefined);
-  const errX = (i: number, k: keyof TenantValues) =>
-    ((submitted || touched.has(`x${i}.${k}`)) ? extraErrors[i]?.[k] : undefined);
+  const errX = (i: number, key: string, k: keyof TenantValues) =>
+    ((submitted || touched.has(`${key}.${k}`)) ? extraErrors[i]?.[k] : undefined);
 
   // Native date-input bounds (dd/mm/yyyy display in en-GB; value is yyyy-mm-dd).
   const isoOf = (dd: Date) => `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}-${String(dd.getDate()).padStart(2, '0')}`;
@@ -187,24 +199,31 @@ export function NewApplication() {
      offer a button the RPC would refuse. */
   useEffect(() => {
     let live = true;
-    if (!values.agency || !values.branch) { setRail(null); return; }
+    if (!values.agency || !values.branch) { setRail(null); setRailState('none'); return; }
+    setRailState('loading');
     void originReferencingMode(values.agency, values.branch, org.partner || (partnerScope === ALL_PARTNERS ? undefined : partnerScope))
-      .then((m) => { if (live) setRail(m); });
+      .then((m) => { if (live) { setRail(m); setRailState('ready'); } });
     return () => { live = false; };
   }, [values.agency, values.branch, org.partner, partnerScope]);
 
-  // The origin can change AFTER tenants have been added — section 4 sits below
-  // section 1. Rather than let the form carry tenants it can no longer send,
-  // they are dropped and the reason is said out loud.
+  /* The origin can change AFTER tenants have been added — section 4 sits below
+     section 1 — and then the form would be carrying tenants the RPC will refuse.
+     They are dropped, and the reason is said out loud.
+
+     ONLY ON A SETTLED ANSWER. Typing in the Branch box clears the picker's
+     selection on every keystroke, so keying on "not allowed" threw away
+     everything the moment somebody touched that field to correct a typo. The
+     tenants survive an incomplete or in-flight origin and are removed only when
+     the rail has actually come back as something that cannot carry them. */
   useEffect(() => {
-    if (jointAllowed || extra.length === 0) { if (jointAllowed) setRailNote(''); return; }
+    if (railState !== 'ready') return;
+    if (rail === 'opndoor_referenced') { setRailNote(''); return; }
+    if (extra.length === 0) return;
     setExtra([]);
     setPercents([String(DEFAULT_SHARE_PERCENT)]);
-    setRailNote(originChosen
-      ? 'This agent\u2019s referrals cover one tenant each, so the additional tenants were removed.'
-      : 'The additional tenants were removed while the agent and branch changed.');
+    setRailNote('This agent\u2019s referrals cover one tenant each, so the additional tenants were removed.');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jointAllowed, originChosen]);
+  }, [railState, rail]);
 
   const pctKey = percents.join(',');
   useEffect(() => {
@@ -395,7 +414,7 @@ export function NewApplication() {
               })}
 
               {extra.map((t, i) => (
-                <div className="tn-extra" key={i}>
+                <div className="tn-extra" key={t.key}>
                   <div className="tn-label">
                     <span>Tenant {i + 2}</span>
                     <button type="button" className="tn-remove" onClick={() => removeTenant(i)}>Remove</button>
@@ -404,8 +423,8 @@ export function NewApplication() {
                     idPrefix: `x${i}`,
                     v: t,
                     onField: (k, val) => setExtraField(i, k, val),
-                    onBlurField: (k) => markTouched(`x${i}.${k}`),
-                    fieldError: (k) => errX(i, k),
+                    onBlurField: (k) => markTouched(`${t.key}.${k}`),
+                    fieldError: (k) => errX(i, t.key, k),
                     onPasteDob: onPasteExtraDob(i),
                     emailError: dupIdx === i + 1 ? 'Two tenants cannot share an email address.' : undefined,
                   })}
@@ -428,11 +447,13 @@ export function NewApplication() {
                     <Icon name="plus" /> Add another tenant
                   </button>
                   <p className="tn-gate__why" id="tn-gate-why">
-                    {!originChosen
+                    {railState === 'none'
                       ? 'Choose the agent and branch first: whether a referral can cover more than one tenant depends on who it is for.'
-                      : rail === null
-                        ? 'We could not confirm this agent\u2019s referencing route, so this referral covers one tenant.'
-                        : 'This agent\u2019s references are done before the referral reaches us, and a pre-referenced referral covers one tenant. Refer each tenant separately.'}
+                      : railState === 'loading'
+                        ? 'Checking this agent\u2019s referencing route\u2026'
+                        : rail === null
+                          ? 'We could not confirm this agent\u2019s referencing route, so this referral covers one tenant.'
+                          : 'This agent\u2019s references are done before the referral reaches us, and a pre-referenced referral covers one tenant. Refer each tenant separately.'}
                   </p>
                 </div>
               )}

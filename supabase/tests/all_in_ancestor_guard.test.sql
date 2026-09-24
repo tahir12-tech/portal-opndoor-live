@@ -15,7 +15,7 @@
 -- actually knows, rather than only in the screen that might not.
 
 begin;
-select plan(17);
+select plan(22);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
 values ('93000000-0000-0000-0000-000000000001', 'zzz-guard-rail', 'Guard Rail', 'opndoor_referenced', 0.25, 0.10, true),
@@ -92,11 +92,23 @@ select matches(
   'Guard Agency.*30\.00%.*35\.00%',
   'the refusal names the deal below, what was agreed, and what would actually be paid');
 
-select throws_ok(
+-- An ADDITIVE AGREEMENT above an all-in is NOT a breach, and refusing it was a
+-- false positive (20261003120000). resolve_pricing_agreement takes the single
+-- most specific agreement and 'agency' sorts before 'group', so the all-in wins
+-- for that agency's branches and the group's deal never reaches them; the group
+-- slot then reads g.agent_rate, which is null because the group holds an
+-- agreement rather than a rate. The deal is real for every OTHER agency in the
+-- group -- it is simply inert for this one.
+select lives_ok(
   $$select public.create_agreement('group', '93000000-0000-0000-0000-000000000002', 'additive', 'year', 'group',
       '[{"min":1,"max":null,"weeks":4.35,"rate":0.05}]'::jsonb, '[]'::jsonb, null, true)$$,
-  '22023', null,
-  'an additive agreement above an all-in is the same breach, and is refused too');
+  'a group AGREEMENT above an all-in is allowed: it never reaches that agency''s branches');
+select is(
+  public.commission_total('93000000-0000-0000-0000-000000000004','93000000-0000-0000-0000-000000000001'),
+  0.30::numeric, 'and the all-in agency still pays exactly the 30% it signed');
+-- Put it back, so what follows tests the rate path from a clean state.
+update public.pricing_agreements set ended_at = now()
+ where scope_level = 'group' and scope_id = '93000000-0000-0000-0000-000000000002' and not is_standard;
 
 -- ---------------------------------------------------------------------------
 -- WHAT IS NOT A BREACH.
@@ -134,6 +146,39 @@ select throws_ok(
      where id = '93000000-0000-0000-0000-000000000002'$$,
   '22023', null,
   'the confirmation does not stand for the next write, even in the same transaction');
+
+-- ---------------------------------------------------------------------------
+-- THE MIRROR: the same breach reached by doing the two writes in the other
+-- order. Without this the guard is bypassed by signing the deal second.
+-- ---------------------------------------------------------------------------
+update public.pricing_agreements set ended_at = now()
+ where id = '93000000-0000-0000-0000-00000000000a';
+update public.agency_groups set agent_rate = null where id = '93000000-0000-0000-0000-000000000002';
+-- The group's line goes on FIRST, while there is nothing below it to breach.
+select lives_ok(
+  $$select public.set_node_rate('group', '93000000-0000-0000-0000-000000000002', 0.05)$$,
+  'a group line with no all-in below it is simply a group line');
+
+select throws_ok(
+  $$select public.create_agreement('agency', '93000000-0000-0000-0000-000000000003', 'all_in', 'year', 'agency',
+      '[{"min":1,"max":null,"weeks":4.35,"rate":0.30}]'::jsonb, '[]'::jsonb, null, true)$$,
+  '22023', null,
+  'and an all-in signed UNDERNEATH it is the same breach, refused the same way');
+
+select lives_ok(
+  $$select public.create_agreement('agency', '93000000-0000-0000-0000-000000000003', 'all_in', 'year', 'agency',
+      '[{"min":1,"max":null,"weeks":4.35,"rate":0.30}]'::jsonb, '[]'::jsonb, null, true, true)$$,
+  'confirmed, the deal is signed');
+
+-- ---------------------------------------------------------------------------
+-- RE-PARENTING: a fourth door that touches no rate at all, so no rate trigger
+-- would ever see it.
+-- ---------------------------------------------------------------------------
+update public.agencies set group_id = null where id = '93000000-0000-0000-0000-000000000003';
+select throws_ok(
+  $$select public.set_agency_group('93000000-0000-0000-0000-000000000003', '93000000-0000-0000-0000-000000000002')$$,
+  '22023', null,
+  'moving an all-in agency under a group that already charges is refused too');
 
 -- ---------------------------------------------------------------------------
 -- A JOINT TENANCY IS AGENT-RAIL ONLY.

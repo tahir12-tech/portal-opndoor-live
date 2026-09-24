@@ -11,7 +11,7 @@
 --                           subtree; lines ABOVE it still add, deliberately
 
 begin;
-select plan(16);
+select plan(17);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate)
 values ('91000000-0000-0000-0000-000000000001', 'zzz-rate-rail', 'One Rate Rail', 'opndoor_referenced', 0.25, 0.10);
@@ -80,8 +80,21 @@ select is(
   2, 'all-in also has to clear what is inside the subtree: the branch rate and the standing agreement');
 
 update public.branches set agent_rate = null where id = '91000000-0000-0000-0000-000000000004';
+
+-- The group's 2% line is above this agency, and an all-in landing UNDER a line
+-- that already exists is the same breach as the line being added over it later
+-- (20261003120000). So the setup for the all-in case now has to say out loud
+-- that it is deliberate — which is the rule, not a workaround for it.
+select throws_ok(
+  $$update public.pricing_agreements set coverage = 'all_in'
+     where id = '91000000-0000-0000-0000-00000000000a'$$,
+  '22023', null,
+  'an all-in signed underneath an existing group line is refused, the same as the line being added above it');
+
+select set_config('app.confirm_all_in_breach', 'on', true);
 update public.pricing_agreements set coverage = 'all_in', ended_at = null
  where id = '91000000-0000-0000-0000-00000000000a';
+select set_config('app.confirm_all_in_breach', 'off', true);
 
 select is(
   (select count(*)::int from public.commission_split('91000000-0000-0000-0000-000000000004','91000000-0000-0000-0000-000000000001')),

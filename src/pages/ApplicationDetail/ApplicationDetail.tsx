@@ -12,7 +12,7 @@
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedDownloadUrl, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyProgress, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
+import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedDownloadUrl, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyProgress, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
@@ -131,10 +131,14 @@ export function ApplicationDetail() {
   /* THE OTHER TENANTS on this tenancy, in this viewer's scope. Derived from the
      same summary rows the list reads, through the same scoping, so a referrer
      sees the siblings they own and nothing else. Empty for a sole applicant. */
-  const siblings = useMemo(
-    () => (ref ? tenancySiblings(ref, { role, scope: partnerScope }) : []),
-    [ref, role, partnerScope, dataVersion],
-  );
+  const siblings = useMemo(() => {
+    // The SAME widening the list applies: opndoor staff read the whole book, and
+    // a superadmin with a partner selected in the switcher would otherwise see
+    // the pair grouped on /applications and no panel at all when they opened one
+    // of them.
+    const scope = role === 'superadmin' || role === 'opndoor_manager' ? ALL_PARTNERS : partnerScope;
+    return ref ? tenancySiblings(ref, { role, scope }) : [];
+  }, [ref, role, partnerScope, dataVersion]);
   const tenancyGroup = useMemo(() => {
     const g = groupTenancies(siblings);
     return siblings[0]?.tenancyId ? g.get(siblings[0].tenancyId) : undefined;
@@ -1183,7 +1187,7 @@ export function ApplicationDetail() {
               }
             />
             <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
-              <div className="drow"><span className="drow__k">Monthly rent</span><span className="drow__v"><b style={{ fontFamily: 'var(--display)', fontSize: 16 }}>{d.rent}</b> per month{siblings.length > 0 && me?.sharePercent != null && <> · <b>{me.sharePercent}%</b> is this tenant’s share</>}</span></div>
+              <div className="drow"><span className="drow__k">Monthly rent</span><span className="drow__v"><b style={{ fontFamily: 'var(--display)', fontSize: 16 }}>{d.rent}</b> per month{siblings.length > 1 && me?.sharePercent != null && <> · <b>{me.sharePercent}%</b> is this tenant’s share</>}</span></div>
               <div className="drow"><span className="drow__k">Tenancy start</span><span className="drow__v">{fmtLong(currentStart)}</span></div>
               <div className="drow"><span className="drow__k">Referrer</span><span className="drow__v">{d.referrerRole === 'superadmin' ? 'opndoor' : d.referrer}</span></div>
 
@@ -1192,14 +1196,14 @@ export function ApplicationDetail() {
                   of them. Without this the reader has no way to tell that the
                   rent above is shared, or that the deed they are waiting for
                   belongs to somebody else's row. */}
-              {siblings.length > 0 && (
+              {siblings.length > 1 && tenancyGroup && (
                 <div className="jt-panel">
                   <div className="jt-panel__head">
                     <span>Joint tenancy · {siblings.length} tenants</span>
-                    <span className="jt-panel__prog">{tenancyGroup ? tenancyProgress(tenancyGroup) : ''}</span>
+                    <span className="jt-panel__prog">{tenancyProgress(tenancyGroup)}</span>
                   </div>
                   {siblings.map((sib) => {
-                    const m = tenancyGroup?.members.find((x) => x.ref === sib.ref);
+                    const m = tenancyGroup.members.find((x) => x.ref === sib.ref);
                     const isMe = sib.ref === d.ref;
                     return (
                       <div className={`jt-panel__row${isMe ? ' is-me' : ''}`} key={sib.ref}>
@@ -1217,9 +1221,9 @@ export function ApplicationDetail() {
                   {/* The deed is the TENANCY's, and only its lead ever carries one,
                       so the state shown here is the lead's rather than this row's. */}
                   <p className="jt-panel__deed">
-                    {tenancyGroup?.fullyPaid
+                    {tenancyGroup.fullyPaid
                       ? `One Deed of Guarantee covers this tenancy and names all ${siblings.length} tenants. Its status is ${STATUS_LABEL_LC[tenancyGroup.status] ?? tenancyGroup.status}, and it is carried by the lead applicant's reference.`
-                      : `The deed is generated once every tenant has paid their share. ${tenancyGroup ? tenancyProgress(tenancyGroup) : ''}.`}
+                      : `The deed is generated once every tenant has paid their share. ${tenancyProgress(tenancyGroup)}.`}
                   </p>
                 </div>
               )}

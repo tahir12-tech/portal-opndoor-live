@@ -115,6 +115,11 @@ export function groupTenancies(rows: ApplicationSummary[]): Map<string, TenancyG
  * everything from 'paid' onwards has been through the payment.
  */
 function isPaid(r: ApplicationSummary): boolean {
+  // A REFUND undoes it. The question this answers is "has this tenant's share
+  // been settled", which is what the tenancy's deed waits on, and a refunded
+  // share has not been — reading it as paid would report "All 3 tenants have
+  // paid" over a tenancy that is short one.
+  if (r.refunded) return false;
   if (r.paidAtTs != null) return true;
   return r.status === 'paid' || r.status === 'deed';
 }
