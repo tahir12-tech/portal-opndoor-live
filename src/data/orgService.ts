@@ -12,7 +12,7 @@ import type { Agency, AgencyGroup, AgentContact, Branch, PartnerScope } from './
 import { ALL_PARTNERS } from './types';
 import { KEYS, clone, loadJSON, saveJSON } from './storage';
 import { ORG_SEED } from './mock/org';
-import { homePartner } from './partnersService';
+import { getPartner, homePartner } from './partnersService';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { isHydrated } from './applicationsService';
 
@@ -424,6 +424,43 @@ export async function deleteOrgShape(agencyIds: string[], groupId?: string): Pro
     journey; this exists so a screen can label a row without a round trip. */
 export function agencyReferencingMode(agency: Agency, partnerMode: string | null | undefined): string | null {
   return agency.referencingMode ?? partnerMode ?? null;
+}
+
+/**
+ * THE RAIL a referral against this agent and branch would actually run on.
+ *
+ * The form asks before it offers multi-tenant, because a joint tenancy is an
+ * agent-rail thing: a pre-referenced referral arrives with its references
+ * already done and covers one tenant. create_joint_referral refuses the rest,
+ * and this is what stops the form offering a button that would be refused.
+ *
+ * Partner-qualified, because an admin on "all partners" can name an agency that
+ * exists under two — the ambiguity the partner label on the picker options
+ * exists to avoid. An agency that does not exist yet inherits its partner's
+ * mode, which is what a fly-created one will get.
+ *
+ * Live mode asks the server (origin_referencing_mode), which resolves through
+ * the same functions create_joint_referral uses, so the form and the RPC cannot
+ * disagree. Mock mode resolves from the hydrated store.
+ */
+export async function originReferencingMode(
+  agencyName: string, branchName: string, partnerSlug: string | null | undefined,
+): Promise<string | null> {
+  if (!agencyName) return null;
+  if (orgLive()) {
+    const { data, error } = await sb().rpc('origin_referencing_mode', {
+      p_agency: agencyName, p_branch: branchName, p_partner_slug: partnerSlug || null,
+    });
+    if (error) return null;
+    return (data as string | null) ?? null;
+  }
+  const within = partnerSlug
+    ? AGENCIES.find((a) => a.name === agencyName && partnerOf(a) === partnerSlug)
+    : undefined;
+  const a = within ?? AGENCIES.find((x) => x.name === agencyName);
+  const partnerMode = (slug: string) => getPartner(slug)?.referencingMode ?? null;
+  if (!a) return partnerSlug ? partnerMode(partnerSlug) : null;
+  return agencyReferencingMode(a, partnerMode(partnerOf(a)));
 }
 
 /** Set or clear an agency's own referencing route. Admin only. */

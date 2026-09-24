@@ -1,12 +1,25 @@
 /* The New application form when there is more than one tenant.
 
-   Two things are being locked here. First, that a SOLE tenant is never asked
-   about shares at all: the ruling is that one applicant carries 100% and should
-   not have to say so, and a form that asks is the regression. Second, that once
-   a second tenant exists, each share row's percentage and amount mirror to the
-   penny and the shares are defaulted to something that already sums to 100. */
+   Three things are locked here.
+
+   First, that multi-tenant is offered ONLY where the chosen origin is the agent
+   rail. A pre-referenced referral arrives with its references already done and
+   covers a single tenant; create_joint_referral refuses the rest. A form that
+   offers the button there is offering something that cannot be sent.
+
+   Second, that a SOLE tenant is never asked about shares — one applicant carries
+   100% and should not have to say so.
+
+   Third, that once a second tenant exists, each share row's percentage and
+   amount mirror to the penny and the shares default to something that already
+   sums to 100.
+
+   ONE FORM, EVERY ROLE. superadmin, management and referrer all create referrals
+   through this same component, so the gate and the share behaviour are asserted
+   under an admin session as well as a partner one: a rule added for one is a
+   rule for both, and that is the whole point of there being one form. */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, fireEvent, waitFor } from '@testing-library/react';
+import { act, cleanup, render, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -14,8 +27,12 @@ import { App } from '@/App';
 
 afterEach(cleanup);
 
-async function openForm() {
-  localStorage.setItem('grp_role', 'management');
+/** Foxglove is the agent-rail agency in the mock seed; Marylebone is not. */
+const AGENT_RAIL = { agency: 'Foxglove Residential', branch: 'South Kensington' };
+const PRE_REFERENCED = { agency: 'Marylebone & Co', branch: 'Marylebone' };
+
+async function openForm(role: 'management' | 'superadmin' = 'management') {
+  localStorage.setItem('grp_role', role);
   const view = render(
     <MemoryRouter initialEntries={['/new-application']}>
       <SessionProvider><ToastProvider><App /></ToastProvider></SessionProvider>
@@ -24,14 +41,75 @@ async function openForm() {
   await waitFor(() => { if (!document.querySelector('#ty-rent')) throw new Error('form not ready'); });
   const q = <T extends HTMLElement = HTMLInputElement>(sel: string) => view.container.querySelector<T>(sel)!;
   const change = (sel: string, value: string) => fireEvent.change(q(sel), { target: { value } });
+
+  /** Pick an option out of a TypeAhead by its visible name. Selection is on
+      mousedown, so it fires before the input blurs. */
+  const pick = (name: string) => {
+    const opt = [...view.container.querySelectorAll<HTMLElement>('.typeahead__opt')]
+      .find((o) => (o.textContent ?? '').includes(name));
+    if (!opt) throw new Error(`no option matching ${name}`);
+    fireEvent.mouseDown(opt);
+  };
+
+  /** Choose the agent and branch, which is what decides whether this referral
+      may carry more than one tenant. */
+  const chooseOrigin = async (o: { agency: string; branch: string }) => {
+    fireEvent.focus(q('#ag-name'));
+    fireEvent.change(q('#ag-name'), { target: { value: o.agency } });
+    pick(o.agency);
+    await waitFor(() => { if (!document.querySelector('#br-name')) throw new Error('branch field not ready'); });
+    fireEvent.focus(q('#br-name'));
+    fireEvent.change(q('#br-name'), { target: { value: o.branch } });
+    pick(o.branch);
+    // The rail is resolved asynchronously, even in mock mode.
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+  };
+
+  const addBtn = () => [...view.container.querySelectorAll('button')]
+    .find((b) => /add another tenant/i.test(b.textContent ?? '')) as HTMLButtonElement | undefined;
   const addTenant = () => {
-    const btn = [...view.container.querySelectorAll('button')].find((b) => /add another tenant/i.test(b.textContent ?? ''))!;
+    const btn = addBtn();
+    if (!btn) throw new Error('no add-another-tenant button');
     fireEvent.click(btn);
   };
   /** The share inputs, in tenant order: [pct, amount, pct, amount, ...]. */
   const shareInputs = () => [...view.container.querySelectorAll<HTMLInputElement>('.shares__in input')];
-  return { q, change, addTenant, shareInputs, view };
+  return { q, change, pick, chooseOrigin, addBtn, addTenant, shareInputs, view };
 }
+
+describe.each(['management', 'superadmin'] as const)('multi-tenant is agent-rail only [%s]', (role) => {
+  it('will not offer a second tenant before an origin is chosen, and says what is missing', async () => {
+    const { addBtn, view } = await openForm(role);
+    expect(addBtn()?.disabled).toBe(true);
+    expect(view.container.textContent).toMatch(/Choose the agent and branch first/i);
+  });
+
+  it('offers it once an agent-rail origin is chosen', async () => {
+    const { addBtn, chooseOrigin } = await openForm(role);
+    await chooseOrigin(AGENT_RAIL);
+    expect(addBtn()?.disabled).toBe(false);
+  });
+
+  it('refuses it on a pre-referenced origin, and says why', async () => {
+    const { addBtn, chooseOrigin, view } = await openForm(role);
+    await chooseOrigin(PRE_REFERENCED);
+    expect(addBtn()?.disabled).toBe(true);
+    expect(view.container.textContent).toMatch(/covers one tenant|one tenant each/i);
+  });
+});
+
+describe('changing the origin under tenants already entered', () => {
+  it('drops them rather than carrying tenants it cannot send, and says so', async () => {
+    const { chooseOrigin, addTenant, view } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
+    addTenant();
+    expect(view.container.querySelector('.shares')).toBeTruthy();
+
+    await chooseOrigin(PRE_REFERENCED);
+    expect(view.container.querySelector('.shares')).toBeNull();
+    expect(view.container.textContent).toMatch(/additional tenants were removed/i);
+  });
+});
 
 describe('a sole tenant is never asked about shares', () => {
   it('renders no share fields and no share rows', async () => {
@@ -49,7 +127,8 @@ describe('a sole tenant is never asked about shares', () => {
 
 describe('adding a tenant', () => {
   it('opens the shares at an even split that already sums to 100', async () => {
-    const { change, addTenant, shareInputs } = await openForm();
+    const { change, addTenant, shareInputs, chooseOrigin } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
     change('#ty-rent', '1800');
     addTenant();
     const [p1, a1, p2, a2] = shareInputs();
@@ -60,7 +139,8 @@ describe('adding a tenant', () => {
   });
 
   it('re-spreads to thirds on a third tenant, the last taking the rounding', async () => {
-    const { change, addTenant, shareInputs } = await openForm();
+    const { change, addTenant, shareInputs, chooseOrigin } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
     change('#ty-rent', '1800');
     addTenant();
     addTenant();
@@ -69,7 +149,8 @@ describe('adding a tenant', () => {
   });
 
   it('repeats the same tenant fields, so tenant 2 has every field tenant 1 has', async () => {
-    const { q, addTenant } = await openForm();
+    const { q, addTenant, chooseOrigin } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
     addTenant();
     for (const f of ['title', 'first', 'middle', 'last', 'dob', 'email', 'phone']) {
       expect(q(`#x0-${f}`)).toBeTruthy();
@@ -77,7 +158,8 @@ describe('adding a tenant', () => {
   });
 
   it('removing the extra tenant puts the form back to a sole tenant', async () => {
-    const { view, addTenant } = await openForm();
+    const { view, addTenant, chooseOrigin } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
     addTenant();
     expect(view.container.querySelector('.shares')).toBeTruthy();
     fireEvent.click([...view.container.querySelectorAll('button')].find((b) => b.textContent === 'Remove')!);
@@ -87,15 +169,17 @@ describe('adding a tenant', () => {
 
 describe('each share row mirrors, to the penny', () => {
   it('typing a percentage fills that tenant’s amount (£1,800 @ 40% = £720)', async () => {
-    const { change, addTenant, shareInputs } = await openForm();
+    const { change, addTenant, shareInputs, chooseOrigin } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
     change('#ty-rent', '1800');
     addTenant();
     fireEvent.change(shareInputs()[0], { target: { value: '40' } });
     expect(shareInputs()[1].value).toBe('720');
   });
 
-  it('typing an amount sets that tenant’s percentage (£900 of £1,800 = 50%)', async () => {
-    const { change, addTenant, shareInputs } = await openForm();
+  it('typing an amount sets that tenant’s percentage (£450 of £1,800 = 25%)', async () => {
+    const { change, addTenant, shareInputs, chooseOrigin } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
     change('#ty-rent', '1800');
     addTenant();
     fireEvent.change(shareInputs()[1], { target: { value: '450' } });
@@ -103,7 +187,8 @@ describe('each share row mirrors, to the penny', () => {
   });
 
   it('rounds to the penny rather than leaking thirds', async () => {
-    const { change, addTenant, shareInputs } = await openForm();
+    const { change, addTenant, shareInputs, chooseOrigin } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
     change('#ty-rent', '1000');
     addTenant();
     fireEvent.change(shareInputs()[0], { target: { value: '33.333' } });
@@ -111,7 +196,8 @@ describe('each share row mirrors, to the penny', () => {
   });
 
   it('follows the rent: the amounts re-derive from the shares that were set', async () => {
-    const { change, addTenant, shareInputs } = await openForm();
+    const { change, addTenant, shareInputs, chooseOrigin } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
     change('#ty-rent', '1800');
     addTenant();
     fireEvent.change(shareInputs()[0], { target: { value: '60' } });
@@ -121,7 +207,8 @@ describe('each share row mirrors, to the penny', () => {
   });
 
   it('names the gap when the shares do not describe the whole tenancy', async () => {
-    const { view, change, addTenant, shareInputs } = await openForm();
+    const { view, change, addTenant, shareInputs, chooseOrigin } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
     change('#ty-rent', '1800');
     addTenant();
     fireEvent.change(shareInputs()[0], { target: { value: '30' } });
@@ -131,7 +218,8 @@ describe('each share row mirrors, to the penny', () => {
 
 describe('the same person cannot be two tenants', () => {
   it('refuses a repeated email inline, against the tenant who repeats it', async () => {
-    const { q, addTenant, view } = await openForm();
+    const { q, addTenant, view, chooseOrigin } = await openForm();
+    await chooseOrigin(AGENT_RAIL);
     addTenant();
     fireEvent.change(q('#t-email'), { target: { value: 'amelia@example.com' } });
     fireEvent.change(q('#x0-email'), { target: { value: 'AMELIA@example.com' } });

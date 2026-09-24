@@ -242,3 +242,14 @@
   .shares__in input { width: 100%; }
   .feebox__row strong { text-align: left; }
 }
+
+/* The multi-tenant control when it is not on offer. Present and disabled rather
+   than absent, so the reason can be read: "why can't I add a tenant?" is a
+   question a missing button answers badly. */
+.tn-gate { margin-top: 18px; }
+.tn-gate .tn-add { opacity: .5; cursor: not-allowed; }
+.tn-gate .tn-add:hover { border-color: var(--line); color: var(--ink-soft); }
+.tn-gate__why {
+  font-size: 12.5px; color: var(--ink-mute); line-height: 1.55;
+  margin: 8px 0 0; max-width: 62ch;
+}

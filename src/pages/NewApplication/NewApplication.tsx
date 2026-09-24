@@ -20,7 +20,7 @@
 import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, shareSumError } from './shareMath';
-import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, FULL_PICKER, orgSectionCopy, type OrgShape } from '@/data';
+import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originReferencingMode, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, FULL_PICKER, orgSectionCopy, type OrgShape } from '@/data';
 import { Modal } from '@/components/ui/Modal';
 import { TITLE_OPTIONS, validateReferral, validateTenant, parseFlexibleDate, toISODate, type ReferralValues, type TenantErrors, type TenantValues } from '@/lib/validation';
 import { useSession } from '@/session/SessionContext';
@@ -68,6 +68,14 @@ export function NewApplication() {
   const [busy, setBusy] = useState(false);
   const [dupWarn, setDupWarn] = useState<DuplicateMatch | null>(null); // #5 duplicate soft warning
   const [fee, setFee] = useState<FeePreview | null>(null);
+  // THE RAIL the selected origin runs on. A joint tenancy is an agent-rail
+  // thing: a pre-referenced referral arrives with its references already done
+  // and covers one tenant, and create_joint_referral refuses the rest. Null
+  // until an origin is chosen, or when the route cannot be confirmed.
+  const [rail, setRail] = useState<string | null>(null);
+  // Said once, when adding a tenant stops being possible and tenants were
+  // already entered. Silence would be worse than the interruption.
+  const [railNote, setRailNote] = useState('');
 
   // On-the-fly org creation extras from the AgentBranchPicker (contact capture
   // and, for an admin, the target partner the referral lands under).
@@ -92,6 +100,8 @@ export function NewApplication() {
 
   const joint = extra.length > 0;
   const tenantCount = 1 + extra.length;
+  const originChosen = !!values.agency && !!values.branch;
+  const jointAllowed = originChosen && rail === 'opndoor_referenced';
   const rentNum = Number(values.rent);
   const pctNums = percents.map((p) => Number(p));
 
@@ -171,6 +181,31 @@ export function NewApplication() {
      split all live there and a second implementation here is how the form and
      the invoice come to disagree. Debounced: this changes on every keystroke in
      the rent box. */
+  /* ---- which rail the chosen origin runs on ----------------------------
+     Asked of the server in live mode (origin_referencing_mode), which resolves
+     through the very functions create_joint_referral uses, so the form cannot
+     offer a button the RPC would refuse. */
+  useEffect(() => {
+    let live = true;
+    if (!values.agency || !values.branch) { setRail(null); return; }
+    void originReferencingMode(values.agency, values.branch, org.partner || (partnerScope === ALL_PARTNERS ? undefined : partnerScope))
+      .then((m) => { if (live) setRail(m); });
+    return () => { live = false; };
+  }, [values.agency, values.branch, org.partner, partnerScope]);
+
+  // The origin can change AFTER tenants have been added — section 4 sits below
+  // section 1. Rather than let the form carry tenants it can no longer send,
+  // they are dropped and the reason is said out loud.
+  useEffect(() => {
+    if (jointAllowed || extra.length === 0) { if (jointAllowed) setRailNote(''); return; }
+    setExtra([]);
+    setPercents([String(DEFAULT_SHARE_PERCENT)]);
+    setRailNote(originChosen
+      ? 'This agent\u2019s referrals cover one tenant each, so the additional tenants were removed.'
+      : 'The additional tenants were removed while the agent and branch changed.');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jointAllowed, originChosen]);
+
   const pctKey = percents.join(',');
   useEffect(() => {
     let live = true;
@@ -244,7 +279,9 @@ export function NewApplication() {
         county: values.county.trim(), postcode: values.postcode.trim(),
         rent: rentNum, tenancyStart: values.tenancyStart.trim(),
         agency: values.agency, branch: values.branch,
-        tenants,
+        // Only ever sent where a joint tenancy is real. createReferral drops a
+        // single-entry array anyway, so a sole tenant takes the untouched path.
+        tenants: jointAllowed ? tenants : [tenants[0]],
         agencyNew: org.agencyNew, branchNew: org.branchNew,
         agencyContactEmail: org.agencyContactEmail, agencyContactName: org.agencyContactName,
         agencyContactPhone: org.agencyContactPhone, branchContactEmail: org.branchContactEmail,
@@ -375,9 +412,31 @@ export function NewApplication() {
                 </div>
               ))}
 
-              <button type="button" className="tn-add" onClick={addTenant}>
-                <Icon name="plus" /> Add another tenant
-              </button>
+              {/* MULTI-TENANT IS OFFERED ONLY WHERE A JOINT TENANCY IS REAL.
+                  On a pre-referenced rail the references are done before the
+                  referral reaches us and each one covers a single tenant, so
+                  the control is not offered rather than offered and refused.
+                  Before an origin is chosen the rail is not yet knowable, so the
+                  control is present but disabled and says what is missing. */}
+              {jointAllowed ? (
+                <button type="button" className="tn-add" onClick={addTenant}>
+                  <Icon name="plus" /> Add another tenant
+                </button>
+              ) : (
+                <div className="tn-gate">
+                  <button type="button" className="tn-add" disabled aria-describedby="tn-gate-why">
+                    <Icon name="plus" /> Add another tenant
+                  </button>
+                  <p className="tn-gate__why" id="tn-gate-why">
+                    {!originChosen
+                      ? 'Choose the agent and branch first: whether a referral can cover more than one tenant depends on who it is for.'
+                      : rail === null
+                        ? 'We could not confirm this agent\u2019s referencing route, so this referral covers one tenant.'
+                        : 'This agent\u2019s references are done before the referral reaches us, and a pre-referenced referral covers one tenant. Refer each tenant separately.'}
+                  </p>
+                </div>
+              )}
+              {railNote && <p className="tn-gate__why" role="status">{railNote}</p>}
             </CardBody>
           </section>
 
