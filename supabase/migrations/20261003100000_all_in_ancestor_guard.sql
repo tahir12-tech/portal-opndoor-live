@@ -57,14 +57,13 @@ as $function$
     and pa.effective_from <= current_date
     and (pa.effective_to is null or pa.effective_to >= current_date)
     and not (pa.scope_level = p_level and pa.scope_id = p_id)   -- below, not itself
-    and (
-      -- The only descendant that can hold an agreement today is an agency under
-      -- a group: branch-scoped agreements are refused by the scope_level CHECK.
-      -- Written as a general descendant test so it stays correct if that changes.
-      (p_level = 'group' and pa.scope_level = 'agency'
-        and pa.scope_id in (select a.id from public.agencies a where a.group_id = p_id))
-      or (p_level = 'group' and pa.scope_level = 'group' and false)
-    )
+    -- The ONLY descendant that can hold an agreement is an agency under a group.
+    -- Branch scope is refused by pricing_agreements' scope_level CHECK, a group
+    -- has no parent group, and an agency's only descendants are branches. So
+    -- there is one case, not a family of them, and writing it as one keeps the
+    -- reader from looking for the others.
+    and p_level = 'group' and pa.scope_level = 'agency'
+    and pa.scope_id in (select a.id from public.agencies a where a.group_id = p_id)
   order by pa.effective_from desc
   limit 1
 $function$;
