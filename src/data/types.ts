@@ -264,6 +264,24 @@ export interface ApplicationSummary {
       and made an account; feePaid = the application fee has been paid. */
   registered?: boolean;
   feePaid?: boolean;
+  /* ---- THE JOINT TENANCY, when there is one ----------------------------
+     Several applications share one tenancy: one property, one guarantee, one
+     deed. Every sibling carries the WHOLE tenancy rent in `rent`, so a list
+     that draws them as two rows draws one let twice. These are what let a
+     screen say otherwise. All absent on a sole applicant, which is the common
+     case by a distance. */
+  tenancyId?: string | null;
+  /** 1-based, the order the agent entered them. Position 1 leads the tenancy:
+      it carries the one deed, its reminders and its expiry. */
+  tenancyPosition?: number | null;
+  sharePercent?: number | null;
+  /** This applicant's slice of the rent, which is what they are referenced against. */
+  shareAmount?: number | null;
+  /** What this applicant is actually charged: their share of the tenancy fee. */
+  fee?: number | null;
+  paidAtTs?: number | null;
+  /** Only the tenancy's lead ever carries one, because only the lead has a deed. */
+  deedState?: string | null;
 }
 
 /** Display-ready record for the detail view (see applicationsService.getApplicationDetail). */

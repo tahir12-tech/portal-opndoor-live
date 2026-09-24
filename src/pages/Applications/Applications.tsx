@@ -5,11 +5,12 @@
    click through to the detail view. Partner isolation + the referrer
    "own referrals only" rule live in applicationsService.
    ===================================================================== */
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications, getPartners,
   partnerName, referrerNamesForScope, getPeriods, periodRange, ALL_PARTNERS, type Status, type Period,
+  collateTenancies, groupTenancies, memberLabel, pageWithoutSplitting, tenancyProgress,
 } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -150,9 +151,17 @@ export function Applications() {
   useEffect(() => {
     setPage(1);
   }, [role, partnerScope, partner, status, agency, branch, referrer, route, q, sort, period]);
-  const pageCount = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
+  /* A JOINT TENANCY IS ONE THING, so it is ordered as one thing and never split
+     across a page boundary. The tenancy takes the position of its first member
+     under whatever sort is active, its members follow in entry order, and a page
+     may run a row or two over PAGE_SIZE rather than leave the third tenant
+     stranded at the top of the next page. */
+  const tenancies = useMemo(() => groupTenancies(visibleRows), [visibleRows]);
+  const collated = useMemo(() => collateTenancies(visibleRows, tenancies), [visibleRows, tenancies]);
+  const pages = useMemo(() => pageWithoutSplitting(collated, tenancies, PAGE_SIZE), [collated, tenancies]);
+  const pageCount = Math.max(1, pages.length);
   const safePage = Math.min(page, pageCount);
-  const pagedRows = visibleRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagedRows = pages[safePage - 1] ?? [];
 
   const agencyOptions = agencyNamesForScope(scopeOpts);
   const branchOptions = branchNamesForScope(scopeOpts, agency || undefined);
@@ -337,25 +346,75 @@ export function Applications() {
               </tr>
             </thead>
             <tbody>
-              {pagedRows.map((r) => {
+              {pagedRows.map((r, i) => {
                 const ch = channelOf({ partnerSlug: r.partner, referencingMode: r.referencingMode });
+                /* THE TENANCY, when this row is part of one. The heading is drawn
+                   once, above the first member, and every member row then reads
+                   as part of it rather than as its own let. */
+                const g = r.tenancyId ? tenancies.get(r.tenancyId) : undefined;
+                const first = !!g && pagedRows[i - 1]?.tenancyId !== r.tenancyId;
+                const last = !!g && pagedRows[i + 1]?.tenancyId !== r.tenancyId;
+                const me = g?.members.find((m) => m.ref === r.ref);
+                // The DEED belongs to the tenancy, and only its lead ever carries
+                // one — apply_deed_executed keys on the PandaDoc document. So a
+                // sibling asked for its own status answers "Paid" forever while
+                // the guarantee is in force. Every member shows the tenancy's.
+                const st = g ? g.status : r.status;
+                const cols = 7 + (showPartner ? 1 : 0) + 1;
                 return (
-                <tr key={r.ref} onClick={() => navigate(`/applications/${encodeURIComponent(r.ref)}`)}>
-                  <td>
-                    <div className="who">
-                      <span className="who__av">{initials(r.tenant)}</span>
-                      <div><div className="dt__name">{r.tenant}</div><div className="dt__sub">{r.ref}</div></div>
-                    </div>
-                  </td>
-                  <td><Pill variant={ROUTE_PILL[ch]}>{ROUTE_LABEL[ch]}</Pill></td>
-                  {showPartner && <td>{partnerName(r.partner)}</td>}
-                  <td>{r.prop}</td>
-                  <td>{r.branch}<div className="dt__sub">{r.agency}</div></td>
-                  <td style={{ textAlign: 'right' }}><span className="dt__rent">£{r.rent.toLocaleString('en-GB')}</span><div className="dt__sub">per month</div></td>
-                  <td><span className="status-cell"><Pill variant={r.status === 'withdrawn' || r.status === 'expired' || r.status === 'draft' ? 'muted' : r.status === 'referencing' ? 'warn' : r.status === 'declined' ? 'danger' : (r.status as PillVariant)}>{STATUS_LABEL[r.status]}</Pill>{r.refunded && <span className="refund-tag" title="Guarantor fee refunded">Refunded</span>}</span></td>
-                  <td className="dt__num soft">{fmtDate(r.date)}</td>
-                  <td><Icon name="chevronRight" className="dt__chev" size={16} /></td>
-                </tr>
+                <Fragment key={r.ref}>
+                  {first && (
+                    <tr className="jt-head">
+                      <td colSpan={cols}>
+                        <span className="jt-head__tag">Joint tenancy</span>
+                        <span className="jt-head__txt">
+                          {g!.members.length} tenants · {g!.prop} · one guarantee, one deed
+                        </span>
+                        <span className="jt-head__prog">{tenancyProgress(g!)}</span>
+                      </td>
+                    </tr>
+                  )}
+                  <tr
+                    className={g ? `jt-row${first ? ' jt-row--first' : ''}${last ? ' jt-row--last' : ''}` : undefined}
+                    onClick={() => navigate(`/applications/${encodeURIComponent(r.ref)}`)}
+                  >
+                    <td>
+                      <div className="who">
+                        <span className="who__av">{initials(r.tenant)}</span>
+                        <div>
+                          <div className="dt__name">
+                            {r.tenant}
+                            {me?.isLead && <span className="jt-lead" title="Carries the tenancy's deed, reminders and expiry">Lead</span>}
+                          </div>
+                          <div className="dt__sub">{g ? `${r.ref} · ${memberLabel(g, r.ref)}` : r.ref}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td><Pill variant={ROUTE_PILL[ch]}>{ROUTE_LABEL[ch]}</Pill></td>
+                    {showPartner && <td>{partnerName(r.partner)}</td>}
+                    <td>{r.prop}</td>
+                    <td>{r.branch}<div className="dt__sub">{r.agency}</div></td>
+                    {/* The rent is the PROPERTY's and is the same on every sibling,
+                        so a joint row says what this tenant's share of it is —
+                        otherwise two rows read as two £3,000 lets. */}
+                    <td style={{ textAlign: 'right' }}>
+                      <span className="dt__rent">£{r.rent.toLocaleString('en-GB')}</span>
+                      <div className="dt__sub">{me?.sharePercent != null ? `${me.sharePercent}% share` : 'per month'}</div>
+                    </td>
+                    <td>
+                      <span className="status-cell">
+                        <Pill variant={st === 'withdrawn' || st === 'expired' || st === 'draft' ? 'muted' : st === 'referencing' ? 'warn' : st === 'declined' ? 'danger' : (st as PillVariant)}>{STATUS_LABEL[st]}</Pill>
+                        {r.refunded && <span className="refund-tag" title="Guarantor fee refunded">Refunded</span>}
+                        {/* Payment is per applicant: each tenant pays their own
+                            share through their own link, so it is theirs to show
+                            even where the status is the tenancy's. */}
+                        {me && !me.paid && <span className="jt-unpaid" title="This tenant has not paid their share">Not paid</span>}
+                      </span>
+                    </td>
+                    <td className="dt__num soft">{fmtDate(r.date)}</td>
+                    <td><Icon name="chevronRight" className="dt__chev" size={16} /></td>
+                  </tr>
+                </Fragment>
                 );
               })}
             </tbody>

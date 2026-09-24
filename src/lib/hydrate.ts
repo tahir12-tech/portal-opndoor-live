@@ -137,7 +137,12 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         // arrive through application_commission_rates() below, for the roles
         // entitled to them, and Postgres refuses the columns to everyone else
         // whatever they ask.
-        'monthly_rent, fee_amount, fee_basis_weeks, tenancy_id, ' +
+        'monthly_rent, fee_amount, fee_basis_weeks, ' +
+        // The joint-tenancy shape. Every sibling carries the WHOLE tenancy rent
+        // in monthly_rent; share_amount is this applicant's slice and fee_amount
+        // is what they are actually charged. tenancy_position is the order the
+        // agent entered them, and position 1 leads: it carries the one deed.
+        'tenancy_id, tenancy_position, share_percent, share_amount, ' +
         'status, beneficiary, tenancy_start, sent_at, paid_at, deed_issued_at, expiry_date, ' +
         'payment_state, refunded_at, refunded_amount, paid_amount, refund_after_start, ' +
         'withdrawn_at, withdrawn_reason, withdrawn_note, ' +
@@ -341,6 +346,14 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     expired: a.status === 'expired',
     awaitingSignature: a.deed_state === 'awaiting_tenant',
     referencingMode: a.referencing_mode ?? undefined,
+    // The joint-tenancy shape, so the list can show a tenancy as one thing.
+    tenancyId: a.tenancy_id ?? null,
+    tenancyPosition: a.tenancy_position == null ? null : Number(a.tenancy_position),
+    sharePercent: a.share_percent == null ? null : Number(a.share_percent),
+    shareAmount: a.share_amount == null ? null : Number(a.share_amount),
+    fee: a.fee_amount == null ? null : Number(a.fee_amount),
+    paidAtTs: a.paid_at ? new Date(a.paid_at).getTime() : null,
+    deedState: (a.deed_state ?? null) as string | null,
     registered: a.applicant_id != null,
     feePaid: (Array.isArray(a.elig) ? a.elig.some((e: { paid_at?: string | null }) => e?.paid_at) : !!(a.elig as { paid_at?: string | null } | null)?.paid_at),
   }));
@@ -387,6 +400,8 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // row created before M1 (or a mock row) reads exactly as it always did.
     fee: a.fee_amount == null ? num(a.monthly_rent) : num(a.fee_amount),
     tenancyId: a.tenancy_id ?? null,
+    tenancyPosition: a.tenancy_position == null ? null : Number(a.tenancy_position),
+    sharePercent: a.share_percent == null ? null : Number(a.share_percent),
     // From the RPC when entitled, otherwise the partner's current rate as the
     // display fallback, which is what this did before for rows with no snapshot.
     // A role with no entitlement gets zero and every commission figure computed
@@ -428,6 +443,10 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? '(unknown)', // #97
     owner: ownerFlag(a),
     referencingMode: a.referencing_mode ?? undefined,
+    tenancyId: a.tenancy_id ?? null,
+    tenancyPosition: a.tenancy_position == null ? null : Number(a.tenancy_position),
+    sharePercent: a.share_percent == null ? null : Number(a.share_percent),
+    shareAmount: a.share_amount == null ? null : Number(a.share_amount),
     withdrawnReason: (a.withdrawn_reason ?? null) as AppRecord['withdrawnReason'],
     landlordName: a.landlord_name ?? null,
     landlordEmail: a.landlord_email ?? null,

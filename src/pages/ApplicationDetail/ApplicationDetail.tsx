@@ -12,7 +12,7 @@
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedDownloadUrl, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
+import { addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedDownloadUrl, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyProgress, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
@@ -57,6 +57,12 @@ interface Activity {
   text: React.ReactNode;
   time: string;
 }
+
+/** The tenancy's status in running prose, for the joint-tenancy panel. */
+const STATUS_LABEL_LC: Record<string, string> = {
+  draft: 'in progress', referencing: 'awaiting decision', declined: 'declined',
+  sent: 'sent', paid: 'paid', deed: 'issued', withdrawn: 'withdrawn', expired: 'expired',
+};
 
 // Feed dot colour per activity_log event kind.
 const feedColor = (kind: string): string => {
@@ -116,11 +122,24 @@ const REASON_LABEL: Record<WithdrawReason, string> = {
 
 export function ApplicationDetail() {
   const { ref } = useParams();
-  const { role, refresh, dataVersion } = useSession();
+  const { role, partnerScope, refresh, dataVersion } = useSession();
   const toast = useToast();
   // #10 dataVersion is a memo dep so `d` recomputes after a mutation + refresh()
   // re-hydrates the working copies — the single source of truth for every surface.
   const d = useMemo(() => getApplicationDetail(ref ?? null), [ref, dataVersion]);
+
+  /* THE OTHER TENANTS on this tenancy, in this viewer's scope. Derived from the
+     same summary rows the list reads, through the same scoping, so a referrer
+     sees the siblings they own and nothing else. Empty for a sole applicant. */
+  const siblings = useMemo(
+    () => (ref ? tenancySiblings(ref, { role, scope: partnerScope }) : []),
+    [ref, role, partnerScope, dataVersion],
+  );
+  const tenancyGroup = useMemo(() => {
+    const g = groupTenancies(siblings);
+    return siblings[0]?.tenancyId ? g.get(siblings[0].tenancyId) : undefined;
+  }, [siblings]);
+  const me = siblings.find((x) => x.ref === ref);
   usePageMeta('applications', 'Application detail', ['Home', 'Applications', d.ref]);
 
   const [currentStart, setCurrentStart] = useState<Date>(d.tenancyStartDate);
@@ -1164,9 +1183,46 @@ export function ApplicationDetail() {
               }
             />
             <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
-              <div className="drow"><span className="drow__k">Monthly rent</span><span className="drow__v"><b style={{ fontFamily: 'var(--display)', fontSize: 16 }}>{d.rent}</b> per month</span></div>
+              <div className="drow"><span className="drow__k">Monthly rent</span><span className="drow__v"><b style={{ fontFamily: 'var(--display)', fontSize: 16 }}>{d.rent}</b> per month{siblings.length > 0 && me?.sharePercent != null && <> · <b>{me.sharePercent}%</b> is this tenant’s share</>}</span></div>
               <div className="drow"><span className="drow__k">Tenancy start</span><span className="drow__v">{fmtLong(currentStart)}</span></div>
               <div className="drow"><span className="drow__k">Referrer</span><span className="drow__v">{d.referrerRole === 'superadmin' ? 'opndoor' : d.referrer}</span></div>
+
+              {/* THE OTHER TENANTS. One property, one guarantee, one deed — but
+                  several applications, and this page is only ever looking at one
+                  of them. Without this the reader has no way to tell that the
+                  rent above is shared, or that the deed they are waiting for
+                  belongs to somebody else's row. */}
+              {siblings.length > 0 && (
+                <div className="jt-panel">
+                  <div className="jt-panel__head">
+                    <span>Joint tenancy · {siblings.length} tenants</span>
+                    <span className="jt-panel__prog">{tenancyGroup ? tenancyProgress(tenancyGroup) : ''}</span>
+                  </div>
+                  {siblings.map((sib) => {
+                    const m = tenancyGroup?.members.find((x) => x.ref === sib.ref);
+                    const isMe = sib.ref === d.ref;
+                    return (
+                      <div className={`jt-panel__row${isMe ? ' is-me' : ''}`} key={sib.ref}>
+                        <span className="jt-panel__who">
+                          {isMe ? <b>{sib.tenant}</b> : <Link to={`/applications/${encodeURIComponent(sib.ref)}`}>{sib.tenant}</Link>}
+                          {m?.isLead && <span className="jt-lead" title="Carries the tenancy's deed, reminders and expiry">Lead</span>}
+                          {isMe && <span className="jt-panel__you">this page</span>}
+                        </span>
+                        <span className="jt-panel__share">{m?.sharePercent != null ? `${m.sharePercent}%` : '—'}</span>
+                        <span className={`jt-panel__paid${m?.paid ? ' is-paid' : ''}`}>{m?.paid ? 'Paid' : 'Not paid'}</span>
+                        <span className="jt-panel__ref">{sib.ref}</span>
+                      </div>
+                    );
+                  })}
+                  {/* The deed is the TENANCY's, and only its lead ever carries one,
+                      so the state shown here is the lead's rather than this row's. */}
+                  <p className="jt-panel__deed">
+                    {tenancyGroup?.fullyPaid
+                      ? `One Deed of Guarantee covers this tenancy and names all ${siblings.length} tenants. Its status is ${STATUS_LABEL_LC[tenancyGroup.status] ?? tenancyGroup.status}, and it is carried by the lead applicant's reference.`
+                      : `The deed is generated once every tenant has paid their share. ${tenancyGroup ? tenancyProgress(tenancyGroup) : ''}.`}
+                  </p>
+                </div>
+              )}
             </CardBody>
           </Card>
 

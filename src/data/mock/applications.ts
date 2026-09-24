@@ -25,6 +25,12 @@ export interface AppRecord {
   owner: number;
   /** The rail (snapshot). Live mode only; drives the agent-rail journey view. */
   referencingMode?: ReferencingMode;
+  /** The joint tenancy this applicant belongs to, and where they sit in it.
+      Absent for a tenancy of one. See ApplicationSummary for the full note. */
+  tenancyId?: string | null;
+  tenancyPosition?: number | null;
+  sharePercent?: number | null;
+  shareAmount?: number | null;
   /** #2 Withdrawal reason (present only on a withdrawn record). */
   withdrawnReason?: WithdrawReason | null;
   /** Landlord the executed deed was last sent to (live mode; agent rail). */
@@ -65,6 +71,17 @@ export const APPLICATION_RECORDS: AppRecord[] = [
   { ref: 'GR-20518', name: 'Omar Farouk', title: 'Mr', role: 'Postgraduate student', addr1: '77 Old Brompton Road', postcode: 'SW7 3LQ', branch: 'South Kensington', agency: 'Foxglove Residential', rent: 2300, status: 'sent', date: '2026-06-18', referrer: 'Priya Nair', owner: 1 },
   { ref: 'GR-20240', name: 'Hannah Schmidt', title: 'Ms', role: 'Researcher', addr1: '23 Hoxton Square', postcode: 'N1 6NN', branch: 'Shoreditch', agency: 'Northbank Lettings', rent: 2050, status: 'deed', date: '2026-05-16', referrer: 'Oliver Grant', owner: 0 },
   { ref: 'GR-20463', name: 'Carlos Vega', title: 'Mr', role: 'Civil engineer', addr1: "102 St John's Hill", postcode: 'SW11 1SA', branch: 'Clapham', agency: 'Hartwell Estates', rent: 1880, status: 'paid', date: '2026-06-10', referrer: 'Marcus Lin', owner: 0 },
+  /* A JOINT TENANCY: two applicants, one property, one guarantee, one deed.
+     Note what the pair look like without the grouping the screens now do: the
+     same address twice, the WHOLE £3,000 rent on both rows, and a lead sitting
+     at "Deed Issued" beside a sibling stuck at "Paid" forever -- because
+     apply_deed_executed keys on the PandaDoc document and only the lead has
+     one. That asymmetry is not a bug to fix in the data; it is the thing the
+     presentation has to resolve, so the seed carries it faithfully. */
+  { ref: 'GR-20601', name: 'Rosa Vance', title: 'Ms', role: 'Illustrator', addr1: '14 Chalcot Road', postcode: 'NW1 8LH', branch: 'South Kensington', agency: 'Foxglove Residential', rent: 3000, status: 'deed', date: '2026-06-20', referrer: 'Priya Nair', owner: 1,
+    tenancyId: 'ten-chalcot', tenancyPosition: 1, sharePercent: 50, shareAmount: 1500 },
+  { ref: 'GR-20602', name: 'Theo Brandt', title: 'Mr', role: 'Sound engineer', addr1: '14 Chalcot Road', postcode: 'NW1 8LH', branch: 'South Kensington', agency: 'Foxglove Residential', rent: 3000, status: 'paid', date: '2026-06-20', referrer: 'Priya Nair', owner: 1,
+    tenancyId: 'ten-chalcot', tenancyPosition: 2, sharePercent: 50, shareAmount: 1500 },
 ];
 
 /** Agent (branch) office addresses, used on the referring-agent card. */
@@ -104,4 +121,11 @@ export const APPLICATIONS_LIST: ApplicationSummary[] = [
   { ref: 'GR-21037', tenant: 'Sara Nilsson', prop: '33 Bermondsey Street, SE1', branch: 'Bermondsey', agency: 'Riverside Homes', ben: 'Bermondsey Estates', rent: 1980, status: 'sent', date: '2026-06-19', owner: 0, partner: 'harbourside' },
   { ref: 'GR-22008', tenant: 'Tom Becker', prop: '5 Stoke Newington Rd, N16', branch: 'Stoke Newington', agency: 'Northgate Property', ben: 'Stoke Estates', rent: 1820, status: 'paid', date: '2026-06-08', owner: 0, partner: 'meridian' },
   { ref: 'GR-22015', tenant: 'Lucy Chambers', prop: '21 Deptford High St, SE8', branch: 'Deptford', agency: 'Northgate Property', ben: 'Deptford Holdings', rent: 1700, status: 'sent', date: '2026-06-17', owner: 0, partner: 'meridian' },
+  // The joint tenancy, as the list sees it. Same tenancy id, entry order in
+  // tenancyPosition, and the fee already apportioned to the penny by
+  // public.apportion: 1153.85 + 1153.84 = one 5-week fee on a £3,000 rent.
+  { ref: 'GR-20601', tenant: 'Rosa Vance', prop: '14 Chalcot Road, NW1', branch: 'South Kensington', agency: 'Foxglove Residential', ben: 'Chalcot Estates', rent: 3000, status: 'deed', date: '2026-06-20', owner: 1, partner: 'northwind',
+    referencingMode: 'opndoor_referenced', tenancyId: 'ten-chalcot', tenancyPosition: 1, sharePercent: 50, shareAmount: 1500, fee: 1153.85 },
+  { ref: 'GR-20602', tenant: 'Theo Brandt', prop: '14 Chalcot Road, NW1', branch: 'South Kensington', agency: 'Foxglove Residential', ben: 'Chalcot Estates', rent: 3000, status: 'paid', date: '2026-06-20', owner: 1, partner: 'northwind',
+    referencingMode: 'opndoor_referenced', tenancyId: 'ten-chalcot', tenancyPosition: 2, sharePercent: 50, shareAmount: 1500, fee: 1153.84 },
 ];

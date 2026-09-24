@@ -73,6 +73,9 @@ export interface FullApp {
   fee: number;
   /** The joint tenancy this applicant belongs to, or undefined for a tenancy of one. */
   tenancyId?: string | null;
+  /** 1-based entry order. Position 1 leads: it carries the one deed. */
+  tenancyPosition?: number | null;
+  sharePercent?: number | null;
   /** The frozen split, one entry per payee. Absent on historic rows. */
   commissionLines?: CommissionLine[];
   sentAt: Date | null;
@@ -213,6 +216,24 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
     if (opts.role !== 'referrer' && r.status === 'deed' && !contactForApplication(r.agency, r.branch).contact) counts.deliveryFailed++;
   });
   return counts;
+}
+
+/**
+ * The other applicants on this application's tenancy, this viewer's scope only.
+ *
+ * Derived from the summary rows rather than fetched: the tenancy shape is
+ * already on every row, and going through scopedSet means a referrer sees the
+ * siblings they own and nothing else — exactly the isolation the list applies.
+ * Returns an empty array for a sole applicant, and for a joint applicant whose
+ * siblings this viewer cannot reach: in both cases there is nothing to show.
+ */
+export function tenancySiblings(ref: string, opts: AppScopeOpts): ApplicationSummary[] {
+  const set = scopedSet(opts);
+  const me = set.find((r) => r.ref === ref);
+  if (!me?.tenancyId) return [];
+  return set
+    .filter((r) => r.tenancyId === me.tenancyId)
+    .sort((a, b) => (a.tenancyPosition ?? 0) - (b.tenancyPosition ?? 0) || a.ref.localeCompare(b.ref));
 }
 
 /** The visible rows for the given filters (scoped + status/agency/branch/search/sort). */

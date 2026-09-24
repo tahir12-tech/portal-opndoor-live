@@ -155,3 +155,42 @@
   border-radius: 999px;
   padding: 2px 8px;
 }
+
+/* ---- A JOINT TENANCY, READ AS ONE THING -----------------------------------
+   Several applications, one property, one guarantee, one deed. Without this the
+   siblings are unrelated rows carrying the same address and the same whole
+   rent. The heading is drawn once above the group; a left rail then ties the
+   member rows to it, closing under the last one. */
+.jt-head td {
+  background: var(--app-bg-2, rgba(0, 0, 0, .025));
+  padding: 9px 18px !important;
+  border-bottom: none !important;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.jt-head__tag {
+  display: inline-block; margin-right: 10px; padding: 2px 7px; border-radius: 4px;
+  background: var(--ink, #1a1a24); color: #fff;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+}
+.jt-head__txt { color: var(--ink); }
+.jt-head__prog { float: right; color: var(--ink-mute); font-variant-numeric: tabular-nums; }
+
+/* The rail. box-shadow rather than border-left so it does not shift the cell's
+   text the way a border on a table cell does. */
+.jt-row td:first-child { box-shadow: inset 3px 0 0 var(--heliotrope, #6b5bd2); }
+.jt-row:not(.jt-row--last) td { border-bottom-color: transparent !important; }
+.jt-row--last td { border-bottom: 1px solid var(--line) !important; }
+
+/* Who carries the deed, and who still owes their share. */
+.jt-lead, .jt-unpaid {
+  display: inline-block; margin-left: 7px; padding: 1px 6px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  vertical-align: middle;
+}
+.jt-lead { background: var(--heliotrope, #6b5bd2); color: #fff; }
+.jt-unpaid { background: var(--warn-bg, #fdf3e2); color: var(--warn, #c77d0a); }
+
+@media (max-width: 720px) {
+  .jt-head__prog { float: none; display: block; margin-top: 3px; }
+}
