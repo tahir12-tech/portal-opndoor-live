@@ -28,6 +28,8 @@ import { Card, CardHead, CardBody } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
+import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
 import { AgencyGrow } from './AgencyGrow';
 import './AgencyHome.css';
@@ -253,17 +255,28 @@ export function AgencyHome() {
     setEditRow(rowKey); setRateErr('');
     setDraftA(own == null ? '' : String(+(own * 100).toFixed(2)));
   };
-  const saveRate = async (level: 'group' | 'agency' | 'branch', id: string) => {
+  /* A refusal the administrator MAY overrule: putting a line over an all-in
+     agreement below takes that agency's branches above the number it signed.
+     SQL refuses it and will accept it with a deliberate confirmation, so the
+     screen has to offer that confirmation — otherwise the rule reads as "you
+     cannot", when what it means is "not by accident". Held here with the exact
+     sentence SQL gave, both parties and both numbers named. */
+  const [breach, setBreach] = useState<{ level: 'group' | 'agency' | 'branch'; id: string; message: string } | null>(null);
+
+  const saveRate = async (level: 'group' | 'agency' | 'branch', id: string, confirmBreach = false) => {
     const a = pctToFrac(draftA);
     if (a === undefined) { toast('Enter a percentage between 0 and 100, or leave blank to clear.', 'error'); return; }
     setSavingRow(true); setRateErr('');
     try {
-      await setNodeRate(level, id, a);
-      refreshSession(); bump(); setEditRow(null);
+      await setNodeRate(level, id, a, confirmBreach);
+      refreshSession(); bump(); setEditRow(null); setBreach(null);
       toast(a == null ? 'Rate cleared.' : 'Rate saved.', 'ok');
     } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not save the rate.';
+      // "sits above ... all-in agreement" is the one refusal with a way through.
+      if (!confirmBreach && /all-in agreement/i.test(msg)) setBreach({ level, id, message: msg });
       // The 50% rule lives in SQL; show exactly what it said.
-      setRateErr(e instanceof Error ? e.message : 'Could not save the rate.');
+      else setRateErr(msg);
     } finally { setSavingRow(false); }
   };
 
@@ -864,6 +877,28 @@ export function AgencyHome() {
           onDone={() => { setGrow(null); refreshSession(); bump(); }}
         />
       )}
+
+      {/* THE SIGNED-DEAL BREACH, with a way through.
+          The refusal names both parties, what was agreed and what the branches
+          would actually pay; confirming it is audited against both of them. */}
+      <Modal
+        open={!!breach}
+        onClose={() => setBreach(null)}
+        width={520}
+        title="This breaks an agreement below"
+        footer={<>
+          <Button variant="ghost" onClick={() => setBreach(null)}>Go back</Button>
+          <Button variant="primary" disabled={savingRow}
+            onClick={() => { if (breach) void saveRate(breach.level, breach.id, true); }}>
+            {savingRow ? 'Saving…' : 'Set it anyway'}
+          </Button>
+        </>}
+      >
+        <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', lineHeight: 1.6, margin: 0 }}>{breach?.message}</p>
+        <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', lineHeight: 1.6, margin: '12px 0 0' }}>
+          Setting it anyway is recorded against both parties, with who did it and when.
+        </p>
+      </Modal>
     </>
   );
 }

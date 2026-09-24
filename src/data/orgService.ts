@@ -570,7 +570,15 @@ export async function previewNodeRate(
     Returns the worst branch total the change produces, which the editor shows
     before the user commits. The 50% refusal is raised by SQL and surfaced
     verbatim: the rule lives in one place and the screen does not restate it. */
-export async function setNodeRate(level: 'group' | 'agency' | 'branch', id: string, rate: number | null): Promise<number> {
+/**
+ * Set or clear one party's explicit rate.
+ *
+ * confirmBreach is the administrator saying, deliberately, that they mean to put
+ * a line over an all-in agreement below — which takes that agency's branches
+ * above the number it signed. SQL refuses without it and audits the override
+ * against both parties with it; this only carries the answer.
+ */
+export async function setNodeRate(level: 'group' | 'agency' | 'branch', id: string, rate: number | null, confirmBreach = false): Promise<number> {
   if (!orgLive()) {
     // Mock mode: apply locally so the screen still reflects the edit.
     if (level === 'agency') { const a = AGENCIES.find((x) => x.id === id); if (a) a.agentRate = rate; }
@@ -579,7 +587,9 @@ export async function setNodeRate(level: 'group' | 'agency' | 'branch', id: stri
     persist();
     return 0;
   }
-  const { data, error } = await sb().rpc('set_node_rate', { p_level: level, p_id: id, p_rate: rate });
+  const { data, error } = await sb().rpc('set_node_rate', {
+    p_level: level, p_id: id, p_rate: rate, p_confirm_breach: confirmBreach,
+  });
   if (error) throw new Error(cleanRpcError(error.message));
   return Number(data ?? 0);
 }
