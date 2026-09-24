@@ -20,7 +20,7 @@ import {
   type Agency, type AgencyGroup, type ManagedUser, type Status,
 } from '@/data';
 import { getPositionsForUsers, getDeedRecipients, nominateDeedRecipient, clearDeedRecipient, getOrgDeedReadiness, type DeedReadiness } from '@/data/positionsService';
-import { setNodeRate, getCommissionSplits, previewNodeRate, agencyReferencingMode, setAgencyReferencingMode, type SplitLine } from '@/data/orgService';
+import { setNodeRate, getCommissionSplits, previewNodeRate, agencyReferencingMode, setAgencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
 import { cancelInvite } from '@/data/usersService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -221,6 +221,17 @@ export function AgencyHome() {
     getCommissionSplits(ids).then((m) => { if (alive) setSplits(m); }).catch(() => { if (alive) setSplits(new Map()); });
     return () => { alive = false; };
   }, [branchesFlat, dataVersion, tick]);
+
+  // The negotiated agreement pricing this org, if there is one.
+  const [agreement, setAgreement] = useState<AgreementView | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const first = agencies.find((a) => a.id)?.id;
+    if (!first) { setAgreement(null); return; }
+    getAgreementForAgency(first).then((v) => { if (alive) setAgreement(v); }).catch(() => { if (alive) setAgreement(null); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agencies, dataVersion, tick]);
 
   // Deed readiness, the SAME answer the Agencies list uses, so the two surfaces
   // cannot disagree: one RPC, active people only, pending does not clear it.
@@ -425,6 +436,74 @@ export function AgencyHome() {
 
   /* ---- COMMISSION. Rates that are actually SET, and what each branch pays out.
      Both read the split SQL resolved; nothing is recomputed here. */
+  const AgreementPanel = () => {
+    if (!agreement || agreement.isStandard) {
+      return (
+        <Card>
+          <CardHead title="Agreement" sub="Standard terms" />
+          <CardBody>
+            <p className="ah-agr__std">
+              This org is on standard terms: the guarantee fee is one month's rent and the agency earns
+              the Opndoor standard rate. Negotiated agreements are set by Opndoor and are the exception.
+            </p>
+          </CardBody>
+        </Card>
+      );
+    }
+    const pct = (r: number | null) => (r == null ? 'standard' : pctLabel(r));
+    const band = (b: AgreementView['bands'][number]) =>
+      `${b.min}${b.max == null ? '+' : b.max > b.min ? `–${b.max}` : ''} tenant${b.max === 1 ? '' : 's'}`;
+    return (
+      <Card>
+        <CardHead
+          title="Agreement"
+          sub={`Negotiated · volume counted per ${agreement.countingScope} per ${agreement.period}`}
+        />
+        <CardBody>
+          {agreement.note && <p className="ah-agr__note">{agreement.note}</p>}
+          <table className="dt ah-table">
+            <thead><tr><th>Deal shape</th><th>Fee</th><th>Rate</th></tr></thead>
+            <tbody>
+              {agreement.bands.map((b) => (
+                <tr key={`${b.min}-${b.max ?? 'up'}`}>
+                  <td className="dt__name">{band(b)}</td>
+                  <td>{b.weeks} weeks of rent</td>
+                  <td>{pct(b.rate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {agreement.tiers.length > 0 && (
+            <>
+              <div className="ah-agr__sub">Volume tiers</div>
+              <table className="dt ah-table">
+                <thead><tr><th>Paid applications</th><th>Rate</th></tr></thead>
+                <tbody>
+                  {agreement.tiers.map((t) => (
+                    <tr key={t.from}>
+                      <td className="dt__name">{t.from}{t.to == null ? ' and above' : `–${t.to - 1}`}</td>
+                      <td>{pctLabel(t.rate)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+          <div className="ah-agr__now">
+            <div>
+              <span className="ah-agr__lbl">Counter</span>
+              <b>{agreement.volume}</b> paid since {agreement.periodStart ?? '—'}
+            </div>
+            <div>
+              <span className="ah-agr__lbl">The next referral lands at</span>
+              <b>{agreement.nextBasis ?? '—'} weeks</b> · <b>{pct(agreement.nextRate)}</b>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+    );
+  };
+
   const CommissionTab = () => {
     const set: { level: 'group' | 'agency' | 'branch'; id?: string; name: string; rate: number }[] = [];
     if (group?.agentRate != null) set.push({ level: 'group', id: group.id, name: group.name, rate: group.agentRate });
@@ -436,6 +515,7 @@ export function AgencyHome() {
     });
     return (
       <>
+        <AgreementPanel />
         <Card>
           <CardHead title="Rates set" sub={set.length ? `${set.length} ${set.length === 1 ? 'rate' : 'rates'} explicitly set` : 'No rate is set anywhere; every branch earns the Opndoor standard'} />
           <CardBody style={{ padding: 0 }}>

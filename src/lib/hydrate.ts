@@ -137,7 +137,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         // arrive through application_commission_rates() below, for the roles
         // entitled to them, and Postgres refuses the columns to everyone else
         // whatever they ask.
-        'monthly_rent, fee_amount, fee_basis_weeks, ' +
+        'monthly_rent, fee_amount, fee_basis_weeks, tenancy_id, ' +
         'status, beneficiary, tenancy_start, sent_at, paid_at, deed_issued_at, expiry_date, ' +
         'payment_state, refunded_at, refunded_amount, paid_amount, refund_after_start, ' +
         'withdrawn_at, withdrawn_reason, withdrawn_note, ' +
@@ -262,9 +262,13 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   const sum = (rows: any[], f: (a: any) => number): number => rows.reduce((s, a) => s + f(a), 0);
   // Fees collected net of refunds: paid fees minus refunded amounts. Commission
   // downstream (league, exports) is fees x rate, so refunded fees pay none.
+  /* "Fees collected" is the FEE, which since M1 is a stored value rather than the
+     rent it happened to equal. Falls back to monthly_rent for any row created
+     before the fee existed. */
+  const feeOf = (x: any): number => (x.fee_amount == null ? num(x.monthly_rent) : num(x.fee_amount));
   const feesNet = (rows: any[]): number =>
-    sum(rows, (x) => (x.status === 'paid' || x.status === 'deed' ? num(x.monthly_rent) : 0)) -
-    sum(rows, (x) => (x.payment_state === 'refunded' ? num(x.refunded_amount ?? x.monthly_rent) : 0));
+    sum(rows, (x) => (x.status === 'paid' || x.status === 'deed' ? feeOf(x) : 0))
+    - sum(rows, (x) => (x.payment_state === 'refunded' ? num(x.refunded_amount ?? feeOf(x)) : 0));
 
   const agenciesOut: Agency[] = agencies.map((a) => {
     const brs: Branch[] = (branchesByAgency[a.id] ?? []).map((b) => {
@@ -382,6 +386,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // The FEE, which is what commission is a share of. Falls back to rent so a
     // row created before M1 (or a mock row) reads exactly as it always did.
     fee: a.fee_amount == null ? num(a.monthly_rent) : num(a.fee_amount),
+    tenancyId: a.tenancy_id ?? null,
     // From the RPC when entitled, otherwise the partner's current rate as the
     // display fallback, which is what this did before for rows with no snapshot.
     // A role with no entitlement gets zero and every commission figure computed

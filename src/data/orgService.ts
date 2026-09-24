@@ -437,6 +437,46 @@ export async function setAgencyReferencingMode(agencyId: string, mode: string | 
   if (error) throw new Error(cleanRpcError(error.message));
 }
 
+/** A negotiated agreement as the admin panel shows it. */
+export interface AgreementView {
+  agreementId: string;
+  scopeLevel: string;
+  period: string;
+  countingScope: string;
+  isStandard: boolean;
+  note: string | null;
+  periodStart: string | null;
+  volume: number;
+  bands: { min: number; max: number | null; weeks: number; rate: number | null }[];
+  tiers: { from: number; to: number | null; rate: number }[];
+  nextRate: number | null;
+  nextBasis: number | null;
+}
+
+/** The agreement pricing this agency, with its bands, tiers and where its volume
+    counter currently sits. Null when the party is on standard terms. */
+export async function getAgreementForAgency(agencyId: string): Promise<AgreementView | null> {
+  if (!orgLive()) return null;
+  const { data, error } = await sb().rpc('agreement_for_agency', { p_agency: agencyId });
+  if (error) throw new Error(cleanRpcError(error.message));
+  const r = Array.isArray(data) ? data[0] : data;
+  if (!r) return null;
+  return {
+    agreementId: String(r.agreement_id),
+    scopeLevel: String(r.scope_level),
+    period: String(r.period),
+    countingScope: String(r.counting_scope),
+    isStandard: !!r.is_standard,
+    note: (r.note as string) ?? null,
+    periodStart: (r.period_start as string) ?? null,
+    volume: Number(r.volume ?? 0),
+    bands: (r.bands ?? []) as AgreementView['bands'],
+    tiers: (r.tiers ?? []) as AgreementView['tiers'],
+    nextRate: r.next_rate == null ? null : Number(r.next_rate),
+    nextBasis: r.next_basis == null ? null : Number(r.next_basis),
+  };
+}
+
 /** One payee line for a branch, as SQL resolved it. */
 export interface SplitLine {
   branchId: string;

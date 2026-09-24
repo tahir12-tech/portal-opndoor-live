@@ -992,7 +992,13 @@ const bxRound2 = (n: number) => Math.round(n * 100) / 100;
 export interface BordereauData { rows: (string | number)[][]; issued: number; monthLabel: string; filename: string }
 
 /** Live bordereau ROWS in the template column order. Deed-Issued, non-refunded
-    tenancies commencing in the month; DOB always populated; Insurance = rent × rate. */
+    tenancies commencing in the month; DOB always populated.
+
+    INSURANCE IS 13.5% OF ONE MONTH'S RENT, ALWAYS. It is computed off `a.rent`
+    (monthly_rent) and never off the fee. A party on a negotiated 3- or 5-week
+    basis pays a different fee and the underwriter's premium does not move: the
+    bordereau is a statement to the insurer about the tenancy, not about what we
+    charged for it. Asserted in exports-bordereau.test.ts. */
 export function buildLiveBordereau(year: number, m0: number, insuranceRate: number): BordereauData {
   const rate = insuranceRate / 100;
   const mStart = new Date(year, m0, 1, 0, 0, 0, 0);
@@ -1001,9 +1007,20 @@ export function buildLiveBordereau(year: number, m0: number, insuranceRate: numb
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? '');
     return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
   };
-  const apps = allFull()
+  const eligible = allFull()
     .filter((a) => a.status === 'deed' && !a.refunded && a.tenancyStart && a.tenancyStart >= mStart && a.tenancyStart <= mEnd)
     .sort((x, y) => (x.tenancyStart!.getTime() - y.tenancyStart!.getTime()) || x.ref.localeCompare(y.ref));
+  /* ONE ROW PER DEED. A joint tenancy is several application rows and ONE deed,
+     so emitting a row each would bill the underwriter N times for one guarantee.
+     The first applicant of a tenancy carries it, matching is_tenancy_lead in SQL;
+     a tenancy of one has no tenancy id and is always its own lead. */
+  const seenTenancy = new Set<string>();
+  const apps = eligible.filter((a) => {
+    if (!a.tenancyId) return true;
+    if (seenTenancy.has(a.tenancyId)) return false;
+    seenTenancy.add(a.tenancyId);
+    return true;
+  });
   const rows = apps.map((a): (string | number)[] => {
     const rec = findRecord(a.ref);
     const first = rec?.firstName ?? (rec?.name ? rec.name.split(/\s+/).slice(0, -1).join(' ') : '');

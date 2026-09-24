@@ -185,3 +185,16 @@
   border: 1px solid var(--line); border-radius: 8px; background: var(--app-bg);
 }
 .ah-route__why { color: var(--ink-mute); font-style: italic; }
+
+/* ---- negotiated agreement panel ---- */
+.ah-agr__std { font-size: 13.5px; color: var(--ink-mute); margin: 0; }
+.ah-agr__note { font-size: 13px; margin: 0 0 12px; font-style: italic; color: var(--ink-mute); }
+.ah-agr__sub {
+  font-family: var(--display); font-weight: 700; font-size: 12.5px;
+  margin: 16px 0 6px; color: var(--ink);
+}
+.ah-agr__now {
+  display: flex; gap: 28px; flex-wrap: wrap; margin-top: 14px;
+  padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px;
+}
+.ah-agr__lbl { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-mute); }

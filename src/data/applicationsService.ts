@@ -71,6 +71,8 @@ export interface FullApp {
   agentRate: number;
   /** The guarantee fee charged, snapshotted. Equal to rent until deal-shape pricing. */
   fee: number;
+  /** The joint tenancy this applicant belongs to, or undefined for a tenancy of one. */
+  tenancyId?: string | null;
   /** The frozen split, one entry per payee. Absent on historic rows. */
   commissionLines?: CommissionLine[];
   sentAt: Date | null;

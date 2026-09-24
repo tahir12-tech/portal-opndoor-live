@@ -103,10 +103,10 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
       // earns no net commission (identical to the per-row Application export, so
       // every commission figure reconciles). Refund amount reduces net fees.
       a.paid += 1;
-      a.feesGross += app.rent;
+      a.feesGross += feeBaseFor(app);
       if (app.refunded) {
         a.refundCount += 1;
-        a.refundValue += app.refundedAmount ?? app.rent;
+        a.refundValue += app.refundedAmount ?? feeBaseFor(app);
         a.partnerCommExcl += feeBaseFor(app) * r.partner;
         a.agentCommExcl += feeBaseFor(app) * r.agent;
       } else {
@@ -249,7 +249,7 @@ function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date): Leagu
     if (sentIn) g.refs += 1;
     if (paidIn) {
       // Same rule as liveAggregate: refunded application earns no net commission.
-      g.paid += 1; g.feesGross += app.rent;
+      g.paid += 1; g.feesGross += feeBaseFor(app);
       if (app.refunded) { g.refundValue += app.refundedAmount ?? app.rent; g.partnerCommExcl += feeBaseFor(app) * r.partner; g.agentCommExcl += feeBaseFor(app) * r.agent; }
       else { g.partnerComm += feeBaseFor(app) * r.partner; g.agentComm += feeBaseFor(app) * r.agent; }
     }
@@ -335,7 +335,7 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
     if (app.sentAt && idx(app.sentAt) >= lo && idx(app.sentAt) <= hi) { const m = at(app.sentAt); if (m) m.refs += 1; }
     if (app.paidAt && idx(app.paidAt) >= lo && idx(app.paidAt) <= hi) {
       const m = at(app.paidAt);
-      if (m) { m.fees += app.rent; if (!app.refunded) m.comm += app.rent * app.partnerRate; }
+      if (m) { m.fees += feeBaseFor(app); if (!app.refunded) m.comm += feeBaseFor(app) * app.partnerRate; }
     }
     if (app.deedAt && idx(app.deedAt) >= lo && idx(app.deedAt) <= hi) { const m = at(app.deedAt); if (m) m.deeds += 1; }
   }
@@ -420,11 +420,11 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
       map.set(app.partner, row);
     }
     row.paid += 1;
-    row.feesGross += app.rent;
+    row.feesGross += feeBaseFor(app);
     row.partnerCommGross += feeBaseFor(app) * r.partner;
     row.agentCommGross += feeBaseFor(app) * r.agent;
     if (app.refunded) {
-      row.refundValue += app.refundedAmount ?? app.rent;
+      row.refundValue += app.refundedAmount ?? feeBaseFor(app);
     } else {
       row.partnerCommNet += feeBaseFor(app) * r.partner;
       row.agentCommNet += feeBaseFor(app) * r.agent;
