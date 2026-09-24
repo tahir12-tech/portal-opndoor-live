@@ -203,7 +203,20 @@ Deno.serve(async (req) => {
         if (appRow?.status === "paid" && !priorPaid?.length) {
           await service.from("activity_log").insert({ application_id: appId, kind: "payment_received", message: `Guarantor fee paid (£${amount.toLocaleString("en-GB")}) via Stripe.`, actor: "Stripe" });
           // Generate the deed (fresh or #13 reinstated) unless one already exists.
-          if (!appRow.deed_state) await generateDeed(service, appId);
+          //
+          // THE CHECK IS ON THE TENANCY, NOT ON WHOEVER JUST PAID. On a joint
+          // tenancy the deed belongs to the lead applicant, so appRow.deed_state
+          // is the wrong row to ask, and the last two payments can land together
+          // with both seeing "everybody has paid". claim_tenancy_deed settles it
+          // in the database: exactly one caller wins. A solo application resolves
+          // to itself and the claim succeeds iff deed_state is null, which is the
+          // condition this line has always had.
+          if (await service.rpc("claim_tenancy_deed", { p_application: appId }).then((r: { data: unknown }) => r.data === true)) {
+            const gen = await generateDeed(service, appId);
+            // A failure must not leave the tenancy permanently claimed: the next
+            // event, or a manual retry, has to be able to try again.
+            if (!gen.ok) await service.rpc("release_tenancy_deed_claim", { p_application: appId });
+          }
           // #3 Tenant payment receipt.
           // Sandbox sends no Opndoor email. The deed above is different: that is
           // PandaDoc's own watermarked document and rehearsing the tenant's

@@ -500,6 +500,21 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
 
 /* ---------- Lifecycle actions ---------- */
 
+/** One applicant. A joint tenancy is this, repeated. */
+export interface ReferralTenantInput {
+  title: string;
+  firstName: string;
+  /** Optional. Carried because the eligibility check runs against a legal name. */
+  middleName?: string;
+  lastName: string;
+  dob: string;
+  email: string;
+  phone: string;
+  /** Their share of the rent. Both are sent; see shareMath.ts. */
+  sharePercent?: number;
+  shareAmount?: number;
+}
+
 export interface CreateReferralInput {
   title: string;
   firstName: string;
@@ -512,6 +527,12 @@ export interface CreateReferralInput {
   dob: string;
   email: string;
   phone: string;
+  /** EVERY applicant, when there is more than one. Absent (or a single entry)
+      means a sole tenant and the server takes the untouched single-tenant path:
+      create_referral, one Stripe session, one email. Two or more means one
+      tenancy, one fee resolved at that count and split by share, and each
+      applicant then finished exactly as a sole tenant is. */
+  tenants?: ReferralTenantInput[];
   addr1: string;
   addr2: string;
   city: string;
@@ -547,6 +568,10 @@ export interface CreateReferralResult {
   paymentUrl: string | null;
   emailSent: boolean;
   emailError: string | null;
+  /** Present only for a joint tenancy: what each applicant was charged and
+      whether their own email went. The confirmation needs it because "the
+      tenant has been emailed" is four separate truths on a four-person let. */
+  tenancy?: Array<{ ref: string; name: string; email: string; share: number; amount: number; emailSent: boolean }>;
 }
 
 export async function createReferral(input: CreateReferralInput): Promise<CreateReferralResult> {
@@ -567,6 +592,7 @@ export async function createReferral(input: CreateReferralInput): Promise<Create
       dob: input.dob || null, email: input.email, phone: input.phone,
       addr1: input.addr1, addr2: input.addr2, city: input.city, county: input.county, postcode: input.postcode,
       rent: input.rent, tenancyStart: input.tenancyStart || null,
+      tenants: input.tenants && input.tenants.length > 1 ? input.tenants : null,
       agencyContactEmail: input.agencyContactEmail || null,
       agencyContactName: input.agencyContactName || null,
       agencyContactPhone: input.agencyContactPhone || null,
@@ -583,7 +609,11 @@ export async function createReferral(input: CreateReferralInput): Promise<Create
     throw new Error(msg || 'Could not create the referral.');
   }
   if (!data?.ok) throw new Error(data?.error || 'Could not create the referral.');
-  return { ref: data.ref, paymentUrl: data.paymentUrl ?? null, emailSent: !!data.emailSent, emailError: data.emailError ?? null };
+  return {
+    ref: data.ref, paymentUrl: data.paymentUrl ?? null,
+    emailSent: !!data.emailSent, emailError: data.emailError ?? null,
+    tenancy: data.tenancy ?? undefined,
+  };
 }
 
 /**

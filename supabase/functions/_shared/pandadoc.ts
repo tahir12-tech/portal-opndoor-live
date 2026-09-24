@@ -82,6 +82,10 @@ export interface DeedApp {
       for the referral rail (the tenant signs from the payment confirmation page).
       Steers the "already signed?" reassurance so it names the right place. */
   direct?: boolean;
+  /** Every tenant on the tenancy, for the one deed that names them all. Absent on
+      a solo application, where the name printed is the applicant's own and the
+      document is byte-identical to what it has always been. */
+  tenancy_tenant_names?: string | null;
 }
 
 // The six merge tokens. The docx must define these token names (the naming is
@@ -92,7 +96,9 @@ function tokens(a: DeedApp, issueDate: string) {
   const address = [titleCaseAddress(a.prop_addr1), titleCaseAddress(a.prop_addr2), titleCaseAddress(a.prop_city), a.prop_postcode].filter(Boolean).join(", ");
   return [
     { name: "reference_number", value: a.guarantee_ref },
-    { name: "tenant_name", value: `${a.tenant_first_name} ${a.tenant_last_name}` },
+    // ONE DEED NAMES EVERY TENANT. On a solo application the list is that one
+    // person, so the token's value is character-for-character what it was.
+    { name: "tenant_name", value: a.tenancy_tenant_names || `${a.tenant_first_name} ${a.tenant_last_name}` },
     { name: "tenancy_start_date", value: fmtDate(a.tenancy_start) },
     { name: "rental_address", value: address },
     { name: "agent_email", value: a.agent_email },
@@ -425,6 +431,31 @@ export async function getSigningLink(
 // suppressed so the amend caller can log a single combined amend entry.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateDeed(service: any, appId: string, reissue = false): Promise<DeedResult> {
+  // THE FIRING UNIT IS THE TENANCY, NOT THE APPLICATION.
+  //
+  // A guarantee covers one tenancy. Left per-application, a two-tenant tenancy
+  // would have produced two deeds for it: two documents to sign, two signing
+  // emails, two executed PDFs and two expiry clocks. So before anything else,
+  // the tenancy says which application carries its deed and whether it is ready
+  // for one. Every caller keeps passing whatever application it has in hand.
+  //
+  // A SOLO APPLICATION ANSWERS "you, and yes": lead is itself and ready is
+  // always true, so the four existing callers behave exactly as before.
+  const { data: tgt } = await service.rpc("tenancy_deed_target", { p_application: appId });
+  const unit = Array.isArray(tgt) ? tgt[0] : tgt;
+  if (unit?.lead_id) appId = unit.lead_id as string;
+  if (unit && unit.ready === false) {
+    // Not an error state on the row: nothing has failed, the tenancy is simply
+    // still collecting. The log entry is written ONCE, against the tenancy's
+    // lead, rather than once per applicant.
+    await service.from("activity_log").insert({
+      application_id: appId, kind: "deed_waiting",
+      message: `Deed not yet generated: ${unit.unpaid_count} of ${unit.tenant_count} tenants on this tenancy have still to pay.`,
+      actor: "System", visibility: "internal",
+    });
+    return { ok: false, error: `Waiting on ${unit.unpaid_count} of ${unit.tenant_count} tenants to pay before the deed is generated.` };
+  }
+
   const { data: app } = await service
     .from("applications")
     .select("id, guarantee_ref, tenant_first_name, tenant_last_name, tenant_email, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_postcode, branch_id, livemode, referencing_mode")
@@ -451,7 +482,11 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   // livemode comes from the row rather than from an argument, so all four
   // callers of generateDeed stay unchanged and none of them can pass the wrong
   // one. === so a null never becomes live.
-  const res = await createAndSend({ ...app, agent_email: agentEmail, reissue, direct: app.referencing_mode === "opndoor_referenced" }, app.livemode === true);
+  const res = await createAndSend({
+    ...app, agent_email: agentEmail, reissue,
+    direct: app.referencing_mode === "opndoor_referenced",
+    tenancy_tenant_names: (unit?.tenant_count ?? 1) > 1 ? (unit?.tenant_names as string | null) : null,
+  }, app.livemode === true);
   if (!res.ok) {
     await service.from("applications").update({ deed_state: "error" }).eq("id", appId);
     await service.from("activity_log").insert({ application_id: appId, kind: "deed_error", message: `Deed generation failed: ${res.error}`, actor: "System", visibility: "internal" });
@@ -463,7 +498,15 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   // yet viewed" for the new document.
   await service.from("applications").update({ pandadoc_document_id: res.documentId, deed_state: "awaiting_tenant", deed_sent_at: new Date().toISOString(), deed_viewed_at: null, issue_date: res.issueDateIso ?? null }).eq("id", appId);
   if (!reissue) {
-    await service.from("activity_log").insert({ application_id: appId, kind: "deed_sent", message: "Deed of Guarantee sent to the tenant for signature.", actor: "System" });
+    await service.from("activity_log").insert({
+      application_id: appId, kind: "deed_sent",
+      // Byte-identical for a solo application; a joint tenancy says who the one
+      // deed covers, because "the tenant" would be three people.
+      message: (unit?.tenant_count ?? 1) > 1
+        ? `Deed of Guarantee sent for signature. One deed for this tenancy, naming ${unit.tenant_names}.`
+        : "Deed of Guarantee sent to the tenant for signature.",
+      actor: "System",
+    });
   }
   return res;
 }

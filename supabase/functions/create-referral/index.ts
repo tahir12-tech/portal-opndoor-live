@@ -8,6 +8,14 @@
 // degradation: if Resend is not configured the application and checkout still
 // succeed and the response reports emailSent = false with a reason.
 //
+// M5: a JOINT TENANCY is N applicants on one tenancy. The fee is resolved once
+// at the tenant count and split by share (create_joint_referral), and then each
+// applicant runs the SAME per-applicant finish as a sole tenant: their own
+// Stripe session for their own share, or their own invite on the agent rail.
+// That is why the finish is a function rather than inline code — the single
+// tenant path is not "similar to" the joint one, it IS the same function called
+// once, which is the only way byte-identical stays true as this changes.
+//
 // Stripe key mode must match the project: sk_test_ on a non-production project,
 // sk_live_ everywhere else. See _shared/stripeMode.ts.
 // =====================================================================
@@ -25,6 +33,14 @@ const cors = {
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+
+interface FinishResult {
+  id: string;
+  ref: string;
+  paymentUrl: string | null;
+  emailSent: boolean;
+  emailError: string | null;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -94,9 +110,240 @@ Deno.serve(async (req) => {
       branchId = targetId as string;
     }
 
+    const agencyName = (branch as { agencies?: { name?: string } } | null)?.agencies?.name ?? b.agency ?? null;
+
+    // ------------------------------------------------------------------
+    // THE PER-APPLICANT FINISH. Identical for a sole tenant and for each
+    // member of a joint tenancy: their own money, their own email, their own
+    // journey. The only thing a joint tenancy changes is how much each one owes,
+    // and that was settled by create_joint_referral before this runs.
+    // ------------------------------------------------------------------
+    // deno-lint-ignore no-explicit-any
+    async function finishApplication(app: any): Promise<FinishResult> {
+      const appId = app.id as string;
+      const ref = app.guarantee_ref as string;
+      const rent = Number(app.monthly_rent);
+      const sharePct = app.share_percent === null || app.share_percent === undefined ? 100 : Number(app.share_percent);
+      // M1: the CHARGE is the snapshotted fee, not the rent. They are equal on every
+      // single-tenant application at standard terms, so this changes no amount; it
+      // changes where the amount comes from, which is what lets a 3- or 5-week fee,
+      // or one applicant's share of a joint fee, arrive without touching Stripe code.
+      const feeAmount = Number(app.fee_amount ?? app.monthly_rent);
+      const tenantEmail = app.tenant_email as string;
+      // #8 Title-case the address line for display in the email; postcode left raw.
+      const propertyAddr = [titleCaseAddress(app.prop_addr1), app.prop_postcode].filter(Boolean).join(", ");
+      // The email must name what Stripe is about to charge. It said the RENT,
+      // which is the same number at standard terms and the wrong number the
+      // moment a negotiated basis or a joint share is in play: a tenant would
+      // have been told £2,000 and shown £1,153.85 at checkout.
+      const amountGBP = `£${feeAmount.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+      // ---- THE FORK, and it happens before Stripe is touched ---------------
+      //
+      // On a rail where OPNDOOR arranges the reference, there is nothing to pay
+      // for yet: the tenant has a form to fill first, and a payment link is
+      // simply the wrong link. They get an invite into the application journey
+      // instead, and no Checkout session is created at all.
+      //
+      // GATED ON referencing_mode, which is snapshotted onto the row at creation.
+      // The referral path is pre_referenced_open and does not enter this branch,
+      // so its Stripe session, its payment email, its reminders and its 15-day
+      // lapse are all untouched. That is the whole reason the fork is on mode
+      // rather than on anything about who created the application.
+      if (app.referencing_mode === "opndoor_referenced") {
+        const service = createClient(SUPABASE_URL, SERVICE);
+
+        // draft, NOT sent. 'sent' means a payment link is out, and it is what
+        // expire_stale_applications selects on: leaving it there would lapse the
+        // application on day 15 while the tenant was still filling the form.
+        await service.from("applications").update({ status: "draft" }).eq("id", appId);
+
+        const { data: inviteToken, error: invErr } = await service.rpc("mint_tenant_invite", {
+          p_application: appId, p_days: 30,
+        });
+        if (invErr || !inviteToken) {
+          console.log(JSON.stringify({ event: "invite_mint_failed", appId, message: invErr?.message }));
+          throw new Error("Could not create the tenant's link.");
+        }
+
+        const inviteUrl = `${origin}/apply/invite?token=${inviteToken}`;
+        const inviteRes = await sendMessage({
+          to: tenantEmail,
+          message: tenantInviteEmail({
+            // The agency the referral was filed against, not "your letting
+            // agent": the referrer may be a supplier.
+            referrerName: agencyName,
+            propertyAddr, monthlyRent: b.rent ?? null, guaranteeRef: ref, inviteUrl,
+          }),
+        });
+
+        await service.from("activity_log").insert({ application_id: appId, kind: "referral_created", message: "Referral created. The tenant has been invited to complete their application.", actor });
+        await service.from("activity_log").insert({
+          application_id: appId,
+          kind: inviteRes.ok ? "tenant_invited" : "tenant_invite_failed",
+          message: inviteRes.ok ? "Application link sent to the tenant." : `Application link not sent: ${inviteRes.error}`,
+          actor: "System",
+          visibility: inviteRes.ok ? "business" : "internal",
+        });
+
+        // emailSent/emailError, the same fields the Stripe branch returns and the
+        // client reads: the toast reported "Tenant email not sent" on every invite
+        // because this branch used `invited`/`email_error` instead. NOT a hardcoded
+        // true: the application and invite token both exist by now, so refusing the
+        // request would strand them; what must not happen is claiming the tenant was
+        // contacted when nothing was sent. The caller gets the truth and the reason.
+        return {
+          id: appId, ref, paymentUrl: null,
+          emailSent: inviteRes.ok,
+          emailError: inviteRes.ok ? null : (inviteRes.error ?? "The invitation was not sent."),
+        };
+      }
+
+      // Stripe test-mode Checkout Session for the guarantor fee.
+      // @ts-expect-error pinned apiVersion, older than the SDK types' latest literal
+      const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
+      const session = await stripe.checkout.sessions.create({
+        // Bounds the window in DEFECTS.md 8. Without it a session stays payable
+        // for Stripe's 24 hour default, so an application withdrawn after the
+        // tenant opened checkout can still be paid from the open tab. 30 minutes
+        // is long enough for a tenant to find their card and short enough that a
+        // same-day withdrawal is not racing a live session.
+        //
+        // Stripe requires between 30 minutes and 24 hours, so this is the floor.
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+        mode: "payment",
+        line_items: [{
+          price_data: {
+            currency: "gbp",
+            unit_amount: Math.round(feeAmount * 100),
+            product_data: {
+              name: `Guarantor fee - ${ref}`,
+              // Unchanged wherever the fee IS one month's rent, which is every
+              // application on standard terms. A negotiated basis or a share of
+              // a joint fee has to say what it actually is, because "one month's
+              // rent" printed against £1,153.85 on a £2,000 flat is a dispute.
+              description: feeAmount === rent
+                ? "One month's rent, for the opndoor Deed of Guarantee."
+                : sharePct < 100
+                  ? `Your ${sharePct}% share of the guarantor fee for this tenancy, for the opndoor Deed of Guarantee.`
+                  : "The agreed guarantor fee for this tenancy, for the opndoor Deed of Guarantee.",
+            },
+          },
+          quantity: 1,
+        }],
+        metadata: { application_id: appId, guarantee_ref: ref },
+        client_reference_id: appId,
+        // Public, unauthenticated tenant pages (the tenant is not a portal user).
+        // {CHECKOUT_SESSION_ID} is substituted by Stripe and keys the confirmation.
+        success_url: `${origin}/pay/confirmed?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/pay/retry?session_id={CHECKOUT_SESSION_ID}`,
+      });
+
+      const service = createClient(SUPABASE_URL, SERVICE);
+      await service.from("applications").update({
+        stripe_checkout_session_id: session.id, payment_url: session.url, payment_state: "awaiting",
+      }).eq("id", appId);
+      await service.from("activity_log").insert({ application_id: appId, kind: "referral_created", message: "Referral created and sent to the tenant.", actor });
+
+      // #1 The payment email now points at the opndoor-hosted confirmation page
+      // (/pay?token=...), not the raw Stripe URL. The page's Pay button mints a fresh
+      // checkout session. utm_source tags the touch (initial send).
+      const { data: pageToken } = await service.rpc("mint_payment_page_token", { p_ref: ref });
+
+      // Never email a stale Stripe URL. Without a durable /pay?token link the send
+      // is recorded as failed rather than carrying the 30-minute eager session URL;
+      // the referral exists and an admin can resend, which mints a fresh link.
+      const emailRes = pageToken
+        ? await sendMessage({
+            to: tenantEmail,
+            message: paymentLinkEmail({ propertyAddr, guaranteeRef: ref, amount: amountGBP, payUrl: `${origin}/pay?token=${pageToken}&utm_source=initial` }),
+          })
+        : { ok: false as const, error: "Could not mint a payment link." };
+      // Partner-safe business message; the test-mode redirect target stays admin-only
+      // (a separate internal entry), so no partner-facing surface exposes the review
+      // address regardless of how it renders the log.
+      await service.from("activity_log").insert({
+        application_id: appId,
+        kind: emailRes.ok ? "payment_email_sent" : "payment_email_failed",
+        message: emailRes.ok ? "Payment email sent to the tenant." : `Payment email not sent: ${emailRes.error}`,
+        actor: "System",
+        visibility: emailRes.ok ? "business" : "internal",
+      });
+      // GATED ON THE REDIRECT ACTUALLY HAVING HAPPENED. This row used to be written
+      // whenever the send succeeded, saying "Redirected to <address> (test mode)".
+      // Once the redirect was removed, emailRes.to was the REAL TENANT, so every
+      // application carried an audit entry asserting a safety property that was not
+      // in force and naming the person who actually received the mail as the
+      // redirect target. See DEFECTS.md 7.
+      //
+      // refundEmail.ts already had this guard, which is why the same row was
+      // harmless there. Now they match.
+      if (emailRes.ok && emailRes.redirected && emailRes.to) {
+        await service.from("activity_log").insert({
+          application_id: appId,
+          kind: "payment_email_sent",
+          message: `Redirected to ${emailRes.to} (EMAIL_REVIEW_ADDRESS is set on this environment). Intended recipient: ${emailRes.intended ?? "unknown"}.`,
+          actor: "System",
+          visibility: "internal",
+        });
+      }
+
+      return { id: appId, ref, paymentUrl: session.url, emailSent: emailRes.ok, emailError: emailRes.ok ? null : emailRes.error };
+    }
+
+    // ------------------------------------------------------------------
+    // A JOINT TENANCY. Two or more applicants, one tenancy, one fee.
+    // ------------------------------------------------------------------
+    const tenants = Array.isArray(b.tenants) ? b.tenants : null;
+    if (tenants && tenants.length > 1) {
+      const { data: rows, error: jErr } = await userClient.rpc("create_joint_referral", {
+        p_branch: branchId,
+        // share_percent is what the RPC enforces to 100; every other field is the
+        // same set a sole tenant gives.
+        p_tenants: tenants.map((t: Record<string, unknown>) => ({
+          title: t.title, first: t.firstName, middle: t.middleName ?? null, last: t.lastName,
+          dob: t.dob, email: t.email, phone: t.phone, share_percent: t.sharePercent,
+        })),
+        p_addr1: b.addr1, p_addr2: b.addr2 ?? null, p_city: b.city,
+        p_county: b.county ?? null, p_postcode: b.postcode,
+        p_rent: b.rent, p_tenancy_start: b.tenancyStart,
+      });
+      if (jErr) return json({ ok: false, error: jErr.message }, 400);
+      const apps = (rows ?? []) as Array<Record<string, unknown>>;
+      if (!apps.length) return json({ ok: false, error: "The tenancy was not created." }, 400);
+
+      const results: FinishResult[] = [];
+      for (const app of apps) results.push(await finishApplication(app));
+
+      // The tenancy answers as one thing. ref is the lead applicant's, which is
+      // the reference the deed will carry; each tenant's own reference and link
+      // are in `tenants` for the confirmation screen.
+      const lead = results[0];
+      return json({
+        ok: true,
+        ref: lead.ref,
+        paymentUrl: lead.paymentUrl,
+        emailSent: results.every((r) => r.emailSent),
+        emailError: results.find((r) => r.emailError)?.emailError ?? null,
+        tenancy: results.map((r, i) => ({
+          ref: r.ref,
+          name: `${apps[i].tenant_first_name} ${apps[i].tenant_last_name}`,
+          email: apps[i].tenant_email,
+          share: Number(apps[i].share_percent),
+          amount: Number(apps[i].fee_amount),
+          emailSent: r.emailSent,
+        })),
+      });
+    }
+
+    // ------------------------------------------------------------------
+    // ONE TENANT. Untouched: the same RPC, the same extras write, and the same
+    // finish, which is the function above called exactly once.
+    // ------------------------------------------------------------------
+    const solo = tenants?.[0] ?? b;
     const { data: appRes, error: rpcErr } = await userClient.rpc("create_referral", {
-      p_branch: branchId, p_tenant_title: b.title, p_first: b.firstName, p_last: b.lastName, p_dob: b.dob,
-      p_email: b.email, p_phone: b.phone, p_addr1: b.addr1, p_addr2: b.addr2 ?? null, p_city: b.city,
+      p_branch: branchId, p_tenant_title: solo.title, p_first: solo.firstName, p_last: solo.lastName, p_dob: solo.dob,
+      p_email: solo.email, p_phone: solo.phone, p_addr1: b.addr1, p_addr2: b.addr2 ?? null, p_city: b.city,
       p_county: b.county ?? null, p_postcode: b.postcode, p_rent: b.rent, p_tenancy_start: b.tenancyStart,
     });
     if (rpcErr) return json({ ok: false, error: rpcErr.message }, 400);
@@ -108,170 +355,26 @@ Deno.serve(async (req) => {
     // function the referral path calls on every referral.
     {
       const extra: Record<string, unknown> = {};
-      if (typeof b.middleName === "string" && b.middleName.trim()) extra.tenant_middle_name = b.middleName.trim();
-      if (b.sharePercent !== null && b.sharePercent !== undefined) extra.share_percent = Number(b.sharePercent);
-      if (b.shareAmount !== null && b.shareAmount !== undefined) extra.share_amount = Number(b.shareAmount);
+      const middle = solo.middleName ?? b.middleName;
+      const pct = solo.sharePercent ?? b.sharePercent;
+      const amt = solo.shareAmount ?? b.shareAmount;
+      if (typeof middle === "string" && middle.trim()) extra.tenant_middle_name = middle.trim();
+      if (pct !== null && pct !== undefined) extra.share_percent = Number(pct);
+      if (amt !== null && amt !== undefined) extra.share_amount = Number(amt);
       if (Object.keys(extra).length) {
         const svc = createClient(SUPABASE_URL, SERVICE);
         await svc.from("applications").update(extra).eq("id", app.id);
+        Object.assign(app, extra);
       }
     }
 
-    const appId = app.id as string;
-    const ref = app.guarantee_ref as string;
-    const rent = Number(app.monthly_rent);
-    // M1: the CHARGE is the snapshotted fee, not the rent. They are equal on every
-    // application today, so this changes no amount; it changes where the amount
-    // comes from, which is what lets a 3- or 5-week fee arrive later without
-    // touching Stripe code again.
-    const feeAmount = Number(app.fee_amount ?? app.monthly_rent);
-    const tenantEmail = app.tenant_email as string;
-    const tenantTitle = (app.tenant_title as string) ?? "";
-    const tenantLast = app.tenant_last_name as string;
-    // #8 Title-case the address line for display in the email; postcode left raw.
-    const propertyAddr = [titleCaseAddress(app.prop_addr1), app.prop_postcode].filter(Boolean).join(", ");
-    const amountGBP = `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-
-    // ---- THE FORK, and it happens before Stripe is touched ---------------
-    //
-    // On a rail where OPNDOOR arranges the reference, there is nothing to pay
-    // for yet: the tenant has a form to fill first, and a payment link is
-    // simply the wrong link. They get an invite into the application journey
-    // instead, and no Checkout session is created at all.
-    //
-    // GATED ON referencing_mode, which is snapshotted onto the row at creation.
-    // The referral path is pre_referenced_open and does not enter this branch,
-    // so its Stripe session, its payment email, its reminders and its 15-day
-    // lapse are all untouched. That is the whole reason the fork is on mode
-    // rather than on anything about who created the application.
-    if (app.referencing_mode === "opndoor_referenced") {
-      const service = createClient(SUPABASE_URL, SERVICE);
-
-      // draft, NOT sent. 'sent' means a payment link is out, and it is what
-      // expire_stale_applications selects on: leaving it there would lapse the
-      // application on day 15 while the tenant was still filling the form.
-      await service.from("applications").update({ status: "draft" }).eq("id", appId);
-
-      const { data: inviteToken, error: invErr } = await service.rpc("mint_tenant_invite", {
-        p_application: appId, p_days: 30,
-      });
-      if (invErr || !inviteToken) {
-        console.log(JSON.stringify({ event: "invite_mint_failed", appId, message: invErr?.message }));
-        return json({ ok: false, error: "Could not create the tenant's link." }, 500);
-      }
-
-      const inviteUrl = `${origin}/apply/invite?token=${inviteToken}`;
-      const inviteRes = await sendMessage({
-        to: tenantEmail,
-        message: tenantInviteEmail({
-          // The agency the referral was filed against, not "your letting
-          // agent": the referrer may be a supplier.
-          referrerName: (branch as { agencies?: { name?: string } } | null)?.agencies?.name ?? b.agency ?? null,
-          propertyAddr, monthlyRent: b.rent ?? null, guaranteeRef: ref, inviteUrl,
-        }),
-      });
-
-      await service.from("activity_log").insert({ application_id: appId, kind: "referral_created", message: "Referral created. The tenant has been invited to complete their application.", actor });
-      await service.from("activity_log").insert({
-        application_id: appId,
-        kind: inviteRes.ok ? "tenant_invited" : "tenant_invite_failed",
-        message: inviteRes.ok ? "Application link sent to the tenant." : `Application link not sent: ${inviteRes.error}`,
-        actor: "System",
-        visibility: inviteRes.ok ? "business" : "internal",
-      });
-
-      // emailSent/emailError, the same fields the Stripe branch returns and the
-      // client reads: the toast reported "Tenant email not sent" on every invite
-      // because this branch used `invited`/`email_error` instead. NOT a hardcoded
-      // true: the application and invite token both exist by now, so refusing the
-      // request would strand them; what must not happen is claiming the tenant was
-      // contacted when nothing was sent. The caller gets the truth and the reason.
-      return json({
-        ok: true, id: appId, ref,
-        emailSent: inviteRes.ok,
-        emailError: inviteRes.ok ? null : (inviteRes.error ?? "The invitation was not sent."),
-      });
-    }
-
-    // Stripe test-mode Checkout Session for the guarantor fee (one month's rent).
-    // @ts-expect-error pinned apiVersion, older than the SDK types' latest literal
-    const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
-    const session = await stripe.checkout.sessions.create({
-      // Bounds the window in DEFECTS.md 8. Without it a session stays payable
-      // for Stripe's 24 hour default, so an application withdrawn after the
-      // tenant opened checkout can still be paid from the open tab. 30 minutes
-      // is long enough for a tenant to find their card and short enough that a
-      // same-day withdrawal is not racing a live session.
-      //
-      // Stripe requires between 30 minutes and 24 hours, so this is the floor.
-      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-      mode: "payment",
-      line_items: [{
-        price_data: {
-          currency: "gbp",
-          unit_amount: Math.round(feeAmount * 100),
-          product_data: { name: `Guarantor fee - ${ref}`, description: "One month's rent, for the opndoor Deed of Guarantee." },
-        },
-        quantity: 1,
-      }],
-      metadata: { application_id: appId, guarantee_ref: ref },
-      client_reference_id: appId,
-      // Public, unauthenticated tenant pages (the tenant is not a portal user).
-      // {CHECKOUT_SESSION_ID} is substituted by Stripe and keys the confirmation.
-      success_url: `${origin}/pay/confirmed?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/pay/retry?session_id={CHECKOUT_SESSION_ID}`,
-    });
-
-    const service = createClient(SUPABASE_URL, SERVICE);
-    await service.from("applications").update({
-      stripe_checkout_session_id: session.id, payment_url: session.url, payment_state: "awaiting",
-    }).eq("id", appId);
-    await service.from("activity_log").insert({ application_id: appId, kind: "referral_created", message: "Referral created and sent to the tenant.", actor });
-
-    // #1 The payment email now points at the opndoor-hosted confirmation page
-    // (/pay?token=...), not the raw Stripe URL. The page's Pay button mints a fresh
-    // checkout session. utm_source tags the touch (initial send).
-    const { data: pageToken } = await service.rpc("mint_payment_page_token", { p_ref: ref });
-
-    // Never email a stale Stripe URL. Without a durable /pay?token link the send
-    // is recorded as failed rather than carrying the 30-minute eager session URL;
-    // the referral exists and an admin can resend, which mints a fresh link.
-    const emailRes = pageToken
-      ? await sendMessage({
-          to: tenantEmail,
-          message: paymentLinkEmail({ propertyAddr, guaranteeRef: ref, amount: amountGBP, payUrl: `${origin}/pay?token=${pageToken}&utm_source=initial` }),
-        })
-      : { ok: false as const, error: "Could not mint a payment link." };
-    // Partner-safe business message; the test-mode redirect target stays admin-only
-    // (a separate internal entry), so no partner-facing surface exposes the review
-    // address regardless of how it renders the log.
-    await service.from("activity_log").insert({
-      application_id: appId,
-      kind: emailRes.ok ? "payment_email_sent" : "payment_email_failed",
-      message: emailRes.ok ? "Payment email sent to the tenant." : `Payment email not sent: ${emailRes.error}`,
-      actor: "System",
-      visibility: emailRes.ok ? "business" : "internal",
-    });
-    // GATED ON THE REDIRECT ACTUALLY HAVING HAPPENED. This row used to be written
-    // whenever the send succeeded, saying "Redirected to <address> (test mode)".
-    // Once the redirect was removed, emailRes.to was the REAL TENANT, so every
-    // application carried an audit entry asserting a safety property that was not
-    // in force and naming the person who actually received the mail as the
-    // redirect target. See DEFECTS.md 7.
-    //
-    // refundEmail.ts already had this guard, which is why the same row was
-    // harmless there. Now they match.
-    if (emailRes.ok && emailRes.redirected && emailRes.to) {
-      await service.from("activity_log").insert({
-        application_id: appId,
-        kind: "payment_email_sent",
-        message: `Redirected to ${emailRes.to} (EMAIL_REVIEW_ADDRESS is set on this environment). Intended recipient: ${emailRes.intended ?? "unknown"}.`,
-        actor: "System",
-        visibility: "internal",
-      });
-    }
-
-    return json({ ok: true, ref, paymentUrl: session.url, emailSent: emailRes.ok, emailError: emailRes.ok ? null : emailRes.error });
+    const res = await finishApplication(app);
+    // The agent-rail invite branch has never returned a paymentUrl and the
+    // client has never read one from it; this keeps the two responses exactly
+    // as they were rather than adding a null field to one of them.
+    return app.referencing_mode === "opndoor_referenced"
+      ? json({ ok: true, id: res.id, ref: res.ref, emailSent: res.emailSent, emailError: res.emailError })
+      : json({ ok: true, ref: res.ref, paymentUrl: res.paymentUrl, emailSent: res.emailSent, emailError: res.emailError });
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "Unexpected error creating the referral." }, 500);
   }

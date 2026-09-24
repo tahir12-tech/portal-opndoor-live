@@ -89,6 +89,55 @@ export function isTenancyStartInAllowedRange(value: Date, referenceDate: Date = 
   return value >= minStart && value <= maxStart;
 }
 
+/**
+ * ONE TENANT'S details, which is the unit a joint tenancy repeats.
+ *
+ * Extracted so the second and third applicants are validated by exactly the
+ * rules the first one is, rather than by a copy that slowly loses the age check.
+ */
+export interface TenantValues {
+  title: string;
+  first: string;
+  /** Optional. The eligibility check runs against a legal name. */
+  middle: string;
+  last: string;
+  dob: string;
+  email: string;
+  phone: string;
+}
+
+export type TenantErrors = Partial<Record<keyof TenantValues, string>>;
+
+/**
+ * Validate one applicant. `tenancyStart` is needed because the age rules are
+ * about the tenancy, not about today: 18 by the start date, and not
+ * implausibly old by it either.
+ */
+export function validateTenant(t: TenantValues, tenancyStart: string): TenantErrors {
+  const e: TenantErrors = {};
+
+  if (!(TITLE_OPTIONS as readonly string[]).includes(t.title)) e.title = 'Select a title';
+  if (!t.first.trim()) e.first = 'Enter a first name';
+  if (!t.last.trim()) e.last = 'Enter a last name';
+
+  const dob = parseISODate(t.dob);
+  const start = parseISODate(tenancyStart);
+  if (!dob) e.dob = 'Enter a valid date of birth';
+  else if (dob >= startOfToday()) e.dob = 'Date of birth must be in the past';
+
+  if (!isValidEmail(t.email)) e.email = 'Enter a valid email address';
+  if (!t.phone.trim() || !/[0-9]/.test(t.phone)) e.phone = 'Enter a phone number';
+
+  // Combined age rule (re-checked whenever either date changes): 18 by the tenancy start,
+  // and not implausibly old. DOB + 18 years must be on or before the tenancy start.
+  if (dob && start && !e.dob) {
+    if (addYears(dob, 18) > start) e.dob = 'Tenant must be 18 by the tenancy start date.';
+    else if (addYears(dob, 100) < start) e.dob = 'Check the date of birth: the tenant would be over 100 at the tenancy start.';
+  }
+
+  return e;
+}
+
 export interface ReferralValues {
   title: string;
   first: string;
@@ -116,19 +165,10 @@ export type ReferralErrors = Partial<Record<keyof ReferralValues, string>>;
 
 /** Validate the new-application form against the required-field spec. */
 export function validateReferral(v: ReferralValues): ReferralErrors {
-  const e: ReferralErrors = {};
+  // Tenant 1 is validated by the same function every other applicant is.
+  const e: ReferralErrors = { ...validateTenant(v, v.tenancyStart) };
 
-  if (!(TITLE_OPTIONS as readonly string[]).includes(v.title)) e.title = 'Select a title';
-  if (!v.first.trim()) e.first = 'Enter a first name';
-  if (!v.last.trim()) e.last = 'Enter a last name';
-
-  const dob = parseISODate(v.dob);
   const start = parseISODate(v.tenancyStart);
-  if (!dob) e.dob = 'Enter a valid date of birth';
-  else if (dob >= startOfToday()) e.dob = 'Date of birth must be in the past';
-
-  if (!isValidEmail(v.email)) e.email = 'Enter a valid email address';
-  if (!v.phone.trim() || !/[0-9]/.test(v.phone)) e.phone = 'Enter a phone number';
 
   if (!v.addr1.trim()) e.addr1 = 'Enter address line 1';
   if (!v.city.trim()) e.city = 'Enter a city or town';
@@ -158,13 +198,6 @@ export function validateReferral(v: ReferralValues): ReferralErrors {
   //   if (start < minStart) e.tenancyStart = 'Tenancy start cannot be more than 7 days in the past';
   //   else if (start > maxStart) e.tenancyStart = 'Tenancy start cannot be more than 2 years ahead';
   // }
-
-  // Combined age rule (re-checked whenever either date changes): 18 by the tenancy start,
-  // and not implausibly old. DOB + 18 years must be on or before the tenancy start.
-  if (dob && start && !e.dob) {
-    if (addYears(dob, 18) > start) e.dob = 'Tenant must be 18 by the tenancy start date.';
-    else if (addYears(dob, 100) < start) e.dob = 'Check the date of birth: the tenant would be over 100 at the tenancy start.';
-  }
 
   if (!v.agency.trim()) e.agency = 'Select an agent';
   if (!v.branch.trim()) e.branch = 'Select a branch';

@@ -79,7 +79,9 @@ const BUSINESS_LABEL: Record<string, string> = {
   // Safety net: if a failure ever surfaces business-visible, partners see this
   // clean copy, never the raw provider error (which stays opndoor-admin-only).
   payment_email_failed: 'Payment email could not be sent; opndoor has been notified',
-  deed_sent: 'Deed of Guarantee sent to the tenant for signature',
+  // Not "to the tenant": one deed covers a whole joint tenancy, and the same
+  // partner-safe line has to be true of a three-person let.
+  deed_sent: 'Deed of Guarantee sent for signature',
   deed_delivered: 'Deed of Guarantee delivered to the agent',
   deed_undelivered: 'Deed issued; no agent contact on file, not sent',
   deed_viewed: 'Deed viewed by the tenant',

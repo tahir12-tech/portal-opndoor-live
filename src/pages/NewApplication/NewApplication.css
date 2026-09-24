@@ -172,3 +172,73 @@
 .addr-toggle:hover {
   text-decoration: underline;
 }
+
+/* ---- MORE THAN ONE TENANT -------------------------------------------------
+   A joint tenancy repeats the tenant fields, so the repeats need a label and a
+   way out. Everything here is inert on a sole-tenant form, which renders none
+   of these elements. */
+.tn-label {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-mute); margin: 0 0 10px;
+}
+.tn-extra { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.tn-remove {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-mute); text-decoration: underline; text-underline-offset: 3px;
+}
+.tn-remove:hover { color: var(--danger, #b42318); }
+.tn-add {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 18px;
+  background: none; border: 1px dashed var(--line); border-radius: 8px;
+  padding: 9px 14px; cursor: pointer; font: inherit; font-size: 13px;
+  color: var(--ink-soft);
+}
+.tn-add:hover { border-color: var(--ink-mute); color: var(--ink); }
+.tn-add svg { width: 14px; height: 14px; }
+
+/* The shares block: one row per tenant, percentage and amount mirroring. */
+.shares { margin-top: 20px; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.shares__head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  font-size: 12.5px; color: var(--ink-soft); margin-bottom: 10px;
+}
+.shares__tot { font-variant-numeric: tabular-nums; color: var(--ink-mute); font-size: 12px; }
+.shares__row {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
+  padding: 6px 0;
+}
+.shares__who { font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.shares__in {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12.5px; color: var(--ink-mute);
+}
+.shares__in input {
+  width: 96px; text-align: right; font-variant-numeric: tabular-nums;
+}
+
+/* What it costs, at the tenant count entered. */
+.feebox {
+  margin-top: 20px; border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px; background: var(--surface-2, rgba(0,0,0,.02));
+}
+.feebox__head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  font-size: 13.5px; color: var(--ink);
+}
+.feebox__head strong { font-size: 17px; font-variant-numeric: tabular-nums; }
+.feebox__basis { font-size: 12px; color: var(--ink-mute); margin-top: 3px; }
+.feebox__rows { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.feebox__row {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 12px;
+  font-size: 13px; padding: 3px 0; color: var(--ink-soft);
+}
+.feebox__row strong { font-variant-numeric: tabular-nums; color: var(--ink); min-width: 82px; text-align: right; }
+.feebox__note { font-size: 12px; color: var(--ink-mute); margin: 8px 0 0; }
+
+@media (max-width: 560px) {
+  .shares__row, .feebox__row { grid-template-columns: 1fr; gap: 4px; }
+  .shares__in input { width: 100%; }
+  .feebox__row strong { text-align: left; }
+}

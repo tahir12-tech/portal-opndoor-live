@@ -452,8 +452,19 @@ Deno.serve(async (req) => {
       const { data: inc } = await service.from("application_incomes")
         .select("income_type").eq("application_id", app.id);
       const isStudent = (inc ?? []).some((r: any) => r.income_type === "student");
+      // THE SHARE, NOT THE WHOLE RENT. assess_eligibility has always preferred a
+      // share when given one (rule 1) and this caller passed null, so an
+      // applicant on a joint tenancy was being asked to afford the whole
+      // property on their own: a 50% share of £3,000 demanded £54,000 a year
+      // rather than £27,000, and the group capacity test was the only place the
+      // apportionment was honoured.
+      //
+      // SINGLE TENANT IS BYTE-IDENTICAL: share_amount is the whole rent on a solo
+      // referral, and application_rent_basis falls back to monthly_rent for the
+      // historic rows that never carried one.
+      const { data: basis } = await service.rpc("application_rent_basis", { p_application: app.id });
       const { data: rows } = await service.rpc("assess_eligibility", {
-        p_monthly_rent: app.monthly_rent, p_share_amount: null,
+        p_monthly_rent: app.monthly_rent, p_share_amount: basis ?? null,
         p_credit_score: null, p_annual_income: income ?? 0, p_is_student: isStudent,
       });
       const r = Array.isArray(rows) ? rows[0] : rows;
@@ -464,6 +475,9 @@ Deno.serve(async (req) => {
         // common reason a marginal applicant actually fails.
         outcome: r?.outcome ?? null, reason: r?.reason ?? null,
         annual_income: income ?? 0, income_needed_monthly: r?.income_needed ?? null,
+        // What affordability was actually judged against, so a sharer can see
+        // that it was their share and not the whole property.
+        rent_basis: r?.rent_basis ?? null,
         history_months: months ?? 0,
         adverse_credit: prof?.adverse_credit ?? null,
       });

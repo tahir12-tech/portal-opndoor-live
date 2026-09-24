@@ -9,13 +9,20 @@
    Property entry is postcode-first when an address-lookup provider is
    configured (see addressService), and falls back to manual entry otherwise.
    Manual entry is always available via a toggle.
+
+   MORE THAN ONE TENANT. A joint tenancy is one guarantee over one property, and
+   the form says so: the same tenant fields repeat, the Tenancy section grows a
+   share row per tenant, and the fee is shown at the count actually entered
+   BEFORE anything is sent. A sole tenant sees none of it — no share fields, no
+   rows, no repeat card — because a sole tenant carries 100% and should not have
+   to say so.
    ===================================================================== */
-import { useState, type ClipboardEvent, type FormEvent } from 'react';
+import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DEFAULT_SHARE_PERCENT, amountFromPercent, percentFromAmount, shareWarning } from './shareMath';
-import { addressLookupAvailable, ALL_PARTNERS, createReferral, findActiveReferralByTenantProperty, lookupAddresses, type AddressOption, type DuplicateMatch, FULL_PICKER, orgSectionCopy, type OrgShape } from '@/data';
+import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, shareSumError } from './shareMath';
+import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, FULL_PICKER, orgSectionCopy, type OrgShape } from '@/data';
 import { Modal } from '@/components/ui/Modal';
-import { TITLE_OPTIONS, validateReferral, parseFlexibleDate, toISODate, type ReferralValues } from '@/lib/validation';
+import { TITLE_OPTIONS, validateReferral, validateTenant, parseFlexibleDate, toISODate, type ReferralValues, type TenantErrors, type TenantValues } from '@/lib/validation';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -29,6 +36,8 @@ import './NewApplication.css';
 
 const Req = () => <span className="req" aria-hidden="true">*</span>;
 
+const money = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 const EMPTY: ReferralValues = {
   title: '', first: '', middle: '', last: '', dob: '', email: '', phone: '',
   addr1: '', addr2: '', city: '', county: '', postcode: '',
@@ -38,6 +47,8 @@ const EMPTY: ReferralValues = {
   sharePercent: String(DEFAULT_SHARE_PERCENT), shareAmount: '',
 };
 
+const EMPTY_TENANT: TenantValues = { title: '', first: '', middle: '', last: '', dob: '', email: '', phone: '' };
+
 export function NewApplication() {
   usePageMeta('new', 'New application', ['Home', 'Applications', 'New']);
   const navigate = useNavigate();
@@ -45,15 +56,18 @@ export function NewApplication() {
   const toast = useToast();
 
   const [values, setValues] = useState<ReferralValues>(EMPTY);
+  // Tenants 2 and up. Empty is the overwhelmingly common case and is what makes
+  // the sole-tenant path identical: no shares, no rows, the same RPC.
+  const [extra, setExtra] = useState<TenantValues[]>([]);
+  // Every tenant's share of the rent as a percentage, index 0 being tenant 1.
+  // Held as strings because a half-typed "3" must not become 3%.
+  const [percents, setPercents] = useState<string[]>([String(DEFAULT_SHARE_PERCENT)]);
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [dupWarn, setDupWarn] = useState<DuplicateMatch | null>(null); // #5 duplicate soft warning
-  // Which share field the user last set, so a rent change re-derives the OTHER
-  // one (the one they did not pin) rather than clobbering their figure. Default
-  // is the percentage: the agreed split, and the field with a default of 100%.
-  const [shareBasis, setShareBasis] = useState<'percent' | 'amount'>('percent');
+  const [fee, setFee] = useState<FeePreview | null>(null);
 
   // On-the-fly org creation extras from the AgentBranchPicker (contact capture
   // and, for an admin, the target partner the referral lands under).
@@ -76,7 +90,18 @@ export function NewApplication() {
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupMsg, setLookupMsg] = useState('');
 
+  const joint = extra.length > 0;
+  const tenantCount = 1 + extra.length;
+  const rentNum = Number(values.rent);
+  const pctNums = percents.map((p) => Number(p));
+
   const errors = validateReferral(values);
+  // Every additional applicant is checked by the same function tenant 1 is.
+  const extraErrors: TenantErrors[] = extra.map((t) => validateTenant(t, values.tenancyStart));
+  const allEmails = [values.email, ...extra.map((t) => t.email)];
+  const dupIdx = duplicateEmailIndex(allEmails);
+  const shareErr = joint ? shareSumError(pctNums) : null;
+
   // A newly-created agency must capture a contact email (its default contact).
   const agencyEmailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(org.agencyContactEmail);
   const orgContactError = org.agencyNew && !agencyEmailOk;
@@ -84,16 +109,54 @@ export function NewApplication() {
   const orgPartnerError = org.agencyNew && role === 'superadmin' && !org.partner;
   // A new agency must answer the single-office question before submit (#74).
   const orgOfficeError = org.agencyNew && org.singleOffice === null;
-  const isValid = Object.keys(errors).length === 0 && !orgContactError && !orgPartnerError && !orgOfficeError;
+  const isValid = Object.keys(errors).length === 0
+    && extraErrors.every((e) => Object.keys(e).length === 0)
+    && dupIdx < 0 && !shareErr
+    && !orgContactError && !orgPartnerError && !orgOfficeError;
+
   const set = (k: keyof ReferralValues, v: string) => setValues((prev) => ({ ...prev, [k]: v }));
+  const setExtraField = (i: number, k: keyof TenantValues, v: string) =>
+    setExtra((prev) => prev.map((t, j) => (j === i ? { ...t, [k]: v } : t)));
+
+  /* ---- adding and removing tenants ------------------------------------
+     Adding a tenant RE-SPREADS the shares equally, because the agent who just
+     said "there are two of them" means an even split until they say otherwise;
+     leaving tenant 1 on 100% and the new one on 0% would be a form that starts
+     invalid. Removing does the same, so the shares are never left summing to
+     something nobody chose. */
+  function addTenant() {
+    const n = tenantCount + 1;
+    setExtra((prev) => [...prev, { ...EMPTY_TENANT }]);
+    setPercents(equalSharePercents(n).map(String));
+  }
+  function removeTenant(i: number) {
+    const n = tenantCount - 1;
+    setExtra((prev) => prev.filter((_, j) => j !== i));
+    setPercents(equalSharePercents(n).map(String));
+  }
+  function setPercent(i: number, v: string) {
+    setPercents((prev) => prev.map((p, j) => (j === i ? v : p)));
+  }
+  /** The £ field writes back through the percentage, so there is one stored fact. */
+  function setShareAmount(i: number, v: string) {
+    const p = percentFromAmount(rentNum, Number(v));
+    if (p !== null) setPercent(i, String(p));
+  }
+
   // #103 Native date inputs reject pasted text in common formats; parse it and
   // normalise to yyyy-mm-dd so Rightmove's copy-paste workflow just works.
   const onPasteDate = (field: 'dob' | 'tenancyStart') => (e: ClipboardEvent<HTMLInputElement>) => {
     const parsed = parseFlexibleDate(e.clipboardData.getData('text'));
     if (parsed) { e.preventDefault(); set(field, toISODate(parsed)); }
   };
+  const onPasteExtraDob = (i: number) => (e: ClipboardEvent<HTMLInputElement>) => {
+    const parsed = parseFlexibleDate(e.clipboardData.getData('text'));
+    if (parsed) { e.preventDefault(); setExtraField(i, 'dob', toISODate(parsed)); }
+  };
   const markTouched = (k: string) => setTouched((t) => new Set(t).add(k));
   const err = (k: keyof ReferralValues) => ((submitted || touched.has(k)) ? errors[k] : undefined);
+  const errX = (i: number, k: keyof TenantValues) =>
+    ((submitted || touched.has(`x${i}.${k}`)) ? extraErrors[i]?.[k] : undefined);
 
   // Native date-input bounds (dd/mm/yyyy display in en-GB; value is yyyy-mm-dd).
   const isoOf = (dd: Date) => `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}-${String(dd.getDate()).padStart(2, '0')}`;
@@ -102,6 +165,26 @@ export function NewApplication() {
   const dobMin = isoOf(new Date(nowD.getFullYear() - 100, nowD.getMonth(), nowD.getDate()));
   const startMin = isoOf(new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate() - 7));
   const startMax = isoOf(new Date(nowD.getFullYear() + 2, nowD.getMonth(), nowD.getDate()));
+
+  /* ---- the price, at the count actually entered -------------------------
+     Asked of the server, because the agreement, the band and the penny-exact
+     split all live there and a second implementation here is how the form and
+     the invoice come to disagree. Debounced: this changes on every keystroke in
+     the rent box. */
+  const pctKey = percents.join(',');
+  useEffect(() => {
+    let live = true;
+    if (!values.agency || !values.branch || !(rentNum > 0)) { setFee(null); return; }
+    const t = setTimeout(() => {
+      void previewReferralFee({
+        agency: values.agency, branch: values.branch,
+        partner: org.partner || (partnerScope === ALL_PARTNERS ? undefined : partnerScope),
+        rent: rentNum,
+        sharePercents: pctKey.split(',').map(Number),
+      }).then((p) => { if (live) setFee(p); });
+    }, 350);
+    return () => { live = false; clearTimeout(t); };
+  }, [values.agency, values.branch, org.partner, partnerScope, rentNum, pctKey]);
 
   async function runLookup() {
     setLookupBusy(true);
@@ -138,16 +221,30 @@ export function NewApplication() {
     if (busy) return;
     setBusy(true);
     try {
+      const tenants = [
+        {
+          title: values.title, firstName: values.first.trim(), lastName: values.last.trim(),
+          middleName: values.middle.trim() || undefined,
+          dob: values.dob.trim(), email: values.email.trim(), phone: values.phone.trim(),
+          sharePercent: pctNums[0],
+          shareAmount: amountFromPercent(rentNum, pctNums[0]) ?? undefined,
+        },
+        ...extra.map((t, i) => ({
+          title: t.title, firstName: t.first.trim(), lastName: t.last.trim(),
+          middleName: t.middle.trim() || undefined,
+          dob: t.dob.trim(), email: t.email.trim(), phone: t.phone.trim(),
+          sharePercent: pctNums[i + 1],
+          shareAmount: amountFromPercent(rentNum, pctNums[i + 1]) ?? undefined,
+        })),
+      ];
       const res = await createReferral({
-        title: values.title, firstName: values.first.trim(), lastName: values.last.trim(),
-        middleName: values.middle.trim() || undefined,
-        sharePercent: values.sharePercent === '' ? undefined : Number(values.sharePercent),
-        shareAmount: values.shareAmount === '' ? undefined : Number(values.shareAmount),
-        dob: values.dob.trim(), email: values.email.trim(), phone: values.phone.trim(),
+        ...tenants[0],
+        dob: values.dob.trim(),
         addr1: values.addr1.trim(), addr2: values.addr2.trim(), city: values.city.trim(),
         county: values.county.trim(), postcode: values.postcode.trim(),
-        rent: Number(values.rent), tenancyStart: values.tenancyStart.trim(),
+        rent: rentNum, tenancyStart: values.tenancyStart.trim(),
         agency: values.agency, branch: values.branch,
+        tenants,
         agencyNew: org.agencyNew, branchNew: org.branchNew,
         agencyContactEmail: org.agencyContactEmail, agencyContactName: org.agencyContactName,
         agencyContactPhone: org.agencyContactPhone, branchContactEmail: org.branchContactEmail,
@@ -158,9 +255,16 @@ export function NewApplication() {
         partner: org.partner || (partnerScope === ALL_PARTNERS ? undefined : partnerScope),
       });
       await refresh();
-      toast(res.emailSent
-        ? 'Application sent. The tenant payment email was delivered to the review address.'
-        : `Application created. Tenant email not sent${res.emailError ? ': ' + res.emailError : '.'}`);
+      if (res.tenancy?.length) {
+        const sent = res.tenancy.filter((t) => t.emailSent).length;
+        toast(sent === res.tenancy.length
+          ? `Tenancy created. All ${res.tenancy.length} tenants have been emailed.`
+          : `Tenancy created. ${sent} of ${res.tenancy.length} tenants were emailed${res.emailError ? ': ' + res.emailError : '.'}`);
+      } else {
+        toast(res.emailSent
+          ? 'Application sent. The tenant payment email was delivered to the review address.'
+          : `Application created. Tenant email not sent${res.emailError ? ': ' + res.emailError : '.'}`);
+      }
       navigate(`/applications/${res.ref}`);
     } catch (e2) {
       const msg = e2 instanceof Error ? e2.message : 'Could not send the application.';
@@ -171,10 +275,53 @@ export function NewApplication() {
     }
   }
 
-
-
-
   const disabled = busy || (submitted && !isValid);
+
+  /* ---- one tenant's fields, used for every tenant ----------------------
+     The same markup for the first applicant and the fourth, so a rule added to
+     one is added to all of them. */
+  function tenantFields(opts: {
+    idPrefix: string;
+    v: TenantValues;
+    onField: (k: keyof TenantValues, val: string) => void;
+    onBlurField: (k: keyof TenantValues) => void;
+    fieldError: (k: keyof TenantValues) => string | undefined;
+    onPasteDob: (e: ClipboardEvent<HTMLInputElement>) => void;
+    emailError?: string;
+  }) {
+    const { idPrefix: p, v, onField, onBlurField, fieldError, onPasteDob, emailError } = opts;
+    return (
+      <div className="form-grid">
+        <Field label={<>Title <Req /></>} htmlFor={`${p}-title`} style={{ maxWidth: 140 }} error={fieldError('title')}>
+          <select id={`${p}-title`} name={`${p}-title`} value={v.title} onChange={(e) => onField('title', e.target.value)} onBlur={() => onBlurField('title')}>
+            <option value="" disabled>Select…</option>
+            {TITLE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </Field>
+        <div className="field span-2" style={{ gridColumn: '2 / 3' }} />
+        <Field label={<>First name <Req /></>} htmlFor={`${p}-first`} error={fieldError('first')}>
+          <input id={`${p}-first`} type="text" placeholder="Amelia" value={v.first} onChange={(e) => onField('first', e.target.value)} onBlur={() => onBlurField('first')} />
+        </Field>
+        <Field label="Middle name" htmlFor={`${p}-middle`} hint="If they have one. The eligibility check runs against their legal name.">
+          <input id={`${p}-middle`} type="text" placeholder="Rose" value={v.middle} onChange={(e) => onField('middle', e.target.value)} />
+        </Field>
+        <Field label={<>Last name <Req /></>} htmlFor={`${p}-last`} error={fieldError('last')}>
+          <input id={`${p}-last`} type="text" placeholder="Hartley" value={v.last} onChange={(e) => onField('last', e.target.value)} onBlur={() => onBlurField('last')} />
+        </Field>
+        <Field label={<>Date of birth <Req /></>} htmlFor={`${p}-dob`} error={fieldError('dob')}>
+          <input id={`${p}-dob`} type="date" min={dobMin} max={dobMax} value={v.dob} onChange={(e) => onField('dob', e.target.value)} onPaste={onPasteDob} onBlur={() => onBlurField('dob')} />
+        </Field>
+        <Field label={<>Email <Req /></>} htmlFor={`${p}-email`} error={emailError ?? fieldError('email')}>
+          <input id={`${p}-email`} type="email" placeholder="amelia@example.com" value={v.email} onChange={(e) => onField('email', e.target.value)} onBlur={() => onBlurField('email')} />
+        </Field>
+        <Field label={<>Phone <Req /></>} htmlFor={`${p}-phone`} error={fieldError('phone')}>
+          <input id={`${p}-phone`} type="tel" placeholder="07700 900000" value={v.phone} onChange={(e) => onField('phone', e.target.value)} onBlur={() => onBlurField('phone')} />
+        </Field>
+      </div>
+    );
+  }
+
+  const tenantNames = [values.first.trim() || 'Tenant 1', ...extra.map((t, i) => t.first.trim() || `Tenant ${i + 2}`)];
 
   return (
     <>
@@ -192,40 +339,45 @@ export function NewApplication() {
 
       <div className="na-grid">
         <form className="na-form" id="na-form" onSubmit={submit} noValidate>
-          {/* 1. TENANT */}
+          {/* 1. TENANTS */}
           <section className="card sec" id="sec-tenant">
-            <div className="sec__head"><span className="sec__num">1</span><div><div className="sec__title">Tenant</div><div className="sec__sub">The tenant being referred</div></div></div>
+            <div className="sec__head"><span className="sec__num">1</span><div>
+              <div className="sec__title">{joint ? 'Tenants' : 'Tenant'}</div>
+              <div className="sec__sub">{joint ? `${tenantCount} tenants on one tenancy, one guarantee` : 'The tenant being referred'}</div>
+            </div></div>
             <CardBody>
-              <div className="form-grid">
-                <Field label={<>Title <Req /></>} htmlFor="t-title" style={{ maxWidth: 140 }} error={err('title')}>
-                  <select id="t-title" name="title" value={values.title} onChange={(e) => set('title', e.target.value)} onBlur={() => markTouched('title')}>
-                    <option value="" disabled>Select…</option>
-                    {TITLE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </Field>
-                <div className="field span-2" style={{ gridColumn: '2 / 3' }} />
-                <Field label={<>First name <Req /></>} htmlFor="t-first" error={err('first')}>
-                  <input id="t-first" type="text" placeholder="Amelia" value={values.first} onChange={(e) => set('first', e.target.value)} onBlur={() => markTouched('first')} />
-                </Field>
-                <Field label="Middle name" htmlFor="t-middle" hint="If they have one. The eligibility check runs against their legal name.">
-                  <input id="t-middle" type="text" placeholder="Rose" value={values.middle} onChange={(e) => set('middle', e.target.value)} />
-                </Field>
-                <Field label={<>Last name <Req /></>} htmlFor="t-last" error={err('last')}>
-                  <input id="t-last" type="text" placeholder="Hartley" value={values.last} onChange={(e) => set('last', e.target.value)} onBlur={() => markTouched('last')} />
-                </Field>
-                <Field label={<>Date of birth <Req /></>} htmlFor="t-dob" error={err('dob')}>
-                {/* <input id="t-dob" type="date" inputMode="numeric" placeholder="dd/mm/yyyy" maxLength={10}
-                        value={dobDisplay} onChange={(e) => { const f = formatDateInput(e.target.value); setDobDisplay(f); const d = parseFlexibleDate(f); set('dob', d ? toISODate(d) : ''); }}
-                          onPaste={onPasteDate('dob')} onBlur={() => markTouched('dob')} /> */}
-                  <input id="t-dob" type="date" min={dobMin} max={dobMax} value={values.dob} onChange={(e) => set('dob', e.target.value)} onPaste={onPasteDate('dob')} onBlur={() => markTouched('dob')} />
-                </Field>
-                <Field label={<>Email <Req /></>} htmlFor="t-email" error={err('email')}>
-                  <input id="t-email" type="email" placeholder="amelia@example.com" value={values.email} onChange={(e) => set('email', e.target.value)} onBlur={() => markTouched('email')} />
-                </Field>
-                <Field label={<>Phone <Req /></>} htmlFor="t-phone" error={err('phone')}>
-                  <input id="t-phone" type="tel" placeholder="07700 900000" value={values.phone} onChange={(e) => set('phone', e.target.value)} onBlur={() => markTouched('phone')} />
-                </Field>
-              </div>
+              {joint && <div className="tn-label">Tenant 1</div>}
+              {tenantFields({
+                idPrefix: 't',
+                v: values,
+                onField: (k, val) => set(k as keyof ReferralValues, val),
+                onBlurField: (k) => markTouched(k),
+                fieldError: (k) => err(k as keyof ReferralValues),
+                onPasteDob: onPasteDate('dob'),
+                emailError: dupIdx === 0 ? 'Two tenants cannot share an email address.' : undefined,
+              })}
+
+              {extra.map((t, i) => (
+                <div className="tn-extra" key={i}>
+                  <div className="tn-label">
+                    <span>Tenant {i + 2}</span>
+                    <button type="button" className="tn-remove" onClick={() => removeTenant(i)}>Remove</button>
+                  </div>
+                  {tenantFields({
+                    idPrefix: `x${i}`,
+                    v: t,
+                    onField: (k, val) => setExtraField(i, k, val),
+                    onBlurField: (k) => markTouched(`x${i}.${k}`),
+                    fieldError: (k) => errX(i, k),
+                    onPasteDob: onPasteExtraDob(i),
+                    emailError: dupIdx === i + 1 ? 'Two tenants cannot share an email address.' : undefined,
+                  })}
+                </div>
+              ))}
+
+              <button type="button" className="tn-add" onClick={addTenant}>
+                <Icon name="plus" /> Add another tenant
+              </button>
             </CardBody>
           </section>
 
@@ -286,78 +438,81 @@ export function NewApplication() {
 
           {/* 3. TENANCY */}
           <section className="card sec" id="sec-tenancy">
-            <div className="sec__head"><span className="sec__num">3</span><div><div className="sec__title">Tenancy</div><div className="sec__sub">Rent and start date</div></div></div>
+            <div className="sec__head"><span className="sec__num">3</span><div><div className="sec__title">Tenancy</div><div className="sec__sub">Rent{joint ? ', shares' : ''} and start date</div></div></div>
             <CardBody>
               <div className="form-grid">
-                <Field label={<>Monthly rent (£) <Req /></>} htmlFor="ty-rent" error={err('rent')}>
+                <Field label={<>Monthly rent (£) <Req /></>} htmlFor="ty-rent" error={err('rent')}
+                  hint={joint ? 'The whole property. Each tenant’s share is set below.' : undefined}>
                   <input id="ty-rent" type="number" min="1" step="1" placeholder="2450" value={values.rent}
-                    onChange={(e) => {
-                      // The share follows the rent as you type it: re-derive the
-                      // field the user did not pin, so the pair stays consistent
-                      // and the amount is never left blank against a set share.
-                      const rentVal = e.target.value;
-                      const rentNum = Number(rentVal);
-                      setValues((prev) => {
-                        const next = { ...prev, rent: rentVal };
-                        if (shareBasis === 'amount' && prev.shareAmount.trim() !== '') {
-                          const p = percentFromAmount(rentNum, Number(prev.shareAmount));
-                          if (p !== null) next.sharePercent = String(p);
-                        } else if (prev.sharePercent.trim() !== '') {
-                          const a = amountFromPercent(rentNum, Number(prev.sharePercent));
-                          if (a !== null) next.shareAmount = String(a);
-                        }
-                        return next;
-                      });
-                    }}
+                    onChange={(e) => set('rent', e.target.value)}
                     onBlur={() => markTouched('rent')} />
                 </Field>
                 <Field label={<>Tenancy start date <Req /></>} htmlFor="ty-start" error={err('tenancyStart')}>
-        
                   <input id="ty-start" type="date" min={startMin} max={startMax} value={values.tenancyStart} onChange={(e) => set('tenancyStart', e.target.value)} onPaste={onPasteDate('tenancyStart')} onBlur={() => markTouched('tenancyStart')} />
                 </Field>
-
-                {/* THE SHARE. Each derives from the other as you type, and BOTH
-                    are sent. The percentage is the commercial fact agreed
-                    between tenants; the amount is what the eligibility check is
-                    assessed against. Storing one and recomputing the other later
-                    against a corrected rent would silently restate the basis of
-                    a decision already made. */}
-                <Field label="Their share of the rent (%)" htmlFor="ty-share-pct"
-                  hint="100% unless they are sharing. A share of 0% is allowed: somebody else may carry the whole rent.">
-                  <input
-                    id="ty-share-pct" type="number" min="0" max="100" step="0.001"
-                    value={values.sharePercent}
-                    onChange={(e) => {
-                      const pctVal = e.target.value;
-                      const amt = amountFromPercent(Number(values.rent), Number(pctVal));
-                      setShareBasis('percent');
-                      setValues((prev) => ({
-                        ...prev, sharePercent: pctVal,
-                        shareAmount: amt === null ? prev.shareAmount : String(amt),
-                      }));
-                    }} />
-                </Field>
-                <Field label="Their share of the rent (£)" htmlFor="ty-share-amt">
-                  <input
-                    id="ty-share-amt" type="number" min="0" step="0.01"
-                    value={values.shareAmount}
-                    onChange={(e) => {
-                      const amtVal = e.target.value;
-                      const p2 = percentFromAmount(Number(values.rent), Number(amtVal));
-                      setShareBasis('amount');
-                      setValues((prev) => ({
-                        ...prev, shareAmount: amtVal,
-                        sharePercent: p2 === null ? prev.sharePercent : String(p2),
-                      }));
-                    }} />
-                </Field>
               </div>
-              {(() => {
-                const w = shareWarning(Number(values.rent), Number(values.sharePercent), Number(values.shareAmount), values.shareAmount.trim() !== '');
-                // Advisory, never blocking: a zero share is legitimate and a
-                // rounding gap is arithmetic.
-                return w ? <p className="soft" style={{ marginTop: 10 }}>{w}</p> : null;
-              })()}
+
+              {/* THE SHARES, and only when there is something to share.
+                  A sole tenant carries 100% and is never asked. Each row's %
+                  and £ derive from one another as you type, and the PERCENTAGE
+                  is what is stored: it is the commercial fact the tenants
+                  agreed, and re-deriving it later against a corrected rent
+                  would restate the basis of a decision already made. */}
+              {joint && (
+                <div className="shares">
+                  <div className="shares__head">
+                    <span>Each tenant’s share of the rent</span>
+                    <span className="shares__tot">{pctNums.reduce((s, p) => s + (Number.isFinite(p) ? p : 0), 0).toFixed(3).replace(/\.?0+$/, '')}% of 100%</span>
+                  </div>
+                  {tenantNames.map((name, i) => {
+                    const amt = amountFromPercent(rentNum, pctNums[i]);
+                    return (
+                      <div className="shares__row" key={i}>
+                        <span className="shares__who">{name}</span>
+                        <label className="shares__in">
+                          <input type="number" min="0" max="100" step="0.001" aria-label={`${name} share percent`}
+                            value={percents[i] ?? ''} onChange={(e) => setPercent(i, e.target.value)} />
+                          <span>%</span>
+                        </label>
+                        <label className="shares__in">
+                          <span>£</span>
+                          <input type="number" min="0" step="0.01" aria-label={`${name} share amount`}
+                            value={amt === null ? '' : String(amt)} onChange={(e) => setShareAmount(i, e.target.value)} />
+                        </label>
+                      </div>
+                    );
+                  })}
+                  {shareErr && <p className="field-error" style={{ marginTop: 8 }}>{shareErr}</p>}
+                </div>
+              )}
+
+              {/* WHAT IT COSTS, at the tenant count actually entered, before it
+                  is sent. The agreement's band can change the price when a
+                  second tenant is added, and the agent should see that here
+                  rather than on the tenant's checkout page. */}
+              {fee && (
+                <div className="feebox">
+                  <div className="feebox__head">
+                    <span>Guarantee fee{joint ? ' for this tenancy' : ''}</span>
+                    <strong>{money(fee.feeAmount)}</strong>
+                  </div>
+                  <div className="feebox__basis">
+                    {feeBasisLabel(fee)}{fee.isStandard ? '' : ` · agreed terms at ${tenantCount} tenant${tenantCount === 1 ? '' : 's'}`}
+                  </div>
+                  {joint && (
+                    <div className="feebox__rows">
+                      {tenantNames.map((name, i) => (
+                        <div className="feebox__row" key={i}>
+                          <span>{name}</span>
+                          <span>{pctNums[i]}%</span>
+                          <strong>{fee.shares[i] === undefined ? '—' : money(fee.shares[i])}</strong>
+                        </div>
+                      ))}
+                      <p className="feebox__note">Each tenant pays their own share through their own payment link.</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardBody>
           </section>
 
@@ -394,7 +549,7 @@ export function NewApplication() {
           <Card>
             <CardBody style={{ padding: 16 }}>
               <div className="navrail">
-                <a href="#sec-tenant" className="is-active"><span className="dot" />Tenant</a>
+                <a href="#sec-tenant" className="is-active"><span className="dot" />{joint ? 'Tenants' : 'Tenant'}</a>
                 <a href="#sec-property"><span className="dot" />Property</a>
                 <a href="#sec-tenancy"><span className="dot" />Tenancy</a>
                 <a href="#sec-branch"><span className="dot" />Agent &amp; branch</a>

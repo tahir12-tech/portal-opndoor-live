@@ -247,6 +247,9 @@ export interface Prequalification {
   reason: string | null;
   annual_income: number;
   income_needed_monthly: number | null;
+  /** What affordability was judged against: this applicant's share of the rent,
+      or the whole rent when they carry it alone. */
+  rent_basis: number | null;
   history_months: number;
   adverse_credit: boolean | null;
 }
@@ -286,16 +289,22 @@ export async function prequalify(applicationId: string): Promise<Prequalificatio
 
   if (rent <= 0) {
     return { outcome: null, reason: null, annual_income: annual, income_needed_monthly: null,
+             rent_basis: null,
              history_months: months, adverse_credit: (s.profile.adverse_credit as boolean | null) ?? null };
   }
 
   const r = await prequalifyAnon({
     monthly_rent: rent, annual_income: annual, is_student: isStudent,
     adverse_credit: s.profile.adverse_credit === true,
+    // The share, mirroring application_rent_basis: a sharer is judged on what
+    // they carry, and a sole tenant's share IS the whole rent, so this is the
+    // same number it has always been for them.
+    share_amount: Number(s.application.share_amount ?? 0) || null,
   });
   return {
     outcome: r.outcome, reason: r.reason,
     annual_income: annual, income_needed_monthly: r.income_needed_monthly,
+    rent_basis: r.rent_basis,
     history_months: months,
     adverse_credit: (s.profile.adverse_credit as boolean | null) ?? null,
   };
