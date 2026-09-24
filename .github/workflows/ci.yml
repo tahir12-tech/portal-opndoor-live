@@ -8,7 +8,7 @@ on:
 
 jobs:
   db-tests:
-    name: Database grants (pgTAP)
+    name: Database rules and grants (pgTAP)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,13 +16,26 @@ jobs:
         with:
           version: latest
       # Start a local Postgres and apply every migration in supabase/migrations,
-      # so the guard runs against the real, freshly-migrated schema. No remote
+      # so the guards run against the real, freshly-migrated schema. No remote
       # project is touched and no credentials are needed.
       - name: Start local database
         run: supabase db start
-      # Runs supabase/tests/*.test.sql, including the applications column-grant
-      # guard: a client-visible column added without its authenticated SELECT
-      # grant fails here, with its own name, instead of 500ing a staff dashboard.
+      # `supabase test db` takes an OPTIONAL path list and otherwise runs every
+      # supabase/tests/*.test.sql, so a new suite is picked up by adding the file
+      # — there is no list here to forget to update. What runs today:
+      #
+      #   applications_column_grants  a client-visible column added without its
+      #                               authenticated SELECT grant fails here, by
+      #                               name, instead of 500ing a staff dashboard.
+      #   resolve_rates_precedence    the supplier rail's most-specific-wins order.
+      #   create_referral_position_scope  the agent rail's position ladder.
+      #   commission_split            the additive rule's four worked examples, and
+      #                               the preview that the rate editor shows before
+      #                               a save — so the money rule cannot change
+      #                               silently.
+      #
+      # A failing assertion prints "not ok N" and the runner exits non-zero, which
+      # fails this step and the build.
       - name: Run pgTAP tests
         run: supabase test db --local
 
