@@ -522,6 +522,11 @@ export interface SplitLine {
   orgId: string | null;
   orgName: string;
   rate: number;
+  /** Where this rate came from, as the RULE reports it — never inferred here.
+      'standard' the partner's rate, 'agreement' a negotiated one, 'rate' an
+      explicit rate set on that party. A screen that infers it gets an agreement
+      party wrong, because their explicit rate is null by design. */
+  source: 'standard' | 'agreement' | 'rate';
 }
 
 /** Every payee line for a page of branches, in ONE call.
@@ -544,6 +549,7 @@ export async function getCommissionSplits(branchIds: string[]): Promise<Map<stri
       orgId: (r.org_id as string) ?? null,
       orgName: String(r.org_name ?? ''),
       rate: Number(r.rate ?? 0),
+      source: (r.source as SplitLine['source']) ?? 'standard',
     });
     out.set(id, list);
   }

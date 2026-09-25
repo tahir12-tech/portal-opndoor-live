@@ -66,6 +66,16 @@ const pctToFrac = (s: string): number | null | undefined => {
   return isNaN(n) || n < 0 || n > 100 ? undefined : n / 100;
 };
 
+/** How a payout line is captioned, by the source the RULE reported. Never
+    inferred from "is an explicit rate set": an agreement party has none, by
+    design, which is exactly how a negotiated 20% came to be labelled the
+    Opndoor standard. */
+const SOURCE_LABEL: Record<'standard' | 'agreement' | 'rate', string> = {
+  standard: 'Opndoor standard',
+  agreement: 'Agreement',
+  rate: 'Set rate',
+};
+
 export function AgencyHome() {
   const { key } = useParams<{ key: string }>();
   const { role, partnerScope, dataVersion, refresh: refreshSession } = useSession();
@@ -547,6 +557,9 @@ export function AgencyHome() {
   };
 
   const CommissionTab = () => {
+    // A live negotiated agreement prices this agency, so "no rate set" means
+    // something quite different from "earns the standard".
+    const negotiated = !!agreement && !agreement.isStandard;
     const set: { level: 'group' | 'agency' | 'branch'; id?: string; name: string; rate: number }[] = [];
     if (group?.agentRate != null) set.push({ level: 'group', id: group.id, name: group.name, rate: group.agentRate });
     agencies.forEach((a) => {
@@ -559,10 +572,24 @@ export function AgencyHome() {
       <>
         {AgreementPanel()}
         <Card>
-          <CardHead title="Rates set" sub={set.length ? `${set.length} ${set.length === 1 ? 'rate' : 'rates'} explicitly set` : 'No rate is set anywhere; every branch earns the Opndoor standard'} />
+          <CardHead
+            title="Rates set"
+            sub={set.length
+              ? `${set.length} ${set.length === 1 ? 'rate' : 'rates'} explicitly set`
+              : negotiated
+                ? 'No explicit rate is set: this agency is priced by its agreement'
+                : 'No rate is set anywhere; every branch earns the Opndoor standard'}
+          />
           <CardBody style={{ padding: 0 }}>
             {set.length === 0 ? (
-              <div className="ah-empty">Nothing is set. Every branch below pays the Opndoor standard to its agency.</div>
+              <div className="ah-empty">
+                {/* An agreement party has no explicit rate BY DESIGN — one rate
+                    per party — so "nothing is set" read as "they earn 10%" on an
+                    agency earning 20%. */}
+                {negotiated
+                  ? <>No explicit rate is set, and none may be: this agency is priced by its agreement above.</>
+                  : <>Nothing is set. Every branch below pays the Opndoor standard to its agency.</>}
+              </div>
             ) : (
               <table className="dt ah-table">
                 <thead><tr><th>Paid to</th><th>Level</th><th>Rate</th><th /></tr></thead>
@@ -592,14 +619,18 @@ export function AgencyHome() {
                   {branchesFlat.map(({ agency: a, branch: b }) => {
                     const lines = b.id ? splits.get(b.id) ?? [] : [];
                     const total = lines.reduce((t, l) => t + l.rate, 0);
-                    const standardOnly = lines.length === 1 && lines[0].level === 'agency' && a.agentRate == null && b.agentRate == null;
+                    // The rule says where each rate came from; the screen must
+                    // never infer it. "no explicit rate" is true of a standard
+                    // line AND of an agreement line, which is how 20% came to be
+                    // captioned "Opndoor standard".
+                    const soleLine = lines.length === 1 ? lines[0] : null;
                     return (
                       <tr key={b.id ?? b.name}>
                         <td className="dt__name">{b.name}<span className="dt__sub">{a.name}</span></td>
                         <td>
                           {lines.length === 0 ? <span className="soft">—</span>
-                            : standardOnly
-                              ? <>Opndoor standard {pctLabel(lines[0].rate)} · paid to {lines[0].orgName}</>
+                            : soleLine
+                              ? <>{SOURCE_LABEL[soleLine.source]} {pctLabel(soleLine.rate)} · paid to {soleLine.orgName}</>
                               : lines.map((l, i) => (
                                   <span key={`${l.level}:${l.orgId ?? l.orgName}`}>
                                     {i > 0 ? ' + ' : ''}{l.orgName} {pctLabel(l.rate)}

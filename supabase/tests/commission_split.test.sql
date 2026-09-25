@@ -13,7 +13,7 @@
 -- but never its explicit rate.
 
 begin;
-select plan(13);
+select plan(17);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate)
 values ('90000000-0000-0000-0000-000000000001', 'zzz-split-rail', 'Split Test Rail', 'opndoor_referenced', 0.25, 0.10);
@@ -79,6 +79,34 @@ select is(
 select is(
   (select worst_total from public.commission_preview('agency', '90000000-0000-0000-0000-000000000003', null)),
   0.12::numeric, 'preview: clearing the agency rate drops it back to the standard, so 10% + group 2%');
+
+-- A LINE NAMES ITS SOURCE, so no screen has to infer it. "No explicit rate set"
+-- is true of a standard line AND of an agreement line, which is how a
+-- negotiated 20% came to be captioned "Opndoor standard 20%".
+select is(
+  (select source from public.commission_split('90000000-0000-0000-0000-000000000004','90000000-0000-0000-0000-000000000001')
+    where level = 'agency'),
+  'rate', 'an explicit agency rate reports itself as a set rate');
+
+update public.agencies set agent_rate = null where id = '90000000-0000-0000-0000-000000000003';
+update public.agency_groups set agent_rate = null where id = '90000000-0000-0000-0000-000000000002';
+select is(
+  (select source from public.commission_split('90000000-0000-0000-0000-000000000004','90000000-0000-0000-0000-000000000001')
+    where level = 'agency'),
+  'standard', 'with nothing set, the line is the partner standard and says so');
+
+insert into public.pricing_agreements (id, scope_level, scope_id, effective_from, coverage)
+values ('90000000-0000-0000-0000-00000000000a', 'agency', '90000000-0000-0000-0000-000000000003', current_date, 'additive');
+insert into public.pricing_agreement_bands (agreement_id, min_tenants, max_tenants, fee_basis_weeks, agent_rate)
+values ('90000000-0000-0000-0000-00000000000a', 1, null, 3, 0.20);
+select is(
+  (select source from public.commission_split('90000000-0000-0000-0000-000000000004','90000000-0000-0000-0000-000000000001')
+    where level = 'agency'),
+  'agreement', 'and a negotiated rate reports itself as an agreement, not as the standard');
+select is(
+  (select rate from public.commission_split('90000000-0000-0000-0000-000000000004','90000000-0000-0000-0000-000000000001')
+    where level = 'agency'),
+  0.20::numeric, 'at the agreement''s rate, which is not the 10% standard');
 
 select * from finish();
 rollback;
