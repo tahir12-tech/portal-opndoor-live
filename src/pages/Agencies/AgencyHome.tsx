@@ -343,6 +343,22 @@ export function AgencyHome() {
   /* ---- A node's OWN commission line. Shown ONLY where a rate is explicitly set:
      an inheriting node shows no chip at all, because repeating an inherited figure
      on every branch was what made the old page unreadable. */
+  /* ---- RENDER HELPERS, CALLED AND NOT MOUNTED -------------------------
+     These five are defined inside AgencyHome because they close over most of
+     its state. That is fine as long as they are CALLED — {RateLine({...})} —
+     and never written as JSX elements.
+
+     Written <RateLine />, React sees a brand-new component TYPE on every render
+     of this page (the function identity changes each time), so it unmounts and
+     remounts the whole subtree instead of updating it. The page then flickers on
+     hover and every click dies: the element the mousedown landed on is destroyed
+     before the mouseup, so no click event is ever produced. Set rate, the branch
+     rows and the people pills were all dead for exactly this reason.
+
+     None of them uses a hook, which is what makes calling them safe: a hook
+     inside one would then be running conditionally. If you add state to one of
+     these, hoist it to module scope with explicit props rather than putting the
+     angle brackets back. */
   const RateLine = ({ level, id, name, own }: { level: 'group' | 'agency' | 'branch'; id?: string; name: string; own?: number | null }) => {
     if (!canSeeCommission) return null;
     const rowKey = id ? `${level}:${id}` : undefined;
@@ -541,7 +557,7 @@ export function AgencyHome() {
     });
     return (
       <>
-        <AgreementPanel />
+        {AgreementPanel()}
         <Card>
           <CardHead title="Rates set" sub={set.length ? `${set.length} ${set.length === 1 ? 'rate' : 'rates'} explicitly set` : 'No rate is set anywhere; every branch earns the Opndoor standard'} />
           <CardBody style={{ padding: 0 }}>
@@ -556,7 +572,7 @@ export function AgencyHome() {
                       <td className="dt__name">{r.name}</td>
                       <td className="soft">{r.level}</td>
                       <td><b>{pctLabel(r.rate)}</b> of the guarantee fee</td>
-                      <td className="num"><RateLine level={r.level} id={r.id} name={r.name} own={r.rate} /></td>
+                      <td className="num">{RateLine({ level: r.level, id: r.id, name: r.name, own: r.rate })}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -675,9 +691,9 @@ export function AgencyHome() {
                   <span className="ah-tick t-group">G</span>
                   <button className="ah-node-name ah-node-btn" onClick={() => setSel(null)}>{org.group.name}</button>
                   <span className="ah-node-level">Group</span>
-                  <RateLine level="group" id={org.group.id} name={org.group.name} own={org.group.agentRate} />
+                  {RateLine({ level: 'group', id: org.group.id, name: org.group.name, own: org.group.agentRate })}
                 </div>
-                <PeopleInline level="group" list={people.group} ctx={{ level: 'group', partner, groupId: org.group.id, name: org.group.name }} />
+                {PeopleInline({ level: 'group', list: people.group, ctx: { level: 'group', partner, groupId: org.group.id, name: org.group.name } })}
                 {isAdmin && (
                   <div className="ah-node-add">
                     <button className="ah-linkbtn" onClick={() => setGrow({ mode: 'agency' })}>
@@ -704,7 +720,7 @@ export function AgencyHome() {
                         onClick={() => setSel(open && org.kind === 'group' ? null : { level: 'agency', id: a.id ?? a.name, name: a.name })}
                       >{a.name}</button>
                       <span className="ah-node-level">Agency</span>
-                      <RateLine level="agency" id={a.id} name={a.name} own={a.agentRate} />
+                      {RateLine({ level: 'agency', id: a.id, name: a.name, own: a.agentRate })}
                       {!open && (
                         <span className="ah-node-meta">
                           {peopleCount} {peopleCount === 1 ? 'person' : 'people'} · {branchCount} {branchCount === 1 ? 'branch' : 'branches'} · {agencyRefs} referrals
@@ -714,7 +730,7 @@ export function AgencyHome() {
                     {agentRailFor(a) && agencyReady === false && branchCount > 0 && (
                       <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this agency can receive the deed. Invite a manager or nominate a recipient.</div>
                     )}
-                    {open && <PeopleInline level="agency" list={agencyPeople} ctx={{ level: 'brand', partner, agencyId: a.id, name: a.name }} />}
+                    {open && PeopleInline({ level: 'agency', list: agencyPeople, ctx: { level: 'brand', partner, agencyId: a.id, name: a.name } })}
                     {open && branchCount === 0 && (
                       <div className="ah-node-note">
                         No branches yet — {a.name}'s manager can add them, or add one here.
@@ -770,7 +786,7 @@ export function AgencyHome() {
                             onClick={() => setSel(bOpen ? { level: 'agency', id: a.id ?? a.name, name: a.name } : { level: 'branch', id: b.id ?? b.name, name: b.name })}
                           >{b.name}</button>
                           <span className="ah-node-level">Branch</span>
-                          <RateLine level="branch" id={b.id} name={b.name} own={b.agentRate} />
+                          {RateLine({ level: 'branch', id: b.id, name: b.name, own: b.agentRate })}
                           {!bOpen && <span className="ah-node-meta">{bPeople.length} {bPeople.length === 1 ? 'person' : 'people'} · {b.referrals} referrals</span>}
                         </div>
                         {/* The whole question in one line, whoever is paid. */}
@@ -778,7 +794,7 @@ export function AgencyHome() {
                         {agentRailFor(a) && branchReady === false && (
                           <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this branch can receive the deed. Invite a branch manager or nominate a recipient.</div>
                         )}
-                        {bOpen && <PeopleInline level="branch" list={bPeople} ctx={{ level: 'branch', partner, branchId: b.id, name: b.name }} />}
+                        {bOpen && PeopleInline({ level: 'branch', list: bPeople, ctx: { level: 'branch', partner, branchId: b.id, name: b.name } })}
                         {bOpen && isAdmin && (
                           <div className="ah-deed">
                             {nominee ? (
@@ -808,8 +824,8 @@ export function AgencyHome() {
       </Card>
       )}
 
-      {tab === 'people' && <PeopleTab />}
-      {tab === 'commission' && canSeeCommission && <CommissionTab />}
+      {tab === 'people' && PeopleTab()}
+      {tab === 'commission' && canSeeCommission && CommissionTab()}
 
       {/* REFERRALS — follows the selected node, with one click back to the top. */}
       {tab === 'referrals' && (
