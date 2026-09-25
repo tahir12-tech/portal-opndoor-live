@@ -423,6 +423,26 @@ function notFoundDetail(ref: string): ApplicationDetail {
   };
 }
 
+/**
+ * The fee as charged, and what it is a basis of.
+ *
+ * Kept next to the rent rather than derived from it, because they are the same
+ * number only at standard terms: three weeks of rent is 0.69 of a month, and a
+ * tenant of a joint tenancy pays a share of even that. A screen that prints the
+ * rent under the words "guarantor fee" is stating a price nobody will be charged.
+ */
+function feeLabels(r: { rent: number; fee?: number | null; sharePercent?: number | null }):
+  { feeGBP?: string; feeBasisLabel?: string } {
+  const fee = r.fee ?? null;
+  if (fee == null) return {};
+  const gbp = `£${fee.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (Math.abs(fee - r.rent) < 0.005) return { feeGBP: gbp, feeBasisLabel: "one month's rent" };
+  const weeks = r.rent > 0 ? (fee * 52) / (r.rent * 12) : 0;
+  const share = r.sharePercent != null && r.sharePercent < 100
+    ? ` (this tenant's ${r.sharePercent}% share)` : '';
+  return { feeGBP: gbp, feeBasisLabel: `${Number(weeks.toFixed(2))} weeks of rent${share}` };
+}
+
 export function getApplicationDetail(ref: string | null): ApplicationDetail {
   // No silent substitution: a reference that does not exist or is not accessible
   // to the viewer (RLS returned nothing in live mode) yields an honest not-found
@@ -482,7 +502,8 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
   const annual = r.rent * 12;
 
   // Partner is only on the summary LIST (both mock and live), not AppRecord.
-  const summarySlug = LIST.find((x) => x.ref === r.ref)?.partner ?? '';
+  const summary = LIST.find((x) => x.ref === r.ref);
+  const summarySlug = summary?.partner ?? '';
   return {
     ref: r.ref,
     status: r.status,
@@ -509,6 +530,7 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
     agentAddr: AGENT_ADDR[r.branch] || `${r.branch}, London`,
     rent: `£${r.rent.toLocaleString('en-GB')}`,
     rentNum: r.rent,
+    ...feeLabels({ rent: r.rent, fee: summary?.fee ?? null, sharePercent: r.sharePercent ?? null }),
     referrer: r.referrer,
     // referrerRole is on the summary LIST (like partner), not AppRecord (#112).
     referrerRole: LIST.find((x) => x.ref === r.ref)?.referrerRole ?? null,

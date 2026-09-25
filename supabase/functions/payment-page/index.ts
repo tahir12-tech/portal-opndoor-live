@@ -81,7 +81,11 @@ Deno.serve(async (req) => {
     const rent = Number(app.monthly_rent ?? 0);
     // M1: charge the snapshotted fee. Identical to rent on every current row.
     const feeAmount = Number(app.fee_amount ?? app.monthly_rent ?? 0);
-    const feeGBP = `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    // WHAT THEY ARE ABOUT TO BE CHARGED, not the rent. These were the same
+    // number for as long as the fee was always one month's rent; they are not
+    // the same number for an agency on a weeks-of-rent basis, and showing the
+    // rent while charging the fee is a consumer-facing misstatement of price.
+    const feeGBP = `£${feeAmount.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
     const tenantName = [app.tenant_title, app.tenant_first_name, app.tenant_last_name].filter((x) => (x ?? "").toString().trim()).join(" ").trim();
     // #8 Display-layer title-casing of the property address (postcode left raw).
     const propFull = [titleCaseAddress(app.prop_addr1), titleCaseAddress(app.prop_addr2), titleCaseAddress(app.prop_city), app.prop_postcode].filter(Boolean).join(", ");
@@ -169,7 +173,14 @@ Deno.serve(async (req) => {
           price_data: {
             currency: "gbp",
             unit_amount: Math.round(feeAmount * 100),
-            product_data: { name: `Guarantor fee - ${app.guarantee_ref}`, description: "One month's rent, for the opndoor Deed of Guarantee." },
+            product_data: {
+              name: `Guarantor fee - ${app.guarantee_ref}`,
+              // Unchanged wherever the fee IS one month's rent. A negotiated
+              // basis or a share of a joint fee has to say what it actually is.
+              description: feeAmount === rent
+                ? "One month's rent, for the opndoor Deed of Guarantee."
+                : "The agreed guarantor fee for this tenancy, for the opndoor Deed of Guarantee.",
+            },
           },
           quantity: 1,
         }],
@@ -214,7 +225,14 @@ Deno.serve(async (req) => {
           price_data: {
             currency: "gbp",
             unit_amount: Math.round(feeAmount * 100),
-            product_data: { name: `Guarantor fee - ${app.guarantee_ref}`, description: "One month's rent, for the opndoor Deed of Guarantee." },
+            product_data: {
+              name: `Guarantor fee - ${app.guarantee_ref}`,
+              // Unchanged wherever the fee IS one month's rent. A negotiated
+              // basis or a share of a joint fee has to say what it actually is.
+              description: feeAmount === rent
+                ? "One month's rent, for the opndoor Deed of Guarantee."
+                : "The agreed guarantor fee for this tenancy, for the opndoor Deed of Guarantee.",
+            },
           },
           quantity: 1,
         }],

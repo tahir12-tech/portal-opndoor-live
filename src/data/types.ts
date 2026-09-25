@@ -317,6 +317,13 @@ export interface ApplicationDetail {
   agentAddr: string;
   rent: string;
   rentNum: number;
+  /** The guarantor fee as charged, which is one month's rent only at standard
+      terms. An agency on a negotiated basis pays weeks of it, and one tenant of
+      a joint tenancy pays a share. Absent on a record with no snapshotted fee,
+      where the rent is still the honest answer. */
+  feeGBP?: string;
+  /** "one month's rent", "3 weeks of rent", or their share of it. */
+  feeBasisLabel?: string;
   referrer: string;
   referrerRole?: Role | null; // #112 so opndoor-admin actors can be labelled "opndoor", not "Referrer"
   tenancyStart: string;

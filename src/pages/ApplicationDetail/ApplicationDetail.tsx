@@ -926,7 +926,8 @@ export function ApplicationDetail() {
       {payAwaiting && (
         <>
           <div className="pay-state pay-state--awaiting"><span className="pay-dot" />Awaiting payment</div>
-          <div className="drow"><span className="drow__k">Guarantor fee</span><span className="drow__v"><b>{d.rent}</b> · one month's rent</span></div>
+          {/* The FEE, which is one month's rent only at standard terms. */}
+          <div className="drow"><span className="drow__k">Guarantor fee</span><span className="drow__v"><b>{d.feeGBP ?? d.rent}</b>{d.feeBasisLabel ? ` · ${d.feeBasisLabel}` : ''}</span></div>
           {pi?.paymentUrl && (
             <>
               <div className="pay-link">

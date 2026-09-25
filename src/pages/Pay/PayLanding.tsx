@@ -174,7 +174,11 @@ export function PayLanding() {
       <div className="pay__fee">
         <div className="pay__fee-k">Guarantor fee</div>
         <div className="pay__fee-v">{d.feeGBP}</div>
-        <div className="pay__fee-s">One month's rent. One-off payment. Reference {d.ref}.</div>
+        {/* The fee is not always one month's rent: an agency on a negotiated
+            basis pays weeks of it, and one tenant of a joint tenancy pays a
+            share. The amount above is authoritative either way, so the line
+            under it must not contradict it. */}
+        <div className="pay__fee-s">One-off payment. Reference {d.ref}.</div>
       </div>
 
       <div className="pay__after">
