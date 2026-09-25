@@ -117,8 +117,8 @@ export function PositionModal({
               <div className="pos-item__txt">
                 <div className="pos-item__name">{p.targetName}</div>
                 <div className="soft">
-                  {p.kind === 'group' ? 'Every brand and branch in this group'
-                    : p.kind === 'agency' ? 'Every branch of this brand'
+                  {p.kind === 'group' ? 'Every agency and branch in this group'
+                    : p.kind === 'agency' ? 'Every branch of this agency'
                     : 'This branch'}
                 </div>
               </div>
@@ -135,7 +135,7 @@ export function PositionModal({
             onChange={(v) => { setKind(v as positions.ScopeKind); setTargetId(''); }}
             options={[
               { value: 'branch', label: 'A branch' },
-              { value: 'agency', label: 'A whole brand' },
+              { value: 'agency', label: 'A whole agency' },
               { value: 'group', label: 'A whole group' },
             ]}
           />

@@ -7,7 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { reconciliationPendingCount, awaitingDecisionCount, loadAgencyMatchQueue } from '@/data';
 import { useSession } from '@/session/SessionContext';
-import { NAV } from '@/constants/nav';
+import { NAV, NAV_CAPABILITY } from '@/constants/nav';
+import { isAgencyUser } from '@/data/capabilities';
 import { useOnClickOutside } from '@/hooks/useOnClickOutside';
 import { usePageMetaValue } from './pageMeta';
 import { Icon } from '@/components/ui/Icon';
@@ -15,11 +16,11 @@ import { Icon } from '@/components/ui/Icon';
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   // useSession() re-renders on dataVersion bumps (re-hydration), so the badge
   // reflects the current pending-review count after a confirm or a new referral.
-  const { role, user, signOut, dataVersion } = useSession();
+  const { role, user, signOut, dataVersion, partnerScope } = useSession();
 
-  // The sidebar filters on ROLE ONLY. A capability gate used to live here and
-  // hid the Dev Centre from every developer; see the note on the Dev Centre item
-  // in constants/nav.ts for why that was wrong and why it is not coming back.
+  // Role first, then the item's capability if it declares one. The capability
+  // predicates live in NAV_CAPABILITY and are read here and by the route guard
+  // in App.tsx from the same map, so nothing is hidden that is not also closed.
   const navigate = useNavigate();
   const { active } = usePageMetaValue();
   // The direct-signup agency-match backlog is a separate, async queue (superadmin
@@ -45,8 +46,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     <>
       <div className="sb__brand">
         <span className="wordmark">opndoor</span>
+        {/* An agency of ours is not a partner and does not think of itself as
+            one. The word is ours, for the suppliers who push referrals through
+            the API; on a customer's own screen it reads as somebody else's
+            product. */}
         <span className="sb__cobrand">
-          Partner<br />portal
+          {isAgencyUser(role, partnerScope) ? <>Agency<br />portal</> : <>Partner<br />portal</>}
         </span>
       </div>
       <div className="sb__product">
@@ -56,7 +61,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       <nav className="sb__nav">
         {NAV.map((grp) => {
-          const items = grp.items.filter((it) => it.roles.includes(role));
+          const items = grp.items.filter((it) => it.roles.includes(role)
+            && (!it.capability || NAV_CAPABILITY[it.capability](role, partnerScope)));
           if (!items.length) return null;
           return (
             <div className="sb__group" key={grp.group}>

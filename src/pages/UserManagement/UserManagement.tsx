@@ -194,7 +194,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     eyebrow = 'Administration · Management';
     sub = 'Your team’s access to the portal. Add colleagues as Management or Referrer; opndoor admin accounts are managed by opndoor.';
     cardTitle = 'All users';
-    cardSub = 'Your partner team';
+    cardSub = 'Your team';
   }
 
   // ---- action runners ----
@@ -442,7 +442,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     setEditUser(null);
     setConfirm({
       title: `Change ${u.name}'s role?`,
-      body: <><b>{from}</b> → <b>{to}</b>. Their access changes immediately at their next page load. {editRole === 'management' ? 'They will see the whole estate.' : editRole === 'referrer' ? 'They will see only their own referrals.' : ''}</>,
+      body: <><b>{from}</b> → <b>{to}</b>. Their access changes immediately at their next page load. {editRole === 'management' ? 'They will see everything in your organisation.' : editRole === 'referrer' ? 'They will see only their own referrals.' : ''}</>,
       confirmLabel: 'Change role',
       success: `${u.name}’s role updated to ${to}.`,
       run: () => updateUserRole(u.id, editRole),
@@ -496,7 +496,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
           <span className="role-tag role-tag--super">opndoor admin · full control of the portal</span>
         ) : (
           <>
-            <span className="role-tag role-tag--mgmt">Management · full estate, no opndoor admin</span>
+            <span className="role-tag role-tag--mgmt">Management · sees everything, no opndoor admin</span>
             <span className="role-tag role-tag--ref">Referrer · own referrals only</span>
           </>
         )}
@@ -582,7 +582,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
         onClose={() => setAddOpen(false)}
         width={560}
         title={teamMode ? 'Add opndoor team member' : 'Add user'}
-        sub={teamMode ? 'Add opndoor staff. An admin has full control of the portal; a manager runs the queues across all partners but not the sensitive settings.' : 'Invite a partner team member and set their access level.'}
+        sub={teamMode ? 'Add opndoor staff. An admin has full control of the portal; a manager runs the queues across all partners but not the sensitive settings.' : 'Invite a colleague and set their access level.'}
         footer={<><Button variant="ghost" onClick={() => setAddOpen(false)} disabled={busy}>Cancel</Button><Button variant="primary" onClick={sendInvite} arrow disabled={busy}>{busy ? 'Sending…' : 'Send invite'}</Button></>}
       >
         <div className="form-grid">

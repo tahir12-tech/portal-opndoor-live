@@ -1,0 +1,99 @@
+/* Team — people under the structure they sit in.
+
+   Deliberately a stack of small cards rather than one table: the grouping IS
+   the information here, and a table with a repeated "Branch" column buries it.
+   Borrows the role-tag and roleopt classes from UserManagement.css so the two
+   screens cannot drift apart on what a Management pill looks like. */
+
+.tm-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tm-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-empty {
+  padding: 18px 20px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.tm-person {
+  display: grid;
+  grid-template-columns: 34px minmax(180px, 1.6fr) auto auto minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+}
+.tm-person:first-child { border-top: 0; }
+
+.tm-person__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--wash, #f1eefc);
+  color: var(--heliotrope-deep, #5b3fd9);
+  font-weight: 700;
+  font-size: 12.5px;
+  text-transform: uppercase;
+}
+
+.tm-person__name {
+  font-weight: 650;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tm-you {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--heliotrope-deep, #5b3fd9);
+  background: var(--wash, #f1eefc);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.tm-person__email {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.tm-person__pos {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.tm-person__acts {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Below the table breakpoint the grid stops helping: stack the identity, let
+   the pills and the actions wrap under it. */
+@media (max-width: 860px) {
+  .tm-person {
+    grid-template-columns: 34px 1fr;
+    row-gap: 8px;
+  }
+  .tm-person__id { grid-column: 2; }
+  .tm-person > .role-tag,
+  .tm-person > .pill,
+  .tm-person__pos,
+  .tm-person__acts {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+}

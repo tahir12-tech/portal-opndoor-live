@@ -221,7 +221,7 @@ export function NewApplication() {
     if (extra.length === 0) return;
     setExtra([]);
     setPercents([String(DEFAULT_SHARE_PERCENT)]);
-    setRailNote('This partner\u2019s referrals cover one tenant each, so the additional tenants were removed.');
+    setRailNote('This supplier\u2019s referrals cover one tenant each, so the additional tenants were removed.');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [railState, estate]);
 
@@ -451,7 +451,7 @@ export function NewApplication() {
                       ? 'Choose the agent and branch first: whether a referral can cover more than one tenant depends on who it is for.'
                       : railState === 'loading'
                         ? 'Checking this agent\u2026'
-                        : 'This partner sends us referrals one tenant at a time. Refer each tenant separately.'}
+                        : 'This supplier sends us referrals one tenant at a time. Refer each tenant separately.'}
                   </p>
                 </div>
               )}

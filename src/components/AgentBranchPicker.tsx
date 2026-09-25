@@ -295,7 +295,16 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
     sub: b.area || '',
     onSelect: () => chooseBranch(b.name, false),
   }));
-  if (branchQuery && !branchExact && selectedAgency) {
+  /* WHO MAY INVENT A BRANCH MID-REFERRAL. The same question as mayAddAgency,
+     and the same answer: a SUPPLIER's agency set is open at referral time, so an
+     office they have never sent us before must not stop the form. One of OUR
+     agencies has a structure we set up — it decides commission, deed delivery
+     and scope — so a branch typed into a referral is not a shortcut, it is a
+     change to the deal made by the person filing the referral.
+     branches_insert refuses it in SQL for the estate (20261004160000); this is
+     the half that stops it being offered and then rejected. */
+  const mayAddBranch = !shape.refersOwnStock;
+  if (mayAddBranch && branchQuery && !branchExact && selectedAgency) {
     branchOptions.push({
       id: '__create-branch',
       icon: <Icon name="plus" />,
@@ -312,7 +321,9 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
     if (!q || !agencyRec) return;
     const existing = agencyRec.branches.find((b) => b.name.toLowerCase() === q.toLowerCase());
     if (existing) chooseBranch(existing.name, false);
-    else { createBranchOnTheFly(selectedAgency, q); chooseBranch(q, true); }
+    // Enter on an unknown name creates one on the supplier rail and does nothing
+    // on ours, rather than quietly creating a branch the dropdown refused to.
+    else if (mayAddBranch) { createBranchOnTheFly(selectedAgency, q); chooseBranch(q, true); }
   }
 
   const branchEmpty = selectedAgency
@@ -338,13 +349,13 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
           </div>
         </div>
       ) : (<>
-      {/* COLLAPSED. One brand, and it is theirs, so there is nothing to choose.
+      {/* COLLAPSED. One agency, and it is theirs, so there is nothing to choose.
           Shown rather than hidden: filing a referral against an agency without
           saying which one is worse than one extra line. It is text, not a
           control, so it is not something to read through. */}
       {shape.collapseAgency ? (
         <div className="field span-2">
-          <label>{shape.collapseBranch ? 'Office' : 'Brand'}</label>
+          <label>{shape.collapseBranch ? 'Office' : 'Agency'}</label>
           <div className="hint" style={{ fontSize: 14, color: 'var(--ink)' }}>
             This referral is against <b>{shape.onlyAgencyName}</b>
             {shape.collapseBranch && shape.onlyBranchName && shape.onlyBranchName !== shape.onlyAgencyName
@@ -361,18 +372,18 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
         </div>
       ) : (
         <div className="field span-2">
-          <label htmlFor="ag-name">{shape.refersOwnStock ? 'Brand' : 'Agent'}</label>
+          <label htmlFor="ag-name">{shape.refersOwnStock ? 'Agency' : 'Agent'}</label>
           <TypeAhead
             id="ag-name"
             value={agentValue}
             onChange={resetAgent}
             onEnter={commitAgentEnter}
             options={agentOptions}
-            placeholder={shape.mayAddAgency ? 'Search agencies or add a new one' : 'Search your brands'}
-            emptyText={shape.mayAddAgency ? 'No agencies found. Type a name to add one' : 'No brands found'}
+            placeholder={shape.mayAddAgency ? 'Search agencies or add a new one' : 'Search your agencies'}
+            emptyText={shape.mayAddAgency ? 'No agencies found. Type a name to add one' : 'No agencies found'}
           />
           {!shape.mayAddAgency && (
-            <span className="hint">Referrals go against one of your own brands. A new brand is set up by opndoor, not here.</span>
+            <span className="hint">Referrals go against one of your own agencies. A new agency is set up by opndoor, not here.</span>
           )}
         </div>
       )}
@@ -418,14 +429,18 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
             onChange={onBranchInput}
             onEnter={commitBranchEnter}
             options={branchOptions}
-            placeholder={selectedAgency ? 'Search branches or add a new one' : 'Select an agent first'}
+            placeholder={!selectedAgency ? 'Select an agent first' : mayAddBranch ? 'Search branches or add a new one' : 'Search your offices'}
             disabled={!selectedAgency}
             emptyText={branchEmpty}
           />
           {branchAuto ? (
             <span className="hint">Single-office agent. A <b>Head office</b> branch will be used, inheriting the agency contact. Type a branch name to change it.</span>
           ) : (
-            <span className="hint">Branches are filtered to the selected agent. Add a new branch on the fly if it is not listed.</span>
+            <span className="hint">
+              {mayAddBranch
+                ? 'Branches are filtered to the selected agent. Add a new branch on the fly if it is not listed.'
+                : 'Referrals go against one of your own offices. A new office is set up by opndoor, not here.'}
+            </span>
           )}
         </div>
       ) : null}

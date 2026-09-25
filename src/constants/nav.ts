@@ -3,8 +3,28 @@
    Each item declares the roles allowed to see it; the sidebar filters by
    the active role. Routes replace the prototype's .html hrefs.
    ===================================================================== */
-import type { Role } from '@/data';
+import type { PartnerScope, Role } from '@/data';
+import { isAgencyUser, mayUseDevCentre } from '@/data/capabilities';
 import type { IconName } from '@/components/ui/Icon';
+
+/**
+ * A gate beyond the role: what the user's own PARTY is, or has been set up for.
+ *
+ * Every one of these is evaluated in two places — the sidebar, to decide what
+ * is listed, and App.tsx, to decide what renders when the address is typed. An
+ * item hidden by a capability whose route is not also closed by it is a door
+ * with no lock, which is the mistake the Dev Centre's own history records
+ * below. NAV_CAPABILITY is the single predicate both read.
+ */
+export type NavCapability = 'devCentre' | 'agencyTeam' | 'orgSection';
+
+export const NAV_CAPABILITY: Record<NavCapability, (role: Role, scope: PartnerScope) => boolean> = {
+  devCentre: mayUseDevCentre,
+  agencyTeam: isAgencyUser,
+  // The admin org section. Its inverse: an agency user gets Team instead, which
+  // is the same people under the structure they actually have.
+  orgSection: (role, scope) => !isAgencyUser(role, scope),
+};
 
 export interface NavItem {
   id: string;
@@ -12,6 +32,8 @@ export interface NavItem {
   to: string;
   icon: IconName;
   roles: Role[];
+  /** An extra gate beyond the role, checked by the sidebar and the route guard. */
+  capability?: NavCapability;
   /** The sidebar fills the count from the matching queue: 'reconcile' from the
       org-review queue, 'decisions' from applications awaiting the decision. */
   badge?: 'reconcile' | 'decisions';
@@ -44,29 +66,29 @@ export const NAV: NavGroup[] = [
     // a developer who may have left; the screen shows them the keys panel alone.
     group: 'Integration',
     items: [
-      // superadmin is deliberately NOT capability-gated below: an opndoor admin
-      // needs to reach the Dev Centre for a partner they are about to enable,
-      // which is the moment the capability is still off.
-      // ROLE ONLY, deliberately. This item briefly also required the partner's
-      // api_access_enabled capability, on the reasoning that a developer at a
-      // portal-only partner has no API to develop against. Three things were
-      // wrong with that:
+      // CAPABILITY-GATED, and the route in App.tsx is gated by the same
+      // predicate. This item was role-only for a while, for three reasons that
+      // were recorded here and that the current rule answers one at a time:
       //
-      //   1. The capability defaults FALSE and is never backfilled, so "a
-      //      developer at a portal-only partner" was every developer at every
-      //      partner. The role lost the only screen it exists for.
-      //   2. It hid the door without locking it. The route guard in App.tsx is
-      //      role-based, so /dev-centre still rendered if you typed it. Hiding
-      //      that enforces nothing costs usability and buys no safety.
-      //   3. The capability's own exemption disproved it: opndoor admin was
-      //      exempted because "they need the Dev Centre for a partner they are
-      //      about to enable, which is exactly when the capability is off". That
-      //      is the developer's situation too, and more often.
+      //   1. "api_access_enabled defaults FALSE, so hiding on it hides the
+      //      Dev Centre from every developer." True, and that is now the
+      //      intended answer for a party with no API: there is nothing on the
+      //      screen for them. A supplier being onboarded gets it the moment an
+      //      admin enables API access, which is the same moment their keys
+      //      would start working.
+      //   2. "It hid the door without locking it." That was the real objection
+      //      and it is fixed rather than avoided: NAV_CAPABILITY is read by the
+      //      sidebar AND by the route guard, so /dev-centre typed by hand
+      //      redirects for exactly the users it is not listed for.
+      //   3. "The admin exemption disproves the rule." The admin exemption
+      //      stands — they need the screen for a partner they are about to
+      //      enable — and mayUseDevCentre is the one place it lives.
       //
-      // api_access_enabled is enforced where it means something: it gates key
-      // AUTHENTICATION and minting in SQL. The Dev Centre reports that state
-      // rather than being hidden by it.
-      { id: 'devcentre', label: 'Dev Centre', to: '/dev-centre', icon: 'book', roles: ['developer', 'superadmin', 'management'] },
+      // The reason it could not stay role-only: an agency manager is
+      // 'management', and the screen names the party it is showing keys for. On
+      // the agent rail that party is opndoor-agents, the house partner, which
+      // must never appear on a customer's screen. See mayUseDevCentre.
+      { id: 'devcentre', label: 'Dev Centre', to: '/dev-centre', icon: 'book', roles: ['developer', 'superadmin', 'management'], capability: 'devCentre' },
     ],
   },
   {
@@ -76,14 +98,29 @@ export const NAV: NavGroup[] = [
     group: 'Relationships',
     items: [
       { id: 'partners', label: 'Suppliers', to: '/partners', icon: 'partners', roles: ['superadmin'] },
-      { id: 'org', label: 'Agencies', to: '/agencies', icon: 'org', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer'] },
+      // Opndoor and a SUPPLIER's staff see Agencies: a supplier has a book of
+      // agencies under it and a real reason to browse them. One of OUR agencies
+      // does not — it IS the agency — and the screen it was being shown is an
+      // admin's view of an estate, complete with rate cards and other people's
+      // branches. It gets Team instead.
+      { id: 'org', label: 'Agencies', to: '/agencies', icon: 'org', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer'], capability: 'orgSection' },
+    ],
+  },
+  {
+    group: 'Your organisation',
+    items: [
+      // ONE PAGE FOR AN AGENCY, replacing Agencies and Users both. Their people,
+      // grouped by the structure they actually have, with the invites and
+      // positions a manager needs. Structure itself is read-only: Opndoor sets
+      // up and changes branches and agencies from the admin Agencies section.
+      { id: 'team', label: 'Team', to: '/team', icon: 'users', roles: ['management', 'referrer'], capability: 'agencyTeam' },
     ],
   },
   {
     group: 'Administration',
     adminGroup: true,
     items: [
-      { id: 'users', label: 'Users', to: '/users', icon: 'users', roles: ['management'] },
+      { id: 'users', label: 'Users', to: '/users', icon: 'users', roles: ['management'], capability: 'orgSection' },
     ],
   },
   {

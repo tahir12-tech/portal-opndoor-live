@@ -6,7 +6,7 @@
    ===================================================================== */
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
-import { RequireRole } from '@/components/guards/RequireRole';
+import { RequireRole, RequireCapability } from '@/components/guards/RequireRole';
 import { Apply } from '@/pages/Apply/Apply';
 import {
   InviteLanding, Register,
@@ -32,6 +32,7 @@ import { AgencyHome } from '@/pages/Agencies/AgencyHome';
 import { PartnerManagement } from '@/pages/PartnerManagement/PartnerManagement';
 import { PartnerHome } from '@/pages/PartnerManagement/PartnerHome';
 import { UserManagement } from '@/pages/UserManagement/UserManagement';
+import { Team } from '@/pages/Team/Team';
 import { Reconciliation } from '@/pages/Reconciliation/Reconciliation';
 import { Health } from '@/pages/Health/Health';
 import { Help } from '@/pages/Help/Help';
@@ -100,7 +101,10 @@ export function App() {
         {/* Dev Centre. Management is here only to revoke a leaked key; the page
             renders them the keys panel alone. The RPCs scope themselves, so this
             guard decides what renders, not what is permitted. */}
-        <Route element={<RequireRole roles={['developer', 'superadmin', 'management']} redirectTo="/help" />}>
+        {/* Capability-gated, by the SAME predicate the sidebar filters on: a
+            party with no API has no Dev Centre, and typing the address does not
+            get round that. superadmin is exempt inside mayUseDevCentre. */}
+        <Route element={<RequireCapability roles={['developer', 'superadmin', 'management']} capability="devCentre" redirectTo="/help" />}>
           <Route path="/dev-centre" element={<DevCentre />} />
         </Route>
 
@@ -135,15 +139,25 @@ export function App() {
             for it in SQL (only is_admin or a partner's own management/referrer). */}
         <Route element={<RequireRole roles={['superadmin', 'opndoor_manager', 'management', 'referrer']} redirectTo="/dev-centre" />}>
           <Route path="/activity" element={<Activity />} />
+        </Route>
+        {/* The Agencies section is an admin's and a supplier's view of a book of
+            agencies. One of our own agencies gets /team instead — the same
+            people, under the structure it actually has, with no rate cards and
+            nobody else's branches. Same predicate as the nav item. */}
+        <Route element={<RequireCapability roles={['superadmin', 'opndoor_manager', 'management', 'referrer']} capability="orgSection" redirectTo="/team" />}>
           <Route path="/agencies" element={<OrgManagement />} />
           <Route path="/agencies/:key" element={<AgencyHome />} />
+        </Route>
+        <Route element={<RequireCapability roles={['management', 'referrer']} capability="agencyTeam" redirectTo="/agencies" />}>
+          <Route path="/team" element={<Team />} />
         </Route>
         <Route element={<RequireRole roles={['superadmin', 'management', 'referrer']} redirectTo="/dev-centre" />}>
           <Route path="/new-application" element={<NewApplication />} />
         </Route>
 
-        {/* Users: opndoor admin + Management (partner staff) */}
-        <Route element={<RequireRole roles={['superadmin', 'management']} />}>
+        {/* Users: opndoor admin + a SUPPLIER's management. An agency manager's
+            people live on /team, so /users redirects them there. */}
+        <Route element={<RequireCapability roles={['superadmin', 'management']} capability="orgSection" redirectTo="/team" />}>
           <Route path="/users" element={<UserManagement />} />
         </Route>
 

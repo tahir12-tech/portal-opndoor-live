@@ -20,16 +20,38 @@ export interface Position {
   targetName: string;
 }
 
-/** What a person covers, in words, for a table cell. */
-export function describePosition(positions: Position[]): string {
+/** The words for each level. GROUP / AGENCY / BRANCH, which is what the schema
+    calls them and what the admin screens call them. "Brand" was a fourth name
+    for the agency level, used here and nowhere else, and on a customer's own
+    screen it read as a marketing term for the company they work for. */
+const LEVEL_ONE: Record<ScopeKind, string> = { group: 'Group', agency: 'Agency', branch: 'Branch' };
+const LEVEL_MANY: Record<ScopeKind, string> = { group: 'groups', agency: 'agencies', branch: 'branches' };
+const LEVELS: ScopeKind[] = ['group', 'agency', 'branch'];
+
+/**
+ * What a person covers, in words, for a table cell.
+ *
+ * `showLevel` names the level as well as the target — "Agency: Regent's
+ * Lettings". Worth the words on an admin screen, which shows an estate with
+ * groups above agencies above branches and where the level is the information.
+ * Noise on a single-agency customer's Team page, where every position is the
+ * same level and the prefix only repeats it: there it reads "Regent's Lettings".
+ */
+export function describePosition(positions: Position[], showLevel = true): string {
   if (!positions.length) return 'Own referrals';
-  const group = positions.filter((p) => p.kind === 'group');
-  if (group.length) return group.length === 1 ? `Group: ${group[0].targetName}` : `${group.length} groups`;
-  const agency = positions.filter((p) => p.kind === 'agency');
-  if (agency.length) return agency.length === 1 ? `Brand: ${agency[0].targetName}` : `${agency.length} brands`;
-  const branch = positions.filter((p) => p.kind === 'branch');
-  if (branch.length === 1) return `Branch: ${branch[0].targetName}`;
-  return `${branch.length} branches`;
+  for (const kind of LEVELS) {
+    const at = positions.filter((p) => p.kind === kind);
+    if (!at.length) continue;
+    if (at.length > 1) return `${at.length} ${LEVEL_MANY[kind]}`;
+    return showLevel ? `${LEVEL_ONE[kind]}: ${at[0].targetName}` : at[0].targetName;
+  }
+  return 'Own referrals';
+}
+
+/** How many levels of the ladder a set of positions actually spans. The Team
+    page uses it to decide whether naming the level tells the reader anything. */
+export function levelsSpanned(positions: Position[]): number {
+  return LEVELS.filter((k) => positions.some((p) => p.kind === k)).length;
 }
 
 /**
