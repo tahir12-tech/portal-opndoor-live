@@ -6,25 +6,33 @@ import { CHANNELS, HOUSE_PARTNER_SLUGS, ROUTE_LABEL, channelOf, houseRouteLabel,
 
 describe('how an application arrived', () => {
   it('the direct house route is Direct', () => {
-    expect(channelOf({ partnerSlug: 'opndoor-direct', referencingMode: 'opndoor_referenced' })).toBe('Direct');
+    expect(channelOf({ partnerSlug: 'opndoor-direct', partnerMode: 'opndoor_referenced' })).toBe('Direct');
   });
 
   it('the provider house route is a hand-over, whatever its mode says', () => {
-    expect(channelOf({ partnerSlug: 'referencing-partner', referencingMode: 'pre_referenced_open' })).toBe('Provider hand-over');
+    expect(channelOf({ partnerSlug: 'referencing-partner', partnerMode: 'pre_referenced_open' })).toBe('Provider hand-over');
   });
 
-  it('a partner rail where WE check is an agent referral', () => {
-    expect(channelOf({ partnerSlug: 'some-agency', referencingMode: 'opndoor_referenced' })).toBe('Agent referral');
+  it('one of OUR agencies typed it into the portal: an agent referral', () => {
+    expect(channelOf({ partnerSlug: 'some-agency', partnerMode: 'opndoor_referenced' })).toBe('Agent referral');
   });
 
-  it('a partner rail already checked is a partner referral', () => {
-    expect(channelOf({ partnerSlug: 'rightmove', referencingMode: 'pre_referenced_open' })).toBe('Partner referral');
-    expect(channelOf({ partnerSlug: 'rightmove', referencingMode: 'pre_referenced_screened' })).toBe('Partner referral');
+  it('a supplier pushed it through the API: a partner referral', () => {
+    expect(channelOf({ partnerSlug: 'rightmove', partnerMode: 'pre_referenced_open' })).toBe('Partner referral');
+    expect(channelOf({ partnerSlug: 'rightmove', partnerMode: 'pre_referenced_screened' })).toBe('Partner referral');
+  });
+
+  it('REGENT: one of ours, referencing their own tenants, is still an agent referral', () => {
+    /* The row's own referencing_mode is pre_referenced_open, because Regent
+       check their own tenants. Keying on that labelled every Regent row a
+       supplier referral — wrong pill, wrong Route filter, wrong bucket in every
+       count that groups by channel. The estate is the partner's. */
+    expect(channelOf({ partnerSlug: 'opndoor-agents', partnerMode: 'opndoor_referenced' })).toBe('Agent referral');
   });
 
   it('falls back to partner referral rather than throwing on missing data', () => {
     // Reachable in mock mode, where a hydrated row may have neither.
-    expect(channelOf({ partnerSlug: null, referencingMode: null })).toBe('Partner referral');
+    expect(channelOf({ partnerSlug: null, partnerMode: null })).toBe('Partner referral');
   });
 
   it('the four values are the four the SQL returns', () => {

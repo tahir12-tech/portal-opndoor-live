@@ -14,7 +14,7 @@
 import type { CommissionLine, ApplicationDetail, ApplicationSummary, DeedState, PartnerScope, Role, Status, WithdrawReason } from './types';
 import { ALL_PARTNERS } from './types';
 import { AGENT_ADDR, APPLICATION_RECORDS as RECORDS_SEED, APPLICATIONS_LIST as LIST_SEED, type AppRecord } from './mock/applications';
-import { partnerName } from './partnersService';
+import { getPartner, partnerName } from './partnersService';
 import { channelOf, type Channel } from './channel';
 import { contactForApplication } from './orgService';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
@@ -154,7 +154,7 @@ export interface AppFilterOpts extends AppScopeOpts {
 
 /** How an application arrived, from its summary row (partner slug + rail). */
 function channelOfRow(r: ApplicationSummary): Channel {
-  return channelOf({ partnerSlug: r.partner, referencingMode: r.referencingMode });
+  return channelOf({ partnerSlug: r.partner, partnerMode: getPartner(r.partner)?.referencingMode });
 }
 
 /** Role + partner isolation only (drives counts and the "total" figure). */
@@ -509,7 +509,7 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
     status: r.status,
     statusLabel: STATUS_LABEL[r.status],
     referencingMode: r.referencingMode,
-    channel: channelOf({ partnerSlug: summarySlug, referencingMode: r.referencingMode }),
+    channel: channelOf({ partnerSlug: summarySlug, partnerMode: getPartner(summarySlug)?.referencingMode }),
     withdrawnReason: r.withdrawnReason ?? null,
     name: r.name,
     initials: initials(r.name),

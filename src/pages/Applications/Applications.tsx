@@ -9,7 +9,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type 
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications, getPartners,
-  partnerName, referrerNamesForScope, getPeriods, periodRange, ALL_PARTNERS, type Status, type Period,
+  getPartner, partnerName, referrerNamesForScope, getPeriods, periodRange, ALL_PARTNERS, type Status, type Period,
   collateTenancies, groupTenancies, memberLabel, pageWithoutSplitting, scopedSummaries, tenancyProgress,
 } from '@/data';
 import { useSession } from '@/session/SessionContext';
@@ -252,7 +252,12 @@ export function Applications() {
           <h1 className="page-head__title" style={{ marginTop: 10 }}>Applications</h1>
           <p className="page-head__sub">Every referral from sent through to deed issued. Filter by status, agency or branch, or search by tenant.</p>
         </div>
-        <RoleOnly roles={['superadmin', 'referrer']}>
+        {/* Management too: the route guard on /new-application admits them and
+            the sidebar has always offered it, so withholding the button here
+            only made a partner manager hunt for the one they are allowed.
+            opndoor_manager stays out, deliberately — create_referral refuses it
+            in SQL, so a button would be a promise the database breaks. */}
+        <RoleOnly roles={['superadmin', 'management', 'referrer']}>
           <div className="page-head__actions">
             <Button variant="primary" size="sm" to="/new-application"><Icon name="plus" /> New application</Button>
           </div>
@@ -360,7 +365,7 @@ export function Applications() {
             </thead>
             <tbody>
               {pagedRows.map((r, i) => {
-                const ch = channelOf({ partnerSlug: r.partner, referencingMode: r.referencingMode });
+                const ch = channelOf({ partnerSlug: r.partner, partnerMode: getPartner(r.partner)?.referencingMode });
                 /* THE TENANCY, when this row is part of one. The heading is drawn
                    once, above the first member, and every member row then reads
                    as part of it rather than as its own let. */

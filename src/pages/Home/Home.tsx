@@ -12,6 +12,7 @@ import {
   getApplications, ALL_PARTNERS,
 } from '@/data';
 import { channelOf, ROUTE_LABEL, type Channel } from '@/data/channel';
+import { getPartner } from '@/data/partnersService';
 import { getPositions } from '@/data/positionsService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -137,7 +138,7 @@ export function Home() {
               </thead>
               <tbody>
                 {needs.map((r) => {
-                  const ch = channelOf({ partnerSlug: r.partner, referencingMode: r.referencingMode });
+                  const ch = channelOf({ partnerSlug: r.partner, partnerMode: getPartner(r.partner)?.referencingMode });
                   return (
                     <tr key={r.ref}>
                       <td><Pill variant={ROUTE_PILL[ch]}>{ROUTE_LABEL[ch]}</Pill></td>

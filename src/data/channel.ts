@@ -54,12 +54,16 @@ export function houseRouteLabel(slug: string | null | undefined): string {
 
 export function channelOf(input: {
   partnerSlug: string | null | undefined;
-  referencingMode: string | null | undefined;
+  /** The PARTNER's referencing mode, not the application's.
+      How a referral ARRIVED is a fact about the relationship: one of our
+      agencies typed it into the portal, or a supplier pushed it through the
+      API. Who checked the tenant is a different question, and keying on it
+      labelled Regent — our agency, referencing their own tenants — as a
+      supplier referral on every row. */
+  partnerMode: string | null | undefined;
 }): Channel {
   if (input.partnerSlug === DIRECT) return 'Direct';
   if (input.partnerSlug === PROVIDER) return 'Provider hand-over';
-  // A partner rail where WE arrange the check is an agent typing it in the
-  // portal; one where the check is already done arrived through the API.
-  if (input.referencingMode === 'opndoor_referenced') return 'Agent referral';
+  if (input.partnerMode === 'opndoor_referenced') return 'Agent referral';
   return 'Partner referral';
 }
