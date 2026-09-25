@@ -32,6 +32,8 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
 import { AgencyGrow } from './AgencyGrow';
+import { AgreementEditor } from './AgreementEditor';
+import { CommissionStatement } from '@/components/CommissionStatement';
 import './AgencyHome.css';
 
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
@@ -88,6 +90,8 @@ export function AgencyHome() {
   const [tick, setTick] = useState(0);
   const bump = () => setTick((t) => t + 1);
   const [invite, setInvite] = useState<InviteContext | null>(null);
+  // Which party's commission is being edited, if any. Null closes the editor.
+  const [editAgreement, setEditAgreement] = useState<{ level: 'group' | 'agency' | 'branch'; id: string; name: string } | null>(null);
   /* Creation is anchored to a node, so the modal can say what it is adding and
      where. `growAgency` is the agency a branch is being added to. */
   const [grow, setGrow] = useState<null | { mode: 'branch' | 'agency'; agencyId?: string }>(null);
@@ -480,15 +484,35 @@ export function AgencyHome() {
 
   /* ---- COMMISSION. Rates that are actually SET, and what each branch pays out.
      Both read the split SQL resolved; nothing is recomputed here. */
+  /* ONE CARD PER PARTY, and the party's deal is EDITABLE on it. The Commission
+     tab used to describe an agreement it could not change, and said so in a
+     sentence — "Negotiated agreements are set by Opndoor" — that was true only
+     in the sense that Opndoor had to open a psql prompt to do it. An admin edits
+     it here; every rule and every refusal still belongs to SQL. */
+  const editAgreementFor = (lvl: 'group' | 'agency' | 'branch', nodeId: string, nodeName: string) =>
+    setEditAgreement({ level: lvl, id: nodeId, name: nodeName });
+
   const AgreementPanel = () => {
+    // The party the Agreement card is about. An agency page's agreement may sit
+    // on the agency or on the group above it; edit the one that actually prices.
+    const target: { level: 'group' | 'agency'; id: string; name: string } | null =
+      agreement && !agreement.isStandard && agreement.scopeLevel === 'group' && group?.id
+        ? { level: 'group', id: group.id, name: group.name }
+        : agencies[0]?.id ? { level: 'agency', id: agencies[0].id, name: agencies[0].name } : null;
+    const editBtn = isAdmin && target
+      ? <Button variant="ghost" size="sm" onClick={() => editAgreementFor(target.level, target.id, target.name)}>
+          <Icon name="edit" size={13} /> {agreement && !agreement.isStandard ? 'Edit' : 'Set a deal'}
+        </Button>
+      : null;
+
     if (!agreement || agreement.isStandard) {
       return (
         <Card>
-          <CardHead title="Agreement" sub="Standard terms" />
+          <CardHead title="Agreement" sub="Standard terms" actions={editBtn} />
           <CardBody>
             <p className="ah-agr__std">
               This org is on standard terms: the guarantee fee is one month's rent and the agency earns
-              the Opndoor standard rate. Negotiated agreements are set by Opndoor and are the exception.
+              the Opndoor standard rate. A negotiated deal is the exception, and is set here.
             </p>
           </CardBody>
         </Card>
@@ -502,6 +526,7 @@ export function AgencyHome() {
         <CardHead
           title="Agreement"
           sub={`Negotiated · ${agreement.coverage === 'all_in' ? 'all-in' : 'additive'} · volume counted per ${agreement.countingScope} per ${agreement.period}`}
+          actions={editBtn}
         />
         <CardBody>
           {agreement.note && <p className="ah-agr__note">{agreement.note}</p>}
@@ -646,6 +671,17 @@ export function AgencyHome() {
             )}
           </CardBody>
         </Card>
+        {/* WHAT THIS AGENCY ACTUALLY EARNED, under the rates above. The rate
+            cards say what the deal is; this says what it produced, month by
+            month, and it is the identical component the agency's own manager
+            reads on Reporting — one rendering, so admin and customer cannot be
+            shown different numbers for the same month. */}
+        <CommissionStatement
+          role={role}
+          scope={partner}
+          orgId={agencies.length === 1 ? (agencies[0]?.id ?? null) : null}
+          title="What they earned"
+        />
       </>
     );
   };
@@ -919,6 +955,16 @@ export function AgencyHome() {
       )}
 
       {invite && <InviteToLevel ctx={invite} onClose={() => setInvite(null)} onInvited={() => { setInvite(null); refreshSession(); bump(); }} />}
+      {editAgreement && (
+        <AgreementEditor
+          level={editAgreement.level}
+          id={editAgreement.id}
+          name={editAgreement.name}
+          current={agreement}
+          onClose={() => setEditAgreement(null)}
+          onSaved={() => { setEditAgreement(null); refreshSession(); bump(); }}
+        />
+      )}
       {grow && (
         <AgencyGrow
           mode={grow.mode}

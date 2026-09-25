@@ -515,6 +515,93 @@ export async function getAgreementForAgency(agencyId: string): Promise<Agreement
   };
 }
 
+/* ---------- WRITING AN AGREEMENT FROM THE SCREEN ----------
+
+   Agreements were created in SQL only, on the reasoning that a negotiated deal
+   is signed on paper and typed in once. In practice that meant a rate the
+   commercial team had agreed sat un-entered until somebody with a psql prompt
+   was free, and the screen that displayed it could not change it — the single
+   most confusing state a settings page can be in.
+
+   These carry the administrator's answers to create_agreement and nothing else.
+   Every rule — admin only, the 50% cap, one rate per party, the all-in guards
+   both directions, the audit — stays in SQL, and every refusal is surfaced
+   VERBATIM. The screen does not restate a rule it does not own. */
+
+/** One tenant-count band: "2 or more tenants pay 5 weeks of rent at 25%". */
+export interface AgreementBandInput {
+  min: number;
+  /** null = "and above". Exactly one band may be open-ended, and it must be last. */
+  max: number | null;
+  weeks: number;
+  /** null on a band that only changes the FEE and leaves the rate to the tiers. */
+  rate: number | null;
+}
+
+/** One volume tier: "from the 51st referral in the period, 22%". */
+export interface AgreementTierInput {
+  from: number;
+  to: number | null;
+  rate: number;
+}
+
+export interface CreateAgreementInput {
+  level: 'group' | 'agency' | 'branch';
+  id: string;
+  coverage: 'additive' | 'all_in';
+  period: 'month' | 'quarter' | 'year';
+  countingScope: 'agency' | 'group' | 'branch';
+  bands: AgreementBandInput[];
+  tiers?: AgreementTierInput[];
+  note?: string | null;
+  /** The administrator has read "this would replace N arrangements" and meant it. */
+  confirmReplace?: boolean;
+  /** The administrator has read the all-in breach detail and meant it. Audited
+      against both parties by SQL; this only carries the answer. */
+  confirmBreach?: boolean;
+}
+
+export async function createAgreement(input: CreateAgreementInput): Promise<string> {
+  if (!orgLive()) throw new Error('Agreements can only be set against live data.');
+  const { data, error } = await sb().rpc('create_agreement', {
+    p_level: input.level,
+    p_id: input.id,
+    p_coverage: input.coverage,
+    p_period: input.period,
+    p_counting_scope: input.countingScope,
+    // Sent as strings because the SQL reads them with ->> and casts: an empty
+    // string is how "and above" and "no rate on this band" are spelled there.
+    p_bands: input.bands.map((b) => ({
+      min: b.min, max: b.max == null ? '' : b.max,
+      weeks: b.weeks, rate: b.rate == null ? '' : b.rate,
+    })),
+    p_tiers: (input.tiers ?? []).map((t) => ({ from: t.from, to: t.to == null ? '' : t.to, rate: t.rate })),
+    p_note: input.note ?? null,
+    p_confirm_replace: input.confirmReplace ?? false,
+    p_confirm_breach: input.confirmBreach ?? false,
+  });
+  if (error) throw new Error(cleanRpcError(error.message));
+  return String(data);
+}
+
+/** End an agreement, returning the party to standard terms from now on.
+    History does not move: every application already created keeps the fee and
+    the commission lines frozen onto it. */
+export async function endAgreement(agreementId: string): Promise<void> {
+  if (!orgLive()) throw new Error('Agreements can only be set against live data.');
+  const { error } = await sb().rpc('end_agreement', { p_agreement: agreementId });
+  if (error) throw new Error(cleanRpcError(error.message));
+}
+
+/** Does this refusal have a confirm behind it, and which one?
+    Matched on the SQL's own wording, which is the contract: these two messages
+    exist precisely to be answered, and every other refusal is final. */
+export function agreementConfirmKind(message: string): 'replace' | 'breach' | null {
+  if (/would replace \d+ existing arrangement/i.test(message)) return 'replace';
+  if (/all-in/i.test(message) && /signed|covers|above/i.test(message)) return 'breach';
+  return null;
+}
+
 /** One payee line for a branch, as SQL resolved it. */
 export interface SplitLine {
   branchId: string;
