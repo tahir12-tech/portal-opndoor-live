@@ -6,10 +6,10 @@
 import type { Agency } from '../types';
 
 export const ORG_SEED: Agency[] = [
-  // Foxglove is the demo's AGENT-RAIL agency: opndoor arranges the reference, so
-  // its referrals can be joint tenancies. Every other seed agency is left on its
-  // partner's default (pre-referenced), which is what makes the two cases
-  // visible without a live database.
+  // Foxglove is the demo's REGENT SHAPE: one of our agencies (its partner is the
+  // estate) that references its OWN tenants, so its applicants go straight to
+  // payment and it can still send joint tenancies. Cityscape, under a partner
+  // with no mode, is the other case: introduced one tenant at a time.
   { partner: 'northwind', name: 'Foxglove Residential', group: 'ABC group', referencingMode: 'opndoor_referenced', users: 11, referrals: 214, guaranteed: '£3.9M', fees: 385000, open: true,
     contacts: [{ name: 'Eleanor Whitfield', email: 'guarantees@foxglove-residential.co.uk', phone: '020 7946 1100', role: 'Lettings operations', primary: true }],
     branches: [

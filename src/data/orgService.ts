@@ -427,40 +427,37 @@ export function agencyReferencingMode(agency: Agency, partnerMode: string | null
 }
 
 /**
- * THE RAIL a referral against this agent and branch would actually run on.
+ * IS THIS ONE OF OUR AGENCIES — the estate question, not the journey one.
  *
- * The form asks before it offers multi-tenant, because a joint tenancy is an
- * agent-rail thing: a pre-referenced referral arrives with its references
- * already done and covers one tenant. create_joint_referral refuses the rest,
- * and this is what stops the form offering a button that would be refused.
+ * A joint tenancy needs an agency of ours to sit under: an org tree to split
+ * commission across and one guarantee over one property. Whether OPNDOOR or the
+ * agency checked the tenants is a different question entirely, and answering
+ * this one with that one is what made Regent impossible to express — our
+ * agency, our agreement, our joint tenancies, their own referencing.
  *
- * Partner-qualified, because an admin on "all partners" can name an agency that
- * exists under two — the ambiguity the partner label on the picker options
- * exists to avoid. An agency that does not exist yet inherits its partner's
- * mode, which is what a fly-created one will get.
- *
- * Live mode asks the server (origin_referencing_mode), which resolves through
- * the same functions create_joint_referral uses, so the form and the RPC cannot
- * disagree. Mock mode resolves from the hydrated store.
+ * Live mode asks the server, which answers with the same function
+ * create_joint_referral enforces, so the form cannot offer a button the RPC
+ * would refuse nor withhold one it would allow.
  */
-export async function originReferencingMode(
+export async function originIsAgentEstate(
   agencyName: string, branchName: string, partnerSlug: string | null | undefined,
-): Promise<string | null> {
-  if (!agencyName) return null;
+): Promise<boolean> {
+  if (!agencyName) return false;
   if (orgLive()) {
-    const { data, error } = await sb().rpc('origin_referencing_mode', {
+    const { data, error } = await sb().rpc('origin_is_agent_estate', {
       p_agency: agencyName, p_branch: branchName, p_partner_slug: partnerSlug || null,
     });
-    if (error) return null;
-    return (data as string | null) ?? null;
+    if (error) return false;
+    return data === true;
   }
+  // Mock mode resolves the same way: the ESTATE is the partner's, never the
+  // agency's own referencing choice.
   const within = partnerSlug
     ? AGENCIES.find((a) => a.name === agencyName && partnerOf(a) === partnerSlug)
     : undefined;
   const a = within ?? AGENCIES.find((x) => x.name === agencyName);
-  const partnerMode = (slug: string) => getPartner(slug)?.referencingMode ?? null;
-  if (!a) return partnerSlug ? partnerMode(partnerSlug) : null;
-  return agencyReferencingMode(a, partnerMode(partnerOf(a)));
+  const slug = a ? partnerOf(a) : (partnerSlug ?? '');
+  return getPartner(slug)?.referencingMode === 'opndoor_referenced';
 }
 
 /** Set or clear an agency's own referencing route. Admin only. */

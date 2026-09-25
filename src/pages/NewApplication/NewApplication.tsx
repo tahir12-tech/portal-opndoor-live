@@ -20,7 +20,7 @@
 import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, shareSumError } from './shareMath';
-import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originReferencingMode, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, FULL_PICKER, orgSectionCopy, type OrgShape } from '@/data';
+import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, FULL_PICKER, orgSectionCopy, type OrgShape } from '@/data';
 import { Modal } from '@/components/ui/Modal';
 import { TITLE_OPTIONS, validateReferral, validateTenant, parseFlexibleDate, toISODate, type ReferralValues, type TenantErrors, type TenantValues } from '@/lib/validation';
 import { useSession } from '@/session/SessionContext';
@@ -84,7 +84,7 @@ export function NewApplication() {
   // Three states, not two, and the difference matters: "no origin chosen yet"
   // and "asked, and the answer is not the agent rail" must not be confused,
   // because only the second is grounds for throwing away tenants somebody typed.
-  const [rail, setRail] = useState<string | null>(null);
+  const [estate, setEstate] = useState(false);
   const [railState, setRailState] = useState<'none' | 'loading' | 'ready'>('none');
   // Said once, when adding a tenant stops being possible and tenants were
   // already entered. Silence would be worse than the interruption.
@@ -113,7 +113,7 @@ export function NewApplication() {
 
   const joint = extra.length > 0;
   const tenantCount = 1 + extra.length;
-  const jointAllowed = railState === 'ready' && rail === 'opndoor_referenced';
+  const jointAllowed = railState === 'ready' && estate;
   const rentNum = Number(values.rent);
   const pctNums = percents.map((p) => Number(p));
 
@@ -199,10 +199,10 @@ export function NewApplication() {
      offer a button the RPC would refuse. */
   useEffect(() => {
     let live = true;
-    if (!values.agency || !values.branch) { setRail(null); setRailState('none'); return; }
+    if (!values.agency || !values.branch) { setEstate(false); setRailState('none'); return; }
     setRailState('loading');
-    void originReferencingMode(values.agency, values.branch, org.partner || (partnerScope === ALL_PARTNERS ? undefined : partnerScope))
-      .then((m) => { if (live) { setRail(m); setRailState('ready'); } });
+    void originIsAgentEstate(values.agency, values.branch, org.partner || (partnerScope === ALL_PARTNERS ? undefined : partnerScope))
+      .then((v: boolean) => { if (live) { setEstate(v); setRailState('ready'); } });
     return () => { live = false; };
   }, [values.agency, values.branch, org.partner, partnerScope]);
 
@@ -217,13 +217,13 @@ export function NewApplication() {
      the rail has actually come back as something that cannot carry them. */
   useEffect(() => {
     if (railState !== 'ready') return;
-    if (rail === 'opndoor_referenced') { setRailNote(''); return; }
+    if (estate) { setRailNote(''); return; }
     if (extra.length === 0) return;
     setExtra([]);
     setPercents([String(DEFAULT_SHARE_PERCENT)]);
-    setRailNote('This agent\u2019s referrals cover one tenant each, so the additional tenants were removed.');
+    setRailNote('This partner\u2019s referrals cover one tenant each, so the additional tenants were removed.');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [railState, rail]);
+  }, [railState, estate]);
 
   const pctKey = percents.join(',');
   useEffect(() => {
@@ -450,10 +450,8 @@ export function NewApplication() {
                     {railState === 'none'
                       ? 'Choose the agent and branch first: whether a referral can cover more than one tenant depends on who it is for.'
                       : railState === 'loading'
-                        ? 'Checking this agent\u2019s referencing route\u2026'
-                        : rail === null
-                          ? 'We could not confirm this agent\u2019s referencing route, so this referral covers one tenant.'
-                          : 'This agent\u2019s references are done before the referral reaches us, and a pre-referenced referral covers one tenant. Refer each tenant separately.'}
+                        ? 'Checking this agent\u2026'
+                        : 'This partner sends us referrals one tenant at a time. Refer each tenant separately.'}
                   </p>
                 </div>
               )}

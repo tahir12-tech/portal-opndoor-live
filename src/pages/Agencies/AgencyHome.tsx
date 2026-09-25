@@ -191,7 +191,12 @@ export function AgencyHome() {
      the right answer the moment two agencies under one partner differ. The rail is
      now asked per AGENCY, with the partner as the fallback. */
   const partnerMode = getPartner(partner)?.referencingMode ?? null;
-  const agentRailFor = (a: Agency) => agencyReferencingMode(a, partnerMode) === 'opndoor_referenced';
+  // The ESTATE: is this one of ours? Deed readiness is about having named people
+  // to deliver to, which an agency has whether or not it references its own
+  // tenants. agencyReferencingMode still answers the other question — the
+  // journey — and drives the route selector further down this page.
+  const inOurEstate = partnerMode === 'opndoor_referenced';
+  const agentRailFor = (_a: Agency) => inOurEstate;
   const doSetMode = async (agencyId: string, mode: string | null) => {
     try { await setAgencyReferencingMode(agencyId, mode); refreshSession(); bump(); toast('Referencing route saved.', 'ok'); }
     catch (e) { toast(e instanceof Error ? e.message : 'Could not save the referencing route.', 'error'); }
