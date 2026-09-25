@@ -155,7 +155,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // The frozen commission split, one row per payee. Deliberately OUTSIDE the
     // throw-list below: a row with no lines is a historic row, not a failure, and
     // losing the payee breakdown must never cost anybody their sign-in.
-    client.from('application_commission_lines').select('application_id, level, org_id, org_name, rate'),
+    client.from('application_commission_lines').select('application_id, level, org_id, org_name, rate, source, basis_amount'),
   ]);
 
   // ratesRes is deliberately absent from this list. It returns nothing for a
@@ -377,7 +377,14 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   const linesByApp = new Map<string, CommissionLine[]>();
   for (const r of (linesRes.data ?? []) as any[]) {
     const list = linesByApp.get(String(r.application_id)) ?? [];
-    list.push({ level: r.level, orgId: r.org_id ?? null, orgName: String(r.org_name ?? ''), rate: Number(r.rate ?? 0) });
+    list.push({
+      level: r.level, orgId: r.org_id ?? null, orgName: String(r.org_name ?? ''), rate: Number(r.rate ?? 0),
+      // Both nullable and both left null rather than defaulted: a line frozen
+      // before these were recorded does not know its source, and inventing
+      // 'standard' for it would relabel a settled statement.
+      source: r.source ?? null,
+      basisAmount: r.basis_amount == null ? null : Number(r.basis_amount),
+    });
     linesByApp.set(String(r.application_id), list);
   }
 
@@ -399,9 +406,11 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // The FEE, which is what commission is a share of. Falls back to rent so a
     // row created before M1 (or a mock row) reads exactly as it always did.
     fee: a.fee_amount == null ? num(a.monthly_rent) : num(a.fee_amount),
+    feeBasisWeeks: a.fee_basis_weeks == null ? null : Number(a.fee_basis_weeks),
     tenancyId: a.tenancy_id ?? null,
     tenancyPosition: a.tenancy_position == null ? null : Number(a.tenancy_position),
     sharePercent: a.share_percent == null ? null : Number(a.share_percent),
+    shareAmount: a.share_amount == null ? null : num(a.share_amount),
     // From the RPC when entitled, otherwise the partner's current rate as the
     // display fallback, which is what this did before for rows with no snapshot.
     // A role with no entitlement gets zero and every commission figure computed

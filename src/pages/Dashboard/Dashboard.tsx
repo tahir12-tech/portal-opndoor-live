@@ -11,12 +11,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ALL_PARTNERS, buildApplicationDoc, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
-  fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartner, getPartners, getPeriods, getTrend, partnerName,
+  fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartners, getPeriods, getTrend, partnerName,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
 import { formatLondonDate } from '@/lib/format';
 import { BASIS_META, type ExportBasis } from '@/data';
-import { getAgentRailFunnel, type AgentRailFunnel } from '@/data/agentFunnel';
+import { getAgentRailFunnel, viewerRunsEligibilityJourney, type AgentRailFunnel } from '@/data/agentFunnel';
+import { liveScopeShape } from '@/data/liveAnalytics';
+import { CommissionStatement } from '@/components/CommissionStatement';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -118,12 +120,31 @@ export function Dashboard() {
   // alerts. Per-partner decision (a supplier partner keeps the three-stage funnel);
   // only meaningful when scoped to a single partner, and only for staff who see the
   // funnel at all (canSeeSettlements). progress only, never content.
-  const agentRailPartner = partnerScope !== ALL_PARTNERS && getPartner(partnerScope)?.referencingMode === 'opndoor_referenced';
+  /* THE JOURNEY, not the estate. This asked the PARTNER whether to draw nine
+     stages, which is the estate question: Regent's partner is opndoor-agents, so
+     it said yes, and a Regent manager would have opened the dashboard to nine
+     stages with seven permanently zero. Their tenants arrive pre-referenced, so
+     their journey is Sent, Paid, Deed.
+
+     Resolved server-side and scoped: a manager sees their own agencies, an admin
+     sees the partner they are viewing. A partner running BOTH journeys answers
+     yes for an admin viewing all of it and no for a manager scoped to the
+     pre-referenced agency alone. */
+  const [runsEligibility, setRunsEligibility] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    viewerRunsEligibilityJourney(role === 'superadmin' && partnerScope !== ALL_PARTNERS ? partnerScope : undefined)
+      .then((v) => { if (alive) setRunsEligibility(v); })
+      .catch(() => { if (alive) setRunsEligibility(false); });
+    return () => { alive = false; };
+  }, [partnerScope, role]);
+
+  const agentRailPartner = runsEligibility;
   const [agentFunnel, setAgentFunnel] = useState<AgentRailFunnel | null>(null);
   useEffect(() => {
     if (!agentRailPartner || !canSeeSettlements) { setAgentFunnel(null); return; }
     let alive = true;
-    getAgentRailFunnel(role === 'superadmin' ? partnerScope : undefined)
+    getAgentRailFunnel(role === 'superadmin' && partnerScope !== ALL_PARTNERS ? partnerScope : undefined)
       .then((f) => { if (alive) setAgentFunnel(f); })
       .catch(() => { if (alive) setAgentFunnel(null); });
     return () => { alive = false; };
@@ -196,9 +217,15 @@ export function Dashboard() {
   const eyebrowText = `${role === 'superadmin' ? `${scopeName} · ` : ''}Performance · ${period.label}`;
 
   // ---- volume charts ----
+  // A panel that ranks a population of one is not a ranking. An agency with a
+  // single branch got "Volume by branch" and "Volume by agency" as two charts of
+  // the same single bar, under a header already naming it. Both drop out and the
+  // people chart stays, which is the only one with more than one thing in it.
+  // Applies to an admin too, the moment they filter to one agency.
+  const shape = liveScopeShape(role, partnerScope);
   const chartMeta: { key: ChartKey; rows: LeagueRow[]; scope: string }[] = [
-    { key: 'branch', rows: d.branches, scope: d.branchScope },
-    { key: 'agency', rows: d.agencies, scope: d.agencyScope },
+    ...(shape.branches > 1 ? [{ key: 'branch' as ChartKey, rows: d.branches, scope: d.branchScope }] : []),
+    ...(shape.agencies > 1 ? [{ key: 'agency' as ChartKey, rows: d.agencies, scope: d.agencyScope }] : []),
     { key: 'referrer', rows: d.referrers, scope: d.referrerScope },
   ];
 
@@ -441,7 +468,10 @@ export function Dashboard() {
                 <span className="hero-kpi__big">{d.live ? d.net : d.fees}</span>
               </div>
               <p style={{ position: 'relative', fontSize: 13, color: 'rgba(255,255,255,0.72)', marginTop: 8, maxWidth: '42ch' }}>
-                Guarantor fees collected across {d.deedcount} issued deeds, one month's rent each, net of any refunds.
+                {/* The basis is stated as it actually was, never asserted as a
+                    month: Regent's single-tenant fee is three weeks and their
+                    joint fee is five. Empty in a period with no fees at all. */}
+                Guarantor fees collected across {d.deedcount} issued deeds{d.feeBasisCopy ? `, ${d.feeBasisCopy}` : ''}, net of any refunds.
               </p>
               {d.live && (
                 <div className="hero-kpi__split">
@@ -463,7 +493,7 @@ export function Dashboard() {
                 <span className="hero-kpi__big">{d.live ? d.net : d.fees}</span>
               </div>
               <p style={{ position: 'relative', fontSize: 13, color: 'rgba(255,255,255,0.72)', marginTop: 8, maxWidth: '42ch' }}>
-                Guarantor fees from the referrals you sent that reached Paid, at one month's rent each.
+                Guarantor fees from the referrals you sent that reached Paid{d.feeBasisCopy ? `, at ${d.feeBasisCopy}` : ''}.
               </p>
               {d.live ? (
                 <div className="hero-kpi__split">
@@ -492,10 +522,15 @@ export function Dashboard() {
                   ? (d.refundCount > 0 && <span className="muted" style={{ fontSize: 12 }}>Excluded on refunds {d.commExcl}</span>)
                   : <span className="kpi__delta kpi__delta--up"><Icon name="caretUp" strokeWidth={2.4} />12.4% vs prior period</span>}
               </div>
-              <div style={{ marginTop: 'auto', paddingTop: 18, borderTop: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span className="muted" style={{ fontSize: 13 }}>{d.commSecondLbl}</span>
-                <span style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 18, color: 'var(--ink)' }}>{d.commSecondVal}</span>
-              </div>
+              {/* Dropped, not zeroed, on the agent rail: one of our agencies has
+                  no supplier above it, and a £0 "partner commission" line reads
+                  as money withheld rather than as a party that does not exist. */}
+              {d.commSecondShown && (
+                <div style={{ marginTop: 'auto', paddingTop: 18, borderTop: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <span className="muted" style={{ fontSize: 13 }}>{d.commSecondLbl}</span>
+                  <span style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 18, color: 'var(--ink)' }}>{d.commSecondVal}</span>
+                </div>
+              )}
               {d.live && d.refundCount > 0 && (
                 <div className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>{d.commExclDetail} excluded on refunded fees</div>
               )}
@@ -642,6 +677,18 @@ export function Dashboard() {
             </CardBody>
           </Card>
         </RoleOnly>
+
+        {/* COMMISSION STATEMENT — the agency's own ledger for a month it picks.
+            Distinct from the settlement blocks below, which answer "what are we
+            about to pay" for the prior month only. Same accumulator, so they
+            agree; different question, so both are here. Management and admin:
+            a referrer is not a payee and reads their own referrals instead. */}
+        {d.live && (
+          <RoleOnly roles={['superadmin', 'management']}>
+            <div className="section-label"><Eyebrow>Your commission</Eyebrow></div>
+            <CommissionStatement role={role} scope={partnerScope} />
+          </RoleOnly>
+        )}
 
         {/* SETTLEMENTS (below performance) — payable totals; applications collapsed. */}
         {(naSettlements || (d.live && (settlement.partners.length > 0 || agentSettlement.payees.length > 0))) && (

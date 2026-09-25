@@ -49,9 +49,21 @@ describe('livePartnerBreakdown reconciles to the blended summary', () => {
     const rr = getRatesFor('northwind');
     // R1 + R2 + R3(refunded) gross = 4500; net excludes R3 = 3000.
     expect(rm.feesGross).toBe(4500);
-    expect(rm.partnerCommGross).toBeCloseTo(4500 * rr.partner, 6);
-    expect(rm.partnerCommNet).toBeCloseTo(3000 * rr.partner, 6);
     expect(rm.agentCommNet).toBeCloseTo(3000 * rr.agent, 6);
+  });
+
+  /* THE TWO RAILS, SIDE BY SIDE, in one fixture, which is the only way to tell
+     "partner commission is suppressed" from "partner commission is broken".
+     Northwind is the estate: our agencies, no supplier above them, so nothing is
+     payable to a partner however large partner_rate is on the row. Harbourside
+     hands us finished referrals and is paid exactly as it always was. */
+  it('the estate earns no partner commission and the supplier still does', () => {
+    const estate = rows.find((r) => r.partner === 'northwind')!;
+    const supplier = rows.find((r) => r.partner === 'harbourside')!;
+    expect(getRatesFor('northwind').partner).toBeGreaterThan(0);
+    expect(estate.partnerCommGross).toBe(0);
+    expect(estate.partnerCommNet).toBe(0);
+    expect(supplier.partnerCommNet).toBeCloseTo(3000 * getRatesFor('harbourside').partner, 6);
   });
 });
 

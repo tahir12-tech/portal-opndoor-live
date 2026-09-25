@@ -26,12 +26,12 @@ import { guaranteeExpiry, allFull, findRecord, type FullApp } from './applicatio
 import { getLeague } from './leagueService';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { periodRange as realPeriodRange, scopeFull, basisInPeriod, inRange } from './paymentMetrics';
-import { liveAvailable, liveAggregate, liveVolume, liveMonths, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, type SettlementApp } from './liveAnalytics';
+import { liveAvailable, liveAggregate, liveVolume, liveMonths, getCommissionSettlement, getAgentCommissionSettlement, getCommissionStatements, livePartnerBreakdown, type SettlementApp } from './liveAnalytics';
 // Type-only import: building the document specs needs no runtime code, so the
 // heavy xlsx library is not pulled into the main bundle. It is dynamically
 // imported in exportBranded, on demand, when an export is actually run.
 import type { BrandedDoc, Column, TableRow } from './xlsxTemplate';
-import { feeBaseFor } from './commissionSplit';
+import { feeBaseFor, totalRate, linesFor, agentRailApp } from './commissionSplit';
 
 /** A named branded sheet + the download filename (the xlsx-free document spec). */
 export interface BrandedExport {
@@ -210,6 +210,10 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
   // Gross/gross (not net/net) keeps it exact regardless of partial refunds.
   const pPct = a.feesGross ? Math.round(((a.partnerCommNet + a.partnerCommExcl) / a.feesGross) * 100) : 0;
   const aPct = a.feesGross ? Math.round(((a.agentCommNet + a.agentCommExcl) / a.feesGross) * 100) : 0;
+  // What the period's fees were a basis OF, read off the fees themselves. Every
+  // header that said "of one month rent" now says what was actually charged, or
+  // "the guarantee fee" when the period is mixed or empty.
+  const basisWord = a.feeBasis.phrase || 'the guarantee fee';
   // Live breakdown columns carry net commission per row (partner + agent), so the
   // agency/branch/referrer tables reconcile to the summary commission totals.
   const LIVE_BREAKDOWN_COLS = (first: string, showParent: boolean, comm: [string, string]): Column[] => [
@@ -226,9 +230,11 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
   ];
   const brk = (rows: LeagueRow[], showParent: boolean): TableRow[] =>
     rows.map((e) => {
+      // e.conv, not deed/refs: LeagueRow.conv already divides by TENANCIES sent,
+      // which is the only denominator comparable with a deed count.
       const base = showParent
-        ? [e.name, e.sub, e.refs, e.fees, e.refs, e.paid, e.deed, e.refs ? e.deed / e.refs : 0]
-        : [e.name, e.refs, e.fees, e.refs, e.paid, e.deed, e.refs ? e.deed / e.refs : 0];
+        ? [e.name, e.sub, e.refs, e.fees, e.refs, e.paid, e.deed, e.conv]
+        : [e.name, e.refs, e.fees, e.refs, e.paid, e.deed, e.conv];
       // #109: referrer breakdown rows carry NO commission columns.
       return (showComm ? [...base, e.partnerComm, e.agentComm] : base) as TableRow;
     });
@@ -244,17 +250,29 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
         { label: 'Referrals sent', value: a.sent, type: 'int' },
         { label: 'Referrals paid', value: a.paid, type: 'int' },
         { label: 'Deeds issued', value: a.deed, type: 'int' },
+        { label: 'Referrals paid (tenancies)', value: a.paidTenancies, type: 'int' },
         { label: 'Conversion: Sent to Paid', value: a.sent ? a.paid / a.sent : 0, type: 'pct' },
-        { label: 'Conversion: Paid to Deed', value: a.paid ? a.deed / a.paid : 0, type: 'pct' },
-        { label: 'Conversion: Sent to Deed', value: a.sent ? a.deed / a.sent : 0, type: 'pct' },
+        /* TENANCY-GRAIN DENOMINATORS. One deed covers a whole tenancy, so only
+           the lead ever reaches Deed Issued; dividing deeds by APPLICANTS paid
+           reported a three-person let as 33% converted. */
+        { label: 'Conversion: Paid to Deed', value: a.paidTenancies ? a.deed / a.paidTenancies : 0, type: 'pct' },
+        { label: 'Conversion: Sent to Deed', value: a.sentTenancies ? a.deed / a.sentTenancies : 0, type: 'pct' },
         { label: 'Total guaranteed rent value', value: a.guaranteed, type: 'money' },
         { label: 'Guarantor fees collected (gross)', value: a.feesGross, type: 'money' },
         ...(showComm ? [
-          { label: `Partner commission (${pPct}% of one month rent, net of refunds)`, value: a.partnerCommNet, type: 'money' as const },
-          { label: `Agent commission (${aPct}% of one month rent, net of refunds)`, value: a.agentCommNet, type: 'money' as const },
+          /* "of one month rent" was true until deal-shape pricing and is now
+             false of every negotiated party. The basis is stated as it actually
+             was over the period's fees, and the partner line is dropped entirely
+             on the agent rail, where the figure is a structural zero. */
+          ...(a.noPartnerCut ? [] : [
+            { label: `Partner commission (${pPct}% of ${basisWord}, net of refunds)`, value: a.partnerCommNet, type: 'money' as const },
+          ]),
+          { label: `Agent commission (${aPct}% of ${basisWord}, net of refunds)`, value: a.agentCommNet, type: 'money' as const },
         ] : []),
-        { label: 'Average monthly rent', value: a.avgRent, type: 'money' },
-        { label: 'Average guarantor fee', value: a.paid ? a.feesGross / a.paid : 0, type: 'money' },
+        // Per TENANCY, not per applicant: every sibling row carries the whole
+        // let's rent, so averaging over applicants inflated it by the tenant count.
+        { label: 'Average monthly rent (per tenancy)', value: a.avgRent, type: 'money' },
+        { label: 'Average guarantor fee (per applicant)', value: a.paid ? a.feesGross / a.paid : 0, type: 'money' },
         { label: 'Total deeds issued', value: a.deed, type: 'int' },
         { label: 'Total value of deeds issued', value: a.guaranteed, type: 'money' },
       ],
@@ -268,9 +286,11 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
         { label: `Refunds (${a.refundCount})`, value: a.refundValue, type: 'money' },
         { label: 'Net fees after refunds', value: a.feesNet, type: 'money' },
         ...(showComm ? [
-          { label: `Partner commission (${pPct}%, net of refunds)`, value: a.partnerCommNet, type: 'money' as const },
+          ...(a.noPartnerCut ? [] : [
+            { label: `Partner commission (${pPct}%, net of refunds)`, value: a.partnerCommNet, type: 'money' as const },
+          ]),
           { label: `Agent commission (${aPct}%, net of refunds)`, value: a.agentCommNet, type: 'money' as const },
-          { label: 'Commission excluded on refunded fees (partner + agent)', value: a.partnerCommExcl + a.agentCommExcl, type: 'money' as const },
+          { label: a.noPartnerCut ? 'Commission excluded on refunded fees' : 'Commission excluded on refunded fees (partner + agent)', value: a.partnerCommExcl + a.agentCommExcl, type: 'money' as const },
         ] : []),
       ],
     },
@@ -363,7 +383,8 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
           { header: 'Guarantor fee', type: 'money2' },
           { header: 'Partner commission', type: 'money2' },
         ],
-        rows: st.partners.flatMap((p) => p.apps.map((ap) => [p.partnerName, ap.ref, ap.branch, ap.agency, dmy(ap.paidAt), ap.rent, ap.commission] as TableRow)),
+        // ap.fee, not ap.rent: the column says Guarantor fee and now carries one.
+        rows: st.partners.flatMap((p) => p.apps.map((ap) => [p.partnerName, ap.ref, ap.branch, ap.agency, dmy(ap.paidAt), ap.fee, ap.commission] as TableRow)),
       });
     }
 
@@ -372,25 +393,32 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
     const ag = getAgentCommissionSettlement(role, scope);
     const agDay = `${ag.settlementDate.getDate()}/${pad(ag.settlementDate.getMonth() + 1)}/${ag.settlementDate.getFullYear()}`;
     blocks.push({ kind: 'blank' }, { kind: 'section', title: `Agent commission settlement (${ag.monthLabel}, payable ${agDay})` });
-    if (!ag.agencies.length) {
+    /* PAYEES, not the agencies rollup. `agencies` is agency-level lines only;
+       under an additive split a group or a branch is a payee too, and their
+       money was simply missing from this table while the dashboard showed it.
+       The sum of `payees` IS ag.total; the sum of `agencies` is not. */
+    if (!ag.payees.length) {
       blocks.push({ kind: 'keyvalue', items: [{ label: 'Payable', value: 'No agent commission accrued in the prior calendar month.' }] });
     } else {
       blocks.push({
         kind: 'keyvalue',
-        items: ag.agencies.map((a) => ({ label: `Agent commission payable to ${a.agency}`, value: a.commission, type: 'money2' as const })),
+        items: [
+          ...ag.payees.map((a) => ({ label: `Agent commission payable to ${a.agency} (${a.level})`, value: a.commission, type: 'money2' as const })),
+          { label: 'Total agent commission payable', value: ag.total, type: 'money2' as const },
+        ],
       });
       blocks.push({
         kind: 'table',
         columns: [
-          { header: 'Agency', type: 'text' },
-          { header: 'Partner', type: 'text' },
+          { header: 'Payee', type: 'text' },
+          { header: 'Payee level', type: 'text' },
           { header: 'Guarantee reference', type: 'text' },
           { header: 'Branch', type: 'text' },
           { header: 'Paid date', type: 'text' },
           { header: 'Guarantor fee', type: 'money2' },
           { header: 'Agent commission', type: 'money2' },
         ],
-        rows: ag.agencies.flatMap((a) => a.apps.map((ap) => [a.agency, a.partnerName, ap.ref, ap.branch, dmy(ap.paidAt), ap.rent, ap.commission] as TableRow)),
+        rows: ag.payees.flatMap((a) => a.apps.map((ap) => [a.agency, a.level, ap.ref, ap.branch, dmy(ap.paidAt), ap.fee, ap.commission] as TableRow)),
       });
     }
   }
@@ -609,7 +637,11 @@ function generateApplications(period: Period, basis: ExportBasis): SynthApp[] {
 }
 
 /** Application export from live records (Supabase mode), with refund columns. */
-function buildRealApplicationDoc(role: Role, period: Period, basis: ExportBasis, meta: { label: string; recon: string; hint: string }): BrandedExport {
+/** The LIVE application export. Exported so its column contract can be tested
+    without Supabase: buildApplicationDoc below picks between this and the
+    synthetic generator on SUPABASE_ENABLED, which a unit test cannot satisfy,
+    and the columns are the half that actually changed. */
+export function buildRealApplicationDoc(role: Role, period: Period, basis: ExportBasis, meta: { label: string; recon: string; hint: string }): BrandedExport {
   const [start, end] = realPeriodRange(period);
   // #2 Withdrawn is terminal and out of the funnel: exclude it so the referred/
   // activity bases reconcile with the performance export (whose Sent excludes
@@ -630,15 +662,53 @@ function buildRealApplicationDoc(role: Role, period: Period, basis: ExportBasis,
     { header: 'Deed issued date', type: 'text' },
     { header: 'Refund date', type: 'text' },
     { header: 'Refund amount', type: 'text' },
-    { header: 'Monthly rent', type: 'money' },
-    { header: 'Guarantor fee', type: 'money' },
+    /* THE TENANCY BLOCK. One row per APPLICATION, as before — a joint tenancy is
+       N applicants who each pay and each get a row — but with the four columns
+       that make those rows readable as one let. Without them two £3,000 rows
+       look like £6,000 of business, and the Guarantor fee column cannot be
+       summed at all. Tenancy total repeats on each sibling so any single row
+       states the whole let; the reader sums Guarantor fee, or reads the total
+       once, and gets the same number either way. */
+    { header: 'Tenancy ID', type: 'text' },
+    { header: 'Tenancy position', type: 'text' },
+    { header: 'Lead tenant', type: 'text' },
+    { header: 'Share of tenancy', type: 'text' },
+    // Named for what it is: on a joint tenancy every sibling row carries the
+    // WHOLE let's rent, so a reader summing this column doubles the book.
+    { header: 'Monthly rent (whole tenancy)', type: 'money' },
+    { header: 'Share of rent', type: 'money' },
+    // WAS `a.rent`. The fee has not been one month's rent since deal-shape
+    // pricing: Regent's single tenant is charged three weeks. This column
+    // claimed £2,400 where £1,661.54 was taken.
+    { header: 'Guarantor fee charged', type: 'money' },
+    { header: 'Fee basis (weeks of rent)', type: 'text' },
+    { header: 'Tenancy total fee', type: 'money' },
     { header: 'Partner commission', type: 'money' },
     { header: 'Agent commission', type: 'money' },
+    { header: 'Commission rate', type: 'pct' },
+    { header: 'Commission payees', type: 'text' },
     { header: 'Tenancy start date', type: 'text' },
     { header: 'Expiry date', type: 'text' },
     { header: 'Refund policy anomaly', type: 'text' },
   ];
   if (basis === 'activity') columns.push({ header: 'Activity in period', type: 'text' });
+
+  /* The tenancy shape, measured over the WHOLE scoped book rather than the
+     filtered rows: a tenancy whose second tenant paid outside the period is
+     still a tenancy of two, and "1 of 1" on a joint let would be a lie told by
+     the filter. Same reason the total fee is summed here. */
+  const wholeBook = scopeFull(allFull(), role, scopeFor(role));
+  const tenancySize = new Map<string, number>();
+  const tenancyFee = new Map<string, number>();
+  for (const a of wholeBook) {
+    if (!a.tenancyId) continue;
+    tenancySize.set(a.tenancyId, (tenancySize.get(a.tenancyId) ?? 0) + 1);
+    tenancyFee.set(a.tenancyId, (tenancyFee.get(a.tenancyId) ?? 0) + feeBaseFor(a));
+  }
+  // To the penny. The shares were apportioned to the penny by the server and
+  // summing them back in floating point reintroduces the dust the apportionment
+  // exists to remove; a money cell reading 2769.2299999999996 is a defect.
+  for (const [k, v] of tenancyFee) tenancyFee.set(k, Math.round(v * 100) / 100);
 
   const rows: TableRow[] = apps.map((a) => {
     const ev: string[] = [];
@@ -651,13 +721,31 @@ function buildRealApplicationDoc(role: Role, period: Period, basis: ExportBasis,
     // rows both read £0, not earned-looking money). Rates are the application's
     // SNAPSHOT (frozen at creation), so a past-period export stays immune to edits.
     const earned = !!a.paidAt && !a.refunded;
-    const partnerComm = earned ? feeBaseFor(a) * a.partnerRate : 0;
-    const agentComm = earned ? feeBaseFor(a) * a.agentRate : 0;
+    // NO PARTNER COMMISSION ON THE AGENT RAIL. partner_rate is populated on every
+    // row whichever rail it came in on, so multiplying by it on one of our own
+    // agencies invented a payable nobody owes. Same rule as liveAggregate, so the
+    // export foots to the dashboard.
+    const partnerComm = earned && !agentRailApp(a) ? feeBaseFor(a) * a.partnerRate : 0;
+    // The LINES, not the scalar. Equal today — agent_rate is written as their
+    // total — but the lines are the authority and can name their payees.
+    const agentComm = earned ? feeBaseFor(a) * totalRate(a) : 0;
+    const payees = linesFor(a).map((l) => `${l.orgName} ${Math.round(l.rate * 10000) / 100}%`).join(' + ');
     const row: TableRow = [
       partnerName(a.partner), a.ref, a.agency, a.branch, a.referrer, STATUS[a.status], payState,
       a.sentAt ? dmy(a.sentAt) : '', a.paidAt ? dmy(a.paidAt) : '', a.deedAt ? dmy(a.deedAt) : '',
       a.refundedAt ? dmy(a.refundedAt) : '', a.refundedAmount != null ? gbp(a.refundedAmount) : '',
-      a.rent, a.rent, partnerComm, agentComm,
+      a.tenancyId ?? '',
+      a.tenancyId && a.tenancyPosition ? `${a.tenancyPosition} of ${tenancySize.get(a.tenancyId) ?? a.tenancyPosition}` : '',
+      // Position 1 leads: it carries the one deed for the whole tenancy, which is
+      // why only it ever reaches Deed Issued while its siblings stay at Paid.
+      a.tenancyId ? (a.tenancyPosition === 1 ? 'Yes' : 'No') : '',
+      a.sharePercent == null ? '' : `${a.sharePercent}%`,
+      a.rent,
+      a.shareAmount ?? '',
+      feeBaseFor(a),
+      a.feeBasisWeeks == null ? '' : String(Number(Number(a.feeBasisWeeks).toFixed(2))),
+      a.tenancyId ? (tenancyFee.get(a.tenancyId) ?? feeBaseFor(a)) : feeBaseFor(a),
+      partnerComm, agentComm, totalRate(a), payees,
       a.tenancyStart ? dmy(a.tenancyStart) : '', a.expiry ? dmy(a.expiry) : '',
       a.refundAfterStart ? 'Yes - refunded after tenancy start' : '',
     ];
@@ -676,6 +764,7 @@ function buildRealApplicationDoc(role: Role, period: Period, basis: ExportBasis,
           { label: 'Basis', value: `Filtered ${meta.label}` },
           { label: 'Applications', value: `${apps.length} live records` },
           { label: 'Note', value: 'Live records, pseudonymised by guarantee reference. Payment state, refund date and refund amount are included. A refund does not reverse a Paid application.' },
+          { label: 'Joint tenancies', value: 'One row per applicant, each with the tenancy id, their position and their share. Guarantor fee charged is what THAT applicant paid; the shares sum to Tenancy total fee, which is charged once for the whole let. Monthly rent is the whole tenancy\u2019s and repeats on each row: sum Share of rent instead.' },
         ],
       },
       { kind: 'blank' },
@@ -839,8 +928,13 @@ function statementRef(prefix: string, payeeId: string, monthLabel: string): stri
 
 /** Per-application commission lines (guarantee reference, tenant initials, paid
     date, fee, applied rate, commission). Pence throughout (money-reconciliation
-    surface); the applied rate is derived as commission / fee (== the snapshotted
-    per-application rate, since commission = rent x rate). */
+    surface); the applied rate is derived as commission / fee.
+
+    THE FEE COLUMN IS THE FEE. It printed `rent` and derived the rate from it,
+    on the assumption — true until deal-shape pricing — that a guarantee fee WAS
+    one month's rent. On Regent's terms a single tenant is charged three weeks:
+    the statement showed £2,400 against a £332.31 commission and called the rate
+    13.85%, when £1,661.54 was charged at the 20% actually agreed. */
 const STATEMENT_COLS: Column[] = [
   { header: 'Guarantee reference', type: 'text' },
   { header: 'Tenant', type: 'text' },
@@ -857,11 +951,11 @@ function statementRows(apps: SettlementApp[]): { rows: TableRow[]; totalFee: num
   let totalFee = 0;
   let totalComm = 0;
   const rows: TableRow[] = apps.map((ap) => {
-    totalFee += ap.rent;
+    totalFee += ap.fee;
     totalComm += ap.commission;
-    const rate = ap.rent ? ap.commission / ap.rent : 0; // derived applied rate = commission / fee
+    const rate = ap.fee ? ap.commission / ap.fee : 0; // derived applied rate = commission / fee
     // Tenant shown as INITIALS ONLY; the guarantee reference stands alone when unknown.
-    return [ap.ref, ap.tenantInitials || '', dmy(ap.paidAt), ap.rent, rate, ap.commission];
+    return [ap.ref, ap.tenantInitials || '', dmy(ap.paidAt), ap.fee, rate, ap.commission];
   });
   // Footing total: the blended effective rate keeps fee x rate = commission on the total line too.
   const effRate = totalFee ? totalComm / totalFee : 0;
@@ -967,6 +1061,109 @@ export function buildAgentStatementDoc(role: Role, scope: PartnerScope, partner:
     );
   }
   const metaLine = `${st.monthLabel} settlement · Payee: ${payee} (${partnerLabel}) · Agent commission · Reference ${ref} · Generated ${generated} · GBP`;
+  const doc: BrandedDoc = { reportName: 'Commission statement', metaLine, blocks };
+  return { sheets: [{ name: 'Statement', doc }], filename: `opndoor-statement-${ref}.xlsx` };
+}
+
+/* ---------- The agency's own commission statement, for a month it chooses ----------
+
+   buildAgentStatementDoc above is the SETTLEMENT statement: the prior calendar
+   month, the month Opndoor is about to pay. This is the same money asked a
+   different way — "show me March" — and it carries the detail a settlement
+   total does not need and an agency reconciling its own ledger does: which
+   tenancy a line belongs to, what share of it this applicant paid, and whether
+   the rate is their agreement or the standard.
+
+   Both read getCommissionStatements / getAgentCommissionSettlement, which are
+   one accumulator, so the March statement an agency exports and the March
+   settlement we paid are the same figure by construction rather than by
+   agreement. settlement-statement.test.ts holds that. */
+const MONTH_STATEMENT_COLS: Column[] = [
+  { header: 'Guarantee reference', type: 'text' },
+  { header: 'Tenant', type: 'text' },
+  { header: 'Branch', type: 'text' },
+  { header: 'Tenancy', type: 'text' },
+  { header: 'Share', type: 'text' },
+  { header: 'Paid date', type: 'text' },
+  { header: 'Fee charged', type: 'money2' },
+  { header: 'Rate', type: 'pct' },
+  { header: 'Rate source', type: 'text' },
+  { header: 'Commission', type: 'money2' },
+];
+
+const SOURCE_WORD: Record<string, string> = {
+  standard: 'Opndoor standard', agreement: 'Agreement', rate: 'Set rate',
+};
+
+/**
+ * One payee's commission statement for one month.
+ *
+ * payeeKey addresses the payee, not a name: an agency and a branch may share a
+ * name, and two agencies under different partners certainly may.
+ */
+export function buildCommissionStatementDoc(
+  role: Role, scope: PartnerScope, monthKey: string, payeeKey: string,
+): BrandedExport {
+  if (!maySeeCommission(role)) return emptyExport('Commission statement');
+  const st = getCommissionStatements(role, scope, monthKey).find((x) => x.payeeKey === payeeKey);
+  if (!st) return emptyExport('Commission statement');
+  const ref = statementRef('STMT-AG', `${st.level} ${st.payeeName}`, st.monthLabel);
+  const generated = dmyhm(new Date());
+
+  let totalFee = 0;
+  const rows: TableRow[] = st.lines.map((l) => {
+    totalFee += l.fee;
+    return [
+      l.ref,
+      l.tenant,
+      l.branch,
+      // A tenancy of one is not a joint tenancy and saying "1 of 1" invents one.
+      l.tenancyPlace ? `Joint, ${l.tenancyPlace}` : 'Single',
+      l.sharePercent == null ? '100%' : `${l.sharePercent}%`,
+      dmy(l.paidAt),
+      l.fee,
+      l.rate,
+      l.source ? (SOURCE_WORD[l.source] ?? l.source) : 'Not recorded',
+      l.commission,
+    ];
+  });
+  // The blended effective rate keeps fee x rate = commission on the total line.
+  const effRate = totalFee ? st.total / totalFee : 0;
+  rows.push([
+    `Total (${st.lines.length} application${st.lines.length === 1 ? '' : 's'})`,
+    '', '', '', '', '', totalFee, effRate, '', st.total,
+  ]);
+
+  const blocks: BrandedDoc['blocks'] = [
+    { kind: 'section', title: 'Commission statement' },
+    {
+      kind: 'keyvalue',
+      // NO PARTNER LINE. buildAgentStatementDoc names the partner because it is
+      // Opndoor's own settlement paperwork; this is the agency's, and on the
+      // agent rail the partner is house plumbing that must never appear on it.
+      items: [
+        { label: 'Payee', value: st.payeeName },
+        { label: 'Payee level', value: st.level },
+        { label: 'Period (month)', value: st.monthLabel },
+        { label: 'Basis', value: 'Commission on fees PAID in the month, net of refunds' },
+        { label: 'Statement reference', value: ref },
+        { label: 'Generated', value: generated },
+        { label: 'Currency', value: 'GBP' },
+      ],
+    },
+    { kind: 'blank' },
+    { kind: 'section', title: 'Applications (net of refunds)' },
+  ];
+  if (!st.lines.length) {
+    blocks.push({ kind: 'keyvalue', items: [{ label: 'Payable', value: `No commission accrued in ${st.monthLabel}.` }] });
+  } else {
+    blocks.push(
+      { kind: 'table', columns: MONTH_STATEMENT_COLS, rows },
+      { kind: 'blank' },
+      { kind: 'keyvalue', items: [{ label: 'Total commission', value: st.total, type: 'money2' }] },
+    );
+  }
+  const metaLine = `${st.monthLabel} · ${st.payeeName} · Commission earned · Reference ${ref} · Generated ${generated} · GBP`;
   const doc: BrandedDoc = { reportName: 'Commission statement', metaLine, blocks };
   return { sheets: [{ name: 'Statement', doc }], filename: `opndoor-statement-${ref}.xlsx` };
 }
@@ -1101,18 +1298,35 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
   const nowD = new Date();
   const today = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate());
   const daysLeft = (d: Date) => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - today.getTime()) / 86400000);
-  const colHeader: CsvRow = ['Guarantee reference', 'Tenant name', 'Property address', 'Agency', 'Branch', 'Tenancy start', 'Expiry date', 'Days remaining', 'Monthly rent', 'Annualised rent', 'Referrer'];
+  /* ONE ROW PER GUARANTEE, which is one row per TENANCY: only the lead reaches
+     Deed Issued, because one deed names every tenant. That grain was already
+     right; what was missing was any sign of it. A joint let appeared as a single
+     named tenant with no hint that the deed covers two, so an operator chasing an
+     expiry called one of them and thought the job done. */
+  const colHeader: CsvRow = ['Guarantee reference', 'Tenant name', 'Tenants on the guarantee', 'Tenancy ID', 'Property address', 'Agency', 'Branch', 'Tenancy start', 'Expiry date', 'Days remaining', 'Monthly rent (whole tenancy)', 'Annualised rent', 'Guarantor fee (whole tenancy)', 'Referrer'];
 
   const dataRows: CsvRow[] = [];
   if (liveAvailable()) {
-    const apps = scopeFull(allFull(), role, scopeFor(role))
+    const book = scopeFull(allFull(), role, scopeFor(role));
+    // The whole tenancy, from the whole book: its other tenants are not Deed
+    // Issued and so are not in the filtered set at all.
+    const tenancyCount = new Map<string, number>();
+    const tenancyFee = new Map<string, number>();
+    for (const x of book) {
+      if (!x.tenancyId) continue;
+      tenancyCount.set(x.tenancyId, (tenancyCount.get(x.tenancyId) ?? 0) + 1);
+      tenancyFee.set(x.tenancyId, (tenancyFee.get(x.tenancyId) ?? 0) + feeBaseFor(x));
+    }
+    const apps = book
       .map((a) => ({ a, exp: a.expiry ?? (a.tenancyStart ? guaranteeExpiry(a.tenancyStart) : null) }))
       .filter(({ a, exp }) => a.status === 'deed' && !a.refunded && exp !== null && exp >= mStart && exp <= mEnd && daysLeft(exp) >= 0)
       .sort((x, y) => (x.exp!.getTime() - y.exp!.getTime()) || x.a.ref.localeCompare(y.a.ref));
     for (const { a, exp } of apps) {
       const rec = findRecord(a.ref);
       const addr = [rec?.addr1, rec?.addr2, rec?.city, rec?.postcode].filter(Boolean).join(', ');
-      dataRows.push([a.ref, rec?.name ?? '', addr, a.agency, a.branch, a.tenancyStart ? dmy(a.tenancyStart) : '', dmy(exp!), String(daysLeft(exp!)), gbp(a.rent), gbp(a.rent * 12), a.referrer ?? '']);
+      const n = a.tenancyId ? (tenancyCount.get(a.tenancyId) ?? 1) : 1;
+      const fee = a.tenancyId ? (tenancyFee.get(a.tenancyId) ?? feeBaseFor(a)) : feeBaseFor(a);
+      dataRows.push([a.ref, rec?.name ?? '', String(n), a.tenancyId ?? '', addr, a.agency, a.branch, a.tenancyStart ? dmy(a.tenancyStart) : '', dmy(exp!), String(daysLeft(exp!)), gbp(a.rent), gbp(a.rent * 12), gbp(fee), a.referrer ?? '']);
     }
   } else {
     const AG = ['Bracken House Lettings', 'Meridian Residential', 'Crowngate Estates'];
@@ -1129,7 +1343,7 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
       const rent = APP_RENTS[(i * 7) % APP_RENTS.length];
       const tenant = `${BX_FIRST[(i * 5) % BX_FIRST.length]} ${BX_LAST[(i * 3) % BX_LAST.length]}`;
       const addr = [(flat ? `${flat}, ` : '') + st[0], 'London', st[1]].filter(Boolean).join(', ');
-      dataRows.push([`GR-${41000 + (year * 12 + m0) * 50 + i}`, tenant, addr, AG[i % AG.length], BR[i % BR.length], dmy(tStart), dmy(exp), String(daysLeft(exp)), gbp(rent), gbp(rent * 12), APP_REFERRERS[i % APP_REFERRERS.length]]);
+      dataRows.push([`GR-${41000 + (year * 12 + m0) * 50 + i}`, tenant, '1', '', addr, AG[i % AG.length], BR[i % BR.length], dmy(tStart), dmy(exp), String(daysLeft(exp)), gbp(rent), gbp(rent * 12), gbp(rent), APP_REFERRERS[i % APP_REFERRERS.length]]);
     }
   }
 

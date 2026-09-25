@@ -24,10 +24,27 @@ import { SUPABASE_ENABLED } from '@/lib/supabase';
 import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
 import { ALL_PARTNERS } from './types';
 import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp } from './applicationsService';
-import { getPartners, partnerName } from './partnersService';
+import { getPartner, getPartners, partnerName } from './partnersService';
 import { contactForApplication } from './orgService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
-import { payeesFor, orgRate, totalRate, feeBaseFor } from './commissionSplit';
+import { payeesFor, orgRate, totalRate, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
+import type { CommissionSource } from './types';
+
+/**
+ * Is the viewer looking at the agent rail alone?
+ *
+ * The ESTATE, read off the partner in scope. A manager is pinned to their own
+ * partner, so for Regent's people this is always true and the dashboard drops
+ * every partner-commission figure. An admin on "all partners" is looking at both
+ * rails at once and keeps them.
+ *
+ * Distinct from viewerRunsEligibilityJourney, which asks the OTHER question —
+ * who checks the tenant — and gives Regent the opposite answer.
+ */
+export function agentRailScope(scope: PartnerScope): boolean {
+  if (scope === ALL_PARTNERS) return false;
+  return getPartner(scope)?.referencingMode === 'opndoor_referenced';
+}
 
 const DAY = 86_400_000;
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -73,9 +90,27 @@ export interface LiveAgg {
   awaiting: number; // deeds awaiting tenant signature
   awaitingAged: number; // ... unsigned more than 7 days
   avgRent: number;
+  /* TENANCY-GRAIN COUNTS, for the ratios whose two halves are counted
+     differently. Only the tenancy LEAD ever reaches Deed Issued — one deed names
+     every tenant — so `deed` is already one per let, while `sent` and `paid`
+     count applicants, because each applicant is sent to and pays for themselves.
+     Dividing one by the other reported a three-person tenancy as 33% converted.
+     These are the honest denominators; `sent` and `paid` keep their own meaning
+     for the counts they head. */
+  sentTenancies: number;
+  paidTenancies: number;
   avgSentToPaidDays: number | null;
   avgPaidToDeedDays: number | null;
   bookSize: number; // scoped applications total
+  /** The distinct rate sources behind agentCommNet, so the headline can name
+      where the money came from instead of asserting a rate is the standard. */
+  sources: CommissionSource[];
+  /** What the period's fees were a basis OF. kind 'none' when none were paid. */
+  feeBasis: FeeBasis;
+  /** True when nothing in the paid set has a partner to pay: the whole period is
+      agent rail, so every partner-commission figure is structurally zero and is
+      hidden rather than shown as £0. */
+  noPartnerCut: boolean;
 }
 
 /** Aggregate the scoped set for a period (event-in-period money/counts + current-state ops). */
@@ -90,19 +125,44 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
     guaranteed: 0, partnerCommNet: 0, agentCommNet: 0, partnerCommExcl: 0, agentCommExcl: 0,
     stuckSent: 0, stuckPaid: 0, awaiting: 0, awaitingAged: 0, avgRent: 0,
     avgSentToPaidDays: null, avgPaidToDeedDays: null, bookSize: set.length,
+    sentTenancies: 0, paidTenancies: 0,
+    sources: [], feeBasis: { kind: 'none', phrase: '' }, noPartnerCut: false,
   };
   let rentSum = 0;
   let s2pSum = 0, s2pN = 0, p2dSum = 0, p2dN = 0;
   const now = nowRef().getTime();
+  // The paid-in-period set, kept so the fee basis and the rate sources are read
+  // off the same rows the money was summed from and cannot drift from them.
+  const paidSet: FullApp[] = [];
+  // Identity for "one let": the tenancy where there is one, else the application
+  // itself, which IS a tenancy of one.
+  const letOf = (x: FullApp) => x.tenancyId ?? `solo:${x.ref}`;
+  const sentLets = new Set<string>();
+  const paidLets = new Set<string>();
+  // The rent belongs to the LET, not to each applicant: every sibling row carries
+  // the whole tenancy's monthly_rent, so adding it per row reported a book of one
+  // £3,000 pair and one £1,500 single as averaging £2,500 instead of £2,250.
+  const rentedLets = new Set<string>();
   for (const app of set) {
-    const r = { partner: app.partnerRate, agent: app.agentRate };
-    rentSum += app.rent;
-    if (inRange(app.sentAt, start, end)) a.sent += 1;
+    // COMMISSION COMES OFF THE LINES. agent_rate is written as their total at
+    // creation and is equal today, but it is a denormalised copy that cannot name
+    // a payee or say where its rate came from, and the statement needs both.
+    //
+    // THE AGENT RAIL HAS NO PARTNER. partner_rate is populated on every row —
+    // resolve_rates fills it whichever rail the referral came in on — so
+    // multiplying by it on one of our own agencies invents a payable that nobody
+    // owes and that no invoice will ever be raised for. Zeroed at the row, not
+    // hidden at the screen, so exports and the dashboard agree.
+    const r = { partner: agentRailApp(app) ? 0 : app.partnerRate, agent: totalRate(app) };
+    if (!rentedLets.has(letOf(app))) { rentedLets.add(letOf(app)); rentSum += app.rent; }
+    if (inRange(app.sentAt, start, end)) { a.sent += 1; sentLets.add(letOf(app)); }
     if (inRange(app.paidAt, start, end)) {
+      paidLets.add(letOf(app));
       // A fee is attributed to the period it was PAID; a refunded application
       // earns no net commission (identical to the per-row Application export, so
       // every commission figure reconciles). Refund amount reduces net fees.
       a.paid += 1;
+      paidSet.push(app);
       a.feesGross += feeBaseFor(app);
       if (app.refunded) {
         a.refundCount += 1;
@@ -126,7 +186,14 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
     if (app.paidAt && app.deedAt) { p2dSum += (app.deedAt.getTime() - app.paidAt.getTime()) / DAY; p2dN += 1; }
   }
   a.feesNet = a.feesGross - a.refundValue;
-  a.avgRent = set.length ? rentSum / set.length : 0;
+  a.sources = sourcesOf(paidSet.flatMap((x) => linesFor(x)));
+  a.feeBasis = feeBasisOf(paidSet);
+  // "Nothing here has a partner", not "the partner earned nothing": an empty
+  // period answers false, so a screen with no data shows its usual shape.
+  a.noPartnerCut = paidSet.length > 0 && paidSet.every(agentRailApp);
+  a.sentTenancies = sentLets.size;
+  a.paidTenancies = paidLets.size;
+  a.avgRent = rentedLets.size ? rentSum / rentedLets.size : 0;
   a.avgSentToPaidDays = s2pN ? s2pSum / s2pN : null;
   a.avgPaidToDeedDays = p2dN ? p2dSum / p2dN : null;
   return a;
@@ -161,6 +228,31 @@ export function lapsingWithin14(role: Role, scope: PartnerScope): number {
   return n;
 }
 
+/**
+ * HOW MANY OF EACH THING THE VIEWER'S SCOPE ACTUALLY HOLDS.
+ *
+ * "Volume by agency" over one agency is a single bar labelled with the name
+ * already in the page header, and "Volume by branch" over one branch is the
+ * same chart again. Both were rendered for every viewer because the dashboard
+ * was written for opndoor looking at an estate, where there are always several.
+ * For a single-branch agency the screen was three copies of one number.
+ *
+ * Counted over the WHOLE scoped book rather than the selected period, so a
+ * quiet month does not make a panel appear and disappear; and over the book
+ * rather than over the org tables, because the book is what every other figure
+ * on the page is computed from and cannot disagree with it.
+ */
+export function liveScopeShape(role: Role, scope: PartnerScope): { agencies: number; branches: number } {
+  const set = scopeFull(allFull(), role, scope);
+  const agencies = new Set<string>();
+  const branches = new Set<string>();
+  for (const app of set) {
+    if (app.agency) agencies.add(app.agencyId || app.agency);
+    if (app.branch) branches.add(app.branchId || `${app.agency}/${app.branch}`);
+  }
+  return { agencies: agencies.size, branches: branches.size };
+}
+
 /** Per-group accumulator, emitted as a LeagueRow. */
 interface Group {
   id: string;
@@ -168,6 +260,8 @@ interface Group {
   sub: string;
   partner?: string;
   refs: number; paid: number; deed: number;
+  /** Tenancy-grain denominators; see LiveAgg.sentTenancies for why. */
+  refLets: Set<string>; paidLets: Set<string>;
   feesGross: number; refundValue: number;
   partnerComm: number; agentComm: number;
   partnerCommExcl: number; agentCommExcl: number;
@@ -183,8 +277,10 @@ function emit(g: Group): LeagueRow {
     fees: g.feesGross, // "Fees collected" is gross; commission below is net of refunds
     paid: g.paid,
     deed: g.deed,
+    // Sent to Paid compares like with like (both applicant-grain). Sent to Deed
+    // does not: one deed covers a whole tenancy, so its denominator is lets.
     sp: g.refs ? g.paid / g.refs : 0,
-    conv: g.refs ? g.deed / g.refs : 0,
+    conv: g.refLets.size ? g.deed / g.refLets.size : 0,
     partnerComm: g.partnerComm, // already net: refunded applications are excluded below
     agentComm: g.agentComm,
   };
@@ -225,7 +321,7 @@ function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date): Leagu
   const map = new Map<string, Group>();
   const get = (id: string, name: string, sub: string, partner: string): Group => {
     let g = map.get(id);
-    if (!g) { g = { id, name, sub, partner, refs: 0, paid: 0, deed: 0, feesGross: 0, refundValue: 0, partnerComm: 0, agentComm: 0, partnerCommExcl: 0, agentCommExcl: 0 }; map.set(id, g); }
+    if (!g) { g = { id, name, sub, partner, refs: 0, paid: 0, deed: 0, refLets: new Set(), paidLets: new Set(), feesGross: 0, refundValue: 0, partnerComm: 0, agentComm: 0, partnerCommExcl: 0, agentCommExcl: 0 }; map.set(id, g); }
     return g;
   };
   for (const app of set) {
@@ -240,17 +336,22 @@ function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date): Leagu
     const agentShare = key === 'agency' ? orgRate(app, 'agency', app.agencyId, app.agency)
       : key === 'branch' ? orgRate(app, 'branch', app.branchId, app.branch)
       : totalRate(app);
-    const r = { partner: app.partnerRate, agent: agentShare };
+    // Same rule as liveAggregate: an agency of ours has no partner to pay, so it
+    // contributes no partner commission to any ranking or breakdown row.
+    const r = { partner: agentRailApp(app) ? 0 : app.partnerRate, agent: agentShare };
     const sentIn = inRange(app.sentAt, start, end);
     const paidIn = inRange(app.paidAt, start, end);
     const deedIn = inRange(app.deedAt, start, end);
     if (!sentIn && !paidIn && !deedIn) continue; // nothing in period for this entity
     const g = get(k.id, k.name, k.sub, k.partner);
-    if (sentIn) g.refs += 1;
+    const letId = app.tenancyId ?? `solo:${app.ref}`;
+    if (sentIn) { g.refs += 1; g.refLets.add(letId); }
     if (paidIn) {
       // Same rule as liveAggregate: refunded application earns no net commission.
-      g.paid += 1; g.feesGross += feeBaseFor(app);
-      if (app.refunded) { g.refundValue += app.refundedAmount ?? app.rent; g.partnerCommExcl += feeBaseFor(app) * r.partner; g.agentCommExcl += feeBaseFor(app) * r.agent; }
+      g.paid += 1; g.paidLets.add(letId); g.feesGross += feeBaseFor(app);
+      // The refund is of the FEE, not of the rent. Matches liveAggregate and
+      // livePartnerBreakdown, which both already said feeBaseFor.
+      if (app.refunded) { g.refundValue += app.refundedAmount ?? feeBaseFor(app); g.partnerCommExcl += feeBaseFor(app) * r.partner; g.agentCommExcl += feeBaseFor(app) * r.agent; }
       else { g.partnerComm += feeBaseFor(app) * r.partner; g.agentComm += feeBaseFor(app) * r.agent; }
     }
     if (deedIn) g.deed += 1;
@@ -361,7 +462,17 @@ function tenantInitialsFor(ref: string): string {
    per-application net-of-refunds rule) and is settled on the 15th of the
    following month. This answers, for the prior calendar month, exactly what is
    payable to each partner and which applications make it up. */
-export interface SettlementApp { ref: string; agency: string; branch: string; paidAt: Date; rent: number; commission: number; tenantInitials: string; }
+export interface SettlementApp {
+  ref: string; agency: string; branch: string; paidAt: Date;
+  /** The tenancy's monthly rent. NOT what was charged: see `fee`. */
+  rent: number;
+  /** WHAT THIS APPLICANT WAS CHARGED, and the amount the rate applied to.
+      Equal to rent at standard terms and different at every negotiated one, so a
+      statement that prints rent under "Fee" states a price nobody paid and a
+      derived rate nobody agreed. Added because it was doing exactly that. */
+  fee: number;
+  commission: number; tenantInitials: string;
+}
 export interface PartnerSettlement { partner: string; partnerName: string; commission: number; apps: SettlementApp[]; }
 export interface CommissionSettlement { monthLabel: string; settlementDate: Date; partners: PartnerSettlement[]; }
 
@@ -382,7 +493,7 @@ export function getCommissionSettlement(role: Role, scope: PartnerScope): Commis
     let ps = byPartner.get(a.partner);
     if (!ps) { ps = { partner: a.partner, partnerName: partnerName(a.partner), commission: 0, apps: [] }; byPartner.set(a.partner, ps); }
     ps.commission += commission;
-    ps.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, commission, tenantInitials: tenantInitialsFor(a.ref) });
+    ps.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, fee: feeBaseFor(a), commission, tenantInitials: tenantInitialsFor(a.ref) });
   }
   const partners = [...byPartner.values()].sort((x, y) => y.commission - x.commission);
   partners.forEach((p) => p.apps.sort((x, y) => y.commission - x.commission));
@@ -412,7 +523,9 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
   const map = new Map<string, PartnerCommissionRow>();
   for (const app of set) {
     if (!inRange(app.paidAt, start, end)) continue; // commission attributed to the payment period
-    const r = { partner: app.partnerRate, agent: app.agentRate };
+    // Lines, not the scalar; and no partner cut on the agent rail. Identical to
+    // liveAggregate, so this table foots to the KPIs above it.
+    const r = { partner: agentRailApp(app) ? 0 : app.partnerRate, agent: totalRate(app) };
     let row = map.get(app.partner);
     if (!row) {
       row = { partner: app.partner, partnerName: partnerName(app.partner), paid: 0, feesGross: 0, refundValue: 0,
@@ -468,42 +581,160 @@ export interface AgentCommissionSettlement {
   total: number;
 }
 
-export function getAgentCommissionSettlement(role: Role, scope: PartnerScope): AgentCommissionSettlement {
-  const now = nowRef();
-  const bStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-  const bEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-  const settlementDate = new Date(now.getFullYear(), now.getMonth(), 15);
-  const monthLabel = `${MONTH_LONG[bStart.getMonth()]} ${bStart.getFullYear()}`;
-  const set = scopeFull(allFull(), role, scope);
-  const byPayee = new Map<string, AgentSettlementPayee>();
+/* ---------- The statement, and the settlement, from ONE accumulator ----------
+
+   An agency's commission statement and Opndoor's settlement figure have to be
+   the same number, and the way to guarantee that is not to assert it afterwards
+   but to compute it once. accruePayees is the single pass: applications that
+   PAID inside a window, refunds excluded, one line per payee per application.
+
+   getAgentCommissionSettlement is that pass over the prior calendar month, and
+   is unchanged in shape and in every figure it returned before. The statement is
+   the same pass over a month the reader chooses, carrying the per-line detail a
+   statement has to show and a settlement total does not: the tenant, the tenancy,
+   the fee the rate applied to, the share of it this applicant paid, and where the
+   rate came from. settlement-statement.test.ts asserts they foot. */
+
+/** One application's contribution to one payee, with everything a statement
+    line has to name. The frozen line is the authority for the rate AND for its
+    source: neither is recomputed, so a statement issued in May reads the same
+    in November. */
+export interface StatementLine {
+  ref: string;
+  tenant: string;
+  /** Set when this applicant is one of a joint tenancy; null for a tenancy of one. */
+  tenancyId: string | null;
+  /** "2 of 2" — this applicant's place in the tenancy. '' when there is no tenancy. */
+  tenancyPlace: string;
+  branch: string;
+  paidAt: Date;
+  /** What THIS applicant paid. On a joint tenancy that is their share of the
+      tenancy fee, which is also the amount their commission is a share of. */
+  fee: number;
+  /** Their share of the tenancy, or null when they are the whole of it. */
+  sharePercent: number | null;
+  rate: number;
+  source: CommissionSource | null;
+  commission: number;
+}
+
+export interface CommissionStatement {
+  /** 'YYYY-MM', the machine key for the month. */
+  monthKey: string;
+  monthLabel: string;
+  payeeKey: string;
+  level: 'group' | 'agency' | 'branch';
+  orgId: string | null;
+  /** The payee's own name. Never a partner name: on the agent rail the partner
+      is house plumbing and must not appear on a customer's statement. */
+  payeeName: string;
+  lines: StatementLine[];
+  total: number;
+}
+
+const monthKeyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+const monthLabelOf = (d: Date) => `${MONTH_LONG[d.getMonth()]} ${d.getFullYear()}`;
+
+/** THE ONE PASS. Every payee's lines for applications paid inside the window. */
+function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
+  key: string; level: 'group' | 'agency' | 'branch'; orgId: string | null; orgName: string;
+  partner: string; commission: number; apps: SettlementApp[]; lines: StatementLine[];
+}> {
+  const byPayee = new Map<string, {
+    key: string; level: 'group' | 'agency' | 'branch'; orgId: string | null; orgName: string;
+    partner: string; commission: number; apps: SettlementApp[]; lines: StatementLine[];
+  }>();
   for (const a of set) {
     if (!inRange(a.paidAt, bStart, bEnd)) continue;
     if (a.refunded) continue; // net of refunds
+    const fee = feeBaseFor(a);
+    const mates = a.tenancyId ? set.filter((x) => x.tenancyId === a.tenancyId).length : 0;
     // ONE LINE PER PAYEE. A historic row has no split and resolves to a single
     // agency line at the scalar rate, so it lands exactly where it always did.
-    for (const p of payeesFor(a, feeBaseFor(a))) {
+    for (const p of payeesFor(a, fee)) {
       // Namespaced by partner as well, so same-named orgs under different
       // partners never merge -- what the old `${a.partner}${a.agency}` key was for.
       const key = `${a.partner}|${p.key}`;
       let row = byPayee.get(key);
       if (!row) {
-        row = {
-          key, level: p.level, orgId: p.orgId,
-          agency: p.orgName || '(unknown agency)',
-          partner: a.partner, partnerName: partnerName(a.partner),
-          commission: 0, apps: [],
-        };
+        row = { key, level: p.level, orgId: p.orgId, orgName: p.orgName || '(unknown agency)',
+          partner: a.partner, commission: 0, apps: [], lines: [] };
         byPayee.set(key, row);
       }
       row.commission += p.amount;
-      row.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, commission: p.amount, tenantInitials: tenantInitialsFor(a.ref) });
+      row.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, fee, commission: p.amount, tenantInitials: tenantInitialsFor(a.ref) });
+      row.lines.push({
+        ref: a.ref,
+        // The summary store carries the name; a row whose summary has not
+        // loaded falls back to its reference rather than to a blank cell.
+        tenant: findRecord(a.ref)?.name || a.ref,
+        tenancyId: a.tenancyId ?? null,
+        tenancyPlace: a.tenancyId && a.tenancyPosition ? `${a.tenancyPosition} of ${mates || a.tenancyPosition}` : '',
+        branch: a.branch,
+        paidAt: a.paidAt!,
+        fee,
+        sharePercent: a.sharePercent ?? null,
+        rate: p.rate,
+        source: p.source,
+        commission: p.amount,
+      });
     }
   }
-  const payees = [...byPayee.values()].sort((x, y) => y.commission - x.commission);
+  return byPayee;
+}
+
+export function getAgentCommissionSettlement(role: Role, scope: PartnerScope): AgentCommissionSettlement {
+  const now = nowRef();
+  const bStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+  const bEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+  const settlementDate = new Date(now.getFullYear(), now.getMonth(), 15);
+  const monthLabel = monthLabelOf(bStart);
+  const acc = accruePayees(scopeFull(allFull(), role, scope), bStart, bEnd);
+  const payees: AgentSettlementPayee[] = [...acc.values()]
+    .map((r) => ({ key: r.key, level: r.level, orgId: r.orgId, agency: r.orgName,
+      partner: r.partner, partnerName: partnerName(r.partner), commission: r.commission, apps: r.apps }))
+    .sort((x, y) => y.commission - x.commission);
   payees.forEach((p) => p.apps.sort((x, y) => y.commission - x.commission));
   const agencies: AgentSettlementAgency[] = payees.filter((p) => p.level === 'agency');
   const total = payees.reduce((s2, p) => s2 + p.commission, 0);
   return { monthLabel, settlementDate, agencies, payees, total };
+}
+
+/** The months this viewer has anything to state, newest first. Built from the
+    payment dates actually in their book, so a month with no activity is never
+    offered as an empty statement. */
+export function statementMonths(role: Role, scope: PartnerScope): { key: string; label: string }[] {
+  const seen = new Map<string, string>();
+  for (const a of scopeFull(allFull(), role, scope)) {
+    if (!a.paidAt || a.refunded) continue;
+    seen.set(monthKeyOf(a.paidAt), monthLabelOf(a.paidAt));
+  }
+  return [...seen.entries()].map(([key, label]) => ({ key, label })).sort((x, y) => (x.key < y.key ? 1 : -1));
+}
+
+/**
+ * The commission statement for one month: one per payee the viewer can see.
+ *
+ * Scoped like everything else — a manager gets their own agency's, an admin
+ * gets one per payee and picks. Over the PRIOR calendar month it returns, payee
+ * for payee, the same totals as getAgentCommissionSettlement, because it is the
+ * same accumulator; settlement-statement.test.ts holds that to account.
+ */
+export function getCommissionStatements(role: Role, scope: PartnerScope, monthKey: string): CommissionStatement[] {
+  const [y, m] = monthKey.split('-').map(Number);
+  if (!y || !m) return [];
+  const bStart = new Date(y, m - 1, 1, 0, 0, 0, 0);
+  const bEnd = new Date(y, m, 0, 23, 59, 59, 999);
+  const label = monthLabelOf(bStart);
+  const acc = accruePayees(scopeFull(allFull(), role, scope), bStart, bEnd);
+  return [...acc.values()]
+    .map((r) => ({
+      monthKey, monthLabel: label, payeeKey: r.key, level: r.level, orgId: r.orgId,
+      payeeName: r.orgName,
+      lines: r.lines.sort((x, y) => x.paidAt.getTime() - y.paidAt.getTime() || x.ref.localeCompare(y.ref)),
+      total: r.commission,
+    }))
+    .sort((x, y) => y.total - x.total);
 }
 
 export interface TrendRow { label: string; count: number; fees: number; comm: number; sub?: string; }

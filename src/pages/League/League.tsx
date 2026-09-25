@@ -23,6 +23,7 @@ import {
   type LeagueRow, type LeagueScope, type LeagueView, type ReferrerBoard, type Period,
 } from '@/data';
 import { getPositions, type Position } from '@/data/positionsService';
+import { liveScopeShape } from '@/data/liveAnalytics';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -124,8 +125,12 @@ function scopeFromPositions(positions: Position[]): { branchIds: string[]; label
       (ag?.branches ?? []).forEach((b) => { if (b.id) ids.add(b.id); });
     });
   }
-  const label = agencyScopes.length ? 'My brand' : branchScopes.length > 1 ? 'My branches' : 'My branch';
+  const label = agencyScopes.length ? 'My agency' : branchScopes.length > 1 ? 'My branches' : 'My branch';
   return { branchIds: [...ids], label, hasToggle: (agencyScopes.length > 0 || branchScopes.length > 0) && ids.size > 0 };
+  // NOTE: hasToggle answers "does this person hold a narrower position"; the
+  // caller ANDs it with whether the wider view is actually wider (more than one
+  // branch in the book), because two identical tables behind a switch is worse
+  // than one table.
 }
 
 // The my-scope / whole-company switch. Shown only where both views apply.
@@ -194,7 +199,7 @@ function ReferrerLeagueView() {
           <div className="rl-own">
             <div className="rl-own__stat"><span className="rl-own__n">{(own?.refs ?? 0).toLocaleString('en-GB')}</span><span className="rl-own__l">Referrals sent</span></div>
             {showFees && <div className="rl-own__stat"><span className="rl-own__n">{fmtBig(own?.fees ?? 0)}</span><span className="rl-own__l">Fees collected</span></div>}
-            <p className="rl-note">Your partner keeps the referrer leaderboard private, so only your own performance is shown.</p>
+            <p className="rl-note">The referrer leaderboard is private here, so only your own performance is shown.</p>
           </div>
         ) : (
           <div className="table-wrap">
@@ -253,8 +258,26 @@ function FullLeagueView() {
   const myScope = useMemo(() => scopeFromPositions(positions), [positions]);
   const [scope, setScope] = useState<LeagueScope>('mine');
 
-  const initialView = (params.get('view') as LeagueView) || 'agency';
-  const [view, setView] = useState<LeagueView>(COLS[initialView] ? initialView : 'agency');
+  // WHICH BOARDS THERE ARE TO RANK. A board over a population of one is a
+  // single row under a header that already names it, so the Agencies tab drops
+  // out for a single-agency viewer and the Branches tab for a single-branch one.
+  // Referrers always stays: people are the one thing every scope has several of,
+  // and it is the board an agency actually reads. Applies to an admin too, the
+  // moment the partner selector narrows them to one agency.
+  const shape = useMemo(() => liveScopeShape(role, partnerScope), [role, partnerScope]);
+  const tabs = useMemo(() => TABS.filter((t) =>
+    t.id === 'referrer'
+    || (t.id === 'agency' && shape.agencies > 1)
+    || (t.id === 'branch' && shape.branches > 1)), [shape]);
+
+  const askedView = (params.get('view') as LeagueView) || 'agency';
+  // Fall back to a tab that exists rather than rendering an empty board: a
+  // ?view=agency link followed by a single-agency manager lands on Referrers.
+  const initialView = tabs.some((t) => t.id === askedView) ? askedView : (tabs[tabs.length - 1]?.id ?? 'referrer');
+  const [view, setView] = useState<LeagueView>(COLS[initialView] ? initialView : 'referrer');
+  useEffect(() => {
+    if (!tabs.some((t) => t.id === view)) setView(tabs[tabs.length - 1]?.id ?? 'referrer');
+  }, [tabs, view]);
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<SortKey>('fees');
   const [dir, setDir] = useState<-1 | 1>(-1);
@@ -328,12 +351,12 @@ function FullLeagueView() {
         <div>
           {/* #100 Name the active scope truthfully (the table is scoped by the
               global partner selection even when the in-page selector is hidden). */}
-          <Eyebrow>Performance · {period.label}{partner ? ` · ${partnerName(partner)}` : partnerScope !== ALL_PARTNERS ? ` · ${partnerName(partnerScope)}` : ''}{myScope.hasToggle ? ` · ${scope === 'mine' ? myScope.label : 'Whole company'}` : ''}</Eyebrow>
+          <Eyebrow>Performance · {period.label}{partner ? ` · ${partnerName(partner)}` : partnerScope !== ALL_PARTNERS ? ` · ${partnerName(partnerScope)}` : ''}{myScope.hasToggle && shape.branches > 1 ? ` · ${scope === 'mine' ? myScope.label : 'Whole company'}` : ''}</Eyebrow>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>League tables</h1>
           <p className="page-head__sub">Every agency, branch and referrer ranked in full. Search, sort by any metric, and page through the whole book. The dashboard shows the top ten; this is the complete list.</p>
         </div>
         <div className="page-head__actions">
-          {myScope.hasToggle && <ScopeToggle scope={scope} setScope={setScope} mineLabel={myScope.label} />}
+          {myScope.hasToggle && shape.branches > 1 && <ScopeToggle scope={scope} setScope={setScope} mineLabel={myScope.label} />}
           <PeriodSelect ariaLabel="League time period" value={period.id} onChange={setPeriod} options={getPeriods().map((p) => ({ value: p.id, label: p.label }))} />
           <Button variant="dark" size="sm" onClick={() => void exportBranded(buildLeagueDoc(role, partnerScope, partner, period, view))} title={`Downloads the ${TABS.find((t) => t.id === view)?.label} table as a branded Excel workbook`}>
             <Icon name="download" /> Export
@@ -343,7 +366,7 @@ function FullLeagueView() {
 
       <div className="lt-toolbar">
         <div className="lt-tabs" role="tablist">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button key={t.id} className={`lt-tab${view === t.id ? ' is-active' : ''}`} role="tab" onClick={() => changeView(t.id)}>{t.label}</button>
           ))}
         </div>

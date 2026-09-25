@@ -131,6 +131,10 @@ export interface AgentContact {
 /** An agency group (a brand family under a partner) — the top commission tier and
     the target of a "whole group" position. */
 /** One payee on an application's commission split, frozen at creation. */
+/** Where a commission rate came from. Mirrors the SQL check constraint on
+    application_commission_lines.source and commission_split's `source` column. */
+export type CommissionSource = 'standard' | 'agreement' | 'rate';
+
 export interface CommissionLine {
   level: 'group' | 'agency' | 'branch';
   /** DB id of the org paid. Null for a historic row reconstructed from the scalar. */
@@ -138,6 +142,14 @@ export interface CommissionLine {
   orgName: string;
   /** Share of the guarantee fee, as a fraction. */
   rate: number;
+  /** Which slot the rate came out of, frozen at creation alongside it. Null on a
+      row created before this was recorded: unknown, and never guessed, because a
+      guess stamped onto a settled statement is worse than an honest blank. */
+  source?: CommissionSource | null;
+  /** The amount the rate is a share of, frozen. On a joint tenancy this is the
+      applicant's own share of the tenancy fee, not the whole fee. Null on
+      historic rows, where the application's fee is the only basis there is. */
+  basisAmount?: number | null;
 }
 
 export interface AgencyGroup {

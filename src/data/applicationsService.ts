@@ -71,11 +71,18 @@ export interface FullApp {
   agentRate: number;
   /** The guarantee fee charged, snapshotted. Equal to rent until deal-shape pricing. */
   fee: number;
+  /** How many weeks of rent the fee is, snapshotted. One month is 52/12 weeks; a
+      negotiated basis is 3 or 5. Selected by hydrate and previously dropped
+      here, which left every export unable to say WHY a fee was what it was. */
+  feeBasisWeeks?: number | null;
   /** The joint tenancy this applicant belongs to, or undefined for a tenancy of one. */
   tenancyId?: string | null;
   /** 1-based entry order. Position 1 leads: it carries the one deed. */
   tenancyPosition?: number | null;
   sharePercent?: number | null;
+  /** This applicant's share of the tenancy RENT, in pounds. Distinct from `fee`,
+      which is their share of the tenancy FEE. Also selected and dropped before. */
+  shareAmount?: number | null;
   /** The frozen split, one entry per payee. Absent on historic rows. */
   commissionLines?: CommissionLine[];
   sentAt: Date | null;

@@ -51,9 +51,21 @@ describe('liveAggregate (event-in-period, net of refunds)', () => {
     expect(a.guaranteed).toBe(12000); // 1000 * 12
   });
   it('commission is net of refunds, per-partner rates', () => {
-    expect(a.partnerCommNet).toBeCloseTo(3000 * rates.partner, 6);
     expect(a.agentCommNet).toBeCloseTo(3000 * rates.agent, 6);
-    expect(a.partnerCommExcl).toBeCloseTo(1500 * rates.partner, 6);
+  });
+  /* THE AGENT RAIL HAS NO PARTNER. Northwind is the estate — one of OUR
+     agencies' partner, not a supplier above them — so there is nobody to pass a
+     cut to. applications.partner_rate is populated on these rows all the same
+     (resolve_rates fills it whichever rail a referral arrives on), and
+     multiplying by it used to invent a payable nobody owes. Zeroed at the row,
+     so the dashboard, the league and every export agree. */
+  it('an estate partner earns no partner commission, at any rate it holds', () => {
+    expect(rates.partner).toBeGreaterThan(0); // the rate is there to be ignored
+    expect(a.partnerCommNet).toBe(0);
+    expect(a.partnerCommExcl).toBe(0);
+  });
+  it('and says so, so the screen can drop the line rather than print a zero', () => {
+    expect(a.noPartnerCut).toBe(true);
   });
   it('operational metrics (current state)', () => {
     expect(a.stuckSent).toBe(1); // D
@@ -73,10 +85,11 @@ describe('liveLeague', () => {
     expect(fox.paid).toBe(2); // A, B
     expect(fox.deed).toBe(1); // A
     expect(fox.fees).toBe(3000); // A(1000) + B(2000)
-    expect(fox.partnerComm).toBeCloseTo(3000 * rates.partner, 6); // Foxglove has no refunds
+    expect(fox.agentComm).toBeCloseTo(3000 * rates.agent, 6); // Foxglove has no refunds
+    expect(fox.partnerComm).toBe(0); // the estate: no supplier above these agencies
     const mar = rows[1];
     expect(mar.fees).toBe(1500);
-    expect(mar.partnerComm).toBeCloseTo(0, 6); // 1500 paid - 1500 refunded = 0 net
+    expect(mar.agentComm).toBeCloseTo(0, 6); // 1500 paid - 1500 refunded = 0 net
   });
 
   it('a referrer sees only their own applications', () => {

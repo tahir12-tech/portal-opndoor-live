@@ -24,6 +24,27 @@ export interface AgentRailFunnel {
   stuck_referencing: number;
 }
 
+/**
+ * Does anything this viewer can see run the nine-stage eligibility journey?
+ *
+ * The dashboard used to ask the PARTNER, which is the estate question, not the
+ * journey one. Regent's partner is opndoor-agents, so it answered yes, and their
+ * manager would have met nine stages with seven of them permanently zero and no
+ * way to tell "not yet" from "never". Their tenants are pre-referenced: their
+ * journey is Sent, Paid, Deed.
+ *
+ * Resolved server-side, scoped like everything else, and keyed on the agency's
+ * own referencing route falling back to its partner's — the same precedence a
+ * referral follows.
+ */
+export async function viewerRunsEligibilityJourney(slug?: string): Promise<boolean> {
+  if (!SUPABASE_ENABLED) return false;
+  const { data, error } = await sb().rpc('viewer_runs_eligibility_journey',
+    slug ? { p_partner_slug: slug } : {});
+  if (error) return false;
+  return data === true;
+}
+
 export async function getAgentRailFunnel(slug?: string): Promise<AgentRailFunnel | null> {
   if (!SUPABASE_ENABLED) return null;
   const { data, error } = await sb().rpc('agent_rail_funnel', slug ? { p_slug: slug } : {});

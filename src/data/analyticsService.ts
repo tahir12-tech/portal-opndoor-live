@@ -19,10 +19,11 @@ import {
   convFor, scaleRows, type PeriodDef, type ShapeRow,
 } from './mock/analyticsModel';
 import { getRatesFor, weightFor } from './partnersService';
-import { liveAvailable, liveAggregate, liveVolume, liveTrend, deedsWithoutContact, lapsingWithin14, type LiveAgg, type TrendRow } from './liveAnalytics';
+import { liveAvailable, liveAggregate, liveVolume, liveTrend, deedsWithoutContact, lapsingWithin14, agentRailScope, type LiveAgg, type TrendRow } from './liveAnalytics';
+import { SOURCE_LABEL } from './commissionSplit';
 export type { TrendRow } from './liveAnalytics';
-export { getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, liveAvailable } from './liveAnalytics';
-export type { CommissionSettlement, PartnerSettlement, SettlementApp, AgentCommissionSettlement, AgentSettlementAgency, PartnerCommissionRow } from './liveAnalytics';
+export { getCommissionSettlement, getAgentCommissionSettlement, getCommissionStatements, statementMonths, liveScopeShape, agentRailScope, livePartnerBreakdown, liveAvailable } from './liveAnalytics';
+export type { CommissionSettlement, PartnerSettlement, SettlementApp, AgentCommissionSettlement, AgentSettlementAgency, PartnerCommissionRow, CommissionStatement, StatementLine } from './liveAnalytics';
 
 export function getPeriods(): Period[] {
   return PERIODS.map((p) => ({ ...p }));
@@ -71,6 +72,13 @@ export interface DashboardModel {
   commHeadline: string;
   commSecondLbl: string;
   commSecondVal: string;
+  /** False on the agent rail, where there is no partner to pay and the second
+      line would be a structural zero presented as a figure. */
+  commSecondShown: boolean;
+  /** What the period's fees were a basis of, for the copy under Net fees: "one
+      month's rent each", "3 weeks of rent each", or "each at its agreed fee
+      basis" when the book is mixed. '' when no fees were collected. */
+  feeBasisCopy: string;
   rent: string;
   stuckSent: string;
   stuckPaid: string;
@@ -142,6 +150,24 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
   // "%" descriptor would not reconcile with the figure - label it per-partner.
   const blended = !isRef && scope === ALL_PARTNERS;
 
+  // THE ESTATE. One of our agencies has no supplier above it, so every
+  // partner-commission figure on this screen is a structural zero. Read off the
+  // scope rather than off the period's rows, so a quiet month does not make the
+  // partner line reappear on an agency that will never have one.
+  const noPartner = agentRailScope(scope);
+  // What the rates in the headline actually are. Named from the frozen lines, so
+  // a negotiated 20% is called an agreement and not "the Opndoor standard".
+  const srcWord = a.sources.length === 1 ? SOURCE_LABEL[a.sources[0]]
+    : a.sources.length > 1 ? 'Agreed rates' : null;
+  const sourcePrefix = srcWord ? `${srcWord} · `
+    : isRef ? 'Your agent commission · ' : 'Agent commission · ';
+  // "the guarantee fee" is the honest fallback for a period with no fees in it:
+  // there is no basis to name, and naming a month's rent would be a guess.
+  const basisPhrase = a.feeBasis.phrase || 'the guarantee fee';
+  const feeBasisCopy = a.feeBasis.kind === 'none' ? ''
+    : a.feeBasis.kind === 'mixed' ? 'each at its agreed fee basis'
+    : `${a.feeBasis.phrase} each`;
+
   return {
     sub: isRef
       ? 'Your referrals from sent through to deed issued, computed from your live records.'
@@ -151,19 +177,37 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     paid: a.paid.toLocaleString('en-GB'),
     deed: a.deed.toLocaleString('en-GB'),
     sp: pct(a.paid, a.sent),
-    pd: pct(a.deed, a.paid),
-    overall: pct(a.deed, a.sent),
+    // TENANCY-GRAIN DENOMINATORS for anything divided by a deed count. One deed
+    // covers a whole tenancy and only the lead ever reaches Deed Issued, so
+    // deeds-over-applicants read a three-person let as 33% converted. Sent to
+    // Paid keeps applicant grain on both sides, which is its own honest question.
+    pd: pct(a.deed, a.paidTenancies),
+    overall: pct(a.deed, a.sentTenancies),
     guaranteed: fmtBig(a.guaranteed),
     deedcount: a.deed.toLocaleString('en-GB'),
     fees: fmtMoney(a.feesGross),
-    commTag: isRef
-      ? `Your agent commission · ${aPct} of one month's rent, net of refunds`
-      : blended ? `Partner commission · per-partner rates, net of refunds` : `Partner · ${pPct} of one month's rent, net of refunds`,
-    commHeadline: isRef ? fmtMoney(a.agentCommNet) : fmtMoney(a.partnerCommNet),
+    // THE HEADLINE IS THE MONEY THE VIEWER EARNS.
+    //
+    // It used to be partner commission for everyone but a referrer, which read
+    // correctly for a supplier — Rightmove's manager IS the partner — and read as
+    // nonsense for one of our agencies, whose own commission was demoted to a
+    // footnote under a partner figure that is structurally zero. On the agent
+    // rail the agency's own lines ARE the commission, so they lead, and the
+    // partner line is dropped rather than shown as £0.
+    //
+    // The rate is named by its SOURCE, off the frozen lines. "20% of one month's
+    // rent" was wrong twice for Regent: the 20% is their agreement, not the
+    // standard, and the basis is three weeks, not a month.
+    commTag: isRef || noPartner
+      ? `${sourcePrefix}${aPct} of ${basisPhrase}, net of refunds`
+      : blended ? `Partner commission · per-partner rates, net of refunds` : `Partner · ${pPct} of ${basisPhrase}, net of refunds`,
+    commHeadline: isRef || noPartner ? fmtMoney(a.agentCommNet) : fmtMoney(a.partnerCommNet),
     commSecondLbl: isRef
       ? `Passed to opndoor as partner (${pPct}, net)`
-      : blended ? 'Agent commission (per-partner rates, net of refunds)' : `Agent commission (${aPct} of one month's rent, net)`,
+      : blended ? 'Agent commission (per-partner rates, net of refunds)' : `Agent commission (${aPct} of ${basisPhrase}, net)`,
     commSecondVal: isRef ? fmtMoney(a.partnerCommNet) : fmtMoney(a.agentCommNet),
+    commSecondShown: !noPartner,
+    feeBasisCopy,
     rent: fmtMoney(a.avgRent),
     stuckSent: a.stuckSent.toLocaleString('en-GB'),
     stuckPaid: a.stuckPaid.toLocaleString('en-GB'),
@@ -182,7 +226,9 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     refundCount: a.refundCount,
     net: fmtMoney(a.feesNet),
     commExcl: signedNeg(a.partnerCommExcl + a.agentCommExcl),
-    commExclDetail: `Partner ${fmtMoney(a.partnerCommExcl)} · Agent ${fmtMoney(a.agentCommExcl)}`,
+    commExclDetail: noPartner
+      ? fmtMoney(a.agentCommExcl)
+      : `Partner ${fmtMoney(a.partnerCommExcl)} · Agent ${fmtMoney(a.agentCommExcl)}`,
     awaiting: a.awaiting,
     awaitingAged: a.awaitingAged,
     deedsNoContact: deedsWithoutContact(role, scope),
@@ -226,6 +272,10 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
     commHeadline: isRef ? fmtMoney(feesNum * rates.agent) : fmtMoney(feesNum * rates.partner),
     commSecondLbl: isRef ? `Passed to opndoor as partner (${pPct})` : `Agent commission (${aPct} of one month's rent)`,
     commSecondVal: isRef ? fmtMoney(feesNum * rates.partner) : fmtMoney(feesNum * rates.agent),
+    // The synthetic model prices every referral at one month's rent by
+    // construction, so it always has a partner line and a single basis.
+    commSecondShown: true,
+    feeBasisCopy: "one month's rent each",
     rent: '£2,180',
     stuckSent: Math.round(baseStuck[0] * kc).toString(),
     stuckPaid: Math.round(baseStuck[1] * kc).toString(),

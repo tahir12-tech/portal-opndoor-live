@@ -1,0 +1,61 @@
+/* Commission statement panel. A money-reconciliation surface: tabular numerals
+   everywhere, so a column of figures can be read down rather than across. */
+
+.stmt + .stmt {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.stmt__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.stmt__payee {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.stmt__level {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.stmt__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stmt__table th,
+.stmt__table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.stmt__table th {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.stmt__table .num { text-align: right; }
+
+.stmt__total td {
+  font-weight: 700;
+  border-bottom: 0;
+  border-top: 2px solid var(--ink);
+  padding-top: 10px;
+}

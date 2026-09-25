@@ -12,7 +12,7 @@
 -- untouched by the separation.
 
 begin;
-select plan(16);
+select plan(20);
 
 -- THE ESTATE: a partner whose agencies are ours.
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
@@ -116,6 +116,28 @@ select is(
 select is(
   (select count(*)::int from public.commission_split('94000000-0000-0000-0000-000000000008','94000000-0000-0000-0000-000000000009', 1)),
   1, 'with the one standard line it has always had');
+
+-- ---------------------------------------------------------------------------
+-- A JOINT TENANCY NEEDS ONLY THE RAIL. Not an agreement, not a referencing mode.
+-- Standard terms for a tenancy are one month's rent for the WHOLE tenancy, split
+-- by share, at the standard rate on the tenancy — not one month each.
+-- ---------------------------------------------------------------------------
+select is(
+  (select fee_amount from public.resolve_fee(
+     '94000000-0000-0000-0000-000000000005','94000000-0000-0000-0000-000000000001', 2400, 2)),
+  2400::numeric,
+  'a standard-terms agency of ours: a pair is one month''s rent for the tenancy, not one month each');
+select is(
+  public.apportion(2400, array[50,50]::numeric[]), array[1200.00, 1200.00]::numeric[],
+  'split by share');
+select is(
+  public.commission_total('94000000-0000-0000-0000-000000000005','94000000-0000-0000-0000-000000000001', 2),
+  0.10::numeric,
+  'at the standard rate on the tenancy, which is 10% of one fee and not of two');
+select is(
+  (select source from public.commission_split(
+     '94000000-0000-0000-0000-000000000005','94000000-0000-0000-0000-000000000001', 2) where level='agency'),
+  'standard', 'and the line says it is the standard, having no agreement to name');
 
 select * from finish();
 rollback;
