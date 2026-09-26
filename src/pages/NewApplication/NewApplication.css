@@ -253,3 +253,13 @@
   font-size: 12.5px; color: var(--ink-mute); line-height: 1.55;
   margin: 8px 0 0; max-width: 62ch;
 }
+
+/* SECTION 4 WITH NOTHING TO ASK.
+
+   The section stays in the tree so the picker inside it is never unmounted and
+   remounted (see the long note at its JSX in NewApplication.tsx: moving that one
+   element between two parents put the form in a remount loop and produced three
+   separate bug reports). It holds only the picker, which renders null in this
+   shape, so hiding the whole thing loses nothing on screen. The office is stated
+   as one line under Tenancy instead. */
+.sec-quiet { display: none; }

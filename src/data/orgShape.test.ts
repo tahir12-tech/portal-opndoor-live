@@ -8,7 +8,10 @@
    open, so that would have filed the next referral against whichever agency
    was first. */
 import { describe, expect, it } from 'vitest';
-import { FULL_PICKER, orgNotSetUp, orgSectionCopy, type OrgShape } from './orgShapeService';
+import {
+  FULL_PICKER, UNRESOLVED, mayInventAgency, mayInventBranch, orgNotSetUp, orgSectionCopy,
+  ownStockViewer, type OrgShape,
+} from './orgShapeService';
 
 function shape(p: Partial<OrgShape>): OrgShape {
   return { ...FULL_PICKER, ...p };
@@ -69,6 +72,71 @@ describe('the fallback', () => {
     expect(FULL_PICKER.collapseBranch).toBe(false);
     expect(FULL_PICKER.mayAddAgency).toBe(true);
     expect(FULL_PICKER.refersOwnStock).toBe(false);
+  });
+});
+
+/* =====================================================================
+   "WE COULD NOT TELL" IS NOT "YOU ARE A SUPPLIER".
+
+   The regression these exist for: loadOrgShape answered a FAILED call with
+   FULL_PICKER, and FULL_PICKER is a positive claim, not an absence. It says the
+   viewer is a supplier, whose form carries an agency search box and an
+   add-a-new-agency option. So one failed RPC handed an agency user on our own
+   estate a form offering an acquisition, which SQL then refuses three ways
+   (agencies_insert, branches_insert, create_referral_target).
+
+   The fix is a shape that claims nothing, and predicates that require a positive
+   answer rather than reading a field that an empty shape happens to satisfy.
+   ===================================================================== */
+describe('an unresolved shape', () => {
+  it('offers nothing', () => {
+    expect(UNRESOLVED.resolved).toBe(false);
+    expect(UNRESOLVED.mayAddAgency).toBe(false);
+    expect(UNRESOLVED.collapseAgency).toBe(false);
+    expect(UNRESOLVED.collapseBranch).toBe(false);
+  });
+
+  /* THE TRAP, written out. `!shape.refersOwnStock` is true of an unresolved
+     shape, so every surface that read that field inline was treating "unknown"
+     as "supplier". Both predicates must refuse it. */
+  it('is not mistaken for a supplier by either predicate', () => {
+    expect(UNRESOLVED.refersOwnStock).toBe(false); // the trap
+    expect(mayInventAgency(UNRESOLVED)).toBe(false);
+    expect(mayInventBranch(UNRESOLVED)).toBe(false);
+  });
+
+  it('is not mistaken for one of ours either', () => {
+    expect(ownStockViewer(UNRESOLVED)).toBe(false);
+  });
+
+  it('does not ask the supplier question while it waits', () => {
+    // It used to print "Which agency is letting this property... You can add
+    // either on the fly" at an agency user, which is a promise we cannot keep.
+    const c = orgSectionCopy(UNRESOLVED);
+    expect(`${c.title} ${c.sub}`).not.toMatch(/on the fly/i);
+    expect(c.sub).toMatch(/working out which office/i);
+  });
+
+  it('is never treated as an agent with nothing set up', () => {
+    // orgNotSetUp drives a dead end ("ask your manager"), and an unresolved
+    // shape has a branchCount of 0 for a completely different reason.
+    expect(orgNotSetUp(UNRESOLVED)).toBe(false);
+  });
+});
+
+describe('who may invent an org mid-referral', () => {
+  it('a supplier, at both levels, because their agency set is open', () => {
+    expect(mayInventAgency(SUPPLIER_ONE_AGENCY)).toBe(true);
+    expect(mayInventBranch(SUPPLIER_ONE_AGENCY)).toBe(true);
+    expect(mayInventAgency(FULL_PICKER)).toBe(true);
+  });
+
+  it('never one of ours, at either level, however many offices they have', () => {
+    for (const s of [INDEPENDENT, AGENCY, GROUP]) {
+      expect(mayInventAgency(s)).toBe(false);
+      expect(mayInventBranch(s)).toBe(false);
+      expect(ownStockViewer(s)).toBe(true);
+    }
   });
 });
 

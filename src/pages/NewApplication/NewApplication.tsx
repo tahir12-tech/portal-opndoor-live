@@ -24,7 +24,7 @@
 import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, shareSumError } from './shareMath';
-import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, FULL_PICKER, orgSectionCopy, type OrgShape } from '@/data';
+import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, UNRESOLVED, orgSectionCopy, type OrgShape } from '@/data';
 import { Modal } from '@/components/ui/Modal';
 import { TITLE_OPTIONS, validateReferral, validateTenant, parseFlexibleDate, toISODate, type ReferralValues, type TenantErrors, type TenantValues } from '@/lib/validation';
 import { useSession } from '@/session/SessionContext';
@@ -99,14 +99,21 @@ export function NewApplication() {
   // The shape the picker resolved. Held here only so the section heading can
   // ask the right question: a supplier is telling us whose property this is, an
   // agent is telling us which of their own offices it is.
-  const [orgShape, setOrgShape] = useState<OrgShape>(FULL_PICKER);
+  // UNRESOLVED, not FULL_PICKER. This drives the section 4 heading, and
+  // FULL_PICKER's heading is the SUPPLIER's question ("Which agency is letting
+  // this property... You can add either on the fly"), which is the wrong thing to
+  // print at an agency user for even one frame. See orgShapeService.
+  const [orgShape, setOrgShape] = useState<OrgShape>(UNRESOLVED);
   const orgCopy = orgSectionCopy(orgShape);
   /* ONE OFFICE: THE SECTION GOES, NOT JUST ITS CONTROLS.
      A section heading, a number in the rail and a bordered card, all to tell
      somebody the name of the only office they work at. The fact is worth
      keeping and the furniture is not, so it moves to one line under Tenancy and
      section 4 stops existing. The picker still mounts (below) because it is
-     what resolves the office and reports it back through onChange.
+     what resolves the office and reports it back through onChange, and it mounts
+     in the SAME PLACE either way: giving it two positions, one per branch of this
+     flag, put the form in a remount loop. The long note at the section's JSX has
+     the whole story, and it is worth reading before touching that markup.
 
      Read off the picker's own shape, from my_org_shape, and not off
      viewerShape: see the note at the top of AgentBranchPicker. One counts the
@@ -638,30 +645,57 @@ export function NewApplication() {
           </section>
 
           {/* 4. AGENT & BRANCH, when there is more than one answer to give.
-              The picker is rendered either way: in the one-office shape it draws
-              nothing and only resolves the office, so taking the section away
-              must not take it with it. */}
-          {oneOffice ? (<>
-            {picker}
-            {/* The reader cannot fix this and still has to be told: with the
-                section gone there is no field to hang an error on, and a Send
-                button that quietly does nothing is the worse failure. */}
-            {submitted && (errors.agency || errors.branch) && (
-              <p className="na-form-error">We could not work out which office this referral is against. Reload the page, and tell us if it happens again.</p>
-            )}
-          </>) : (
-            <section className="card sec" id="sec-branch">
+
+              ONE SLOT FOR THE PICKER, ALWAYS, AND THIS IS LOAD BEARING.
+
+              This used to be a ternary: the picker inside this <section> when
+              there was a question to ask, and bare in a fragment when there was
+              not. Two positions in the tree for one element, so the moment the
+              shape resolved and oneOffice flipped, React unmounted the picker and
+              mounted a new one. A fresh picker has no shape, so oneOffice flipped
+              straight back, which moved it again. The form sat in a remount loop,
+              thousands of rounds a second.
+
+              Every symptom reported from the walk was that loop:
+
+                section 4 showed the full admin picker with an agency search and
+                an add-on-the-fly option, because a newly mounted picker has not
+                been told who is reading yet and that was the state it spent most
+                of its life in;
+
+                "Checking this agent..." never finished and "Add another tenant"
+                never enabled, because each remount cleared the agency and branch
+                and restarted the rail check;
+
+                the fee panel never appeared, because it needs an agency and a
+                branch and those were being wiped several times a frame.
+
+              So the section's CHROME is conditional and the picker's position is
+              not. When there is nothing to ask, the whole section is display:none
+              (it contains only the picker, which renders null then anyway) and
+              the office is stated as one line under Tenancy instead. */}
+          <section className={oneOffice ? 'sec-quiet' : 'card sec'} id="sec-branch">
+            {!oneOffice && (
               <div className="sec__head"><span className="sec__num">4</span><div><div className="sec__title">{orgCopy.title} <Req /></div><div className="sec__sub">{orgCopy.sub}</div></div></div>
-              <CardBody>
-                {picker}
+            )}
+            <CardBody>
+              {picker}
+              {!oneOffice && <>
                 {submitted && orgPartnerError && <p className="na-form-error" style={{ marginTop: 8 }}>Select the partner this new agency belongs to.</p>}
                 {submitted && orgOfficeError && <p className="na-form-error" style={{ marginTop: 8 }}>Tell us whether this is a single-office agency.</p>}
                 {submitted && orgContactError && <p className="na-form-error" style={{ marginTop: 8 }}>Enter a contact email for the new agency.</p>}
                 {submitted && !orgOfficeError && (errors.agency || errors.branch) && (
                   <span className="field-error" style={{ marginTop: 10 }}>Select an agent and a branch.</span>
                 )}
-              </CardBody>
-            </section>
+              </>}
+            </CardBody>
+          </section>
+          {/* Outside the hidden section, because it has to be readable. The
+              reader cannot fix this and still has to be told: with the section
+              gone there is no field to hang an error on, and a Send button that
+              quietly does nothing is the worse failure. */}
+          {oneOffice && submitted && (errors.agency || errors.branch) && (
+            <p className="na-form-error">We could not work out which office this referral is against. Reload the page, and tell us if it happens again.</p>
           )}
 
           <div style={{ marginTop: 6 }}>

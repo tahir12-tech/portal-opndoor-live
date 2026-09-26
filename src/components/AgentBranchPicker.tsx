@@ -15,10 +15,30 @@
    "Head office" branch is used automatically (inheriting the agency contact),
    so no one has to invent a junk branch. Type a branch name to override it.
 
-   ONE OFFICE: NO SECTION. An agency user whose whole scope is one office is
-   asked nothing at all — this component renders null and the fact is printed as
-   one line under Tenancy in NewApplication. The same rule one level down on the
-   admin form: once an agent with a single office is chosen, the branch step
+   AN AGENCY USER NEVER SEES THIS PICKER. Not the agency search, not the branch
+   search, and not a create-on-the-fly option at either level. They get, in order
+   of how much choice they actually have:
+
+     one office            nothing at all. This component renders null and the
+                           fact is one line under Tenancy in NewApplication.
+     one agency, several   a line naming the agency, and a plain select of their
+     offices               own offices.
+     several agencies      a plain select of their own agencies, then the same
+                           office select.
+
+   A select, not a type-ahead with a "create new" row: the set is closed and
+   small, and SQL refuses what the create row offers (agencies_insert,
+   branches_insert, and create_referral_target since 20261005200000). Offering it
+   and then having the submit refused is worse than not offering it.
+
+   WHILE WE DO NOT KNOW WHICH OF THOSE APPLIES, nothing is drawn but a line
+   saying so. The shape used to default to FULL_PICKER, the SUPPLIER shape, so an
+   agency user saw the admin search box for as long as the call was in flight and
+   permanently if it failed. That was the reported regression.
+
+   The supplier and opndoor-admin form below is unchanged: inventing an agency
+   mid-referral IS the product there. The same rule one level down on the admin
+   form: once an agent with a single office is chosen, the branch step
    becomes a line rather than a search box. WHICH PREDICATE, and it matters:
    my_org_shape, read here, and NOT viewerShape. viewerShape counts the viewer's
    BOOK, so an office opened last week with no referrals through it yet counts as
@@ -40,7 +60,7 @@
    create_referral_target).
    ===================================================================== */
 import { useEffect, useRef, useState } from 'react';
-import { ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFly, findAgency, getPartners, loadOrgShape, orgNotSetUp, searchAgencies, searchBranches, FULL_PICKER, type OrgShape } from '@/data';
+import { ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFly, findAgency, getPartners, loadOrgShape, mayInventAgency, mayInventBranch, orgNotSetUp, ownStockViewer, searchAgencies, searchBranches, UNRESOLVED, type OrgShape } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { Icon } from '@/components/ui/Icon';
 import { TypeAhead, highlightMatch, type TypeAheadOption } from '@/components/ui/TypeAhead';
@@ -75,11 +95,16 @@ export interface AgentBranchValue {
 export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranchValue) => void }) {
   const { role, partnerScope } = useSession();
   const isAdmin = role === 'superadmin';
-  // What the form should ask. Derived on the server from what this person can
-  // reach, and from whether the partner owns its stock. FULL_PICKER until it
-  // arrives, because that is the shape the portal has always had and the one
-  // that loses nothing if the call fails.
-  const [shape, setShape] = useState<OrgShape>(FULL_PICKER);
+  /* What the form should ask. Derived on the server from what this person can
+     reach, and from whether the partner owns its stock.
+
+     UNRESOLVED until it arrives, and this used to be FULL_PICKER "because that
+     is the shape the portal has always had and the one that loses nothing if the
+     call fails". It loses a great deal: FULL_PICKER is the SUPPLIER shape, so
+     every agency user saw an agency search box and an add-a-new-one option for
+     as long as the call was in flight, and for ever if it failed. An unresolved
+     shape offers nothing and claims nothing. See orgShapeService. */
+  const [shape, setShape] = useState<OrgShape>(UNRESOLVED);
   const collapsedOnce = useRef(false);
   // Releasing the once-guard when the admin changes partner: the shape is a
   // different partner's now, so re-collapsing is correct rather than a repeat.
@@ -145,7 +170,15 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
 
      Guarded by a ref, not by a dependency list: chooseAgency clears the branch,
      so running this a second time would wipe a choice the user had already
-     made. It runs once, on mount, and never again. */
+     made. It runs once per resolved answer, and never again for that scope.
+
+     ONLY A REAL ANSWER CLOSES THE GUARD, and that is the fix for the reported
+     regression. The guard used to be set the moment the promise resolved,
+     whatever it resolved to, and loadOrgShape resolved a FAILED call to the
+     supplier shape. So one failure, at any point in the page's life, latched the
+     supplier form permanently: no retry, nothing to recover it, and the reader
+     left looking at an agency search box on our own estate. A failure now leaves
+     the shape unresolved and asks again. */
   useEffect(() => {
     let live = true;
     // An admin viewing one partner gets THAT partner's form. Referring on behalf
@@ -157,22 +190,43 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
       collapsedOnce.current = false;
     }
     scopeSeen.current = String(partnerScope);
-    void loadOrgShape(scoped).then((sh) => {
-      if (!live || collapsedOnce.current) return;
-      collapsedOnce.current = true;
-      setShape(sh);
-      if (!sh.collapseAgency || !sh.onlyAgencyName) return;
-      chooseAgency(sh.onlyAgencyName, false);
-      // Set the branch AFTER, because chooseAgency may have defaulted a Head
-      // office for an agency with no branches and the real one wins.
-      if (sh.collapseBranch && sh.onlyBranchName) {
-        setBranchValue(sh.onlyBranchName);
-        setSelectedBranch(sh.onlyBranchName);
-        setBranchNew(false);
-        setBranchAuto(false);
-      }
-    });
-    return () => { live = false; };
+
+    /* Bounded, because an unbounded retry against a server that is genuinely
+       refusing is a loop nobody asked for, and because the honest end state is a
+       form that says it could not work the office out rather than one that keeps
+       spinning. Four tries over about seven seconds covers a token refresh,
+       which is the failure this is most likely to be. */
+    const DELAYS = [400, 1200, 2500, 3000];
+    let attempt = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const ask = () => {
+      void loadOrgShape(scoped).then((sh) => {
+        if (!live || collapsedOnce.current) return;
+        if (!sh.resolved) {
+          // Leave the shape unresolved: it offers nothing, which is the correct
+          // thing to offer when we do not know who is reading.
+          if (attempt < DELAYS.length) { timer = setTimeout(ask, DELAYS[attempt++]); }
+          else setShape(sh);
+          return;
+        }
+        collapsedOnce.current = true;
+        setShape(sh);
+        if (!sh.collapseAgency || !sh.onlyAgencyName) return;
+        chooseAgency(sh.onlyAgencyName, false);
+        // Set the branch AFTER, because chooseAgency may have defaulted a Head
+        // office for an agency with no branches and the real one wins.
+        if (sh.collapseBranch && sh.onlyBranchName) {
+          setBranchValue(sh.onlyBranchName);
+          setSelectedBranch(sh.onlyBranchName);
+          setBranchNew(false);
+          setBranchAuto(false);
+        }
+      });
+    };
+    ask();
+
+    return () => { live = false; if (timer) clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partnerScope]);
 
@@ -293,7 +347,7 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
   // Only a supplier invents an agency mid-referral. For an agent a new agency
   // is an acquisition, and that belongs to an admin on the Agencies screen, not
   // to whoever happens to be sending a referral.
-  if (agentQuery && !agentExact && shape.mayAddAgency) {
+  if (agentQuery && !agentExact && mayInventAgency(shape)) {
     agentOptions.push({
       id: '__create-agent',
       icon: <Icon name="plus" />,
@@ -314,7 +368,7 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
     if (matches.length === 1) chooseAgency(matches[0].name, false, matches[0].partner);
     // Enter is a shortcut for the list, so it has to obey the same rule: no
     // silent agency creation for a partner that owns its stock.
-    else if (shape.mayAddAgency) { createAgencyOnTheFly(q, partnerScope); createdAgencies.current.add(q.toLowerCase()); chooseAgency(q, true); }
+    else if (mayInventAgency(shape)) { createAgencyOnTheFly(q, partnerScope); createdAgencies.current.add(q.toLowerCase()); chooseAgency(q, true); }
   }
 
   // ---- branch options ----
@@ -335,9 +389,15 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
      agencies has a structure we set up — it decides commission, deed delivery
      and scope — so a branch typed into a referral is not a shortcut, it is a
      change to the deal made by the person filing the referral.
-     branches_insert refuses it in SQL for the estate (20261004160000); this is
-     the half that stops it being offered and then rejected. */
-  const mayAddBranch = !shape.refersOwnStock;
+     branches_insert refuses it in SQL for the estate (20261004160000), and
+     create_referral_target refuses it too (20261005200000, which closed the
+     SECURITY DEFINER route the policy could not reach); this is the half that
+     stops it being offered and then rejected.
+
+     Through the predicate, not off the field: an UNRESOLVED shape also satisfies
+     `!refersOwnStock`, so reading the field inline offered branch creation to
+     everybody while the shape was in flight. */
+  const mayAddBranch = mayInventBranch(shape);
   if (mayAddBranch && branchQuery && !branchExact && selectedAgency) {
     branchOptions.push({
       id: '__create-branch',
@@ -386,6 +446,24 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
 
   const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 };
 
+  /* WE DO NOT KNOW WHO IS READING YET, SO WE OFFER NOTHING.
+     Not a search box. The form's whole question depends on which rail the viewer
+     is on, and until the server says, drawing the supplier's question is a guess
+     that was wrong for every agency user who ever loaded this page while the
+     call was in flight or after it had failed. */
+  if (!shape.resolved) {
+    return (
+      <div className="form-grid">
+        <div className="field span-2">
+          <label>Your office</label>
+          <div className="hint" style={{ fontSize: 14 }}>
+            Working out which office this referral is against.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   /* ONE AGENCY, ONE OFFICE: NOTHING TO ASK, SO NOTHING TO DRAW.
      This used to render "This referral is against X" with a reveal link under
      it. It was true and it was still furniture: a section, a heading and a
@@ -394,6 +472,87 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
      goes quiet. It stays MOUNTED, because it is what resolves that one office
      and reports it through onChange. */
   if (shape.collapseAgency && shape.collapseBranch && shape.onlyAgencyName) return null;
+
+  /* ===================================================================
+     AN AGENCY USER PICKS FROM WHAT THEY HAVE, AND THAT IS ALL.
+
+     No search box and no create-on-the-fly, at either level, ever. A search box
+     is the wrong control for a closed set of one to a handful of your own
+     offices: it implies there is something to find, it accepts free text that
+     resolves to nothing, and on the supplier form the same control carries a
+     "create new" row, which is an offer SQL refuses (agencies_insert,
+     branches_insert, and create_referral_target since 20261005200000). A plain
+     select cannot express any of those.
+
+     This is a separate branch rather than more conditions inside the one below
+     because the two audiences disagree about the control, not just about its
+     contents, and threading "is this a select or a type-ahead" through that
+     markup is how the supplier form would eventually acquire an agency user's
+     bug or the other way round. The supplier and admin form below is untouched.
+     =================================================================== */
+  if (ownStockViewer(shape)) {
+    /* NOTHING SET UP YET is its own answer and comes first, or an agency with no
+       offices would get a select with no options and no explanation, which is
+       the exact failure orgNotSetUp was written for. */
+    if (orgNotSetUp(shape)) {
+      return (
+        <div className="form-grid">
+          <div className="field span-2">
+            <label>Your offices</label>
+            <div className="hint" style={{ fontSize: 14, color: 'var(--ink)' }}>
+              No offices are set up for your account yet. Ask your manager or opndoor
+              to add them, then come back to this form.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const ownAgencies = searchAgencies('', partnerScope);
+    const ownBranches = selectedAgency ? (findAgency(selectedAgency)?.branches ?? []) : [];
+    // The shape counts what the org holds, server side; the store is the
+    // client's hydrated copy. When they disagree the honest thing is to say so,
+    // because the alternative is an empty select the reader cannot act on and
+    // cannot see the reason for.
+    const branchesMissing = !!selectedAgency && ownBranches.length === 0;
+
+    return (
+      <div className="form-grid">
+        {shape.collapseAgency ? (
+          <div className="field span-2">
+            <label>Agency</label>
+            <div className="hint" style={{ fontSize: 14, color: 'var(--ink)' }}>
+              This referral is against <b>{shape.onlyAgencyName}</b>.
+            </div>
+          </div>
+        ) : (
+          <div className="field span-2">
+            <label htmlFor="ag-name">Agency <span className="req" aria-hidden="true">*</span></label>
+            <select id="ag-name" value={selectedAgency ?? ''}
+              onChange={(e) => { if (e.target.value) chooseAgency(e.target.value, false); else resetAgent(''); }}>
+              <option value="">Select one of your agencies</option>
+              {ownAgencies.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
+            </select>
+            <span className="hint">Your own agencies. A new agency is set up by opndoor, not here.</span>
+          </div>
+        )}
+
+        <div className="field span-2">
+          <label htmlFor="br-name">Office <span className="req" aria-hidden="true">*</span></label>
+          <select id="br-name" value={selectedBranch ?? ''} disabled={!selectedAgency || branchesMissing}
+            onChange={(e) => { if (e.target.value) chooseBranch(e.target.value, false); }}>
+            <option value="">{selectedAgency ? 'Select an office' : 'Select an agency first'}</option>
+            {ownBranches.map((b) => <option key={b.name} value={b.name}>{b.name}</option>)}
+          </select>
+          <span className="hint">
+            {branchesMissing
+              ? 'We could not list your offices. Reload the page, and tell us if it happens again.'
+              : 'Your own offices. A new office is set up by opndoor, not here.'}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="form-grid">
