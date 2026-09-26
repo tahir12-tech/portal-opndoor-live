@@ -34,8 +34,57 @@ export type Role = 'superadmin' | 'management' | 'referrer' | 'developer' | 'opn
  * rates to someone who should not have them.
  */
 export function maySeeCommission(role: Role): boolean {
-  return role === 'superadmin' || role === 'management';
+  if (role === 'superadmin') return true;
+  if (role !== 'management') return false;
+  return SEES_COMMISSION;
 }
+
+/* THE DIRECTOR / MANAGER SPLIT, and why one boolean is enough.
+   An agency has three levels. Negotiator is the referrer role it always was.
+   Director and Manager are BOTH management scope: same screens, same reach,
+   same team, and the only difference is whether they are shown what the
+   agency earns. So it is one bit on the user, not a third role, and every
+   policy and position rule that already reasons about 'management' keeps
+   working without being revisited.
+
+   WHY DEFAULTING TRUE IS SAFE, which looks like a fail-open and is not. This
+   flag decides what the client DRAWS. public.may_see_commission() decides what
+   the database ANSWERS, and it is the boundary: for a Manager,
+   application_commission_rates, my_partner_rates, commission_split_batch and
+   commission_preview all return nothing. A client that wrongly believes it may
+   show commission therefore renders a column of blanks and zeros, not somebody
+   else's money. Defaulting the other way would blank the figures for every
+   Director in mock and demo mode, where nothing hydrates, which is a visible
+   fault to fix a risk that does not exist. */
+let SEES_COMMISSION = true;
+
+/** Set from the signed-in user's own row at hydrate. Mock mode never calls it
+    and keeps the default, which is what the demo has always shown. */
+export function hydrateCommissionVisibility(sees: boolean): void {
+  SEES_COMMISSION = sees;
+}
+
+/** The three levels an agency person can hold, as the product names them.
+    Opndoor's own roles are not agency levels and answer null. */
+export type AgencyLevel = 'Director' | 'Manager' | 'Negotiator';
+
+export function agencyLevelOf(role: Role, seesCommission: boolean): AgencyLevel | null {
+  if (role === 'referrer') return 'Negotiator';
+  if (role === 'management') return seesCommission ? 'Director' : 'Manager';
+  return null;
+}
+
+/** The card copy, given verbatim by the client and kept in one place so the
+    invite dialog, the admin people table and Team cannot describe the same
+    level differently. */
+export const AGENCY_LEVELS: { level: AgencyLevel; role: Role; seesCommission: boolean; desc: string }[] = [
+  { level: 'Director', role: 'management', seesCommission: true,
+    desc: 'Sees everything: every referral, every branch, the team, and what the agency earns.' },
+  { level: 'Manager', role: 'management', seesCommission: false,
+    desc: 'Sees every referral, every branch and the team. Commission figures are not shown.' },
+  { level: 'Negotiator', role: 'referrer', seesCommission: false,
+    desc: 'Sees their own referrals only.' },
+];
 
 /**
  * The role to assume when a stored or supplied role cannot be recognised.

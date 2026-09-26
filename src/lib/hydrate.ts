@@ -215,6 +215,9 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     status: u.status,
     partner: (u.role === 'superadmin' || u.role === 'opndoor_manager') ? 'opndoor' : (u.partner_slug ?? ''),
     homeBranchId: u.home_branch_id ?? null,
+    // Director if true, Manager if false, on a management user. What lets a
+    // people list name the level without a query per row.
+    seesCommission: u.sees_commission === true,
   }));
 
   /* ---- partners (with derived weight/users/apps counts) ---- */

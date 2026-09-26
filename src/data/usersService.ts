@@ -37,6 +37,10 @@ const SEED: [string, Role, string, UserStatus, string][] = [
 
 export interface ManagedUser extends User {
   id: string;
+  /** Director if true, Manager if false, on a management user. Meaningless on
+      a Negotiator, whose role already withholds commission, and on Opndoor's
+      own roles. See agencyLevelOf in types.ts. */
+  seesCommission?: boolean;
 }
 
 export function emailOf(name: string): string {
@@ -225,6 +229,10 @@ export interface AddUserInput {
   lastName: string;
   email: string;
   role: Role;
+  /** The commission half of the LEVEL. role says what they reach, this says
+      whether they are shown what it earned; together they are Director,
+      Manager or Negotiator. Always sent, so the two cannot drift apart. */
+  seesCommission?: boolean;
   partner: string;
   /** For a negotiator invite: the branch they will work at, recorded as their home
       branch so the inviting manager sees them from day one. Ignored for other roles. */
@@ -255,7 +263,7 @@ export async function inviteUser(input: AddUserInput): Promise<ManagedUser> {
   if (SUPABASE_ENABLED) {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const { data, error } = await sb().functions.invoke('invite-user', {
-      body: { firstName: input.firstName.trim(), lastName: input.lastName.trim(), email: input.email.trim(), role: input.role, partner: input.partner, branch: input.role === 'referrer' ? (input.branch ?? '') : '', scopeKind: input.scopeKind ?? '', scopeTarget: input.scopeTarget ?? '', origin },
+      body: { firstName: input.firstName.trim(), lastName: input.lastName.trim(), email: input.email.trim(), role: input.role, seesCommission: input.seesCommission === true, partner: input.partner, branch: input.role === 'referrer' ? (input.branch ?? '') : '', scopeKind: input.scopeKind ?? '', scopeTarget: input.scopeTarget ?? '', origin },
     });
     if (error) throw new Error(await functionErrorMessage(error, 'Could not send the invitation.'));
     if (!data?.ok) throw new Error(data?.error || 'Could not send the invitation.');

@@ -14,7 +14,7 @@ import {
   ALL_PARTNERS, authService, getSelectedPartner, homePartner, setHomePartner,
   setSelectedPartner as persistPartner, getSelectedPeriod, setSelectedPeriod as persistPeriod,
   logViewAs, partnerName,
-  LEAST_PRIVILEGED_ROLE, type PartnerScope, type Period, type Role,
+  LEAST_PRIVILEGED_ROLE, type PartnerScope, type Period, type Role, hydrateCommissionVisibility,
 } from '@/data';
 import { KEYS, loadString, saveString } from '@/data/storage';
 import { ROLES, type RoleIdentity } from '@/constants/roles';
@@ -165,7 +165,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const userId = session.user.id;
       const { data, error } = await supabase
         .from('users')
-        .select('role, full_name, email, status, partner:partners(slug)')
+        .select('role, full_name, email, status, sees_commission, partner:partners(slug)')
         .eq('id', userId)
         .single();
       if (error || !data) {
@@ -195,6 +195,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         email: data.email as string,
         partner: emb(data.partner)?.slug ?? null,
       };
+      /* THE DIRECTOR / MANAGER BIT, set before anything renders.
+         Both are management scope and the only difference is whether they are
+         shown what the agency earns, so this has to be in place before the
+         first Reporting paint or a Manager sees the figures flash. The client
+         gate decides what to DRAW; may_see_commission() in SQL decides what is
+         ANSWERED, and a Manager's commission RPCs return nothing either way. */
+      hydrateCommissionVisibility(data.sees_commission === true);
       if (prof.partner) setHomePartner(prof.partner);
       setProfile(prof);
       setRole(prof.role);
