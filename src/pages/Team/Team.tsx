@@ -36,7 +36,8 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   cancelInvite, getAgencies, getGroups, inviteUser, resendInvite, setUserStatus,
   updateUserRole, getUsers, userEmail,
-  type Agency, type ManagedUser, type Role,
+  agencyLevelOf, AGENCY_LEVELS, type AgencyLevel,
+  type Agency, type ManagedUser,
 } from '@/data';
 import * as positionsService from '@/data/positionsService';
 import { viewerShape, type ViewerShape } from '@/data/viewerShape';
@@ -56,16 +57,21 @@ import './Team.css';
 /* THE TWO ROLES AN AGENCY HAS. Described in the words of the business the
    reader is in, not the portal's internals: no "partner", no "estate", no
    "full visibility of all tracking and analytics". Matches the role pills. */
-const ROLE_CHOICES: { id: Role; name: string; desc: string }[] = [
-  { id: 'management', name: 'Management', desc: 'Sees the whole agency: every referral, every branch, the money, and this page. Can invite colleagues and set where they sit.' },
-  { id: 'referrer', name: 'Referrer', desc: 'Sees their own referrals and nothing else. The right answer for a negotiator.' },
-];
-
-const ROLE_PILL: Record<string, [string, string]> = {
-  management: ['Management', 'role-tag--mgmt'],
-  referrer: ['Referrer', 'role-tag--ref'],
-  developer: ['Developer', 'role-tag--dev'],
+/* THREE LEVELS, from the one list in types.ts, so the invite dialog, the admin
+   people table and this page cannot describe the same level differently. The
+   copy is the client's own wording. */
+const ROLE_PILL: Record<string, string> = {
+  Director: 'role-tag--mgmt',
+  Manager: 'role-tag--mgmt',
+  Negotiator: 'role-tag--ref',
+  Developer: 'role-tag--dev',
 };
+
+/** What to call this person. Opndoor's own roles keep their own names; an
+    agency person is one of the three levels. */
+function levelLabel(u: ManagedUser): string {
+  return agencyLevelOf(u.role, u.seesCommission === true) ?? 'Developer';
+}
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
   active: ['Active', 'deed'],
@@ -247,14 +253,12 @@ export function Team() {
   /* Who receives the monthly commission statement. Held here rather than on
      ManagedUser: it is read off users.receives_commission_statements by two
      screens, and hydrate's user list is shared by every screen in the portal. */
-  const [ticks, setTicks] = useState<Record<string, boolean>>({});
-  const [tickBusy, setTickBusy] = useState<string | null>(null);
 
   const [addOpen, setAddOpen] = useState(false);
   const [addFirst, setAddFirst] = useState('');
   const [addLast, setAddLast] = useState('');
   const [addEmail, setAddEmail] = useState('');
-  const [addRole, setAddRole] = useState<Role>('referrer');
+  const [addLevel, setAddLevel] = useState<AgencyLevel>('Negotiator');
   const [addBranch, setAddBranch] = useState('');
 
   /* THE STRUCTURE. Straight from the hydrated org tables, which RLS has already
@@ -279,15 +283,6 @@ export function Team() {
       }));
       if (alive) setPositionsByUser(out);
     })();
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [people.map((p) => p.id).join(','), version]);
-
-  useEffect(() => {
-    let alive = true;
-    positionsService.getCommissionStatementTicks(people.map((u) => u.id))
-      .then((t) => { if (alive) setTicks(t); })
-      .catch(() => { if (alive) setTicks({}); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [people.map((p) => p.id).join(','), version]);
@@ -345,77 +340,12 @@ export function Team() {
 
   /* ---- WHO RECEIVES THE MONTHLY COMMISSION STATEMENT --------------------
 
-     The tree, flattened to the two edges the containment question needs. Built
-     from the hydrated org tables, which RLS has already narrowed to this
-     viewer's reach, which is also why mayChangeCommissionTick errs towards
-     refusing rather than guessing at what it cannot see. */
-  const tree = useMemo<positionsService.OrgEdges>(() => {
-    const agencyOfBranch = new Map<string, string>();
-    const groupOfAgency = new Map<string, string>();
-    for (const a of agencies) {
-      if (!a.id) continue;
-      if (a.groupId) groupOfAgency.set(a.id, a.groupId);
-      for (const b of a.branches ?? []) if (b.id) agencyOfBranch.set(b.id, a.id);
-    }
-    return { agencyOfBranch, groupOfAgency };
-  }, [agencies]);
-
-  /* THE PARTY'S TOP POSITION. Group directors where there is a group, else
-     agency managers, else branch managers: the level a statement is addressed
-     at, and the level the backfill defaulted the tick on for. */
-  const topPosition = useMemo(
-    () => positionsService.topLevelHeld(Object.values(positionsByUser).flat()),
-    [positionsByUser],
-  );
-
-  /* Shown only to somebody who may actually change this person, so nobody is
-     offered a switch SQL is going to refuse. The screen is still not the
-     boundary: set_receives_commission_statements asks the same question again
-     and is the one that counts. */
-  const mayTick = (u: ManagedUser) => positionsService.mayChangeCommissionTick({
-    role,
-    own: ownPositions,
-    target: positionsByUser[u.id] ?? [],
-    targetHomeBranchId: u.homeBranchId,
-    tree,
-  });
-
-  const showsTick = (u: ManagedUser) => {
-    const atTop = topPosition != null && (positionsByUser[u.id] ?? []).some((p) => p.kind === topPosition);
-    /* ALREADY ON IS ALWAYS SHOWN, whoever holds it, so a tick can be switched
-       off wherever it ended up. Otherwise the control is offered at the top
-       position only, and only to somebody active: the recipients function
-       writes to active people alone, because a pending invite has never signed
-       in and the portal link in the statement goes nowhere they can open. A
-       switch with no effect is worse than no switch. */
-    if (!ticks[u.id] && (!atTop || u.status !== 'active')) return false;
-    return mayTick(u);
-  };
-
-  /* The explanation earns its line once, on the first row that carries the
-     control, rather than under every name in the list. */
-  const firstTickRow = layout.flat.find((u) => showsTick(u))?.id ?? null;
-
-  async function toggleTick(u: ManagedUser, next: boolean) {
-    if (tickBusy) return;
-    setTickBusy(u.id);
-    try {
-      const now = await positionsService.setReceivesCommissionStatements(u.id, next);
-      // The row, not a full reload: one boolean moved and nothing else on this
-      // page depends on it. The RPC's own answer, not `next`, so the screen
-      // shows what the database settled on.
-      setTicks((t) => ({ ...t, [u.id]: now }));
-      toast(now
-        ? `${u.name} now receives commission statements.`
-        : `${u.name} no longer receives commission statements.`);
-    } catch (e) {
-      // SQL's refusal, word for word. The rule lives there; a paraphrase here
-      // would be a second copy of it, free to be wrong.
-      toast(e instanceof Error ? e.message : 'Could not change that.', 'error');
-    } finally {
-      setTickBusy(null);
-    }
-  }
+  /* The commission-statement tick used to live on this page, offered at the
+     party's top position. It is now ADMIN ONLY, on the person's row in
+     Agencies: who is paid what is Opndoor's record, not a setting an agency
+     adjusts about itself. The org-tree helpers that supported it went with it;
+     mayChangeCommissionTick and topLevelHeld remain in positionsService for the
+     admin screen and for the SQL guard that is the actual rule. */
 
   async function run(fn: () => Promise<void>, success: string) {
     if (busy) return;
@@ -439,23 +369,29 @@ export function Team() {
     if (!first || !last || !email) { toast('Give a first name, a last name and an email address.', 'error'); return; }
     // A negotiator with no branch is invisible to their own manager until their
     // first referral, so the branch is asked for at invite rather than later.
-    if (addRole === 'referrer' && branchTargets.length > 1 && !addBranch) {
+    if (addLevel === 'Negotiator' && branchTargets.length > 1 && !addBranch) {
       toast('Choose the branch this person works at.', 'error'); return;
     }
-    const branch = addRole === 'referrer' ? (addBranch || branchTargets[0]?.id || '') : '';
+    const branch = addLevel === 'Negotiator' ? (addBranch || branchTargets[0]?.id || '') : '';
     await run(async () => {
+      const chosen = AGENCY_LEVELS.find((l) => l.level === addLevel)!;
       await inviteUser({
-        firstName: first, lastName: last, email, role: addRole,
+        firstName: first, lastName: last, email,
+        // The LEVEL is what the inviter chose; role and the commission bit are
+        // what it means. Kept together in AGENCY_LEVELS so no screen can invent
+        // a fourth combination.
+        role: chosen.role, seesCommission: chosen.seesCommission,
         partner: partnerScope, branch: '',
         ...(branch ? { scopeKind: 'branch' as const, scopeTarget: branch } : {}),
       });
       setAddOpen(false);
-      setAddFirst(''); setAddLast(''); setAddEmail(''); setAddBranch(''); setAddRole('referrer');
+      setAddFirst(''); setAddLast(''); setAddEmail(''); setAddBranch(''); setAddLevel('Negotiator');
     }, `Invitation sent to ${email}.`);
   }
 
   function PersonRow({ u }: { u: ManagedUser }) {
-    const [pillLabel, pillCls] = ROLE_PILL[u.role] ?? [u.role, 'role-tag--ref'];
+    const pillLabel = levelLabel(u);
+    const pillCls = ROLE_PILL[pillLabel] ?? 'role-tag--ref';
     const [statusLabel, statusVariant] = STATUS_PILL[u.status] ?? ['Active', 'deed' as PillVariant];
     const held = positionsByUser[u.id] ?? [];
     const isSelf = u.id === currentUserId;
@@ -501,29 +437,16 @@ export function Team() {
             <Button variant="quiet" size="sm" disabled={busy}
               onClick={() => void run(
                 () => updateUserRole(u.id, u.role === 'management' ? 'referrer' : 'management'),
-                `${u.name} is now ${u.role === 'management' ? 'a Referrer' : 'Management'}.`,
+                `${u.name} is now ${u.role === 'management' ? 'a Negotiator' : 'a Manager'}.`,
               )}>
-              {u.role === 'management' ? 'Make Referrer' : 'Make Management'}
+              {/* Moves between Negotiator and Manager. Promoting a Manager to
+                  DIRECTOR means granting the commission bit, which is Opndoor's
+                  to grant and is not offered here, for the same reason the
+                  statement tick is not. */}
+              {u.role === 'management' ? 'Make Negotiator' : 'Make Manager'}
             </Button>
           )}
         </div>
-        {showsTick(u) && (
-          /* Its own line under the name rather than another button in the row:
-             the label is a sentence, and the one line explaining it needs the
-             width. */
-          <label className="tm-stmt">
-            <input
-              type="checkbox"
-              checked={!!ticks[u.id]}
-              disabled={tickBusy !== null}
-              onChange={(e) => void toggleTick(u, e.target.checked)}
-            />
-            <span className="tm-stmt__lbl">{positionsService.COMMISSION_STATEMENT_LABEL}</span>
-            {u.id === firstTickRow && (
-              <span className="tm-stmt__why">{positionsService.COMMISSION_STATEMENT_NOTE}</span>
-            )}
-          </label>
-        )}
       </div>
     );
   }
@@ -641,14 +564,14 @@ export function Team() {
           <Field label="Email" span2><input type="email" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} /></Field>
         </div>
         <div className="roleopts" style={{ marginTop: 14 }}>
-          {ROLE_CHOICES.map((o) => (
-            <label key={o.id} className={`roleopt${addRole === o.id ? ' is-sel' : ''}`} onClick={() => setAddRole(o.id)}>
+          {AGENCY_LEVELS.map((o) => (
+            <label key={o.level} className={`roleopt${addLevel === o.level ? ' is-sel' : ''}`} onClick={() => setAddLevel(o.level)}>
               <span className="roleopt__radio" />
-              <div><div className="roleopt__name">{o.name}</div><div className="roleopt__desc">{o.desc}</div></div>
+              <div><div className="roleopt__name">{o.level}</div><div className="roleopt__desc">{o.desc}</div></div>
             </label>
           ))}
         </div>
-        {addRole === 'referrer' && branchTargets.length > 1 && (
+        {addLevel === 'Negotiator' && branchTargets.length > 1 && (
           <div style={{ marginTop: 14 }}>
             <Field label="Which branch?" span2 hint="So they appear in the right place here from day one, before their first referral.">
               <select value={addBranch} onChange={(e) => setAddBranch(e.target.value)}>

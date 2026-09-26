@@ -14,7 +14,7 @@
 -- UPWARDS ONLY, so a branch manager never receives the agency's statement.
 
 begin;
-select plan(22);
+select plan(24);
 
 -- ---------------------------------------------------------------------------
 -- One group, one agency, two branches. The group takes 2% and the agency 10%,
@@ -246,6 +246,32 @@ select ok(
              and entity_id = '96000000-0000-0000-0000-000000000003'
              and action = 'commission_statements_on'),
   'and the change is audited against the party whose post moved');
+
+-- ---------------------------------------------------------------------------
+-- AND NOBODY ELSE CAN, WHICH IS THE RULING.
+--
+-- The tick was briefly settable by a positioned manager for people wholly
+-- inside their own position. That arm is withdrawn (20261005160000): who is
+-- posted a statement is Opndoor's record, not a setting an agency adjusts
+-- about itself. The control has come off Team, and this is what makes that a
+-- rule rather than a convention, because the RPC is granted to authenticated
+-- and a screen is not a boundary.
+--
+-- The manager used here is the one the suite already proved COULD do it under
+-- the old rule: the agency manager over the very person being changed. If
+-- anybody may, she may, so refusing her is the whole ruling in one assertion.
+-- ---------------------------------------------------------------------------
+select set_config('request.jwt.claims',
+  '{"sub":"96000000-0000-0000-0000-0000000000e2","role":"authenticated","aal":"aal2"}', true);
+select throws_ok(
+  $$select public.set_receives_commission_statements('96000000-0000-0000-0000-0000000000e3', true)$$,
+  '42501',
+  'Who receives a commission statement is set by Opndoor, not by the agency.',
+  'an agency manager cannot set it, not even inside her own agency');
+select throws_ok(
+  $$select public.set_receives_commission_statements('96000000-0000-0000-0000-0000000000e2', false)$$,
+  '42501', null,
+  'nor turn her own off, which is the route somebody would actually try');
 
 select * from finish();
 rollback;

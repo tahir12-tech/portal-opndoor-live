@@ -36,20 +36,44 @@ const DURATION = 3200;
 /** Errors sit longer: they are usually longer to read and worth reading. */
 const ERROR_DURATION = 6000;
 
+/**
+ * ONE TOAST AT A TIME, newest wins.
+ *
+ * This used to append, so four clicks left four toasts stacked up the screen,
+ * each on its own timer, the oldest lingering longest. A toast is an
+ * acknowledgement of the thing you just did; the second one means the first is
+ * no longer what you want to know. Somebody toggling a row four times cares
+ * about the fourth answer.
+ *
+ * The replaced toast is dropped immediately rather than faded, because the
+ * incoming one occupies the same slot and cross-fading two strings in one box
+ * reads as a flicker. Its pending timers are cleared with it: left running,
+ * they would dismiss the NEW toast early, which is the bug that usually
+ * replaces this one.
+ */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const seq = useRef(0);
+  const timers = useRef<number[]>([]);
 
   const toast = useCallback((message: string, tone: ToastTone = 'ok') => {
     const id = ++seq.current;
     const life = tone === 'error' ? ERROR_DURATION : DURATION;
-    setToasts((prev) => [...prev, { id, message, tone, shown: false }]);
+    // Whatever was showing is finished with, and so are its timers.
+    timers.current.forEach(window.clearTimeout);
+    timers.current = [];
+    setToasts([{ id, message, tone, shown: false }]);
     // animate in on the next frame
     requestAnimationFrame(() => setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, shown: true } : t))));
     // dismiss
-    window.setTimeout(() => setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, shown: false } : t))), life);
-    window.setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), life + 260);
+    timers.current.push(
+      window.setTimeout(() => setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, shown: false } : t))), life),
+      window.setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), life + 260),
+    );
   }, []);
+
+  // A provider unmounting mid-toast must not leave a timer holding a setState.
+  useEffect(() => () => { timers.current.forEach(window.clearTimeout); }, []);
 
   return (
     <ToastContext.Provider value={toast}>
