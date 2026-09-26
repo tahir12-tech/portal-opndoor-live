@@ -329,6 +329,28 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   }));
 
   /* ---- applications: summaries + detail records ---- */
+  /* DECLARED BEFORE THE MAPPINGS THAT USE THEM, which is not a style
+     preference. These were below listOut, and listOut's callback runs
+     IMMEDIATELY: the moment anything in it called toDate, the const was still
+     in its temporal dead zone and the whole post-login hydrate threw "Cannot
+     access 'toDate' before initialization", which the user meets as a crash
+     straight back to the sign-in screen.
+
+     It compiled, because TypeScript cannot know when a callback passed to .map
+     will run, and it passed every test, because hydrateFromSupabase only
+     executes in Supabase mode and the suite runs in mock mode. postLoginShell
+     .render.test.tsx is the test that now covers it. */
+  const toDate = (ts: any): Date | null => (ts ? new Date(ts) : null);
+  // Postgres DATE columns (tenancy_start, expiry_date) arrive as bare
+  // 'YYYY-MM-DD'. new Date() would parse them as UTC midnight, which then
+  // misbuckets/off-by-ones under local-time comparisons and formatting (e.g. the
+  // bordereau's monthly window). Parse them at LOCAL midnight instead.
+  const toLocalDate = (s: any): Date | null => {
+    if (!s) return null;
+    const p = String(s).slice(0, 10).split('-');
+    return new Date(+p[0], +p[1] - 1, +p[2]);
+  };
+
   const listOut: ApplicationSummary[] = apps.map((a) => ({
     ref: a.guarantee_ref,
     tenant: fullName(a),
@@ -369,16 +391,6 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     feePaid: (Array.isArray(a.elig) ? a.elig.some((e: { paid_at?: string | null }) => e?.paid_at) : !!(a.elig as { paid_at?: string | null } | null)?.paid_at),
   }));
 
-  const toDate = (ts: any): Date | null => (ts ? new Date(ts) : null);
-  // Postgres DATE columns (tenancy_start, expiry_date) arrive as bare
-  // 'YYYY-MM-DD'. new Date() would parse them as UTC midnight, which then
-  // misbuckets/off-by-ones under local-time comparisons and formatting (e.g. the
-  // bordereau's monthly window). Parse them at LOCAL midnight instead.
-  const toLocalDate = (s: any): Date | null => {
-    if (!s) return null;
-    const p = String(s).slice(0, 10).split('-');
-    return new Date(+p[0], +p[1] - 1, +p[2]);
-  };
   // agency id -> group id, so an application can name the group it sits under
   // without a second lookup downstream.
   const groupOfAgency = new Map<string, string | null>(
