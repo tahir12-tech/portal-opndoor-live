@@ -157,8 +157,31 @@ export function PayLanding() {
   return (
     <PayFrame>
       <h1 className="pay__title">Your guarantor fee, {d.addr1}</h1>
-      <p className="pay__lead">You've been referred via {d.partnerName} for opndoor's professional guarantor service, for your tenancy at {d.propFull}.</p>
-      <p className="pay__lead">opndoor stands as your professional guarantor: we provide a Deed of Guarantee in favour of the property, covering 12 months from your tenancy start, so your tenancy can proceed.</p>
+      {/* WHO ARRANGED THIS, in the words that are true of this referral.
+
+          Two things were wrong on one line. It said "referred via {partnerName}",
+          and partnerName is partners.name: the ROUTE partner, the group above the
+          agency. A Regent tenant read the name of a holding company they have
+          never dealt with, on the page where they hand over a card, having just
+          been emailed a sentence that correctly named Regent's Lettings. And it
+          asserted that opndoor stands as their guarantor as though opndoor had
+          taken a view of them, which on a pre-referenced referral it never did:
+          the agency decided and arranged it.
+
+          So the agency-arranged case names the agency and says what opndoor is
+          actually doing, and every other rail keeps the approved wording, which
+          is correct there because opndoor did make the decision. */}
+      {d.agencyArranged && d.agencyName ? (
+        <>
+          <p className="pay__lead">{d.agencyName} has arranged an opndoor guarantee for your tenancy at {d.propFull}.</p>
+          <p className="pay__lead">opndoor provides a Deed of Guarantee in favour of the property, covering 12 months from your tenancy start, so your tenancy can proceed.</p>
+        </>
+      ) : (
+        <>
+          <p className="pay__lead">You've been referred via {d.partnerName} for opndoor's professional guarantor service, for your tenancy at {d.propFull}.</p>
+          <p className="pay__lead">opndoor stands as your professional guarantor: we provide a Deed of Guarantee in favour of the property, covering 12 months from your tenancy start, so your tenancy can proceed.</p>
+        </>
+      )}
 
       {expiredNote && (
         <p className="pay__note">This link had lapsed, so we've refreshed it for you. You can still pay below, your referral will pick up right where it left off.</p>
@@ -169,6 +192,14 @@ export function PayLanding() {
         <Row k="Property" v={d.propFull || '-'} />
         <Row k="Tenancy start" v={d.tenancyStart || '-'} />
         <Row k="Monthly rent" v={`£${(d.monthlyRent ?? 0).toLocaleString('en-GB')}`} />
+        {/* A JOINT TENANT PAYS A SHARE, so the rent their fee is measured against
+            is not the rent on the line above. Printing only the tenancy rent beside
+            a share of the fee made the page contradict its own arithmetic: £346.15
+            under £1,000 reads as a discount or a mistake. Shown only when the two
+            actually differ, so a sole tenant gains no row. */}
+        {d.rentShare != null && d.monthlyRent != null && d.rentShare !== d.monthlyRent && (
+          <Row k="Your share of the rent" v={`£${d.rentShare.toLocaleString('en-GB')}`} />
+        )}
       </div>
 
       <div className="pay__fee">
@@ -177,8 +208,18 @@ export function PayLanding() {
         {/* The fee is not always one month's rent: an agency on a negotiated
             basis pays weeks of it, and one tenant of a joint tenancy pays a
             share. The amount above is authoritative either way, so the line
-            under it must not contradict it. */}
-        <div className="pay__fee-s">One-off payment. Reference {d.ref}.</div>
+            under it must not contradict it.
+
+            It used to say nothing at all, which was the reported defect on this
+            page: the right figure, and no statement of what it was measured
+            against, two lines under a rent it does not equal. payment-page has
+            returned feeBasis all along and the contract this page renders from
+            did not declare it, so the value arrived and was thrown away. When the
+            basis genuinely cannot be worked out the sentence stays as it was
+            rather than guessing the commonest answer. */}
+        <div className="pay__fee-s">
+          {d.feeBasis ? `${d.feeBasis}. ` : ''}One-off payment. Reference {d.ref}.
+        </div>
       </div>
 
       <div className="pay__after">

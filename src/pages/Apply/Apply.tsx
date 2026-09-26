@@ -37,6 +37,7 @@ import {
 import * as api from '@/tenant/tenantApi';
 import { currentTenant } from '@/tenant/tenantAuth';
 import { TenantShell, type TenantNavItem } from './TenantShell';
+import { tenantFeeBasis } from '@/data/tenantFeeBasis';
 import { ApplicationStatus, statusView, type StatusView } from './ApplicationStatus';
 import { DocUpload, FinancialsPanel, ID_CHECK_ENABLED, IdCheckPanel, ProofUpload, StepFooter } from './Sections';
 import { RevealMissingContext } from './reveal';
@@ -538,6 +539,17 @@ export function Apply() {
   if (err && !bundle) return <div className="ap"><div className="ap-alert">{err}</div></div>;
   if (!bundle) return <div className="ap"><p className="soft">Loading your application…</p></div>;
 
+  /* WHAT THE FEE IS MEASURED AGAINST, derived from the two numbers this tenant
+     is actually charged on: their own fee and their own share of the rent. Not
+     from fee_basis_weeks alone, and not from the whole tenancy rent on a joint
+     tenancy, which would report every sharer as being on a discount.
+     Null when it cannot be worked out, and the screen then names the fee step
+     without pricing it rather than asserting the commonest answer. */
+  const feeBasis = tenantFeeBasis(
+    bundle.application.fee_amount,
+    bundle.application.share_amount ?? bundle.application.monthly_rent,
+  );
+
   // The answer to "Who manages the property?", so a terminal message can name
   // the right party instead of assuming a letting agent.
   const view: StatusView = (guaranteeReturn && bundle.application.status === 'sent')
@@ -549,7 +561,8 @@ export function Apply() {
         detail: 'Thank you. We are confirming your payment now. This page updates on its own, so there is nothing you need to do.',
       }
     : statusView(bundle.application.status, feePaid, doneCount, STEPS.length,
-        (bundle.agent as { kind?: string } | null)?.kind ?? null, bundle.application.deed_state);
+        (bundle.agent as { kind?: string } | null)?.kind ?? null, bundle.application.deed_state,
+        feeBasis);
 
   /* ONCE IT IS SENT, THE FORM FOLDS AWAY.
      Everything before submission is about filling something in; everything
@@ -758,6 +771,7 @@ export function Apply() {
           onSignDeed={view.cta === 'sign_deed' ? () => void onSignDeed() : undefined}
           onViewDeed={view.cta === 'view_deed' ? () => void onViewDeed() : undefined}
           busy={busy}
+          feeBasis={feeBasis}
         />
       )}
 

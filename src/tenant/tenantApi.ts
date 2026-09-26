@@ -34,6 +34,13 @@ export interface TenantApplication {
   /** The applicant's agreed share of the rent, set by the agent on an invite. */
   share_percent?: number | null;
   share_amount?: number | null;
+  /* WHAT THIS APPLICANT WILL ACTUALLY BE CHARGED, and what it is measured
+     against. tenant-portal selects both, and this type stopped at monthly_rent,
+     so the price never crossed into the component that names it. That is why the
+     status screen could only ever say "One month's rent": not a copy decision, a
+     type that did not carry the number. */
+  fee_amount?: number | null;
+  fee_basis_weeks?: number | null;
   tenant_first_name?: string | null;
   tenant_last_name?: string | null;
   tenant_email?: string | null;

@@ -104,8 +104,16 @@ Deno.serve(async (req) => {
 
        Measured against the rent THIS fee was a proportion of: a joint tenant's
        own share, not the tenancy's whole rent. Dividing a share of the fee by the
-       whole rent would report every joint tenant as being on a discount. */
-    const feeBasisWeeks = feeBasisWeeksOf(feeAmount, app.share_amount ?? app.monthly_rent);
+       whole rent would report every joint tenant as being on a discount.
+
+       FROM app.fee_amount ALONE, with no fall back to monthly_rent, and this is
+       the subtle half. feeAmount above falls back to the rent because the page
+       has to show a figure; the BASIS must not, because rent divided by rent is
+       exactly 52/12 weeks, so the fallback would manufacture "one month of rent"
+       out of a row that never recorded a fee and state it as a verified fact. An
+       unknown fee has an unknown basis, and every surface here says nothing
+       rather than the commonest answer. */
+    const feeBasisWeeks = feeBasisWeeksOf(app.fee_amount, app.share_amount ?? app.monthly_rent);
     const feeBasis = feeBasisPhrase(feeBasisWeeks);
     /* WHICH RAIL, AND THEREFORE WHOSE DECISION THIS PAGE IS DESCRIBING. The same
        ruling the payment emails now follow, because a Regent tenant who reads

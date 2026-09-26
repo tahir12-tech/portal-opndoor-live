@@ -20,13 +20,30 @@ import '@/pages/ApplicationDetail/ApplicationDetail.css';
 /* The five stages a tenant experiences, which are NOT the five values of
    applications.status. Status is our vocabulary: 'sent' means a payment link is
    out, which is meaningless to the person it was sent to. This is theirs. */
-const STEPS: TimelineStep[] = [
-  { label: 'Your application', date: '', note: 'Details, fee and documents' },
-  { label: 'Eligibility check', date: '', note: 'We check whether we can guarantee you' },
-  { label: 'Decision',         date: '', note: 'Approved or not' },
-  { label: 'Guarantee fee',    date: '', note: "One month's rent" },
-  { label: 'Guarantee issued', date: '', note: 'Deed of Guarantee in place' },
-];
+/* THE FEE STEP'S NOTE WAS THE STRING "One month's rent", unconditionally.
+
+   That was true of every application while the fee WAS a month of rent, and it
+   stopped being true when negotiated three and five week bases landed. It is the
+   reported GR-20837 sentence surviving in the client: a Regent tenant charged
+   £692.31 on a £1,000 rent read "One month's rent" on the screen they pay from.
+   The agency-facing equivalent of this note (src/data/journeyStages.ts) had
+   already had its fallback deleted and takes the basis from its caller; the
+   tenant copy kept the fallback, which is the wrong way round, because the tenant
+   is the one being asked for the money.
+
+   Now a function of the basis the caller knows. No basis means no note rather
+   than the commonest guess: the step is still called "Guarantee fee", which is
+   what it is, and a sentence nobody verified is worse than no sentence. */
+export function stepsFor(feeBasis?: string | null): TimelineStep[] {
+  const basis = feeBasis && feeBasis.trim() ? feeBasis.trim() : '';
+  return [
+    { label: 'Your application', date: '', note: 'Details, fee and documents' },
+    { label: 'Eligibility check', date: '', note: 'We check whether we can guarantee you' },
+    { label: 'Decision',         date: '', note: 'Approved or not' },
+    { label: 'Guarantee fee',    date: '', note: basis ? basis.charAt(0).toUpperCase() + basis.slice(1) : '' },
+    { label: 'Guarantee issued', date: '', note: 'Deed of Guarantee in place' },
+  ];
+}
 
 export interface StatusView {
   reached: number;
@@ -51,6 +68,10 @@ export function managedByLabel(kind?: string | null): string {
 export function statusView(
   status: string, feePaid: boolean, doneCount: number, total: number,
   managedByKind?: string | null, deedState?: string | null,
+  /** "3 weeks of rent", from the application's own fee and share of the rent.
+      Omitted means unknown, and the approved state then names the step without
+      pricing it rather than asserting a month. */
+  feeBasis?: string | null,
 ): StatusView {
   const managedBy = managedByLabel(managedByKind);
   switch (status) {
@@ -78,7 +99,14 @@ export function statusView(
       return {
         reached: 4, terminated: false, tone: 'good', cta: 'pay_guarantee',
         headline: 'Approved',
-        detail: "You have been approved. The last step is the guarantee fee, one month's rent, and then we issue the Deed of Guarantee to whoever manages the property.",
+        /* THE ONLY STATEMENT OF PRICE ON THIS SCREEN, and it was hardcoded to a
+           month. No figure is shown here at all, so this sentence was the whole
+           of what the tenant was told they owed, and for an agency on a
+           negotiated basis it was wrong. The basis is named when we know it and
+           the clause is dropped when we do not. */
+        detail: feeBasis && feeBasis.trim()
+          ? `You have been approved. The last step is the guarantee fee, ${feeBasis.trim()}, and then we issue the Deed of Guarantee to ${managedBy}.`
+          : `You have been approved. The last step is the guarantee fee, and then we issue the Deed of Guarantee to ${managedBy}.`,
       };
     case 'paid':
       // Once the deed has been generated it is awaiting the tenant's signature,
@@ -115,7 +143,7 @@ export function statusView(
 }
 
 export function ApplicationStatus({
-  view, guaranteeRef, onPayGuarantee, onSignDeed, onViewDeed, busy,
+  view, guaranteeRef, onPayGuarantee, onSignDeed, onViewDeed, busy, feeBasis,
 }: {
   view: StatusView;
   guaranteeRef: string;
@@ -123,6 +151,9 @@ export function ApplicationStatus({
   onSignDeed?: () => void;
   onViewDeed?: () => void;
   busy?: boolean;
+  /** "3 weeks of rent", for the fee step's note. Omitted leaves the step named
+      and unpriced, which is the honest answer when nothing has told us. */
+  feeBasis?: string | null;
 }) {
   return (
     <section className={`apst apst--${view.tone}`} aria-label="Application status">
@@ -156,7 +187,7 @@ export function ApplicationStatus({
       {/* A tenant's current stage is always a phase in progress, never a completed
           event, so it shows its highlighted ring without a tick until it is done.
           "Guarantee issued" only ticks once the deed executes (status 'deed'). */}
-      <StatusTimeline steps={STEPS} reached={view.reached} terminated={view.terminated} currentInProgress />
+      <StatusTimeline steps={stepsFor(feeBasis)} reached={view.reached} terminated={view.terminated} currentInProgress />
     </section>
   );
 }
