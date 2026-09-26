@@ -73,6 +73,23 @@ select is(
 -- The preview answers the same arithmetic without writing, which is the only
 -- reason the rule is extracted: the editor and the save cannot disagree.
 update public.branches set agent_rate = null where id = '90000000-0000-0000-0000-000000000004';
+/* THE PREVIEW NEEDS AN IDENTITY NOW, and this suite had none.
+   commission_preview is gated on may_see_commission() (20261005170000), which
+   is false with no claims set: no auth.uid(), no admin, no capability. The
+   rest of the file tests pure rule functions that take their inputs as
+   arguments and rightly do not care who is asking, so nothing here
+   authenticated. The preview is the one that does care, because its entire
+   output is a percentage.
+
+   An Opndoor admin is the honest caller: setting a rate is admin only, so the
+   rate editor's what-if is reached by nobody else. */
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
+values ('90000000-0000-0000-0000-0000000000ad', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@zzzsplit.test', '', now(), now(), now());
+insert into public.users (id, full_name, email, role, status)
+values ('90000000-0000-0000-0000-0000000000ad', 'Split Admin', 'admin@zzzsplit.test', 'superadmin', 'active');
+select set_config('request.jwt.claims',
+  '{"sub":"90000000-0000-0000-0000-0000000000ad","role":"authenticated","aal":"aal2"}', true);
+
 select is(
   (select worst_total from public.commission_preview('group', '90000000-0000-0000-0000-000000000002', 0.05)),
   0.17::numeric, 'preview: agency 12% + a drafted group 5% would total 17%');

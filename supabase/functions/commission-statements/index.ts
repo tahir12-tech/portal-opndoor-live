@@ -112,6 +112,27 @@ function textToBase64(s: string): string {
  */
 const EMPTY_CELL = "-";
 
+/**
+ * THE STATEMENT'S NUMBER, AND WHERE IT COMES FROM.
+ *
+ * public.commission_statement_ref(p_month, p_payee_key) returns
+ * STMT-YYYY-MM-NNNN, assigned once per payee per month and identical on every
+ * later call. The portal's own download of the same statement
+ * (buildCommissionStatementDoc in src/data/exportsService.ts) calls the same RPC
+ * with the same payee key, which is id-based on both sides, so the number on
+ * this PDF and the number on that spreadsheet are one number. Nothing here
+ * derives it: a reference either comes from the one place that stores it or it
+ * is not printed.
+ *
+ * A DRY RUN DOES NOT ASK FOR ONE. ?dry=1 writes nothing, and with this RPC the
+ * first call IS the assignment, so a rehearsal would take a real number for a
+ * statement nobody received. Every payee a dry run reaches is by definition one
+ * that has not been posted (posted payees are skipped by the idempotency check
+ * above it), so there is no number yet to show and the honest thing to print is
+ * when it will appear.
+ */
+const REF_ON_SEND = "Assigned when the statement is posted";
+
 /** Current hour and calendar date in Europe/London. */
 function londonNow(): { hour: number; date: string } {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -309,6 +330,193 @@ interface RecipientRow { email: string; full_name: string | null; source: string
 
 const num = (v: number | string | null | undefined): number => (v == null ? 0 : Number(v));
 
+/* ---------------------------------------------------------------------
+   THE COLUMN RULE, COPIED FROM THE CLIENT.
+
+   A column that says the same thing on every line is dropped, from the header
+   as well as the body, and its one value moves up into the header block. The
+   reasoning, and why this is not viewerShape, is written out in full at the top
+   of src/data/statementColumns.ts.
+
+   THIS IS A COPY AND IT IS MEANT TO BE. An Edge Function runs on Deno and
+   cannot import from src/, and a rule this small does not earn a published
+   package. So the block below is character for character the block of the same
+   name in src/data/statementColumns.ts, and src/data/statementColumns.test.ts
+   reads both files and fails the moment they differ. If you change one, change
+   the other; the test will tell you if you forget.
+   --------------------------------------------------------------------- */
+
+// ---- BEGIN SHARED STATEMENT COLUMN RULE ----
+// One rule, two copies, held identical by src/data/statementColumns.test.ts:
+//   src/data/statementColumns.ts                        (the screen)
+//   supabase/functions/commission-statements/index.ts   (the PDF and the CSV)
+// Edit one and you must edit the other. The test fails until you do.
+
+/** The three columns of a statement that can turn out to hold one value for
+    every line. The rest (reference, tenant, date, share, rate, money) differ
+    row by row by nature, and a statement with one line is still a statement. */
+export type StatementDimension = 'agency' | 'branch' | 'source';
+
+/** The only fields of a line this rule reads. A rendering that does not carry
+    a dimension leaves it undefined, which is not the same as every row sharing
+    a value: it means there is no such column to drop. */
+export interface StatementRow {
+  agency?: string | null;
+  branch?: string | null;
+  source?: string | null;
+}
+
+export interface StatementShape {
+  agencies: number;
+  branches: number;
+  sources: number;
+  /** True when the dimension holds at most one value across these rows, which
+      is when its column goes. Named after viewerShape's oneAgency/oneBranch so
+      the two read as the single idea they are. */
+  oneAgency: boolean;
+  oneBranch: boolean;
+  oneSource: boolean;
+  /** The one value, for the header line that replaces the column. Null when
+      the rows hold several, and also when the one thing they share is holding
+      none: "every line is missing its branch" is not a fact worth a line. */
+  onlyAgency: string | null;
+  onlyBranch: string | null;
+  onlySource: string | null;
+}
+
+/** Distinct values in one dimension.
+
+    AN ABSENT VALUE COUNTS AS A VALUE. A statement where some lines name a
+    branch and some do not has two things to say and keeps the column; dropping
+    it there would quietly attribute the unbranched lines to the named branch.
+    Only when EVERY line is missing it does the dimension collapse, and then
+    there is nothing left to name. */
+function countDimension(
+  values: readonly (string | null | undefined)[],
+): { count: number; only: string | null } {
+  const seen = new Set<string>();
+  let blank = false;
+  for (const v of values) {
+    const s = (v ?? '').trim();
+    if (s) seen.add(s);
+    else blank = true;
+  }
+  const count = seen.size + (blank ? 1 : 0);
+  return { count, only: count === 1 && seen.size === 1 ? [...seen][0] : null };
+}
+
+/**
+ * What these rows have more than one of.
+ *
+ * NO ROWS ANSWERS ONE OF EVERYTHING, deliberately, exactly as viewerShape's
+ * empty book does: an empty statement is not the place to offer a Branch
+ * column. The `<= 1` is what puts zero and one together on purpose rather than
+ * by accident, and it would not survive somebody rewriting it as `=== 1`.
+ */
+export function statementShape(rows: readonly StatementRow[]): StatementShape {
+  const agency = countDimension(rows.map((r) => r.agency));
+  const branch = countDimension(rows.map((r) => r.branch));
+  const source = countDimension(rows.map((r) => r.source));
+  return {
+    agencies: agency.count,
+    branches: branch.count,
+    sources: source.count,
+    oneAgency: agency.count <= 1,
+    oneBranch: branch.count <= 1,
+    oneSource: source.count <= 1,
+    onlyAgency: agency.only,
+    onlyBranch: branch.only,
+    onlySource: source.only,
+  };
+}
+
+/** Whether this dimension's column should be left out of the table. */
+export function dimensionCollapsed(shape: StatementShape, dim: StatementDimension): boolean {
+  return dim === 'agency' ? shape.oneAgency : dim === 'branch' ? shape.oneBranch : shape.oneSource;
+}
+
+/** A statement column as the PDF and the CSV declare it. Structurally a
+    PdfColumn from _shared/pdf.ts plus the dimension tag, so the surviving list
+    can be handed straight to renderTablePdf. */
+export interface StatementColumn {
+  header: string;
+  /** Points. The PDF lays out on these, the CSV ignores them, and the screen
+      has no widths at all: it reads the booleans above and lets CSS do it. */
+  width: number;
+  align?: 'left' | 'right';
+  /** Set only on the columns that can collapse. */
+  dim?: StatementDimension;
+}
+
+/**
+ * The columns that survive, with the dropped ones' width shared out.
+ *
+ * WHY REDISTRIBUTE. The PDF's widths are absolute points chosen to fill the
+ * printable width of A4. Dropping a column and leaving the rest where they are
+ * would pull the table up short of the right margin, so a statement with one
+ * branch would look narrow and left-heavy rather than tidy: the reader would
+ * see a rendering fault where we meant to save them a column.
+ *
+ * Proportional, because every column was sized to what it has to hold and
+ * their relative sizes are still right. Handing the whole surplus to one column
+ * would make that one luxurious and leave the others as tight as they were.
+ *
+ * Unrounded on purpose: the writer rounds to two decimals as it draws, so the
+ * survivors still sum to exactly what the full set summed to, which is the
+ * property that keeps the table inside the page.
+ */
+export function keepColumns(
+  columns: readonly StatementColumn[],
+  shape: StatementShape,
+): StatementColumn[] {
+  const keep = columns.filter((c) => !c.dim || !dimensionCollapsed(shape, c.dim));
+  if (keep.length === columns.length) return columns.slice();
+  const before = columns.reduce((s, c) => s + c.width, 0);
+  const after = keep.reduce((s, c) => s + c.width, 0);
+  if (!after) return keep.slice();
+  const scale = before / after;
+  return keep.map((c) => ({ ...c, width: c.width * scale }));
+}
+// ---- END SHARED STATEMENT COLUMN RULE ----
+
+/** The dimensions of one month's lines, for the rule above. There is no agency
+    per line to give it: commission_statement_lines returns the payee, the
+    branch and the frozen rate source, and nothing between them. A group payee
+    spanning two agencies would keep an Agency column the moment the RPC and
+    LineRow carry one, and until then there is no column to drop. */
+function shapeOf(lines: LineRow[]): StatementShape {
+  return statementShape(lines.map((l) => ({ branch: l.branch_name, source: l.source })));
+}
+
+/** The header block's label and value pairs for the columns that collapsed.
+    A dropped column must not take its fact with it: a statement that was all
+    Leeds still says Leeds, once, at the top. */
+function collapsedMeta(shape: StatementShape): Array<[string, string]> {
+  const meta: Array<[string, string]> = [];
+  if (shape.onlyBranch) meta.push(["Branch", shape.onlyBranch]);
+  if (shape.onlySource) meta.push(["Source", SOURCE_LABEL[shape.onlySource] ?? shape.onlySource]);
+  return meta;
+}
+
+/** One line's cells, in STATEMENT_COLUMNS order, with the collapsed columns
+    left out so the row still lines up with the header. `empty` is the one thing
+    the PDF and the CSV genuinely disagree about: a hyphen on a page, nothing at
+    all in a column somebody is going to sum. */
+function statementCells(l: LineRow, shape: StatementShape, empty: string): string[] {
+  const cells: string[] = [l.guarantee_ref, l.tenant_name];
+  if (!shape.oneBranch) cells.push(l.branch_name || empty);
+  cells.push(
+    l.tenancy_place,
+    l.share_percent == null ? empty : `${Number(num(l.share_percent).toFixed(2))}%`,
+    dmy(l.paid_on),
+    gbp(num(l.fee)),
+    pct(num(l.rate)),
+  );
+  if (!shape.oneSource) cells.push(l.source ? (SOURCE_LABEL[l.source] ?? l.source) : empty);
+  cells.push(gbp(num(l.commission)));
+  return cells;
+}
+
 /** The statement's columns: the same ones, in the same order, as the table on
     the Reporting page, so a reader can hold the two side by side.
 
@@ -316,11 +524,16 @@ const num = (v: number | string | null | undefined): number => (v == null ? 0 : 
     width of A4 portrait inside the margins. Ten columns is what the screen
     shows and what reconciles, so they are tight; a value that outruns its
     column is truncated with an ellipsis rather than allowed to collide with the
-    next one. The full value is always on the Reporting page. */
-const STATEMENT_COLUMNS: PdfColumn[] = [
+    next one. The full value is always on the Reporting page.
+
+    Branch and Source carry a `dim` tag: those are the two that can hold one
+    value for every line, and keepColumns drops them and shares their points
+    out among the rest, so a nine-column statement still reaches the right
+    margin. The sum below is what the survivors always add back up to. */
+const STATEMENT_COLUMNS: StatementColumn[] = [
   { header: "Reference", width: 44 },
   { header: "Tenant", width: 68 },
-  { header: "Branch", width: 54 },
+  { header: "Branch", width: 54, dim: "branch" },
   { header: "Tenancy", width: 66 },
   // Wide enough for "100.00%", not just "50.00%". A share that truncates to
   // "100.0..." is worse than useless on a money document.
@@ -329,33 +542,31 @@ const STATEMENT_COLUMNS: PdfColumn[] = [
   { header: "Fee charged", width: 48, align: "right" },
   { header: "Rate", width: 28, align: "right" },
   // "Opndoor standard" is the longest SOURCE_LABEL and has to fit whole.
-  { header: "Source", width: 66 },
+  { header: "Source", width: 66, dim: "source" },
   { header: "Commission", width: 60, align: "right" },
 ]; // 514
 
-function statementPdf(payee: PayeeRow, lines: LineRow[], label: string): Uint8Array {
+function statementPdf(payee: PayeeRow, lines: LineRow[], label: string, reference: string): Uint8Array {
+  const shape = shapeOf(lines);
+  // Typed as PdfColumn[] at the seam: StatementColumn is a PdfColumn plus the
+  // dimension tag, and this is where the compiler proves it still is.
+  const columns: PdfColumn[] = keepColumns(STATEMENT_COLUMNS, shape);
   return renderTablePdf({
     title: "opndoor commission statement",
     meta: [
       ["Payee", payee.org_name],
       ["Month", label],
+      // What the dropped columns took with them, said once.
+      ...collapsedMeta(shape),
+      // The stored number, so a finance team can reconcile this document by
+      // reference and find the same one in the portal. See REF_ON_SEND.
+      ["Statement reference", reference],
       ["Basis", "Commission on fees paid in the month, refunds excluded"],
       ["Applications", String(lines.length)],
       ["Total commission", gbp(num(payee.total))],
     ],
-    columns: STATEMENT_COLUMNS,
-    rows: lines.map((l) => [
-      l.guarantee_ref,
-      l.tenant_name,
-      l.branch_name,
-      l.tenancy_place,
-      l.share_percent == null ? EMPTY_CELL : `${Number(num(l.share_percent).toFixed(2))}%`,
-      dmy(l.paid_on),
-      gbp(num(l.fee)),
-      pct(num(l.rate)),
-      l.source ? (SOURCE_LABEL[l.source] ?? l.source) : EMPTY_CELL,
-      gbp(num(l.commission)),
-    ]),
+    columns,
+    rows: lines.map((l) => statementCells(l, shape, EMPTY_CELL)),
     total: { label: "Total", value: gbp(num(payee.total)) },
     // Along the bottom of every page, which is where a statement carries its
     // terms, and where a multi-page one still carries them on page three.
@@ -390,34 +601,32 @@ function settlementPdf(payees: PayeeRow[], label: string, grand: number): Uint8A
  * which matches the table on the Reporting page, so all three can be held side
  * by side.
  */
-function statementCsv(payee: PayeeRow, lines: LineRow[], label: string): string {
+function statementCsv(payee: PayeeRow, lines: LineRow[], label: string, reference: string): string {
+  const shape = shapeOf(lines);
+  const columns = keepColumns(STATEMENT_COLUMNS, shape);
   return toCSV([
     ["opndoor commission statement"],
     ["Payee", payee.org_name],
     ["Month", label],
+    // The same two lines the PDF puts in its header block, for the same reason:
+    // a column that was dropped must not take its one value with it.
+    ...collapsedMeta(shape),
+    ["Statement reference", reference],
     ["Basis", "Commission on fees paid in the month, refunds excluded"],
     ["Applications", lines.length],
     ["Total commission", gbp(num(payee.total))],
     [PAYMENT_TERMS_LINE],
     [],
-    STATEMENT_COLUMNS.map((c) => c.header),
-    ...lines.map((l) => [
-      l.guarantee_ref,
-      l.tenant_name,
-      l.branch_name,
-      l.tenancy_place,
-      // A spreadsheet cell is left EMPTY where the PDF prints a hyphen: the
-      // hyphen is a typographic answer to a blank box on a page, and in a
-      // column somebody is going to sum it is a value that breaks the sum.
-      l.share_percent == null ? "" : `${Number(num(l.share_percent).toFixed(2))}%`,
-      dmy(l.paid_on),
-      gbp(num(l.fee)),
-      pct(num(l.rate)),
-      l.source ? (SOURCE_LABEL[l.source] ?? l.source) : "",
-      gbp(num(l.commission)),
-    ]),
+    columns.map((c) => c.header),
+    // A spreadsheet cell is left EMPTY where the PDF prints a hyphen: the
+    // hyphen is a typographic answer to a blank box on a page, and in a column
+    // somebody is going to sum it is a value that breaks the sum.
+    ...lines.map((l) => statementCells(l, shape, "")),
     [],
-    ["", "", "", "", "", "", "", "", "Total", gbp(num(payee.total))],
+    // Padded from the surviving columns, not from ten: a dropped column moves
+    // the Total label left, and a hard-coded row would leave it stranded in the
+    // middle of the table.
+    [...Array.from({ length: Math.max(columns.length - 2, 0) }, () => ""), "Total", gbp(num(payee.total))],
   ]);
 }
 
@@ -439,13 +648,16 @@ function settlementCsv(payees: PayeeRow[], label: string, grand: number): string
 
 /** One payee's email. Total in the subject and in the body, per the ruling. */
 function statementMessage(opts: {
-  payeeName: string; label: string; total: number; applications: number; appUrl: string;
+  payeeName: string; label: string; total: number; applications: number; reference: string; appUrl: string;
 }): Message {
   const blocks: Block[] = [
     { p: `Your commission statement for <b>${esc(opts.label)}</b> is attached. It comes to <b>${esc(gbp(opts.total))}</b>.` },
     {
       rows: [
         ["Month", opts.label],
+        // In the body as well as on the attachment: somebody replying to this
+        // email about one statement can quote its number without opening a PDF.
+        ["Statement reference", opts.reference],
         ["Applications", String(opts.applications)],
         ["Total commission", gbp(opts.total)],
       ],
@@ -614,6 +826,7 @@ Deno.serve(async (req) => {
     const unaddressed: string[] = [];
     const would: Array<{
       payee: string; level: string; total: number; applications: number; to: string[];
+      columns: string[]; reference: string;
       attachments: { filename: string; mediaType: string; bytes: number }[];
     }> = [];
 
@@ -633,16 +846,41 @@ Deno.serve(async (req) => {
       const to = ((recData ?? []) as RecipientRow[]).map((r) => r.email).filter(Boolean);
       if (!to.length) { unaddressed.push(`${p.org_name} (${gbp(total)})`); continue; }
 
+      /* THE STATEMENT'S NUMBER. Asked for AFTER the recipient check, because the
+         first call assigns it: a payee nobody can be written to would otherwise
+         take a number for a statement that was never posted, and the month's
+         sequence would have a hole in it.
+
+         A failed call skips the payee, exactly as a failed recipient lookup
+         does. A statement exists to be reconciled by its reference, and posting
+         one that has no number while the portal shows it with one is worse than
+         posting nothing this morning: the failure is counted, reported in the
+         staff settlement email, and nothing is written to
+         commission_statement_sends, so a re-run posts it once the RPC answers. */
+      let reference = REF_ON_SEND;
+      if (!dry) {
+        const { data: refData, error: refErr } = await service.rpc("commission_statement_ref", {
+          p_month: monthKey, p_payee_key: p.payee_key,
+        });
+        if (refErr || typeof refData !== "string" || !refData) { failed += 1; continue; }
+        reference = refData;
+      }
+
       if (dry) {
         // The attachment is BUILT here, then thrown away. A dry run that only
         // counted rows would prove the recipients and not the PDF, and the
         // generator is the new part: a malformed one would first be noticed by
         // an agency on the 1st. Building it costs a few milliseconds and turns
         // a crash in the writer into a failed rehearsal instead.
-        const pdf = statementPdf(p, lines, label);
-        const csv = statementCsv(p, lines, label);
+        const pdf = statementPdf(p, lines, label, reference);
+        const csv = statementCsv(p, lines, label, reference);
         would.push({
-          payee: p.org_name, level: p.level, total, applications: lines.length, to,
+          payee: p.org_name, level: p.level, total, applications: lines.length, to, reference,
+          // Which columns this payee's statement came out with. Reading it off
+          // the response is the only way to check the column rule without
+          // opening the PDF, and the PDF is the one thing a rehearsal cannot
+          // show you.
+          columns: keepColumns(STATEMENT_COLUMNS, shapeOf(lines)).map((c) => c.header),
           attachments: [
             { filename: `opndoor-commission-${monthKey}.pdf`, mediaType: ATTACHMENT_MEDIA_TYPE, bytes: pdf.length },
             { filename: `opndoor-commission-${monthKey}.csv`, mediaType: CSV_MEDIA_TYPE, bytes: new TextEncoder().encode(csv).length },
@@ -653,7 +891,7 @@ Deno.serve(async (req) => {
 
       const res = await sendMessage({
         to,
-        message: statementMessage({ payeeName: p.org_name, label, total, applications: lines.length, appUrl: APP_URL }),
+        message: statementMessage({ payeeName: p.org_name, label, total, applications: lines.length, reference, appUrl: APP_URL }),
         // PDF FIRST. A mail client shows the first attachment as the document,
         // so the order is the only signal of which is the statement and which
         // is the working.
@@ -661,10 +899,10 @@ Deno.serve(async (req) => {
           filename: `opndoor-commission-${monthKey}.pdf`,
           // Bytes, so the chunked encoder, never the text path's
           // btoa(unescape(encodeURIComponent(...))), which corrupts binary.
-          content: bytesToBase64(statementPdf(p, lines, label)),
+          content: bytesToBase64(statementPdf(p, lines, label, reference)),
         }, {
           filename: `opndoor-commission-${monthKey}.csv`,
-          content: textToBase64(statementCsv(p, lines, label)),
+          content: textToBase64(statementCsv(p, lines, label, reference)),
         }],
       });
       if (!res.ok) { failed += 1; continue; }

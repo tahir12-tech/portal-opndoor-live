@@ -141,10 +141,13 @@ export function CommissionStatement({
                   <div className="stmt__level">{st.level === 'agency' ? 'Agency' : st.level === 'group' ? 'Group' : 'Branch'} · {st.monthLabel}</div>
                   {collapsed && <div className="stmt__only">{collapsed}</div>}
                 </div>
+                {/* The builder is async now: it reads the statement's stored
+                    reference from the database rather than deriving one from the
+                    payee's name, which changed when an agency was renamed. */}
                 <Button
                   variant="ghost" size="sm"
                   title={`Download ${st.payeeName}'s ${st.monthLabel} statement. Foots to the total below.`}
-                  onClick={() => void exportBranded(buildCommissionStatementDoc(role, scope, st.monthKey, st.payeeKey))}
+                  onClick={() => void buildCommissionStatementDoc(role, scope, st.monthKey, st.payeeKey).then(exportBranded)}
                 >
                   <Icon name="download" /> Export
                 </Button>

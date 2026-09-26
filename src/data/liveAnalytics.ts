@@ -297,7 +297,12 @@ type GroupKey = 'agency' | 'branch' | 'referrer' | 'month';
 /** A stable identity for the group (so distinct entities that share a display
     name — e.g. a "High Street" branch under two agencies — are never merged). */
 function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { id: string; name: string; sub: string; partner: string } | null {
-  const S = ' ';
+  /* A separator that cannot occur in an agency or branch name, so two
+     distinct orgs can never collide on one key. Written as an ESCAPE, not
+     as the raw byte it used to be: a literal NUL makes the whole file
+     binary to grep, which then reports no matches instead of an error,
+     and a search tool that silently finds nothing is a trap. */
+  const S = '\u0000';
   const pn = partnerName(app.partner);
   if (key === 'agency') return { id: `${app.partner}${S}${app.agency}`, name: app.agency || '(unknown agency)', sub: '', partner: pn };
   if (key === 'branch') return { id: `${app.partner}${S}${app.agency}${S}${app.branch}`, name: app.branch || '(unknown branch)', sub: app.agency || '', partner: pn };
@@ -446,7 +451,18 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
     }
     if (app.deedAt && idx(app.deedAt) >= lo && idx(app.deedAt) <= hi) { const m = at(app.deedAt); if (m) m.deeds += 1; }
   }
-  return months.map((m) => ({ label: m.label, refs: m.refs, fees: Math.round(m.fees), deeds: m.deeds, comm: Math.round(m.comm) }));
+  /* NOT ROUNDED HERE. These were whole pounds, which is right for the only
+     consumer this was written for (the dashboard trend tile, where fmtBig
+     reads "£4.4k" either way) and wrong the moment a second consumer printed
+     them into a money column: September collected £4,430.77 and the export
+     said £4,431.00 beside £4,430.77 on every other surface.
+
+     Rounding belongs at the point of DISPLAY, where the surface knows whether
+     it wants a headline or a figure. A data function that rounds has decided
+     that for every caller it will ever have, including the ones that do not
+     exist yet. The export carried a re-summing workaround for exactly one
+     release; it is gone with this line. */
+  return months.map((m) => ({ label: m.label, refs: m.refs, fees: m.fees, deeds: m.deeds, comm: m.comm }));
 }
 
 /* ---------- Tenant initials (privacy-preserving) ----------
@@ -752,5 +768,6 @@ export function liveTrend(view: 'month' | 'branch' | 'agency' | 'referrer', role
   const set = scopeFull(allFull(), role, scope);
   const end = nowRef();
   const start = new Date(end.getFullYear(), end.getMonth() - 11, 1);
-  return groupRows(set, view, start, end).map((r) => ({ label: r.name, count: r.refs, fees: Math.round(r.fees), comm: Math.round(r.partnerComm), sub: r.sub || undefined }));
+  // Unrounded, for the same reason as liveMonths above.
+  return groupRows(set, view, start, end).map((r) => ({ label: r.name, count: r.refs, fees: r.fees, comm: r.partnerComm, sub: r.sub || undefined }));
 }

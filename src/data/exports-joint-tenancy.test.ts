@@ -47,14 +47,19 @@ const APPS: FullApp[] = [
 hydrateFull(APPS);
 afterAll(() => hydrateFull([]));
 
-/** The application export's single table, as { header: value } per row. */
-function appRows() {
+/** The application export's single table. */
+function appTable() {
   const doc = buildRealApplicationDoc('superadmin', allTime, 'referred', BASIS_META.referred);
-  const table = doc.sheets[0].doc.blocks.find((b) => b.kind === 'table') as
+  return doc.sheets[0].doc.blocks.find((b) => b.kind === 'table') as
     { kind: 'table'; columns: { header: string }[]; rows: (string | number)[][] };
+}
+/** ...as { header: value } per row. */
+function appRows() {
+  const table = appTable();
   const heads = table.columns.map((c) => c.header);
   return table.rows.map((r) => Object.fromEntries(heads.map((h, i) => [h, r[i]])));
 }
+const appHeaders = () => appTable().columns.map((c) => c.header);
 
 describe('the application export, for a joint tenancy', () => {
   const rows = appRows();
@@ -65,17 +70,32 @@ describe('the application export, for a joint tenancy', () => {
     expect(rows).toHaveLength(2);
   });
 
+  it('lines every row up with the header, whichever columns survive', () => {
+    // Three columns now come and go with the book (Agency, Branch, Commission
+    // payees), and a row built from a different list than the header is a file
+    // where every value after the gap belongs to the wrong column.
+    const table = appTable();
+    for (const r of table.rows) expect(r).toHaveLength(table.columns.length);
+  });
+
   it('says which tenancy each row belongs to, and where in it', () => {
     expect(lead['Tenancy ID']).toBe('T1');
     expect(lead['Tenancy position']).toBe('1 of 2');
     expect(second['Tenancy position']).toBe('2 of 2');
   });
 
-  it('names the tenant who signs, which is why only they reach Deed Issued', () => {
-    expect(lead['Lead tenant']).toBe('Yes');
-    expect(second['Lead tenant']).toBe('No');
+  it('says what each tenant has actually reached, per row, and names no lead', () => {
+    /* THERE IS NO LEAD TENANT COLUMN ANY MORE. It read Yes on position 1 and No
+       on the rest, and it named something real while one deed covered a whole
+       let and only the lead ever reached Deed Issued. Each tenant now signs
+       their own deed over their own share, so "No" said nothing a reader could
+       act on: whether THIS tenant's deed exists is Status and Deed issued date,
+       on this tenant's own row, which is what the two rows below show. */
+    expect(appHeaders()).not.toContain('Lead tenant');
     expect(lead.Status).toBe('Deed Issued');
     expect(second.Status).toBe('Paid');
+    // Position in the tenancy is still stated, where it belongs.
+    expect(lead['Tenancy position']).toBe('1 of 2');
   });
 
   it('charges each applicant their own share, and the shares sum to the tenancy fee', () => {
@@ -101,11 +121,28 @@ describe('the application export, for a joint tenancy', () => {
     expect(rows.reduce((s, r) => s + Number(r['Share of rent']), 0)).toBe(2400);
   });
 
-  it('pays commission off the frozen lines and names the payees', () => {
+  it('pays commission off the frozen lines, to the penny', () => {
     // 25%, on what each applicant paid. Only paid, non-refunded rows earn.
-    expect(lead['Agent commission']).toBeCloseTo(1384.62 * 0.25, 6);
+    // 1384.62 x 0.25 is 346.155, and the cell is the PENNY figure: every money
+    // cell in every export is rounded once, by the one formatter, because a
+    // column of half-pennies foots to a payment nobody can make.
+    expect(lead['Agent commission']).toBe(346.16);
     expect(lead['Commission rate']).toBe(0.25);
-    expect(lead['Commission payees']).toBe("Regent's Lettings 25%");
+  });
+
+  it('leaves out the payees column while every line has one payee', () => {
+    /* It repeated the agency's own name and their own rate on every row, which
+       the Commission rate column beside it already gives. The column comes back
+       the moment a row splits between a group and an agency, which is the only
+       time it says anything. */
+    expect(appHeaders()).not.toContain('Commission payees');
+  });
+
+  it('leaves out the Agency and Branch columns over one agency and one branch', () => {
+    // The same rule, from the same predicate (viewerShape), as the Applications
+    // table these rows are exported from: a column of one repeated word.
+    expect(appHeaders()).not.toContain('Agency');
+    expect(appHeaders()).not.toContain('Branch');
   });
 
   it('pays no partner commission on the agent rail, whatever partner_rate says', () => {

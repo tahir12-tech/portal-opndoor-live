@@ -88,6 +88,88 @@ follow.
 or no share, prints `-`. Not blank, which reads as a rendering failure on a money
 document, and not "None", which is a value rather than an absence.
 
+## The statement reference
+
+`STMT-YYYY-MM-NNNN`, in the PDF's header block, in the CSV's, and in the email
+body. It is **stored, not derived**:
+`public.commission_statement_ref(p_month, p_payee_key)` assigns `NNNN` once per
+payee per month and returns that same answer on every later call.
+
+It replaces a reference derived from the payee's **name**
+(`STMT-AG-REGENT-S-LETTINGS-202609`), which was readable and wrong: rename the
+agency and September's reference changed, so the statement a finance team filed
+last month and the one they download today were the same money under two numbers.
+The payee key is id-based, so a rename now moves nothing. See
+`20261005190000_a_statement_has_a_number.sql`, which also says why the number is
+neither a hash nor a rank.
+
+The portal's own download of the same statement (`buildCommissionStatementDoc`
+in `src/data/exportsService.ts`) calls the **same RPC with the same payee key**,
+so the number on the emailed PDF and the number on the spreadsheet an agency
+exports from Reporting are one number. Neither side computes one of its own.
+
+**A dry run does not ask for a number.** With this RPC the first call *is* the
+assignment, and `?dry=1` writes nothing, so a rehearsal would take a real number
+for a statement nobody received and leave a hole in the month's sequence. Every
+payee a dry run reaches is one that has not been posted, so there is no number
+yet and the header prints `Assigned when the statement is posted`.
+
+**A failed reference skips that payee**, counted in `failed` and reported in the
+staff settlement email, exactly as a failed recipient lookup is. Nothing is
+written to `commission_statement_sends`, so a re-run posts the statement once the
+RPC answers. A statement is reconciled by its reference: posting one with no
+number, while the portal shows the same statement with one, is worse than posting
+it an hour later.
+
+## Columns that say the same thing on every line
+
+A **Branch** column that reads "Leeds" forty times is forty words the reader
+scans past to reach the money, and it is the common case: most payees ran one
+branch in the month, and most months are all one rate source. So:
+
+- **Branch** is dropped when every line in that payee's statement is the same
+  branch, or when no line has one at all.
+- **Source** is dropped when every line shares one rate source.
+- **Agency** would follow the same rule on a group statement spanning two
+  agencies. There is no Agency column yet, because `commission_statement_lines`
+  returns the payee, the branch and the frozen source and nothing between them;
+  the rule already answers for that dimension, so the column is a row in the RPC
+  and an entry in `STATEMENT_COLUMNS` when somebody wants it.
+
+**Dropped means dropped, header included**, never a column of blanks. And the
+value is not lost with the column: it moves into the header block as its own
+line, `Branch: Leeds`, `Source: Opndoor standard`, in the PDF, in the CSV and
+under the payee's name on the Reporting page.
+
+A mixed statement keeps its column. Some lines with a branch and some without is
+**two** things to say, not one, and collapsing it there would quietly attribute
+the unbranched lines to the named branch.
+
+**The PDF redistributes.** Its widths are absolute points chosen to fill the
+printable width of A4, so dropping a column without sharing its points out would
+leave the table short of the right margin and looking like a fault. `keepColumns`
+scales the survivors proportionally: eight columns still sum to the same 514pt
+that ten did.
+
+### One rule, two copies
+
+The rule lives in **`src/data/statementColumns.ts`** and is **copied verbatim**
+into `index.ts`, between the markers `// ---- BEGIN SHARED STATEMENT COLUMN RULE
+----` and `// ---- END SHARED STATEMENT COLUMN RULE ----`. An Edge Function runs
+on Deno and cannot import from `src/`, and a rule this small does not earn a
+published package.
+
+`src/data/statementColumns.test.ts` reads **both files** and fails the moment the
+two blocks differ by a character, so the screen, the PDF and the CSV cannot end
+up dropping different columns for the same month. **If you change one copy,
+change the other.** The test will tell you if you forget.
+
+The question it answers is deliberately not `viewerShape`'s. That one asks what
+a *viewer* has more than one of, counted over their whole book; this asks what
+*these rows* have more than one of. Same idea, different subject: an agency with
+four branches keeps its Branch column on Applications all year and loses it on a
+September statement where only Leeds paid.
+
 ## The attachment
 
 A **PDF**, `opndoor-commission-YYYY-MM.pdf`, written by
@@ -148,6 +230,12 @@ Read these four before scheduling anything:
 - `attachments`, which must list `pdf` then `csv` in that order, and
   `would[].attachments[].bytes`, which proves both were actually built rather
   than that a row was counted.
+- `would[].columns`, which is the column rule's answer for that payee. It is
+  the only way to see which columns a statement came out with without opening
+  the PDF.
+- `would[].reference`, which on a dry run reads `Assigned when the statement is
+  posted` for every payee. A number here would mean the rehearsal had assigned
+  one.
 - `would`, `unaddressed` and `totalPayable`.
 
 The PDF is built on the dry path on purpose. A rehearsal that only counted rows
@@ -195,7 +283,9 @@ sits next to the bank holiday table it depends on.
   `supabase/config.toml`, or the cron's `x-reminders-secret` never gets a chance
   to be checked and every run comes back 401. (Already there.)
 - `supabase functions deploy commission-statements`.
-- Apply `20261005140000_commission_statement_recipients.sql`.
+- Apply `20261005140000_commission_statement_recipients.sql` and
+  `20261005190000_a_statement_has_a_number.sql` (the reference table and its
+  function; already applied on dev).
 - Check the backfill: every payee should have somebody ticked. The dry run's
   `unaddressed` list is the fastest way to see who does not.
 - Open one dry-run PDF and look at it. The writer is new.
