@@ -16,7 +16,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications, getPartners,
   getPartner, partnerName, referrerNamesForScope, getPeriods, periodRange, ALL_PARTNERS, type Status, type Period,
-  collateTenancies, groupTenancies, memberLabel, pageWithoutSplitting, scopedSummaries, tenancyDeedProgress, tenancyProgress,
+  collateTenancies, groupTenancies, pageWithoutSplitting, scopedSummaries, tenancyDeedTally, tenancyPaidTally,
 } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -466,11 +466,22 @@ export function Applications() {
                   {first && (
                     <tr className="jt-head">
                       <td colSpan={cols}>
+                        {/* THE HEADING IS THE PROPERTY, and the rows under it are
+                            the people. It used to open "2 tenants · 14 Chalcot
+                            Road · one tenancy, a deed each": a count the rows
+                            themselves make, then the address, then a rule about
+                            deeds that the tally on the right now states as a
+                            fact instead of a slogan. The address leads because
+                            it is the one thing the rows below no longer say. */}
+                        <span className="jt-head__prop">{g!.prop}</span>
                         <span className="jt-head__tag">Joint tenancy</span>
-                        <span className="jt-head__txt">
-                          {g!.members.length} tenants · {g!.prop} · one tenancy, a deed each
-                          {shown < g!.members.length && ` · ${shown} shown by this filter`}
-                        </span>
+                        {/* A filter can hide a sibling, and then the tallies on
+                            the right are counting tenants that are not on the
+                            screen. Say so, rather than leave "2 of 2 paid"
+                            standing over one row. */}
+                        {shown < g!.members.length && (
+                          <span className="jt-head__part">{shown} of {g!.members.length} shown by this filter</span>
+                        )}
                         {/* THIS HEADING USED TO CARRY ONE STATUS PILL for the
                             whole tenancy, taken from the lead, on the old rule
                             that the deed was the tenancy's and only the lead
@@ -481,8 +492,9 @@ export function Applications() {
                             this level is the two counts; each row goes on saying
                             its own status, as it always did. */}
                         <span className="jt-head__prog">
-                          <span className="jt-head__deeds">{tenancyDeedProgress(g!)}</span>
-                          <span className="jt-head__sep">{tenancyProgress(g!)}</span>
+                          <span className="jt-head__paid">{tenancyPaidTally(g!)}</span>
+                          <span className="jt-head__dot" aria-hidden="true">·</span>
+                          <span className="jt-head__deeds">{tenancyDeedTally(g!)}</span>
                         </span>
                       </td>
                     </tr>
@@ -495,21 +507,26 @@ export function Applications() {
                       <div className="who">
                         <span className="who__av">{initials(r.tenant)}</span>
                         <div>
-                          <div className="dt__name">
-                            {r.tenant}
-                            {/* "Lead" is now only first entered. It used to mean
-                                the applicant who carried the tenancy's one deed,
-                                and the tooltip still said so after that stopped
-                                being true. */}
-                            {me?.isLead && <span className="jt-lead" title="First tenant entered on this tenancy. Each tenant signs their own deed.">Lead</span>}
-                          </div>
-                          <div className="dt__sub">{g ? `${r.ref} · ${memberLabel(g, r.ref)}` : r.ref}</div>
+                          {/* NO LEAD BADGE, and no "Tenant 1 of 2". The badge
+                              marked the applicant who carried the tenancy's one
+                              deed; with a deed each it ranks people who are not
+                              ranked, and "first entered" is not a fact the
+                              reader can do anything with. The numbering went the
+                              same way: the tally on the heading, "2 of 2 paid",
+                              already says how many tenants there are. The row is
+                              this person: their name and their reference. */}
+                          <div className="dt__name">{r.tenant}</div>
+                          <div className="dt__sub">{r.ref}</div>
                         </div>
                       </div>
                     </td>
                     {showRoute && <td><Pill variant={ROUTE_PILL[ch]}>{ROUTE_LABEL[ch]}</Pill></td>}
                     {showPartner && <td>{partnerName(r.partner)}</td>}
-                    <td>{r.prop}</td>
+                    {/* THE PROPERTY BELONGS TO THE HEADING when this row is in
+                        a tenancy. It is stated once above the group, and
+                        repeating it down the siblings is exactly what made two
+                        tenants read as two lets at the same address. */}
+                    <td>{g ? <span className="soft">-</span> : r.prop}</td>
                     {showOrgCol && (
                       <td>
                         {showBranch ? r.branch : r.agency}

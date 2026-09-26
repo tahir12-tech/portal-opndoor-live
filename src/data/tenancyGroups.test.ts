@@ -16,8 +16,8 @@
    the unrelated rows the grouping exists to prevent. */
 import { describe, expect, it } from 'vitest';
 import {
-  collateTenancies, groupTenancies, MEMBER_DEED_LABEL, memberDeedTone, memberLabel,
-  pageWithoutSplitting, tenancyDeedProgress, tenancyProgress,
+  collateTenancies, groupTenancies, MEMBER_DEED_LABEL, memberDeedTone,
+  pageWithoutSplitting, tenancyDeedProgress, tenancyDeedTally, tenancyPaidTally, tenancyProgress,
 } from './tenancyGroups';
 import type { ApplicationSummary, Status } from './types';
 
@@ -109,7 +109,9 @@ describe('the deed is the person’s, and so is the payment', () => {
     expect(memberDeedTone('error')).toBe('problem');
   });
 
-  it('marks position 1 as the lead and nobody else', () => {
+  it('marks position 1 as first entered and nobody else', () => {
+    // Entry order, for sorting and for reading the tenancy's own facts off one
+    // row. It is not a rank and no screen badges it any more.
     const g = groupTenancies(rows).get('ten-1')!;
     expect(g.members.map((m) => m.isLead)).toEqual([true, false]);
   });
@@ -119,7 +121,31 @@ describe('the deed is the person’s, and so is the payment', () => {
     expect(g.members.map((m) => m.paid)).toEqual([false, true]);
     expect(g.fullyPaid).toBe(false);
     expect(g.unpaidCount).toBe(1);
+    expect(g.paidCount).toBe(1);
     expect(tenancyProgress(g)).toBe('1 of 2 tenants have paid');
+  });
+
+  it('counts the paid and the unpaid to the same total, whoever they are', () => {
+    // The heading prints the paid tally beside the deeds tally, so this count
+    // has to be the complement of unpaidCount rather than another opinion.
+    const g = groupTenancies([joint(1, 'sent'), joint(2, 'paid'), joint(3, 'deed')]).get('ten-1')!;
+    expect(g.paidCount).toBe(2);
+    expect(g.paidCount + g.unpaidCount).toBe(g.members.length);
+  });
+
+  it('gives the list heading both tallies in the same shape', () => {
+    /* "2 of 2 paid · 1 of 2 deeds". The long sentences are for a panel with a
+       line to itself; a group heading shares its line with the address and has
+       to read as one progress reading, so both always state the total. */
+    const g = groupTenancies(rows).get('ten-1')!;
+    expect(tenancyPaidTally(g)).toBe('2 of 2 paid');
+    expect(tenancyDeedTally(g)).toBe('1 of 2 deeds');
+  });
+
+  it('states the total on both tallies even at none of them', () => {
+    const g = groupTenancies([joint(1, 'sent'), joint(2, 'sent')]).get('ten-1')!;
+    expect(tenancyPaidTally(g)).toBe('0 of 2 paid');
+    expect(tenancyDeedTally(g)).toBe('0 of 2 deeds');
   });
 
   it('is fully paid only once every tenant has paid their own share', () => {
@@ -136,10 +162,11 @@ describe('the deed is the person’s, and so is the payment', () => {
   });
 
   it('orders members by entry order, not by however the rows arrived', () => {
-    const g = groupTenancies([joint(2, 'paid'), joint(1, 'deed')]).get('ten-1')!;
+    const second = joint(2, 'paid');
+    const g = groupTenancies([second, joint(1, 'deed')]).get('ten-1')!;
     expect(g.members.map((m) => m.position)).toEqual([1, 2]);
     expect(g.members[0].isLead).toBe(true);
-    expect(memberLabel(g, g.members[1].ref)).toBe('Tenant 2 of 2');
+    expect(g.members[1].ref).toBe(second.ref);
   });
 });
 

@@ -11,6 +11,10 @@
    commission on fees PAID in the month, refunds excluded. That is the rule the
    settlement uses, so "why is this different from what you paid me" has an
    answer on the page.
+
+   A column that says the same thing on every line is not drawn: see
+   src/data/statementColumns.ts, which is also where the PDF and the CSV get
+   the answer, so the three cannot show different columns for one month.
    ===================================================================== */
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -19,6 +23,10 @@ import {
 } from '@/data';
 import type { PartnerScope, Role } from '@/data';
 import { SOURCE_LABEL } from '@/data/commissionSplit';
+import type { CommissionSource } from '@/data/types';
+import {
+  dimensionCollapsed, statementShape, type StatementDimension,
+} from '@/data/statementColumns';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardFoot, CardHead } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
@@ -28,6 +36,32 @@ import './CommissionStatement.css';
 const money = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const pct = (n: number) => `${Number((n * 100).toFixed(2))}%`;
 const dmy = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+/** A frozen line's source in the reader's words. Falls back to the stored code
+    rather than to a blank, so a source we stop labelling is still legible. */
+const sourceWord = (s: string) => SOURCE_LABEL[s as CommissionSource] ?? s;
+
+/** The columns, in the order the PDF and the CSV declare them in
+    supabase/functions/commission-statements/index.ts, so a reader can hold the
+    three side by side. No widths: the page has CSS, and the only thing this
+    list has to agree with is WHICH columns there are.
+
+    NO AGENCY COLUMN, and not an oversight: a StatementLine carries the branch
+    and not the agency, so on a group statement spanning two agencies there is
+    nothing to put in the cells. The rule already answers for that dimension
+    (statementShape().oneAgency); the day a line carries an agency, the column
+    is one entry here and one cell below. */
+const HEADS: { label: string; num?: boolean; dim?: StatementDimension }[] = [
+  { label: 'Reference' },
+  { label: 'Tenant' },
+  { label: 'Branch', dim: 'branch' },
+  { label: 'Tenancy' },
+  { label: 'Share', num: true },
+  { label: 'Paid' },
+  { label: 'Fee charged', num: true },
+  { label: 'Rate', num: true },
+  { label: 'Source', dim: 'source' },
+  { label: 'Commission', num: true },
+];
 
 export function CommissionStatement({
   role, scope, orgId, title = 'Commission statement',
@@ -85,64 +119,79 @@ export function CommissionStatement({
       <CardBody>
         {statements.length === 0 ? (
           <p className="muted" style={{ fontSize: 13.5 }}>No commission accrued in this month.</p>
-        ) : statements.map((st) => (
-          <div key={st.payeeKey} className="stmt">
-            <div className="stmt__head">
-              <div>
-                <div className="stmt__payee">{st.payeeName}</div>
-                <div className="stmt__level">{st.level === 'agency' ? 'Agency' : st.level === 'group' ? 'Group' : 'Branch'} · {st.monthLabel}</div>
+        ) : statements.map((st) => {
+          // PER PAYEE, not per screen. Two payees in the same month can have
+          // different answers, and each block may only say what its own lines
+          // say: a group with two branches keeps the column that the branch
+          // below it has no use for.
+          const shape = statementShape(st.lines.map((l) => ({ branch: l.branch, source: l.source })));
+          const heads = HEADS.filter((h) => !h.dim || !dimensionCollapsed(shape, h.dim));
+          // What the dropped columns took with them, said once under the payee.
+          // Labelled with the column's own header so it is obvious which one
+          // went, and left out entirely when there is no value to name.
+          const collapsed = [
+            shape.onlyBranch && `Branch: ${shape.onlyBranch}`,
+            shape.onlySource && `Source: ${sourceWord(shape.onlySource)}`,
+          ].filter(Boolean).join(' · ');
+          return (
+            <div key={st.payeeKey} className="stmt">
+              <div className="stmt__head">
+                <div>
+                  <div className="stmt__payee">{st.payeeName}</div>
+                  <div className="stmt__level">{st.level === 'agency' ? 'Agency' : st.level === 'group' ? 'Group' : 'Branch'} · {st.monthLabel}</div>
+                  {collapsed && <div className="stmt__only">{collapsed}</div>}
+                </div>
+                <Button
+                  variant="ghost" size="sm"
+                  title={`Download ${st.payeeName}'s ${st.monthLabel} statement. Foots to the total below.`}
+                  onClick={() => void exportBranded(buildCommissionStatementDoc(role, scope, st.monthKey, st.payeeKey))}
+                >
+                  <Icon name="download" /> Export
+                </Button>
               </div>
-              <Button
-                variant="ghost" size="sm"
-                title={`Download ${st.payeeName}'s ${st.monthLabel} statement. Foots to the total below.`}
-                onClick={() => void exportBranded(buildCommissionStatementDoc(role, scope, st.monthKey, st.payeeKey))}
-              >
-                <Icon name="download" /> Export
-              </Button>
-            </div>
-            <div className="table-wrap">
-              <table className="stmt__table">
-                <thead>
-                  <tr>
-                    <th>Reference</th>
-                    <th>Tenant</th>
-                    <th>Branch</th>
-                    <th>Tenancy</th>
-                    <th className="num">Share</th>
-                    <th>Paid</th>
-                    <th className="num">Fee charged</th>
-                    <th className="num">Rate</th>
-                    <th>Source</th>
-                    <th className="num">Commission</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {st.lines.map((l, i) => (
-                    <tr key={`${l.ref}-${i}`}>
-                      <td>{l.ref}</td>
-                      <td>{l.tenant}</td>
-                      <td>{l.branch}</td>
-                      {/* A tenancy of one is not a joint tenancy; saying "1 of 1" invents one. */}
-                      <td>{l.tenancyPlace ? `Joint, ${l.tenancyPlace}` : 'Single'}</td>
-                      <td className="num">{l.sharePercent == null ? '100%' : `${l.sharePercent}%`}</td>
-                      <td>{dmy(l.paidAt)}</td>
-                      <td className="num">{money(l.fee)}</td>
-                      <td className="num">{pct(l.rate)}</td>
-                      {/* A line frozen before the source was recorded says so,
-                          rather than being labelled the standard on a guess. */}
-                      <td>{l.source ? SOURCE_LABEL[l.source] : <span className="muted">Not recorded</span>}</td>
-                      <td className="num">{money(l.commission)}</td>
+              <div className="table-wrap">
+                <table className="stmt__table">
+                  <thead>
+                    <tr>
+                      {heads.map((h) => (
+                        <th key={h.label} className={h.num ? 'num' : undefined}>{h.label}</th>
+                      ))}
                     </tr>
-                  ))}
-                  <tr className="stmt__total">
-                    <td colSpan={9}>Total · {st.lines.length} application{st.lines.length === 1 ? '' : 's'}</td>
-                    <td className="num">{money(st.total)}</td>
-                  </tr>
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {st.lines.map((l, i) => (
+                      <tr key={`${l.ref}-${i}`}>
+                        <td>{l.ref}</td>
+                        <td>{l.tenant}</td>
+                        {/* The house empty glyph, for the mixed statement where
+                            some lines name a branch and some cannot: that is the
+                            case the column survives for. */}
+                        {!shape.oneBranch && <td>{l.branch || '-'}</td>}
+                        {/* A tenancy of one is not a joint tenancy; saying "1 of 1" invents one. */}
+                        <td>{l.tenancyPlace ? `Joint, ${l.tenancyPlace}` : 'Single'}</td>
+                        <td className="num">{l.sharePercent == null ? '100%' : `${l.sharePercent}%`}</td>
+                        <td>{dmy(l.paidAt)}</td>
+                        <td className="num">{money(l.fee)}</td>
+                        <td className="num">{pct(l.rate)}</td>
+                        {/* A line frozen before the source was recorded says so,
+                            rather than being labelled the standard on a guess. */}
+                        {!shape.oneSource && (
+                          <td>{l.source ? sourceWord(l.source) : <span className="muted">Not recorded</span>}</td>
+                        )}
+                        <td className="num">{money(l.commission)}</td>
+                      </tr>
+                    ))}
+                    <tr className="stmt__total">
+                      {/* Every column but the money one, however many that is today. */}
+                      <td colSpan={heads.length - 1}>Total · {st.lines.length} application{st.lines.length === 1 ? '' : 's'}</td>
+                      <td className="num">{money(st.total)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </CardBody>
       <CardFoot>
         <span className="muted" style={{ fontSize: 12.5 }}>

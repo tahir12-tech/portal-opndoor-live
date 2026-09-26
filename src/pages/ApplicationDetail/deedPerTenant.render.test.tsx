@@ -80,13 +80,18 @@ describe('every sibling shows its OWN deed state', () => {
     expect(para).not.toMatch(/issued/i);
   });
 
-  it('still marks the lead, and no longer claims the lead carries the deed', async () => {
+  /* NO LEAD BADGE AT ALL. This asserted the badge survived as "first tenant
+     entered", which was the halfway position: true, and worth nothing to a
+     reader. Under per-tenant deeds the lead carries no deed, no reminder and
+     no expiry its co-tenants do not also carry, so the label distinguished
+     nothing anybody could act on. Dropped here and on the Applications list in
+     the same pass, which is why this test now asserts the absence on both
+     rows rather than the presence on one. */
+  it('marks nobody as the lead, because lead no longer means anything', async () => {
     const view = await openDetail(SIBLING);
-    const badge = rowFor(view, 'Rosa Vance').querySelector('.jt-lead');
-    expect(badge?.textContent).toBe('Lead');
-    expect(badge?.getAttribute('title')).toMatch(/First tenant entered/i);
-    expect(badge?.getAttribute('title')).not.toMatch(/carries/i);
+    expect(rowFor(view, 'Rosa Vance').querySelector('.jt-lead')).toBeNull();
     expect(rowFor(view, 'Theo Brandt').querySelector('.jt-lead')).toBeNull();
+    expect(view.container.textContent).not.toMatch(/\bLead\b/);
   });
 
   it('leaves a sole applicant with no tenancy panel at all', async () => {

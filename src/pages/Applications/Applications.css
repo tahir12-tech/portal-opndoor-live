@@ -181,10 +181,11 @@
 }
 
 /* ---- A JOINT TENANCY, READ AS ONE THING -----------------------------------
-   Several applications, one property, one guarantee, one deed. Without this the
-   siblings are unrelated rows carrying the same address and the same whole
-   rent. The heading is drawn once above the group; a left rail then ties the
-   member rows to it, closing under the last one. */
+   Several applications, one property, a deed each. Without this the siblings
+   are unrelated rows carrying the same address and the same whole rent. The
+   heading now IS the address: it is said once here and left off the rows, so
+   the group reads as one let with several people in it. A left rail ties the
+   member rows to the heading, closing under the last one. */
 .jt-head td {
   background: var(--app-bg-2, rgba(0, 0, 0, .025));
   padding: 9px 18px !important;
@@ -192,13 +193,35 @@
   font-size: 12.5px;
   color: var(--ink-soft);
 }
+/* The address carries the heading, so it takes the weight the tag used to. */
+.jt-head__prop { color: var(--ink); font-weight: 600; }
+/* A LABEL, NOT A BANNER. It was a solid black chip leading the line, which is
+   more than "these rows go together" is worth now that the address is the
+   heading: outlined and muted, it sits beside the address instead of ahead of
+   it. */
 .jt-head__tag {
-  display: inline-block; margin-right: 10px; padding: 2px 7px; border-radius: 4px;
-  background: var(--ink, #1a1a24); color: #fff;
-  font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  display: inline-block; margin-left: 9px; padding: 1px 6px; border-radius: 4px;
+  border: 1px solid var(--line); color: var(--ink-mute);
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  vertical-align: 1px;
 }
-.jt-head__txt { color: var(--ink); }
-.jt-head__prog { float: right; color: var(--ink-mute); font-variant-numeric: tabular-nums; }
+/* Only when a filter is hiding a sibling. */
+.jt-head__part { margin-left: 9px; color: var(--ink-mute); }
+
+/* The tallies, right-aligned against the address.
+   ALL OF .jt-head__prog IS DECLARED HERE, above the narrow-screen override
+   below. It used to be split either side of that media query, so the trailing
+   `display: inline-flex` won on a phone too and the block the query asked for
+   never happened. */
+.jt-head__prog {
+  float: right; display: inline-flex; align-items: center; gap: 7px;
+  color: var(--ink-mute); font-variant-numeric: tabular-nums;
+}
+/* The two tallies are ONE reading, "2 of 2 paid · 1 of 2 deeds", so they are
+   weighted alike and only the dot between them is dropped back. They replaced a
+   status pill taken from the lead, and they carry the weight it used to. */
+.jt-head__paid, .jt-head__deeds { color: var(--ink); font-weight: 700; }
+.jt-head__dot { color: var(--ink-mute); }
 
 /* The rail. box-shadow rather than border-left so it does not shift the cell's
    text the way a border on a table cell does. */
@@ -206,7 +229,11 @@
 .jt-row:not(.jt-row--last) td { border-bottom-color: transparent !important; }
 .jt-row--last td { border-bottom: 1px solid var(--line) !important; }
 
-/* Who carries the deed, and who still owes their share. */
+/* Who still owes their share.
+   .jt-lead is NOT used on this page any more: the Lead badge came off with the
+   one-deed-per-tenancy rule. The rule is left here only because the tenancy
+   panel on ApplicationDetail still renders that class and this file is where it
+   has always been styled; delete it with that badge. */
 .jt-lead, .jt-unpaid {
   display: inline-block; margin-left: 7px; padding: 1px 6px; border-radius: 4px;
   font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
@@ -215,11 +242,8 @@
 .jt-lead { background: var(--heliotrope, #6b5bd2); color: #fff; }
 .jt-unpaid { background: var(--warn-bg, #fdf3e2); color: var(--warn, #c77d0a); }
 
+/* Narrow: the address keeps the line and the tallies drop under it, rather than
+   the two fighting over one row. */
 @media (max-width: 720px) {
-  .jt-head__prog { float: none; display: block; margin-top: 3px; }
+  .jt-head__prog { float: none; display: flex; margin-top: 3px; }
 }
-.jt-head__prog { display: inline-flex; align-items: center; gap: 8px; }
-/* The deed count replaced a status pill: it is the tenancy-level fact now that
-   each tenant signs their own, so it carries the weight the pill used to. */
-.jt-head__deeds { color: var(--ink); font-weight: 700; }
-.jt-head__sep { color: var(--ink-mute); }

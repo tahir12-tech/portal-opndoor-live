@@ -1466,13 +1466,13 @@ export function ApplicationDetail() {
                       <div className={`jt-panel__row${isMe ? ' is-me' : ''}`} key={sib.ref}>
                         <span className="jt-panel__who">
                           {isMe ? <b>{sib.tenant}</b> : <Link to={`/applications/${encodeURIComponent(sib.ref)}`}>{sib.tenant}</Link>}
-                          {/* "Lead" is first-entered and nothing else now. The
-                              tooltip said it carried the tenancy's deed, its
-                              reminders and its expiry; all three are per tenant
-                              under the new rule, so it claimed a job that no
-                              longer exists. Applications.tsx carries the same
-                              badge on its list rows, word for word. */}
-                          {m?.isLead && <span className="jt-lead" title="First tenant entered on this tenancy. Each tenant signs their own deed.">Lead</span>}
+                          {/* NO LEAD BADGE. It was kept for one revision as
+                              "first tenant entered", which is true and is not
+                              worth a badge: under per-tenant deeds the lead
+                              carries no deed, no reminder and no expiry that
+                              its co-tenants do not also carry, so the label
+                              distinguished nothing a reader could act on. Gone
+                              from the list rows too, in the same pass. */}
                           {isMe && <span className="jt-panel__you">this page</span>}
                         </span>
                         <span className="jt-panel__share">{m?.sharePercent != null ? `${m.sharePercent}%` : '-'}</span>

@@ -22,10 +22,21 @@
   letter-spacing: -0.01em;
 }
 
+/* --ink-mute, not --muted: there is no --muted token in portal.css, so these
+   two lines were rendering at full ink and reading as headings. */
 .stmt__level {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--ink-mute);
   margin-top: 2px;
+}
+
+/* The one value a collapsed column left behind. Darker than the level line
+   above it, because this is a fact about the money below rather than a caption:
+   "every line here is Leeds" has to be as readable as the column it replaced. */
+.stmt__only {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 3px;
 }
 
 .stmt__table {
@@ -48,7 +59,7 @@
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink-mute);
 }
 
 .stmt__table .num { text-align: right; }

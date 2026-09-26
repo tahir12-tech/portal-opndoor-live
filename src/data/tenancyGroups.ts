@@ -81,7 +81,11 @@ export interface TenancyMember {
   fee: number | null;
   paid: boolean;
   /** First entered, and nothing more than that. It used to mean "carries the
-      tenancy's deed"; under the ruling above every tenant carries their own. */
+      tenancy's deed"; under the ruling above every tenant carries their own.
+      NOT FOR THE SCREEN. With the deed on the person there is nothing a reader
+      can do with "lead", so no surface badges it any more: it is kept because
+      the first-entered row is still where the tenancy's own facts (rent,
+      property) are read off, and ordering needs a first. */
   isLead: boolean;
   /** This applicant's own status. Every member can now reach 'deed'. */
   status: Status;
@@ -112,6 +116,11 @@ export interface TenancyGroup {
       is still the answer to "is this tenancy settled". */
   fullyPaid: boolean;
   unpaidCount: number;
+  /** How many members HAVE paid. The complement of unpaidCount, kept beside it
+      because the two tallies a heading prints are "2 of 2 paid" and "1 of 2
+      deeds": deriving the first as members.length - unpaidCount at each call
+      site is how one surface ends up counting differently from another. */
+  paidCount: number;
   /** How many members hold an executed deed. Counted once here so the tenancy
       card, the list heading and any later surface agree. */
   deedsExecuted: number;
@@ -167,6 +176,7 @@ export function groupTenancies(rows: ApplicationSummary[]): Map<string, TenancyG
       prop: lead.prop,
       fullyPaid: members.every((m) => m.paid),
       unpaidCount: members.filter((m) => !m.paid).length,
+      paidCount: members.filter((m) => m.paid).length,
       deedsExecuted: members.filter((m) => m.deed === 'executed').length,
     });
   }
@@ -278,11 +288,12 @@ export function pageWithoutSplitting(
   return pages;
 }
 
-/** "Tenant 2 of 3". */
-export function memberLabel(g: TenancyGroup, ref: string): string {
-  const m = g.members.find((x) => x.ref === ref);
-  return m ? `Tenant ${m.position} of ${g.members.length}` : '';
-}
+/* NO memberLabel ("Tenant 2 of 3") ANY MORE. It numbered each row against the
+   tenancy, which was worth saying while the tenants differed in kind (one lead
+   holding the deed, the rest waiting on it). Every tenant now pays their own
+   share and signs their own deed, so the number ranked people who are not
+   ranked, on a row already sitting under a heading that says how many there
+   are. `position` stays: it is the entry order the members are sorted by. */
 
 /** A one-line summary of where the tenancy has got to, for a group heading. */
 export function tenancyProgress(g: TenancyGroup): string {
@@ -302,4 +313,23 @@ export function tenancyProgress(g: TenancyGroup): string {
  */
 export function tenancyDeedProgress(g: TenancyGroup): string {
   return `${g.deedsExecuted} of ${g.members.length} deeds executed`;
+}
+
+/* THE SAME TWO FACTS, SHORT, for a list heading.
+   The sentences above are written for a panel with a line to itself. A group
+   heading on the list has one line shared with the property address and reads
+   as a pair, "2 of 2 paid · 1 of 2 deeds", so the two tallies have to be the
+   same shape and the same width: "All 2 tenants have paid" beside "1 of 2 deeds
+   executed" is two sentences about different things rather than one progress
+   reading. Both always state the total, at 0 and at all of them alike, so the
+   size of the tenancy is on the heading without counting rows. */
+
+/** "2 of 2 paid". */
+export function tenancyPaidTally(g: TenancyGroup): string {
+  return `${g.paidCount} of ${g.members.length} paid`;
+}
+
+/** "1 of 2 deeds". */
+export function tenancyDeedTally(g: TenancyGroup): string {
+  return `${g.deedsExecuted} of ${g.members.length} deeds`;
 }
