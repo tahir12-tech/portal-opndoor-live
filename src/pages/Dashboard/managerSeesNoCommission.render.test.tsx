@@ -414,21 +414,37 @@ describe('the application record', () => {
        page's own fixed NOW, so two renderings of it are comparable character for
        character. The timeline and the key/value rows are named as well as the
        whole page, so a failure says WHERE the two levels came apart. */
+    /* THE RECORD, NOT THE WHOLE DOCUMENT, and this comparison used to be the
+       whole document. That was over-broad in a way that came due: the sidebar
+       footer now names the reader's LEVEL, so the shell around this record says
+       "Manager" for one and "Director" for the other, correctly and by design.
+       Comparing the shell made this assertion a claim about the sidebar as well as
+       about the record, and only the record is what "not a commission surface"
+       means. The record region is named explicitly so a future change to the shell
+       cannot fail this test and a change to the record still does. */
+    const record = (v: View) => v.container.querySelector('.page-main, main, .app-main')?.textContent
+      ?? v.container.textContent ?? '';
+
     beManager();
     const asManager = await openRecord();
     const managerRows = [...asManager.container.querySelectorAll('.drow')].map((r) => r.textContent).join('|');
     const managerTimeline = [...asManager.container.querySelectorAll('.tl-step')].map((s) => s.textContent).join('|');
-    const managerPage = text(asManager);
+    const managerRecord = record(asManager);
+    const managerLevel = asManager.container.querySelector('.sb__user-role')?.textContent;
     cleanup();
 
     beDirector();
     const asDirector = await openRecord();
     expect([...asDirector.container.querySelectorAll('.tl-step')].map((s) => s.textContent).join('|')).toBe(managerTimeline);
     expect([...asDirector.container.querySelectorAll('.drow')].map((r) => r.textContent).join('|')).toBe(managerRows);
-    expect(text(asDirector)).toBe(managerPage);
+    expect(record(asDirector)).toBe(managerRecord);
     // Guards against both sides being empty, which would compare nothing.
     expect(managerTimeline).toMatch(/Guarantor fee/);
     expect(managerRows).toMatch(/£/);
+    // And the one thing that SHOULD differ, asserted so this test documents the
+    // boundary rather than quietly stepping around it.
+    expect(managerLevel).toBe('Manager');
+    expect(asDirector.container.querySelector('.sb__user-role')?.textContent).toBe('Director');
   });
 });
 

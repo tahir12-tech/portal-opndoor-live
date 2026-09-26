@@ -113,7 +113,12 @@ export const NAV: NavGroup[] = [
       // grouped by the structure they actually have, with the invites and
       // positions a manager needs. Structure itself is read-only: Opndoor sets
       // up and changes branches and agencies from the admin Agencies section.
-      { id: 'team', label: 'Team', to: '/team', icon: 'users', roles: ['management', 'referrer'], capability: 'agencyTeam' },
+      // A NEGOTIATOR HAS NO TEAM. Their level is their own referrals only, so the
+      // team is somebody else's list of people: the manager who invited them and
+      // the colleagues they do not manage. 'referrer' came off the roles here and
+      // off the /team route in the same change, because an item hidden by a role
+      // whose route still renders is an unlisted screen, not a hidden one.
+      { id: 'team', label: 'Team', to: '/team', icon: 'users', roles: ['management'], capability: 'agencyTeam' },
     ],
   },
   {

@@ -174,13 +174,28 @@ export function orgSectionCopy(shape: OrgShape): { title: string; sub: string } 
     };
   }
   if (orgNotSetUp(shape)) {
-    return { title: 'Your branches', sub: 'No branches are set up for your account yet.' };
+    return { title: 'Your offices', sub: 'No offices are set up for your account yet.' };
   }
   if (shape.collapseAgency && shape.collapseBranch) {
     return { title: 'Your office', sub: 'This referral is against your only office.' };
   }
   if (shape.collapseAgency) {
-    return { title: 'Your branch', sub: 'Which of your branches is letting this property.' };
+    return { title: 'Your office', sub: 'Which of your offices is letting this property.' };
   }
-  return { title: 'Brand and branch', sub: 'Which of your brands is letting this property, and which branch.' };
+  /* AGENCY AND OFFICE, and it used to say "Brand and branch".
+     "Brand" is banned vocabulary: it is our word for a thing an agency calls
+     itself, and no agency reading this form has ever called it that. The agency's
+     own words are agency and office, which is what the controls beside this
+     heading are labelled (see AgentBranchPicker) and what the note under Tenancy
+     says. This heading is reached only by a group holding more than one of our
+     agencies, which is why it was the last place the word survived.
+
+     "Agency" here also supersedes the older rule that this copy must never say
+     agency to somebody who owns their stock. That rule existed to stop us calling
+     an agency's own brands "agencies"; with brand gone there is nothing left for
+     it to protect, and the agency's own word wins. */
+  return {
+    title: 'Agency and office',
+    sub: 'Which of your agencies is letting this property, and which office.',
+  };
 }

@@ -450,6 +450,12 @@ export function referrerPaidEmail(p: { guaranteeRef: string; tenantName: string;
 
 /* ---- partner and staff --------------------------------------------------- */
 
+/* Google Authenticator's own store pages. Mirrored in src/pages/Login/Login.tsx,
+   which this file cannot import (different runtime). Free on both stores, which is
+   why it is the one we name. */
+const APP_STORE_GA = "https://apps.apple.com/app/google-authenticator/id388497605";
+const GOOGLE_PLAY_GA = "https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2";
+
 export function staffInviteEmail(p: { inviterName: string; partnerName: string; link: string }): Message {
   return {
     subject: "You have been invited to the opndoor portal",
@@ -457,6 +463,29 @@ export function staffInviteEmail(p: { inviterName: string; partnerName: string; 
     blocks: [
       { p: `${p.inviterName} has invited you to the opndoor Guarantee Referral Portal for ${p.partnerName}. Choose a password and set up two-factor authentication to get started.` },
       { small: "Two-factor authentication is required on every sign in. You will need an authenticator app." },
+      /* WHERE TO GET ONE, in the invite rather than only on the screen, so the
+         invitee can install it before they start rather than stopping halfway
+         through enrolment to go to a store.
+
+         ONLY FREE APPS ARE NAMED, and this is the rule, not a preference: a
+         required security step must never be gated behind somebody buying
+         software. Google Authenticator is free on both stores and an iPhone has
+         one built in, so nobody has to spend anything.
+
+         THE URL IS THE LINK TEXT ON PURPOSE. renderText strips tags to build the
+         plain-text part of every email, substituting nothing, so an anchor reading
+         "App Store" would leave a text-only reader the words and not the address.
+         A list block gives each one its own line in both parts.
+
+         The same copy is on the enrolment screen in src/pages/Login/Login.tsx,
+         which cannot be imported here (this runs on Deno). If one changes, change
+         both. */
+      { small: "You need an authenticator app. Google Authenticator is free:" },
+      { list: [
+        `App Store: <a href="${APP_STORE_GA}" style="color:#5b3fd9;">${APP_STORE_GA}</a>`,
+        `Google Play: <a href="${GOOGLE_PLAY_GA}" style="color:#5b3fd9;">${GOOGLE_PLAY_GA}</a>`,
+      ] },
+      { small: "On an iPhone, the built-in Passwords app works too." },
     ],
     action: { label: "Set up your account", href: p.link },
   };

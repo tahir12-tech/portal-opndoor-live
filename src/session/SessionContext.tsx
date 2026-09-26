@@ -15,7 +15,9 @@ import {
   setSelectedPartner as persistPartner, getSelectedPeriod, setSelectedPeriod as persistPeriod,
   logViewAs, partnerName,
   LEAST_PRIVILEGED_ROLE, type PartnerScope, type Period, type Role, hydrateCommissionVisibility,
+  agencyLevelOf, maySeeCommission,
 } from '@/data';
+import { isAgencyUser } from '@/data/capabilities';
 import { KEYS, loadString, saveString } from '@/data/storage';
 import { ROLES, type RoleIdentity } from '@/constants/roles';
 import { SUPABASE_ENABLED, supabase } from '@/lib/supabase';
@@ -297,9 +299,38 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const partnerScope = role === 'superadmin' ? selectedPartner : homePartner();
 
-  const user: RoleIdentity = profile
+  /* THE LABEL UNDER THE NAME, in the words the agency uses for itself.
+
+     It read ROLES[role].label, which is our vocabulary: "Management" and
+     "Referrer". Nobody at an agency holds either. They hold one of three levels,
+     Director, Manager or Negotiator, which is what the invite dialog offers, what
+     Team prints beside each person and what the admin screens call them, so the
+     sidebar was the one surface still naming them by the role underneath.
+
+     Only for an agency user. A supplier's staff are also role 'management' and
+     are not Directors of anything, and Opndoor's own staff are not agency people
+     at all, so both keep their own label. agencyLevelOf answers null for anyone
+     with no level, and the fallback is the label it always was.
+
+     maySeeCommission rather than a field on the profile: it is the same hydrated
+     source every other commission decision reads, so the sidebar cannot disagree
+     with the screens about whether this person is a Director or a Manager. `user`
+     is recomputed on every render, and dataVersion bumps after hydration, so the
+     label follows the flag rather than freezing before it arrives. */
+  const base: RoleIdentity = profile
     ? { name: profile.name, label: ROLES[profile.role].label, initials: initialsOf(profile.name) }
     : ROLES[role];
+
+  /* BOTH PATHS, and the first attempt at this only did one. The level was applied
+     inside the `profile` branch, which exists only in Supabase mode, so the mock
+     and demo shell carried on calling people Management and Referrer. The rule is
+     about what an agency person is called, not about which back end is answering. */
+  const levelRole = profile?.role ?? role;
+  const agencyLevel = isAgencyUser(levelRole, partnerScope)
+    ? agencyLevelOf(levelRole, maySeeCommission(levelRole))
+    : null;
+
+  const user: RoleIdentity = agencyLevel ? { ...base, label: agencyLevel } : base;
 
   const value = useMemo<SessionValue>(
     () => ({ role, setRole, user, currentUserId: profile?.userId ?? null, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion }),

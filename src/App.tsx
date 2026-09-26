@@ -148,7 +148,16 @@ export function App() {
           <Route path="/agencies" element={<OrgManagement />} />
           <Route path="/agencies/:key" element={<AgencyHome />} />
         </Route>
-        <Route element={<RequireCapability roles={['management', 'referrer']} capability="agencyTeam" redirectTo="/agencies" />}>
+        {/* Team is an agency MANAGER's screen. A Negotiator sees their own
+            referrals and no team, so they are off the roles here exactly as they
+            are off the nav item.
+            The redirect is the dashboard rather than /agencies, and it has to be:
+            /agencies sends an agency user back to /team (orgSection is the inverse
+            of agencyTeam), so pointing this at /agencies would bounce a Negotiator
+            between the two for ever. RequireCapability uses one redirectTo for
+            both a role failure and a capability failure, so it must be somewhere
+            every refused reader can actually land. */}
+        <Route element={<RequireCapability roles={['management']} capability="agencyTeam" redirectTo="/dashboard" />}>
           <Route path="/team" element={<Team />} />
         </Route>
         <Route element={<RequireRole roles={['superadmin', 'management', 'referrer']} redirectTo="/dev-centre" />}>

@@ -150,3 +150,19 @@
   color: var(--heliotrope-deep);
   font-weight: 700;
 }
+
+/* WHERE TO GET AN AUTHENTICATOR, above the QR on the enrolment step.
+   Quieter than the instruction above it and tighter than a paragraph, because it
+   is a signpost rather than a step. Only free apps are ever named here: a
+   required security step must not be gated behind buying software. */
+.twofa-apps,
+.auth__apps {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-mute);
+  margin: 10px 0 0;
+}
+.auth__app-link {
+  color: var(--heliotrope-deep, #5b3fd9);
+  text-decoration: underline;
+}

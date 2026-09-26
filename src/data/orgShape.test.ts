@@ -47,7 +47,7 @@ describe('what each shape asks for', () => {
     expect(AGENCY.collapseBranch).toBe(false);
   });
 
-  it('asks a group which brand and which branch', () => {
+  it('asks a group which agency and which office', () => {
     expect(GROUP.collapseAgency).toBe(false);
     expect(GROUP.collapseBranch).toBe(false);
   });
@@ -148,12 +148,20 @@ describe('the wording follows the shape', () => {
   });
 
   it('asks an agent which of their own offices it is', () => {
-    expect(orgSectionCopy(AGENCY).title).toBe('Your branch');
-    expect(orgSectionCopy(AGENCY).sub).toMatch(/your branches/i);
+    expect(orgSectionCopy(AGENCY).title).toBe('Your office');
+    expect(orgSectionCopy(AGENCY).sub).toMatch(/your offices/i);
   });
 
-  it('says brand, not agency, to a group that owns its stock', () => {
-    expect(orgSectionCopy(GROUP).title).toBe('Brand and branch');
+  /* THE VOCABULARY RULING, and it reverses an earlier one.
+     This used to assert "Brand and branch", and beneath it a rule that this copy
+     must never say "agency" to somebody who owns their stock. "Brand" is banned:
+     it is our word for a thing an agency calls itself, and no agency reading the
+     form has ever called it that. The old no-agency rule existed only to stop us
+     calling an agency's own brands "agencies", so with brand gone there is
+     nothing left for it to protect. */
+  it('says agency and office to a group that owns its stock', () => {
+    expect(orgSectionCopy(GROUP).title).toBe('Agency and office');
+    expect(orgSectionCopy(GROUP).sub).toMatch(/which of your agencies/i);
   });
 
   it('does not ask an independent anything', () => {
@@ -161,10 +169,20 @@ describe('the wording follows the shape', () => {
     expect(orgSectionCopy(INDEPENDENT).sub).toMatch(/only office/i);
   });
 
-  it('never says agency to somebody who owns their stock', () => {
+  it('never says brand to anybody, which is the banned word', () => {
+    for (const s of [INDEPENDENT, AGENCY, GROUP, SUPPLIER_ONE_AGENCY, FULL_PICKER, UNRESOLVED]) {
+      const c = orgSectionCopy(s);
+      expect(`${c.title} ${c.sub}`.toLowerCase()).not.toMatch(/brand/);
+    }
+  });
+
+  /* An agency user is told about OFFICES, not branches: branch is the schema's
+     word and the supplier rail's word, and the two audiences do not share a
+     vocabulary. The supplier copy above is deliberately left saying branch. */
+  it('says office, not branch, to somebody who owns their stock', () => {
     for (const s of [INDEPENDENT, AGENCY, GROUP]) {
       const c = orgSectionCopy(s);
-      expect(`${c.title} ${c.sub}`.toLowerCase()).not.toMatch(/\bagency\b/);
+      expect(`${c.title} ${c.sub}`.toLowerCase()).not.toMatch(/branch/);
     }
   });
 });
@@ -180,7 +198,7 @@ describe('an agent with nothing set up yet', () => {
      way to add anything and no explanation. */
   it('is its own state, not a quiet fall-through', () => {
     expect(orgNotSetUp(EMPTY_AGENT)).toBe(true);
-    expect(orgSectionCopy(EMPTY_AGENT).sub).toMatch(/no branches are set up/i);
+    expect(orgSectionCopy(EMPTY_AGENT).sub).toMatch(/no offices are set up/i);
   });
 
   it('is never true for a supplier, who starts empty and fills up by referring', () => {
