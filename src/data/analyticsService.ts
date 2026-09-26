@@ -48,7 +48,7 @@ function pct(n: number, d: number): string {
   return `${d ? Math.round((n / d) * 100) : 0}%`;
 }
 function days(n: number | null): string {
-  return n == null ? '—' : `${n.toFixed(1)}`;
+  return n == null ? '-' : `${n.toFixed(1)}`;
 }
 export function fmtBig(n: number): string {
   if (n >= 1e6) return `£${(n / 1e6).toFixed(2)}M`;

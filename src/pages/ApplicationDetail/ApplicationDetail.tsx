@@ -1035,7 +1035,7 @@ export function ApplicationDetail() {
       {payPaid && (
         <>
           <div className="pay-state pay-state--paid"><span className="pay-dot" />Paid</div>
-          <div className="drow"><span className="drow__k">Paid on</span><span className="drow__v">{pi?.paidAt ? fmtInput(new Date(pi.paidAt)) : '—'}</span></div>
+          <div className="drow"><span className="drow__k">Paid on</span><span className="drow__v">{pi?.paidAt ? fmtInput(new Date(pi.paidAt)) : '-'}</span></div>
           {/* The FEE. paid_amount where Stripe wrote one, else the fee snapshotted
               on the application, never the rent. See paidAmountLabel above. */}
           <div className="drow"><span className="drow__k">Amount</span><span className="drow__v"><b>{paidAmountLabel}</b>{d.feeBasisLabel ? ` · ${d.feeBasisLabel}` : ''}</span></div>
@@ -1057,8 +1057,8 @@ export function ApplicationDetail() {
               <span><b>Refunded after tenancy start, outside refund policy.</b> Review required. Recorded truthfully; nothing was reversed automatically.</span>
             </div>
           )}
-          <div className="drow"><span className="drow__k">Refunded on</span><span className="drow__v">{pi?.refundedAt ? fmtInput(new Date(pi.refundedAt)) : '—'}</span></div>
-          <div className="drow"><span className="drow__k">Refund reference</span><span className="drow__v pay-mono">{pi?.refundRef ?? '—'}</span></div>
+          <div className="drow"><span className="drow__k">Refunded on</span><span className="drow__v">{pi?.refundedAt ? fmtInput(new Date(pi.refundedAt)) : '-'}</span></div>
+          <div className="drow"><span className="drow__k">Refund reference</span><span className="drow__v pay-mono">{pi?.refundRef ?? '-'}</span></div>
           <div className="pay-note">No commission or premium accrues on a refunded fee. The Sent to Paid transition is not reversed (by design).</div>
         </>
       )}
@@ -1127,7 +1127,7 @@ export function ApplicationDetail() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--sent)', flex: '0 0 auto' }} />
               <span style={{ fontWeight: 600 }}>Sent</span>
-              <span style={{ marginLeft: 'auto', color: 'var(--ink-mute)' }}>{pi.deedSentAt ? fmtStamp(new Date(pi.deedSentAt)) : '—'}</span>
+              <span style={{ marginLeft: 'auto', color: 'var(--ink-mute)' }}>{pi.deedSentAt ? fmtStamp(new Date(pi.deedSentAt)) : '-'}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: pi.deedViewedAt ? 'var(--paid)' : 'rgba(39,29,95,0.18)', flex: '0 0 auto' }} />
@@ -1207,7 +1207,7 @@ export function ApplicationDetail() {
         <>
           <div className="drow"><span className="drow__k">Sent to</span><span className="drow__v pay-mono">{delivery.attemptedTo ?? 'Not recorded'}</span></div>
           {delivery.attemptedSource && <div className="drow"><span className="drow__k">Address from</span><span className="drow__v">{rungLabel(delivery.attemptedSource)}</span></div>}
-          <div className="drow"><span className="drow__k">Failed</span><span className="drow__v">{delivery.failedAt ? fmtStamp(new Date(delivery.failedAt)) : '—'}</span></div>
+          <div className="drow"><span className="drow__k">Failed</span><span className="drow__v">{delivery.failedAt ? fmtStamp(new Date(delivery.failedAt)) : '-'}</span></div>
           <div className="drow"><span className="drow__k">Reason</span><span className="drow__v">{delivery.reason ?? 'No reason was recorded'}</span></div>
           <div className="pay-note pay-note--warn">The deed is issued and stored. Only the email failed, so resending is safe.</div>
         </>
@@ -1221,9 +1221,9 @@ export function ApplicationDetail() {
       )}
       {dlvState === 'delivered' && (
         <>
-          <div className="drow"><span className="drow__k">Sent to</span><span className="drow__v pay-mono">{delivery.attemptedTo ?? (dlvWouldGo || '—')}</span></div>
+          <div className="drow"><span className="drow__k">Sent to</span><span className="drow__v pay-mono">{delivery.attemptedTo ?? (dlvWouldGo || '-')}</span></div>
           {(delivery.attemptedSource ?? delivery.source) && <div className="drow"><span className="drow__k">Address from</span><span className="drow__v">{rungLabel(delivery.attemptedSource ?? delivery.source)}</span></div>}
-          <div className="drow"><span className="drow__k">Sent</span><span className="drow__v">{delivery.sentAt ? fmtStamp(new Date(delivery.sentAt)) : '—'}</span></div>
+          <div className="drow"><span className="drow__k">Sent</span><span className="drow__v">{delivery.sentAt ? fmtStamp(new Date(delivery.sentAt)) : '-'}</span></div>
         </>
       )}
       {dlvState === 'not_attempted' && (
@@ -1351,7 +1351,7 @@ export function ApplicationDetail() {
             <CardHead title="Property" />
             <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
               <div className="drow"><span className="drow__k">Address line 1</span><span className="drow__v">{titleCaseAddress(d.addr1)}</span></div>
-              <div className="drow"><span className="drow__k">Address line 2</span><span className="drow__v">{d.addr2 ? titleCaseAddress(d.addr2) : '—'}</span></div>
+              <div className="drow"><span className="drow__k">Address line 2</span><span className="drow__v">{d.addr2 ? titleCaseAddress(d.addr2) : '-'}</span></div>
               <div className="drow"><span className="drow__k">City / town</span><span className="drow__v">{titleCaseAddress(d.city)}</span></div>
               <div className="drow"><span className="drow__k">County</span><span className="drow__v">{titleCaseAddress(d.county)}</span></div>
               <div className="drow"><span className="drow__k">Postcode</span><span className="drow__v"><b>{d.postcode}</b></span></div>
@@ -1475,7 +1475,7 @@ export function ApplicationDetail() {
                           {m?.isLead && <span className="jt-lead" title="First tenant entered on this tenancy. Each tenant signs their own deed.">Lead</span>}
                           {isMe && <span className="jt-panel__you">this page</span>}
                         </span>
-                        <span className="jt-panel__share">{m?.sharePercent != null ? `${m.sharePercent}%` : '—'}</span>
+                        <span className="jt-panel__share">{m?.sharePercent != null ? `${m.sharePercent}%` : '-'}</span>
                         <span className={`jt-panel__paid${m?.paid ? ' is-paid' : ''}`}>{m?.paid ? 'Paid' : 'Not paid'}</span>
                         <span className={`jt-panel__ds jt-panel__ds--${memberDeedTone(deed)}`}>{MEMBER_DEED_LABEL[deed]}</span>
                         <span className="jt-panel__ref">{sib.ref}</span>

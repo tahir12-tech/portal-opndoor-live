@@ -251,7 +251,7 @@ export interface AddBranchInput {
 export function addBranch(agencyName: string, input: AddBranchInput): Branch | null {
   const agency = findAgency(agencyName);
   if (!agency) return null;
-  const branch: Branch = { name: input.name, area: input.area || '—', referrers: 0, referrals: 0, guaranteed: '£0' };
+  const branch: Branch = { name: input.name, area: input.area || '-', referrers: 0, referrals: 0, guaranteed: '£0' };
   agency.branches.push(branch);
   agency.open = true;
   persist();
@@ -271,7 +271,7 @@ export function createAgencyOnTheFly(name: string, scope: PartnerScope): Agency 
 export function createBranchOnTheFly(agencyName: string, name: string): Branch | null {
   const agency = findAgency(agencyName);
   if (!agency) return null;
-  const branch: Branch = { name, area: '—', referrers: 0, referrals: 0, guaranteed: '£0', unreviewed: true };
+  const branch: Branch = { name, area: '-', referrers: 0, referrals: 0, guaranteed: '£0', unreviewed: true };
   agency.branches.push(branch);
   persist();
   return branch;

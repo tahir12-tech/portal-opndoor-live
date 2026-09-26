@@ -220,7 +220,7 @@ export async function updatePartnerSettings(id: string, next: PartnerSettingsInp
   if (cur.partnerRate !== next.partnerRate) add('partner_rate', pct(cur.partnerRate), pct(next.partnerRate));
   if (cur.agentRate !== next.agentRate) add('agent_rate', pct(cur.agentRate), pct(next.agentRate));
   if (cur.status !== next.status) add('status', cur.status, next.status);
-  if ((cur.since || '') !== (next.since || '')) add('live_from', cur.since || '—', next.since || '—');
+  if ((cur.since || '') !== (next.since || '')) add('live_from', cur.since || '-', next.since || '-');
   if (cur.name !== next.name) add('name', cur.name, next.name);
   if ((cur.referencingMode ?? 'pre_referenced_screened') !== next.referencingMode) {
     add('referencing_mode', cur.referencingMode ?? 'pre_referenced_screened', next.referencingMode);

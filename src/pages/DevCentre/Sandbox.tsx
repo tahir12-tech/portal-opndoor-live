@@ -32,11 +32,11 @@ import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 
 function fmtMoney(n: number | null): string {
-  return n === null || n === undefined ? '—' : `£${Number(n).toLocaleString('en-GB')}`;
+  return n === null || n === undefined ? '-' : `£${Number(n).toLocaleString('en-GB')}`;
 }
 
 function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  return iso ? new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
 }
 
 /**
@@ -218,13 +218,13 @@ export function Sandbox({ partnerId }: { partnerId: string | null }) {
                     {a.deed_state && <div className="soft">{a.deed_state.replace(/_/g, ' ')}</div>}
                   </td>
                   <td>
-                    {`${a.tenant_first_name ?? ''} ${a.tenant_last_name ?? ''}`.trim() || '—'}
+                    {`${a.tenant_first_name ?? ''} ${a.tenant_last_name ?? ''}`.trim() || '-'}
                     {/* Shown in full rather than masked. It is the developer's own
                         test payload, and it is the address PandaDoc emails. */}
                     <div className="soft">{a.tenant_email}</div>
                   </td>
                   <td>
-                    {a.prop_addr1 ?? '—'}
+                    {a.prop_addr1 ?? '-'}
                     <div className="soft">{a.prop_postcode}</div>
                   </td>
                   <td>{fmtMoney(a.monthly_rent)}</td>
@@ -243,7 +243,7 @@ export function Sandbox({ partnerId }: { partnerId: string | null }) {
                           <Icon name="pen" /> Sign
                         </Button>
                       )}
-                      {!a.payment_url && !a.pandadoc_document_id && <span className="soft">—</span>}
+                      {!a.payment_url && !a.pandadoc_document_id && <span className="soft">-</span>}
                     </div>
                   </td>
                 </tr>

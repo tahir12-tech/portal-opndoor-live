@@ -165,9 +165,9 @@ export function PayLanding() {
       )}
 
       <div className="pay__receipt">
-        <Row k="Tenant" v={d.tenantName || '—'} />
-        <Row k="Property" v={d.propFull || '—'} />
-        <Row k="Tenancy start" v={d.tenancyStart || '—'} />
+        <Row k="Tenant" v={d.tenantName || '-'} />
+        <Row k="Property" v={d.propFull || '-'} />
+        <Row k="Tenancy start" v={d.tenancyStart || '-'} />
         <Row k="Monthly rent" v={`£${(d.monthlyRent ?? 0).toLocaleString('en-GB')}`} />
       </div>
 

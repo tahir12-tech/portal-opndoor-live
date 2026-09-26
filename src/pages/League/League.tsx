@@ -78,7 +78,7 @@ function cellFor(col: SortKey, r: LeagueRow, view?: LeagueView) {
     case 'agentComm':
       // On the branch board an empty figure means "this branch holds no rate of
       // its own", which is a different statement from "it earned nothing".
-      if (view === 'branch' && !r.agentComm) return <span className="soft">—</span>;
+      if (view === 'branch' && !r.agentComm) return <span className="soft">-</span>;
       return fmtBig(r.agentComm);
     default: return r.name;
   }

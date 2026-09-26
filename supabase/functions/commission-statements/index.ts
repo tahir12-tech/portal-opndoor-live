@@ -5,11 +5,15 @@
 // UTC to cover BST/GMT; this function self-gates to 08:00 Europe/London and the
 // off-hour run no-ops, exactly as expiry-reminders and expiry-cohorts do).
 //
-// On the FIRST WORKING DAY of each month it posts the previous calendar month's
-// commission statement: one email per payee that earned anything, with the total
-// in the subject and in the body, the constituent applications attached, and a
-// link to the same statement in the portal. Opndoor staff get one consolidated
-// settlement email the same morning.
+// On the 1st of each month, or the next day that is not a UK bank holiday, it
+// posts the previous calendar month's commission statement: one email per payee
+// that earned anything, with the total in the subject and in the body, the
+// constituent applications attached as a PDF, and a link to the same statement
+// in the portal. Opndoor staff get one consolidated settlement email the same
+// morning.
+//
+// WEEKENDS ARE SEND DAYS. A Saturday 1st sends on the Saturday. Only a bank
+// holiday moves the date. See UK_BANK_HOLIDAYS and statementSendDay below.
 //
 // WHAT IS NOT HERE. The statement is not computed in TypeScript. The screen's
 // copy (getCommissionStatements in src/data/liveAnalytics.ts) reads a hydrated
@@ -31,7 +35,8 @@
 // redirects the lot and a rehearsal cannot reach a real agency.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { sendMessage } from "../_shared/mailer.ts";
+import { bytesToBase64, sendMessage } from "../_shared/mailer.ts";
+import { renderTablePdf, type PdfColumn } from "../_shared/pdf.ts";
 import type { Block, Message } from "../_shared/emailLayout.ts";
 
 const cors = {
@@ -43,33 +48,39 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
 /**
- * THE PAYMENT TERMS SENTENCE, AWAITING THE CLIENT'S OWN WORDING.
+ * THE PAYMENT TERMS SENTENCE. The client's own wording, supplied 2026-09-26.
  *
- * Matt has not supplied it. Plausible terms are worse than no terms: "payable
- * within 30 days of statement date" reads like a commitment, would be quoted
- * back at us by an agency chasing payment, and nobody here agreed to it. So the
- * placeholder ships visibly, in the place the real sentence will occupy, and
- * whoever has the wording replaces this one string.
- *
- * DO NOT INVENT A VALUE FOR THIS.
+ * One exported constant, rendered verbatim in the email body and in the
+ * attachment, so the two can never say different things. If the terms change,
+ * this one string changes and both follow.
  */
-export const PAYMENT_TERMS_LINE = "PAYMENT TERMS: [to be supplied]";
+export const PAYMENT_TERMS_LINE = "Paid by the 15th of the following month.";
 
 /**
- * THE ATTACHMENT IS A CSV, AND THE RULING ASKED FOR A PDF.
+ * The attachment is a PDF, written by _shared/pdf.ts.
  *
- * This repo has no PDF writer. Deeds are PDFs because PandaDoc renders them from
- * a template and we download the bytes; there is no template for a statement and
- * no generator to point at one. The branded exports the portal offers
- * (exportBranded -> xlsxTemplate.ts) are xlsx, written by a browser-only library.
- * Adding a PDF dependency to an Edge Function to satisfy the wording would be a
- * new runtime dependency chosen by an agent rather than by the team.
+ * Resend reads the content type off the filename, so the ".pdf" here is what
+ * makes the attachment arrive as application/pdf rather than a download the
+ * recipient's mail client refuses to preview. There is no content_type field on
+ * the shared Attachment type for that reason; if one is ever needed, it is
+ * added in _shared/mailer.ts, not worked around here.
  *
- * So the statement attaches as CSV, which opens in Excel, reconciles line by
- * line, and is honest about what it is. This is flagged as outstanding, not
- * quietly substituted.
+ * WHAT WAS LOST. This used to be a CSV, which opened in Excel and reconciled
+ * line by line. A PDF does not. Anyone who needs the numbers in a spreadsheet
+ * downloads the month from the Reporting page, which still exports xlsx.
  */
-const ATTACHMENT_FORMAT: "csv" | "pdf" = "csv";
+const ATTACHMENT_FORMAT = "pdf" as const;
+const ATTACHMENT_MEDIA_TYPE = "application/pdf";
+
+/**
+ * A cell with nothing in it reads as one hyphen.
+ *
+ * Not blank, because a blank cell in a money table looks like a rendering
+ * failure; not "None", because that is a value and this is an absence; and not
+ * an em dash, which the house style keeps out of copy. A historic line that
+ * recorded no commission source is genuinely unknown, and the hyphen says so.
+ */
+const EMPTY_CELL = "-";
 
 /** Current hour and calendar date in Europe/London. */
 function londonNow(): { hour: number; date: string } {
@@ -81,20 +92,112 @@ function londonNow(): { hour: number; date: string } {
 }
 
 /**
- * The first working day of a month, as a day number.
+ * UK BANK HOLIDAYS, England and Wales, from gov.uk/bank-holidays.
  *
- * WEEKENDS ONLY. UK bank holidays are not in this repo and there is no calendar
- * to read one from, so 2 January and Easter Monday are treated as working days.
- * Inventing a holiday table here would be a guess that silently goes stale every
- * year; the gap is reported rather than papered over.
+ * A static table, because an Edge Function on a cron cannot depend on reaching
+ * gov.uk at 08:00 on the 1st: a fetch that times out would either skip a month
+ * of statements or send them on a holiday, and neither is better than a list
+ * somebody maintains.
+ *
+ * THIS TABLE MUST BE EXTENDED BEFORE IT RUNS OUT. It covers 2026 to 2030. The
+ * last entry is 2030-12-26; after that, copy the next years off gov.uk and
+ * paste them in. statementSendDay logs loudly and falls back to the 1st if it
+ * is asked about a year that is not here, so the failure is visible in the
+ * function logs and in every dry run rather than silent.
+ *
+ * Scotland and Northern Ireland differ (2 January, 12 July, St Andrew's Day).
+ * England and Wales is the right list: it is the calendar the payment runs and
+ * the recipients' own banks keep.
  */
-function firstWorkingDay(year: number, month1: number): number {
-  for (let d = 1; d <= 7; d++) {
-    const dow = new Date(Date.UTC(year, month1 - 1, d)).getUTCDay(); // 0 Sun, 6 Sat
-    if (dow !== 0 && dow !== 6) return d;
-  }
-  return 1; // unreachable: a seven-day run of weekends does not exist
+const UK_BANK_HOLIDAYS: readonly string[] = [
+  // 2026
+  "2026-01-01", // New Year's Day
+  "2026-04-03", // Good Friday
+  "2026-04-06", // Easter Monday
+  "2026-05-04", // Early May
+  "2026-05-25", // Spring
+  "2026-08-31", // Summer
+  "2026-12-25", // Christmas Day
+  "2026-12-28", // Boxing Day, substitute for Saturday the 26th
+  // 2027
+  "2027-01-01",
+  "2027-03-26",
+  "2027-03-29",
+  "2027-05-03",
+  "2027-05-31",
+  "2027-08-30",
+  "2027-12-27", // Christmas Day, substitute for Saturday the 25th
+  "2027-12-28", // Boxing Day, substitute for Sunday the 26th
+  // 2028
+  "2028-01-03", // New Year's Day, substitute for Saturday the 1st
+  "2028-04-14",
+  "2028-04-17",
+  "2028-05-01",
+  "2028-05-29",
+  "2028-08-28",
+  "2028-12-25",
+  "2028-12-26",
+  // 2029
+  "2029-01-01",
+  "2029-03-30",
+  "2029-04-02",
+  "2029-05-07",
+  "2029-05-28",
+  "2029-08-27",
+  "2029-12-25",
+  "2029-12-26",
+  // 2030
+  "2030-01-01",
+  "2030-04-19",
+  "2030-04-22",
+  "2030-05-06",
+  "2030-05-27",
+  "2030-08-26",
+  "2030-12-25",
+  "2030-12-26",
+];
+const HOLIDAY_SET = new Set(UK_BANK_HOLIDAYS);
+
+/** Whether the table above has anything at all to say about a year. */
+function bankHolidaysKnownFor(year: number): boolean {
+  return UK_BANK_HOLIDAYS.some((d) => d.startsWith(`${year}-`));
 }
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * The day of the month the statements go out: the 1st, or the next day that is
+ * not a UK bank holiday.
+ *
+ * WEEKENDS DO NOT MATTER. A Saturday or Sunday 1st is a send day. This is not
+ * an oversight and not the old rule left behind: statements are an email and a
+ * PDF, nobody has to be at a desk to receive them, and a weekend rule would
+ * have pushed a Saturday 1st to the 3rd for no reason anyone could point at.
+ * Only a bank holiday moves it, because that is when the payment behind the
+ * statement cannot clear.
+ *
+ * `covered` is false when the holiday table has run out. The caller surfaces
+ * that; the day falls back to the 1st, so an unmaintained table sends on time
+ * and possibly on a holiday, rather than skipping a month in silence.
+ */
+function statementSendDay(year: number, month1: number): { day: number; covered: boolean } {
+  if (!bankHolidaysKnownFor(year)) {
+    console.error(
+      `commission-statements: UK_BANK_HOLIDAYS has no entries for ${year}. ` +
+        `The table has run out and must be extended from gov.uk/bank-holidays. ` +
+        `Treating every day as a working day, so statements send on the 1st.`,
+    );
+    return { day: 1, covered: false };
+  }
+  // Four in a row is the worst Christmas can do; fourteen is room to spare.
+  for (let d = 1; d <= 14; d++) {
+    if (!HOLIDAY_SET.has(`${year}-${pad2(month1)}-${pad2(d)}`)) return { day: d, covered: true };
+  }
+  return { day: 1, covered: true }; // unreachable
+}
+
+const ordinal = (d: number) =>
+  `${d}${d >= 11 && d <= 13 ? "th" : d % 10 === 1 ? "st" : d % 10 === 2 ? "nd" : d % 10 === 3 ? "rd" : "th"}`;
 
 /** 'YYYY-MM' of the calendar month before the given London date. */
 function previousMonthKey(isoDate: string): string {
@@ -125,26 +228,13 @@ function pct(rate: number): string {
   return `${Number((rate * 100).toFixed(2))}%`;
 }
 
-function csvCell(v: unknown): string {
-  const s = String(v ?? "");
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-function toCSV(rows: (string | number)[][]): string {
-  // The BOM is what makes Excel open a £ sign as a £ sign.
-  return "﻿" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
-}
-/** Base64 for a Resend attachment. Text, so the UTF-8 round trip is explicit. */
-function textToBase64(s: string): string {
-  return btoa(unescape(encodeURIComponent(s)));
-}
-
 const esc = (s: string) =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** How a frozen line's source reads in a statement. Mirrors SOURCE_LABEL in
-    src/data/commissionSplit.ts, so the CSV and the screen use one vocabulary.
-    A historic line recorded no source and stays blank rather than being called
-    standard, which is the whole point of storing it. */
+    src/data/commissionSplit.ts, so the PDF and the screen use one vocabulary.
+    A historic line recorded no source and prints EMPTY_CELL rather than being
+    called standard, which is the whole point of storing it. */
 const SOURCE_LABEL: Record<string, string> = {
   standard: "Opndoor standard",
   agreement: "Agreement",
@@ -177,35 +267,79 @@ interface RecipientRow { email: string; full_name: string | null; source: string
 
 const num = (v: number | string | null | undefined): number => (v == null ? 0 : Number(v));
 
-/** The statement as a spreadsheet: the same columns, in the same order, as the
-    table on the Reporting page, so a reader can hold the two side by side. */
-function statementCsv(payee: PayeeRow, lines: LineRow[], label: string): string {
-  const rows: (string | number)[][] = [
-    ["opndoor commission statement"],
-    ["Payee", payee.org_name],
-    ["Month", label],
-    ["Basis", "Commission on fees paid in the month, refunds excluded"],
-    ["Applications", lines.length],
-    ["Total commission", gbp(num(payee.total))],
-    [PAYMENT_TERMS_LINE],
-    [],
-    ["Reference", "Tenant", "Branch", "Tenancy", "Share", "Paid", "Fee charged", "Rate", "Source", "Commission"],
-    ...lines.map((l) => [
+/** The statement's columns: the same ones, in the same order, as the table on
+    the Reporting page, so a reader can hold the two side by side.
+
+    The widths are points and must sum to no more than 515.28, the printable
+    width of A4 portrait inside the margins. Ten columns is what the screen
+    shows and what reconciles, so they are tight; a value that outruns its
+    column is truncated with an ellipsis rather than allowed to collide with the
+    next one. The full value is always on the Reporting page. */
+const STATEMENT_COLUMNS: PdfColumn[] = [
+  { header: "Reference", width: 44 },
+  { header: "Tenant", width: 68 },
+  { header: "Branch", width: 54 },
+  { header: "Tenancy", width: 66 },
+  // Wide enough for "100.00%", not just "50.00%". A share that truncates to
+  // "100.0..." is worse than useless on a money document.
+  { header: "Share", width: 36, align: "right" },
+  { header: "Paid", width: 44 },
+  { header: "Fee charged", width: 48, align: "right" },
+  { header: "Rate", width: 28, align: "right" },
+  // "Opndoor standard" is the longest SOURCE_LABEL and has to fit whole.
+  { header: "Source", width: 66 },
+  { header: "Commission", width: 60, align: "right" },
+]; // 514
+
+function statementPdf(payee: PayeeRow, lines: LineRow[], label: string): Uint8Array {
+  return renderTablePdf({
+    title: "opndoor commission statement",
+    meta: [
+      ["Payee", payee.org_name],
+      ["Month", label],
+      ["Basis", "Commission on fees paid in the month, refunds excluded"],
+      ["Applications", String(lines.length)],
+      ["Total commission", gbp(num(payee.total))],
+    ],
+    columns: STATEMENT_COLUMNS,
+    rows: lines.map((l) => [
       l.guarantee_ref,
       l.tenant_name,
       l.branch_name,
       l.tenancy_place,
-      l.share_percent == null ? "" : `${Number(num(l.share_percent).toFixed(2))}%`,
+      l.share_percent == null ? EMPTY_CELL : `${Number(num(l.share_percent).toFixed(2))}%`,
       dmy(l.paid_on),
       gbp(num(l.fee)),
       pct(num(l.rate)),
-      l.source ? (SOURCE_LABEL[l.source] ?? l.source) : "",
+      l.source ? (SOURCE_LABEL[l.source] ?? l.source) : EMPTY_CELL,
       gbp(num(l.commission)),
     ]),
-    [],
-    ["", "", "", "", "", "", "", "", "Total", gbp(num(payee.total))],
-  ];
-  return toCSV(rows);
+    total: { label: "Total", value: gbp(num(payee.total)) },
+    // Along the bottom of every page, which is where a statement carries its
+    // terms, and where a multi-page one still carries them on page three.
+    footer: PAYMENT_TERMS_LINE,
+  });
+}
+
+/** The staff settlement, the same way: four columns and a grand total. */
+function settlementPdf(payees: PayeeRow[], label: string, grand: number): Uint8Array {
+  return renderTablePdf({
+    title: "opndoor commission settlement",
+    meta: [
+      ["Month", label],
+      ["Payees", String(payees.length)],
+      ["Total payable", gbp(grand)],
+    ],
+    columns: [
+      { header: "Payee", width: 250 },
+      { header: "Level", width: 80 },
+      { header: "Applications", width: 80, align: "right" },
+      { header: "Commission", width: 100, align: "right" },
+    ], // 510
+    rows: payees.map((p) => [p.org_name, p.level, String(p.line_count), gbp(num(p.total))]),
+    total: { label: "Total", value: gbp(grand) },
+    footer: PAYMENT_TERMS_LINE,
+  });
 }
 
 /** One payee's email. Total in the subject and in the body, per the ruling. */
@@ -324,15 +458,26 @@ Deno.serve(async (req) => {
     }
 
     const nowL = londonNow();
+    const [ty, tm, td] = nowL.date.split("-").map(Number);
+    const send = statementSendDay(ty, tm);
+    // Reported on every response, dry or not, so the schedule can be read off a
+    // run without anybody having to work out what the rule did today.
+    const schedule = {
+      rule: "The 1st of the month, or the next day that is not a UK bank holiday. Weekends are send days.",
+      today: nowL.date,
+      sendDate: `${ty}-${pad2(tm)}-${pad2(send.day)}`,
+      isSendDay: td === send.day,
+      bankHolidaysKnownForYear: send.covered,
+      bankHolidayTableEndsAfter: UK_BANK_HOLIDAYS[UK_BANK_HOLIDAYS.length - 1],
+    };
+
     // Production gate, in two parts: the right hour, and the right day.
     if (!test && !dry) {
       if (nowL.hour !== 8) {
-        return json({ ok: true, skipped: `not 08:00 Europe/London (currently ${String(nowL.hour).padStart(2, "0")}:00)` });
+        return json({ ok: true, skipped: `not 08:00 Europe/London (currently ${String(nowL.hour).padStart(2, "0")}:00)`, schedule });
       }
-      const [ty, tm, td] = nowL.date.split("-").map(Number);
-      const fwd = firstWorkingDay(ty, tm);
-      if (td !== fwd) {
-        return json({ ok: true, skipped: `not the first working day of the month (that is the ${fwd}${fwd === 1 ? "st" : fwd === 2 ? "nd" : fwd === 3 ? "rd" : "th"})` });
+      if (!schedule.isSendDay) {
+        return json({ ok: true, skipped: `not the send day for this month (that is the ${ordinal(send.day)})`, schedule });
       }
     }
 
@@ -372,7 +517,10 @@ Deno.serve(async (req) => {
 
     let posted = 0, alreadySent = 0, failed = 0, nothingDue = 0;
     const unaddressed: string[] = [];
-    const would: Array<{ payee: string; level: string; total: number; applications: number; to: string[] }> = [];
+    const would: Array<{
+      payee: string; level: string; total: number; applications: number; to: string[];
+      attachment: { filename: string; mediaType: string; bytes: number };
+    }> = [];
 
     for (const p of payees) {
       if (alreadyPosted.has(p.payee_key)) { alreadySent += 1; continue; }
@@ -391,7 +539,20 @@ Deno.serve(async (req) => {
       if (!to.length) { unaddressed.push(`${p.org_name} (${gbp(total)})`); continue; }
 
       if (dry) {
-        would.push({ payee: p.org_name, level: p.level, total, applications: lines.length, to });
+        // The attachment is BUILT here, then thrown away. A dry run that only
+        // counted rows would prove the recipients and not the PDF, and the
+        // generator is the new part: a malformed one would first be noticed by
+        // an agency on the 1st. Building it costs a few milliseconds and turns
+        // a crash in the writer into a failed rehearsal instead.
+        const pdf = statementPdf(p, lines, label);
+        would.push({
+          payee: p.org_name, level: p.level, total, applications: lines.length, to,
+          attachment: {
+            filename: `opndoor-commission-${monthKey}.${ATTACHMENT_FORMAT}`,
+            mediaType: ATTACHMENT_MEDIA_TYPE,
+            bytes: pdf.length,
+          },
+        });
         continue;
       }
 
@@ -400,7 +561,9 @@ Deno.serve(async (req) => {
         message: statementMessage({ payeeName: p.org_name, label, total, applications: lines.length, appUrl: APP_URL }),
         attachments: [{
           filename: `opndoor-commission-${monthKey}.${ATTACHMENT_FORMAT}`,
-          content: textToBase64(statementCsv(p, lines, label)),
+          // Bytes, so the chunked encoder, not the CSV path's
+          // btoa(unescape(encodeURIComponent(...))), which corrupts binary.
+          content: bytesToBase64(statementPdf(p, lines, label)),
         }],
       });
       if (!res.ok) { failed += 1; continue; }
@@ -422,16 +585,6 @@ Deno.serve(async (req) => {
     let settlementSent = false;
     const settlementKey = "@settlement";
     if (staffTo.length && !alreadyPosted.has(settlementKey) && !dry) {
-      const csv = toCSV([
-        ["opndoor commission settlement"],
-        ["Month", label],
-        ["Total payable", gbp(grand)],
-        [],
-        ["Payee", "Level", "Applications", "Commission"],
-        ...payees.map((p) => [p.org_name, p.level, p.line_count, gbp(num(p.total))]),
-        [],
-        ["", "", "Total", gbp(grand)],
-      ]);
       const res = await sendMessage({
         to: staffTo,
         message: settlementMessage({
@@ -439,7 +592,7 @@ Deno.serve(async (req) => {
         }),
         attachments: [{
           filename: `opndoor-settlement-${monthKey}.${ATTACHMENT_FORMAT}`,
-          content: textToBase64(csv),
+          content: bytesToBase64(settlementPdf(payees, label, grand)),
         }],
       });
       if (res.ok) {
@@ -458,6 +611,11 @@ Deno.serve(async (req) => {
       test,
       month: monthKey,
       monthLabel: label,
+      // What the schedule decided, and what the attachment is. Both here on
+      // every response, because "which day does this fire" and "is it still a
+      // CSV" are the two questions asked of this function.
+      schedule,
+      attachment: { format: ATTACHMENT_FORMAT, mediaType: ATTACHMENT_MEDIA_TYPE },
       payees: payees.length,
       totalPayable: grand,
       posted,
@@ -472,8 +630,8 @@ Deno.serve(async (req) => {
         ...(dry ? { to: staffTo } : {}),
       },
       // Only a dry run answers this, and it is the whole point of one: exactly
-      // who would be written to, and with what figure.
-      ...(dry ? { would, attachmentFormat: ATTACHMENT_FORMAT } : {}),
+      // who would be written to, with what figure, and with what attached.
+      ...(dry ? { would } : {}),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unexpected error.";

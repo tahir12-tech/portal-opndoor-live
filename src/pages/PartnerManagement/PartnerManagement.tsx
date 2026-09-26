@@ -277,7 +277,7 @@ export function PartnerManagement() {
                         <span className="pco__logo">{initials(p.name)}</span>
                         <div>
                           <div className="pco__name"><Link className="pco__namelink" to={`/partners/${encodeURIComponent(p.id)}`} title={`Open ${p.name}`}>{p.name}</Link>{p.primary && <> <Tag variant="primary">Primary</Tag></>}</div>
-                          <div className="pco__since">Live from {p.since || '—'} · Supplier {fmtRatePct(p.partnerRate ?? 0.25)} / Agent {fmtRatePct(p.agentRate ?? 0.1)}</div>
+                          <div className="pco__since">Live from {p.since || '-'} · Supplier {fmtRatePct(p.partnerRate ?? 0.25)} / Agent {fmtRatePct(p.agentRate ?? 0.1)}</div>
                         </div>
                       </div>
                     </td>

@@ -53,7 +53,7 @@ function eventTs(a: any): number {
 }
 
 function relTime(ts: string | null, status: string): string {
-  if (!ts) return status === 'pending' ? 'Pending invite' : '—';
+  if (!ts) return status === 'pending' ? 'Pending invite' : '-';
   const diff = Date.now() - new Date(ts).getTime();
   const mins = Math.round(diff / 60000);
   if (mins < 1) return 'Just now';
@@ -287,7 +287,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         id: b.id,
         name: b.name,
         agentRate: b.agent_rate == null ? null : Number(b.agent_rate),
-        area: b.area || '—',
+        area: b.area || '-',
         referrers: new Set(bApps.map((x) => x.referrer_id)).size,
         referrals: bApps.length,
         guaranteed: money(sum(bApps, (x) => num(x.monthly_rent) * 12)),

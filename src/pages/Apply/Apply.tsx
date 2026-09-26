@@ -222,7 +222,7 @@ export function Apply() {
     const parts: string[] = [];
     if (pct != null) parts.push(`${Number(pct)}%`);
     if (amt != null) parts.push(`£${Number(amt).toLocaleString('en-GB')}`);
-    return parts.join(' · ') || '—';
+    return parts.join(' · ') || '-';
   };
 
   // While confirming, POLL for the webhook to record the payment. A single fixed

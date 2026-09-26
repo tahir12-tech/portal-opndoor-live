@@ -68,6 +68,159 @@ export function mayGrantPositions(role: string, own: Position[]): boolean {
   return own.some((p) => p.kind === 'group' || p.kind === 'agency');
 }
 
+/* =====================================================================
+   WHO RECEIVES THE MONTHLY COMMISSION STATEMENT.
+
+   The tick lives on the person (users.receives_commission_statements) and can
+   only move through set_receives_commission_statements. A trigger refuses a
+   direct UPDATE, and that is not belt-and-braces: users_mgmt_update lets any
+   management user write any users row inside their own partner, and on the
+   agent rail every independently onboarded agency shares the one house
+   partner, so "inside my partner" is a competitor's manager too. See
+   20261005140000.
+   ===================================================================== */
+
+/** The label, written once. Both screens import it so they cannot drift. */
+export const COMMISSION_STATEMENT_LABEL = 'Receives commission statements';
+
+/** The one line of explanation, likewise written once.
+
+    Deliberately NOT "statements for this party": the ladder is read upwards
+    only, so a ticked person receives the statement for the level they sit at
+    and every level below it, and on an admin screen showing group, agency and
+    branch people in one table that difference is the whole of the rule. */
+export const COMMISSION_STATEMENT_NOTE =
+  'Monthly commission statements are emailed to everyone with this on. Each person gets the statement for where they sit and everything below it.';
+
+const MOCK_TICKS = new Map<string, boolean>();
+
+/**
+ * The tick for a set of people, keyed by user id (every id present, false when
+ * unknown). One query, not one per row: the admin People tab lists an entire
+ * group and a request per person would be a request per person.
+ *
+ * Read off the column rather than added to hydrate's users query on purpose:
+ * hydrate feeds ManagedUser, which is cached and shared by every screen in the
+ * portal, and a boolean that only two screens read does not earn a place in it.
+ */
+export async function getCommissionStatementTicks(userIds: string[]): Promise<Record<string, boolean>> {
+  const out: Record<string, boolean> = {};
+  for (const id of userIds) out[id] = false;
+  if (!userIds.length) return out;
+  if (!SUPABASE_ENABLED) {
+    for (const id of userIds) out[id] = MOCK_TICKS.get(id) ?? false;
+    return out;
+  }
+  const { data, error } = await sb()
+    .from('users')
+    .select('id, receives_commission_statements')
+    .in('id', userIds);
+  if (error) throw new Error(error.message);
+  (data ?? []).forEach((r: Record<string, unknown>) => {
+    out[String(r.id)] = !!r.receives_commission_statements;
+  });
+  return out;
+}
+
+/**
+ * Turn one person's monthly commission statement on or off.
+ *
+ * Returns the value the RPC settled on, NOT the value we asked for: the screen
+ * then shows the row rather than its own optimism. Refusals come back as the
+ * sentence SQL raised, and callers must show that sentence as it is; the rule
+ * lives there, and a paraphrase here would be a second copy of it that can be
+ * wrong.
+ */
+export async function setReceivesCommissionStatements(userId: string, on: boolean): Promise<boolean> {
+  if (!SUPABASE_ENABLED) { MOCK_TICKS.set(userId, on); return on; }
+  const { data, error } = await sb().rpc('set_receives_commission_statements', { p_user: userId, p_on: on });
+  if (error) throw new Error(error.message);
+  return data == null ? on : !!data;
+}
+
+/** The org tree flattened to the two edges the containment question needs. */
+export interface OrgEdges {
+  /** branch id -> the agency it belongs to. */
+  agencyOfBranch: Map<string, string>;
+  /** agency id -> the group above it. Absent when the agency sits under none. */
+  groupOfAgency: Map<string, string>;
+}
+
+/** The most senior level anybody in a set of positions actually holds, or null
+    for a set with no positions in it at all. Used to find the party's top
+    position: the group where there is a group, else the agency, else the
+    branch. */
+export function topLevelHeld(positions: Position[]): ScopeKind | null {
+  for (const kind of LEVELS) if (positions.some((p) => p.kind === kind)) return kind;
+  return null;
+}
+
+/** Does one of the caller's positions wholly contain this one of the target's? */
+function dominates(caller: Position, target: { kind: ScopeKind; targetId: string }, tree: OrgEdges): boolean {
+  if (caller.kind === 'group') {
+    if (target.kind === 'group') return target.targetId === caller.targetId;
+    const agency = target.kind === 'agency' ? target.targetId : tree.agencyOfBranch.get(target.targetId);
+    return !!agency && tree.groupOfAgency.get(agency) === caller.targetId;
+  }
+  if (caller.kind === 'agency') {
+    if (target.kind === 'agency') return target.targetId === caller.targetId;
+    // A group sits ABOVE an agency, so an agency never contains one. This is the
+    // line that stops an agency manager switching off the group director.
+    return target.kind === 'branch' && tree.agencyOfBranch.get(target.targetId) === caller.targetId;
+  }
+  return target.kind === 'branch' && target.targetId === caller.targetId;
+}
+
+/**
+ * Whether the signed-in person may change this person's commission-statement
+ * tick, mirroring set_receives_commission_statements.
+ *
+ * WHY NOT mayGrantPositions, WHICH IS THE SAME SHAPE OF QUESTION. It answers a
+ * different one, and both differences matter here:
+ *
+ *   - It is about the CALLER alone ("am I senior enough to hand out positions
+ *     at all"), and says nothing about who the position is being handed to.
+ *     This question is about a pair. SQL asks for CONTAINMENT: every branch the
+ *     target reaches must be a branch the caller reaches. app_user_in_scope,
+ *     which answers overlap, would let an agency manager switch off the
+ *     director above them, and overlap is exactly what mayGrantPositions would
+ *     amount to if it were reused here.
+ *   - It returns true for a partner-wide manager holding no position. SQL
+ *     requires app_has_scope(), so that same person is refused. Showing them a
+ *     switch SQL will refuse is the thing this function exists to avoid.
+ *
+ * Narrower than SQL in one place, deliberately: where a group holds exactly one
+ * agency, that agency's branches ARE the group's, so SQL's containment test
+ * passes and the agency manager may change the group director. This says no,
+ * because the tree it is given is the caller's own reach and a group that looks
+ * like one agency from down here may hold others the caller cannot see. Erring
+ * this way hides a control that would have worked; erring the other way offers
+ * one that fails with a refusal.
+ */
+export function mayChangeCommissionTick(input: {
+  role: string;
+  own: Position[];
+  target: Position[];
+  /** A negotiator holds no scope row, so their only location is the branch they
+      were invited into. Without this they are unreachable rather than protected. */
+  targetHomeBranchId?: string | null;
+  tree: OrgEdges;
+}): boolean {
+  const { role, own, target, targetHomeBranchId, tree } = input;
+  if (role === 'superadmin') return true;
+  if (role !== 'management') return false;
+  if (!own.length) return false;
+
+  const claims: { kind: ScopeKind; targetId: string }[] = target.map((p) => ({ kind: p.kind, targetId: p.targetId }));
+  if (!claims.length && targetHomeBranchId) claims.push({ kind: 'branch', targetId: targetHomeBranchId });
+  // Nowhere at all is not "anywhere": commission_statement_party returns null
+  // for this person and the RPC refuses with "not attached to a group, agency
+  // or branch", so there is nothing to offer.
+  if (!claims.length) return false;
+
+  return claims.every((c) => own.some((o) => dominates(o, c, tree)));
+}
+
 const MOCK = new Map<string, Position[]>();
 
 export async function getPositions(userId: string): Promise<Position[]> {

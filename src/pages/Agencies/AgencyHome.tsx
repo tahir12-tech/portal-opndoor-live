@@ -19,7 +19,12 @@ import {
   getApplications, getUsers, maySeeCommission, ALL_PARTNERS,
   type Agency, type AgencyGroup, type ManagedUser, type Status,
 } from '@/data';
-import { getPositionsForUsers, getDeedRecipients, nominateDeedRecipient, clearDeedRecipient, getOrgDeedReadiness, type DeedReadiness } from '@/data/positionsService';
+import {
+  getPositionsForUsers, getDeedRecipients, nominateDeedRecipient, clearDeedRecipient, getOrgDeedReadiness,
+  getCommissionStatementTicks, setReceivesCommissionStatements,
+  COMMISSION_STATEMENT_LABEL, COMMISSION_STATEMENT_NOTE,
+  type DeedReadiness,
+} from '@/data/positionsService';
 import { setNodeRate, getCommissionSplits, previewNodeRate, agencyReferencingMode, setAgencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
 import { cancelInvite } from '@/data/usersService';
 import { useSession } from '@/session/SessionContext';
@@ -39,6 +44,10 @@ import './AgencyHome.css';
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
 const STATUS_ST: Partial<Record<Status, string>> = { referencing: 'st-wait', sent: 'st-live', paid: 'st-live', deed: 'st-ok' };
 const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+
+/** The glyph for a cell with nothing in it. A single hyphen, everywhere, and
+    named rather than typed out so the page cannot go back to mixing dashes. */
+const EMPTY = '-';
 
 type Level = 'group' | 'agency' | 'branch';
 interface Placed { userId: string; name: string; email: string; role: string; }
@@ -127,8 +136,14 @@ export function AgencyHome() {
   const [people, setPeople] = useState<{ group: Placed[]; agency: Record<string, Placed[]>; branch: Record<string, Placed[]>; total: number }>({ group: [], agency: {}, branch: {}, total: 0 });
   const [usersById, setUsersById] = useState<Record<string, ManagedUser>>({});
   const [deedRecipients, setDeedRecipients] = useState<Record<string, string>>({});
+  /* Who receives the monthly commission statement, by user id. Read off
+     users.receives_commission_statements in one query rather than carried on
+     ManagedUser: hydrate's user list is shared by every screen in the portal
+     and a boolean two screens read does not belong in it. */
+  const [ticks, setTicks] = useState<Record<string, boolean>>({});
+  const [tickBusy, setTickBusy] = useState<string | null>(null);
   useEffect(() => {
-    if (!org || !partner) { setPeople({ group: [], agency: {}, branch: {}, total: 0 }); setDeedRecipients({}); return; }
+    if (!org || !partner) { setPeople({ group: [], agency: {}, branch: {}, total: 0 }); setDeedRecipients({}); setTicks({}); return; }
     let alive = true;
     const groupId = org.kind === 'group' ? org.group.id : undefined;
     const agencyIds = new Set(agencies.map((a) => a.id).filter(Boolean) as string[]);
@@ -158,6 +173,9 @@ export function AgencyHome() {
       })
       .catch(() => { if (alive) setPeople({ group: [], agency: {}, branch: {}, total: 0 }); });
     getDeedRecipients(branchIds).then((m) => { if (alive) setDeedRecipients(m); }).catch(() => { if (alive) setDeedRecipients({}); });
+    getCommissionStatementTicks(users.map((u) => u.id))
+      .then((t) => { if (alive) setTicks(t); })
+      .catch(() => { if (alive) setTicks({}); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org, partner, role, dataVersion, tick]);
@@ -174,10 +192,13 @@ export function AgencyHome() {
   const peopleRows = useMemo(() => {
     const rows: { userId: string; name: string; email: string; role: string; level: Level; agency: string; branch: string; status: string }[] = [];
     const statusOf = (id: string) => usersById[id]?.status ?? 'active';
-    people.group.forEach((p) => rows.push({ ...p, level: 'group', agency: '—', branch: '—', status: statusOf(p.userId) }));
+    // EMPTY is a single hyphen, here and in every other cell on this page. A
+    // group person has no agency and no branch, which is a fact about the level
+    // and not missing data.
+    people.group.forEach((p) => rows.push({ ...p, level: 'group', agency: EMPTY, branch: EMPTY, status: statusOf(p.userId) }));
     agencies.forEach((a) => {
       (a.id ? people.agency[a.id] ?? [] : []).forEach((p) =>
-        rows.push({ ...p, level: 'agency', agency: a.name, branch: '—', status: statusOf(p.userId) }));
+        rows.push({ ...p, level: 'agency', agency: a.name, branch: EMPTY, status: statusOf(p.userId) }));
       (a.branches ?? []).forEach((b) => {
         (b.id ? people.branch[b.id] ?? [] : []).forEach((p) =>
           rows.push({ ...p, level: 'branch', agency: a.name, branch: b.name, status: statusOf(p.userId) }));
@@ -299,6 +320,30 @@ export function AgencyHome() {
     } finally { setSavingRow(false); }
   };
 
+  /* Turn one person's monthly commission statement on or off.
+     No refreshSession() and no bump(): one boolean moved, nothing else on this
+     page reads it, and re-hydrating the whole org tree to redraw a checkbox
+     would collapse the tab the administrator is standing in. */
+  const doSetTick = async (userId: string, who: string, next: boolean) => {
+    if (tickBusy) return;
+    setTickBusy(userId);
+    try {
+      // The value the RPC settled on, not the one asked for, so the screen
+      // shows the row rather than its own optimism.
+      const now = await setReceivesCommissionStatements(userId, next);
+      setTicks((t) => ({ ...t, [userId]: now }));
+      toast(now
+        ? `${who} now receives commission statements.`
+        : `${who} no longer receives commission statements.`, 'ok');
+    } catch (e) {
+      // SQL's refusal, word for word. The rule lives there, and paraphrasing it
+      // here would be a second copy of it that is free to be wrong.
+      toast(e instanceof Error ? e.message : 'Could not change that.', 'error');
+    } finally {
+      setTickBusy(null);
+    }
+  };
+
   // A pending person has not accepted; withdrawing the invitation removes them.
   const doCancelInvite = async (userId: string, who: string) => {
     try { await cancelInvite(userId); refreshSession(); bump(); toast(`Invitation to ${who} cancelled.`, 'ok'); }
@@ -414,7 +459,7 @@ export function AgencyHome() {
   /* ---- PEOPLE. One table of everyone in the org, filterable. Scoped to this org
      and, through getUsers, to the caller's own reach. */
   const PeopleTab = () => {
-    const uniq = (xs: string[]) => [...new Set(xs.filter((x) => x && x !== '—'))].sort();
+    const uniq = (xs: string[]) => [...new Set(xs.filter((x) => x && x !== EMPTY))].sort();
     const positions = uniq(peopleRows.map((r) => roleLabelFor(r.level, r.role)));
     const set = (k: keyof typeof pFilter, v: string) => setPFilter((f) => ({ ...f, [k]: v }));
     return (
@@ -453,11 +498,18 @@ export function AgencyHome() {
               <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setPFilter({ level: '', position: '', agency: '', branch: '', status: '', q: '' })}>Clear filters</button>
             )}
           </div>
+          {/* The column needs a sentence to be readable, and a sentence does not
+              fit in a table head. Said once, above the table it governs. */}
+          {isAdmin && <p className="ah-stmt-note">{COMMISSION_STATEMENT_NOTE}</p>}
           {peopleShown.length === 0 ? (
             <div className="ah-empty">Nobody matches those filters.</div>
           ) : (
             <table className="dt ah-table">
-              <thead><tr><th>Name</th><th>Position</th><th>Level</th><th>Agency</th><th>Branch</th><th>Status</th><th /></tr></thead>
+              <thead><tr>
+                <th>Name</th><th>Position</th><th>Level</th><th>Agency</th><th>Branch</th><th>Status</th>
+                {isAdmin && <th>Statements</th>}
+                <th />
+              </tr></thead>
               <tbody>
                 {peopleShown.map((r) => (
                   <tr key={r.userId}>
@@ -467,6 +519,27 @@ export function AgencyHome() {
                     <td className="soft">{r.agency}</td>
                     <td className="soft">{r.branch}</td>
                     <td>{r.status === 'pending' ? <Pill variant="sent">Pending</Pill> : <Pill variant="paid">Active</Pill>}</td>
+                    {isAdmin && (
+                      <td>
+                        {/* A pending invite has never signed in, so
+                            commission_statement_recipients will not write to
+                            them and the switch would do nothing. Shown anyway
+                            when it is already on, so a tick can always be
+                            switched off wherever it ended up. */}
+                        {r.status === 'active' || ticks[r.userId] ? (
+                          <label className="ah-stmt" title={COMMISSION_STATEMENT_LABEL}>
+                            <input
+                              type="checkbox"
+                              checked={!!ticks[r.userId]}
+                              disabled={tickBusy !== null}
+                              aria-label={`${COMMISSION_STATEMENT_LABEL}: ${r.name || r.email}`}
+                              onChange={(e) => void doSetTick(r.userId, r.name || r.email, e.target.checked)}
+                            />
+                            <span>{ticks[r.userId] ? 'Yes' : 'No'}</span>
+                          </label>
+                        ) : <span className="soft">{EMPTY}</span>}
+                      </td>
+                    )}
                     <td className="num">
                       {isAdmin && r.status === 'pending' && (
                         <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doCancelInvite(r.userId, r.name || r.email)}>Cancel invite</button>
@@ -569,11 +642,11 @@ export function AgencyHome() {
           <div className="ah-agr__now">
             <div>
               <span className="ah-agr__lbl">Counter</span>
-              <b>{agreement.volume}</b> paid since {agreement.periodStart ?? '—'}
+              <b>{agreement.volume}</b> paid since {agreement.periodStart ?? EMPTY}
             </div>
             <div>
               <span className="ah-agr__lbl">The next referral lands at</span>
-              <b>{agreement.nextBasis ?? '—'} weeks</b> · <b>{pct(agreement.nextRate)}</b>
+              <b>{agreement.nextBasis ?? EMPTY} weeks</b> · <b>{pct(agreement.nextRate)}</b>
             </div>
           </div>
         </CardBody>
@@ -653,7 +726,7 @@ export function AgencyHome() {
                       <tr key={b.id ?? b.name}>
                         <td className="dt__name">{b.name}<span className="dt__sub">{a.name}</span></td>
                         <td>
-                          {lines.length === 0 ? <span className="soft">—</span>
+                          {lines.length === 0 ? <span className="soft">{EMPTY}</span>
                             : soleLine
                               ? <>{SOURCE_LABEL[soleLine.source]} {pctLabel(soleLine.rate)} · paid to {soleLine.orgName}</>
                               : lines.map((l, i) => (

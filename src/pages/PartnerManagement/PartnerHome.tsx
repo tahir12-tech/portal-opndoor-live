@@ -116,7 +116,7 @@ export function PartnerHome() {
           </h1>
           <p className="page-head__sub ph-sub">
             <Pill variant={sp[1]}>{sp[0]}</Pill>
-            <span>Live from {partner.since || '—'}</span>
+            <span>Live from {partner.since || '-'}</span>
             <span><Icon name="reconcile" size={14} /> {modeLabel(partner.referencingMode)}</span>
           </p>
         </div>
@@ -171,7 +171,7 @@ export function PartnerHome() {
               {partner.apiAccessEnabled && (
                 <div className="ph-cap">
                   <Icon name="lock" size={14} />
-                  <span>Active API keys: <b>{keyCount == null ? '—' : keyCount}</b></span>
+                  <span>Active API keys: <b>{keyCount == null ? '-' : keyCount}</b></span>
                 </div>
               )}
             </div>

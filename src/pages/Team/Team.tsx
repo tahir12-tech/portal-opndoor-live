@@ -244,6 +244,11 @@ export function Team() {
   const [positionsByUser, setPositionsByUser] = useState<Record<string, positionsService.Position[]>>({});
   const [ownPositions, setOwnPositions] = useState<positionsService.Position[]>([]);
   const [posUser, setPosUser] = useState<ManagedUser | null>(null);
+  /* Who receives the monthly commission statement. Held here rather than on
+     ManagedUser: it is read off users.receives_commission_statements by two
+     screens, and hydrate's user list is shared by every screen in the portal. */
+  const [ticks, setTicks] = useState<Record<string, boolean>>({});
+  const [tickBusy, setTickBusy] = useState<string | null>(null);
 
   const [addOpen, setAddOpen] = useState(false);
   const [addFirst, setAddFirst] = useState('');
@@ -274,6 +279,15 @@ export function Team() {
       }));
       if (alive) setPositionsByUser(out);
     })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [people.map((p) => p.id).join(','), version]);
+
+  useEffect(() => {
+    let alive = true;
+    positionsService.getCommissionStatementTicks(people.map((u) => u.id))
+      .then((t) => { if (alive) setTicks(t); })
+      .catch(() => { if (alive) setTicks({}); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [people.map((p) => p.id).join(','), version]);
@@ -328,6 +342,80 @@ export function Team() {
   const headerName = multiAgency
     ? (groups[0]?.name ?? `${agencies.length} agencies`)
     : (agencies[0]?.name ?? 'Your team');
+
+  /* ---- WHO RECEIVES THE MONTHLY COMMISSION STATEMENT --------------------
+
+     The tree, flattened to the two edges the containment question needs. Built
+     from the hydrated org tables, which RLS has already narrowed to this
+     viewer's reach, which is also why mayChangeCommissionTick errs towards
+     refusing rather than guessing at what it cannot see. */
+  const tree = useMemo<positionsService.OrgEdges>(() => {
+    const agencyOfBranch = new Map<string, string>();
+    const groupOfAgency = new Map<string, string>();
+    for (const a of agencies) {
+      if (!a.id) continue;
+      if (a.groupId) groupOfAgency.set(a.id, a.groupId);
+      for (const b of a.branches ?? []) if (b.id) agencyOfBranch.set(b.id, a.id);
+    }
+    return { agencyOfBranch, groupOfAgency };
+  }, [agencies]);
+
+  /* THE PARTY'S TOP POSITION. Group directors where there is a group, else
+     agency managers, else branch managers: the level a statement is addressed
+     at, and the level the backfill defaulted the tick on for. */
+  const topPosition = useMemo(
+    () => positionsService.topLevelHeld(Object.values(positionsByUser).flat()),
+    [positionsByUser],
+  );
+
+  /* Shown only to somebody who may actually change this person, so nobody is
+     offered a switch SQL is going to refuse. The screen is still not the
+     boundary: set_receives_commission_statements asks the same question again
+     and is the one that counts. */
+  const mayTick = (u: ManagedUser) => positionsService.mayChangeCommissionTick({
+    role,
+    own: ownPositions,
+    target: positionsByUser[u.id] ?? [],
+    targetHomeBranchId: u.homeBranchId,
+    tree,
+  });
+
+  const showsTick = (u: ManagedUser) => {
+    const atTop = topPosition != null && (positionsByUser[u.id] ?? []).some((p) => p.kind === topPosition);
+    /* ALREADY ON IS ALWAYS SHOWN, whoever holds it, so a tick can be switched
+       off wherever it ended up. Otherwise the control is offered at the top
+       position only, and only to somebody active: the recipients function
+       writes to active people alone, because a pending invite has never signed
+       in and the portal link in the statement goes nowhere they can open. A
+       switch with no effect is worse than no switch. */
+    if (!ticks[u.id] && (!atTop || u.status !== 'active')) return false;
+    return mayTick(u);
+  };
+
+  /* The explanation earns its line once, on the first row that carries the
+     control, rather than under every name in the list. */
+  const firstTickRow = layout.flat.find((u) => showsTick(u))?.id ?? null;
+
+  async function toggleTick(u: ManagedUser, next: boolean) {
+    if (tickBusy) return;
+    setTickBusy(u.id);
+    try {
+      const now = await positionsService.setReceivesCommissionStatements(u.id, next);
+      // The row, not a full reload: one boolean moved and nothing else on this
+      // page depends on it. The RPC's own answer, not `next`, so the screen
+      // shows what the database settled on.
+      setTicks((t) => ({ ...t, [u.id]: now }));
+      toast(now
+        ? `${u.name} now receives commission statements.`
+        : `${u.name} no longer receives commission statements.`);
+    } catch (e) {
+      // SQL's refusal, word for word. The rule lives there; a paraphrase here
+      // would be a second copy of it, free to be wrong.
+      toast(e instanceof Error ? e.message : 'Could not change that.', 'error');
+    } finally {
+      setTickBusy(null);
+    }
+  }
 
   async function run(fn: () => Promise<void>, success: string) {
     if (busy) return;
@@ -419,6 +507,23 @@ export function Team() {
             </Button>
           )}
         </div>
+        {showsTick(u) && (
+          /* Its own line under the name rather than another button in the row:
+             the label is a sentence, and the one line explaining it needs the
+             width. */
+          <label className="tm-stmt">
+            <input
+              type="checkbox"
+              checked={!!ticks[u.id]}
+              disabled={tickBusy !== null}
+              onChange={(e) => void toggleTick(u, e.target.checked)}
+            />
+            <span className="tm-stmt__lbl">{positionsService.COMMISSION_STATEMENT_LABEL}</span>
+            {u.id === firstTickRow && (
+              <span className="tm-stmt__why">{positionsService.COMMISSION_STATEMENT_NOTE}</span>
+            )}
+          </label>
+        )}
       </div>
     );
   }

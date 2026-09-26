@@ -614,7 +614,7 @@ export function NewApplication() {
                         <div className="feebox__row" key={i}>
                           <span>{name}</span>
                           <span>{pctNums[i]}%</span>
-                          <strong>{fee.shares[i] === undefined ? '—' : money(fee.shares[i])}</strong>
+                          <strong>{fee.shares[i] === undefined ? '-' : money(fee.shares[i])}</strong>
                         </div>
                       ))}
                       <p className="feebox__note">Each tenant pays their own share through their own payment link.</p>

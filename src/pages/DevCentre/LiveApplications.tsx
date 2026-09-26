@@ -28,7 +28,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 
 const when = (s: string | null) =>
-  s ? new Date(s).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+  s ? new Date(s).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : '-';
 
 /** The partner vocabulary comes back from the server; map it to the app's pills. */
 function statusVariant(s: string): PillVariant {
