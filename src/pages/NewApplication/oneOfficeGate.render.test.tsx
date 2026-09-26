@@ -129,6 +129,30 @@ const addTenantButton = () =>
   screen.queryAllByRole('button').find((b) => /add another tenant/i.test(b.textContent ?? ''));
 const body = () => document.body.textContent ?? '';
 
+/* THE COLLAPSE HAS SETTLED, without reading the office off the screen.
+
+   These tests used to wait for "Regent's Park" to appear, which was a fine signal
+   right up until the ruling that the form says nothing about the office at all.
+   The behavioural signal is better anyway: the rail check only resolves once the
+   picker has reported an agency AND an office upward, so an enabled "Add another
+   tenant" means the collapse happened, whatever the form chooses to print. */
+async function settled() {
+  await waitFor(() => {
+    const b = addTenantButton();
+    if (!b || b.hasAttribute('disabled')) throw new Error('not settled yet');
+  }, { timeout: 5000 });
+}
+
+/** The office is nowhere on the form: not the agency, not the branch, not a
+    control for either. */
+function expectSilentAboutTheOffice() {
+  expect(body()).not.toMatch(/Regent's Park/);
+  expect(body()).not.toMatch(/Regent's Lettings/);
+  expect(body()).not.toMatch(/This referral is against/i);
+  expect(document.getElementById('ag-name')).toBeNull();
+  expect(document.getElementById('br-name')).toBeNull();
+}
+
 /** Every offer an agency user must never be given, in the words on screen. */
 function expectNothingOffered() {
   expect(body()).not.toMatch(/Search agencies or add a new one/i);
@@ -157,9 +181,16 @@ describe('a single-office agency, before typing anything', () => {
     await waitFor(() => expect(addTenantButton()?.hasAttribute('disabled')).toBe(false));
   });
 
-  it('names the office in one line rather than asking which one', async () => {
+  it('says nothing about the office at all', async () => {
+    /* THE RULING, reversed from the one this file was written under. There used to
+       be a line under Tenancy reading "This referral is against Regent's Lettings,
+       Regent's Park", on the principle that the fact was worth keeping once the
+       section asking for it had gone. It is not: somebody filing a referral from
+       their only office knows which office they work at. So the form is silent,
+       and the test that used to assert the line now asserts the silence. */
     open();
-    await waitFor(() => expect(body()).toMatch(/Regent's Park/));
+    await settled();
+    expectSilentAboutTheOffice();
     expectNothingOffered();
   });
 
@@ -177,11 +208,11 @@ describe('a single-office agency, before typing anything', () => {
      the two-position render it counted in the thousands. */
   it('asks the server once and settles, rather than remounting for ever', async () => {
     open();
-    await waitFor(() => expect(body()).toMatch(/Regent's Park/));
-    const settled = calls;
+    await settled();
+    const settledCalls = calls;
     // Long enough that a loop would add hundreds.
     await new Promise((r) => setTimeout(r, 300));
-    expect(calls).toBe(settled);
+    expect(calls).toBe(settledCalls);
     // StrictMode double-invokes effects, so two is the honest ceiling for one
     // mount. Anything more means the component is being rebuilt.
     expect(calls).toBeLessThanOrEqual(2);
@@ -192,7 +223,7 @@ describe('a single-office agency, before typing anything', () => {
     // A sole tenant carries 100% and is the common case by a distance, so this
     // is the count that matters most.
     open();
-    await waitFor(() => expect(body()).toMatch(/Regent's Park/));
+    await settled();
     const rent = document.getElementById('ty-rent') as HTMLInputElement;
     fireEvent.change(rent, { target: { value: '1750' } });
     await waitFor(() => expect(body()).toMatch(/Guarantee fee/i), { timeout: 3000 });
@@ -224,7 +255,7 @@ describe('when the server cannot say which rail the viewer is on', () => {
     // ask again, so a single failure stuck for the life of the page.
     answers = [UNRESOLVED, ONE_OFFICE];
     open();
-    await waitFor(() => expect(body()).toMatch(/Regent's Park/), { timeout: 5000 });
+    await settled();
     expect(calls).toBeGreaterThan(1);
     expectNothingOffered();
   });

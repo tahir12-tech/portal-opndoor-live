@@ -10,9 +10,11 @@
    configured (see addressService), and falls back to manual entry otherwise.
    Manual entry is always available via a toggle.
 
-   ONE OFFICE, NO SECTION 4. An agency user whose whole scope is one office is
-   not asked which office. The section, its number in the rail and its card all
-   go, and the fact appears as one line under Tenancy. See `oneOffice` below.
+   ONE OFFICE, NOTHING ABOUT THE OFFICE. An agency user whose whole scope is one
+   office is not asked which office and is not told which office either. The
+   section, its number in the rail, its card and the line that once stated the
+   fact under Tenancy have all gone: somebody filing from their only office knows
+   where they work. See `oneOffice` below.
 
    MORE THAN ONE TENANT. A joint tenancy is one guarantee over one property, and
    the form says so: the same tenant fields repeat, the Tenancy section grows a
@@ -105,11 +107,12 @@ export function NewApplication() {
   // print at an agency user for even one frame. See orgShapeService.
   const [orgShape, setOrgShape] = useState<OrgShape>(UNRESOLVED);
   const orgCopy = orgSectionCopy(orgShape);
-  /* ONE OFFICE: THE SECTION GOES, NOT JUST ITS CONTROLS.
+  /* ONE OFFICE: THE SECTION GOES, AND SO DOES THE FACT.
      A section heading, a number in the rail and a bordered card, all to tell
-     somebody the name of the only office they work at. The fact is worth
-     keeping and the furniture is not, so it moves to one line under Tenancy and
-     section 4 stops existing. The picker still mounts (below) because it is
+     somebody the name of the only office they work at. That furniture went first
+     and the fact followed it: the one-line note under Tenancy is withdrawn too,
+     so this flag now only decides what is NOT drawn. The picker still mounts
+     (below) because it is
      what resolves the office and reports it back through onChange, and it mounts
      in the SAME PLACE either way: giving it two positions, one per branch of this
      flag, put the form in a remount loop. The long note at the section's JSX has
@@ -120,9 +123,11 @@ export function NewApplication() {
      org, the other counts the book, and only the first can tell a quiet new
      branch from no branch.
 
-     Named, not just counted: a shape that says "one office" without saying
-     which one cannot be printed and must not be hidden, so it falls back to the
-     full section. The picker makes the same call on the same field. */
+     Still keyed on the NAME and not only the counts, even with nothing printed:
+     a shape claiming one office without saying which one has not resolved the
+     office, and collapsing on it would file the referral against whatever the
+     picker happened to settle on. The picker makes the same call on the same
+     field. */
   const oneOffice = orgShape.collapseAgency && orgShape.collapseBranch && !!orgShape.onlyAgencyName;
   const [org, setOrg] = useState({
     agencyNew: false, branchNew: false,
@@ -630,17 +635,18 @@ export function NewApplication() {
                 </div>
               )}
 
-              {/* The office, said once, where the rest of the tenancy facts are.
-                  Both names when they differ, because "Head office" on its own
-                  names nothing. */}
-              {oneOffice && (
-                <p style={{ fontSize: 13, color: 'var(--ink-mute)', margin: '14px 0 0' }}>
-                  This referral is against <b>{orgShape.onlyAgencyName}</b>
-                  {orgShape.onlyBranchName && orgShape.onlyBranchName !== orgShape.onlyAgencyName
-                    ? <>, <b>{orgShape.onlyBranchName}</b></>
-                    : null}.
-                </p>
-              )}
+              {/* NOTHING ABOUT THE OFFICE HERE, and nothing anywhere else on the
+                  form either. A line reading "This referral is against Regent's
+                  Lettings, Regent's Park" used to sit here, on the principle that
+                  the fact was worth keeping even once the section asking for it had
+                  gone. It is not: somebody filing a referral from their only office
+                  knows which office they work at, and the line was the last of the
+                  furniture that section 4 used to be. Withdrawn.
+
+                  What remains for a single-office user is the submit-time error
+                  below, which is a different thing: it fires only when the office
+                  could not be resolved at all, and without it Send would refuse
+                  silently with no field to hang the reason on. */}
             </CardBody>
           </section>
 
