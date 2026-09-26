@@ -18,6 +18,10 @@ import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { titleCaseAddress } from "../_shared/text.ts";
 import { stripeSecretFor, stripePublishableFor } from "../_shared/livemodeCredentials.ts";
+// The same two functions the tenant's emails price themselves with. Imported
+// rather than reimplemented so the email, this page and the Stripe line item
+// cannot describe one fee three different ways.
+import { feeBasisPhrase, feeBasisWeeksOf } from "../_shared/emailTemplates.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -63,7 +67,12 @@ Deno.serve(async (req) => {
     if (new Date(tok.expires_at).getTime() < Date.now()) return json({ ok: false, error: "This link has expired." }, 410);
 
     const { data: app } = await service.from("applications")
-      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, fee_amount, tenancy_start, status, payment_state, livemode, partner:partners(name)")
+      // share_amount is this tenant's share of the RENT on a joint tenancy (null
+      // when they are the only tenant), and it is what the fee's basis has to be
+      // measured against. referencing_mode, agency_id, the agency's own name and
+      // the partner's refers_own_stock are the four facts that decide whose
+      // decision this page is describing: see the rail block below.
+      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, fee_amount, share_amount, tenancy_start, status, payment_state, livemode, referencing_mode, agency_id, agency:agencies(name), partner:partners(name, refers_own_stock)")
       .eq("id", tok.application_id).maybeSingle();
     if (!app) return json({ ok: false, error: "This link is not valid." }, 404);
 
@@ -77,7 +86,8 @@ Deno.serve(async (req) => {
     const STRIPE_SECRET = stripeSecret.value;
 
     // deno-lint-ignore no-explicit-any
-    const partnerName = (Array.isArray(app.partner) ? (app.partner as any)[0]?.name : (app.partner as any)?.name) ?? "your letting agent";
+    const partnerRow = (Array.isArray(app.partner) ? (app.partner as any)[0] : (app.partner as any)) ?? null;
+    const partnerName = partnerRow?.name ?? "your letting agent";
     const rent = Number(app.monthly_rent ?? 0);
     // M1: charge the snapshotted fee. Identical to rent on every current row.
     const feeAmount = Number(app.fee_amount ?? app.monthly_rent ?? 0);
@@ -86,6 +96,50 @@ Deno.serve(async (req) => {
     // the same number for an agency on a weeks-of-rent basis, and showing the
     // rent while charging the fee is a consumer-facing misstatement of price.
     const feeGBP = `£${feeAmount.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    /* AND WHAT THAT FIGURE IS MEASURED AGAINST. The amount above was already
+       right; nothing on this page said what it was, so GR-20837 showed a tenant
+       £692.31 under "Guarantor fee" with a £1,000 rent above it and left them to
+       guess, while their email called the same fee one month of rent. The basis
+       is a fact now, stated in the same words everywhere.
+
+       Measured against the rent THIS fee was a proportion of: a joint tenant's
+       own share, not the tenancy's whole rent. Dividing a share of the fee by the
+       whole rent would report every joint tenant as being on a discount. */
+    const feeBasisWeeks = feeBasisWeeksOf(feeAmount, app.share_amount ?? app.monthly_rent);
+    const feeBasis = feeBasisPhrase(feeBasisWeeks);
+    /* WHICH RAIL, AND THEREFORE WHOSE DECISION THIS PAGE IS DESCRIBING. The same
+       ruling the payment emails now follow, because a Regent tenant who reads
+       "the agency arranged this" in the email and then "opndoor stands as your
+       guarantor" on the page linked from it has been told two different things
+       about who decided they needed a guarantee.
+
+       referencing_mode is read off the APPLICATION, never off the partner: Regent
+       is pre_referenced_open under a partner that is opndoor_referenced, so the
+       partner's mode is the wrong answer. The name is agencies.name, the one the
+       tenant dealt with, never the group above it. */
+    // deno-lint-ignore no-explicit-any
+    const agencyRow = (Array.isArray(app.agency) ? (app.agency as any)[0] : (app.agency as any)) ?? null;
+    const agencyName = ((agencyRow?.name ?? "") as string).trim() || null;
+    const referencingMode = (app.referencing_mode ?? null) as string | null;
+    const rail: "agency" | "supplier" | "direct" = !app.agency_id
+      ? "direct"
+      : partnerRow?.refers_own_stock === true ? "agency" : "supplier";
+    /* Mirrors isAgencyArranged in _shared/emailTemplates.ts, which is internal to
+       that file: an agency referral opndoor did not reference, and only when we
+       actually know the agency's name, because copy naming nobody is worse than
+       the approved wording. The supplier rail never qualifies, which is what keeps
+       Rightmove's page byte-identical. */
+    const agencyArranged = rail === "agency" && !!agencyName
+      && referencingMode != null && referencingMode !== "opndoor_referenced";
+    /* WHAT THE CHECKOUT PAGE AND THE CARD STATEMENT CALL THE FEE. Both line items
+       branched on feeAmount === rent and hand-rolled their own two sentences, so a
+       Regent tenant paying £692.31 saw "the agreed guarantor fee for this tenancy"
+       on Stripe while their email called it a month's rent. One phrase, from the
+       same helper the email uses. A fee whose basis cannot be worked out still
+       claims nothing: it is described as agreed, which is always true. */
+    const feeLineDescription = feeBasis
+      ? `${feeBasis.charAt(0).toUpperCase()}${feeBasis.slice(1)}, for the opndoor Deed of Guarantee.`
+      : "The agreed guarantor fee for this tenancy, for the opndoor Deed of Guarantee.";
     const tenantName = [app.tenant_title, app.tenant_first_name, app.tenant_last_name].filter((x) => (x ?? "").toString().trim()).join(" ").trim();
     // #8 Display-layer title-casing of the property address (postcode left raw).
     const propFull = [titleCaseAddress(app.prop_addr1), titleCaseAddress(app.prop_addr2), titleCaseAddress(app.prop_city), app.prop_postcode].filter(Boolean).join(", ");
@@ -106,7 +160,23 @@ Deno.serve(async (req) => {
       tenancyStart: ddmmyyyy(app.tenancy_start),
       guaranteeExpiry: guaranteeExpiryLabel(app.tenancy_start),
       monthlyRent: rent,
+      // The tenancy's rent, then this tenant's share of it where there is one.
+      // A joint tenant pays a share of the fee, so a page that prints the whole
+      // tenancy's rent beside "3 weeks of rent" contradicts its own arithmetic.
+      rentShare: app.share_amount == null ? null : Number(app.share_amount),
       feeGBP,
+      // The words for the figure in feeGBP: "one month of rent", "3 weeks of
+      // rent", or null when the basis cannot be worked out, in which case the
+      // page must say nothing about a basis rather than assume the common one.
+      feeBasis,
+      // Whose decision this is. agencyArranged is the one flag the copy turns on;
+      // rail, referencingMode and agencyName are carried so the page can say it
+      // in the tenant's own terms and so an unexpected combination is diagnosable
+      // from the response rather than only from the row.
+      rail,
+      referencingMode,
+      agencyName,
+      agencyArranged,
       status: app.status,
       isPaid,
       isExpired,
@@ -175,11 +245,7 @@ Deno.serve(async (req) => {
             unit_amount: Math.round(feeAmount * 100),
             product_data: {
               name: `Guarantor fee - ${app.guarantee_ref}`,
-              // Unchanged wherever the fee IS one month's rent. A negotiated
-              // basis or a share of a joint fee has to say what it actually is.
-              description: feeAmount === rent
-                ? "One month's rent, for the opndoor Deed of Guarantee."
-                : "The agreed guarantor fee for this tenancy, for the opndoor Deed of Guarantee.",
+              description: feeLineDescription,
             },
           },
           quantity: 1,
@@ -227,11 +293,10 @@ Deno.serve(async (req) => {
             unit_amount: Math.round(feeAmount * 100),
             product_data: {
               name: `Guarantor fee - ${app.guarantee_ref}`,
-              // Unchanged wherever the fee IS one month's rent. A negotiated
-              // basis or a share of a joint fee has to say what it actually is.
-              description: feeAmount === rent
-                ? "One month's rent, for the opndoor Deed of Guarantee."
-                : "The agreed guarantor fee for this tenancy, for the opndoor Deed of Guarantee.",
+              // Same sentence as the redirect checkout above, from the same
+              // const: the inline card form and the hosted one are the same
+              // purchase and used to be able to describe it differently.
+              description: feeLineDescription,
             },
           },
           quantity: 1,

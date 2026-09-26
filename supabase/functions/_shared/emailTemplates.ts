@@ -49,12 +49,80 @@ function isMonthBasis(weeks: number | null | undefined): boolean {
   return weeks != null && Math.abs(weeks - MONTH_WEEKS) < 0.02;
 }
 
+/** The basis in the reader's words, or null when we cannot work it out.
+
+    A month is said as a month because that is how a tenant thinks of it. Anything
+    else is said in weeks, which is how the agreements are written. Rounded to a
+    whole week only when it IS a whole week: "3 weeks" is a band, "3.33 weeks" is
+    an arithmetic artefact of a share and saying it to 2dp is more honest than
+    rounding it to something the agreement does not say. */
+export function feeBasisPhrase(weeks: number | null | undefined): string | null {
+  if (weeks == null || !(weeks > 0)) return null;
+  if (isMonthBasis(weeks)) return "one month of rent";
+  const whole = Math.abs(weeks - Math.round(weeks)) < 0.02;
+  const n = whole ? String(Math.round(weeks)) : weeks.toFixed(2);
+  return `${n} weeks of rent`;
+}
+
 /** The opening sentence of the small print under a fee. "Payable once" is true
-    of every fee, so only the basis clause comes and goes. */
+    of every fee, so only the basis clause comes and goes.
+
+    A NON-MONTH BASIS IS NOW NAMED. This used to fall back to "The fee is payable
+    once." for anything that was not a month, which is true and says nothing: a
+    tenant looking at £692.31 against a £1,000 rent was told only that they would
+    not be charged again. The month case is word for word what it was, which is
+    every referral on standard terms, so no approved wording moves for them. */
 function feeBasisSentence(weeks: number | null | undefined): string {
-  return isMonthBasis(weeks)
-    ? "The fee is one month of rent and is payable once."
-    : "The fee is payable once.";
+  const phrase = feeBasisPhrase(weeks);
+  return phrase ? `The fee is ${phrase} and is payable once.` : "The fee is payable once.";
+}
+
+/* ---- which rail, and therefore which words ------------------------------
+   THE RULING. The opening line of a payment email follows the ROUTE and the
+   REFERENCING MODE, from one template with variables, and never from per-agency
+   copy. Three cases, and the reason each reads differently is about who made the
+   decision the tenant is being told about:
+
+     agency referral, PRE-REFERENCED (Regent): the AGENCY decided this tenant
+       needed a guarantee and arranged one. So the agency is the subject of the
+       sentence, named as the tenant knows them, and the fee and its basis are
+       stated in the same breath as the ask. Opndoor has made no decision about
+       this person and must not imply one.
+
+     agency referral, OPNDOOR-REFERENCED, and the DIRECT rail: opndoor referenced
+       the tenant and decided. The existing approved wording says exactly that and
+       is left alone.
+
+     supplier rail (Rightmove): byte-identical to today. Their wording is approved
+       and their volume is the reason this service exists; a copy change here is
+       not a copy change, it is a renegotiation.
+
+   THE AGENCY NAME IS THE ONE THE TENANT KNOWS: agencies.name, never the group's.
+   A tenant who dealt with "Regent's Lettings" has never heard of the holding
+   company above it, and a sentence naming it reads like a different company
+   asking them for money. */
+export type TenantRail = "agency" | "supplier" | "direct";
+
+export interface FeeCopy {
+  /** The rail this referral came in on. */
+  rail: TenantRail;
+  /** The application's own referencing_mode, which an agency can override away
+      from its partner's. Regent is pre_referenced_open under a partner that is
+      opndoor_referenced, so the PARTNER's mode is the wrong thing to read. */
+  referencingMode?: string | null;
+  /** agencies.name. Required for the agency-referral pre-referenced line, which
+      is the only copy that names anybody. */
+  agencyName?: string | null;
+}
+
+/** Does this referral get the agency's own arranged-it line? Only an agency
+    referral that opndoor did not reference, and only when we actually know the
+    agency's name: a sentence with a hole where the name goes is worse than the
+    approved wording. */
+function isAgencyArranged(c: FeeCopy | undefined): boolean {
+  if (!c || c.rail !== "agency") return false;
+  if (!c.agencyName || !c.agencyName.trim()) return false;
+  return c.referencingMode != null && c.referencingMode !== "opndoor_referenced";
 }
 
 /* ---- tenant: identity and access ---------------------------------------- */
@@ -170,6 +238,10 @@ export function paymentLinkEmail(p: {
   tenancyStartLabel?: string | null; payUrl: string;
   /** Weeks of rent this fee is, from feeBasisWeeksOf. Omit when unknown. */
   feeBasisWeeks?: number | null;
+  /** Which rail and mode this came in on, which decides the opening line. Omit
+      and the email reads exactly as it did before any of this, which is what the
+      supplier rail must keep getting. */
+  copy?: FeeCopy;
 }): Message {
   const rows: [string, string][] = [
     ["Reference", p.guaranteeRef],
@@ -177,12 +249,23 @@ export function paymentLinkEmail(p: {
     ["Guarantee fee", p.amount],
   ];
   if (p.tenancyStartLabel) rows.push(["Tenancy starts", p.tenancyStartLabel]);
+
+  /* AN AGENCY ARRANGED THIS, AND SAYS SO. On a pre-referenced agency referral the
+     agency made the decision, so the agency is the subject and the fee and its
+     basis are in the ask rather than in the small print underneath. Everything
+     else, including every supplier referral, keeps the approved sentence. */
+  const basis = feeBasisPhrase(p.feeBasisWeeks);
+  const opening = isAgencyArranged(p.copy)
+    ? `${p.copy!.agencyName!.trim()} has arranged an opndoor guarantee for your tenancy at ${p.propertyAddr}. `
+      + `To put it in place, pay the guarantee fee of ${p.amount}${basis ? ` (${basis})` : ""}.`
+    : `opndoor is acting as guarantor for your tenancy at ${p.propertyAddr}. The last step is the guarantee fee.`;
+
   return {
     audience: "tenant",
     subject: "Your opndoor guarantee is ready to pay",
     heading: "Your guarantee is approved",
     blocks: [
-      { p: `opndoor is acting as guarantor for your tenancy at ${p.propertyAddr}. The last step is the guarantee fee.` },
+      { p: opening },
       { rows },
       { small: `${feeBasisSentence(p.feeBasisWeeks)} The Deed of Guarantee is issued as soon as it clears.` },
     ],
@@ -222,6 +305,10 @@ export function directApprovalEmail(p: {
 export function paymentReminderEmail(p: {
   propertyAddr: string; guaranteeRef: string; amount: string;
   openUntilLabel?: string | null; payUrl: string; nudge: 1 | 2 | 3;
+  /** Weeks of rent this fee is, from feeBasisWeeksOf. Omit when unknown. */
+  feeBasisWeeks?: number | null;
+  /** Which rail and mode, as for paymentLinkEmail. Omit for today's wording. */
+  copy?: FeeCopy;
 }): Message {
   const lead = p.nudge === 1
     ? "Just checking this reached you."
@@ -230,14 +317,26 @@ export function paymentReminderEmail(p: {
       : "To keep your tenancy on track, the guarantee fee needs paying.";
   const rows: [string, string][] = [["Reference", p.guaranteeRef], ["Guarantee fee", p.amount]];
   if (p.openUntilLabel) rows.push(["Open until", p.openUntilLabel]);
+
+  /* THE SAME RULE AS THE FIRST EMAIL, for the same reason: a reminder that tells a
+     Regent tenant opndoor is acting as guarantor misattributes the decision just
+     as the original did, and a reminder is read by somebody who has already
+     hesitated once. It also gained a basis: a reminder naming a figure and not
+     what the figure is measured against is the same misstatement of price. */
+  const basis = feeBasisPhrase(p.feeBasisWeeks);
+  const body = isAgencyArranged(p.copy)
+    ? `${lead} ${p.copy!.agencyName!.trim()} has arranged an opndoor guarantee for your tenancy at ${p.propertyAddr}. `
+      + `To put it in place, pay the guarantee fee of ${p.amount}${basis ? ` (${basis})` : ""}.`
+    // True whoever referred them, and true if nobody did. This used to say
+    // they had been referred, which is false for a direct signup.
+    : `${lead} opndoor is acting as guarantor for your tenancy at ${p.propertyAddr}.`;
+
   return {
     audience: "tenant",
     subject: "A reminder about your opndoor guarantee",
     heading: "Your guarantee is still waiting",
     blocks: [
-      // True whoever referred them, and true if nobody did. This used to say
-      // they had been referred, which is false for a direct signup.
-      { p: `${lead} opndoor is acting as guarantor for your tenancy at ${p.propertyAddr}.` },
+      { p: body },
       { rows },
     ],
     action: { label: "Pay the guarantee fee", href: p.payUrl },

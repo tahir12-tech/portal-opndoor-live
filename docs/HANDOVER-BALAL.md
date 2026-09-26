@@ -331,31 +331,120 @@ you, but if Regent sends a joint tenancy the deeds are per tenant from the
 first one. There is no retrofit for tenancies issued under the old rule, and
 production has none, because production has no joint tenancies at all.
 
-## 6. `supabase/config.toml`
+## 6. `supabase/config.toml`, and deploying the functions
 
-The file in the repo is the source of truth and is already correct. The entries
-that matter are the JWT gates: a function invoked by a cron or by a third-party
-webhook cannot present a user JWT, so it must be listed with `verify_jwt = false`
-and authenticate itself another way.
+The file in the repo is the source of truth. The entries that matter are the JWT
+gates: a function invoked by a cron, by a third-party webhook, or by a browser
+with no session cannot present a user JWT, so it must be listed with
+`verify_jwt = false` and authenticate itself another way. The platform check runs
+*before* the function's first line, so a missing entry is a 401 nobody sees.
 
-All seventeen entries in the file are `verify_jwt = false`, grouped by what
-authenticates them instead:
+**Corrected 26 September.** This section previously said there were seventeen
+entries and that `partner-api` was deliberately not among them, keeping the
+default gate and validating its key "after the platform has already required a
+JWT". That was wrong, and wrong in the direction that breaks partners:
+`partner-api` is deployed with `verify_jwt = false`, and its own header comment
+has always said `verify_jwt = FALSE, required`, because a partner presents an API
+key and not a Supabase JWT. If you had deployed it with the gate on, every partner
+integration would have returned 401 before reaching any of our code. Five entries
+were missing altogether; they are in the file now and the reconciliation below
+returns clean.
+
+There are **22** entries, all `verify_jwt = false`, grouped by what authenticates
+them instead:
 
 | authenticated by | functions |
 |---|---|
 | a provider's request signature | `stripe-webhook`, `pandadoc-webhook` |
-| `x-reminders-secret`, from `ops_secrets` | `payment-reminders`, `expiry-reminders`, `expiry-cohorts`, `renewal-notices`, `weekly-digest`, `hubspot-sync`, `ops-alert`, **`commission-statements`** (new) |
+| `x-ops-secret` / `x-reminders-secret`, from `ops_secrets` | `payment-reminders`, `expiry-reminders`, `expiry-cohorts`, `renewal-notices`, `weekly-digest`, `hubspot-sync`, `ops-alert`, `commission-statements`, `partner-webhooks` |
+| a partner API key the function validates | `partner-api` |
 | a tokenised link the recipient was sent | `payment-page`, `payment-confirmation`, `send-password-reset`, `tenancy-correction` |
-| the tenant's own session, issued by the function | `tenant-auth` |
+| the tenant's own session, issued by the function | `tenant-auth`, `tenant-portal` |
 | the referencing provider's token | `referencing-inbound`, `referencing-callback` |
+| a signed-in portal user, checked by the function, plus its own CORS preflight | `create-referral`, `invite-user` |
 
-`partner-api` is **not** in the list and keeps the default JWT gate: it
-authenticates with a partner API key it validates itself, after the platform has
-already required a JWT.
+`create-referral` and `invite-user` are the two to look at again rather than
+inherit: their source headers say `verify_jwt = true` and their deployments say
+false, and they have disagreed for as long as both have existed. The file records
+the deployment, because the deployment is what runs. Settle it deliberately and
+fix the losing side.
 
-If you deploy `commission-statements` without its entry, the cron gets a 401 and
-the statements silently never send. There is no alert for that, which is worth
-fixing later.
+### 6a. Reconcile before you deploy
+
+Never deploy functions in bulk without checking this first. It takes a minute and
+it is the difference between a safe deploy and a silent outage:
+
+```bash
+npx supabase functions list --project-ref <REF> --output json > /tmp/fns.json
+python3 - <<'EOF'
+import json, re
+fns = json.load(open('/tmp/fns.json'))
+cfg = open('supabase/config.toml').read()
+declared = {m.group(1): m.group(2) == 'true' for m in re.finditer(
+    r'^\[functions\.([\w-]+)\]\s*\n(?:[^\[]*?)^verify_jwt\s*=\s*(true|false)', cfg, re.M)}
+bad = [(f['slug'], f['verify_jwt'], declared.get(f['slug'], True))
+       for f in fns if declared.get(f['slug'], True) != f['verify_jwt']]
+print('declared:', len(declared), '| mismatches:', len(bad))
+for s, dep, eff in bad:
+    print(f'  {s}: deployed {dep}, a deploy would set {eff}')
+EOF
+```
+
+**It must print `mismatches: 0`.** A non-zero line names a function whose
+deployed gate disagrees with the file, and deploying it will change its gate. Fix
+the file first, or deploy that one on its own with the flag it needs.
+
+### 6b. Deploy all of them
+
+With the reconciliation clean, the flags come from the file and no flag needs
+typing:
+
+```bash
+npx supabase functions deploy --project-ref <REF>
+```
+
+Deploy **every** function, not only the ones you changed. Functions bundle
+`supabase/functions/_shared/*`, so a change to one shared file makes every
+function that imports it stale, and the staleness is invisible: the function keeps
+answering, with old code. On 26 September, 29 of 33 functions on dev were running
+code older than the repo, and the tenant payment email was stating the rent as the
+fee for two days because `create-referral` had been fixed at 10:17 and deployed at
+10:16.
+
+To see what is behind before you start:
+
+```bash
+git log -1 --format=%ct -- supabase/functions/_shared    # newest shared change
+# compare against updated_at in /tmp/fns.json (milliseconds)
+```
+
+### 6c. The order, and what to check after each
+
+Deploy in this order. It is not a dependency order (functions are independent);
+it is the order that lets you catch a break before it costs you a real payment.
+
+| # | function | gate | check it answers |
+|---|---|---|---|
+| 1 | `tenant-auth` | false | `POST` with no body returns its own JSON error, not a platform 401 |
+| 2 | `tenant-portal` | false | same |
+| 3 | `payment-page` | false | `GET /functions/v1/payment-page?token=bad` returns its own "not found", not 401 |
+| 4 | `create-referral` | false | `POST` with no auth returns its own `{"ok":false,...}` |
+| 5 | `payment-confirmation` | false | its own error |
+| 6 | `stripe-webhook` | false | unsigned `POST` returns a signature error, **not** 401. A 401 here means the gate is on and every payment will be lost |
+| 7 | `pandadoc-webhook` | false | unsigned `POST` returns a signature error, not 401 |
+| 8 | `send-deed-to-agent`, `send-deed-to-landlord`, `deed-download` | true | `POST` with no auth returns 401 (correct: these are staff-invoked) |
+| 9 | the cron set | false | `POST` without `x-ops-secret` returns its own refusal, not 401 |
+| 10 | `partner-api`, `partner-webhooks` | false | `POST` with no key returns its own error, not 401 |
+| 11 | everything else | per file | it answers at all |
+
+The distinction to watch for throughout: **a platform 401 has an empty or generic
+body; our refusals are JSON we wrote.** If a function that should authenticate
+itself returns a bare 401, its gate is on and the entry is missing from
+`config.toml`.
+
+After the chain is deployed, re-walk from the pay link (section 11): the payment
+email, the `/pay` page, the Stripe redirect, the webhook, the deed. That walk
+exercises 1 to 8 in the order a tenant hits them.
 
 ---
 

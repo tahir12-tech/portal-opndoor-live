@@ -11,7 +11,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
-import { feeBasisWeeksOf, paymentLinkEmail } from "../_shared/emailTemplates.ts";
+import { feeBasisWeeksOf, paymentLinkEmail, type FeeCopy } from "../_shared/emailTemplates.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 import { maySendOpndoorEmail } from "../_shared/livemodeCredentials.ts";
 
@@ -46,7 +46,12 @@ Deno.serve(async (req) => {
     // RLS ensures only the owning Referrer / Management in-partner / admin can read it.
     const { data: app, error } = await userClient
       .from("applications")
-      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, monthly_rent, fee_amount, share_amount, status, payment_url, livemode")
+      // referencing_mode, agency_id and the two embeds are here for the OPENING
+      // LINE, not for anything this function decides: see the copy block below.
+      // Both embedded rows are ones this caller already reads all over the portal
+      // (the applications list renders the agency name off the same policy), and
+      // a null from either degrades to the approved wording rather than failing.
+      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, monthly_rent, fee_amount, share_amount, status, payment_url, livemode, referencing_mode, agency_id, agency:agencies(name), partner:partners(refers_own_stock)")
       .eq("guarantee_ref", ref).maybeSingle();
     if (error) return json({ ok: false, error: error.message }, 400);
     if (!app) return json({ ok: false, error: "Application not found, or you do not have access to it." }, 404);
@@ -73,6 +78,45 @@ Deno.serve(async (req) => {
     // The basis is worked out against the rent this fee was a proportion of:
     // their share of it if they are one of a joint tenancy, the whole rent if not.
     const feeBasisWeeks = feeBasisWeeksOf(fee, app.share_amount ?? app.monthly_rent);
+
+    // WHICH WORDS THIS TENANT GETS, and it is the route plus the referencing mode
+    // that decide, never who the agency is. An agency that referenced its own
+    // tenant made the decision this email announces, so it is the subject of the
+    // opening line and is named as the tenant knows it: agencies.name, never the
+    // group above it. Where opndoor referenced, and on the supplier rail, opndoor
+    // decided, the approved wording already says so, and passing copy changes not
+    // one character of it.
+    //
+    // The mode read here is the APPLICATION's own snapshot. Regent is
+    // pre_referenced_open under a partner that is opndoor_referenced, so asking
+    // the partner would tell a Regent tenant opndoor took a view on them when it
+    // never saw them.
+    //
+    // refers_own_stock is the estate: true means one of our own agencies typed
+    // this referral in. agency_id is NOT NULL on this table, the direct rail
+    // included (it carries the house "Unattached" agency under opndoor-direct,
+    // whose refers_own_stock is false), so a direct application resolves here as
+    // "supplier". That is copy-identical: a direct application's mode is always
+    // opndoor_referenced, and every rail's opndoor-referenced arm is the approved
+    // wording. The direct arm is kept because the ruling is written in terms of
+    // whether an agency is attached at all.
+    //
+    // An embedded to-one comes back as an object or as a one-element array
+    // depending on how PostgREST resolves the relationship, and payment-page
+    // unwraps both for these same two embeds. Guessing the shape here would lose
+    // the agency's name silently, which is exactly the failure that reads as
+    // approved copy and is not.
+    const embedded = (v: unknown) => (Array.isArray(v) ? v[0] ?? null : v ?? null);
+    const partnerRow = embedded(app.partner) as { refers_own_stock?: boolean | null } | null;
+    const agencyRow = embedded(app.agency) as { name?: string | null } | null;
+    const copy: FeeCopy = {
+      rail: !app.agency_id ? "direct" : partnerRow?.refers_own_stock === true ? "agency" : "supplier",
+      referencingMode: app.referencing_mode,
+      // Null when RLS did not hand this caller the agency row, in which case the
+      // template uses the approved wording rather than printing a sentence with a
+      // hole where the name goes.
+      agencyName: (agencyRow?.name ?? "").trim() || null,
+    };
     // #8 Title-case the address line for display in the email; postcode left raw.
     const propertyAddr = [titleCaseAddress(app.prop_addr1), app.prop_postcode].filter(Boolean).join(", ");
     const service = createClient(SUPABASE_URL, SERVICE);
@@ -91,7 +135,7 @@ Deno.serve(async (req) => {
       message: paymentLinkEmail({
         propertyAddr, guaranteeRef: app.guarantee_ref,
         amount: `£${fee.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
-        payUrl, feeBasisWeeks,
+        payUrl, feeBasisWeeks, copy,
       }),
     });
     // Partner-safe business message; test-mode redirect target stays admin-only.

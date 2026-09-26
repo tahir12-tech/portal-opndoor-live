@@ -22,7 +22,8 @@
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
-import { paymentLinkEmail, tenantInviteEmail } from "../_shared/emailTemplates.ts";
+import { feeBasisPhrase, feeBasisWeeksOf, paymentLinkEmail, tenantInviteEmail } from "../_shared/emailTemplates.ts";
+import type { FeeCopy, TenantRail } from "../_shared/emailTemplates.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 import { stripeSecretFor } from "../_shared/livemodeCredentials.ts";
 
@@ -110,7 +111,58 @@ Deno.serve(async (req) => {
       branchId = targetId as string;
     }
 
+    // agencies.name, the name the tenant dealt with, never the group above it: a
+    // tenant who has only ever heard of "Regent's Lettings" reads the holding
+    // company's name as a different company asking them for money. Falls back to
+    // the name the picker sent, which is the name create_referral_target creates
+    // the agency row with, so a branch created a moment ago still has one.
     const agencyName = (branch as { agencies?: { name?: string } } | null)?.agencies?.name ?? b.agency ?? null;
+
+    // ------------------------------------------------------------------
+    // WHICH RAIL, AND THEREFORE WHOSE DECISION THE TENANT IS BEING TOLD ABOUT.
+    //
+    // The opening line of the payment email follows the ROUTE and the REFERENCING
+    // MODE, from one template with variables, never from per-agency copy. Both
+    // facts are read off the row the RPC has just frozen rather than off the
+    // request body, because that row is what the money and the mode were resolved
+    // from and is what every later surface will read.
+    //
+    //   partner_id is the ROUTE partner, which on this path is the referrer's own
+    //     partner. refers_own_stock true means the partner refers its own stock,
+    //     so the tenant dealt with the agency: rail "agency". False, with an
+    //     agency under it, is a supplier rail (Rightmove), whose wording is
+    //     approved and must stay byte-identical: rail "supplier".
+    //     applications.agency_id is NOT NULL, the direct rail included (it carries
+    //     the house "Unattached" agency, whose partner does not refer its own
+    //     stock), so a row with no agency is not a state this schema produces and
+    //     the "direct" arm is a guard, not a path. It is copy-identical anyway:
+    //     the direct rail's mode is always opndoor_referenced, and every rail's
+    //     opndoor-referenced arm is the approved wording.
+    //
+    // THE MODE IS THE APPLICATION'S, never the partner's. Regent is
+    // pre_referenced_open under a partner that is opndoor_referenced, so reading
+    // the partner's mode gets exactly the reported referral wrong.
+    //
+    // One read per route rather than one per applicant: every applicant on a
+    // joint tenancy arrived by the same one.
+    const refersOwnStock = new Map<string, boolean>();
+    // deno-lint-ignore no-explicit-any
+    async function tenantCopy(app: any): Promise<FeeCopy> {
+      const agencyId = app.agency_id ? String(app.agency_id) : null;
+      const routeId = app.partner_id ? String(app.partner_id) : null;
+      let rail: TenantRail = "direct";
+      if (agencyId) {
+        if (routeId && !refersOwnStock.has(routeId)) {
+          const { data: p } = await userClient.from("partners").select("refers_own_stock").eq("id", routeId).maybeSingle();
+          refersOwnStock.set(routeId, Boolean(p?.refers_own_stock));
+        }
+        // A read that comes back empty degrades to "supplier", which is the
+        // approved wording that names nobody. Saying less is the safe failure;
+        // naming the wrong company is not.
+        rail = routeId && refersOwnStock.get(routeId) ? "agency" : "supplier";
+      }
+      return { rail, referencingMode: (app.referencing_mode as string | null) ?? null, agencyName };
+    }
 
     // ------------------------------------------------------------------
     // THE PER-APPLICANT FINISH. Identical for a sole tenant and for each
@@ -137,6 +189,27 @@ Deno.serve(async (req) => {
       // moment a negotiated basis or a joint share is in play: a tenant would
       // have been told £2,000 and shown £1,153.85 at checkout.
       const amountGBP = `£${feeAmount.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+      /* AND WHAT THAT FIGURE IS MEASURED AGAINST. The amount above has been
+         fee_amount since M1, but nothing told this email what the fee was a
+         proportion OF, so GR-20837's tenant was asked for £692.31 under a
+         sentence that flatly called the fee one month of rent. It was three
+         weeks, under Regent's agreement. The basis is a fact passed in now.
+
+         MEASURED AGAINST THE RENT THIS FEE WAS A PROPORTION OF, which for a
+         joint applicant is their own share: share_amount is their slice of the
+         rent (monthly_rent stays the whole tenancy's, because that is what the
+         guarantee covers). Dividing a share of the fee by the whole rent would
+         report every joint tenant as being on a discount. Where a share percent
+         arrived without an amount, apportion rather than fall back to the whole
+         rent, for the same reason. sharePct is 100 on a sole referral, so this
+         is the whole rent there and nothing about it moves.
+
+         Derived from the two numbers the tenant is shown rather than read from
+         applications.fee_basis_weeks, so the words and the figure beside them
+         cannot contradict each other. */
+      const rentBase = app.share_amount != null ? Number(app.share_amount) : rent * (sharePct / 100);
+      const feeBasisWeeks = feeBasisWeeksOf(feeAmount, rentBase);
+      const basis = feeBasisPhrase(feeBasisWeeks);
 
       // ---- THE FORK, and it happens before Stripe is touched ---------------
       //
@@ -173,6 +246,11 @@ Deno.serve(async (req) => {
             // The agency the referral was filed against, not "your letting
             // agent": the referrer may be a supplier.
             referrerName: agencyName,
+            // NO FEE IS STATED HERE, deliberately, and that is why this call takes
+            // no basis: nothing has been decided yet, so there is nothing to price.
+            // monthlyRent is the tenancy's rent under a row that says "Monthly
+            // rent", which is the one figure a tenant can check against their own
+            // tenancy agreement. It is not, and must never become, the fee.
             propertyAddr, monthlyRent: b.rent ?? null, guaranteeRef: ref, inviteUrl,
           }),
         });
@@ -199,6 +277,23 @@ Deno.serve(async (req) => {
         };
       }
 
+      /* WHAT STRIPE CALLS THE FEE, in the same words as the email and the pay
+         page. This branched on `feeAmount === rent`, a hand-rolled month test
+         that is true only on standard terms: Regent's £692.31 against a £1,000
+         rent failed it and was described as "the agreed guarantor fee" with no
+         basis at all, while the email called the same fee a month's rent. The
+         phrase now comes from feeBasisPhrase, the one place a basis is put into
+         words, which is also what payment-page's line item reads, so the two
+         checkouts and the email cannot describe one fee three ways. A basis that
+         cannot be worked out still claims nothing: "agreed" is always true. */
+      const feeLineDescription = sharePct < 100
+        // A joint applicant is charged a share, and their basis is their share of
+        // the fee against their share of the rent, so both facts belong here.
+        ? `Your ${sharePct}% share of the guarantor fee for this tenancy${basis ? ` (${basis})` : ""}, for the opndoor Deed of Guarantee.`
+        : basis
+          ? `${basis.charAt(0).toUpperCase()}${basis.slice(1)}, for the opndoor Deed of Guarantee.`
+          : "The agreed guarantor fee for this tenancy, for the opndoor Deed of Guarantee.";
+
       // Stripe test-mode Checkout Session for the guarantor fee.
       // @ts-expect-error pinned apiVersion, older than the SDK types' latest literal
       const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
@@ -218,15 +313,7 @@ Deno.serve(async (req) => {
             unit_amount: Math.round(feeAmount * 100),
             product_data: {
               name: `Guarantor fee - ${ref}`,
-              // Unchanged wherever the fee IS one month's rent, which is every
-              // application on standard terms. A negotiated basis or a share of
-              // a joint fee has to say what it actually is, because "one month's
-              // rent" printed against £1,153.85 on a £2,000 flat is a dispute.
-              description: feeAmount === rent
-                ? "One month's rent, for the opndoor Deed of Guarantee."
-                : sharePct < 100
-                  ? `Your ${sharePct}% share of the guarantor fee for this tenancy, for the opndoor Deed of Guarantee.`
-                  : "The agreed guarantor fee for this tenancy, for the opndoor Deed of Guarantee.",
+              description: feeLineDescription,
             },
           },
           quantity: 1,
@@ -250,13 +337,28 @@ Deno.serve(async (req) => {
       // checkout session. utm_source tags the touch (initial send).
       const { data: pageToken } = await service.rpc("mint_payment_page_token", { p_ref: ref });
 
+      /* THE REPORTED EMAIL. The amount was already fee_amount; what was missing
+         was everything that explains it. With no feeBasisWeeks the small print
+         fell back to "The fee is payable once.", which told a tenant looking at
+         £692.31 against a £1,000 rent only that they would not be charged again,
+         and with no copy the opening said opndoor was acting as guarantor when
+         Regent had made the decision and opndoor had taken no view of this
+         person at all.
+         A supplier referral passes rail "supplier" here and gets, by the
+         template's own rule, the approved email character for character. */
+      const copy = await tenantCopy(app);
+
       // Never email a stale Stripe URL. Without a durable /pay?token link the send
       // is recorded as failed rather than carrying the 30-minute eager session URL;
       // the referral exists and an admin can resend, which mints a fresh link.
       const emailRes = pageToken
         ? await sendMessage({
             to: tenantEmail,
-            message: paymentLinkEmail({ propertyAddr, guaranteeRef: ref, amount: amountGBP, payUrl: `${origin}/pay?token=${pageToken}&utm_source=initial` }),
+            message: paymentLinkEmail({
+              propertyAddr, guaranteeRef: ref, amount: amountGBP,
+              feeBasisWeeks, copy,
+              payUrl: `${origin}/pay?token=${pageToken}&utm_source=initial`,
+            }),
           })
         : { ok: false as const, error: "Could not mint a payment link." };
       // Partner-safe business message; the test-mode redirect target stays admin-only

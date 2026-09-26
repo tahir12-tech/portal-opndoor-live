@@ -20,7 +20,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
-import { paymentReminderEmail } from "../_shared/emailTemplates.ts";
+import { feeBasisWeeksOf, paymentReminderEmail, type FeeCopy } from "../_shared/emailTemplates.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 
 const cors = {
@@ -94,8 +94,50 @@ Deno.serve(async (req) => {
       application_id: string; guarantee_ref: string; days: number;
       tenant_title: string | null; tenant_last_name: string | null; tenant_email: string | null;
       prop_addr1: string | null; prop_postcode: string | null; monthly_rent: number | null;
-      fee_amount: number | null; payment_url: string | null;
+      // agency is agencies.name, joined on the application's agency_id: the name
+      // the tenant actually dealt with, which is the only name the opening line
+      // is allowed to use.
+      fee_amount: number | null; payment_url: string | null; agency: string | null;
     }>;
+
+    /* WHAT THE FEE IS MEASURED AGAINST, AND WHO DECIDED IT. Three facts the RPC
+       does not return, fetched once for the whole batch rather than per nudge:
+       they are properties of the application, and the loop below already spends a
+       round trip each on the token and the send.
+
+         referencing_mode  the APPLICATION's own snapshot, never its partner's.
+                           Regent is pre_referenced_open under a partner that is
+                           opndoor_referenced, so the partner's answer would have
+                           a reminder tell a Regent tenant that opndoor decided
+                           about them.
+         share_amount      the share of RENT a joint applicant was assessed on.
+                           Their fee is a share too, so the basis is only honest
+                           measured share against share.
+         refers_own_stock  the estate: true means one of our own agencies typed
+                           this referral in, which is the agency-referral rail.
+
+       The agency NAME is not selected again: the RPC row already carries it. */
+    // The partner embed arrives as an object or as a one-element array depending
+    // on how PostgREST resolves the relationship (payment-page unwraps both for
+    // the same embed), so neither shape is assumed here.
+    type PartnerEmbed = { refers_own_stock?: boolean | null };
+    type CopyFacts = {
+      id: string;
+      referencing_mode: string | null;
+      share_amount: number | null;
+      agency_id: string | null;
+      partner: PartnerEmbed | PartnerEmbed[] | null;
+    };
+    const ownStock = (p: CopyFacts["partner"]) =>
+      (Array.isArray(p) ? p[0] : p)?.refers_own_stock === true;
+    const facts = new Map<string, CopyFacts>();
+    if (due.length) {
+      const { data: factRows } = await service
+        .from("applications")
+        .select("id, referencing_mode, share_amount, agency_id, partner:partners(refers_own_stock)")
+        .in("id", due.map((r) => r.application_id));
+      for (const row of (factRows ?? []) as CopyFacts[]) facts.set(row.id, row);
+    }
 
     const APP_URL = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
     let emailed = 0, emailFailed = 0;
@@ -109,6 +151,29 @@ Deno.serve(async (req) => {
       // remains the fallback for rows predating the fee snapshot only.
       // fire_payment_reminders now returns fee_amount for exactly this.
       const fee = Number(r.fee_amount ?? r.monthly_rent ?? 0);
+      const f = facts.get(r.application_id);
+      // WAS: a figure and nothing to measure it against. The reminder printed
+      // £692.31 in a row labelled "Guarantee fee" and said no more, so a Regent
+      // tenant chased for three weeks of rent could not tell whether they were
+      // being asked for a month, a share or the wrong number altogether. The basis
+      // goes against the rent this fee was a proportion OF: a joint applicant's
+      // own share, the whole rent for a sole tenant. Dividing a share of the fee
+      // by the whole tenancy rent would report every joint tenant as discounted.
+      const feeBasisWeeks = feeBasisWeeksOf(fee, f?.share_amount ?? r.monthly_rent);
+      // WAS: "opndoor is acting as guarantor", to every tenant on every rail. On a
+      // pre-referenced agency referral the AGENCY decided and arranged this, so the
+      // agency is the subject and is named as the tenant knows it. Nudge 2 and 3
+      // are read by somebody who has already hesitated once, which is the worst
+      // place to misattribute the decision. Omitted entirely when the facts did not
+      // come back, because today's approved wording is the safe answer: opndoor
+      // referenced and the supplier rail both keep it anyway.
+      const copy: FeeCopy | undefined = f
+        ? {
+            rail: !f.agency_id ? "direct" : ownStock(f.partner) ? "agency" : "supplier",
+            referencingMode: f.referencing_mode,
+            agencyName: (r.agency ?? "").trim() || null,
+          }
+        : undefined;
       // #1/#2 Point the reminder at the confirmation page with a per-touch utm_source.
       const { data: pageToken } = await service.rpc("mint_payment_page_token", { p_ref: r.guarantee_ref });
       // Never send a stale Stripe URL: if a fresh durable link cannot be minted,
@@ -128,6 +193,7 @@ Deno.serve(async (req) => {
           amount: `£${fee.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
           openUntilLabel: null, payUrl,
           nudge: (Number(r.days) <= 3 ? 1 : Number(r.days) <= 7 ? 2 : 3) as 1 | 2 | 3,
+          feeBasisWeeks, copy,
         }),
       });
       if (res.ok) {

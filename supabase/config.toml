@@ -84,3 +84,53 @@ verify_jwt = false
 
 [functions.referencing-callback]
 verify_jwt = false
+
+# -----------------------------------------------------------------------------
+# THE FIVE THIS FILE WAS WRITTEN TO CATCH, AND DID NOT.
+#
+# Added 26 September, after reconciling this file against what is actually
+# deployed to dev. Fifteen functions were recorded on 21 August, sixteen when
+# renewal-notices landed and seventeen when commission-statements did. These five
+# were deployed with a typed --no-verify-jwt and never written down, which is the
+# precise drift the note above says this file exists to prevent: "a flag on a
+# deploy command is a thing somebody forgets".
+#
+# Nothing here CHANGES a deployment. Each line records the flag the function is
+# already running with, so that `supabase functions deploy` with no arguments
+# stops being the thing that breaks them.
+# -----------------------------------------------------------------------------
+
+# A partner API key in the Authorization header, not a Supabase JWT. Its own
+# header comment has said "verify_jwt = FALSE, required" since it was written,
+# and adds "there is no config.toml in this repo", which stopped being true on
+# 21 August. This is the dangerous one: verify_jwt = true rejects every
+# third-party partner integration with a 401 before a line of it runs.
+[functions.partner-api]
+verify_jwt = false
+
+# x-ops-secret, like the cron set above.
+[functions.partner-webhooks]
+verify_jwt = false
+
+# Called from the browser by a tenant who has no portal session. It reads the
+# Authorization header and resolves the caller itself, and it answers its own
+# CORS preflight. The platform check runs BEFORE either, so verify_jwt = true
+# fails the preflight and the tenant sees a dead page rather than a 401.
+[functions.tenant-portal]
+verify_jwt = false
+
+# Both of these are called from the browser by a signed-in portal user, do their
+# own getUser() and return their own 401, and answer their own OPTIONS preflight.
+# They are deployed without JWT verification and this records that.
+#
+# WORTH RESOLVING DELIBERATELY, and not by me changing it here: the header
+# comment at the top of each of these two says "verify_jwt = true", so the source
+# and the deployment have disagreed for as long as both have existed. The
+# deployment is what runs, so the deployment is what this file records. Whoever
+# settles it should decide whether the platform check is wanted in front of the
+# function's own, and fix the losing side rather than leaving them contradictory.
+[functions.create-referral]
+verify_jwt = false
+
+[functions.invite-user]
+verify_jwt = false

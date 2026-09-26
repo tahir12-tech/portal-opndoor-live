@@ -39,7 +39,7 @@
 import { splitProfilePatch, deliveryContactReady, resolveDeclaredAt } from "../_shared/applicationPatch.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
-import { submissionReceivedEmail } from "../_shared/emailTemplates.ts";
+import { submissionReceivedEmail, feeBasisWeeksOf } from "../_shared/emailTemplates.ts";
 import { notifyReferrer } from "../_shared/referrerNotify.ts";
 import { getSigningLink } from "../_shared/pandadoc.ts";
 
@@ -110,9 +110,17 @@ Deno.serve(async (req) => {
     async function ownedApplication(id: unknown) {
       const appId = String(id ?? "");
       if (!appId) return null;
+      /* fee_amount AND fee_basis_weeks, because this row IS the tenant's status
+         screen: everything it knows about the price, it knows from here, and what
+         it had was monthly_rent. On GR-20837 that is £1,000 where £692.31 was
+         charged, three weeks of rent under Regent's agreement, so the one screen
+         the payer looks at could only quote them the rent and call it the fee.
+         fee_amount is what was charged and fee_basis_weeks is the recorded reason
+         it was that. monthly_rent stays: the form edits it and affordability is
+         judged on it. */
       const { data } = await service
         .from("applications")
-        .select("id, status, deed_state, payment_state, pandadoc_document_id, executed_pdf_path, livemode, guarantee_ref, monthly_rent, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_county, prop_postcode, share_percent, share_amount, tenant_title, tenant_first_name, tenant_last_name, tenant_dob, tenant_phone, tenant_email")
+        .select("id, status, deed_state, payment_state, pandadoc_document_id, executed_pdf_path, livemode, guarantee_ref, monthly_rent, fee_amount, fee_basis_weeks, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_county, prop_postcode, share_percent, share_amount, tenant_title, tenant_first_name, tenant_last_name, tenant_dob, tenant_phone, tenant_email")
         .eq("id", appId).eq("applicant_id", callerId).maybeSingle();
       return data ?? null;
     }
@@ -633,6 +641,26 @@ Deno.serve(async (req) => {
             firstName: app.tenant_first_name,
             guaranteeRef: app.guarantee_ref,
             propertyAddr,
+            /* The basis, so the one line here that can quote a price quotes the
+               right one. This passed nothing, so the template took the basis as
+               unknown and named the step without pricing it; on a referral whose
+               fee is already snapshotted the price IS known, and stating it here
+               is what stops the £1,000-for-a-£692.31-fee reading arriving at the
+               first email instead of the last.
+
+               Measured against this applicant's OWN share of the rent, which is
+               coalesce(share_amount, monthly_rent), the same definition
+               application_rent_basis gives the prequalification above and the
+               referencing submission. Divide a joint tenant's share of the fee by
+               the whole tenancy rent and every sharer is told they are on a
+               discount.
+
+               fee_amount ALONE, with no fall back to monthly_rent: this email
+               goes out before anybody has priced or decided anything, so a null
+               fee is genuinely "not settled yet" rather than "a month". Assuming
+               the month is the defect, and the template is built to say the true
+               half of the sentence when we pass nothing. */
+            feeBasisWeeks: feeBasisWeeksOf(app.fee_amount, app.share_amount ?? app.monthly_rent),
           }),
         });
         if (!mail.ok) console.log(JSON.stringify({ event: "submission_email_failed", message: mail.error }));
