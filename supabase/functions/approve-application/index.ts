@@ -17,7 +17,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
-import { directApprovalEmail } from "../_shared/emailTemplates.ts";
+import { directApprovalEmail, feeBasisWeeksOf } from "../_shared/emailTemplates.ts";
 import { notifyReferrer } from "../_shared/referrerNotify.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 import { maySendOpndoorEmail } from "../_shared/livemodeCredentials.ts";
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     // RLS-scoped read: only someone who can see the application resolves it.
     const { data: app, error } = await userClient
       .from("applications")
-      .select("id, guarantee_ref, tenant_first_name, tenant_email, prop_addr1, prop_postcode, monthly_rent, tenancy_start, status, livemode")
+      .select("id, guarantee_ref, tenant_first_name, tenant_email, prop_addr1, prop_postcode, monthly_rent, fee_amount, share_amount, tenancy_start, status, livemode")
       .eq("guarantee_ref", ref).maybeSingle();
     if (error) return json({ ok: false, error: error.message }, 400);
     if (!app) return json({ ok: false, error: "Application not found, or you do not have access to it." }, 404);
@@ -96,7 +96,18 @@ Deno.serve(async (req) => {
     // a direct tenant has an account and pays from their own status screen. Sending
     // never blocks the approval, which has already happened; a failure is logged and
     // returned so staff can resend.
-    const rent = Number(app.monthly_rent);
+    // WAS: monthly_rent, under the words "Guarantee fee".
+    //
+    // The approval email is the tenant's first sight of the price, and it quoted
+    // the rent because for a long time the fee was the rent. fee_amount is what
+    // this application was charged (three and five week bases exist now, and a
+    // joint tenant carries a share of the tenancy fee); the rent is only a
+    // fallback for rows created before the fee was snapshotted, where the two
+    // are equal by construction.
+    const fee = Number(app.fee_amount ?? app.monthly_rent);
+    // Their share of the rent if they are one of a joint tenancy, else the whole
+    // rent: the fee is a proportion of that, not of the tenancy's rent.
+    const feeBasisWeeks = feeBasisWeeksOf(fee, app.share_amount ?? app.monthly_rent);
     const propertyAddr = [titleCaseAddress(app.prop_addr1), app.prop_postcode].filter(Boolean).join(", ");
     const origin = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
     let emailError: string | null = null;
@@ -110,7 +121,8 @@ Deno.serve(async (req) => {
         message: directApprovalEmail({
           propertyAddr,
           guaranteeRef: app.guarantee_ref,
-          amount: `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
+          amount: `£${fee.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
+          feeBasisWeeks,
           tenancyStartLabel: null,
           portalUrl: origin ? `${origin}/apply` : "",
         }),

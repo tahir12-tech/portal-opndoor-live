@@ -218,7 +218,7 @@ export function FinanceSurfaces({ role, partnerScope }: { role: Role; partnerSco
             <div>
               <div className="kpi__label">Underwriter bordereau</div>
               <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                Monthly export (C&amp;C format) with full tenant details, for one calendar month by tenancy start date. Contains personal data — for the underwriter only.
+                Monthly export (C&amp;C format) with full tenant details, for one calendar month by tenancy start date. Contains personal data, for the underwriter only.
               </div>
             </div>
             <Button variant="primary" size="sm" onClick={openBordereau} title="Monthly underwriter bordereau (C&C format) with full tenant details. opndoor admin only.">

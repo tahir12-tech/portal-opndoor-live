@@ -15,6 +15,20 @@
    "Head office" branch is used automatically (inheriting the agency contact),
    so no one has to invent a junk branch. Type a branch name to override it.
 
+   ONE OFFICE: NO SECTION. An agency user whose whole scope is one office is
+   asked nothing at all — this component renders null and the fact is printed as
+   one line under Tenancy in NewApplication. The same rule one level down on the
+   admin form: once an agent with a single office is chosen, the branch step
+   becomes a line rather than a search box. WHICH PREDICATE, and it matters:
+   my_org_shape, read here, and NOT viewerShape. viewerShape counts the viewer's
+   BOOK, so an office opened last week with no referrals through it yet counts as
+   no office, and a form that collapsed on that would file a referral against the
+   wrong branch silently and with no way to correct it. my_org_shape counts what
+   the org actually holds, server side, through the same reach create_referral
+   will use. viewerShape is right for a screen deciding how much of itself to
+   draw over records already written; a form writes a new one, so it answers to
+   the structure rather than to the history.
+
    #66 opndoor admins fly-create under an explicit partner: the referral's
    commission lands under it, so the partner is shown and chosen here rather
    than resolved silently from ambient scope. Existing agencies carry their own
@@ -70,9 +84,13 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
   // Releasing the once-guard when the admin changes partner: the shape is a
   // different partner's now, so re-collapsing is correct rather than a repeat.
   const scopeSeen = useRef<string | null>(null);
-  // An escape hatch for the collapsed case. Collapsing is right almost always
-  // and wrong on the day they open a second office, so the step is hidden
-  // rather than removed.
+  /* The escape hatch, and it now exists only where the escape is real.
+     It used to sit under the one-office agency's own line as "A different
+     branch?", which was an offer we could not keep: branches_insert refuses a
+     new branch on our estate in SQL, and an agency with one office has nothing
+     else to pick, so the link led to an empty search box. It is kept for the
+     admin and supplier form, where inventing a branch mid-referral IS the
+     product, and dropped for an agency user. */
   const [revealBranch, setRevealBranch] = useState(false);
   const [agentValue, setAgentValue] = useState('');
   const [selectedAgency, setSelectedAgency] = useState<string | null>(null);
@@ -158,14 +176,27 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partnerScope]);
 
-  /** Auto-fill a "Head office" branch when the agency has no branches (#65). */
+  /** Auto-fill the branch when the chosen agency leaves nothing to choose.
+      Two cases, and they are not the same fact:
+      no branches at all (#65) means a "Head office" is invented for them;
+      exactly one branch means we already know the answer and asking is asking
+      somebody to confirm what we told them. */
   function autoBranchIfSingleOffice(name: string) {
     const rec = findAgency(name);
-    if (rec && rec.branches.length === 0) {
+    if (!rec) return;
+    if (rec.branches.length === 0) {
       setBranchValue(DEFAULT_BRANCH);
       setSelectedBranch(DEFAULT_BRANCH);
       setBranchNew(true);
       setBranchAuto(true);
+      setBrEmail('');
+      return;
+    }
+    if (rec.branches.length === 1 && (isAdmin || shape.refersOwnStock)) {
+      setBranchValue(rec.branches[0].name);
+      setSelectedBranch(rec.branches[0].name);
+      setBranchNew(false);
+      setBranchAuto(false);
       setBrEmail('');
     }
   }
@@ -182,6 +213,8 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
     setBranchNew(false);
     setBranchAuto(false);
     setBrEmail('');
+    // A revealed branch step belonged to the agency it was revealed for.
+    setRevealBranch(false);
     setSingleOffice(null); // #74 a fresh choice is unanswered
     if (!isNew) { setAgEmail(''); setAgName(''); setAgPhone(''); }
     else if (isAdmin) setAdminPartner((p) => p || (partnerScope === ALL_PARTNERS ? '' : partnerScope));
@@ -220,6 +253,7 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
     setSelectedBranch(null);
     setBranchNew(false);
     setBranchAuto(false);
+    setRevealBranch(false);
     setSingleOffice(null);
     setAgEmail(''); setAgName(''); setAgPhone(''); setBrEmail('');
   }
@@ -332,7 +366,34 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
         : 'No branches found. Type a name to add one.')
     : 'Select an agent first';
 
+  /* THE CHOSEN AGENT HAS ONE OFFICE. The same ruling one level down: the scope
+     collapse above answers "which of your agencies", this answers "which of
+     that agency's offices" once the agency is known, which is the only point at
+     which the admin form can answer it at all.
+
+     Gated on the branch actually being selected. autoBranchIfSingleOffice sets
+     it, but it reads the org store while this reads the server's shape, and if
+     those ever disagree the honest failure is to show the field rather than to
+     hide a question that nothing has answered and then block submit on it.
+
+     Not offered to a supplier who is not an admin: their agency set is open, so
+     "the only office we know of" is a fact about our records rather than about
+     their next referral, and today's search box is the right thing there. */
+  const collapseChosenBranch = !!selectedAgency && !agencyNew && !revealBranch
+    && !!selectedBranch && !branchAuto
+    && (agencyRec?.branches.length ?? 0) === 1
+    && (isAdmin || shape.refersOwnStock);
+
   const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 };
+
+  /* ONE AGENCY, ONE OFFICE: NOTHING TO ASK, SO NOTHING TO DRAW.
+     This used to render "This referral is against X" with a reveal link under
+     it. It was true and it was still furniture: a section, a heading and a
+     control-shaped line for a fact the reader cannot change. The fact is worth
+     one line, so NewApplication prints it under Tenancy instead, and the picker
+     goes quiet. It stays MOUNTED, because it is what resolves that one office
+     and reports it through onChange. */
+  if (shape.collapseAgency && shape.collapseBranch && shape.onlyAgencyName) return null;
 
   return (
     <div className="form-grid">
@@ -349,26 +410,19 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
           </div>
         </div>
       ) : (<>
-      {/* COLLAPSED. One agency, and it is theirs, so there is nothing to choose.
-          Shown rather than hidden: filing a referral against an agency without
-          saying which one is worse than one extra line. It is text, not a
+      {/* COLLAPSED AGENCY, SEVERAL OFFICES. One agency and it is theirs, so
+          there is nothing to choose, but the branch question below is real and
+          the line says what it is a branch OF. (One agency AND one office
+          returned null above, so collapseBranch cannot reach this.) Shown
+          rather than hidden: filing a referral against an agency without saying
+          which one is worse than one extra line, and it is text rather than a
           control, so it is not something to read through. */}
       {shape.collapseAgency ? (
         <div className="field span-2">
-          <label>{shape.collapseBranch ? 'Office' : 'Agency'}</label>
+          <label>Agency</label>
           <div className="hint" style={{ fontSize: 14, color: 'var(--ink)' }}>
-            This referral is against <b>{shape.onlyAgencyName}</b>
-            {shape.collapseBranch && shape.onlyBranchName && shape.onlyBranchName !== shape.onlyAgencyName
-              ? <>, <b>{shape.onlyBranchName}</b></>
-              : null}.
+            This referral is against <b>{shape.onlyAgencyName}</b>.
           </div>
-          {shape.collapseBranch && !revealBranch && (
-            <button type="button" className="linkish" onClick={() => setRevealBranch(true)}
-              style={{ background: 'none', border: 0, padding: 0, marginTop: 4, cursor: 'pointer',
-                       color: 'var(--heliotrope-deep, #5b3fd9)', font: 'inherit', textDecoration: 'underline' }}>
-              A different branch?
-            </button>
-          )}
         </div>
       ) : (
         <div className="field span-2">
@@ -409,12 +463,27 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
         </div>
       )}
 
-      {/* Branch field: existing agencies always; a new agency only once it is
-          confirmed to have branches. A new single-office agency uses the auto
-          Head office branch (read-only) and skips this field. */}
-      {/* Branch collapses only when the agency did, because for a supplier the
-          branch depends on which agency they pick and that is not known yet. */}
-      {shape.collapseBranch && !revealBranch ? null : agencyNew && singleOffice === true ? (
+      {/* Branch field: a line when the chosen agent has one branch, a search box
+          when there is a choice to make. A new agency reaches it only once it is
+          confirmed to have branches; a new single-office agency uses the auto
+          Head office branch (read-only) and skips it. */}
+      {collapseChosenBranch ? (
+        <div className="field span-2">
+          <label>Branch</label>
+          <div className="hint" style={{ fontSize: 14, color: 'var(--ink)' }}>
+            This referral is against <b>{selectedBranch}</b>. It is the only branch listed for {selectedAgency}.
+          </div>
+          {/* Only where a new branch is actually allowed. On our estate there is
+              nothing behind this link and SQL would refuse what it led to. */}
+          {mayAddBranch && (
+            <button type="button" className="linkish" onClick={() => setRevealBranch(true)}
+              style={{ background: 'none', border: 0, padding: 0, marginTop: 4, cursor: 'pointer',
+                       color: 'var(--heliotrope-deep, #5b3fd9)', font: 'inherit', textDecoration: 'underline' }}>
+              Use a different branch
+            </button>
+          )}
+        </div>
+      ) : agencyNew && singleOffice === true ? (
         <div className="field span-2">
           <label htmlFor="br-name">Branch</label>
           <input id="br-name" type="text" readOnly value={`${selectedAgency}, Head office`} />

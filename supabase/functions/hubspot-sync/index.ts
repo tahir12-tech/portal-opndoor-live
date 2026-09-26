@@ -317,7 +317,7 @@ Deno.serve(async (req) => {
       const { data: org } = await service.rpc("hubspot_org_context", { p_agency: agencyId, p_branch: branchId });
       const agency = org?.agency, branch = org?.branch;
       if (!agency || agency.review_state !== "confirmed") {
-        summary.warnings.push(`agency ${agencyId} not confirmed — company/associations gated (§6)`);
+        summary.warnings.push(`agency ${agencyId} not confirmed, company and associations gated (§6)`);
         return { agencyKey: null, branchKey: null, agencyCoId: null, branchCoId: null, single: null };
       }
       const agencyKey = `RFL:${String(agency.id).slice(0, 8)}`;
@@ -357,14 +357,14 @@ Deno.serve(async (req) => {
         branchKey = `RFL:${String(branch.id).slice(0, 8)}`;
         const isHeadOffice = /head\s*office/i.test(branch.name ?? "");
         branchCoId = await upsertCompany(branchKey, co({
-          company_key: branchKey, company_name: `${agency.name} — ${branch.name}`, agency_name: agency.name,
+          company_key: branchKey, company_name: `${agency.name}, ${branch.name}`, agency_name: agency.name,
           branch_name: branch.name, company_level: "Branch", head_office: isHeadOffice ? "Yes" : "No",
           commission_rate: commissionRate,
         }));
         // parent-child link: child -> parent ("Parent Company")
         await assocTyped(COMPANIES, branchCoId!, parentId, env.company_parent_category, env.company_parent_type_id);
       } else {
-        summary.warnings.push(`branch ${branchId} not confirmed — branch company/association gated (§6)`);
+        summary.warnings.push(`branch ${branchId} not confirmed, branch company and association gated (§6)`);
       }
       return { agencyKey, branchKey, agencyCoId: parentId, branchCoId, single: false };
     };

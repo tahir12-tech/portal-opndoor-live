@@ -59,7 +59,7 @@ interface RoleOption {
 }
 const ROLE_OPTIONS: RoleOption[] = [
   { id: 'superadmin', name: 'opndoor admin (Super-admin)', desc: "opndoor's internal admin. Full control of the portal: manages agencies, branches and users, keeps opndoor's own records in step, edits help resources, and sees every referral." },
-  { id: 'opndoor_manager', name: 'opndoor manager', desc: "opndoor operations staff. Sees every referral across all partners and works the day-to-day queues — the eligibility decision, reconciliation and direct-agency matches. Cannot change partner settings or commission, create partners, or manage the opndoor team." },
+  { id: 'opndoor_manager', name: 'opndoor manager', desc: "opndoor operations staff. Sees every referral across all partners and works the day-to-day queues: the eligibility decision, reconciliation and direct-agency matches. Cannot change partner settings or commission, create partners, or manage the opndoor team." },
   { id: 'management', name: 'Management', desc: "Partner management. The same screens and tools as a referrer, but across the whole partner with full visibility of all tracking and analytics. Manages the partner's own agencies, branches and team, with edits applying straight away. Cannot change portal settings." },
   { id: 'referrer', name: 'Referrer', desc: 'Sees and tracks only their own referrals. Can add agencies and branches on the fly while referring.' },
   // "Sees the Dev Centre only" read as seeing nothing, which made the role look
@@ -276,7 +276,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
       // rather than offered as options that cannot be saved.
       if (a.id) out.push({ id: a.id, name: a.name, kind: 'agency' });
       for (const b of a.branches ?? []) {
-        if (b.id) out.push({ id: b.id, name: `${a.name} — ${b.name}`, kind: 'branch' });
+        if (b.id) out.push({ id: b.id, name: `${a.name}, ${b.name}`, kind: 'branch' });
       }
     }
     return out;

@@ -206,8 +206,8 @@ export function AgreementEditor({
                 ? 'The entire commission for everything under this party. No branch below may hold a rate of its own.'
                 : 'This party’s own line. Rates at other levels still add on top.'}>
                 <select value={coverage} onChange={(e) => setCoverage(e.target.value as 'additive' | 'all_in')}>
-                  <option value="additive">Additive — this party’s own line</option>
-                  <option value="all_in" disabled={level === 'branch'}>All-in — everything underneath</option>
+                  <option value="additive">Additive: this party’s own line</option>
+                  <option value="all_in" disabled={level === 'branch'}>All-in: everything underneath</option>
                 </select>
               </Field>
               <Field label="Volume period" hint="When the counter resets.">
@@ -308,8 +308,8 @@ export function AgreementEditor({
             which is stated rather than implied by an absent field. */}
         <p className="agr-hint">
           {live
-            ? <>In force since <b>{live.periodStart ?? 'the day it was agreed'}</b>. Saving replaces it from today; choose <b>Standard terms</b> to end it. An agreement cannot be future-dated — enter it on the day it starts.</>
-            : <>This takes effect today and runs until it is ended or replaced. An agreement cannot be future-dated — enter it on the day it starts.</>}
+            ? <>In force since <b>{live.periodStart ?? 'the day it was agreed'}</b>. Saving replaces it from today; choose <b>Standard terms</b> to end it. An agreement cannot be future-dated, so enter it on the day it starts.</>
+            : <>This takes effect today and runs until it is ended or replaced. An agreement cannot be future-dated, so enter it on the day it starts.</>}
         </p>
       </Modal>
 

@@ -11,7 +11,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
-import { paymentLinkEmail } from "../_shared/emailTemplates.ts";
+import { feeBasisWeeksOf, paymentLinkEmail } from "../_shared/emailTemplates.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 import { maySendOpndoorEmail } from "../_shared/livemodeCredentials.ts";
 
@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     // RLS ensures only the owning Referrer / Management in-partner / admin can read it.
     const { data: app, error } = await userClient
       .from("applications")
-      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, monthly_rent, status, payment_url, livemode")
+      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, monthly_rent, fee_amount, share_amount, status, payment_url, livemode")
       .eq("guarantee_ref", ref).maybeSingle();
     if (error) return json({ ok: false, error: error.message }, 400);
     if (!app) return json({ ok: false, error: "Application not found, or you do not have access to it." }, 404);
@@ -61,7 +61,18 @@ Deno.serve(async (req) => {
     }
     if (!app.payment_url) return json({ ok: false, error: "No payment link exists for this application yet." }, 400);
 
-    const rent = Number(app.monthly_rent);
+    // WAS: the email quoted monthly_rent in a row labelled "Guarantee fee".
+    //
+    // That read correctly only while the fee WAS one month's rent. fee_amount is
+    // what this application was actually charged (a negotiated three or five week
+    // basis, and for a joint tenant their share of the tenancy fee), so quoting
+    // the rent sent the tenant to a Checkout that asks for a different number
+    // from the one in the email. Fall back to the rent only for a row created
+    // before fee_amount existed, where the two are provably equal.
+    const fee = Number(app.fee_amount ?? app.monthly_rent);
+    // The basis is worked out against the rent this fee was a proportion of:
+    // their share of it if they are one of a joint tenancy, the whole rent if not.
+    const feeBasisWeeks = feeBasisWeeksOf(fee, app.share_amount ?? app.monthly_rent);
     // #8 Title-case the address line for display in the email; postcode left raw.
     const propertyAddr = [titleCaseAddress(app.prop_addr1), app.prop_postcode].filter(Boolean).join(", ");
     const service = createClient(SUPABASE_URL, SERVICE);
@@ -79,8 +90,8 @@ Deno.serve(async (req) => {
       to: app.tenant_email,
       message: paymentLinkEmail({
         propertyAddr, guaranteeRef: app.guarantee_ref,
-        amount: `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
-        payUrl,
+        amount: `£${fee.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
+        payUrl, feeBasisWeeks,
       }),
     });
     // Partner-safe business message; test-mode redirect target stays admin-only.

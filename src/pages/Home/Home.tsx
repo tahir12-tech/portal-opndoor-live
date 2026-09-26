@@ -107,7 +107,7 @@ export function Home() {
       <Card>
         <CardHead
           title="Direct signups"
-          sub="Tenants who came to Opndoor directly — no agency or supplier — by stage."
+          sub="Tenants who came to Opndoor directly, with no agency or supplier, by stage."
           actions={<Link className="home-viewall" to="/applications?route=Direct">View all Direct <Icon name="arrowRight" size={13} /></Link>}
         />
         <CardBody>

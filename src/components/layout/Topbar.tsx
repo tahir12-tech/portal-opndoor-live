@@ -95,7 +95,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
           <button
             className="viewas-pill"
             onClick={() => setSelectedPartner(ALL_PARTNERS)}
-            title="Exit — back to all partners"
+            title="Exit: back to all partners"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--heliotrope-deep)', background: 'var(--white-lilac)', border: '1px solid var(--line-strong)', borderRadius: 999, padding: '5px 11px' }}
           >
             Viewing as <b>{viewingAs}</b> <Icon name="x" size={12} />

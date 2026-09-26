@@ -810,10 +810,10 @@ export function Dashboard() {
               <div className="field">
                 <label htmlFor="apps-basis">Filter the period by</label>
                 <select id="apps-basis" value={appsBasis} onChange={(e) => setAppsBasis(e.target.value as ExportBasis)}>
-                  <option value="referred">Date referred (Sent) — reconciles to Referrals sent</option>
-                  <option value="paid">Date paid — reconciles to fees collected</option>
-                  <option value="deed">Date deed issued — reconciles to Deeds issued</option>
-                  <option value="activity">All activity — everything Sent, Paid or Deed issued in the period</option>
+                  <option value="referred">Date referred (Sent), reconciles to Referrals sent</option>
+                  <option value="paid">Date paid, reconciles to fees collected</option>
+                  <option value="deed">Date deed issued, reconciles to Deeds issued</option>
+                  <option value="activity">All activity: everything Sent, Paid or Deed issued in the period</option>
                 </select>
                 <span className="hint">{BASIS_META[appsBasis].hint}</span>
               </div>

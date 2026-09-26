@@ -84,7 +84,7 @@ export function Reconciliation() {
     setSyncing(true);
     try {
       await triggerCrmSync();
-      toast('CRM sync started — confirmed records update within ~2 minutes.');
+      toast('CRM sync started. Confirmed records update within about 2 minutes.');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not start the CRM sync.', 'error');
     } finally {
@@ -98,7 +98,7 @@ export function Reconciliation() {
         <div>
           <div className="rec-eyebrow"><span className="opx">opndoor</span> · internal admin</div>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>Reconciliation</h1>
-          <p className="page-head__sub">Agencies and branches created on the fly by referrers, awaiting review. Confirm new canonical records — confirmed agencies and branches sync to the CRM automatically every couple of minutes (or use Sync CRM to run it now). Merging likely duplicates is coming in a later release.</p>
+          <p className="page-head__sub">Agencies and branches created on the fly by referrers, awaiting review. Confirm new canonical records. Confirmed agencies and branches sync to the CRM automatically every couple of minutes (or use Sync CRM to run it now). Merging likely duplicates is coming in a later release.</p>
         </div>
         <div className="page-head__actions">
           <Button variant="ghost" size="sm" disabled={syncing} onClick={syncNow} title="Push confirmed records to the CRM now (also runs automatically every 2 minutes)."><Icon name="refresh" /> {syncing ? 'Syncing…' : 'Sync CRM'}</Button>
@@ -142,7 +142,7 @@ export function Reconciliation() {
                 </div>
                 <div className="rqitem__meta">{parent}created by <b>{item.by}</b> · {item.when} · {item.refs} referral{item.refs === 1 ? '' : 's'} attached</div>
                 {item.foldedHeadOffice && (
-                  <div className="rqitem__meta" style={{ color: 'var(--ink-mute)' }}>Includes its “Head office” branch — confirming the agency confirms both.</div>
+                  <div className="rqitem__meta" style={{ color: 'var(--ink-mute)' }}>Includes its “Head office” branch. Confirming the agency confirms both.</div>
                 )}
 
                 {item.match ? (

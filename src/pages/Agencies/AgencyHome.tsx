@@ -398,7 +398,7 @@ export function AgencyHome() {
               <span className={`ah-rate-preview${worst > 0.5 ? ' is-over' : ''}`}>
                 Worst branch total: <b>{pctLabel(worst)}</b>
                 {preview?.worstBranch ? ` (${preview.worstBranch})` : ''}
-                {worst > 0.5 ? ' — over the 50% limit' : ''}
+                {worst > 0.5 ? ', over the 50% limit' : ''}
               </span>
             )}
             <button className="ah-linkbtn" onClick={() => { void saveRate(level, id); }} disabled={savingRow}>{savingRow ? '…' : 'Save'}</button>
@@ -800,7 +800,7 @@ export function AgencyHome() {
                     {open && PeopleInline({ level: 'agency', list: agencyPeople, ctx: { level: 'brand', partner, agencyId: a.id, name: a.name } })}
                     {open && branchCount === 0 && (
                       <div className="ah-node-note">
-                        No branches yet — {a.name}'s manager can add them, or add one here.
+                        No branches yet. {a.name}'s manager can add them, or add one here.
                       </div>
                     )}
                     {open && isAdmin && a.id && (

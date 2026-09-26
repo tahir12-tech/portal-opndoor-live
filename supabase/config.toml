@@ -55,6 +55,12 @@ verify_jwt = false
 [functions.expiry-reminders]
 verify_jwt = false
 
+# Cron-invoked like the reminders above: authenticated by the shared
+# x-reminders-secret header, which it can only check if the JWT gate lets the
+# request reach it.
+[functions.commission-statements]
+verify_jwt = false
+
 [functions.expiry-cohorts]
 verify_jwt = false
 

@@ -56,7 +56,7 @@ export function InviteToLevel({ ctx, onClose, onInvited }: { ctx: InviteContext;
     setBusy(true);
     try {
       await inviteUser({ firstName: first.trim(), lastName: last.trim(), email: email.trim(), role, partner: ctx.partner, branch: ctx.branchId, ...scope });
-      toast(`Invited — placed at ${ctx.name}.`, 'ok');
+      toast(`Invited, and placed at ${ctx.name}.`, 'ok');
       onInvited();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not send the invitation.', 'error');

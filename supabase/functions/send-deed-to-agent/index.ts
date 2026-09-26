@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
       // client informed by returning a structured error.
       const service = createClient(SUPABASE_URL, SERVICE);
       await service.from("applications").update({ awaiting_staff_send: true }).eq("id", app.id);
-      await service.from("activity_log").insert({ application_id: app.id, kind: "deed_delivery_failed", message: "Deed issued; no agent contact on file — delivery failed.", actor: "System", visibility: "business" });
+      await service.from("activity_log").insert({ application_id: app.id, kind: "deed_delivery_failed", message: "Deed issued. No agent contact on file, so it could not be delivered.", actor: "System", visibility: "business" });
       return json({ ok: false, sentTo: null, error: "No agent contact on file for this branch. Add one, then resend." }, 400);
     }
     // Greet by the resolved contact's name only when the recipient IS that

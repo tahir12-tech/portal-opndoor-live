@@ -10,6 +10,10 @@
    configured (see addressService), and falls back to manual entry otherwise.
    Manual entry is always available via a toggle.
 
+   ONE OFFICE, NO SECTION 4. An agency user whose whole scope is one office is
+   not asked which office. The section, its number in the rail and its card all
+   go, and the fact appears as one line under Tenancy. See `oneOffice` below.
+
    MORE THAN ONE TENANT. A joint tenancy is one guarantee over one property, and
    the form says so: the same tenant fields repeat, the Tenancy section grows a
    share row per tenant, and the fee is shown at the count actually entered
@@ -97,6 +101,22 @@ export function NewApplication() {
   // agent is telling us which of their own offices it is.
   const [orgShape, setOrgShape] = useState<OrgShape>(FULL_PICKER);
   const orgCopy = orgSectionCopy(orgShape);
+  /* ONE OFFICE: THE SECTION GOES, NOT JUST ITS CONTROLS.
+     A section heading, a number in the rail and a bordered card, all to tell
+     somebody the name of the only office they work at. The fact is worth
+     keeping and the furniture is not, so it moves to one line under Tenancy and
+     section 4 stops existing. The picker still mounts (below) because it is
+     what resolves the office and reports it back through onChange.
+
+     Read off the picker's own shape, from my_org_shape, and not off
+     viewerShape: see the note at the top of AgentBranchPicker. One counts the
+     org, the other counts the book, and only the first can tell a quiet new
+     branch from no branch.
+
+     Named, not just counted: a shape that says "one office" without saying
+     which one cannot be printed and must not be hidden, so it falls back to the
+     full section. The picker makes the same call on the same field. */
+  const oneOffice = orgShape.collapseAgency && orgShape.collapseBranch && !!orgShape.onlyAgencyName;
   const [org, setOrg] = useState({
     agencyNew: false, branchNew: false,
     agencyContactEmail: '', agencyContactName: '', agencyContactPhone: '', branchContactEmail: '',
@@ -379,6 +399,17 @@ export function NewApplication() {
 
   const tenantNames = [values.first.trim() || 'Tenant 1', ...extra.map((t, i) => t.first.trim() || `Tenant ${i + 2}`)];
 
+  /* One element, two homes: inside section 4 where there is a question to ask,
+     and bare in the form where there is not. Written once so the two cannot
+     drift on what the form does with the answer. */
+  const picker = (
+    <AgentBranchPicker onChange={(v) => {
+      setOrgShape(v.shape);
+      setValues((prev) => ({ ...prev, agency: v.agency, branch: v.branch }));
+      setOrg({ agencyNew: v.agencyNew, branchNew: v.branchNew, agencyContactEmail: v.agencyContactEmail, agencyContactName: v.agencyContactName, agencyContactPhone: v.agencyContactPhone, branchContactEmail: v.branchContactEmail, partner: v.partner, singleOffice: v.singleOffice });
+    }} />
+  );
+
   return (
     <>
       <div className="page-head">
@@ -591,26 +622,47 @@ export function NewApplication() {
                   )}
                 </div>
               )}
-            </CardBody>
-          </section>
 
-          {/* 4. AGENT & BRANCH */}
-          <section className="card sec" id="sec-branch">
-            <div className="sec__head"><span className="sec__num">4</span><div><div className="sec__title">{orgCopy.title} <Req /></div><div className="sec__sub">{orgCopy.sub}</div></div></div>
-            <CardBody>
-              <AgentBranchPicker onChange={(v) => {
-              setOrgShape(v.shape);
-                setValues((prev) => ({ ...prev, agency: v.agency, branch: v.branch }));
-                setOrg({ agencyNew: v.agencyNew, branchNew: v.branchNew, agencyContactEmail: v.agencyContactEmail, agencyContactName: v.agencyContactName, agencyContactPhone: v.agencyContactPhone, branchContactEmail: v.branchContactEmail, partner: v.partner, singleOffice: v.singleOffice });
-              }} />
-              {submitted && orgPartnerError && <p className="na-form-error" style={{ marginTop: 8 }}>Select the partner this new agency belongs to.</p>}
-              {submitted && orgOfficeError && <p className="na-form-error" style={{ marginTop: 8 }}>Tell us whether this is a single-office agency.</p>}
-              {submitted && orgContactError && <p className="na-form-error" style={{ marginTop: 8 }}>Enter a contact email for the new agency.</p>}
-              {submitted && !orgOfficeError && (errors.agency || errors.branch) && (
-                <span className="field-error" style={{ marginTop: 10 }}>Select an agent and a branch.</span>
+              {/* The office, said once, where the rest of the tenancy facts are.
+                  Both names when they differ, because "Head office" on its own
+                  names nothing. */}
+              {oneOffice && (
+                <p style={{ fontSize: 13, color: 'var(--ink-mute)', margin: '14px 0 0' }}>
+                  This referral is against <b>{orgShape.onlyAgencyName}</b>
+                  {orgShape.onlyBranchName && orgShape.onlyBranchName !== orgShape.onlyAgencyName
+                    ? <>, <b>{orgShape.onlyBranchName}</b></>
+                    : null}.
+                </p>
               )}
             </CardBody>
           </section>
+
+          {/* 4. AGENT & BRANCH, when there is more than one answer to give.
+              The picker is rendered either way: in the one-office shape it draws
+              nothing and only resolves the office, so taking the section away
+              must not take it with it. */}
+          {oneOffice ? (<>
+            {picker}
+            {/* The reader cannot fix this and still has to be told: with the
+                section gone there is no field to hang an error on, and a Send
+                button that quietly does nothing is the worse failure. */}
+            {submitted && (errors.agency || errors.branch) && (
+              <p className="na-form-error">We could not work out which office this referral is against. Reload the page, and tell us if it happens again.</p>
+            )}
+          </>) : (
+            <section className="card sec" id="sec-branch">
+              <div className="sec__head"><span className="sec__num">4</span><div><div className="sec__title">{orgCopy.title} <Req /></div><div className="sec__sub">{orgCopy.sub}</div></div></div>
+              <CardBody>
+                {picker}
+                {submitted && orgPartnerError && <p className="na-form-error" style={{ marginTop: 8 }}>Select the partner this new agency belongs to.</p>}
+                {submitted && orgOfficeError && <p className="na-form-error" style={{ marginTop: 8 }}>Tell us whether this is a single-office agency.</p>}
+                {submitted && orgContactError && <p className="na-form-error" style={{ marginTop: 8 }}>Enter a contact email for the new agency.</p>}
+                {submitted && !orgOfficeError && (errors.agency || errors.branch) && (
+                  <span className="field-error" style={{ marginTop: 10 }}>Select an agent and a branch.</span>
+                )}
+              </CardBody>
+            </section>
+          )}
 
           <div style={{ marginTop: 6 }}>
             <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Guarantee reference, issue date and expiry are assigned automatically.</p>
@@ -630,7 +682,8 @@ export function NewApplication() {
                 <a href="#sec-tenant" className="is-active"><span className="dot" />{joint ? 'Tenants' : 'Tenant'}</a>
                 <a href="#sec-property"><span className="dot" />Property</a>
                 <a href="#sec-tenancy"><span className="dot" />Tenancy</a>
-                <a href="#sec-branch"><span className="dot" />Agent &amp; branch</a>
+                {/* No link to a section that is not on the page. */}
+                {!oneOffice && <a href="#sec-branch"><span className="dot" />Agent &amp; branch</a>}
               </div>
             </CardBody>
           </Card>

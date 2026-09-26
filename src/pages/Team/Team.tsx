@@ -19,18 +19,27 @@
    the earlier skeleton-group design in which a group director added their own
    branches on first login.
 
+   GROUPING ONLY WHERE THERE IS STRUCTURE. The first cut grouped unconditionally,
+   on the belief that the grouping IS the information. It is, for a group
+   director. For a single-office agency it drew an "Across the agency" card, one
+   branch card and an empty "Not placed yet" card over three people who all work
+   in the same room: three headings, no information, and an empty state that
+   reads like something is broken. A level earns its heading from the second
+   node in it. See teamLayout below.
+
    THE SCREEN IS NOT THE BOUNDARY. Every list here is already RLS-scoped —
    agencies_select, branches_select and users_select each narrow to the caller's
    positions — and every write runs through the same guard-checked RPC the admin
    screens use. Hiding is a courtesy; SQL is the rule. See team-scope.test.sql.
    ===================================================================== */
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   cancelInvite, getAgencies, getGroups, inviteUser, resendInvite, setUserStatus,
   updateUserRole, getUsers, userEmail,
   type Agency, type ManagedUser, type Role,
 } from '@/data';
 import * as positionsService from '@/data/positionsService';
+import { viewerShape, type ViewerShape } from '@/data/viewerShape';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -74,6 +83,154 @@ interface Node {
   /** The agency this node belongs to, for the group-director view's grouping. */
   agencyName: string;
   people: ManagedUser[];
+}
+
+/** One agency, the people whose remit is the whole of it, and its offices. */
+export interface AgencyBlock {
+  key: string;
+  name: string;
+  /** Covers this agency, not one of its offices. */
+  wide: ManagedUser[];
+  branches: Node[];
+}
+
+export interface TeamLayout {
+  /** Is there structure worth drawing? False means one list, no headings. */
+  grouped: boolean;
+  /** Everybody, in one list, for when there is not. */
+  flat: ManagedUser[];
+  /** Above the agency level. Only ever filled in group scope. */
+  groupWide: ManagedUser[];
+  agencies: AgencyBlock[];
+  unplaced: ManagedUser[];
+}
+
+/** The agency a set of positions covers, or null when it covers more than one
+    (or something outside the tree we drew, which means the same thing here). */
+function owningAgency(
+  held: positionsService.Position[],
+  byAgency: Map<string, AgencyBlock>,
+  byBranch: Map<string, AgencyBlock>,
+): AgencyBlock | null {
+  const found = new Set<AgencyBlock>();
+  for (const p of held) {
+    // A group remit sits above every agency by definition, so it never files
+    // under one however few agencies the group happens to hold today.
+    if (p.kind === 'group') return null;
+    const block = p.kind === 'agency' ? byAgency.get(p.targetId) : byBranch.get(p.targetId);
+    if (!block) return null;
+    found.add(block);
+  }
+  return found.size === 1 ? [...found][0] : null;
+}
+
+/**
+ * PEOPLE UNDER THE STRUCTURE THEY SIT IN, AND ONLY WHERE THERE IS STRUCTURE.
+ *
+ * A branch position files somebody at that branch. An agency or group position
+ * files them above it, because that is what it means. Nobody is listed twice,
+ * and nobody is dropped: a person with no position at all is a negotiator,
+ * which is a real answer, and they go in their own block.
+ *
+ * Then the collapse. One agency with one office is not a structure, it is a
+ * shop, and drawing it as one produced the pathology this exists to end: an
+ * "Across the agency" card, one branch card and an empty "Not placed yet" card
+ * for what is really one list of three people. Grouping earns its room from the
+ * second node at a level and not before.
+ *
+ * WHICH READING OF "MORE THAN ONE". viewerShape counts the viewer's BOOK, which
+ * is the shared predicate across Reporting, League, Applications and here, and
+ * is the right one for a screen deciding how much of itself to draw. But this
+ * screen's subject is the org tree rather than the book, and the two can
+ * honestly disagree: a second office opened last week has people in it and no
+ * referrals yet, so the book says one branch while the tree says two. So a
+ * dimension survives if EITHER reading has more than one of it. Erring towards
+ * the grouping costs a card; erring the other way puts two offices' people in
+ * one undifferentiated list, which is the thing the page exists to show.
+ *
+ * Exported and pure so the ruling can be tested without a DOM: see Team.test.ts.
+ */
+export function teamLayout(input: {
+  agencies: Agency[];
+  people: ManagedUser[];
+  positionsByUser: Record<string, positionsService.Position[]>;
+  ownPositions: positionsService.Position[];
+  shape: Pick<ViewerShape, 'oneAgency' | 'oneBranch'>;
+}): TeamLayout {
+  const { agencies, people, positionsByUser, ownPositions, shape } = input;
+
+  /* NARROWED TO THE VIEWER'S OWN POSITIONS when they hold branch ones.
+     branches_select lets anyone who can reach an agency see all of its
+     branches, which is right for a picker and wrong here: a negotiator placed
+     at one office should read their own team, not their agency's. A manager
+     holds an agency or group position, or none, and keeps the whole tree. */
+  const ownBranches = ownPositions.filter((p) => p.kind === 'branch').map((p) => p.targetId);
+  const onlyBranchScoped = ownBranches.length > 0
+    && !ownPositions.some((p) => p.kind === 'agency' || p.kind === 'group');
+  const visible = new Set(ownBranches);
+
+  const blocks: AgencyBlock[] = [];
+  const blockOfAgency = new Map<string, AgencyBlock>();
+  const blockOfBranch = new Map<string, AgencyBlock>();
+  const nodeOfBranch = new Map<string, Node>();
+  for (const a of agencies) {
+    const block: AgencyBlock = { key: a.id ?? a.name, name: a.name, wide: [], branches: [] };
+    blocks.push(block);
+    if (a.id) blockOfAgency.set(a.id, block);
+    for (const b of a.branches ?? []) {
+      if (!b.id) continue;
+      if (onlyBranchScoped && !visible.has(b.id)) continue;
+      const node: Node = { key: b.id, kind: 'branch', name: b.name, agencyName: a.name, people: [] };
+      block.branches.push(node);
+      nodeOfBranch.set(b.id, node);
+      blockOfBranch.set(b.id, block);
+    }
+  }
+
+  const groupWide: ManagedUser[] = [];
+  const unplaced: ManagedUser[] = [];
+  for (const u of people) {
+    const held = positionsByUser[u.id] ?? [];
+    const branch = held.filter((p) => p.kind === 'branch');
+    if (branch.length === 1 && nodeOfBranch.has(branch[0].targetId)) {
+      nodeOfBranch.get(branch[0].targetId)!.people.push(u);
+      continue;
+    }
+    // Somebody above a single office, or with no position at all, could be
+    // anywhere in the agency, so a branch-scoped viewer is not shown them.
+    if (onlyBranchScoped) continue;
+    if (!held.length) { unplaced.push(u); continue; }
+    const owner = owningAgency(held, blockOfAgency, blockOfBranch);
+    if (owner) owner.wide.push(u); else groupWide.push(u);
+  }
+
+  /* ONE AGENCY: there is no "above" it that is not simply it. Merging rather
+     than keeping the bucket avoids two cards with the same heading, which is
+     what a group position inside a single-agency scope used to produce. */
+  if (blocks.length === 1 && groupWide.length) {
+    blocks[0].wide.unshift(...groupWide);
+    groupWide.length = 0;
+  }
+
+  const branchCount = blocks.reduce((n, b) => n + b.branches.length, 0);
+  const manyAgencies = !shape.oneAgency || blocks.length > 1;
+  const manyBranches = !shape.oneBranch || branchCount > 1;
+
+  return {
+    grouped: manyAgencies || manyBranches,
+    // Agency-level people first, then each office, then anyone unplaced: the
+    // same precedence the grouped view reads in, minus the headings.
+    flat: [
+      ...groupWide,
+      ...blocks.flatMap((b) => [...b.wide, ...b.branches.flatMap((n) => n.people)]),
+      ...unplaced,
+    ],
+    groupWide,
+    // An agency with no offices in reach and nobody above them is a heading
+    // with nothing under it.
+    agencies: blocks.filter((b) => b.branches.length > 0 || b.wide.length > 0),
+    unplaced,
+  };
 }
 
 export function Team() {
@@ -145,7 +302,7 @@ export function Team() {
     for (const a of agencies) {
       if (a.id) out.push({ id: a.id, name: a.name, kind: 'agency' });
       for (const b of a.branches ?? []) {
-        if (b.id) out.push({ id: b.id, name: multiAgency ? `${a.name} — ${b.name}` : b.name, kind: 'branch' });
+        if (b.id) out.push({ id: b.id, name: multiAgency ? `${a.name}, ${b.name}` : b.name, kind: 'branch' });
       }
     }
     return out;
@@ -158,50 +315,15 @@ export function Team() {
      header repeated; on a group it is the information. */
   const showLevel = multiAgency || groups.length > 0;
 
-  /* PEOPLE UNDER THE STRUCTURE THEY SIT IN.
-     A branch position files somebody at that branch. An agency or group
-     position files them at the top, because that is what it means. Nobody is
-     listed twice, and nobody is dropped: a person with no position at all is a
-     negotiator, which is a real answer, and they go in their own block. */
-  const { nodes, wide, unplaced } = useMemo(() => {
-    /* NARROWED TO THE VIEWER'S OWN POSITIONS when they hold branch ones.
-       branches_select lets anyone who can reach an agency see all of its
-       branches, which is right for a picker and wrong here: a negotiator placed
-       at one office should read their own team, not their agency's. A manager
-       holds an agency or group position, or none, and keeps the whole tree. */
-    const ownBranches = ownPositions.filter((p) => p.kind === 'branch').map((p) => p.targetId);
-    const onlyBranchScoped = ownBranches.length > 0
-      && !ownPositions.some((p) => p.kind === 'agency' || p.kind === 'group');
-    const visible = new Set(ownBranches);
+  /* WHAT THIS VIEWER HAS MORE THAN ONE OF. The same question Reporting, League
+     and Applications ask, asked the same way, so a single-office agency gets
+     one answer across the portal instead of four screens' worth of opinions. */
+  const shape = useMemo(() => viewerShape(role, partnerScope), [role, partnerScope, dataVersion]);
 
-    const byKey = new Map<string, Node>();
-    for (const a of agencies) {
-      for (const b of a.branches ?? []) {
-        if (!b.id) continue;
-        if (onlyBranchScoped && !visible.has(b.id)) continue;
-        byKey.set(b.id, { key: b.id, kind: 'branch', name: b.name, agencyName: a.name, people: [] });
-      }
-    }
-    const wideList: ManagedUser[] = [];
-    const none: ManagedUser[] = [];
-    for (const u of people) {
-      const held = positionsByUser[u.id] ?? [];
-      const branch = held.filter((p) => p.kind === 'branch');
-      if (branch.length === 1 && byKey.has(branch[0].targetId)) {
-        byKey.get(branch[0].targetId)!.people.push(u);
-      } else if (held.length) {
-        // A group or agency position, or more than one branch: they are not "at"
-        // any single office, and filing them under one would be a lie. A
-        // branch-scoped viewer does not see them at all — they sit above.
-        if (!onlyBranchScoped) wideList.push(u);
-      } else if (!onlyBranchScoped) {
-        // Somebody with no position could be anywhere in the agency, so a
-        // branch-scoped viewer is not shown them.
-        none.push(u);
-      }
-    }
-    return { nodes: [...byKey.values()], wide: wideList, unplaced: none };
-  }, [agencies, people, positionsByUser, ownPositions]);
+  const layout = useMemo(
+    () => teamLayout({ agencies, people, positionsByUser, ownPositions, shape }),
+    [agencies, people, positionsByUser, ownPositions, shape],
+  );
 
   const headerName = multiAgency
     ? (groups[0]?.name ?? `${agencies.length} agencies`)
@@ -326,7 +448,7 @@ export function Team() {
             {' '}
             {/* Said once, plainly, rather than leaving a manager hunting for an
                 Add branch button that is deliberately not here. */}
-            Branches and agencies are set up by opndoor — ask us and we will add one.
+            Branches and agencies are set up by opndoor. Ask us and we will add one.
           </p>
         </div>
         {canInvite && (
@@ -337,34 +459,55 @@ export function Team() {
       </div>
 
       <div className="tm-blocks">
-        {wide.length > 0 && (
-          <Block
-            title={multiAgency ? 'Across the group' : 'Across the agency'}
-            sub={multiAgency
-              ? 'Everyone whose remit covers more than one office.'
-              : `Everyone whose remit covers the whole of ${agencies[0]?.name ?? 'the agency'}, not one office.`}
-            list={wide}
-          />
-        )}
+        {!layout.grouped ? (
+          /* ONE OFFICE: ONE LIST. No heading on the card either — the page head
+             above it already names the agency, and "Across the agency" over the
+             only card on the screen is the header said twice. */
+          <Card>
+            <div className="tm-list">
+              {layout.flat.length === 0
+                ? <div className="tm-empty">Nobody here yet.</div>
+                : layout.flat.map((u) => <PersonRow key={u.id} u={u} />)}
+            </div>
+          </Card>
+        ) : (<>
+          {layout.groupWide.length > 0 && (
+            <Block
+              title="Across the group"
+              sub="Everyone whose remit covers more than one agency."
+              list={layout.groupWide}
+            />
+          )}
 
-        {nodes.map((n) => (
-          <Block
-            key={n.key}
-            title={multiAgency ? `${n.agencyName} — ${n.name}` : n.name}
-            sub="Branch"
-            list={n.people}
-          />
-        ))}
+          {/* AGENCY THEN BRANCH. In group scope the agency is a heading with its
+              own offices under it, rather than every office in the group in one
+              run with its agency name glued to the front. */}
+          {layout.agencies.map((a) => (
+            <Fragment key={a.key}>
+              {multiAgency && <h2 className="tm-agency">{a.name}</h2>}
+              {a.wide.length > 0 && (
+                <Block
+                  title={multiAgency ? `Across ${a.name}` : 'Across the agency'}
+                  sub={`Everyone whose remit covers the whole of ${a.name}, not one office.`}
+                  list={a.wide}
+                />
+              )}
+              {a.branches.map((n) => (
+                <Block key={n.key} title={n.name} sub="Branch" list={n.people} />
+              ))}
+            </Fragment>
+          ))}
 
-        {unplaced.length > 0 && (
-          <Block
-            title="Not placed yet"
-            sub={canGrant
-              ? 'These people see their own referrals and nothing else. Give them a position to file them at an office.'
-              : 'These people see their own referrals and nothing else.'}
-            list={unplaced}
-          />
-        )}
+          {layout.unplaced.length > 0 && (
+            <Block
+              title="Not placed yet"
+              sub={canGrant
+                ? 'These people see their own referrals and nothing else. Give them a position to file them at an office.'
+                : 'These people see their own referrals and nothing else.'}
+              list={layout.unplaced}
+            />
+          )}
+        </>)}
       </div>
 
       {posUser && (

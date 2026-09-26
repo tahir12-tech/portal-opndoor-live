@@ -121,8 +121,8 @@ Deno.serve(async (req) => {
         application_id: r.application_id,
         kind: anySent ? "renewal_notice_sent" : "renewal_notice_failed",
         message: anySent
-          ? `Renewal notice sent to the ${who} — guarantee ends ${endLabel}.`
-          : `Renewal notice could not be sent — guarantee ends ${endLabel}.`,
+          ? `Renewal notice sent to the ${who}. Guarantee ends ${endLabel}.`
+          : `Renewal notice could not be sent. Guarantee ends ${endLabel}.`,
         actor: "System",
         visibility: anySent ? "business" : "internal",
       });

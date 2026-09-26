@@ -156,7 +156,7 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
       </Field>
       {d.branches.map((b, bi) => (
         <Field key={bi} label={bi === 0 ? 'First branch' : `Branch ${bi + 1}`} htmlFor={`ac-br-${i}-${bi}`}
-          hint={bi === 0 && shape !== 'independent' ? 'Optional — the manager can add branches on first login.' : undefined}>
+          hint={bi === 0 && shape !== 'independent' ? 'Optional: the manager can add branches on first login.' : undefined}>
           <input id={`ac-br-${i}-${bi}`} type="text" autoComplete="off" placeholder="e.g. Northgate Central" value={b} onChange={(e) => setBranch(i, bi, e.target.value)} />
         </Field>
       ))}

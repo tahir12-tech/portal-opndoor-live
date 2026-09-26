@@ -1549,7 +1549,7 @@ function requestCloseContacts() {
         open={!!groupAgency}
         onClose={() => setGroupAgency(null)}
         width={460}
-        title={`Group — ${groupAgency?.name ?? ''}`}
+        title={`Group: ${groupAgency?.name ?? ''}`}
         sub="Put this agency into a group. A group is the top commission tier and can be covered by a single director's position."
         footer={
           <>

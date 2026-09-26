@@ -11,6 +11,52 @@ import type { Message } from "./emailLayout.ts";
 
 const money = (n: number) => `£${n.toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
 
+/* ---- how the fee was priced, where an email says it out loud -------------
+   These templates used to state, flatly, that the guarantee fee is one month
+   of rent. That was true of every application while the fee WAS monthly_rent,
+   and it stopped being true when negotiated three and five week bases landed:
+   applications.fee_amount is what was actually charged, and a tenant of a
+   joint tenancy pays a share of even that. An email that prints a real figure
+   and then explains it as a month of rent contradicts itself in front of the
+   person about to pay it.
+
+   So the basis is now a fact the caller passes, not an assumption the template
+   makes. A caller that cannot work out the basis passes nothing and gets the
+   half of the sentence that is true of every fee. */
+
+/** One month is 52/12 weeks. */
+const MONTH_WEEKS = 52 / 12;
+
+/**
+ * The fee expressed in weeks of rent, or null when it cannot be worked out.
+ *
+ * Pass the rent this fee was actually a proportion OF: for a joint applicant
+ * that is their share of the rent, not the whole tenancy's, because they were
+ * charged a share of the tenancy fee. Dividing a share of the fee by the whole
+ * rent would report every joint tenant as being on a discount.
+ */
+export function feeBasisWeeksOf(fee: number | null | undefined, rentBase: number | null | undefined): number | null {
+  const f = Number(fee ?? 0);
+  const r = Number(rentBase ?? 0);
+  if (!(f > 0) || !(r > 0)) return null;
+  return (f * 52) / (r * 12);
+}
+
+/** Is this basis a month? The tolerance absorbs the rounding a fee carries to
+    the penny, not a genuinely different basis. An unknown basis is not a month:
+    we say nothing rather than guess the commonest answer. */
+function isMonthBasis(weeks: number | null | undefined): boolean {
+  return weeks != null && Math.abs(weeks - MONTH_WEEKS) < 0.02;
+}
+
+/** The opening sentence of the small print under a fee. "Payable once" is true
+    of every fee, so only the basis clause comes and goes. */
+function feeBasisSentence(weeks: number | null | undefined): string {
+  return isMonthBasis(weeks)
+    ? "The fee is one month of rent and is payable once."
+    : "The fee is payable once.";
+}
+
 /* ---- tenant: identity and access ---------------------------------------- */
 
 export function codeEmail(code: string, minutes: number, superseded = false): Message {
@@ -91,6 +137,8 @@ export function tenantInviteEmail(p: {
 
 export function submissionReceivedEmail(p: {
   firstName?: string | null; guaranteeRef: string; propertyAddr: string;
+  /** Weeks of rent the fee will be, from feeBasisWeeksOf. Omit when unknown. */
+  feeBasisWeeks?: number | null;
 }): Message {
   const hi = p.firstName && p.firstName.trim() ? `Thanks, ${p.firstName.trim()}.` : "Thanks.";
   return {
@@ -105,7 +153,13 @@ export function submissionReceivedEmail(p: {
       { list: [
         "We confirm your eligibility. This usually does not take long.",
         "We email you either way, whatever we decide.",
-        "If you are approved, you sign back in, pay the guarantee fee of one month's rent, and sign the Deed of Guarantee.",
+        // Same correction as the two fee emails below, and here it matters more:
+        // this one is sent BEFORE a decision, so the reader takes the figure away
+        // as what they will owe. At submission the basis is usually not settled,
+        // in which case the step is named without pricing it.
+        isMonthBasis(p.feeBasisWeeks)
+          ? "If you are approved, you sign back in, pay the guarantee fee of one month's rent, and sign the Deed of Guarantee."
+          : "If you are approved, you sign back in, pay the guarantee fee, and sign the Deed of Guarantee.",
       ] },
     ],
   };
@@ -114,6 +168,8 @@ export function submissionReceivedEmail(p: {
 export function paymentLinkEmail(p: {
   propertyAddr: string; guaranteeRef: string; amount: string;
   tenancyStartLabel?: string | null; payUrl: string;
+  /** Weeks of rent this fee is, from feeBasisWeeksOf. Omit when unknown. */
+  feeBasisWeeks?: number | null;
 }): Message {
   const rows: [string, string][] = [
     ["Reference", p.guaranteeRef],
@@ -128,7 +184,7 @@ export function paymentLinkEmail(p: {
     blocks: [
       { p: `opndoor is acting as guarantor for your tenancy at ${p.propertyAddr}. The last step is the guarantee fee.` },
       { rows },
-      { small: "The fee is one month of rent and is payable once. The Deed of Guarantee is issued as soon as it clears." },
+      { small: `${feeBasisSentence(p.feeBasisWeeks)} The Deed of Guarantee is issued as soon as it clears.` },
     ],
     action: { label: "Pay the guarantee fee", href: p.payUrl },
   };
@@ -141,6 +197,8 @@ export function paymentLinkEmail(p: {
 export function directApprovalEmail(p: {
   propertyAddr: string; guaranteeRef: string; amount: string;
   tenancyStartLabel?: string | null; portalUrl: string;
+  /** Weeks of rent this fee is, from feeBasisWeeksOf. Omit when unknown. */
+  feeBasisWeeks?: number | null;
 }): Message {
   const rows: [string, string][] = [
     ["Reference", p.guaranteeRef],
@@ -155,7 +213,7 @@ export function directApprovalEmail(p: {
     blocks: [
       { p: `Good news. opndoor can act as guarantor for your tenancy at ${p.propertyAddr}. The last step is the guarantee fee.` },
       { rows },
-      { small: "The fee is one month of rent and is payable once. Sign in to your application to pay it, and the Deed of Guarantee is issued as soon as it clears." },
+      { small: `${feeBasisSentence(p.feeBasisWeeks)} Sign in to your application to pay it, and the Deed of Guarantee is issued as soon as it clears.` },
     ],
     action: { label: "Sign in and pay", href: p.portalUrl },
   };

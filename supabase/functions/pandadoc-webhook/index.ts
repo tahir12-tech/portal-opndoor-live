@@ -144,8 +144,8 @@ Deno.serve(async (req) => {
             application_id: app.id,
             kind: "deed_delivery_failed",
             message: heldForPeople
-              ? "Deed issued; nobody active at this agency can receive it — held for a staff send. Invite or activate a manager, or nominate a recipient."
-              : "Deed issued; no agent contact on file — delivery failed.",
+              ? "Deed issued; nobody active at this agency can receive it, so it is held for a staff send. Invite or activate a manager, or nominate a recipient."
+              : "Deed issued. No agent contact on file, so it could not be delivered.",
             actor: "System",
             visibility: "business",
           });

@@ -16,6 +16,18 @@
   flex-direction: column;
 }
 
+/* Group scope only: the agency the cards under it belong to. Deliberately not a
+   card of its own — it is a label for the run that follows, and boxing it would
+   make the group look like a fourth level of structure. */
+.tm-agency {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 10px 0 -4px;
+}
+.tm-blocks > .tm-agency:first-child { margin-top: 0; }
+
 .tm-empty {
   padding: 18px 20px;
   color: var(--muted);

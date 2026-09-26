@@ -49,7 +49,7 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
     try {
       const res = await lookupAddresses(postcode);
       setAddrOptions(res.addresses);
-      if (!res.available) toast('Address lookup is not configured — enter it manually.', 'error');
+      if (!res.available) toast('Address lookup is not configured. Enter it manually.', 'error');
     } finally { setLooking(false); }
   };
 

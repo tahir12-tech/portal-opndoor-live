@@ -93,13 +93,22 @@ Deno.serve(async (req) => {
     const due = (fired ?? []) as Array<{
       application_id: string; guarantee_ref: string; days: number;
       tenant_title: string | null; tenant_last_name: string | null; tenant_email: string | null;
-      prop_addr1: string | null; prop_postcode: string | null; monthly_rent: number | null; payment_url: string | null;
+      prop_addr1: string | null; prop_postcode: string | null; monthly_rent: number | null;
+      fee_amount: number | null; payment_url: string | null;
     }>;
 
     const APP_URL = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
     let emailed = 0, emailFailed = 0;
     for (const r of due) {
-      const rent = Number(r.monthly_rent ?? 0);
+      // WAS: monthly_rent, printed in a row labelled "Guarantee fee".
+      //
+      // The reminder chases a specific unpaid amount, so it has to name the
+      // amount that is actually owed. fee_amount is what was charged, which is
+      // no longer the rent wherever a three or five week basis was agreed, or
+      // where this applicant is one of a joint tenancy paying a share. The rent
+      // remains the fallback for rows predating the fee snapshot only.
+      // fire_payment_reminders now returns fee_amount for exactly this.
+      const fee = Number(r.fee_amount ?? r.monthly_rent ?? 0);
       // #1/#2 Point the reminder at the confirmation page with a per-touch utm_source.
       const { data: pageToken } = await service.rpc("mint_payment_page_token", { p_ref: r.guarantee_ref });
       // Never send a stale Stripe URL: if a fresh durable link cannot be minted,
@@ -116,7 +125,7 @@ Deno.serve(async (req) => {
         message: paymentReminderEmail({
           propertyAddr: [titleCaseAddress(r.prop_addr1), r.prop_postcode].filter(Boolean).join(", "),
           guaranteeRef: r.guarantee_ref,
-          amount: `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
+          amount: `£${fee.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
           openUntilLabel: null, payUrl,
           nudge: (Number(r.days) <= 3 ? 1 : Number(r.days) <= 7 ? 2 : 3) as 1 | 2 | 3,
         }),

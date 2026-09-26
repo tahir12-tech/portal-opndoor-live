@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
 
     const { data: app } = await service
       .from("applications")
-      .select("tenant_first_name, tenant_email, guarantee_ref, monthly_rent, paid_amount, payment_state, status, deed_state, pandadoc_document_id, payment_url, livemode")
+      .select("tenant_first_name, tenant_email, guarantee_ref, monthly_rent, fee_amount, paid_amount, payment_state, status, deed_state, pandadoc_document_id, payment_url, livemode")
       .eq("stripe_checkout_session_id", sessionId)
       .maybeSingle();
     if (!app) return json({ found: false });
@@ -83,13 +83,20 @@ Deno.serve(async (req) => {
     // truth in every case.
     const paid = app.payment_state === "paid";
 
-    // Only fall back to monthly_rent when the application really is paid. On the
-    // withdrawn branch paid_amount is never written, so the old fallback quoted
-    // the full fee as "paid" for money that is sitting on a withdrawn row
-    // awaiting a refund.
+    // Only fall back when the application really is paid. On the withdrawn
+    // branch paid_amount is never written, so the old fallback quoted the full
+    // fee as "paid" for money that is sitting on a withdrawn row awaiting a
+    // refund.
+    //
+    // And the fallback itself was monthly_rent, which is the rent, not the
+    // price. Since three and five week bases landed, and since a joint tenant
+    // pays a share, the rent can be a long way from what actually left their
+    // card, and this figure is labelled "Amount paid" on the confirmation page.
+    // fee_amount is what was charged; the rent stays as the last resort for rows
+    // created before fee_amount existed, where it is the same number.
     const amount = app.paid_amount != null
       ? Number(app.paid_amount)
-      : (paid ? Number(app.monthly_rent ?? 0) : 0);
+      : (paid ? Number(app.fee_amount ?? app.monthly_rent ?? 0) : 0);
     const deedReady = app.deed_state === "awaiting_tenant" && !!app.pandadoc_document_id;
     const deedSigned = app.deed_state === "executed";
     const deedError = app.deed_state === "error";
