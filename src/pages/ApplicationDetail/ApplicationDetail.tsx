@@ -12,9 +12,10 @@
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedDownloadUrl, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyProgress, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
+import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedDownloadUrl, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
-import { SUPABASE_ENABLED } from '@/lib/supabase';
+import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import { maySeeDeliveryState, type DeliveryState } from '@/data/deliveryState';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
 import { titleCaseAddress, formatLondonDate, formatLondonDateTime } from '@/lib/format';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -27,7 +28,7 @@ import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { StatusTimeline } from '@/components/ui/StatusTimeline';
 import { buildAgentJourney, getApplicationJourney, AGENT_JOURNEY_BANDS, type ApplicationJourney } from '@/data/journeyStages';
 import { useToast } from '@/components/ui/Toast';
-import { ROUTE_LABEL, type Channel } from '@/data/channel';
+import { ROUTE_LABEL, preReferencedJourney, type Channel } from '@/data/channel';
 import './ApplicationDetail.css';
 
 
@@ -58,11 +59,81 @@ interface Activity {
   time: string;
 }
 
-/** The tenancy's status in running prose, for the joint-tenancy panel. */
-const STATUS_LABEL_LC: Record<string, string> = {
-  draft: 'in progress', referencing: 'awaiting decision', declined: 'declined',
-  sent: 'sent', paid: 'paid', deed: 'issued', withdrawn: 'withdrawn', expired: 'expired',
+/* =====================================================================
+   WHERE THE DEED WENT. The Delivery panel's data.
+
+   my_application_delivery is the caller-scoped face of deed_delivery_target,
+   which stays service-role because it will resolve an address for any
+   application it is handed. The wrapper answers only for an application this
+   viewer can already see, and admits exactly who send_deed_to_agent admits, so
+   anybody who can read the panel can press the button on it.
+
+   It keys on the application id rather than the guarantee reference, so the id
+   is looked up first: the reference is the route's key and the only handle the
+   page holds.
+
+   THIS BELONGS IN A SERVICE, not on a page. It is here because the delivery
+   read had no service of its own yet; move it to one the moment a second
+   screen needs it, rather than copying it.
+   ===================================================================== */
+interface DeliveryInfo {
+  state: DeliveryState;
+  /** Where it WOULD go, resolved now. Null when nobody on the ladder answers. */
+  toEmail: string | null;
+  toName: string | null;
+  /** Which rung of the ladder supplied that address. */
+  source: string | null;
+  /** False when the automatic path will not send this one on its own. */
+  autoSend: boolean;
+  /** Where the last attempt actually went, which may not be where it would go
+      today: the ladder can have changed since. */
+  attemptedTo: string | null;
+  attemptedSource: string | null;
+  failedAt: string | null;
+  reason: string | null;
+  sentAt: string | null;
+  /** Queued for a staff send (awaiting_staff_send). */
+  held: boolean;
+}
+
+/** The ladder's rungs in plain words. The column stores our internal names;
+    nobody reading a screen should have to know them. */
+const DELIVERY_RUNG: Record<string, string> = {
+  org_person: 'a named person at the agency',
+  delivery_contact: 'the delivery contact saved on this application',
+  route_contact: 'the contact for this referral route',
+  branch_contact: 'the branch contact',
+  explicit: 'an address entered by staff',
 };
+const rungLabel = (src: string | null): string => (src ? DELIVERY_RUNG[src] ?? src : '');
+
+async function loadDelivery(ref: string): Promise<DeliveryInfo | null> {
+  if (!SUPABASE_ENABLED || !ref) return null;
+  const client = sb();
+  const { data: app } = await client.from('applications').select('id').eq('guarantee_ref', ref).maybeSingle();
+  if (!app?.id) return null;
+  const { data, error } = await client.rpc('my_application_delivery', { p_app: app.id });
+  // A viewer the RPC will not answer for (or a session below AAL2) simply has
+  // no panel. Never a half-filled one: a Delivery card that cannot say where
+  // the deed went is worse than no card.
+  if (error) return null;
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null | undefined;
+  if (!row) return null;
+  const str = (k: string): string | null => (typeof row[k] === 'string' && row[k] !== '' ? row[k] as string : null);
+  return {
+    state: (str('state') as DeliveryState | null) ?? 'not_attempted',
+    toEmail: str('to_email'),
+    toName: str('to_name'),
+    source: str('source'),
+    autoSend: row.auto_send !== false,
+    attemptedTo: str('attempted_to'),
+    attemptedSource: str('attempted_source'),
+    failedAt: str('failed_at'),
+    reason: str('reason'),
+    sentAt: str('sent_at'),
+    held: row.held === true,
+  };
+}
 
 // Feed dot colour per activity_log event kind.
 const feedColor = (kind: string): string => {
@@ -193,6 +264,9 @@ export function ApplicationDetail() {
   const [journey, setJourney] = useState<ApplicationJourney | null>(null);
   const [copied, setCopied] = useState(false);
   const [deedBusy, setDeedBusy] = useState(false);
+  // Delivery: where the executed deed goes, and what happened to the last send.
+  const [delivery, setDelivery] = useState<DeliveryInfo | null>(null);
+  const [dlvBusy, setDlvBusy] = useState(false);
   // #2 Withdraw (Sent, pre-payment only)
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [wReason, setWReason] = useState<WithdrawReason | ''>('');
@@ -204,6 +278,22 @@ export function ApplicationDetail() {
   // opndoor-internal: they are collected for the guarantee decision we make, not
   // for the referring agent, so a referrer never sees this card.
   const maySeeDocuments = role === 'superadmin' || role === 'management';
+  /* THE DOCUMENTS CARD IS PART OF A JOURNEY THAT DID NOT HAPPEN HERE. A
+     pre-referenced tenant is checked by their own agency and goes straight to
+     payment: they never reach the Address and Financials steps, so the card can
+     only ever say "Nothing uploaded yet" and reads as something missing rather
+     than something that was never asked for. Read off the application's own
+     FROZEN mode, not channelOf (which answers the estate question and calls
+     Regent an agency referral while the journey is pre-referenced) and not the
+     journey RPC (async, and agent-rail only). */
+  const preReferenced = preReferencedJourney(d.referencingMode);
+  const showDocuments = maySeeDocuments && !preReferenced;
+  /* WHO SEES THE ROUTE. Was `role !== 'referrer'`, which granted the row to
+     every role added since by accident. Named positively so the next one has to
+     be let in deliberately. A developer is included: they read the book to debug
+     an integration and the route is the first thing they need; it is not money. */
+  const maySeeRoute = role === 'superadmin' || role === 'opndoor_manager'
+    || role === 'management' || role === 'developer';
   const [notes, setNotes] = useState<AppNote[]>([]);
   const [noteBody, setNoteBody] = useState('');
   const [noteBusy, setNoteBusy] = useState(false);
@@ -233,6 +323,16 @@ export function ApplicationDetail() {
     return () => { cancelled = true; };
   }, [loadPayment, searchParams]);
 
+  // Delivery state for the panel. Reloaded on dataVersion (and by hand after a
+  // resend), because a successful send clears the failure and the staff queue
+  // both, and the panel must not still be offering Resend over a deed that has
+  // just gone out.
+  const reloadDelivery = useCallback(async () => {
+    setDelivery(await loadDelivery(d.ref));
+  }, [d.ref]);
+
+  useEffect(() => { void reloadDelivery(); }, [reloadDelivery, dataVersion]);
+
   // #8 Load the operational notes for the record, when the viewer may see them.
   const loadNotes = useCallback(async () => {
     if (!maySeeNotes) { setNotes([]); return; }
@@ -244,11 +344,11 @@ export function ApplicationDetail() {
   // Load the applicant's documents for review. RLS scopes the list; the card is
   // internal, so this only runs for opndoor staff.
   useEffect(() => {
-    if (!maySeeDocuments || !d.ref) { setDocs([]); return; }
+    if (!showDocuments || !d.ref) { setDocs([]); return; }
     let cancelled = false;
     void listApplicationDocuments(d.ref).then((rows) => { if (!cancelled) setDocs(rows); });
     return () => { cancelled = true; };
-  }, [d.ref, maySeeDocuments]);
+  }, [d.ref, showDocuments]);
 
   // The agent-rail journey (nine stages) for the timeline; only for
   // opndoor_referenced applications. dataVersion so it refreshes after an action.
@@ -403,6 +503,24 @@ export function ApplicationDetail() {
     else toast(r.error || 'Could not send the deed.', 'error');
   };
 
+  /* Resend the executed deed down the rail's own ladder.
+     No recipient is passed: send_deed_to_agent resolves the same target the
+     automatic path does, which is the whole point of a Resend after a failure.
+     Choosing a different address is the "Send deed to agent" modal's job. */
+  const doResendDelivery = async () => {
+    setDlvBusy(true);
+    try {
+      const r = await sendDeedToAgent(d.ref);
+      toast(r.sentTo ? `Deed sent to ${r.sentTo}.` : 'Deed sent.');
+      await reloadDelivery();
+      void loadPayment();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not send the deed.', 'error');
+    } finally {
+      setDlvBusy(false);
+    }
+  };
+
   const doWithdraw = async () => {
     if (!wReason) return;
     if (wReason === 'other' && !wNote.trim()) { toast('Please add a note explaining the reason.'); return; }
@@ -457,11 +575,28 @@ export function ApplicationDetail() {
       ? `Awaiting tenant signature · viewed ${fmtStamp(new Date(paymentInfo.deedViewedAt))}`
       : `Sent ${paymentInfo.deedSentAt ? fmtStamp(new Date(paymentInfo.deedSentAt)) : ''}, not yet viewed`;
   }
+  /* THE FEE, NOT THE RENT.
+     Three surfaces on this page print one amount under the words "guarantor
+     fee", and all three printed the RENT. The rent is the property's: it is one
+     month's rent only at standard terms, 3 and 5 week bases exist, and on a
+     joint tenancy every sibling carries the WHOLE tenancy rent in `rent` while
+     paying a share of the fee. A two-person £3,000 let therefore told both
+     tenants they had paid £3,000 against a charge of half that each.
+
+     paid_amount is the truth where it is there, but apply_stripe_payment is the
+     only thing that ever writes it, so every seeded or manually settled row has
+     none and fell through to the rent. The fallback is now the fee as
+     snapshotted on the application (feeLabels puts feeGBP on the record), and
+     only then the rent, for an old record with no fee stored at all. */
+  const paidAmountLabel = paymentInfo?.paidAmount != null
+    ? `£${paymentInfo.paidAmount.toLocaleString('en-GB')}`
+    : d.feeGBP ?? d.rent;
+  const feeBasisSuffix = d.feeBasisLabel ? ` · ${d.feeBasisLabel}` : '';
   // #105 On a terminal pre-payment exit the second node shows the termination
   // (greyed via the timeline's 'terminated' state), not "Awaiting payment".
   const paidStep = timelineTerminated
     ? { label: 'Paid', date: d.status === 'withdrawn' ? 'Withdrawn' : 'Expired', note: d.status === 'withdrawn' ? 'Withdrawn before payment' : 'Expired, unpaid after 15 days' }
-    : { label: 'Paid', date: d.paidStr || 'Awaiting payment', note: d.paidStr ? `Guarantor fee paid · ${d.rent}` : 'Guarantor fee not yet paid' };
+    : { label: 'Paid', date: d.paidStr || 'Awaiting payment', note: d.paidStr ? `Guarantor fee paid · ${paidAmountLabel}${feeBasisSuffix}` : 'Guarantor fee not yet paid' };
   const steps = [
     { label: 'Sent', date: d.sentStr, note: `Referral sent to tenant by ${d.referrer}` },
     paidStep,
@@ -472,18 +607,17 @@ export function ApplicationDetail() {
   // three-stage view. The supplier rail keeps the steps/reached computed above,
   // exactly as before.
   const agentRail = d.referencingMode === 'opndoor_referenced';
-  // The guarantee fee note carries the amount — one month's rent, the actual
-  // paid amount once paid, else the rent, both already on this page. No amount
-  // reaches the agent that was not already here. (The application fee shows no
-  // amount, only its paid date.)
-  const guaranteeFee = d.rentNum > 0
-    ? `£${(paymentInfo?.paidAmount ?? d.rentNum).toLocaleString('en-GB')}`
-    : '';
+  // The guarantee fee stage carries the amount and the basis it was charged on,
+  // both already on this page. No amount reaches the agent that was not already
+  // here. (The application fee shows no amount, only its paid date.) The stage
+  // used to append the words "one month's rent" itself; it now takes the row's
+  // own basis from here, because only the record knows it.
+  const guaranteeFee = d.feeGBP || d.rentNum > 0 ? paidAmountLabel : '';
   const jview = agentRail && journey
     ? buildAgentJourney(
         journey,
         (iso) => (iso ? formatLondonDate(new Date(iso)) : ''),
-        { guarantee: guaranteeFee },
+        { guarantee: guaranteeFee, basis: d.feeBasisLabel },
       )
     : null;
   // Threaded layout is only possible once the journey has loaded. Until then (or
@@ -902,10 +1036,15 @@ export function ApplicationDetail() {
         <>
           <div className="pay-state pay-state--paid"><span className="pay-dot" />Paid</div>
           <div className="drow"><span className="drow__k">Paid on</span><span className="drow__v">{pi?.paidAt ? fmtInput(new Date(pi.paidAt)) : '—'}</span></div>
-          <div className="drow"><span className="drow__k">Amount</span><span className="drow__v"><b>£{(pi?.paidAmount ?? d.rentNum).toLocaleString('en-GB')}</b></span></div>
+          {/* The FEE. paid_amount where Stripe wrote one, else the fee snapshotted
+              on the application, never the rent. See paidAmountLabel above. */}
+          <div className="drow"><span className="drow__k">Amount</span><span className="drow__v"><b>{paidAmountLabel}</b>{d.feeBasisLabel ? ` · ${d.feeBasisLabel}` : ''}</span></div>
           <div className="drow"><span className="drow__k">Stripe reference</span><span className="drow__v pay-mono">{pi?.paymentRef ?? 'Seeded test record'}</span></div>
           {pi?.paymentRef == null && (
-            <div className="pay-note">Seeded/test record: no Stripe payment reference. The amount shown is the guarantor fee (one month&rsquo;s rent) recorded against the application.</div>
+            // The parenthetical used to read "(one month's rent)" whatever the
+            // basis was. The row states its own basis above, so this just names
+            // where the figure came from.
+            <div className="pay-note">Seeded/test record: no Stripe payment reference. The amount shown is the guarantor fee recorded against the application.</div>
           )}
         </>
       )}
@@ -1028,12 +1167,109 @@ export function ApplicationDetail() {
     )
   );
 
+  /* ---- DELIVERY: did the deed get there? ---------------------------------
+     TWO STATES, TWO AUDIENCES, and they were one thing called "delivery failed"
+     until deliveryState.ts split them:
+
+       CANNOT DELIVER  nobody on the rail's ladder can receive it. Nothing was
+                       sent and nothing errored; it parks for a staff send. There
+                       is nothing the agency can do about it (they cannot add a
+                       person to their own org), and telling them their deed
+                       failed when it is sitting in our queue is alarming and
+                       untrue. Admin-facing only, which maySeeDeliveryState is
+                       the single rule for.
+       DELIVERY FAILED a send was attempted and errored. There is an address it
+                       went to and a reason it did not arrive. The agency sees
+                       this one, because they are who is waiting and who presses
+                       Resend.
+
+     The panel only has something to say once there is a deed, or once an attempt
+     has actually been recorded; before that it would repeat the deed card. */
+  const dlvState = delivery?.state ?? 'not_attempted';
+  const showDelivery = !!delivery
+    && (isDeed || dlvState !== 'not_attempted')
+    && (dlvState !== 'cannot_deliver' || maySeeDeliveryState(role, 'cannot_deliver'));
+  const dlvStateLabel = dlvState === 'failed' ? 'Delivery failed'
+    : dlvState === 'cannot_deliver' ? 'Held for send'
+      : dlvState === 'delivered' ? 'Delivered' : 'Not sent yet';
+  const dlvStateMod = dlvState === 'failed' ? 'failed'
+    : dlvState === 'cannot_deliver' ? 'held'
+      : dlvState === 'delivered' ? 'delivered' : 'waiting';
+  // Where it WOULD go, for a state that has not been anywhere yet. Where it DID
+  // go for the rest: the ladder can have changed since the attempt, so the two
+  // are different questions and the panel must not answer one with the other.
+  const dlvWouldGo = [delivery?.toName, delivery?.toEmail].filter(Boolean).join(' · ');
+
+  const deliveryBody = delivery && (
+    <>
+      <div className={`pay-state pay-state--${dlvStateMod}`}><span className="pay-dot" />{dlvStateLabel}</div>
+      {dlvState === 'failed' && (
+        <>
+          <div className="drow"><span className="drow__k">Sent to</span><span className="drow__v pay-mono">{delivery.attemptedTo ?? 'Not recorded'}</span></div>
+          {delivery.attemptedSource && <div className="drow"><span className="drow__k">Address from</span><span className="drow__v">{rungLabel(delivery.attemptedSource)}</span></div>}
+          <div className="drow"><span className="drow__k">Failed</span><span className="drow__v">{delivery.failedAt ? fmtStamp(new Date(delivery.failedAt)) : '—'}</span></div>
+          <div className="drow"><span className="drow__k">Reason</span><span className="drow__v">{delivery.reason ?? 'No reason was recorded'}</span></div>
+          <div className="pay-note pay-note--warn">The deed is issued and stored. Only the email failed, so resending is safe.</div>
+        </>
+      )}
+      {dlvState === 'cannot_deliver' && (
+        <>
+          <div className="pay-note">Nobody active could receive this deed automatically, so it is queued for a staff send. Nothing was sent and nothing has failed.</div>
+          <div className="drow"><span className="drow__k">Would go to</span><span className="drow__v">{dlvWouldGo || 'No recipient could be resolved'}</span></div>
+          {delivery.source && <div className="drow"><span className="drow__k">Address from</span><span className="drow__v">{rungLabel(delivery.source)}</span></div>}
+        </>
+      )}
+      {dlvState === 'delivered' && (
+        <>
+          <div className="drow"><span className="drow__k">Sent to</span><span className="drow__v pay-mono">{delivery.attemptedTo ?? (dlvWouldGo || '—')}</span></div>
+          {(delivery.attemptedSource ?? delivery.source) && <div className="drow"><span className="drow__k">Address from</span><span className="drow__v">{rungLabel(delivery.attemptedSource ?? delivery.source)}</span></div>}
+          <div className="drow"><span className="drow__k">Sent</span><span className="drow__v">{delivery.sentAt ? fmtStamp(new Date(delivery.sentAt)) : '—'}</span></div>
+        </>
+      )}
+      {dlvState === 'not_attempted' && (
+        <>
+          <div className="drow"><span className="drow__k">Goes to</span><span className="drow__v">{dlvWouldGo || 'No recipient could be resolved'}</span></div>
+          {delivery.source && <div className="drow"><span className="drow__k">Address from</span><span className="drow__v">{rungLabel(delivery.source)}</span></div>}
+        </>
+      )}
+      {/* Automatic delivery being off is a fact about our own setup, not about
+          this application, so it stays with the people who can change it. */}
+      {!delivery.autoSend && isAdmin && (
+        <div className="pay-note">This one is not sent automatically. It goes out when a member of staff sends it.</div>
+      )}
+      {canSend && isDeed && (
+        <div style={{ marginTop: 12 }}>
+          {dlvState === 'cannot_deliver'
+            // Nothing to resend TO: a blind retry would resolve the same empty
+            // ladder and fail again. The modal is where an address gets typed.
+            ? <Button variant="primary" size="sm" block onClick={openSend}><Icon name="send" /> Send deed to agent</Button>
+            : <Button variant={dlvState === 'delivered' ? 'ghost' : 'primary'} size="sm" block onClick={() => void doResendDelivery()} disabled={dlvBusy}>
+                <Icon name="send" /> {dlvBusy ? 'Sending…' : dlvState === 'not_attempted' ? 'Send deed' : 'Resend deed'}
+              </Button>}
+        </div>
+      )}
+    </>
+  );
+
   // Agent rail: thread the payment (stage 8) and deed (stage 9) blocks into the
-  // journey. Payment only when there is a payment record to show.
+  // journey. Payment only when there is a payment record to show. Delivery has
+  // no stage of its own (there are nine and it is not one of them), so it sits
+  // under the deed, which is the thing being delivered.
   const journeySlots: Record<number, ReactNode> | undefined = jview
     ? {
         ...(SUPABASE_ENABLED && pi ? { 8: <>{paymentBadge && <div style={{ marginBottom: 10 }}>{paymentBadge}</div>}{paymentBody}</> } : {}),
-        9: <>{deedBadge && <div style={{ marginBottom: 10 }}>{deedBadge}</div>}{deedBody}</>,
+        9: (
+          <>
+            {deedBadge && <div style={{ marginBottom: 10 }}>{deedBadge}</div>}
+            {deedBody}
+            {showDelivery && (
+              <div className="dlv dlv--threaded">
+                <div className="dlv__head">Delivery</div>
+                {deliveryBody}
+              </div>
+            )}
+          </>
+        ),
       }
     : undefined;
 
@@ -1055,7 +1291,7 @@ export function ApplicationDetail() {
               <span>·</span><span>{d.branch} · {d.agency}</span>
               {/* The supplier's own name, when there is one; hidden for house routes,
                   where partnerName is already the route label the badge shows. */}
-              {role !== 'referrer' && d.partnerName && (!d.channel || d.partnerName !== ROUTE_LABEL[d.channel]) && <><span>·</span><span>{d.partnerName}</span></>}
+              {maySeeRoute && d.partnerName && (!d.channel || d.partnerName !== ROUTE_LABEL[d.channel]) && <><span>·</span><span>{d.partnerName}</span></>}
             </div>
           </div>
         </div>
@@ -1169,11 +1405,21 @@ export function ApplicationDetail() {
             </Card>
           ) : (
             <Card>
-              <CardHead title="Referring agent" sub="Claim contact. The deed is in favour of the property." />
+              {/* No sub. It read "Claim contact. The deed is in favour of the property.",
+                  which stated a rule to an audience that does not need it: the agent
+                  reading this card already knows whose property it is, and the card's
+                  own "Deed in favour of" row below says so anyway. */}
+              <CardHead title="Referring agent" />
               <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
                 <div className="drow"><span className="drow__k">Agency</span><span className="drow__v"><b>{d.agency}</b></span></div>
                 <div className="drow"><span className="drow__k">Branch</span><span className="drow__v">{d.branch}</span></div>
-                {role !== 'referrer' && d.partnerName && <div className="drow"><span className="drow__k">Partner</span><span className="drow__v">{d.partnerName}</span></div>}
+                {/* ROUTE, NOT PARTNER. The value was always the route for one of
+                    our agencies — partnerName maps a house slug to its route label,
+                    so this row read "Partner: Agency referral" — and "partner" is our
+                    word for a supplier, which an agency of ours is not. The key now
+                    describes what the value actually is, on every screen, so there is
+                    one label rather than two that can drift apart. */}
+                {maySeeRoute && d.partnerName && <div className="drow"><span className="drow__k">Route</span><span className="drow__v">{d.partnerName}</span></div>}
                 <div className="drow"><span className="drow__k">Address</span><span className="drow__v">{titleCaseAddress(d.agentAddr)}</span></div>
                 <div className="drow"><span className="drow__k">Deed in favour of</span><span className="drow__v">{titleCaseAddress(d.addr1)}, {d.postcode}</span></div>
               </CardBody>
@@ -1192,39 +1438,54 @@ export function ApplicationDetail() {
               <div className="drow"><span className="drow__k">Tenancy start</span><span className="drow__v">{fmtLong(currentStart)}</span></div>
               <div className="drow"><span className="drow__k">Referrer</span><span className="drow__v">{d.referrerRole === 'superadmin' ? 'opndoor' : d.referrer}</span></div>
 
-              {/* THE OTHER TENANTS. One property, one guarantee, one deed — but
-                  several applications, and this page is only ever looking at one
-                  of them. Without this the reader has no way to tell that the
-                  rent above is shared, or that the deed they are waiting for
-                  belongs to somebody else's row. */}
+              {/* THE OTHER TENANTS. One property and one rent, but several
+                  applications and several deeds, and this page is only ever
+                  looking at one of them. Without this the reader has no way to
+                  tell that the rent above is shared.
+
+                  EVERY DEED FACT HERE IS THE ROW'S OWN. The panel used to close
+                  with the LEAD's status stated as the tenancy's, which put
+                  "issued" on a sibling's page three lines under a row that said
+                  the sibling had nothing. Each tenant signs their own deed now
+                  (20261005110000), so each row answers for itself and the
+                  tenancy's figure is a count. */}
               {siblings.length > 1 && tenancyGroup && (
                 <div className="jt-panel">
                   <div className="jt-panel__head">
                     <span>Joint tenancy · {siblings.length} tenants</span>
-                    <span className="jt-panel__prog">{tenancyProgress(tenancyGroup)}</span>
+                    <span className="jt-panel__prog">
+                      <span>{tenancyProgress(tenancyGroup)}</span>
+                      <span>{tenancyDeedProgress(tenancyGroup)}</span>
+                    </span>
                   </div>
                   {siblings.map((sib) => {
                     const m = tenancyGroup.members.find((x) => x.ref === sib.ref);
                     const isMe = sib.ref === d.ref;
+                    const deed = m?.deed ?? 'none';
                     return (
                       <div className={`jt-panel__row${isMe ? ' is-me' : ''}`} key={sib.ref}>
                         <span className="jt-panel__who">
                           {isMe ? <b>{sib.tenant}</b> : <Link to={`/applications/${encodeURIComponent(sib.ref)}`}>{sib.tenant}</Link>}
-                          {m?.isLead && <span className="jt-lead" title="Carries the tenancy's deed, reminders and expiry">Lead</span>}
+                          {/* "Lead" is first-entered and nothing else now. The
+                              tooltip said it carried the tenancy's deed, its
+                              reminders and its expiry; all three are per tenant
+                              under the new rule, so it claimed a job that no
+                              longer exists. Applications.tsx carries the same
+                              badge on its list rows, word for word. */}
+                          {m?.isLead && <span className="jt-lead" title="First tenant entered on this tenancy. Each tenant signs their own deed.">Lead</span>}
                           {isMe && <span className="jt-panel__you">this page</span>}
                         </span>
                         <span className="jt-panel__share">{m?.sharePercent != null ? `${m.sharePercent}%` : '—'}</span>
                         <span className={`jt-panel__paid${m?.paid ? ' is-paid' : ''}`}>{m?.paid ? 'Paid' : 'Not paid'}</span>
+                        <span className={`jt-panel__ds jt-panel__ds--${memberDeedTone(deed)}`}>{MEMBER_DEED_LABEL[deed]}</span>
                         <span className="jt-panel__ref">{sib.ref}</span>
                       </div>
                     );
                   })}
-                  {/* The deed is the TENANCY's, and only its lead ever carries one,
-                      so the state shown here is the lead's rather than this row's. */}
                   <p className="jt-panel__deed">
-                    {tenancyGroup.fullyPaid
-                      ? `One Deed of Guarantee covers this tenancy and names all ${siblings.length} tenants. Its status is ${STATUS_LABEL_LC[tenancyGroup.status] ?? tenancyGroup.status}, and it is carried by the lead applicant's reference.`
-                      : `The deed is generated once every tenant has paid their share. ${tenancyProgress(tenancyGroup)}.`}
+                    Each tenant signs their own Deed of Guarantee. It covers their share of the
+                    rent and names all {siblings.length} tenants, and it is generated as soon as
+                    that tenant has paid, so nobody waits on a co-tenant.
                   </p>
                 </div>
               )}
@@ -1233,7 +1494,7 @@ export function ApplicationDetail() {
 
           {/* #8 Operational notes — internal only (opndoor admin + Management + owning
               Referrer). Append-only; never shared with tenants or agents, never exported. */}
-          {maySeeDocuments && (
+          {showDocuments && (
             <Card>
               <CardHead title="Documents" sub="What the applicant uploaded on the Address and Financials steps." />
               <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
@@ -1319,6 +1580,15 @@ export function ApplicationDetail() {
             <Card>
               <CardHead title="Guarantee deed" actions={deedBadge} />
               <CardBody>{deedBody}</CardBody>
+            </Card>
+          )}
+
+          {/* Its own card beside the deed on the supplier rail; threaded under
+              the deed stage on the agent rail (see journeySlots). Same body. */}
+          {!threaded && showDelivery && (
+            <Card>
+              <CardHead title="Delivery" sub="Where the deed goes, and what happened to the last send." />
+              <CardBody style={{ paddingTop: 6, paddingBottom: 12 }}>{deliveryBody}</CardBody>
             </Card>
           )}
 

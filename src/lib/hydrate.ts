@@ -147,6 +147,11 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         'payment_state, refunded_at, refunded_amount, paid_amount, refund_after_start, ' +
         'withdrawn_at, withdrawn_reason, withdrawn_note, ' +
         'deed_state, deed_sent_at, deed_viewed_at, expiry_reminders_sent, ' +
+        // DELIVERY. awaiting_staff_send has existed since 20260925150000 and
+        // was granted to authenticated, but was never selected, so the one
+        // authoritative flag never reached a screen and the Applications
+        // filter guessed from the agent_contacts tree instead.
+        'awaiting_staff_send, delivery_failed_at, delivery_attempted_to, delivery_source, delivery_reason, ' +
         'referencing_mode, applicant_id, landlord_name, landlord_email, ' +
         'elig:application_eligibility_payments(paid_at), ' +
         'referrer_id, referrer_name, branch_id, agency_id, partner_id, ' +
@@ -345,6 +350,12 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     withdrawn: a.status === 'withdrawn',
     expired: a.status === 'expired',
     awaitingSignature: a.deed_state === 'awaiting_tenant',
+    awaitingStaffSend: a.awaiting_staff_send === true,
+    deedSentAt: toDate(a.deed_sent_at),
+    deliveryFailedAt: toDate(a.delivery_failed_at),
+    deliveryAttemptedTo: a.delivery_attempted_to ?? null,
+    deliverySource: a.delivery_source ?? null,
+    deliveryReason: a.delivery_reason ?? null,
     referencingMode: a.referencing_mode ?? undefined,
     // The joint-tenancy shape, so the list can show a tenancy as one thing.
     tenancyId: a.tenancy_id ?? null,
@@ -429,6 +440,11 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     refundedAmount: a.refunded_amount != null ? num(a.refunded_amount) : null,
     refundAfterStart: !!a.refund_after_start,
     deedState: a.deed_state ?? null,
+    awaitingStaffSend: a.awaiting_staff_send === true,
+    deliveryFailedAt: toDate(a.delivery_failed_at),
+    deliveryAttemptedTo: a.delivery_attempted_to ?? null,
+    deliverySource: a.delivery_source ?? null,
+    deliveryReason: a.delivery_reason ?? null,
     deedSentAt: toDate(a.deed_sent_at),
     deedViewedAt: toDate(a.deed_viewed_at),
     withdrawn: a.status === 'withdrawn',

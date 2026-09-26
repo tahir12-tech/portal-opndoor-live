@@ -4,13 +4,19 @@
    the drill-through banner when arriving from Agencies & branches, and row
    click through to the detail view. Partner isolation + the referrer
    "own referrals only" rule live in applicationsService.
+
+   THE COLUMNS ARE NOT FIXED. A viewer inside one agency has one agency, one
+   branch and one route, so those columns and their filters repeat the same
+   word down every row; viewerShape measures the book and they come off. And
+   delivery is shown here, as a badge on the status cell and as its own chips:
+   "Deed Issued" reads identically whether or not the deed ever arrived.
    ===================================================================== */
 import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications, getPartners,
   getPartner, partnerName, referrerNamesForScope, getPeriods, periodRange, ALL_PARTNERS, type Status, type Period,
-  collateTenancies, groupTenancies, memberLabel, pageWithoutSplitting, scopedSummaries, tenancyProgress,
+  collateTenancies, groupTenancies, memberLabel, pageWithoutSplitting, scopedSummaries, tenancyDeedProgress, tenancyProgress,
 } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -20,6 +26,8 @@ import { Card } from '@/components/ui/Card';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { channelOf, ROUTE_LABEL, CHANNELS, type Channel } from '@/data/channel';
+import { deliveryBadge, deliveryStateOf } from '@/data/deliveryState';
+import { viewerShape } from '@/data/viewerShape';
 
 /** The pill variant per route, reusing the portal's status palette so the four
     routes read distinctly and on-brand. */
@@ -37,6 +45,19 @@ import './Applications.css';
 
 const PAGE_SIZE = 20;
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Awaiting decision', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
+/* Every id the status strip can hold: the eight real statuses, the cross-cuts
+   that keep their row's own status (refunded, awaiting signature, the two draft
+   sub-states) and the two DELIVERY states, which are two different questions
+   with two different audiences (see deliveryState.ts). */
+type ListFilter = Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' | 'cannot-deliver' | 'withdrawn' | 'expired' | 'invited' | 'fee-unpaid';
+
+/* The sub names the filters this viewer has actually been given. Telling
+   somebody to filter by agency or branch beside a toolbar holding neither is
+   the estate showing through again. */
+const SUB_ESTATE = 'Every referral from sent through to deed issued. Filter by status, agency or branch, or search by tenant.';
+const SUB_ONE_AGENCY = 'Every referral from sent through to deed issued. Filter by status or referrer, or search by tenant.';
+const SUB_OWN_ONLY = 'Every referral from sent through to deed issued. Filter by status, or search by tenant.';
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function fmtDate(iso: string): string {
   const d = new Date(iso);
@@ -74,10 +95,18 @@ export function Applications() {
 
   // Initial filters from the drill-through URL (?agency= / ?branch= / ?status= / ?deed=).
   // 'refunded' and 'awaiting' are status chips that cross-cut Paid (status stays Paid).
-  const [status, setStatus] = useState<Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' | 'withdrawn' | 'expired' | 'invited' | 'fee-unpaid'>(() => {
+  const [status, setStatus] = useState<ListFilter>(() => {
     if (params.get('deed') === 'awaiting') return 'awaiting';
-    // #93 delivery-failed is management + opndoor admin only.
-    if (role !== 'referrer' && params.get('deed') === 'delivery-failed') return 'delivery-failed';
+    /* TWO DEEP-LINKS, because delivery is two states.
+       A send that ERRORED is the agency's business: they are the ones waiting
+       for the deed and send_deed_to_agent lets them resend it, so every role
+       may land on that filter, referrers included. "Cannot deliver" is ours:
+       nothing was sent, nobody on the ladder could receive it, and it sits in a
+       staff queue, so only opndoor staff may. #93 gated both to non-referrers,
+       which was right about the state the old code could actually detect (the
+       ops one) and wrong about the other. */
+    if (params.get('deed') === 'delivery-failed') return 'delivery-failed';
+    if ((role === 'superadmin' || role === 'opndoor_manager') && params.get('deed') === 'cannot-deliver') return 'cannot-deliver';
     const s = params.get('status');
     return s === 'sent' || s === 'paid' || s === 'deed' || s === 'refunded' || s === 'withdrawn' || s === 'expired' || s === 'referencing'
       || s === 'draft' || s === 'declined' || s === 'invited' || s === 'fee-unpaid' ? s : 'all';
@@ -131,7 +160,8 @@ export function Applications() {
   // opndoor staff (superadmin + opndoor_manager) read the whole book across every
   // partner — RLS permits it and Home counts the same way — so both see all
   // partners here. Everyone else is confined to their own partner scope.
-  const effectiveScope = role === 'superadmin' || role === 'opndoor_manager' ? ALL_PARTNERS : partnerScope;
+  const isOpsStaff = role === 'superadmin' || role === 'opndoor_manager';
+  const effectiveScope = isOpsStaff ? ALL_PARTNERS : partnerScope;
   const scopeOpts = { role, scope: effectiveScope, partner: partner || undefined };
   // #owner Chips recount within the selected period and the current filter state.
   const counts = countByStatus({ ...scopeOpts, agency: agency || undefined, branch: branch || undefined, referrer: referrer || undefined, channel: route || undefined, periodRange: range });
@@ -181,8 +211,42 @@ export function Applications() {
   const referrerOptions = referrerNamesForScope(scopeOpts);
   // opndoor staff (superadmin + opndoor_manager) view every partner's book, so
   // both get the Partner column and the Partner filter chip to sub-filter by one.
-  const showPartner = role === 'superadmin' || role === 'opndoor_manager';
+  const showPartner = isOpsStaff;
   const showReferrer = role !== 'referrer';
+
+  /* WHAT DOES THIS VIEWER HAVE MORE THAN ONE OF?
+     Rosa's list carried a Route column reading "Agent referral" 40 times, an
+     Agency column reading her own agency's name 40 times and a Branch column
+     under it reading her one branch, plus a filter for each offering a single
+     choice. None of that is a choice; it is three columns of the same word.
+
+     Measured on the book THIS PAGE renders (effectiveScope), not on the
+     viewer's own partner: opndoor staff read every partner here whatever their
+     home partner is, and asking about their home partner would strip the very
+     columns that tell one partner's rows from another's.
+
+     `measured` is the guard viewerShape cannot give us. It answers "one of
+     everything" for an EMPTY book, deliberately and correctly for the screens
+     it was written for; but it reads through scopeFull, whose role allowlist
+     hands opndoor_manager and developer nothing at all, and collapsing on a
+     measurement of zero would take the Agency and Branch columns off a table
+     that is still showing several of each. So a book has to have told us
+     something before its answer is acted on. */
+  const shape = useMemo(() => viewerShape(role, effectiveScope), [role, effectiveScope, dataVersion]);
+  const measured = shape.agencies > 0;
+  const showRoute = !(measured && shape.oneRoute);
+  const showAgency = !(measured && shape.oneAgency);
+  const showBranch = !(measured && shape.oneBranch);
+  /* Branch and agency share one column (the branch, its agency underneath), so
+     the column survives while either half still varies. */
+  const showOrgCol = showBranch || showAgency;
+
+  /* A control that is not on screen must not still be filtering. A ?route=
+     deep-link into a one-route book would otherwise leave the list filtered to
+     a route nothing matches, with nothing on screen to clear it. */
+  useEffect(() => {
+    if (!showRoute && route) setRoute('');
+  }, [showRoute, route]);
 
   const tabs = [
     { id: 'all', label: 'All', count: counts.all },
@@ -219,11 +283,18 @@ export function Applications() {
     ...(counts.awaiting > 0 || status === 'awaiting'
       ? [{ id: 'awaiting', label: <Pill variant="warn" style={{ background: 'none', padding: 0 }}>Awaiting signature</Pill>, count: counts.awaiting }]
       : []),
-    // Delivery failed: deed issued but not delivered to an agent contact (#84).
-    // Ops surface, management + opndoor admin only (#93). Shown when there is
-    // anything to resend, or when the filter is deep-linked.
-    ...(role !== 'referrer' && (counts.deliveryFailed > 0 || status === 'delivery-failed')
-      ? [{ id: 'delivery-failed', label: <Pill variant="warn" style={{ background: 'none', padding: 0 }}>Delivery failed</Pill>, count: counts.deliveryFailed }]
+    /* DELIVERY IS TWO CHIPS, because it is two states with two audiences.
+       "Delivery failed" is a send that was attempted and errored: everyone sees
+       it, the agency included, because they are the ones waiting for the deed
+       and they can resend it. "Held for send" is nobody on the rail's ladder to
+       receive it: nothing was sent, nothing errored, and it is parked in our own
+       queue, so it goes to opndoor staff alone. Each shows when it has rows or
+       when its filter is deep-linked, as every other chip here does. */
+    ...(counts.deliveryFailed > 0 || status === 'delivery-failed'
+      ? [{ id: 'delivery-failed', label: <Pill variant="danger" style={{ background: 'none', padding: 0 }}>Delivery failed</Pill>, count: counts.deliveryFailed }]
+      : []),
+    ...(isOpsStaff && (counts.cannotDeliver > 0 || status === 'cannot-deliver')
+      ? [{ id: 'cannot-deliver', label: <Pill variant="warn" style={{ background: 'none', padding: 0 }}>Held for send</Pill>, count: counts.cannotDeliver }]
       : []),
     // #2 Withdrawn: terminal, out of the funnel (excluded from All/Sent). Shown when
     // any exist or when deep-linked, so it never crowds the tabs when unused.
@@ -250,7 +321,7 @@ export function Applications() {
         <div>
           <Eyebrow>Tracking</Eyebrow>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>Applications</h1>
-          <p className="page-head__sub">Every referral from sent through to deed issued. Filter by status, agency or branch, or search by tenant.</p>
+          <p className="page-head__sub">{showAgency ? SUB_ESTATE : showReferrer ? SUB_ONE_AGENCY : SUB_OWN_ONLY}</p>
         </div>
         {/* Management too: the route guard on /new-application admits them and
             the sidebar has always offered it, so withholding the button here
@@ -281,7 +352,7 @@ export function Applications() {
       )}
 
       <div className="toolbar">
-        <FilterTabs tabs={tabs} active={status} onChange={(id) => setStatus(id as Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' | 'withdrawn' | 'expired' | 'invited' | 'fee-unpaid')} />
+        <FilterTabs tabs={tabs} active={status} onChange={(id) => setStatus(id as ListFilter)} />
       </div>
 
       <div className="toolbar">
@@ -315,16 +386,20 @@ export function Applications() {
                 ))}
               </FilterChip>
           )}
-          <FilterChip icon={<Icon name="building" />} label="Agency:" display={agency || 'All'} value={agency}
-            onChange={(e) => { setAgency(e.target.value); setBranch(''); }}>
-            <option value="">All</option>
-            {agencyOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-          </FilterChip>
-          <FilterChip icon={<Icon name="home" />} label="Branch:" display={branch || (agency ? 'All branches' : 'All')} value={branch}
-            onChange={(e) => setBranch(e.target.value)}>
-            <option value="">{agency ? 'All branches' : 'All'}</option>
-            {branchOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-          </FilterChip>
+          {showAgency && (
+            <FilterChip icon={<Icon name="building" />} label="Agency:" display={agency || 'All'} value={agency}
+              onChange={(e) => { setAgency(e.target.value); setBranch(''); }}>
+              <option value="">All</option>
+              {agencyOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+            </FilterChip>
+          )}
+          {showBranch && (
+            <FilterChip icon={<Icon name="home" />} label="Branch:" display={branch || (agency ? 'All branches' : 'All')} value={branch}
+              onChange={(e) => setBranch(e.target.value)}>
+              <option value="">{agency ? 'All branches' : 'All'}</option>
+              {branchOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+            </FilterChip>
+          )}
           {showReferrer && (
             <FilterChip icon={<Icon name="users" />} label="Referrer:" display={referrer || 'All'} value={referrer}
               onChange={(e) => setReferrer(e.target.value)}>
@@ -332,11 +407,13 @@ export function Applications() {
               {referrerOptions.map((n) => <option key={n} value={n}>{n}</option>)}
             </FilterChip>
           )}
-          <FilterChip icon={<Icon name="filter" />} label="Route:" display={route ? ROUTE_LABEL[route] : 'All'} value={route}
-            onChange={(e) => setRoute(e.target.value as Channel | '')}>
-            <option value="">All</option>
-            {CHANNELS.map((c) => <option key={c} value={c}>{ROUTE_LABEL[c]}</option>)}
-          </FilterChip>
+          {showRoute && (
+            <FilterChip icon={<Icon name="filter" />} label="Route:" display={route ? ROUTE_LABEL[route] : 'All'} value={route}
+              onChange={(e) => setRoute(e.target.value as Channel | '')}>
+              <option value="">All</option>
+              {CHANNELS.map((c) => <option key={c} value={c}>{ROUTE_LABEL[c]}</option>)}
+            </FilterChip>
+          )}
           <FilterChip icon={<Icon name="chevronDown" />} label="Sort:" display={sort} value={sort}
             onChange={(e) => setSort(e.target.value)}>
             <option>Newest first</option>
@@ -353,10 +430,10 @@ export function Applications() {
             <thead>
               <tr>
                 <th>Tenant</th>
-                <th>Route</th>
+                {showRoute && <th>Route</th>}
                 {showPartner && <th>Partner</th>}
                 <th>Property</th>
-                <th>Branch</th>
+                {showOrgCol && <th>{showBranch ? 'Branch' : 'Agency'}</th>}
                 <th style={{ textAlign: 'right' }}>Monthly rent</th>
                 <th>Status</th>
                 <th>Date</th>
@@ -374,7 +451,16 @@ export function Applications() {
                 const last = !!g && pagedRows[i + 1]?.tenancyId !== r.tenancyId;
                 const me = g?.members.find((m) => m.ref === r.ref);
                 const shown = g ? pagedRows.filter((x) => x.tenancyId === r.tenancyId).length : 0;
-                const cols = 7 + (showPartner ? 1 : 0) + 1;
+                /* Tenant, Property, rent, Status, Date and the chevron are always
+                   drawn; the other three come and go with the viewer's shape.
+                   Keep this in step with the header row above, or the tenancy
+                   heading runs short of the table it sits in. */
+                const cols = 6 + (showRoute ? 1 : 0) + (showPartner ? 1 : 0) + (showOrgCol ? 1 : 0);
+                /* DID THIS TENANT'S DEED GET THERE? deliveryBadge owns both the
+                   wording and who is shown which state; the state itself is read
+                   again only to pick the tone, which is not its business. */
+                const delivery = deliveryBadge(role, r);
+                const failed = deliveryStateOf(r) === 'failed';
                 return (
                 <Fragment key={r.ref}>
                   {first && (
@@ -382,16 +468,20 @@ export function Applications() {
                       <td colSpan={cols}>
                         <span className="jt-head__tag">Joint tenancy</span>
                         <span className="jt-head__txt">
-                          {g!.members.length} tenants · {g!.prop} · one guarantee, one deed
+                          {g!.members.length} tenants · {g!.prop} · one tenancy, a deed each
                           {shown < g!.members.length && ` · ${shown} shown by this filter`}
                         </span>
-                        {/* THE DEED IS THE TENANCY'S, so its status belongs here
-                            and not on the member rows. Only the lead ever reaches
-                            'deed' — apply_deed_executed keys on the PandaDoc
-                            document — so putting it on every row would have each
-                            sibling contradict the tab it is counted under. */}
+                        {/* THIS HEADING USED TO CARRY ONE STATUS PILL for the
+                            whole tenancy, taken from the lead, on the old rule
+                            that the deed was the tenancy's and only the lead
+                            ever reached 'deed'. Each tenant now signs their own
+                            deed once they have paid their own share, so there is
+                            no single status that is true of the group and
+                            TenancyGroup no longer offers one. What is true at
+                            this level is the two counts; each row goes on saying
+                            its own status, as it always did. */}
                         <span className="jt-head__prog">
-                          <Pill variant={g!.status === 'withdrawn' || g!.status === 'expired' || g!.status === 'draft' ? 'muted' : g!.status === 'referencing' ? 'warn' : g!.status === 'declined' ? 'danger' : (g!.status as PillVariant)}>{STATUS_LABEL[g!.status]}</Pill>
+                          <span className="jt-head__deeds">{tenancyDeedProgress(g!)}</span>
                           <span className="jt-head__sep">{tenancyProgress(g!)}</span>
                         </span>
                       </td>
@@ -407,16 +497,25 @@ export function Applications() {
                         <div>
                           <div className="dt__name">
                             {r.tenant}
-                            {me?.isLead && <span className="jt-lead" title="Carries the tenancy's deed, reminders and expiry">Lead</span>}
+                            {/* "Lead" is now only first entered. It used to mean
+                                the applicant who carried the tenancy's one deed,
+                                and the tooltip still said so after that stopped
+                                being true. */}
+                            {me?.isLead && <span className="jt-lead" title="First tenant entered on this tenancy. Each tenant signs their own deed.">Lead</span>}
                           </div>
                           <div className="dt__sub">{g ? `${r.ref} · ${memberLabel(g, r.ref)}` : r.ref}</div>
                         </div>
                       </div>
                     </td>
-                    <td><Pill variant={ROUTE_PILL[ch]}>{ROUTE_LABEL[ch]}</Pill></td>
+                    {showRoute && <td><Pill variant={ROUTE_PILL[ch]}>{ROUTE_LABEL[ch]}</Pill></td>}
                     {showPartner && <td>{partnerName(r.partner)}</td>}
                     <td>{r.prop}</td>
-                    <td>{r.branch}<div className="dt__sub">{r.agency}</div></td>
+                    {showOrgCol && (
+                      <td>
+                        {showBranch ? r.branch : r.agency}
+                        {showBranch && showAgency && <div className="dt__sub">{r.agency}</div>}
+                      </td>
+                    )}
                     {/* The rent is the PROPERTY's and is the same on every sibling,
                         so a joint row says what this tenant's share of it is —
                         otherwise two rows read as two £3,000 lets. */}
@@ -432,6 +531,12 @@ export function Applications() {
                             share through their own link, so it is theirs to show
                             even where the status is the tenancy's. */}
                         {me && !me.paid && <span className="jt-unpaid" title="This tenant has not paid their share">Not paid</span>}
+                        {/* The status says "Deed Issued" whether the deed arrived
+                            or not, which is how a filter could find a row that
+                            showed no sign of the thing it was filtered on. */}
+                        {delivery && (
+                          <span className={`delivery-tag${failed ? ' delivery-tag--failed' : ''}`} title={delivery.title}>{delivery.label}</span>
+                        )}
                       </span>
                     </td>
                     <td className="dt__num soft">{fmtDate(r.date)}</td>

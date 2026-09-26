@@ -52,6 +52,26 @@ export function houseRouteLabel(slug: string | null | undefined): string {
   return '';
 }
 
+/**
+ * Was THIS application's tenant referenced by their own agency, so that they
+ * went straight to payment and never filled in an eligibility form?
+ *
+ * THE OTHER QUESTION. channelOf below answers how a referral ARRIVED, which is
+ * a fact about the relationship and is read off the PARTNER. This answers who
+ * CHECKED THE TENANT, which is a fact about the journey and is read off the
+ * application's own frozen referencing_mode. Regent gives them opposite
+ * answers — an agency referral, pre-referenced — and that is the whole point of
+ * the seam; the two live side by side here so nobody reaches for the wrong one.
+ *
+ * WRITTEN POSITIVELY, deliberately. The negative form (`!== 'opndoor_referenced'`)
+ * also catches every row where the mode is simply absent — 37 of 39 mock rows,
+ * and any pre-M1 record — and would hide a document card that should be there.
+ * Unknown is not pre-referenced; it is unknown, and the caller keeps its default.
+ */
+export function preReferencedJourney(mode: string | null | undefined): boolean {
+  return mode === 'pre_referenced_open' || mode === 'pre_referenced_screened';
+}
+
 export function channelOf(input: {
   partnerSlug: string | null | undefined;
   /** The PARTNER's referencing mode, not the application's.

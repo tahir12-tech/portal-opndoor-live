@@ -25,9 +25,9 @@ import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types'
 import { ALL_PARTNERS } from './types';
 import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp } from './applicationsService';
 import { getPartner, getPartners, partnerName } from './partnersService';
-import { contactForApplication } from './orgService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
 import { payeesFor, orgRate, totalRate, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
+import { deliveryStateOf } from './deliveryState';
 import type { CommissionSource } from './types';
 
 /**
@@ -199,14 +199,19 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
   return a;
 }
 
-/** Deeds issued (status Deed) with no resolvable claim contact (branch -> agency
-    default) - i.e. the deed could not be delivered to the agent. Surfaced in the
-    dashboard needs-attention row so an undeliverable deed never goes unnoticed. */
+/** Deeds that did not get where they were going, for the needs-attention row.
+
+    WAS "no agent_contacts row", which is the supplier rail's ladder: one of our
+    agencies delivers to its active PEOPLE and has no mailbox, so every estate
+    deed counted here whatever actually happened. Now the same rule the filter
+    and the badge read, so the three cannot disagree. Counts both states, because
+    the needs-attention row is ops and both need working. */
 export function deedsWithoutContact(role: Role, scope: PartnerScope): number {
   const set = scopeFull(allFull(), role, scope);
   let n = 0;
   for (const app of set) {
-    if (app.status === 'deed' && !contactForApplication(app.agency, app.branch).contact) n += 1;
+    const s = deliveryStateOf(app);
+    if (s === 'failed' || s === 'cannot_deliver') n += 1;
   }
   return n;
 }
@@ -277,10 +282,11 @@ function emit(g: Group): LeagueRow {
     fees: g.feesGross, // "Fees collected" is gross; commission below is net of refunds
     paid: g.paid,
     deed: g.deed,
-    // Sent to Paid compares like with like (both applicant-grain). Sent to Deed
-    // does not: one deed covers a whole tenancy, so its denominator is lets.
+    // Both applicant-grain. Sent to Deed briefly divided by LETS, which was
+    // right while one deed covered a whole tenancy; each tenant now signs their
+    // own, so `deed` counts people and a let denominator would exceed 100%.
     sp: g.refs ? g.paid / g.refs : 0,
-    conv: g.refLets.size ? g.deed / g.refLets.size : 0,
+    conv: g.refs ? g.deed / g.refs : 0,
     partnerComm: g.partnerComm, // already net: refunded applications are excluded below
     agentComm: g.agentComm,
   };

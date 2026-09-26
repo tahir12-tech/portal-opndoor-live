@@ -156,6 +156,30 @@
   padding: 2px 8px;
 }
 
+/* Delivery, on the row that owns it. Two states, two tones: a send that errored
+   is a fault and reads as one; "held for send" is a queue we have not cleared
+   yet, which is a warning about us and not an alarm for the reader. Sized off
+   .refund-tag so the status cell holds one family of tags, not three. */
+.delivery-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--warn, #c77d0a);
+  background: var(--warn-bg, #fdf3e2);
+  border: 1px solid rgba(199, 125, 10, 0.28);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.delivery-tag--failed {
+  color: var(--danger);
+  background: rgba(214, 69, 69, 0.1);
+  border-color: rgba(214, 69, 69, 0.28);
+}
+
 /* ---- A JOINT TENANCY, READ AS ONE THING -----------------------------------
    Several applications, one property, one guarantee, one deed. Without this the
    siblings are unrelated rows carrying the same address and the same whole
@@ -195,4 +219,7 @@
   .jt-head__prog { float: none; display: block; margin-top: 3px; }
 }
 .jt-head__prog { display: inline-flex; align-items: center; gap: 8px; }
+/* The deed count replaced a status pill: it is the tenancy-level fact now that
+   each tenant signs their own, so it carries the weight the pill used to. */
+.jt-head__deeds { color: var(--ink); font-weight: 700; }
 .jt-head__sep { color: var(--ink-mute); }

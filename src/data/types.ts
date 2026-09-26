@@ -267,6 +267,19 @@ export interface ApplicationSummary {
   /** True when the deed is out for signature (deed_state 'awaiting_tenant'); a
       sub-state of Paid, filterable from the list and the dashboard. */
   awaitingSignature?: boolean;
+  /* DELIVERY, WHICH IS TWO QUESTIONS AND WAS ONE.
+     'cannot_deliver' is nobody to send to on this rail's ladder: an ops queue,
+     admin-facing, nothing the agency can act on. 'failed' is a send that was
+     ATTEMPTED and errored: the agency sees it, because they are waiting for it
+     and they can press Resend. See deliveryStateOf in deliveryState.ts. */
+  awaitingStaffSend?: boolean;
+  /** When the executed deed was sent. Without it deliveryStateOf() on a LIST row
+      could never answer 'delivered' and fell through to 'not_attempted'. */
+  deedSentAt?: Date | null;
+  deliveryFailedAt?: Date | null;
+  deliveryAttemptedTo?: string | null;
+  deliverySource?: string | null;
+  deliveryReason?: string | null;
   /** The rail this application runs on (snapshot). 'opndoor_referenced' is the
       agent rail with the nine-stage journey; the pre_referenced_* modes are the
       supplier rail with the three-stage view. */
@@ -292,7 +305,9 @@ export interface ApplicationSummary {
   /** What this applicant is actually charged: their share of the tenancy fee. */
   fee?: number | null;
   paidAtTs?: number | null;
-  /** Only the tenancy's lead ever carries one, because only the lead has a deed. */
+  /** This application's OWN deed sub-state. Every tenant of a joint tenancy has
+      one, because every tenant signs their own deed; it was previously populated
+      only on the lead, which is why the siblings read as having no deed. */
   deedState?: string | null;
 }
 

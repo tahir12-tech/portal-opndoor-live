@@ -16,7 +16,12 @@ import { ALL_PARTNERS } from './types';
 import { AGENT_ADDR, APPLICATION_RECORDS as RECORDS_SEED, APPLICATIONS_LIST as LIST_SEED, type AppRecord } from './mock/applications';
 import { getPartner, partnerName } from './partnersService';
 import { channelOf, type Channel } from './channel';
-import { contactForApplication } from './orgService';
+import { deliveryStateOf } from './deliveryState';
+
+/** Who works the delivery QUEUE, as opposed to who is waiting for a deed.
+    "Cannot deliver" means our own record of who can receive is incomplete, which
+    is Opndoor's to fix and not a customer's. */
+const ADMIN_ROLES: Role[] = ['superadmin', 'opndoor_manager'];
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 
 // Working copies. Seeded from the mock; replaced from Supabase after login.
@@ -147,7 +152,7 @@ export interface AppFilterOpts extends AppScopeOpts {
   /** 'refunded' and 'awaiting' (deed out for signature) are cross-cuts of Paid;
       'delivery-failed' is a cross-cut of Deed (issued but not delivered to an
       agent contact, #84). */
-  status?: Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' | 'withdrawn' | 'expired' | 'invited' | 'fee-unpaid';
+  status?: Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' | 'cannot-deliver' | 'withdrawn' | 'expired' | 'invited' | 'fee-unpaid';
   agency?: string;
   branch?: string;
   /** #owner Referrer display-name filter (management + opndoor admin only). */
@@ -184,7 +189,7 @@ function inPeriod(r: ApplicationSummary, range?: [Date, Date]): boolean {
   return ts >= range[0].getTime() && ts <= range[1].getTime();
 }
 
-export function countByStatus(opts: AppFilterOpts): { all: number; draft: number; invited: number; feeUnpaid: number; referencing: number; declined: number; sent: number; paid: number; deed: number; refunded: number; awaiting: number; deliveryFailed: number; withdrawn: number; expired: number } {
+export function countByStatus(opts: AppFilterOpts): { all: number; draft: number; invited: number; feeUnpaid: number; referencing: number; declined: number; sent: number; paid: number; deed: number; refunded: number; awaiting: number; deliveryFailed: number; cannotDeliver: number; withdrawn: number; expired: number } {
   // #owner Chips recount within the selected period (sent-date bucketed), and
   // must follow the same partner/agency/branch/referrer filters as the rows.
   let set = scopedSet(opts);
@@ -201,7 +206,7 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
   // 'deliveryFailed' is a cross-cut of Deed (issued but no reachable agent contact).
   // #2/#13 'withdrawn' and 'expired' are terminal and OUT of the funnel: not part of
   // all/sent/paid/deed, only their own separate counts (surfaced via their chips).
-  const counts = { all: 0, draft: 0, invited: 0, feeUnpaid: 0, referencing: 0, declined: 0, sent: 0, paid: 0, deed: 0, refunded: 0, awaiting: 0, deliveryFailed: 0, withdrawn: 0, expired: 0 };
+  const counts = { all: 0, draft: 0, invited: 0, feeUnpaid: 0, referencing: 0, declined: 0, sent: 0, paid: 0, deed: 0, refunded: 0, awaiting: 0, deliveryFailed: 0, cannotDeliver: 0, withdrawn: 0, expired: 0 };
   set.forEach((r) => {
     if (r.status === 'withdrawn') { counts.withdrawn++; return; }
     if (r.status === 'expired') { counts.expired++; return; }
@@ -215,12 +220,16 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
     counts[r.status]++;
     if (r.refunded) counts.refunded++;
     if (r.awaitingSignature) counts.awaiting++;
-    // #93 Delivery-failure is an ops surface: never counted for referrers.
-    // Delivery-failure is an ops surface for everyone who works the book (opndoor
-    // admin + opndoor management + a partner's management), never referrers. Must
-    // match the list gate below (opts.status === 'delivery-failed'), which excludes
-    // only referrers — otherwise opndoor_manager sees the rows but a 0 count.
-    if (opts.role !== 'referrer' && r.status === 'deed' && !contactForApplication(r.agency, r.branch).contact) counts.deliveryFailed++;
+    /* #93 said delivery failure was an ops surface and hid it from referrers.
+       That was right about the state it could actually detect, which was
+       "nobody to send to" — an ops queue. A send that ERRORED is different: the
+       person waiting for the deed should know, and send_deed_to_agent already
+       lets the owning referrer resend. So the two states are counted
+       separately, and only the ops one is restricted. The counts must match the
+       list gates above or a tab shows rows against a zero. */
+    const dstate = deliveryStateOf(r);
+    if (dstate === 'failed') counts.deliveryFailed++;
+    if (dstate === 'cannot_deliver' && ADMIN_ROLES.includes(opts.role)) counts.cannotDeliver++;
   });
   return counts;
 }
@@ -274,7 +283,12 @@ export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
     }
     if (opts.status === 'refunded') { if (!r.refunded) return false; }
     else if (opts.status === 'awaiting') { if (!r.awaitingSignature) return false; }
-    else if (opts.status === 'delivery-failed') { if (opts.role === 'referrer' || !(r.status === 'deed' && !contactForApplication(r.agency, r.branch).contact)) return false; }
+    // TWO FILTERS, TWO STATES. 'delivery-failed' is a send that errored and is
+    // the agency's business; 'cannot-deliver' is nobody to send to and is ops.
+    // Both read the columns the delivery path writes, never the agent_contacts
+    // tree, which is the supplier rail's ladder and answers wrongly for ours.
+    else if (opts.status === 'delivery-failed') { if (deliveryStateOf(r) !== 'failed') return false; }
+    else if (opts.status === 'cannot-deliver') { if (!ADMIN_ROLES.includes(opts.role) || deliveryStateOf(r) !== 'cannot_deliver') return false; }
     else if (opts.status === 'invited' || opts.status === 'fee-unpaid') { if (r.status !== 'draft') return false; }
     else if (opts.status && opts.status !== 'all' && r.status !== opts.status) return false;
     if (opts.branch && r.branch !== opts.branch) return false;
@@ -443,11 +457,20 @@ function feeLabels(r: { rent: number; fee?: number | null; sharePercent?: number
   const fee = r.fee ?? null;
   if (fee == null) return {};
   const gbp = `£${fee.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  if (Math.abs(fee - r.rent) < 0.005) return { feeGBP: gbp, feeBasisLabel: "one month's rent" };
-  const weeks = r.rent > 0 ? (fee * 52) / (r.rent * 12) : 0;
-  const share = r.sharePercent != null && r.sharePercent < 100
+  /* THE BASIS IS A RATIO AND BOTH HALVES MUST BE THE SAME PERSON'S.
+     This divided the applicant's own fee by the WHOLE tenancy's rent, so one
+     tenant of a 50/50 pair on a five-week deal read "1.67 weeks of rent (this
+     tenant's 50% share)" while the dashboard called the identical deal five
+     weeks. Both numbers were defensible on their own and together they were
+     nonsense. The share scales the denominator too, which is also what
+     feeBasisOf in commissionSplit.ts does, so the two helpers now agree. */
+  const share = r.sharePercent != null && r.sharePercent > 0 ? r.sharePercent / 100 : 1;
+  const base = r.rent * share;
+  if (Math.abs(fee - base) < 0.005) return { feeGBP: gbp, feeBasisLabel: "one month's rent" };
+  const weeks = base > 0 ? (fee * 52) / (base * 12) : 0;
+  const suffix = r.sharePercent != null && r.sharePercent < 100
     ? ` (this tenant's ${r.sharePercent}% share)` : '';
-  return { feeGBP: gbp, feeBasisLabel: `${Number(weeks.toFixed(2))} weeks of rent${share}` };
+  return { feeGBP: gbp, feeBasisLabel: `${Number(weeks.toFixed(2))} weeks of rent${suffix}` };
 }
 
 export function getApplicationDetail(ref: string | null): ApplicationDetail {

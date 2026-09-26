@@ -77,7 +77,7 @@ export const AGENT_JOURNEY_BANDS: { label: string; count: number }[] = [
 export function buildAgentJourney(
   j: ApplicationJourney,
   fmt: (iso: string | null) => string,
-  fees?: { guarantee?: string },
+  fees?: { guarantee?: string; basis?: string },
 ): JourneyView {
   const declined = j.status === 'declined';
 
@@ -129,8 +129,17 @@ export function buildAgentJourney(
 
   // The application fee stage carries no note: its paid date on the row says it
   // all, and the amount (a fixed price) was noise. The guarantee fee keeps its
-  // amount — one month's rent, already on this page — since that figure varies.
-  const guarFeeNote = fees?.guarantee ? `${fees.guarantee} · one month's rent` : "One month's rent";
+  // amount, since that figure varies.
+  //
+  // THE BASIS COMES FROM THE CALLER, and there is no fallback wording. This used
+  // to append the words "one month's rent" unconditionally, and then to fall
+  // back to them outright when no amount had been passed. That is false on an
+  // agency with a 3 or 5 week basis and on any tenant of a joint tenancy, who
+  // pays a share of even that: the stage was printing a price nobody had been
+  // charged, next to a date on which they had paid a different one. The caller
+  // knows the real basis (feeLabels puts it on the record); when it has not been
+  // given one, the note says nothing rather than something untrue.
+  const guarFeeNote = [fees?.guarantee, fees?.basis].filter(Boolean).join(' · ');
 
   const steps = [
     { label: 'Invited', date: fmt(j.invited_at), note: 'Invite link sent to the tenant' },

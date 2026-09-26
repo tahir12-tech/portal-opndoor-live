@@ -177,12 +177,16 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     paid: a.paid.toLocaleString('en-GB'),
     deed: a.deed.toLocaleString('en-GB'),
     sp: pct(a.paid, a.sent),
-    // TENANCY-GRAIN DENOMINATORS for anything divided by a deed count. One deed
-    // covers a whole tenancy and only the lead ever reaches Deed Issued, so
-    // deeds-over-applicants read a three-person let as 33% converted. Sent to
-    // Paid keeps applicant grain on both sides, which is its own honest question.
-    pd: pct(a.deed, a.paidTenancies),
-    overall: pct(a.deed, a.sentTenancies),
+    /* APPLICANT GRAIN ON BOTH SIDES, AGAIN.
+       These were switched to tenancy denominators earlier today, correctly at
+       the time: one deed covered a whole let and only the lead reached Deed
+       Issued, so deeds-over-applicants read a three-person let as 33%
+       converted. The per-tenant deed ruling inverts that. Every tenant now has
+       their own deed, so `deed` counts applicants again, and dividing by lets
+       would report the same three-person let as 300%. Both halves of every
+       ratio here count people. */
+    pd: pct(a.deed, a.paid),
+    overall: pct(a.deed, a.sent),
     guaranteed: fmtBig(a.guaranteed),
     deedcount: a.deed.toLocaleString('en-GB'),
     fees: fmtMoney(a.feesGross),
