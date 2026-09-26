@@ -82,28 +82,58 @@ export interface DeedApp {
       for the referral rail (the tenant signs from the payment confirmation page).
       Steers the "already signed?" reassurance so it names the right place. */
   direct?: boolean;
-  /** Every tenant on the tenancy, for the one deed that names them all. Absent on
-      a solo application, where the name printed is the applicant's own and the
-      document is byte-identical to what it has always been. */
+  /** Every tenant on the tenancy, so each tenant's deed says what tenancy it is
+      part of. Absent on a solo application, where the name printed is the
+      applicant's own and the document is byte-identical to what it always was. */
   tenancy_tenant_names?: string | null;
+  /** The OTHER tenants on the tenancy, for the co-tenant merge field. Absent on a
+      solo application; its absence is what omits the two joint-only tokens. */
+  co_tenant_names?: string | null;
+  /** What THIS deed guarantees: this tenant's share of the rent. Absent on a solo
+      application, whose deed covers the whole rent and never printed an amount. */
+  share_amount?: number | null;
 }
 
-// The six merge tokens. The docx must define these token names (the naming is
-// the contract that keeps the template swappable with no code change). issue_date
-// is the deed's dated line (a merge token, never a recipient-editable field).
+// The merge tokens. The docx must define these token names (the naming is the
+// contract that keeps the template swappable with no code change). issue_date is
+// the deed's dated line (a merge token, never a recipient-editable field).
+//
+// EIGHT ON A JOINT TENANCY, SIX ON A SOLO ONE, and that is deliberate. Each
+// tenant of a joint tenancy signs their own deed covering their own share, so
+// two tokens carry what the old single-document model did not need: the amount
+// this deed guarantees, and who the other tenants are. A tenancy of one has no
+// co-tenants and no share, so both are omitted entirely and the token list is
+// character-for-character the six it always was. That is what keeps a
+// single-tenant deed byte-identical, and it is asserted in
+// supabase/tests/deed_per_tenant.test.sql.
 function tokens(a: DeedApp, issueDate: string) {
   // #8 Title-case the printed deed's address merge field for display; postcode left raw.
   const address = [titleCaseAddress(a.prop_addr1), titleCaseAddress(a.prop_addr2), titleCaseAddress(a.prop_city), a.prop_postcode].filter(Boolean).join(", ");
-  return [
+  const base = [
     { name: "reference_number", value: a.guarantee_ref },
-    // ONE DEED NAMES EVERY TENANT. On a solo application the list is that one
-    // person, so the token's value is character-for-character what it was.
+    // EVERY DEED NAMES EVERY TENANT, so the document says what tenancy it is
+    // part of. On a solo application the list is that one person, so the
+    // token's value is unchanged.
     { name: "tenant_name", value: a.tenancy_tenant_names || `${a.tenant_first_name} ${a.tenant_last_name}` },
     { name: "tenancy_start_date", value: fmtDate(a.tenancy_start) },
     { name: "rental_address", value: address },
     { name: "agent_email", value: a.agent_email },
     { name: "issue_date", value: issueDate },
   ];
+  if (!a.co_tenant_names) return base;
+  return [
+    ...base,
+    // WHAT THIS DEED COVERS. This tenant's share of the rent, not the tenancy's
+    // whole rent: each co-tenant signs their own deed for their own share and
+    // the shares sum to the rent exactly (apportion, in create_joint_referral).
+    { name: "guaranteed_amount", value: a.share_amount != null ? gbp(a.share_amount) : "" },
+    { name: "co_tenant_names", value: a.co_tenant_names },
+  ];
+}
+
+/** Money as the deed prints it. Pence always: a deed is a financial instrument. */
+function gbp(n: number): string {
+  return `£${Number(n).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export interface DeedResult {
@@ -431,29 +461,31 @@ export async function getSigningLink(
 // suppressed so the amend caller can log a single combined amend entry.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateDeed(service: any, appId: string, reissue = false): Promise<DeedResult> {
-  // THE FIRING UNIT IS THE TENANCY, NOT THE APPLICATION.
+  // EACH TENANT SIGNS THEIR OWN DEED, FOR THEIR OWN SHARE.
   //
-  // A guarantee covers one tenancy. Left per-application, a two-tenant tenancy
-  // would have produced two deeds for it: two documents to sign, two signing
-  // emails, two executed PDFs and two expiry clocks. So before anything else,
-  // the tenancy says which application carries its deed and whether it is ready
-  // for one. Every caller keeps passing whatever application it has in hand.
+  // This used to resolve the tenancy's LEAD and generate one document for the
+  // whole tenancy, which left a tenant who had paid their share sitting at
+  // "Paid" for ever holding a guarantee in somebody else's name. The gate is
+  // now this tenant's own payment, and the document is this tenant's own: it
+  // covers their share, names all the tenants so it says what it is part of,
+  // and is addressed to them.
   //
-  // A SOLO APPLICATION ANSWERS "you, and yes": lead is itself and ready is
-  // always true, so the four existing callers behave exactly as before.
-  const { data: tgt } = await service.rpc("tenancy_deed_target", { p_application: appId });
+  // The application id is NOT rewritten any more. Every caller passes the
+  // application it has in hand and gets that application's deed.
+  //
+  // A SOLO APPLICATION is a tenancy of one: co_tenant_names is null, the share
+  // is the whole rent, and the document is what it always was.
+  const { data: tgt } = await service.rpc("deed_target", { p_application: appId });
   const unit = Array.isArray(tgt) ? tgt[0] : tgt;
-  if (unit?.lead_id) appId = unit.lead_id as string;
   if (unit && unit.ready === false) {
-    // Not an error state on the row: nothing has failed, the tenancy is simply
-    // still collecting. The log entry is written ONCE, against the tenancy's
-    // lead, rather than once per applicant.
+    // Not an error state on the row: nothing has failed, this tenant simply has
+    // not paid yet. Written against THEIR row, because it is their deed.
     await service.from("activity_log").insert({
       application_id: appId, kind: "deed_waiting",
-      message: `Deed not yet generated: ${unit.unpaid_count} of ${unit.tenant_count} tenants on this tenancy have still to pay.`,
+      message: "Deed not yet generated: this tenant has not paid their share.",
       actor: "System", visibility: "internal",
     });
-    return { ok: false, error: `Waiting on ${unit.unpaid_count} of ${unit.tenant_count} tenants to pay before the deed is generated.` };
+    return { ok: false, error: "Waiting on this tenant to pay before their deed is generated." };
   }
 
   const { data: app } = await service
@@ -482,10 +514,15 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   // livemode comes from the row rather than from an argument, so all four
   // callers of generateDeed stay unchanged and none of them can pass the wrong
   // one. === so a null never becomes live.
+  const joint = (unit?.tenant_count ?? 1) > 1;
   const res = await createAndSend({
     ...app, agent_email: agentEmail, reissue,
     direct: app.referencing_mode === "opndoor_referenced",
-    tenancy_tenant_names: (unit?.tenant_count ?? 1) > 1 ? (unit?.tenant_names as string | null) : null,
+    // All three are null on a tenancy of one, which is what omits the two new
+    // tokens entirely and keeps that document byte-identical.
+    tenancy_tenant_names: joint ? (unit?.tenant_names as string | null) : null,
+    co_tenant_names: joint ? (unit?.co_tenant_names as string | null) : null,
+    share_amount: joint ? Number(unit?.share_amount) : null,
   }, app.livemode === true);
   if (!res.ok) {
     await service.from("applications").update({ deed_state: "error" }).eq("id", appId);

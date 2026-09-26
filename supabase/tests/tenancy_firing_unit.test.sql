@@ -1,17 +1,32 @@
--- THE TENANCY IS THE FIRING UNIT.
+-- WHAT SURVIVED THE FIRING-UNIT RULING.
 --
--- One guarantee over one property gets ONE deed, named for everybody on it,
--- generated only when everybody has paid, reminded and expired once. The
--- single-tenant path is asserted to be unchanged in the same file, because
--- "unchanged" is a claim and a claim needs a test.
+-- This file used to assert "the tenancy is the firing unit": one deed for the
+-- whole let, carried by an elected lead, generated only once everybody had
+-- paid. That ruling is superseded. Each tenant now signs their own deed, for
+-- their own share, as soon as THEY have paid, and the replacement rule is
+-- asserted in deed_per_tenant.test.sql.
 --
--- The lead-election assertions are here because the first implementation elected
--- "the earliest created" applicant: every applicant on a joint tenancy is
--- inserted in ONE transaction, so created_at ties for all of them and the lead
--- was whichever row drew the lowest random uuid.
+-- The assertions kept here are the ones the supersession did NOT touch, and
+-- they are worth keeping precisely because it would be easy to assume otherwise:
+--
+--   APPORTIONMENT   still the one implementation, and now used for the share of
+--                   RENT as well as the share of the fee.
+--   TENANT NAMES    still assembled per tenancy: every deed names everybody, so
+--                   the document says what it is part of.
+--   LEAD ELECTION   still meaningful, and still worth the test that found the
+--                   original bug: every applicant on a joint tenancy is inserted
+--                   in ONE transaction, so created_at ties and an election that
+--                   falls through to the uuid picks whoever drew the lowest one.
+--                   "Lead" no longer means "carries the deed"; it means first
+--                   entered, and it still anchors tenancy-level ordering.
+--   THE SOLO PATH   unchanged, which is a claim and therefore a test.
+--
+-- Deleted with the ruling: the readiness gate on the whole tenancy, and the
+-- lead-carries-the-deed target. Both now live in deed_per_tenant.test.sql,
+-- asserting the opposite.
 
 begin;
-select plan(15);
+select plan(17);
 
 -- is_house_route, because these fixtures are inserted directly and carry no
 -- referrer: assert_application_attributed refuses an unattributed application on
@@ -50,13 +65,34 @@ insert into public.applications (
   '1 Test Road', 'London', 'NW1 8LH', 2000, 2000, current_date + 30, 'sent', true, 'opndoor_referenced',
   0.25, 0.10);
 
-select is((select lead_id from public.tenancy_deed_target('92000000-0000-0000-0000-00000000000a')),
-  '92000000-0000-0000-0000-00000000000a'::uuid, 'a solo application is its own lead');
-select ok((select ready from public.tenancy_deed_target('92000000-0000-0000-0000-00000000000a')),
-  'and is always ready: its payment gate belongs to the caller, unchanged');
-select is((select tenant_names from public.tenancy_deed_target('92000000-0000-0000-0000-00000000000a')),
-  'Solo Tenant', 'the deed names exactly the one person, character for character');
-select is((select tenant_count from public.tenancy_deed_target('92000000-0000-0000-0000-00000000000a')),
+select is((select application_id from public.deed_target('92000000-0000-0000-0000-00000000000a')),
+  '92000000-0000-0000-0000-00000000000a'::uuid, 'a solo application is its own deed target');
+
+/* A BEHAVIOUR CHANGE WORTH NAMING. This used to assert that a solo application
+   was ALWAYS ready, on the reasoning that its payment gate belonged to the
+   caller: stripe-webhook only reaches generateDeed on the paid transition, and
+   the manual retry paths deliberately did not re-check. The ruling is now "a
+   deed is generated once THAT tenant has paid", with no exemption, so the gate
+   moved into the function and an unpaid solo application is not ready. Every
+   real caller still passes, because all four of them act on rows that have
+   paid; what closes is the gap where a hand-called retry could have generated a
+   deed for an unpaid application. */
+select ok(not (select ready from public.deed_target('92000000-0000-0000-0000-00000000000a')),
+  'an unpaid solo application is NOT ready: the gate is payment, with no exemption');
+update public.applications set paid_at = now() where id = '92000000-0000-0000-0000-00000000000a';
+select ok((select ready from public.deed_target('92000000-0000-0000-0000-00000000000a')),
+  'and is ready the moment it has paid');
+
+/* BYTE IDENTITY, and where it now lives. tenant_names is NULL for a tenancy of
+   one, which is what makes createAndSend fall back to the applicant's own name
+   and omit the two joint-only merge tokens. The old function returned the name
+   here and pandadoc.ts discarded it when tenant_count was 1; the answer on the
+   document is character-for-character the same, decided one layer earlier. */
+select is((select tenant_names from public.deed_target('92000000-0000-0000-0000-00000000000a')),
+  null, 'a solo deed has no tenancy name list, so the token falls back to the applicant');
+select is((select co_tenant_names from public.deed_target('92000000-0000-0000-0000-00000000000a')),
+  null, 'and no co-tenants, which is what drops the two joint-only tokens entirely');
+select is((select tenant_count from public.deed_target('92000000-0000-0000-0000-00000000000a')),
   1, 'a tenancy of one counts as one, not zero');
 
 -- ---------------------------------------------------------------------------
@@ -87,26 +123,35 @@ select ok(public.is_tenancy_lead('92000000-0000-0000-0000-0000000000ff'),
   'Tenant 1 leads the tenancy even though their uuid sorts last');
 select ok(not public.is_tenancy_lead('92000000-0000-0000-0000-000000000011'),
   'and Tenant 2 does not');
-select is((select tenant_names from public.tenancy_deed_target('92000000-0000-0000-0000-000000000011')),
+select is((select tenant_names from public.deed_target('92000000-0000-0000-0000-000000000011')),
   'Amelia Hartley, Daniel Okafor',
   'the one deed names them in the order the agent entered them, asked from either applicant');
 
--- HALF PAID: no deed.
 update public.applications set paid_at = now() where id = '92000000-0000-0000-0000-0000000000ff';
-select ok(not (select ready from public.tenancy_deed_target('92000000-0000-0000-0000-0000000000ff')),
-  'one tenant paid is not a guarantee: no deed yet');
-select is((select unpaid_count from public.tenancy_deed_target('92000000-0000-0000-0000-000000000011')),
-  1, 'and the wait is expressed as the tenancy, not as two applications');
+-- HALF PAID. Under the old ruling neither tenant could have a deed while the
+-- other had not paid, and that was the point of the gate. Now the paid tenant
+-- gets theirs and the unpaid one does not: deed_per_tenant.test.sql asserts both
+-- halves. What is still true, and still needed by the screen, is that the
+-- tenancy knows how many are outstanding.
+select is((select unpaid_count from public.deed_target('92000000-0000-0000-0000-000000000011')),
+  1, 'one of the two is still to pay, and the tenancy says so');
 
--- FULLY PAID: one deed, and only one caller may generate it.
 update public.applications set paid_at = now() where id = '92000000-0000-0000-0000-000000000011';
-select ok((select ready from public.tenancy_deed_target('92000000-0000-0000-0000-000000000011')),
-  'everybody paid: the tenancy is ready for its deed');
+select ok((select ready from public.deed_target('92000000-0000-0000-0000-000000000011')),
+  'and once they have, they are ready for their own deed');
+
+-- THE RACE GUARD, which survives the ruling with its meaning narrowed. It used
+-- to stop two payment events for the same TENANCY generating two documents for
+-- one deed; each tenant now has a deed of their own, so the race it guards is
+-- the ordinary one, two deliveries of the SAME tenant's event. Claiming twice
+-- for one application still yields exactly one generation.
 select is(
   (select public.claim_tenancy_deed('92000000-0000-0000-0000-0000000000ff')::text
-       || ',' || public.claim_tenancy_deed('92000000-0000-0000-0000-000000000011')::text),
+       || ',' || public.claim_tenancy_deed('92000000-0000-0000-0000-0000000000ff')::text),
   'true,false',
-  'two payment events landing together produce one deed, not two');
+  'the same payment event delivered twice produces one deed, not two');
+select ok(public.claim_tenancy_deed('92000000-0000-0000-0000-000000000011'),
+  'and the co-tenant claims their OWN deed independently, which is the ruling');
 
 select * from finish();
 rollback;

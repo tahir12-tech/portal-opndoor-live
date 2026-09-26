@@ -74,17 +74,52 @@ redeploy needed.
 5. Leave the opndoor signature as the **static facsimile image** already in the
    document at "Signed for and on behalf of the Guarantor". Do not add a second
    signer role for it.
-6. Define these six **merge tokens** (Manage > Tokens, names exact):
-   `reference_number`, `tenant_name`, `tenancy_start_date`, `rental_address`,
-   `agent_email`, `issue_date`. The names are the contract that keeps the template
-   swappable. `issue_date` is filled server-side with the generation date
-   (Europe/London, dd/mm/yyyy); it is not entered by the tenant.
+6. Define these **merge tokens** (Manage > Tokens, names exact). Six are always
+   filled; two more are filled only on a joint tenancy:
+
+   | Token | Always? | Value |
+   |---|---|---|
+   | `reference_number` | yes | The guarantee reference, one per deed |
+   | `tenant_name` | yes | Every tenant on the tenancy, comma separated. On a tenancy of one, that one person |
+   | `tenancy_start_date` | yes | dd/mm/yyyy |
+   | `rental_address` | yes | Title-cased, postcode raw |
+   | `agent_email` | yes | Where the executed deed is delivered |
+   | `issue_date` | yes | Generation date, Europe/London, dd/mm/yyyy, server-side, never recipient-editable |
+   | `guaranteed_amount` | joint only | What THIS deed guarantees: this tenant's share of the monthly rent, as `£1,234.56` |
+   | `co_tenant_names` | joint only | The OTHER tenants, comma separated |
+
+   **Each tenant of a joint tenancy signs their own deed.** It names all the
+   tenants (`tenant_name`) so the document says what tenancy it belongs to, and
+   it guarantees that tenant's own share of the rent (`guaranteed_amount`), not
+   the whole rent. The template needs wording near the guarantee clause that uses
+   `guaranteed_amount` and `co_tenant_names`, along the lines of "jointly with
+   [co_tenant_names], in respect of [guaranteed_amount] per calendar month".
+   The exact legal wording is for the client to settle; the tokens are ready.
+
+   **On a tenancy of one the last two tokens are not sent at all**, so a
+   single-tenant deed is character-for-character the document it has always
+   been. That is asserted in `supabase/tests/deed_per_tenant.test.sql`, and it is
+   why the template must render them conditionally (a PandaDoc token that is
+   never supplied renders empty): put them in a block that reads correctly when
+   both are blank, or in a section that only a joint deed reaches.
 7. Save, then copy the template id from the URL (or Template > ... > Details) and
    set it as `PANDADOC_TEMPLATE_ID`.
 
 > The token names and the `Tenant` role name are the only coupling between the
 > template and the code. Keep them exact and you can restyle or re-upload the
 > deed without touching the functions.
+
+### Still one signer, and one open question
+
+Step 5 stands: opndoor's signature is a static facsimile and there is no second
+recipient role. That has one consequence worth stating plainly, because a screen
+now asks about it. PandaDoc's `document.completed` both signs and executes in
+one step, so there is no state between "the tenant signed" and "the deed is
+executed", and the portal cannot show a distinct **signed** state however the UI
+is written. If Opndoor is to countersign each counterpart for real, this template
+needs a second signer role and the webhook needs to key on recipient-level
+completion rather than document completion. That is a deliberate decision, not an
+oversight; until it is taken, signed and executed are the same event.
 
 ## 4. Point the PandaDoc webhook at the function
 

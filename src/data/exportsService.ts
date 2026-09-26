@@ -22,6 +22,8 @@ import {
   BX_FIRST, BX_FLATS, BX_LAST, BX_STREETS, BX_TITLES, TREND_MONTHS,
 } from './mock/analyticsModel';
 import { partnerName, getRatesFor, scopeFor } from './partnersService';
+import { isAgencyUser } from './capabilities';
+import { viewerShape } from './viewerShape';
 import { guaranteeExpiry, allFull, findRecord, type FullApp } from './applicationsService';
 import { getLeague } from './leagueService';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
@@ -77,8 +79,17 @@ function pad(n: number): string {
 function dmy(x: Date): string {
   return `${pad(x.getDate())}/${pad(x.getMonth() + 1)}/${x.getFullYear()}`;
 }
-function gbp(n: number): string {
-  return `£${Math.round(n).toLocaleString('en-GB')}`;
+/** Money as TEXT, to the penny, for the cells that are strings rather than
+    numeric columns (a CSV, or a column that must stay blank when there is no
+    amount).
+
+    WAS `Math.round(n)`, whole pounds. Fine in a headline, wrong in anything
+    anybody reconciles: a £1,384.61 refund printed as £1,385 is a 72p
+    discrepancy the export invented, and a column of them does not foot to the
+    payments it describes. Every money cell in every export now carries pence,
+    the numeric ones through the money2 column format and the text ones here. */
+function gbp2(n: number): string {
+  return `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function addDays(x: Date, n: number): Date {
   return new Date(x.getTime() + n * DAY);
@@ -145,7 +156,7 @@ function exportModel(role: Role, period: Period): ExportModel {
   const stuckPaid = Math.round((isRef ? 3 : 27) * kc);
   const shape = isRef
     ? { agencies: [['Foxglove Residential', 38, 88000]], branches: [['South Kensington', 16, 37000, 'Foxglove Residential'], ['Chelsea', 13, 34000, 'Foxglove Residential'], ['Fulham', 9, 18000, 'Foxglove Residential']], referrers: [['April', 14, 32000], ['March', 13, 30000], ['February', 11, 27000]] }
-    : { agencies: [['Foxglove Residential', 214, 246240], ['Marylebone & Co', 152, 168000], ['Northbank Lettings', 108, 98000], ['Hartwell Estates', 96, 72000]], branches: [['South Kensington', 78, 169000, 'Foxglove Residential'], ['Marylebone', 72, 147000, 'Marylebone & Co'], ['Shoreditch', 63, 101000, 'Northbank Lettings'], ['Chelsea', 61, 153000, 'Foxglove Residential'], ['Clapham', 58, 82000, 'Hartwell Estates'], ['Fitzrovia', 54, 110000, 'Marylebone & Co']], referrers: [['Priya Nair', 38, 88000], ['James Okafor', 33, 82000], ['Sophie Bennett', 29, 63000], ['Daniel Wright', 24, 57000], ['Aisha Khan', 21, 45000], ['Marcus Lin', 17, 34000]] };
+    : { agencies: [['Foxglove Residential', 214, 246240], ['Marylebone & Co', 152, 168000], ['Northbank Lettings', 108, 98000], ['Hartwell Residential', 96, 72000]], branches: [['South Kensington', 78, 169000, 'Foxglove Residential'], ['Marylebone', 72, 147000, 'Marylebone & Co'], ['Shoreditch', 63, 101000, 'Northbank Lettings'], ['Chelsea', 61, 153000, 'Foxglove Residential'], ['Clapham', 58, 82000, 'Hartwell Residential'], ['Fitzrovia', 54, 110000, 'Marylebone & Co']], referrers: [['Priya Nair', 38, 88000], ['James Okafor', 33, 82000], ['Sophie Bennett', 29, 63000], ['Daniel Wright', 24, 57000], ['Aisha Khan', 21, 45000], ['Marcus Lin', 17, 34000]] };
   const entity = (rows: (string | number)[][]): EntityRow[] =>
     rows.map((r) => {
       const es = Math.max(1, Math.round((r[1] as number) * kc));
@@ -167,21 +178,97 @@ function scopeLabel(role: Role): string {
   return sc === ALL_PARTNERS ? 'All partners (combined)' : partnerName(sc);
 }
 
-/** The metadata line under the title: period, scope, partner, generated date. */
-function brandMeta(period: Period, scopeText: string, partnerLabel: string): string {
+/**
+ * Is this document going to one of OUR agencies, rather than to Opndoor staff
+ * or to a supplier?
+ *
+ * ASKED OF THE PARTY, NOT THE ROLE, because the role cannot answer it.
+ * 'management' is worn both by a supplier's staff — who are owed a partner
+ * settlement and expect every partner column in it — and by the manager of one
+ * of our own agencies, for whom the route partner is house plumbing
+ * (opndoor-agents) that must never be printed on anything they open. Same role,
+ * opposite documents; `role !== 'superadmin'` would have handed the agency the
+ * supplier's paperwork. isAgencyUser reads the party in scope, and it is the
+ * same question the nav and the route guard ask, so a document and the screen
+ * that offered it cannot disagree about who the reader is.
+ *
+ * Note this is the KIND of reader, which is why it is isAgencyUser and not
+ * viewerShape.oneAgency: an Opndoor admin filtered to a single agency still gets
+ * the admin document, with its partner columns, because that is what they are
+ * there to read. How MUCH of a document to draw is viewerShape's question, and
+ * is asked separately below.
+ */
+function agencyFacing(role: Role): boolean {
+  return isAgencyUser(role, scopeFor(role));
+}
+
+/**
+ * What an agency-facing document calls the slice it covers, in place of "Whole
+ * estate".
+ *
+ * "Whole estate" is Opndoor's phrase for its book of agencies. To the agency
+ * inside it the words claim a reach they do not have, and "estate" is one of the
+ * two words that must never reach a customer's screen. Their own name is the
+ * honest label, and it is taken from the same scoped book every figure below is
+ * summed from, so the header cannot name an agency the rows do not contain.
+ */
+function agencyScopeLabel(role: Role, scope: PartnerScope = scopeFor(role)): string {
+  const names = new Set(scopeFull(allFull(), role, scope).map((a) => a.agency).filter(Boolean));
+  if (names.size === 1) return [...names][0];
+  // More than one: a group holding several of our agencies. None at all: a book
+  // with nothing in it yet, where the singular is the honest reading (see the
+  // empty-book note in viewerShape).
+  return names.size > 1 ? 'Your agencies' : 'Your agency';
+}
+
+/**
+ * The expiry date to PRINT for an application.
+ *
+ * A GUARANTEE expires; an application does not. Several call sites read
+ * `expiry ?? guaranteeExpiry(tenancyStart)`, which believed a tenancy start was
+ * enough to know when cover ends. It is not. An application that is Sent, or
+ * Paid and still waiting on its deed, has no cover at all, and printing
+ * 31/05/2027 against it states an end date for a guarantee that was never
+ * issued — a date an operator will chase and a landlord may rely on.
+ *
+ * So: blank until the deed exists. After it does, the stored expiry, and only
+ * then the tenancy-start computation, which stays as the fallback for a deed
+ * whose expiry was never written back.
+ */
+function expiryOf(a: Pick<FullApp, 'status' | 'deedAt' | 'expiry' | 'tenancyStart'>): Date | null {
+  const issued = a.status === 'deed' || a.deedAt != null;
+  if (!issued) return null;
+  return a.expiry ?? (a.tenancyStart ? guaranteeExpiry(a.tenancyStart) : null);
+}
+
+/** The metadata line under the title: period, scope, partner, generated date.
+    A null partnerLabel omits the partner segment entirely rather than printing
+    an empty one: on an agency-facing document there is no partner to name. */
+function brandMeta(period: Period, scopeText: string, partnerLabel: string | null): string {
   const rng = periodRange(period);
-  return `${period.label} (${dmy(rng[0])} to ${dmy(rng[1])}) · ${scopeText} · Partner: ${partnerLabel} · Generated ${generatedOn()} · GBP`;
+  const partnerBit = partnerLabel ? `Partner: ${partnerLabel} · ` : '';
+  return `${period.label} (${dmy(rng[0])} to ${dmy(rng[1])}) · ${scopeText} · ${partnerBit}Generated ${generatedOn()} · GBP`;
 }
 function fileStamp(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+/* WHY A BRANCH ROW CAN SHOW NOTHING. Lifted from the League branch board, which
+   states the same rule on screen, so the export and the board explain themselves
+   the same way. Carried wherever a branch table shows commission. */
+const BRANCH_COMMISSION_NOTE = 'A branch earns commission only where it holds a rate of its own. Where it does not, the commission on its referrals is earned by the agency, so the branch row shows nothing.';
+/* The referrer figure is not a payment to anybody, which the column heading
+   ("Attributed ...") says and this sentence explains. */
+const REFERRER_COMMISSION_NOTE = 'Referrer commission columns are attribution (commission generated by each referrer’s referrals), not a payment to the referrer.';
 
 // Branch/agency/referrer breakdown table columns (Sent to Deed is a fraction for the pct format).
 const BREAKDOWN_COLS = (first: string, showParent: boolean): Column[] => [
   { header: first, type: 'text' },
   ...(showParent ? [{ header: 'Parent agency', type: 'text' } as Column] : []),
   { header: 'Referrals', type: 'int' },
-  { header: 'Fees collected', type: 'money' },
+  // Pence, like every other money column in this file: a table of fees that
+  // rounds to the pound cannot be reconciled against the settlement it feeds.
+  { header: 'Fees collected', type: 'money2' },
   { header: 'Sent', type: 'int' },
   { header: 'Paid', type: 'int' },
   { header: 'Deed issued', type: 'int' },
@@ -195,12 +282,22 @@ function breakdownRows(list: EntityRow[], showParent: boolean): TableRow[] {
   );
 }
 
-/** Live performance export: every figure summed from the hydrated application set. */
-function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
+/** Live performance export: every figure summed from the hydrated application set.
+    Exported so the agency-facing rules can be tested without Supabase:
+    buildPerformanceDoc below picks between this and the parametric model on
+    liveAvailable(), which a unit test cannot satisfy, and this is the path that
+    actually ships. */
+export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
   const scope = scopeFor(role);
   // #109: referrer-tier exports must strip ALL partner/agent commission lines and
   // columns. Management/opndoor-admin exports keep them.
   const showComm = maySeeCommission(role);
+  // Two different questions, deliberately separate. `agency` is WHO is reading
+  // (see agencyFacing): it removes the partner, which is ours and not theirs.
+  // `shape` is HOW MUCH they have: it removes a breakdown that ranks a
+  // population of one against a header that already names it.
+  const agency = agencyFacing(role);
+  const shape = viewerShape(role, scope);
   const a = liveAggregate(role, scope, period);
   const vol = liveVolume(role, scope, period);
   // Header percentages are the EFFECTIVE rate implied by the actual snapshotted
@@ -214,19 +311,24 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
   // header that said "of one month rent" now says what was actually charged, or
   // "the guarantee fee" when the period is mixed or empty.
   const basisWord = a.feeBasis.phrase || 'the guarantee fee';
-  // Live breakdown columns carry net commission per row (partner + agent), so the
-  // agency/branch/referrer tables reconcile to the summary commission totals.
-  const LIVE_BREAKDOWN_COLS = (first: string, showParent: boolean, comm: [string, string]): Column[] => [
+  /* Live breakdown columns carry net commission per row, so the agency/branch/
+     referrer tables reconcile to the summary commission totals.
+
+     THE COMMISSION HEADERS ARE A LIST, NOT A PAIR. They were a fixed [partner,
+     agent] tuple, which made "no partner column" unexpressible: the best an
+     agency-facing export could do was print the heading and a column of zeroes,
+     which is the partner asserting itself on their document anyway. A list of
+     one is the agency's own commission and nothing else. */
+  const LIVE_BREAKDOWN_COLS = (first: string, showParent: boolean, comm: string[]): Column[] => [
     { header: first, type: 'text' },
     ...(showParent ? [{ header: 'Parent agency', type: 'text' } as Column] : []),
     { header: 'Referrals', type: 'int' },
-    { header: 'Fees collected', type: 'money' },
+    { header: 'Fees collected', type: 'money2' },
     { header: 'Sent', type: 'int' },
     { header: 'Paid', type: 'int' },
     { header: 'Deed issued', type: 'int' },
     { header: 'Sent to Deed', type: 'pct' },
-    { header: comm[0], type: 'money' },
-    { header: comm[1], type: 'money' },
+    ...comm.map((header): Column => ({ header, type: 'money2' })),
   ];
   const brk = (rows: LeagueRow[], showParent: boolean): TableRow[] =>
     rows.map((e) => {
@@ -235,11 +337,13 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
       const base = showParent
         ? [e.name, e.sub, e.refs, e.fees, e.refs, e.paid, e.deed, e.conv]
         : [e.name, e.refs, e.fees, e.refs, e.paid, e.deed, e.conv];
-      // #109: referrer breakdown rows carry NO commission columns.
-      return (showComm ? [...base, e.partnerComm, e.agentComm] : base) as TableRow;
+      // #109: referrer breakdown rows carry NO commission columns. An agency
+      // carries one: their own. Everyone else keeps both, in the old order.
+      if (!showComm) return base as TableRow;
+      return (agency ? [...base, e.agentComm] : [...base, e.partnerComm, e.agentComm]) as TableRow;
     });
   // #109: breakdown columns — commission columns for non-referrers only.
-  const brkCols = (first: string, showParent: boolean, comm: [string, string]): Column[] =>
+  const brkCols = (first: string, showParent: boolean, comm: string[]): Column[] =>
     showComm ? LIVE_BREAKDOWN_COLS(first, showParent, comm) : BREAKDOWN_COLS(first, showParent);
 
   const blocks: BrandedDoc['blocks'] = [
@@ -252,29 +356,39 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
         { label: 'Deeds issued', value: a.deed, type: 'int' },
         { label: 'Referrals paid (tenancies)', value: a.paidTenancies, type: 'int' },
         { label: 'Conversion: Sent to Paid', value: a.sent ? a.paid / a.sent : 0, type: 'pct' },
-        /* TENANCY-GRAIN DENOMINATORS. One deed covers a whole tenancy, so only
-           the lead ever reaches Deed Issued; dividing deeds by APPLICANTS paid
-           reported a three-person let as 33% converted. */
-        { label: 'Conversion: Paid to Deed', value: a.paidTenancies ? a.deed / a.paidTenancies : 0, type: 'pct' },
-        { label: 'Conversion: Sent to Deed', value: a.sentTenancies ? a.deed / a.sentTenancies : 0, type: 'pct' },
-        { label: 'Total guaranteed rent value', value: a.guaranteed, type: 'money' },
-        { label: 'Guarantor fees collected (gross)', value: a.feesGross, type: 'money' },
-        ...(showComm ? [
+        /* APPLICANT GRAIN ON BOTH SIDES. These briefly used tenancy
+           denominators, which was right while one deed covered a whole let and
+           only the lead reached Deed Issued. Each tenant now signs their own
+           deed, so `deed` counts applicants and a tenancy denominator would
+           report a three-person let as 300% converted. */
+        { label: 'Conversion: Paid to Deed', value: a.paid ? a.deed / a.paid : 0, type: 'pct' },
+        { label: 'Conversion: Sent to Deed', value: a.sent ? a.deed / a.sent : 0, type: 'pct' },
+        { label: 'Total guaranteed rent value', value: a.guaranteed, type: 'money2' },
+        { label: 'Guarantor fees collected (gross)', value: a.feesGross, type: 'money2' },
+        ...(showComm ? (agency ? [
+          /* ONE LINE, NO BLENDED RATE. An agency is owed commission on terms they
+             signed, per application; a single percentage across a period of
+             mixed rates is a number that appears in no agreement and matches no
+             line below it, and the moment a group rate or a branch rate sits in
+             the same period it stops being any party's rate at all. The amount
+             is the sum of what the frozen lines actually paid. */
+          { label: 'Commission (agreed terms)', value: a.agentCommNet, type: 'money2' as const },
+        ] : [
           /* "of one month rent" was true until deal-shape pricing and is now
              false of every negotiated party. The basis is stated as it actually
              was over the period's fees, and the partner line is dropped entirely
              on the agent rail, where the figure is a structural zero. */
           ...(a.noPartnerCut ? [] : [
-            { label: `Partner commission (${pPct}% of ${basisWord}, net of refunds)`, value: a.partnerCommNet, type: 'money' as const },
+            { label: `Partner commission (${pPct}% of ${basisWord}, net of refunds)`, value: a.partnerCommNet, type: 'money2' as const },
           ]),
-          { label: `Agent commission (${aPct}% of ${basisWord}, net of refunds)`, value: a.agentCommNet, type: 'money' as const },
-        ] : []),
+          { label: `Agent commission (${aPct}% of ${basisWord}, net of refunds)`, value: a.agentCommNet, type: 'money2' as const },
+        ]) : []),
         // Per TENANCY, not per applicant: every sibling row carries the whole
         // let's rent, so averaging over applicants inflated it by the tenant count.
-        { label: 'Average monthly rent (per tenancy)', value: a.avgRent, type: 'money' },
-        { label: 'Average guarantor fee (per applicant)', value: a.paid ? a.feesGross / a.paid : 0, type: 'money' },
+        { label: 'Average monthly rent (per tenancy)', value: a.avgRent, type: 'money2' },
+        { label: 'Average guarantor fee (per applicant)', value: a.paid ? a.feesGross / a.paid : 0, type: 'money2' },
         { label: 'Total deeds issued', value: a.deed, type: 'int' },
-        { label: 'Total value of deeds issued', value: a.guaranteed, type: 'money' },
+        { label: 'Total value of deeds issued', value: a.guaranteed, type: 'money2' },
       ],
     },
     { kind: 'blank' },
@@ -282,16 +396,22 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
     {
       kind: 'keyvalue',
       items: [
-        { label: 'Guarantor fees collected (gross)', value: a.feesGross, type: 'money' },
-        { label: `Refunds (${a.refundCount})`, value: a.refundValue, type: 'money' },
-        { label: 'Net fees after refunds', value: a.feesNet, type: 'money' },
-        ...(showComm ? [
+        { label: 'Guarantor fees collected (gross)', value: a.feesGross, type: 'money2' },
+        { label: `Refunds (${a.refundCount})`, value: a.refundValue, type: 'money2' },
+        { label: 'Net fees after refunds', value: a.feesNet, type: 'money2' },
+        ...(showComm ? (agency ? [
+          { label: 'Commission (agreed terms), net of refunds', value: a.agentCommNet, type: 'money2' as const },
+          // Their own excluded commission only. partnerCommExcl is a structural
+          // zero on the agent rail, and adding zero to their figure under a
+          // label naming somebody else would be the partner turning up again.
+          { label: 'Commission excluded on refunded fees', value: a.agentCommExcl, type: 'money2' as const },
+        ] : [
           ...(a.noPartnerCut ? [] : [
-            { label: `Partner commission (${pPct}%, net of refunds)`, value: a.partnerCommNet, type: 'money' as const },
+            { label: `Partner commission (${pPct}%, net of refunds)`, value: a.partnerCommNet, type: 'money2' as const },
           ]),
-          { label: `Agent commission (${aPct}%, net of refunds)`, value: a.agentCommNet, type: 'money' as const },
-          { label: a.noPartnerCut ? 'Commission excluded on refunded fees' : 'Commission excluded on refunded fees (partner + agent)', value: a.partnerCommExcl + a.agentCommExcl, type: 'money' as const },
-        ] : []),
+          { label: `Agent commission (${aPct}%, net of refunds)`, value: a.agentCommNet, type: 'money2' as const },
+          { label: a.noPartnerCut ? 'Commission excluded on refunded fees' : 'Commission excluded on refunded fees (partner + agent)', value: a.partnerCommExcl + a.agentCommExcl, type: 'money2' as const },
+        ]) : []),
       ],
     },
     { kind: 'blank' },
@@ -309,9 +429,14 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
     },
     { kind: 'blank' },
   ];
-  // Per-partner commission for the period (partner + agent, gross and net). The
-  // net columns sum to the summary's partner/agent commission totals.
-  if (maySeeCommission(role)) {
+  /* Per-partner commission for the period (partner + agent, gross and net). The
+     net columns sum to the summary's partner/agent commission totals.
+
+     NOT ON AN AGENCY'S COPY. A table of what each partner earned is Opndoor's
+     internal split; for an agency it is one row naming house plumbing against
+     their own money. The whole section goes, rather than being reduced to a
+     single anonymous row. */
+  if (maySeeCommission(role) && !agency) {
     const pb = livePartnerBreakdown(role, scope, period);
     blocks.push(
       { kind: 'section', title: 'Commission by partner (this period)' },
@@ -320,7 +445,7 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
         columns: [
           { header: 'Partner', type: 'text' },
           { header: 'Paid', type: 'int' },
-          { header: 'Fees collected (gross)', type: 'money' },
+          { header: 'Fees collected (gross)', type: 'money2' },
           { header: 'Partner commission (gross)', type: 'money2' },
           { header: 'Partner commission (net)', type: 'money2' },
           { header: 'Agent commission (gross)', type: 'money2' },
@@ -331,18 +456,40 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
       { kind: 'blank' },
     );
   }
-  const NET_COMM: [string, string] = ['Partner commission (net)', 'Agent commission (net)'];
-  const ATTR_COMM: [string, string] = ['Attributed partner commission (net)', 'Attributed agent commission (net)'];
-  if (maySeeCommission(role)) {
+  /* The commission headings, per reader. An agency has exactly one commission,
+     so it needs no adjective saying whose; everyone else keeps the pair. */
+  const NET_COMM: string[] = agency ? ['Commission (net)'] : ['Partner commission (net)', 'Agent commission (net)'];
+  const ATTR_COMM: string[] = agency ? ['Attributed commission (net)'] : ['Attributed partner commission (net)', 'Attributed agent commission (net)'];
+  /* BREAKDOWNS APPEAR WHERE THERE IS SOMETHING TO BREAK DOWN. Over a single
+     agency, "Breakdown by agency" is one row repeating the header above it, and
+     over a single branch the branch table is that same row a third time. The
+     count is viewerShape's, taken over the whole book rather than the period, so
+     a quiet month never makes a table come and go. Only agency-facing documents
+     collapse: an Opndoor admin narrowed to one agency is reading the estate's
+     document and expects its shape. */
+  if (maySeeCommission(role) && !(agency && shape.oneAgency)) {
     blocks.push({ kind: 'section', title: 'Breakdown by agency' }, { kind: 'table', columns: LIVE_BREAKDOWN_COLS('Agency', false, NET_COMM), rows: brk(vol.agencies, false) }, { kind: 'blank' });
   }
-  blocks.push({ kind: 'section', title: 'Breakdown by branch' }, { kind: 'table', columns: brkCols('Branch', true, NET_COMM), rows: brk(vol.branches, true) }, { kind: 'blank' });
+  if (!(agency && shape.oneBranch)) {
+    blocks.push(
+      { kind: 'section', title: 'Breakdown by branch' },
+      /* A BRANCH IS ATTRIBUTED, NOT PAID, unless it holds a rate of its own:
+         under the additive split the payee is usually the agency above it, and
+         the figure here is already the branch's OWN lines (liveVolume uses
+         orgRate at branch level), which is why a branch with no rate shows
+         nothing. Same treatment as the referrer table below, for the same
+         reason: a number in a breakdown row is not a payee's statement. */
+      { kind: 'table', columns: brkCols('Branch', true, agency ? ATTR_COMM : NET_COMM), rows: brk(vol.branches, true) },
+      ...(maySeeCommission(role) && agency ? [{ kind: 'keyvalue' as const, items: [{ label: 'Note', value: BRANCH_COMMISSION_NOTE }] }] : []),
+      { kind: 'blank' },
+    );
+  }
   blocks.push(
     { kind: 'section', title: role === 'referrer' ? 'Breakdown by month' : 'Breakdown by referrer' },
     // The referrer figures are commission ATTRIBUTED to the referrals they generated
     // (partner + agent share), for insight — not a payment owed to the referrer.
     { kind: 'table', columns: brkCols(role === 'referrer' ? 'Month' : 'Referrer', false, role === 'referrer' ? NET_COMM : ATTR_COMM), rows: brk(vol.referrers, false) },
-    ...(maySeeCommission(role) ? [{ kind: 'keyvalue' as const, items: [{ label: 'Note', value: 'Referrer commission columns are attribution (commission generated by each referrer’s referrals), not a payment to the referrer.' }] }] : []),
+    ...(maySeeCommission(role) ? [{ kind: 'keyvalue' as const, items: [{ label: 'Note', value: REFERRER_COMMISSION_NOTE }] }] : []),
     { kind: 'blank' },
   );
   blocks.push(
@@ -352,15 +499,18 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
       columns: [
         { header: 'Month', type: 'text' },
         { header: 'Referrals', type: 'int' },
-        { header: 'Fees collected (gross)', type: 'money' },
+        { header: 'Fees collected (gross)', type: 'money2' },
         { header: 'Deeds issued', type: 'int' },
       ],
       rows: liveMonths(role, scope).map((mo) => [mo.label, mo.refs, mo.fees, mo.deeds]),
     },
   );
 
-  // Commission settlement: prior calendar month, payable on the 15th, net of refunds.
-  if (maySeeCommission(role)) {
+  /* Commission settlement: prior calendar month, payable on the 15th, net of
+     refunds. The PARTNER settlement is Opndoor's own paperwork: what we owe a
+     supplier. An agency is not a party to it and never sees it; their money is
+     the agent settlement immediately below. */
+  if (maySeeCommission(role) && !agency) {
     const st = getCommissionSettlement(role, scope);
     const settleDay = `${st.settlementDate.getDate()}/${pad(st.settlementDate.getMonth() + 1)}/${st.settlementDate.getFullYear()}`;
     blocks.push({ kind: 'blank' }, { kind: 'section', title: `Commission settlement (${st.monthLabel}, payable ${settleDay})` });
@@ -387,24 +537,29 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
         rows: st.partners.flatMap((p) => p.apps.map((ap) => [p.partnerName, ap.ref, ap.branch, ap.agency, dmy(ap.paidAt), ap.fee, ap.commission] as TableRow)),
       });
     }
+  }
 
-    // Agent commission settlement: mirrors the partner one, aggregated at agency
-    // level (payable to the letting agency), prior calendar month, net of refunds.
+  /* Agent commission settlement: the same money from the payee's side,
+     aggregated per payee (agency, group or branch), prior calendar month, net of
+     refunds. THIS one an agency does see: it is what we owe them. On their copy
+     the word "Agent" comes off every label, because on a document addressed to
+     the agency there is only one commission and it is theirs. */
+  if (maySeeCommission(role)) {
     const ag = getAgentCommissionSettlement(role, scope);
     const agDay = `${ag.settlementDate.getDate()}/${pad(ag.settlementDate.getMonth() + 1)}/${ag.settlementDate.getFullYear()}`;
-    blocks.push({ kind: 'blank' }, { kind: 'section', title: `Agent commission settlement (${ag.monthLabel}, payable ${agDay})` });
+    blocks.push({ kind: 'blank' }, { kind: 'section', title: `${agency ? 'Commission settlement' : 'Agent commission settlement'} (${ag.monthLabel}, payable ${agDay})` });
     /* PAYEES, not the agencies rollup. `agencies` is agency-level lines only;
        under an additive split a group or a branch is a payee too, and their
        money was simply missing from this table while the dashboard showed it.
        The sum of `payees` IS ag.total; the sum of `agencies` is not. */
     if (!ag.payees.length) {
-      blocks.push({ kind: 'keyvalue', items: [{ label: 'Payable', value: 'No agent commission accrued in the prior calendar month.' }] });
+      blocks.push({ kind: 'keyvalue', items: [{ label: 'Payable', value: `No ${agency ? '' : 'agent '}commission accrued in the prior calendar month.` }] });
     } else {
       blocks.push({
         kind: 'keyvalue',
         items: [
-          ...ag.payees.map((a) => ({ label: `Agent commission payable to ${a.agency} (${a.level})`, value: a.commission, type: 'money2' as const })),
-          { label: 'Total agent commission payable', value: ag.total, type: 'money2' as const },
+          ...ag.payees.map((a) => ({ label: `${agency ? 'Commission' : 'Agent commission'} payable to ${a.agency} (${a.level})`, value: a.commission, type: 'money2' as const })),
+          { label: `Total ${agency ? '' : 'agent '}commission payable`, value: ag.total, type: 'money2' as const },
         ],
       });
       blocks.push({
@@ -416,7 +571,7 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
           { header: 'Branch', type: 'text' },
           { header: 'Paid date', type: 'text' },
           { header: 'Guarantor fee', type: 'money2' },
-          { header: 'Agent commission', type: 'money2' },
+          { header: agency ? 'Commission' : 'Agent commission', type: 'money2' },
         ],
         rows: ag.payees.flatMap((a) => a.apps.map((ap) => [a.agency, a.level, ap.ref, ap.branch, dmy(ap.paidAt), ap.fee, ap.commission] as TableRow)),
       });
@@ -424,7 +579,9 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
   }
 
   const [ds, de] = realPeriodRange(period);
-  const metaLine = `${period.label} (${dmy(ds)} to ${dmy(de)}) · ${role === 'referrer' ? 'Your referrals only' : 'Whole estate'} · Partner: ${scopeLabel(role)} · Generated ${generatedOn()} · GBP · Live records`;
+  // Their own name where the estate used to be, and no partner segment at all.
+  const scopeText = role === 'referrer' ? 'Your referrals only' : agency ? agencyScopeLabel(role) : 'Whole estate';
+  const metaLine = `${period.label} (${dmy(ds)} to ${dmy(de)}) · ${scopeText} · ${agency ? '' : `Partner: ${scopeLabel(role)} · `}Generated ${generatedOn()} · GBP · Live records`;
   const doc: BrandedDoc = { reportName: 'Performance export', metaLine, blocks };
   return { sheets: [{ name: 'Performance', doc }], filename: `opndoor-performance-${period.id}-${fileStamp()}.xlsx` };
 }
@@ -435,6 +592,11 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
   const m = exportModel(role, period);
   const xrates = getRatesFor(scopeFor(role));
   const showComm = maySeeCommission(role); // #109: referrer exports carry no commission
+  // Same two questions as the live builder, and the same answers: the demo
+  // document an agency downloads must obey the rules the real one obeys, or the
+  // demo teaches them to expect a document we do not send.
+  const agency = agencyFacing(role);
+  const shape = viewerShape(role, scopeFor(role));
   const sB = bands(m.stuckSent, [0.55, 0.3]);
   const pB = bands(m.stuckPaid, [0.5, 0.33]);
 
@@ -449,16 +611,19 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
         { label: 'Conversion: Sent to Paid', value: m.sent ? m.paid / m.sent : 0, type: 'pct' },
         { label: 'Conversion: Paid to Deed', value: m.paid ? m.deed / m.paid : 0, type: 'pct' },
         { label: 'Conversion: Sent to Deed', value: m.sent ? m.deed / m.sent : 0, type: 'pct' },
-        { label: 'Total guaranteed rent value', value: m.deed * ANNUAL, type: 'money' },
-        { label: 'Guarantor fees collected', value: m.fees, type: 'money' },
-        ...(showComm ? [
-          { label: 'Partner commission (share of one month rent)', value: m.fees * xrates.partner, type: 'money' as const },
-          { label: 'Agent commission (share of one month rent)', value: m.fees * xrates.agent, type: 'money' as const },
-        ] : []),
-        { label: 'Average monthly rent', value: AVG_RENT, type: 'money' },
-        { label: 'Average guarantor fee', value: m.paid ? m.fees / m.paid : 0, type: 'money' },
+        { label: 'Total guaranteed rent value', value: m.deed * ANNUAL, type: 'money2' },
+        { label: 'Guarantor fees collected', value: m.fees, type: 'money2' },
+        ...(showComm ? (agency ? [
+          // One line, their own, and no rate in the label: see the live builder.
+          { label: 'Commission (agreed terms)', value: m.fees * xrates.agent, type: 'money2' as const },
+        ] : [
+          { label: 'Partner commission (share of one month rent)', value: m.fees * xrates.partner, type: 'money2' as const },
+          { label: 'Agent commission (share of one month rent)', value: m.fees * xrates.agent, type: 'money2' as const },
+        ]) : []),
+        { label: 'Average monthly rent', value: AVG_RENT, type: 'money2' },
+        { label: 'Average guarantor fee', value: m.paid ? m.fees / m.paid : 0, type: 'money2' },
         { label: 'Total deeds issued', value: m.deed, type: 'int' },
-        { label: 'Total value of deeds issued', value: m.deed * ANNUAL, type: 'money' },
+        { label: 'Total value of deeds issued', value: m.deed * ANNUAL, type: 'money2' },
       ],
     },
     { kind: 'blank' },
@@ -483,10 +648,14 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
   // (Live payment/refund figures are produced by buildLivePerformanceDoc; this
   // synthetic path is only reached in mock/test mode.)
 
-  if (maySeeCommission(role)) {
+  // The breakdown-collapse rule, as in the live builder: only where the viewer
+  // has more than one of the thing, and only on their own document.
+  if (maySeeCommission(role) && !(agency && shape.oneAgency)) {
     blocks.push({ kind: 'section', title: 'Breakdown by agency' }, { kind: 'table', columns: BREAKDOWN_COLS('Agency', false), rows: breakdownRows(m.agencies, false) }, { kind: 'blank' });
   }
-  blocks.push({ kind: 'section', title: 'Breakdown by branch' }, { kind: 'table', columns: BREAKDOWN_COLS('Branch', true), rows: breakdownRows(m.branches, true) }, { kind: 'blank' });
+  if (!(agency && shape.oneBranch)) {
+    blocks.push({ kind: 'section', title: 'Breakdown by branch' }, { kind: 'table', columns: BREAKDOWN_COLS('Branch', true), rows: breakdownRows(m.branches, true) }, { kind: 'blank' });
+  }
   blocks.push(
     { kind: 'section', title: role === 'referrer' ? 'Breakdown by month' : 'Breakdown by referrer' },
     { kind: 'table', columns: BREAKDOWN_COLS(role === 'referrer' ? 'Month' : 'Referrer', false), rows: breakdownRows(m.referrers, false) },
@@ -499,7 +668,7 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
       columns: [
         { header: 'Month', type: 'text' },
         { header: 'Referrals', type: 'int' },
-        { header: 'Fees collected', type: 'money' },
+        { header: 'Fees collected', type: 'money2' },
         { header: 'Deeds issued', type: 'int' },
       ],
       rows: TREND_MONTHS.map((t) => {
@@ -511,7 +680,11 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
 
   const doc: BrandedDoc = {
     reportName: 'Performance export',
-    metaLine: brandMeta(period, role === 'referrer' ? 'Your referrals only' : 'Whole estate', scopeLabel(role)),
+    metaLine: brandMeta(
+      period,
+      role === 'referrer' ? 'Your referrals only' : agency ? agencyScopeLabel(role) : 'Whole estate',
+      agency ? null : scopeLabel(role),
+    ),
     blocks,
   };
   return { sheets: [{ name: 'Performance', doc }], filename: `opndoor-performance-${period.id}-${fileStamp()}.xlsx` };
@@ -648,9 +821,13 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
   // withdrawn) and a withdrawn row is never rendered as "Awaiting payment".
   const apps = scopeFull(allFull(), role, scopeFor(role)).filter((a) => !a.withdrawn && !a.expired && basisInPeriod(a, basis, start, end));
   const STATUS: Record<FullApp['status'], string> = { draft: 'In progress', referencing: 'Awaiting decision', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
+  // Who is reading. On an agency's copy the Partner column and the Partner
+  // commission column do not exist: the first names house plumbing on every row,
+  // the second is a structural zero on every row (see agentRailApp).
+  const agency = agencyFacing(role);
 
   const columns: Column[] = [
-    { header: 'Partner', type: 'text' },
+    ...(agency ? [] : [{ header: 'Partner', type: 'text' } as Column]),
     { header: 'Guarantee reference', type: 'text' },
     { header: 'Agency', type: 'text' },
     { header: 'Branch', type: 'text' },
@@ -661,6 +838,11 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     { header: 'Paid date', type: 'text' },
     { header: 'Deed issued date', type: 'text' },
     { header: 'Refund date', type: 'text' },
+    /* Text, not a money column, so an application that was never refunded can
+       stay BLANK: a numeric cell would render the empty string as £0.00 and
+       claim a refund of nothing was issued. The amount itself now carries pence
+       (gbp2), because a £1,384.61 refund shown as £1,385 cannot be reconciled
+       against the payment it reverses. */
     { header: 'Refund amount', type: 'text' },
     /* THE TENANCY BLOCK. One row per APPLICATION, as before — a joint tenancy is
        N applicants who each pay and each get a row — but with the four columns
@@ -675,16 +857,16 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     { header: 'Share of tenancy', type: 'text' },
     // Named for what it is: on a joint tenancy every sibling row carries the
     // WHOLE let's rent, so a reader summing this column doubles the book.
-    { header: 'Monthly rent (whole tenancy)', type: 'money' },
-    { header: 'Share of rent', type: 'money' },
+    { header: 'Monthly rent (whole tenancy)', type: 'money2' },
+    { header: 'Share of rent', type: 'money2' },
     // WAS `a.rent`. The fee has not been one month's rent since deal-shape
     // pricing: Regent's single tenant is charged three weeks. This column
     // claimed £2,400 where £1,661.54 was taken.
-    { header: 'Guarantor fee charged', type: 'money' },
+    { header: 'Guarantor fee charged', type: 'money2' },
     { header: 'Fee basis (weeks of rent)', type: 'text' },
-    { header: 'Tenancy total fee', type: 'money' },
-    { header: 'Partner commission', type: 'money' },
-    { header: 'Agent commission', type: 'money' },
+    { header: 'Tenancy total fee', type: 'money2' },
+    ...(agency ? [] : [{ header: 'Partner commission', type: 'money2' } as Column]),
+    { header: agency ? 'Commission' : 'Agent commission', type: 'money2' },
     { header: 'Commission rate', type: 'pct' },
     { header: 'Commission payees', type: 'text' },
     { header: 'Tenancy start date', type: 'text' },
@@ -730,14 +912,21 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     // total — but the lines are the authority and can name their payees.
     const agentComm = earned ? feeBaseFor(a) * totalRate(a) : 0;
     const payees = linesFor(a).map((l) => `${l.orgName} ${Math.round(l.rate * 10000) / 100}%`).join(' + ');
+    const exp = expiryOf(a);
     const row: TableRow = [
-      partnerName(a.partner), a.ref, a.agency, a.branch, a.referrer, STATUS[a.status], payState,
+      ...(agency ? [] : [partnerName(a.partner)]),
+      a.ref, a.agency, a.branch, a.referrer, STATUS[a.status], payState,
       a.sentAt ? dmy(a.sentAt) : '', a.paidAt ? dmy(a.paidAt) : '', a.deedAt ? dmy(a.deedAt) : '',
-      a.refundedAt ? dmy(a.refundedAt) : '', a.refundedAmount != null ? gbp(a.refundedAmount) : '',
+      a.refundedAt ? dmy(a.refundedAt) : '', a.refundedAmount != null ? gbp2(a.refundedAmount) : '',
       a.tenancyId ?? '',
       a.tenancyId && a.tenancyPosition ? `${a.tenancyPosition} of ${tenancySize.get(a.tenancyId) ?? a.tenancyPosition}` : '',
-      // Position 1 leads: it carries the one deed for the whole tenancy, which is
-      // why only it ever reaches Deed Issued while its siblings stay at Paid.
+      /* Position 1 is the LEAD, which is a fact about the tenancy: whose name the
+         let is in, who to call first. It used to be a fact about the paperwork
+         too, because one deed covered the whole let and only the lead ever
+         reached Deed Issued. That is no longer true. Each tenant now signs their
+         own deed over their own share once THEY have paid, so a "No" here says
+         nothing at all about whether that tenant's deed exists: read Status and
+         Deed issued date for that, per row. */
       a.tenancyId ? (a.tenancyPosition === 1 ? 'Yes' : 'No') : '',
       a.sharePercent == null ? '' : `${a.sharePercent}%`,
       a.rent,
@@ -745,15 +934,21 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
       feeBaseFor(a),
       a.feeBasisWeeks == null ? '' : String(Number(Number(a.feeBasisWeeks).toFixed(2))),
       a.tenancyId ? (tenancyFee.get(a.tenancyId) ?? feeBaseFor(a)) : feeBaseFor(a),
-      partnerComm, agentComm, totalRate(a), payees,
-      a.tenancyStart ? dmy(a.tenancyStart) : '', a.expiry ? dmy(a.expiry) : '',
+      ...(agency ? [] : [partnerComm]),
+      agentComm, totalRate(a), payees,
+      // WAS `a.expiry`, which is right by accident and wrong by intent: it is
+      // blank on an unissued row only while nothing has written a date to it.
+      // expiryOf says the rule out loud, and says it the same way here, on the
+      // bordereau and on the expiries file.
+      a.tenancyStart ? dmy(a.tenancyStart) : '', exp ? dmy(exp) : '',
       a.refundAfterStart ? 'Yes - refunded after tenancy start' : '',
     ];
     if (basis === 'activity') row.push(ev.join(', '));
     return row;
   });
 
-  const metaLine = `${period.label} (${dmy(start)} to ${dmy(end)}) · Whole estate (${meta.label}) · Partner: ${scopeLabel(role)} · Generated ${generatedOn()} · GBP`;
+  const scopeText = agency ? agencyScopeLabel(role) : 'Whole estate';
+  const metaLine = `${period.label} (${dmy(start)} to ${dmy(end)}) · ${scopeText} (${meta.label}) · ${agency ? '' : `Partner: ${scopeLabel(role)} · `}Generated ${generatedOn()} · GBP`;
   const doc: BrandedDoc = {
     reportName: 'Application export',
     metaLine,
@@ -797,9 +992,11 @@ export function buildApplicationDoc(role: Role, period: Period, basis: ExportBas
     { header: 'Sent date', type: 'text' },
     { header: 'Paid date', type: 'text' },
     { header: 'Deed issued date', type: 'text' },
-    { header: 'Monthly rent', type: 'money' },
-    { header: 'Guarantor fee', type: 'money' },
+    { header: 'Monthly rent', type: 'money2' },
+    { header: 'Guarantor fee', type: 'money2' },
     { header: 'Tenancy start date', type: 'text' },
+    // Blank unless the synthetic row has a deed, same rule as expiryOf: the
+    // generator already only dates an expiry where it dated a deed.
     { header: 'Expiry date', type: 'text' },
   ];
   if (basis === 'activity') columns.push({ header: 'Activity in period', type: 'text' });
@@ -810,9 +1007,14 @@ export function buildApplicationDoc(role: Role, period: Period, basis: ExportBas
     return row;
   });
 
+  const agency = agencyFacing(role);
   const doc: BrandedDoc = {
     reportName: 'Application export',
-    metaLine: brandMeta(period, `Whole estate (${meta.label})`, scopeLabel(role)),
+    metaLine: brandMeta(
+      period,
+      `${agency ? agencyScopeLabel(role) : 'Whole estate'} (${meta.label})`,
+      agency ? null : scopeLabel(role),
+    ),
     blocks: [
       {
         kind: 'keyvalue',
@@ -835,27 +1037,37 @@ function leaguePartnerLabel(scope: PartnerScope, partner: string): string {
   if (partner) return partnerName(partner);
   return 'All partners (combined)';
 }
-function leagueColumns(view: LeagueView): Column[] {
+/* The league workbook is not in the performance/application ruling, but it is a
+   document an agency downloads from their own League page, and the same house
+   rule applies to it: no partner column, no estate. Its commission attribution
+   is already per-org (liveVolume/groupRows use orgRate), so only the headings
+   and the meta line change. */
+function leagueColumns(view: LeagueView, agency: boolean): Column[] {
   const first: Column = { header: view === 'agency' ? 'Agency' : view === 'branch' ? 'Branch' : 'Referrer', type: 'text' };
   const core: Column[] = [
     { header: 'Referrals', type: 'int' },
-    { header: 'Fees collected', type: 'money' },
+    { header: 'Fees collected', type: 'money2' },
     { header: 'Paid', type: 'int' },
     { header: 'Deeds', type: 'int' },
     { header: 'Sent to Paid', type: 'pct' },
     { header: 'Sent to Deed', type: 'pct' },
   ];
   if (view === 'referrer') return [first, ...core];
-  return [first, { header: 'Detail', type: 'text' }, ...core, { header: 'Partner commission', type: 'money' }, { header: 'Agent commission', type: 'money' }];
+  const comm: Column[] = agency
+    // A branch board row shows the branch's OWN commission, which is nothing
+    // where it holds no rate of its own; hence the note on the sheet.
+    ? [{ header: view === 'branch' ? 'Own commission' : 'Commission', type: 'money2' }]
+    : [{ header: 'Partner commission', type: 'money2' }, { header: 'Agent commission', type: 'money2' }];
+  return [first, { header: 'Detail', type: 'text' }, ...core, ...comm];
 }
-function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean): TableRow[] {
+function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, agency: boolean): TableRow[] {
   return rows.map((r) => {
     // Keep per-row partner attribution in the export when viewing across
     // partners (the on-screen Partner tag's export twin, #52).
     const detail = showPartner && r.partner ? `${r.sub}${r.sub ? ' · ' : ''}${r.partner}` : r.sub;
-    return view === 'referrer'
-      ? [r.name, r.refs, r.fees, r.paid, r.deed, r.sp, r.conv]
-      : [r.name, detail, r.refs, r.fees, r.paid, r.deed, r.sp, r.conv, r.partnerComm, r.agentComm];
+    if (view === 'referrer') return [r.name, r.refs, r.fees, r.paid, r.deed, r.sp, r.conv];
+    const base = [r.name, detail, r.refs, r.fees, r.paid, r.deed, r.sp, r.conv];
+    return agency ? [...base, r.agentComm] : [...base, r.partnerComm, r.agentComm];
   });
 }
 
@@ -878,12 +1090,15 @@ export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string,
         { view: 'branch', name: 'Branches' },
         { view: 'referrer', name: 'Referrers' },
       ];
-  const scopeText = role === 'referrer' ? 'Your slice' : 'Whole estate';
-  const partnerLabel = leaguePartnerLabel(scope, partner);
+  // The caller passes the scope here rather than leaving it to scopeFor, so both
+  // questions are asked of the scope this workbook was actually built over.
+  const agency = isAgencyUser(role, scope);
+  const scopeText = role === 'referrer' ? 'Your slice' : agency ? agencyScopeLabel(role, scope) : 'Whole estate';
+  const partnerLabel = agency ? null : leaguePartnerLabel(scope, partner);
   let metaLine: string;
   if (liveAvailable()) {
     const [ds, de] = realPeriodRange(period);
-    metaLine = `${period.label} (${dmy(ds)} to ${dmy(de)}) · ${scopeText} · Partner: ${partnerLabel} · Generated ${generatedOn()} · GBP · Live records`;
+    metaLine = `${period.label} (${dmy(ds)} to ${dmy(de)}) · ${scopeText} · ${partnerLabel ? `Partner: ${partnerLabel} · ` : ''}Generated ${generatedOn()} · GBP · Live records`;
   } else {
     metaLine = brandMeta(period, scopeText, partnerLabel);
   }
@@ -893,7 +1108,10 @@ export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string,
     doc: {
       reportName: `League table: ${name}`,
       metaLine,
-      blocks: [{ kind: 'table', columns: leagueColumns(view), rows: leagueRows(view, getLeague(view, { role, scope, partner, period }), showPartner) }],
+      blocks: [
+        { kind: 'table', columns: leagueColumns(view, agency), rows: leagueRows(view, getLeague(view, { role, scope, partner, period }), showPartner, agency) },
+        ...(agency && view === 'branch' ? [{ kind: 'keyvalue' as const, items: [{ label: 'Note', value: BRANCH_COMMISSION_NOTE }] }] : []),
+      ],
     } as BrandedDoc,
   }));
   return { sheets, filename: `opndoor-league-${fileStamp()}.xlsx` };
@@ -972,6 +1190,12 @@ export function buildPartnerStatementDoc(role: Role, scope: PartnerScope, partne
   // A commission statement with a "Total commission payable" figure, previously
   // protected only by a RoleOnly wrapper on a Dashboard button.
   if (!maySeeCommission(role)) return emptyExport('Partner statement');
+  /* An agency is never the payee of a partner statement: their own money is the
+     agent statement. Their route partner is house plumbing, so the only thing
+     this could build for them is a document naming it, headed "Payee (partner)",
+     for a figure that is a structural zero. It refuses instead, rather than
+     trusting that the Dashboard will never list a row that opens it. */
+  if (isAgencyUser(role, scope)) return emptyExport('Partner statement');
   const st = getCommissionSettlement(role, scope);
   const ps = st.partners.find((p) => p.partner === partnerId);
   const payee = ps ? ps.partnerName : partnerName(partnerId);
@@ -1019,6 +1243,12 @@ export function buildPartnerStatementDoc(role: Role, scope: PartnerScope, partne
  */
 export function buildAgentStatementDoc(role: Role, scope: PartnerScope, partner: string, agency: string): BrandedExport {
   if (!maySeeCommission(role)) return emptyExport('Agent statement');
+  /* The Dashboard offers this statement to whoever can see the settlement, which
+     includes the agency's own manager, so it is not purely Opndoor's paperwork
+     and cannot name the route partner unconditionally. On their copy the partner
+     line goes and "Agent commission" is just "Commission", exactly as on the
+     monthly statement below, which already made this decision. */
+  const forAgency = isAgencyUser(role, scope);
   const st = getAgentCommissionSettlement(role, scope);
   // Search PAYEES, not the agency rollup: a payee may now be a group or a branch,
   // and addressing only the rollup would produce an empty statement for those.
@@ -1036,8 +1266,8 @@ export function buildAgentStatementDoc(role: Role, scope: PartnerScope, partner:
       items: [
         { label: 'Payee', value: payee },
         { label: 'Payee level', value: ag ? ag.level : 'agency' },
-        { label: 'Partner', value: partnerLabel },
-        { label: 'Commission type', value: 'Agent commission' },
+        ...(forAgency ? [] : [{ label: 'Partner', value: partnerLabel }]),
+        { label: 'Commission type', value: forAgency ? 'Commission earned' : 'Agent commission' },
         { label: 'Period (month)', value: st.monthLabel },
         { label: 'Settlement date', value: dmy(st.settlementDate) },
         { label: 'Statement reference', value: ref },
@@ -1049,7 +1279,7 @@ export function buildAgentStatementDoc(role: Role, scope: PartnerScope, partner:
     { kind: 'section', title: 'Applications (net of refunds)' },
   ];
   if (!ag || !ag.apps.length) {
-    blocks.push({ kind: 'keyvalue', items: [{ label: 'Payable', value: 'No agent commission accrued in the prior calendar month.' }] });
+    blocks.push({ kind: 'keyvalue', items: [{ label: 'Payable', value: `No ${forAgency ? '' : 'agent '}commission accrued in the prior calendar month.` }] });
   } else {
     const { rows, totalComm } = statementRows(ag.apps);
     // Reconciliation: totalComm equals ag.commission (same per-application sum the
@@ -1060,7 +1290,8 @@ export function buildAgentStatementDoc(role: Role, scope: PartnerScope, partner:
       { kind: 'keyvalue', items: [{ label: 'Total commission payable', value: totalComm, type: 'money2' }] },
     );
   }
-  const metaLine = `${st.monthLabel} settlement · Payee: ${payee} (${partnerLabel}) · Agent commission · Reference ${ref} · Generated ${generated} · GBP`;
+  const payeeBit = forAgency ? payee : `${payee} (${partnerLabel})`;
+  const metaLine = `${st.monthLabel} settlement · Payee: ${payeeBit} · ${forAgency ? 'Commission earned' : 'Agent commission'} · Reference ${ref} · Generated ${generated} · GBP`;
   const doc: BrandedDoc = { reportName: 'Commission statement', metaLine, blocks };
   return { sheets: [{ name: 'Statement', doc }], filename: `opndoor-statement-${ref}.xlsx` };
 }
@@ -1189,13 +1420,23 @@ const bxRound2 = (n: number) => Math.round(n * 100) / 100;
 export interface BordereauData { rows: (string | number)[][]; issued: number; monthLabel: string; filename: string }
 
 /** Live bordereau ROWS in the template column order. Deed-Issued, non-refunded
-    tenancies commencing in the month; DOB always populated.
+    guarantees commencing in the month; DOB always populated.
 
-    INSURANCE IS 13.5% OF ONE MONTH'S RENT, ALWAYS. It is computed off `a.rent`
-    (monthly_rent) and never off the fee. A party on a negotiated 3- or 5-week
-    basis pays a different fee and the underwriter's premium does not move: the
-    bordereau is a statement to the insurer about the tenancy, not about what we
-    charged for it. Asserted in exports-bordereau.test.ts. */
+    INSURANCE IS 13.5% OF ONE MONTH'S RENT, ALWAYS. It is computed off the RENT
+    and never off the fee. A party on a negotiated 3- or 5-week basis pays a
+    different fee and the underwriter's premium does not move: the bordereau is a
+    statement to the insurer about the risk, not about what we charged for it.
+
+    ONE ROW PER DEED, AND THE ROW IS THE TENANT'S SHARE. Each tenant of a joint
+    tenancy now signs their own deed guaranteeing their own share of the rent, so
+    each is its own risk and its own row, and the premium is 13.5% of one month of
+    THAT share. This replaces the previous rule of one row per tenancy on the
+    whole rent, which was right while one deed covered the whole let.
+
+    The two are the same money, and that is the point: the shares are apportioned
+    to the penny by create_joint_referral, so a tenancy's rows sum to exactly
+    13.5% of one month of its full rent. Asserted both ways in
+    exports-bordereau.test.ts and bordereauBasis.test.ts. */
 export function buildLiveBordereau(year: number, m0: number, insuranceRate: number): BordereauData {
   const rate = insuranceRate / 100;
   const mStart = new Date(year, m0, 1, 0, 0, 0, 0);
@@ -1207,28 +1448,32 @@ export function buildLiveBordereau(year: number, m0: number, insuranceRate: numb
   const eligible = allFull()
     .filter((a) => a.status === 'deed' && !a.refunded && a.tenancyStart && a.tenancyStart >= mStart && a.tenancyStart <= mEnd)
     .sort((x, y) => (x.tenancyStart!.getTime() - y.tenancyStart!.getTime()) || x.ref.localeCompare(y.ref));
-  /* ONE ROW PER DEED. A joint tenancy is several application rows and ONE deed,
-     so emitting a row each would bill the underwriter N times for one guarantee.
-     The first applicant of a tenancy carries it, matching is_tenancy_lead in SQL;
-     a tenancy of one has no tenancy id and is always its own lead. */
-  const seenTenancy = new Set<string>();
-  const apps = eligible.filter((a) => {
-    if (!a.tenancyId) return true;
-    if (seenTenancy.has(a.tenancyId)) return false;
-    seenTenancy.add(a.tenancyId);
-    return true;
-  });
+  /* EVERY DEED IS A ROW. The tenancy dedupe that used to live here elected one
+     applicant per tenancy and dropped the rest, because one deed covered the
+     whole let. Each tenant now holds their own deed over their own share, so
+     each is a separate risk the underwriter is carrying and a separate row.
+     Dropping a sibling would now under-report the book rather than avoid
+     double-billing it. */
+  const apps = eligible;
   const rows = apps.map((a): (string | number)[] => {
     const rec = findRecord(a.ref);
     const first = rec?.firstName ?? (rec?.name ? rec.name.split(/\s+/).slice(0, -1).join(' ') : '');
     const last = rec?.lastName ?? (rec?.name ? rec.name.split(/\s+/).slice(-1).join(' ') : '');
-    const expiry = a.expiry ?? (a.tenancyStart ? guaranteeExpiry(a.tenancyStart) : null);
+    // Deed-issued rows only reach here, so this reads the stored expiry and
+    // computes one only as a fallback. Through expiryOf all the same, so the
+    // rule has one implementation and the filter above cannot quietly widen and
+    // start dating cover that was never issued.
+    const expiry = expiryOf(a);
+    const covered = a.shareAmount ?? a.rent;
     return [
       a.ref, rec?.title ?? '', first, last, dobDmy(rec?.dob), 'Tenant',
       rec?.addr1 ?? '', rec?.addr2 ?? '', rec?.city ?? '', rec?.county ?? '', rec?.postcode ?? '',
       a.agency, // Landlord Name = the agency name
       a.deedAt ? dmy(a.deedAt) : '', a.tenancyStart ? dmy(a.tenancyStart) : '', expiry ? dmy(expiry) : '',
-      a.rent, bxRound2(a.rent * rate), 'On Cover',
+      // THE SHARE, not the tenancy's rent: this deed guarantees this tenant's
+      // part of it, and the premium follows what is guaranteed. A tenancy of one
+      // has no share and the whole rent is its own, so the cell is unchanged.
+      bxRound2(covered), bxRound2(covered * rate), 'On Cover',
     ];
   });
   return { rows, issued: rows.length, monthLabel: `${MONTH_NAMES[m0]} ${year}`, filename: `opndoor-bordereau-${year}-${pad(m0 + 1)}.xlsx` };
@@ -1298,11 +1543,12 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
   const nowD = new Date();
   const today = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate());
   const daysLeft = (d: Date) => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - today.getTime()) / 86400000);
-  /* ONE ROW PER GUARANTEE, which is one row per TENANCY: only the lead reaches
-     Deed Issued, because one deed names every tenant. That grain was already
-     right; what was missing was any sign of it. A joint let appeared as a single
-     named tenant with no hint that the deed covers two, so an operator chasing an
-     expiry called one of them and thought the job done. */
+  /* ONE ROW PER GUARANTEE. This comment used to add "which is one row per
+     TENANCY, because only the lead reaches Deed Issued": true while one deed
+     named every tenant, and no longer. Each tenant now signs their own deed over
+     their own share, so a joint let contributes a row per tenant, each with its
+     own expiry. The tenant-count column matters more than ever, not less: it is
+     what tells an operator that the name in front of them is one of two. */
   const colHeader: CsvRow = ['Guarantee reference', 'Tenant name', 'Tenants on the guarantee', 'Tenancy ID', 'Property address', 'Agency', 'Branch', 'Tenancy start', 'Expiry date', 'Days remaining', 'Monthly rent (whole tenancy)', 'Annualised rent', 'Guarantor fee (whole tenancy)', 'Referrer'];
 
   const dataRows: CsvRow[] = [];
@@ -1317,8 +1563,13 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
       tenancyCount.set(x.tenancyId, (tenancyCount.get(x.tenancyId) ?? 0) + 1);
       tenancyFee.set(x.tenancyId, (tenancyFee.get(x.tenancyId) ?? 0) + feeBaseFor(x));
     }
+    /* expiryOf, not `expiry ?? guaranteeExpiry(tenancyStart)`. The old form
+       computed a date for every application in the book, including ones with no
+       deed; the status filter below happened to drop them, so the invented dates
+       never reached the file. Two clauses holding each other up is not a rule.
+       The unissued now have no expiry to begin with. */
     const apps = book
-      .map((a) => ({ a, exp: a.expiry ?? (a.tenancyStart ? guaranteeExpiry(a.tenancyStart) : null) }))
+      .map((a) => ({ a, exp: expiryOf(a) }))
       .filter(({ a, exp }) => a.status === 'deed' && !a.refunded && exp !== null && exp >= mStart && exp <= mEnd && daysLeft(exp) >= 0)
       .sort((x, y) => (x.exp!.getTime() - y.exp!.getTime()) || x.a.ref.localeCompare(y.a.ref));
     for (const { a, exp } of apps) {
@@ -1326,10 +1577,10 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
       const addr = [rec?.addr1, rec?.addr2, rec?.city, rec?.postcode].filter(Boolean).join(', ');
       const n = a.tenancyId ? (tenancyCount.get(a.tenancyId) ?? 1) : 1;
       const fee = a.tenancyId ? (tenancyFee.get(a.tenancyId) ?? feeBaseFor(a)) : feeBaseFor(a);
-      dataRows.push([a.ref, rec?.name ?? '', String(n), a.tenancyId ?? '', addr, a.agency, a.branch, a.tenancyStart ? dmy(a.tenancyStart) : '', dmy(exp!), String(daysLeft(exp!)), gbp(a.rent), gbp(a.rent * 12), gbp(fee), a.referrer ?? '']);
+      dataRows.push([a.ref, rec?.name ?? '', String(n), a.tenancyId ?? '', addr, a.agency, a.branch, a.tenancyStart ? dmy(a.tenancyStart) : '', dmy(exp!), String(daysLeft(exp!)), gbp2(a.rent), gbp2(a.rent * 12), gbp2(fee), a.referrer ?? '']);
     }
   } else {
-    const AG = ['Bracken House Lettings', 'Meridian Residential', 'Crowngate Estates'];
+    const AG = ['Bracken House Lettings', 'Meridian Residential', 'Crowngate Property'];
     const BR = ['Head office', 'City branch', 'Riverside branch'];
     const N = 6 + ((year * 12 + m0) % 5);
     const daysInMonth = new Date(year, m0 + 1, 0).getDate();
@@ -1343,7 +1594,7 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
       const rent = APP_RENTS[(i * 7) % APP_RENTS.length];
       const tenant = `${BX_FIRST[(i * 5) % BX_FIRST.length]} ${BX_LAST[(i * 3) % BX_LAST.length]}`;
       const addr = [(flat ? `${flat}, ` : '') + st[0], 'London', st[1]].filter(Boolean).join(', ');
-      dataRows.push([`GR-${41000 + (year * 12 + m0) * 50 + i}`, tenant, '1', '', addr, AG[i % AG.length], BR[i % BR.length], dmy(tStart), dmy(exp), String(daysLeft(exp)), gbp(rent), gbp(rent * 12), gbp(rent), APP_REFERRERS[i % APP_REFERRERS.length]]);
+      dataRows.push([`GR-${41000 + (year * 12 + m0) * 50 + i}`, tenant, '1', '', addr, AG[i % AG.length], BR[i % BR.length], dmy(tStart), dmy(exp), String(daysLeft(exp)), gbp2(rent), gbp2(rent * 12), gbp2(rent), APP_REFERRERS[i % APP_REFERRERS.length]]);
     }
   }
 
@@ -1351,7 +1602,9 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
   rows.push(['opndoor Guarantee Referral Portal - guarantees expiring']);
   rows.push(['Generated', new Date().toLocaleString('en-GB')]);
   rows.push(['Month', `${MONTH_NAMES[m0]} ${year} (by guarantee expiry date, soonest first)`]);
-  rows.push(['Scope', role === 'superadmin' ? 'All partners (opndoor whole book)' : 'Your partner']);
+  // "Your partner" told an agency manager that their own book belongs to a party
+  // they have never heard of. Their name, from the same book the rows came from.
+  rows.push(['Scope', role === 'superadmin' ? 'All partners (opndoor whole book)' : agencyFacing(role) ? agencyScopeLabel(role) : 'Your partner']);
   rows.push(['Guarantees expiring', String(dataRows.length)]);
   rows.push(['Currency', 'GBP']);
   rows.push([]);

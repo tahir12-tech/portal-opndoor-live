@@ -1,29 +1,74 @@
 /* =====================================================================
    A JOINT TENANCY, AS A SCREEN HAS TO READ IT.
 
-   Several applications share one tenancy: one property, one guarantee, one
-   deed. Left alone, every admin surface draws them as unrelated rows — two
-   tenants, two identical addresses, and the WHOLE tenancy rent stated twice,
-   because monthly_rent is the tenancy's on every sibling. A three-person let
-   reads as three £3,000 lets.
+   Several applications share one tenancy: one property, one rent, and now one
+   deed per tenant. Left alone, every admin surface draws them as unrelated rows
+   — two tenants, two identical addresses, and the WHOLE tenancy rent stated
+   twice, because monthly_rent is the tenancy's on every sibling. A three-person
+   let reads as three £3,000 lets.
 
    Two facts make the presentation awkward enough to be worth one module rather
    than three copies:
 
-   1. ONLY THE LEAD HAS A DEED. apply_deed_executed keys on the PandaDoc
-      document, and only the lead applicant ever has one, so the lead moves to
-      "Deed Issued" while the siblings sit at "Paid" for good. Asking a sibling
-      row for the deed state gives the wrong answer; the tenancy's deed state is
-      the LEAD's, and every row has to say the same thing about it.
+   1. EACH TENANT SIGNS THEIR OWN DEED, and this note used to say the exact
+      opposite, which is why it is worth spelling out. The old rule
+      (20261002100000) made the tenancy the unit for everything after the money:
+      ONE deed, generated once every tenant had paid, carried by the lead and
+      naming everybody. Under it a sibling's own deed state was meaningless, so
+      this module deliberately answered the LEAD's for the whole tenancy, and
+      several screens still defer to that.
+
+      It was wrong in the way that matters to a customer: a tenant who had paid
+      their own share sat at "Paid" for ever with nothing to sign, holding a
+      guarantee in somebody else's name. The ruling now (20261005110000) is one
+      deed per tenant, generated as soon as THAT tenant has paid, covering THEIR
+      share and naming all the tenants. So a sibling's deed state is its own and
+      is the right thing to ask for, every applicant can reach 'deed', and any
+      surface that still reports the lead's state as the tenancy's is stating a
+      fact about one row over the top of another.
 
    2. PAYMENT IS PER APPLICANT. Each tenant pays their own share through their
       own link, so paid/unpaid is genuinely per person and must not be flattened
       into the tenancy.
 
-   So: deed at the tenancy, payment at the person. Everything here derives from
-   fields already on the row — nothing new is fetched, and nothing is written.
+   So both facts now live on the person, and the tenancy's own figures are
+   COUNTS of them: how many have paid, how many deeds are executed. Everything
+   here derives from fields already on the row — nothing new is fetched, and
+   nothing is written.
    ===================================================================== */
 import type { ApplicationSummary, Status } from './types';
+
+/**
+ * One member's deed, reduced to what a row has to print.
+ *
+ * THERE IS NO 'signed' HERE, and that is the model rather than an oversight.
+ * DeedState is awaiting_tenant | executed | declined | voided | error, and
+ * PandaDoc's document.completed both signs and executes, because Opndoor's
+ * signature is a static facsimile in the template rather than a second
+ * recipient to wait on. Signed and executed are one event today, so inventing a
+ * 'signed' rung would give a screen a state nothing can ever put it in.
+ */
+export type MemberDeed = 'none' | 'awaiting' | 'executed' | 'declined' | 'voided' | 'error';
+
+/** What each deed state is called on screen. Plain words: nobody outside this
+    file should have to know what awaiting_tenant is. */
+export const MEMBER_DEED_LABEL: Record<MemberDeed, string> = {
+  none: 'No deed yet',
+  awaiting: 'Awaiting signature',
+  executed: 'Deed executed',
+  declined: 'Declined to sign',
+  voided: 'Deed voided',
+  error: 'Deed could not be issued',
+};
+
+/** How a deed state should read: not started, in flight, done, or wrong. Kept
+    here so the colour and the label can never drift apart. */
+export function memberDeedTone(d: MemberDeed): 'none' | 'progress' | 'done' | 'problem' {
+  if (d === 'executed') return 'done';
+  if (d === 'awaiting') return 'progress';
+  if (d === 'none') return 'none';
+  return 'problem';
+}
 
 /** One applicant's place in a tenancy, as a row needs to render it. */
 export interface TenancyMember {
@@ -35,7 +80,16 @@ export interface TenancyMember {
   /** What this applicant is charged: their share of the one tenancy fee. */
   fee: number | null;
   paid: boolean;
+  /** First entered, and nothing more than that. It used to mean "carries the
+      tenancy's deed"; under the ruling above every tenant carries their own. */
   isLead: boolean;
+  /** This applicant's own status. Every member can now reach 'deed'. */
+  status: Status;
+  /** The raw deed_state as hydrated onto the summary row, for a caller that
+      needs the model's own word rather than the screen's. */
+  deedState: string | null;
+  /** The same fact, reduced to what a row prints. */
+  deed: MemberDeed;
 }
 
 /** A tenancy, and the applications that make it up. */
@@ -47,12 +101,20 @@ export interface TenancyGroup {
   /** The whole property rent, which every sibling carries. */
   rent: number;
   prop: string;
-  /** The tenancy's status, which is the LEAD's: the deed is the tenancy's, not
-      each applicant's, and the siblings never leave 'paid'. */
-  status: Status;
-  /** True once every applicant has paid their share — what the deed waits for. */
+  /* NO `status` HERE ANY MORE. It was `lead.status`, on the old rule that the
+     deed was the tenancy's and the lead carried it. With a deed per tenant
+     there is no single status that is true of the tenancy, and the one caller
+     printed the lead's as "the deed is issued" on a sibling's page that said,
+     three lines above, that the sibling had no deed. The honest tenancy-level
+     figures are the counts below; a member's state is the member's. */
+  /** True once every applicant has paid their share. No longer what any deed
+      waits for (each tenant's deed follows that tenant's own payment), but it
+      is still the answer to "is this tenancy settled". */
   fullyPaid: boolean;
   unpaidCount: number;
+  /** How many members hold an executed deed. Counted once here so the tenancy
+      card, the list heading and any later surface agree. */
+  deedsExecuted: number;
 }
 
 /** Entry order, falling back to the reference for a row with no position. */
@@ -92,19 +154,46 @@ export function groupTenancies(rows: ApplicationSummary[]): Map<string, TenancyG
       fee: r.fee ?? null,
       paid: isPaid(r),
       isLead: r.ref === lead.ref,
+      status: r.status,
+      deedState: r.deedState ?? null,
+      deed: deedOf(r),
     }));
     out.set(tenancyId, {
       tenancyId,
       members,
+      // Rent and property really are the tenancy's, and are the same on every
+      // sibling, so the lead is just the cheapest row to read them off.
       rent: lead.rent,
       prop: lead.prop,
-      // The LEAD's status is the tenancy's. See the header note.
-      status: lead.status,
       fullyPaid: members.every((m) => m.paid),
       unpaidCount: members.filter((m) => !m.paid).length,
+      deedsExecuted: members.filter((m) => m.deed === 'executed').length,
     });
   }
   return out;
+}
+
+/**
+ * This applicant's own deed, as a row prints it.
+ *
+ * status 'deed' IS executed, and is checked first: apply_deed_executed sets the
+ * status and deed_state together, and a row that reached 'deed' before
+ * deed_state was hydrated onto the summary would otherwise read "no deed yet"
+ * on a page whose own header says Deed Issued.
+ *
+ * Anything unrecognised is 'none' rather than a guess. A deed state we do not
+ * know about is not evidence of a deed.
+ */
+function deedOf(r: ApplicationSummary): MemberDeed {
+  if (r.status === 'deed') return 'executed';
+  switch (r.deedState) {
+    case 'executed': return 'executed';
+    case 'awaiting_tenant': return 'awaiting';
+    case 'declined': return 'declined';
+    case 'voided': return 'voided';
+    case 'error': return 'error';
+    default: return 'none';
+  }
 }
 
 /**
@@ -202,4 +291,15 @@ export function tenancyProgress(g: TenancyGroup): string {
   const paid = n - g.unpaidCount;
   if (paid === 0) return `No tenant has paid yet`;
   return `${paid} of ${n} tenants have paid`;
+}
+
+/**
+ * "1 of 2 deeds executed", the tenancy-level answer about deeds.
+ *
+ * A COUNT rather than a state, because there is no single deed to have a state
+ * any more. Always says the total, including at 0 and at all of them, so the
+ * reader can see how many deeds this tenancy has in it without counting rows.
+ */
+export function tenancyDeedProgress(g: TenancyGroup): string {
+  return `${g.deedsExecuted} of ${g.members.length} deeds executed`;
 }

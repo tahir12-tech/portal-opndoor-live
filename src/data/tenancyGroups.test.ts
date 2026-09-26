@@ -3,9 +3,12 @@
    The two facts these lock, because both are counter-intuitive and both are
    load-bearing:
 
-   1. The DEED is the tenancy's and only its lead ever carries one, so a sibling
-      asked for its own status answers "Paid" forever while the guarantee is in
-      force. The group's status is the lead's.
+   1. The DEED is the PERSON's. Each tenant signs their own, generated once that
+      tenant has paid, so a sibling asked for its own deed state gives the right
+      answer and the tenancy's own figure is a count of them. These tests used
+      to assert the opposite (one deed, carried by the lead, the group's status
+      taken from the lead); that rule was superseded by 20261005110000 and the
+      assertions went with it.
    2. PAYMENT is per applicant, because each tenant pays their own share through
       their own link. It must not be flattened into the tenancy.
 
@@ -13,7 +16,8 @@
    the unrelated rows the grouping exists to prevent. */
 import { describe, expect, it } from 'vitest';
 import {
-  collateTenancies, groupTenancies, memberLabel, pageWithoutSplitting, tenancyProgress,
+  collateTenancies, groupTenancies, MEMBER_DEED_LABEL, memberDeedTone, memberLabel,
+  pageWithoutSplitting, tenancyDeedProgress, tenancyProgress,
 } from './tenancyGroups';
 import type { ApplicationSummary, Status } from './types';
 
@@ -48,14 +52,61 @@ describe('what counts as a group', () => {
   });
 });
 
-describe('the deed is the tenancy’s, the payment is the person’s', () => {
+describe('the deed is the person’s, and so is the payment', () => {
   const rows = [joint(1, 'deed'), joint(2, 'paid')];
 
-  it('takes the group status from the LEAD, not from whichever row was asked', () => {
-    // The sibling sits at 'paid' for good: apply_deed_executed keys on the
-    // PandaDoc document and only the lead has one.
+  it('gives each member their OWN deed state, not the lead’s', () => {
+    // The walk finding, in one assertion. The lead holds an executed deed; the
+    // sibling has paid and has no deed yet. A group that answered the lead's
+    // state for both put "issued" on a page whose own rows said otherwise.
     const g = groupTenancies(rows).get('ten-1')!;
-    expect(g.status).toBe('deed');
+    expect(g.members.map((m) => m.deed)).toEqual(['executed', 'none']);
+    expect(g.members.map((m) => MEMBER_DEED_LABEL[m.deed]))
+      .toEqual(['Deed executed', 'No deed yet']);
+  });
+
+  it('reads a sibling’s deed_state, so a tenant out for signature says so', () => {
+    const g = groupTenancies([
+      joint(1, 'deed'), joint(2, 'paid', { deedState: 'awaiting_tenant' }),
+    ]).get('ten-1')!;
+    expect(g.members[1].deed).toBe('awaiting');
+    expect(MEMBER_DEED_LABEL[g.members[1].deed]).toBe('Awaiting signature');
+  });
+
+  it('treats status deed as executed even when deed_state never reached the row', () => {
+    // A row at 'deed' with no deed_state would otherwise print "No deed yet"
+    // under a page header that says Deed Issued.
+    const g = groupTenancies([joint(1, 'deed', { deedState: null }), joint(2, 'paid')]).get('ten-1')!;
+    expect(g.members[0].deed).toBe('executed');
+  });
+
+  it('does not guess at a deed state it does not recognise', () => {
+    const g = groupTenancies([
+      joint(1, 'paid', { deedState: 'something_new' }), joint(2, 'paid'),
+    ]).get('ten-1')!;
+    expect(g.members[0].deed).toBe('none');
+  });
+
+  it('counts the executed deeds for the tenancy, which is the only tenancy-wide deed figure left', () => {
+    const g = groupTenancies(rows).get('ten-1')!;
+    expect(g.deedsExecuted).toBe(1);
+    expect(tenancyDeedProgress(g)).toBe('1 of 2 deeds executed');
+  });
+
+  it('counts every executed deed, whichever tenant holds it', () => {
+    const g = groupTenancies([
+      joint(1, 'paid', { deedState: 'awaiting_tenant' }), joint(2, 'deed'), joint(3, 'deed'),
+    ]).get('ten-1')!;
+    expect(tenancyDeedProgress(g)).toBe('2 of 3 deeds executed');
+  });
+
+  it('tones a problem state apart from a normal one, so the colour cannot drift from the word', () => {
+    expect(memberDeedTone('executed')).toBe('done');
+    expect(memberDeedTone('awaiting')).toBe('progress');
+    expect(memberDeedTone('none')).toBe('none');
+    expect(memberDeedTone('declined')).toBe('problem');
+    expect(memberDeedTone('voided')).toBe('problem');
+    expect(memberDeedTone('error')).toBe('problem');
   });
 
   it('marks position 1 as the lead and nobody else', () => {

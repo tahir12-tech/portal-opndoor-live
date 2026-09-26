@@ -44,7 +44,7 @@ describe('the applications list', () => {
     expect(heads).toHaveLength(1);
     expect(heads[0].textContent).toMatch(/Joint tenancy/i);
     expect(heads[0].textContent).toMatch(/2 tenants/);
-    expect(heads[0].textContent).toMatch(/one guarantee, one deed/i);
+    expect(heads[0].textContent).toMatch(/one tenancy, a deed each/i);
   });
 
   it('puts the siblings next to each other, lead first', async () => {
@@ -56,7 +56,8 @@ describe('the applications list', () => {
     expect(sib).toBe(lead + 1);
   });
 
-  it('marks which applicant carries the deed', async () => {
+  // "Lead" is now only the first tenant entered: every one of them carries a deed.
+  it('marks which applicant was entered first', async () => {
     const { rowFor } = await openList();
     expect(rowFor(LEAD)!.querySelector('.jt-lead')).toBeTruthy();
     expect(rowFor(SIBLING)!.querySelector('.jt-lead')).toBeNull();
@@ -77,13 +78,15 @@ describe('the applications list', () => {
     expect(rowFor(SIBLING)!.textContent).toMatch(/50% share/);
   });
 
-  it('puts the tenancy’s deed status on the heading, where the deed actually lives', async () => {
-    /* The deed is the tenancy's and only the lead ever carries one, so it cannot
-       sit on a row: put it on every sibling and each one contradicts the tab it
-       is counted under. The heading is the tenancy level, so that is where it
-       goes. */
+  it('counts the deeds on the heading, because there is no single one to name', async () => {
+    /* This used to assert "Deed Issued" on the heading: the deed was the
+       tenancy's, only the lead ever carried one, and a status pill taken from
+       the lead stood for the group. Each tenant now signs their own deed once
+       they have paid their own share, so the group has no one status and
+       TenancyGroup no longer offers one. The honest tenancy-level fact is the
+       count, and the seed pair is one deed in and one still to come. */
     const { view } = await openList();
-    expect(view.container.querySelector('.jt-head')!.textContent).toMatch(/Deed Issued/);
+    expect(view.container.querySelector('.jt-head')!.textContent).toMatch(/1 of 2 deeds executed/i);
   });
 
   it('leaves each row showing its OWN status, so the rows and the tabs agree', async () => {
@@ -147,10 +150,14 @@ describe('the application detail page', () => {
     expect(panel.textContent).toMatch(/All 2 tenants have paid/i);
   });
 
-  it('says the deed covers the tenancy, not this applicant', async () => {
+  // Was "says the deed covers the tenancy, not this applicant", from the rule
+  // that the tenancy had one deed and the lead carried it. Each tenant now signs
+  // their own, covering their own share and naming everybody.
+  it('says this applicant signs their own deed, naming the other tenants', async () => {
     const view = await openDetail(SIBLING);
-    expect(view.container.querySelector('.jt-panel__deed')?.textContent)
-      .toMatch(/One Deed of Guarantee covers this tenancy and names all 2 tenants/i);
+    const deed = view.container.querySelector('.jt-panel__deed')?.textContent ?? '';
+    expect(deed).toMatch(/signs their own Deed of Guarantee/i);
+    expect(deed).toMatch(/names all 2 tenants/i);
   });
 
   it('says what the rent above is a share of', async () => {
