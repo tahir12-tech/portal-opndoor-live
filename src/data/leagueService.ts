@@ -4,12 +4,22 @@
    Agencies and branches are real org records; referrers are synthesised.
    Respects role + partner scoping and uses per-partner commission rates.
 
+   AND IT IS RANKED ON VOLUME AND FEES, NEVER ON COMMISSION, which is what lets an
+   agency Manager keep the whole table. Rows are ordered by fees collected, then
+   referrals, then name (live: groupRows in liveAnalytics; mock: the League page
+   sorts what it is given), and the fee a tenant was charged is the price of the
+   product, not the agency's earnings. So a reader maySeeCommission refuses loses
+   the two commission COLUMNS and not a single row or position: there is no
+   substitute ranking to build, because the ranking was never the money. Their
+   partnerComm and agentComm are left at the zero every row is born with, rather
+   than computed and then hidden.
+
    INTEGRATION: getLeague -> GET a period/partner-scoped ranking endpoint.
    The page sorts, searches and pages client-side today; a real back end
    could accept sort/search/page params and paginate server-side.
    ===================================================================== */
 import type { LeaderboardMode, LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
-import { ALL_PARTNERS } from './types';
+import { ALL_PARTNERS, maySeeCommission } from './types';
 import { liveAvailable, liveLeague } from './liveAnalytics';
 import { periodRange } from './paymentMetrics';
 import { getAgencies } from './orgService';
@@ -48,7 +58,14 @@ export function getLeague(view: LeagueView, opts: LeagueOpts): LeagueRow[] {
   const partner = opts.partner || '';
   // Live mode: every tab (incl. referrers) computed from live records, period-scoped.
   if (liveAvailable() && opts.period) return liveLeague(view, role, scope, partner, opts.period, opts.branchIds);
-  const rates = getRatesFor(scope === ALL_PARTNERS ? partner || ALL_PARTNERS : scope);
+  // A RATE IS ITSELF A COMMISSION FIGURE, so it is not even read for a reader who
+  // may not see one: the percentages that turn fees into earnings never enter this
+  // function's scope, let alone a row. (The zeros they would have produced are
+  // already on every row; see the note where they used to be applied.)
+  const seesComm = maySeeCommission(role);
+  const rates = seesComm
+    ? getRatesFor(scope === ALL_PARTNERS ? partner || ALL_PARTNERS : scope)
+    : { partner: 0, agent: 0 };
 
   const inScope = (a: Agency): boolean => {
     const p = a.partner || HOME_PARTNER;
@@ -95,6 +112,13 @@ export function getLeague(view: LeagueView, opts: LeagueOpts): LeagueRow[] {
     });
   }
 
+  /* THE RATE IS NEVER APPLIED for a reader who may not see money, so the rows go
+     out with the zeros they were constructed with. What a Manager could see before:
+     League drew "Partner comm." and "Agent comm." (or "Own commission" on the
+     branch board) for every row in the agency, sortable, exportable, and that is
+     the agency's income broken down office by office. Live mode answers the same
+     question one layer down, at the row, in groupRows. */
+  if (!seesComm) return rows;
   rows.forEach((r) => {
     r.partnerComm = r.fees * rates.partner;
     r.agentComm = r.fees * rates.agent;

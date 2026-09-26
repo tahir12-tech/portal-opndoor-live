@@ -67,6 +67,14 @@ function generatedOn(): string {
  * is fetched only when a user runs an export, not on first paint.
  */
 export async function exportBranded(built: BrandedExport): Promise<void> {
+  /* AN EMPTY EXPORT DOWNLOADS NOTHING, AND THAT IS THE WHOLE POINT OF IT.
+     emptyExport promises above that a refused document "downloads nothing instead
+     of crashing the page it was clicked from", and it did not keep that promise:
+     XLSX.write throws on a workbook with no sheets, so a refusal arrived as an
+     exception rather than as nothing. That was reachable only by a referrer on a
+     mis-wired button, and is now reachable by every Manager, who is refused all
+     four commission statements. Refuse quietly, as the comment always said. */
+  if (!built.sheets.length) return;
   const { buildBrandedWorkbook, downloadXlsx } = await import('./xlsxTemplate');
   downloadXlsx(buildBrandedWorkbook(built.sheets), built.filename);
 }
@@ -258,6 +266,31 @@ function scopeLabel(role: Role): string {
  */
 function agencyFacing(role: Role): boolean {
   return isAgencyUser(role, scopeFor(role));
+}
+
+/**
+ * Entitled to the DOCUMENT, whether or not entitled to the money inside it.
+ *
+ * WHY THIS IS NOT maySeeCommission, WHICH IS WHAT IT USED TO BE. Four gates below
+ * asked the commission predicate a different question: "is this reader allowed a
+ * book-wide document at all". That was the same test while Director and Manager
+ * were one person. They are not. A Manager is role 'management' without
+ * sees_commission, so maySeeCommission now answers false for them, and every one
+ * of those gates quietly took away a document the level exists to read: the
+ * agency breakdown, the league workbook, and the whole application export, which
+ * is the list of their own referrals. What has to go is the commission COLUMNS
+ * inside those documents, and each site now drops those instead.
+ *
+ * The two roles here are exactly the two maySeeCommission used to admit at these
+ * sites, so nothing moves for an Opndoor admin, a Director, a Negotiator, a
+ * developer or an opndoor_manager: only the Manager, who was losing whole files.
+ * It is the same test buildExpiriesCsv has always made for the same reason.
+ *
+ * Scope is a separate question and is still scopeFor/scopeFull's: this says which
+ * documents a reader may open, never how much of the book goes into them.
+ */
+function seesEveryReferral(role: Role): boolean {
+  return role === 'superadmin' || role === 'management';
 }
 
 /**
@@ -528,8 +561,17 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
      a quiet month never makes a table come and go. Only agency-facing documents
      collapse: an Opndoor admin narrowed to one agency is reading the estate's
      document and expects its shape. */
-  if (maySeeCommission(role) && !(agency && shape.oneAgency)) {
-    blocks.push({ kind: 'section', title: 'Breakdown by agency' }, { kind: 'table', columns: LIVE_BREAKDOWN_COLS('Agency', false, NET_COMM), rows: brk(vol.agencies, false) }, { kind: 'blank' });
+  /* WHO GETS THE TABLE IS NOT WHO GETS THE MONEY IN IT. This asked
+     maySeeCommission, meaning "not a referrer" at the time it was written, so the
+     moment a Manager stopped satisfying that predicate they lost a table of
+     referrals, fees and conversion across the agencies they run. And it took its
+     columns from LIVE_BREAKDOWN_COLS directly while its rows come from brk, which
+     drops the commission cells: a Manager would have been handed a Commission
+     (net) heading over cells this template renders as £0.00, which is a commission
+     figure, and a false one. brkCols keeps the heading and the cell on one
+     decision, as the branch and referrer tables below already do. */
+  if (seesEveryReferral(role) && !(agency && shape.oneAgency)) {
+    blocks.push({ kind: 'section', title: 'Breakdown by agency' }, { kind: 'table', columns: brkCols('Agency', false, NET_COMM), rows: brk(vol.agencies, false) }, { kind: 'blank' });
   }
   if (!(agency && shape.oneBranch)) {
     blocks.push(
@@ -714,8 +756,10 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
   // synthetic path is only reached in mock/test mode.)
 
   // The breakdown-collapse rule, as in the live builder: only where the viewer
-  // has more than one of the thing, and only on their own document.
-  if (maySeeCommission(role) && !(agency && shape.oneAgency)) {
+  // has more than one of the thing, and only on their own document. And the same
+  // correction: BREAKDOWN_COLS carries no commission at all, so asking the
+  // commission predicate here only ever cost a Manager a table of volumes.
+  if (seesEveryReferral(role) && !(agency && shape.oneAgency)) {
     blocks.push({ kind: 'section', title: 'Breakdown by agency' }, { kind: 'table', columns: BREAKDOWN_COLS('Agency', false), rows: breakdownRows(m.agencies, false) }, { kind: 'blank' });
   }
   if (!(agency && shape.oneBranch)) {
@@ -890,6 +934,15 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
   // commission column do not exist: the first names house plumbing on every row,
   // the second is a structural zero on every row (see agentRailApp).
   const agency = agencyFacing(role);
+  /* AND WHETHER THEY SEE WHAT THE AGENCY EARNS, which the role cannot answer
+     either. A Manager runs every branch and owns every referral in this file, so
+     the file is theirs; the three money columns at the end of it are not. Partner
+     commission, their own commission and the rate it was earned at each state
+     agency income directly, and Commission payees states each payee's rate in
+     words, so all four come off a Manager's copy and nothing else does. The fee
+     the tenant was charged stays: that is the price of the product and a fact
+     about a referral they own. */
+  const showComm = maySeeCommission(role);
   /* HOW MUCH OF ONE THEY HAVE, which is the other question (see agencyFacing).
      An Agency column reading the same name on forty rows and a Branch column
      reading the same office under it are two columns of one word, and the same
@@ -911,8 +964,12 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
      rate repeated on every line, which the Commission rate column beside it
      already says; under a group or a branch split it is the only place the
      reader can see WHO the commission divides between. Measured over the rows
-     being exported, not the book: this file's lines are what it describes. */
-  const manyPayees = apps.some((a) => linesFor(a).length > 1);
+     being exported, not the book: this file's lines are what it describes.
+
+     showComm first, so the heading and the cell cannot disagree: the list reads
+     "Regent's Park 20% + Regent's 5%", which is a rate per payee, so it is a
+     commission column like the three beside it and leaves with them. */
+  const manyPayees = showComm && apps.some((a) => linesFor(a).length > 1);
 
   const columns: Column[] = [
     ...(agency ? [] : [{ header: 'Partner', type: 'text' } as Column]),
@@ -960,9 +1017,11 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     moneyCol('Guarantor fee charged'),
     { header: 'Fee basis (weeks of rent)', type: 'text' },
     moneyCol('Tenancy total fee'),
-    ...(agency ? [] : [moneyCol('Partner commission')]),
-    moneyCol(agency ? 'Commission' : 'Agent commission'),
-    { header: 'Commission rate', type: 'pct' },
+    ...(agency || !showComm ? [] : [moneyCol('Partner commission')]),
+    ...(showComm ? [
+      moneyCol(agency ? 'Commission' : 'Agent commission'),
+      { header: 'Commission rate', type: 'pct' } as Column,
+    ] : []),
     ...(manyPayees ? [{ header: 'Commission payees', type: 'text' } as Column] : []),
     { header: 'Tenancy start date', type: 'text' },
     { header: 'Expiry date', type: 'text' },
@@ -1028,8 +1087,8 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
       money(feeBaseFor(a)),
       a.feeBasisWeeks == null ? '' : String(Number(Number(a.feeBasisWeeks).toFixed(2))),
       money(a.tenancyId ? (tenancyFee.get(a.tenancyId) ?? feeBaseFor(a)) : feeBaseFor(a)),
-      ...(agency ? [] : [money(partnerComm)]),
-      money(agentComm), totalRate(a),
+      ...(agency || !showComm ? [] : [money(partnerComm)]),
+      ...(showComm ? [money(agentComm), totalRate(a)] : []),
       ...(manyPayees ? [payees] : []),
       // WAS `a.expiry`, which is right by accident and wrong by intent: it is
       // blank on an unissued row only while nothing has written a date to it.
@@ -1069,10 +1128,16 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
  * .xlsx. Blocked for referrers. The four-basis selection is unchanged.
  */
 export function buildApplicationDoc(role: Role, period: Period, basis: ExportBasis = 'referred'): BrandedExport | null {
-  // Positive: only the two roles entitled to commission build this document. The
-  // live path emits Partner commission and Agent commission columns, so a
-  // deny-list of one granted them to every other role.
-  if (!maySeeCommission(role)) return null;
+  /* Positive: only the two roles entitled to the whole book build this document.
+     The gate was maySeeCommission for one reason, stated here: the live path emits
+     Partner commission and Agent commission columns, and a deny-list of one
+     ('referrer') granted them to every other role. Those columns now come off per
+     reader in buildRealApplicationDoc, so the commission predicate is no longer
+     what decides the document. It cannot be: this is the list of a Manager's own
+     referrals, their statuses, dates and the fees their tenants paid, and refusing
+     it left the Applications export button downloading nothing for the level that
+     runs the branch. Same two roles as before for everybody else. */
+  if (!seesEveryReferral(role)) return null;
   const meta = BASIS_META[basis];
   if (SUPABASE_ENABLED && allFull().length) return buildRealApplicationDoc(role, period, basis, meta);
   const apps = generateApplications(period, basis);
@@ -1137,7 +1202,7 @@ function leaguePartnerLabel(scope: PartnerScope, partner: string): string {
    rule applies to it: no partner column, no estate. Its commission attribution
    is already per-org (liveVolume/groupRows use orgRate), so only the headings
    and the meta line change. */
-function leagueColumns(view: LeagueView, agency: boolean): Column[] {
+function leagueColumns(view: LeagueView, agency: boolean, showComm: boolean): Column[] {
   const first: Column = { header: view === 'agency' ? 'Agency' : view === 'branch' ? 'Branch' : 'Referrer', type: 'text' };
   const core: Column[] = [
     { header: 'Referrals', type: 'int' },
@@ -1148,6 +1213,12 @@ function leagueColumns(view: LeagueView, agency: boolean): Column[] {
     { header: 'Sent to Deed', type: 'pct' },
   ];
   if (view === 'referrer') return [first, ...core];
+  /* A MANAGER READS THE BOARD, NOT THE PAYOUT. The referrer view never carried
+     commission and the other two do, as the last column or two; a Manager is
+     supposed to see who is performing across every branch and keeps all of that,
+     and stops at the money the agency earns from it. leagueRows makes the same
+     test on the same flag, so a heading here always has a cell under it. */
+  if (!showComm) return [first, { header: 'Detail', type: 'text' }, ...core];
   const comm: Column[] = agency
     // A branch board row shows the branch's OWN commission, which is nothing
     // where it holds no rate of its own; hence the note on the sheet.
@@ -1155,13 +1226,14 @@ function leagueColumns(view: LeagueView, agency: boolean): Column[] {
     : [moneyCol('Partner commission'), moneyCol('Agent commission')];
   return [first, { header: 'Detail', type: 'text' }, ...core, ...comm];
 }
-function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, agency: boolean): TableRow[] {
+function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, agency: boolean, showComm: boolean): TableRow[] {
   return rows.map((r) => {
     // Keep per-row partner attribution in the export when viewing across
     // partners (the on-screen Partner tag's export twin, #52).
     const detail = showPartner && r.partner ? `${r.sub}${r.sub ? ' · ' : ''}${r.partner}` : r.sub;
     if (view === 'referrer') return [r.name, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
     const base = [r.name, detail, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
+    if (!showComm) return base;
     return agency ? [...base, money(r.agentComm)] : [...base, money(r.partnerComm), money(r.agentComm)];
   });
 }
@@ -1177,7 +1249,14 @@ export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string,
   // The league workbook carries per-agency and per-branch commission and had no
   // role test at all, relying on the button being hidden. A builder that emits
   // commission has to refuse for itself.
-  if (!maySeeCommission(role)) return emptyExport('League');
+  //
+  // It refuses the COMMISSION now rather than the workbook. Refusing the workbook
+  // is right for a referrer, who may not see other people's boards at all, and
+  // wrong for a Manager, whose job is the boards: every branch and every member of
+  // the team, which is what these three sheets are. showComm takes the last column
+  // or two off their copy and leaves the ranking they are there to read.
+  if (!seesEveryReferral(role)) return emptyExport('League');
+  const showComm = maySeeCommission(role);
   const views: { view: LeagueView; name: string }[] = view
     ? [{ view, name: view === 'agency' ? 'Agencies' : view === 'branch' ? 'Branches' : 'Referrers' }]
     : [
@@ -1204,8 +1283,10 @@ export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string,
       reportName: `League table: ${name}`,
       metaLine,
       blocks: [
-        { kind: 'table', columns: leagueColumns(view, agency), rows: leagueRows(view, getLeague(view, { role, scope, partner, period }), showPartner, agency) },
-        ...(agency && view === 'branch' ? [{ kind: 'keyvalue' as const, items: [{ label: 'Note', value: BRANCH_COMMISSION_NOTE }] }] : []),
+        { kind: 'table', columns: leagueColumns(view, agency, showComm), rows: leagueRows(view, getLeague(view, { role, scope, partner, period }), showPartner, agency, showComm) },
+        // The note explains an empty commission cell. With no commission column it
+        // explains nothing and would be the only mention of commission on the sheet.
+        ...(showComm && agency && view === 'branch' ? [{ kind: 'keyvalue' as const, items: [{ label: 'Note', value: BRANCH_COMMISSION_NOTE }] }] : []),
       ],
     } as BrandedDoc,
   }));
@@ -1534,11 +1615,14 @@ export async function buildCommissionStatementDoc(
       items: [
         { label: 'Payee', value: st.payeeName },
         { label: 'Period', value: st.monthLabel },
-        /* WHAT THE DROPPED COLUMNS TOOK WITH THEM, said once, directly under the
-           period exactly as the screen and the PDF say it. A statement that was
-           all Leeds still says Leeds. */
-        ...(shape.onlyBranch ? [{ label: 'Branch', value: shape.onlyBranch }] : []),
-        ...(shape.onlySource ? [{ label: 'Rate source', value: SOURCE_WORD[shape.onlySource] ?? shape.onlySource }] : []),
+        /* NO BRANCH LINE AND NO RATE SOURCE LINE. Two spread entries sat here
+           and put a collapsed column's single value directly under the period,
+           because a fact should not be lost with its column. Withdrawn: the
+           payee knows which of their own branches this is, and a header block
+           that grows a line whenever the table loses a column is a block that
+           changes shape month to month for no gain. Collapsing a column removes
+           something that says nothing; relocating it puts the same nothing
+           somewhere else. Five labels every month, whatever the table drops. */
         { label: 'Statement reference', value: ref },
         { label: 'Generated', value: generated },
         { label: 'Basis', value: 'Commission on fees PAID in the month, net of refunds' },

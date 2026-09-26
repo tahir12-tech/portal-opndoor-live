@@ -10,7 +10,22 @@
    Vocabulary is Group / Agency / Branch only; never "brand", "partner" or
    "supplier" on screen ("brand" survives in the schema as the agencies table).
    The status badge states what the org actually is. Rates are percentages
-   everywhere. Commission is admin-only to see (maySeeCommission) and edit.
+   everywhere.
+
+   WHO MAY SEE THE COMMISSION ON THIS PAGE. Seeing it is maySeeCommission, which
+   is Opndoor staff and a Director; EDITING it is isAdmin on top of that. The
+   header used to call seeing "admin-only", which was the intention and not the
+   code: a supplier's management user has always read the rates here too.
+
+   The Director / Manager split needed nothing added to this page, which is worth
+   saying plainly because every other commission surface did. canSeeCommission
+   was already the gate on all four places a figure appears: the Commission tab
+   (both the tab button and the panel), the per-node Earns chip and Set rate
+   editor inside RateLine, and the branch payout sentence. A Manager is role
+   'management' without sees_commission, so maySeeCommission answers false for
+   them and every one of those disappears, tab included. What this page DID do
+   was fetch the splits and the negotiated agreement for them anyway and hold
+   them in memory unshown; it no longer asks for either. See the two effects.
    ===================================================================== */
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -254,26 +269,40 @@ export function AgencyHome() {
     else setSel(null);
   }, [org?.kind, org?.kind === 'agency' ? org.agency.id : org?.kind === 'group' ? org.group.id : '']);
 
-  // Every branch's payee lines, ONE call per page load. No client-side copy of
-  // the rule exists: this is the same function create_referral freezes.
+  /* Every branch's payee lines, ONE call per page load. No client-side copy of
+     the rule exists: this is the same function create_referral freezes.
+
+     NOT ASKED FOR AT ALL unless this reader may be shown a figure. Both places
+     these lines are drawn were already refused to a Manager, so nothing of this
+     reached the screen, but a page that pulls the whole rate table into a
+     Manager's browser and then declines to print it is one devtools tab away
+     from the thing the level exists to prevent. Cleared rather than left behind,
+     because a hydrate that answers sees_commission = false arrives after the
+     first paint and bumps dataVersion. */
   const [splits, setSplits] = useState<Map<string, SplitLine[]>>(new Map());
   useEffect(() => {
+    // Same Map back when there is nothing to clear, so refusing costs no render.
+    if (!canSeeCommission) { setSplits((m) => (m.size ? new Map() : m)); return; }
     let alive = true;
     const ids = branchesFlat.map((x) => x.branch.id).filter(Boolean) as string[];
     getCommissionSplits(ids).then((m) => { if (alive) setSplits(m); }).catch(() => { if (alive) setSplits(new Map()); });
     return () => { alive = false; };
-  }, [branchesFlat, dataVersion, tick]);
+  }, [branchesFlat, dataVersion, tick, canSeeCommission]);
 
-  // The negotiated agreement pricing this org, if there is one.
+  // The negotiated agreement pricing this org, if there is one. Its bands, its
+  // tiers and the rate the next referral lands at are the deal itself, and it is
+  // only ever drawn on the Commission tab, so a reader without that tab does not
+  // ask for it either.
   const [agreement, setAgreement] = useState<AgreementView | null>(null);
   useEffect(() => {
+    if (!canSeeCommission) { setAgreement(null); return; }
     let alive = true;
     const first = agencies.find((a) => a.id)?.id;
     if (!first) { setAgreement(null); return; }
     getAgreementForAgency(first).then((v) => { if (alive) setAgreement(v); }).catch(() => { if (alive) setAgreement(null); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agencies, dataVersion, tick]);
+  }, [agencies, dataVersion, tick, canSeeCommission]);
 
   // Deed readiness, the SAME answer the Agencies list uses, so the two surfaces
   // cannot disagree: one RPC, active people only, pending does not clear it.

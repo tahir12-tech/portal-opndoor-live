@@ -54,24 +54,32 @@ describe('the statement column rule', () => {
     expect(one.branches).toBe(1);
     expect(one.oneBranch).toBe(true);
     expect(dimensionCollapsed(one, 'branch')).toBe(true);
-    // And the value survives the column, for the header line that replaces it.
-    expect(one.onlyBranch).toBe('Leeds');
 
     const two = statementShape([row('Leeds', 'standard'), row('York', 'standard')]);
     expect(two.branches).toBe(2);
     expect(two.oneBranch).toBe(false);
-    expect(two.onlyBranch).toBeNull();
   });
 
   it('drops Source when every line shares one, and keeps it when they are mixed', () => {
     const one = statementShape([row('Leeds', 'agreement'), row('York', 'agreement')]);
     expect(one.oneSource).toBe(true);
-    expect(one.onlySource).toBe('agreement');
 
     const mixed = statementShape([row('Leeds', 'agreement'), row('Leeds', 'standard')]);
     expect(mixed.sources).toBe(2);
     expect(mixed.oneSource).toBe(false);
-    expect(mixed.onlySource).toBeNull();
+  });
+
+  it('counts, and does not hand back the value a dropped column held', () => {
+    /* A REVERSAL, PINNED SO IT IS NOT QUIETLY UNDONE. The shape used to return
+       onlyAgency / onlyBranch / onlySource, and every rendering moved the value
+       into its header block as "Branch: Leeds". A dropped column is simply gone
+       now, and these three fields existed only to feed those header lines, so
+       they are gone with them. Asserted on the keys rather than on the values
+       because the fields no longer typecheck. */
+    const shape = statementShape([row('Leeds', 'agreement'), row('Leeds', 'agreement')]);
+    expect(Object.keys(shape).sort()).toEqual([
+      'agencies', 'branches', 'oneAgency', 'oneBranch', 'oneSource', 'sources',
+    ]);
   });
 
   it('keeps Source when some lines recorded one and some did not', () => {
@@ -83,12 +91,12 @@ describe('the statement column rule', () => {
     expect(shape.oneSource).toBe(false);
   });
 
-  it('drops a dimension no line has, and names nothing in its place', () => {
+  it('drops a dimension no line has at all', () => {
     const shape = statementShape([row('', null), row(null, null)]);
+    expect(shape.branches).toBe(1);
     expect(shape.oneBranch).toBe(true);
-    expect(shape.onlyBranch).toBeNull();
+    expect(shape.sources).toBe(1);
     expect(shape.oneSource).toBe(true);
-    expect(shape.onlySource).toBeNull();
   });
 
   it('keeps Agency on a group statement spanning two agencies', () => {
@@ -105,8 +113,9 @@ describe('the statement column rule', () => {
       row('Leeds', 'agreement', "Regent's Lettings"),
       row('York', 'agreement', "Regent's Lettings"),
     ]);
+    expect(one.agencies).toBe(1);
     expect(one.oneAgency).toBe(true);
-    expect(one.onlyAgency).toBe("Regent's Lettings");
+    expect(dimensionCollapsed(one, 'agency')).toBe(true);
   });
 
   it('answers one of everything for a statement with no lines', () => {
@@ -114,7 +123,7 @@ describe('the statement column rule', () => {
     // to count is not a reason to offer a column.
     const shape = statementShape([]);
     expect(shape.oneAgency && shape.oneBranch && shape.oneSource).toBe(true);
-    expect(shape.onlyBranch).toBeNull();
+    expect([shape.agencies, shape.branches, shape.sources]).toEqual([0, 0, 0]);
   });
 
   it('ignores a difference that is only whitespace', () => {
@@ -173,14 +182,18 @@ const paid = (ref: string, branch: string, source: 'agreement' | 'standard'): Fu
   withdrawn: false, withdrawnReason: null, withdrawnNote: null, expired: false,
 });
 
-/** The statement panel over a given book, as headers and the line under the
-    payee that a dropped column leaves behind. */
+/** The statement panel over a given book: its headers, and the block under the
+    payee's name that a dropped column must NOT add a line to. */
 function draw(book: FullApp[]) {
   hydrateFull(book);
   const view = render(createElement(CommissionStatement, { role: 'superadmin', scope: ALL_PARTNERS }));
+  const head = view.container.querySelector('.stmt__head');
   return {
     heads: [...view.container.querySelectorAll('th')].map((t) => t.textContent),
-    collapsed: view.container.querySelector('.stmt__only')?.textContent ?? '',
+    /* The lines of the payee block, read off its own wrapper rather than by
+       class, so a header line reintroduced under any name is still caught. */
+    headLines: [...(head?.querySelector('div')?.children ?? [])].map((d) => d.textContent),
+    headText: head?.textContent ?? '',
     colSpan: view.container.querySelector('.stmt__total td')?.getAttribute('colspan'),
     cells: [...(view.container.querySelector('tbody tr')?.querySelectorAll('td') ?? [])].length,
   };
@@ -190,24 +203,31 @@ afterEach(cleanup);
 afterAll(() => hydrateFull([]));
 
 describe('the statement on screen', () => {
-  it('drops both headers, and says the two values once under the payee', () => {
-    const { heads, collapsed, colSpan, cells } = draw([
+  it('drops both headers, and names neither value under the payee', () => {
+    const { heads, headLines, headText, colSpan, cells } = draw([
       paid('R1', 'Soho', 'agreement'), paid('R2', 'Soho', 'agreement'),
     ]);
     expect(heads).toEqual(['Reference', 'Tenant', 'Tenancy', 'Share', 'Paid', 'Fee charged', 'Rate', 'Commission']);
-    expect(collapsed).toBe('Branch: Soho · Source: Agreement');
+    /* THE REVERSAL, ON THE SCREEN. This block used to grow a third line here,
+       "Branch: Soho · Source: Agreement". A dropped column is simply gone, so
+       the block is the payee and the level, whatever the table below drops. */
+    expect(headLines).toHaveLength(2);
+    expect(headText).not.toContain('Soho');
+    expect(headText).not.toContain('Agreement');
     // The body and the total row follow the header, or the table shears.
     expect(cells).toBe(heads.length);
     expect(colSpan).toBe(String(heads.length - 1));
   });
 
-  it('keeps both, and says nothing extra, when the lines differ', () => {
-    const { heads, collapsed } = draw([
+  it('keeps both columns, and still says nothing extra, when the lines differ', () => {
+    const { heads, headLines } = draw([
       paid('R1', 'Soho', 'agreement'), paid('R2', 'Leeds', 'standard'),
     ]);
     expect(heads).toContain('Branch');
     expect(heads).toContain('Source');
-    expect(collapsed).toBe('');
+    // The same two lines as above: this block's shape does not depend on the
+    // table's, which is the whole point of withdrawing the relocation.
+    expect(headLines).toHaveLength(2);
   });
 });
 

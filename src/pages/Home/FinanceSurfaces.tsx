@@ -11,11 +11,16 @@
    own Reporting dashboard (management-gated there).
 
    Styling reuses the dashboard's .settle / .bdx classes (Dashboard.css is global).
+
+   WHO MAY READ IT. Every figure below is money owed to somebody: the supplier's
+   cut, each agency's cut, and the bordereau the underwriter is invoiced against.
+   There is no part of it a Manager may hold, so the surface asks maySeeCommission
+   itself instead of trusting its caller to ask. See the gate below.
    ===================================================================== */
 import { useState } from 'react';
 import {
   exportBranded, buildPartnerStatementDoc, buildAgentStatementDoc, exportBordereauFile,
-  getCommissionSettlement, getAgentCommissionSettlement, liveAvailable,
+  getCommissionSettlement, getAgentCommissionSettlement, liveAvailable, maySeeCommission,
   getBordereauRate, getBordereauRateMeta, setBordereauRate,
   type PartnerScope, type Role,
 } from '@/data';
@@ -26,7 +31,37 @@ import { Eyebrow } from '@/components/ui/Eyebrow';
 import { useToast } from '@/components/ui/Toast';
 import '@/pages/Dashboard/Dashboard.css';
 
-export function FinanceSurfaces({ role, partnerScope }: { role: Role; partnerScope: PartnerScope }) {
+type FinanceProps = { role: Role; partnerScope: PartnerScope };
+
+/* =====================================================================
+   THE GATE, in front of the surfaces rather than inside them.
+
+   WHAT WAS VISIBLE BEFORE, HONESTLY: nothing that is not still visible. The one
+   mount is on the ops Home under `role === 'superadmin'`, and superadmin is true
+   for maySeeCommission, so this closes no hole that anybody could reach today.
+   It is here because the next mount is the risk: this component is exported, its
+   whole body is settlement, and a caller that widens the role by one word would
+   hand a Manager the agency's payable and an underwriter export in the same
+   breath. The panel is the one place that cannot be forgotten, which is the same
+   reason CommissionStatement now asks for itself.
+
+   REFUSED WHOLE, and null rather than a sentence. Every section here is money
+   owed, down to the Eyebrow that labels them, and the caller draws no heading of
+   its own above this, so there is no labelled void left behind: the surface is
+   simply not part of that reader's home.
+
+   A Director never reached it either (they do not get the ops Home at all), and
+   Opndoor staff are untouched.
+   ===================================================================== */
+export function FinanceSurfaces(props: FinanceProps) {
+  if (!maySeeCommission(props.role)) return null;
+  return <SettlementSurfaces {...props} />;
+}
+
+/* Module scope, not nested, so its identity is stable across the parent's
+   renders: a component TYPE that changes every render remounts its whole subtree
+   and kills every click inside it. */
+function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
   const toast = useToast();
   // Same services, same role + scope as the dashboard: figures reconcile exactly.
   const settlement = getCommissionSettlement(role, partnerScope);

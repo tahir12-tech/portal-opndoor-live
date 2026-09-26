@@ -15,11 +15,15 @@
    A column that says the same thing on every line is not drawn: see
    src/data/statementColumns.ts, which is also where the PDF and the CSV get
    the answer, so the three cannot show different columns for one month.
+
+   WHO MAY READ IT. Directors and Opndoor staff, and nobody else: the panel
+   asks maySeeCommission itself rather than trusting the two callers to ask for
+   it. See the gate on CommissionStatement below.
    ===================================================================== */
 import { useEffect, useMemo, useState } from 'react';
 import {
-  buildCommissionStatementDoc, exportBranded, getCommissionStatements, statementMonths,
-  type CommissionStatement as Statement,
+  buildCommissionStatementDoc, exportBranded, getCommissionStatements, maySeeCommission,
+  statementMonths, type CommissionStatement as Statement,
 } from '@/data';
 import type { PartnerScope, Role } from '@/data';
 import { SOURCE_LABEL } from '@/data/commissionSplit';
@@ -63,9 +67,7 @@ const HEADS: { label: string; num?: boolean; dim?: StatementDimension }[] = [
   { label: 'Commission', num: true },
 ];
 
-export function CommissionStatement({
-  role, scope, orgId, title = 'Commission statement',
-}: {
+type PanelProps = {
   role: Role;
   scope: PartnerScope;
   /** Narrow to one payee by org id. Omitted on the agency's own Reporting page,
@@ -73,7 +75,69 @@ export function CommissionStatement({
       Commission tab, which is looking at one agency out of many. */
   orgId?: string | null;
   title?: string;
-}) {
+};
+
+/* =====================================================================
+   THE GATE, in front of the panel rather than around it.
+
+   WHAT A MANAGER COULD SEE BEFORE THIS. Both callers gated on role alone and a
+   Manager is role 'management', so Reporting drew them the agency's month in
+   full: every line's rate and commission, the payee total, the month selector
+   to walk back through earlier months, and an Export button that handed them
+   the same statement as a PDF. The database was never the leak; the screen
+   read it out of analytics and printed it.
+
+   REFUSED WHOLE, not blanked column by column. There is no version of this
+   panel that survives the rule: the total is commission, the rate is
+   commission, the month list is a list of months the agency earned in, and the
+   export is the statement entire. The one figure on it a Manager is entitled to
+   is the fee the tenant was charged, and they read that on the referral itself,
+   where it belongs, not off a settlement ledger.
+
+   WHY THE PANEL ASKS AS WELL AS THE CALLERS. Both callers do refuse a Manager
+   already, and correctly: Reporting wraps the section in <RoleOnly commission>
+   so its "Your commission" eyebrow goes with it, and the admin Commission tab
+   is not even listed without maySeeCommission. So on the two homes that exist
+   today this gate never fires. It is here for the third home: two callers is
+   already enough to forget one, and a panel that depends on being asked
+   politely is one copy-paste away from putting the agency's month back on a
+   Manager's screen.
+
+   WHY A LINE AND NOT null, for that third caller. A caller that failed to gate
+   has already drawn a heading or an eyebrow of its own, and a null under it
+   leaves a labelled section with a void in it, which reads as a page that
+   failed to load rather than a level that does not include this. One sentence
+   says which it is, in the same words the level itself uses (AGENCY_LEVELS in
+   src/data/types.ts). No CardHead of our own: a heading reading "Commission
+   statement" over a refusal promises a statement below it, and whatever the
+   caller drew is the heading already.
+
+   Directors and Opndoor staff are untouched, maySeeCommission is true for both,
+   and a Negotiator never reached this panel: their callers do not list
+   'referrer'.
+   ===================================================================== */
+export function CommissionStatement(props: PanelProps) {
+  if (!maySeeCommission(props.role)) {
+    return (
+      <Card>
+        <CardBody>
+          <p className="muted" style={{ fontSize: 13.5 }}>
+            Commission figures are not shown at your level. Every referral, every branch and the
+            team stay yours to see.
+          </p>
+        </CardBody>
+      </Card>
+    );
+  }
+  return <StatementPanel {...props} />;
+}
+
+/* The panel proper. Split out so the gate above holds no hooks: a reader whose
+   entitlement changes under a mounted page then swaps one component for the
+   other, instead of changing how many hooks this one calls between renders. */
+function StatementPanel({
+  role, scope, orgId, title = 'Commission statement',
+}: PanelProps) {
   const months = useMemo(() => statementMonths(role, scope), [role, scope]);
   const [monthKey, setMonthKey] = useState('');
   // Default to the most recent month with money in it, and follow it if the
@@ -126,20 +190,21 @@ export function CommissionStatement({
           // below it has no use for.
           const shape = statementShape(st.lines.map((l) => ({ branch: l.branch, source: l.source })));
           const heads = HEADS.filter((h) => !h.dim || !dimensionCollapsed(shape, h.dim));
-          // What the dropped columns took with them, said once under the payee.
-          // Labelled with the column's own header so it is obvious which one
-          // went, and left out entirely when there is no value to name.
-          const collapsed = [
-            shape.onlyBranch && `Branch: ${shape.onlyBranch}`,
-            shape.onlySource && `Source: ${sourceWord(shape.onlySource)}`,
-          ].filter(Boolean).join(' · ');
           return (
             <div key={st.payeeKey} className="stmt">
               <div className="stmt__head">
                 <div>
                   <div className="stmt__payee">{st.payeeName}</div>
                   <div className="stmt__level">{st.level === 'agency' ? 'Agency' : st.level === 'group' ? 'Group' : 'Branch'} · {st.monthLabel}</div>
-                  {collapsed && <div className="stmt__only">{collapsed}</div>}
+                  {/* TWO LINES, ALWAYS. A third used to appear here whenever a
+                      column collapsed, "Branch: Soho · Source: Agreement", on
+                      the principle that the value should not be lost with its
+                      column. Withdrawn: the payee knows which of their own
+                      branches this is, and a block that grows a line whenever
+                      the table loses one changes shape month to month for no
+                      gain. Dropping a column removes something that says
+                      nothing; moving it up here says the same nothing higher
+                      up. See src/data/statementColumns.ts. */}
                 </div>
                 {/* The builder is async now: it reads the statement's stored
                     reference from the database rather than deriving one from the

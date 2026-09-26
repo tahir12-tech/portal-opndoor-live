@@ -628,7 +628,7 @@ import { Link } from 'react-router-dom';
 import { getOrgDeedReadiness, type DeedReadiness } from '@/data/positionsService';
 import {
   ALL_PARTNERS, addContactLive, createBranchLive, effectivePrimary, findAgency,
-  getAgencies, getGroups, getPartner, getRatesFor, createAgencyGroup, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
+  getAgencies, getGroups, getPartner, getRatesFor, createAgencyGroup, maySeeCommission, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
   type Agency, type AgencyGroup, type AgentContact, type Branch,
 } from '@/data';
 import { useSession } from '@/session/SessionContext';
@@ -871,7 +871,16 @@ export function OrgManagement() {
   }
 
   const rates = getRatesFor(partnerScope);
-  const isMgmt = role === 'management';
+  /* THE COMMISSION STATS ON THIS PAGE, and they were gated on the ROLE alone.
+     `role === 'management'` is exactly what an agency MANAGER is, so a Manager
+     opened Agencies to "Agency commission" on every agency head, again on every
+     branch row inside it, and again rolled up on a collapsed group head: the
+     agency's earnings at three grains, on a page nobody thought of as a
+     commission surface. It is the same mistake RoleOnly was changed to stop
+     making, in a file that has no RoleOnly in it, which is why the sweep of the
+     other screens did not reach it.
+     maySeeCommission, not the role: a Director keeps all three. */
+  const isMgmt = role === 'management' && maySeeCommission(role);
   const q = query.trim().toLowerCase();
   // The Agencies section is addressed by the org itself, never by a partner: an
   // admin sees every group/brand/branch; a partner manager sees their own. There

@@ -12,6 +12,13 @@
    (they cannot reach the admin-only Manage partner screen), and admin sees it
    read-only here.
 
+   Director / Manager: both are role 'management' and both read these tables in
+   full. A Manager is the level WITHOUT sees_commission, so the two commission
+   columns come off their boards and the commission workbook behind Export is
+   refused them. Nothing else narrows: the ranking is by referrals and fees
+   collected, which is the book they run, so the board still tells them who is
+   performing. See COMMISSION_COLS below and RoleOnly's header note.
+
    Data comes from getLeague / getReferrerLeague (the service). Sorting,
    searching and paging are presentation concerns handled here.
    ===================================================================== */
@@ -19,7 +26,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ALL_PARTNERS, buildLeagueDoc, exportBranded, fmtBig, getAgencies, getLeague, getPartners, getPeriods, partnerName,
-  getReferrerLeague,
+  getReferrerLeague, maySeeCommission,
   type LeagueRow, type LeagueScope, type LeagueView, type ReferrerBoard, type Period,
 } from '@/data';
 import { getPositions, type Position } from '@/data/positionsService';
@@ -48,6 +55,26 @@ const COLS: Record<LeagueView, Col[]> = {
   branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees generated', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true], ['partnerComm', 'Partner comm.', true], ['agentComm', 'Own commission', true]],
   referrer: [['name', 'Referrer', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true]],
 };
+
+/* THE TWO COLUMNS A MANAGER MAY NOT HAVE, and why only these two.
+   Each states what somebody EARNS out of the fees sitting beside it: partnerComm
+   is the partner's cut, agentComm the agency's (or the branch's own, where it
+   holds a rate). Divide either by the fees column on the same row and you have
+   the rate itself, which is the figure the four rate routes were gated to keep
+   back in 20261005170000, so leaving these on screen made that gating pointless.
+
+   WHAT WAS VISIBLE BEFORE: a Manager opened Agencies or Branches and read Partner
+   comm. and Agent comm. down every row, for their whole agency and every branch
+   in it, and could sort the book by either. The service hands those figures to
+   any management role (getLeague applies the rates itself), so nothing upstream
+   was going to stop it.
+
+   NOTHING ELSE COMES OFF. Referrals, fees collected, Paid, Deeds and the two
+   conversion chips are volume and the price the tenants were charged: a Manager
+   sees every one of those referrals individually already, and gating them would
+   take away the league they are there to read. Referrers are not in this
+   population at all, they get ReferrerLeagueView. */
+const COMMISSION_COLS = new Set<SortKey>(['partnerComm', 'agentComm']);
 
 const TABS: { id: LeagueView; label: string }[] = [
   { id: 'agency', label: 'Agencies' },
@@ -299,7 +326,13 @@ function FullLeagueView() {
   // #114 Referrer-leaderboard visibility is set ONLY in Manage partner (the single
   // lever); the in-page control has been removed from the League screen.
 
-  const cols = COLS[view];
+  // A Director keeps both commission columns; a Manager reads the same board with
+  // them dropped. Filtered here rather than in COLS so the board definitions above
+  // stay the one description of each table, and so the header row and every body
+  // row are built from the same list: they already map over `cols` together, which
+  // is what keeps a hidden column from leaving a stray cell behind.
+  const showComm = maySeeCommission(role);
+  const cols = showComm ? COLS[view] : COLS[view].filter(([key]) => !COMMISSION_COLS.has(key));
   const activePartner = partnerScope === ALL_PARTNERS ? partner : partnerScope;
   const showPartner = partnerScope === ALL_PARTNERS && !partner;
   // "My brand / branches" narrows every tab to the viewer's own branch set; "Whole
@@ -358,6 +391,18 @@ function FullLeagueView() {
         <div className="page-head__actions">
           {myScope.hasToggle && shape.branches > 1 && <ScopeToggle scope={scope} setScope={setScope} mineLabel={myScope.label} />}
           <PeriodSelect ariaLabel="League time period" value={period.id} onChange={setPeriod} options={getPeriods().map((p) => ({ value: p.id, label: p.label }))} />
+          {/* NO GATE ON THE BUTTON, because the gate belongs in the document.
+              buildLeagueDoc used to write Partner commission and Agent commission
+              against every row with no reader test at all, relying on this button
+              being hidden. It now drops those COLUMNS for a reader who may not see
+              them and keeps the sheets, which is the right shape: the league is
+              who referred how much, and that is a Manager's job, every branch and
+              every member of their team.
+              This was briefly wrapped in <RoleOnly roles={['superadmin',
+              'management']} commission> during the commission sweep, which took
+              the whole workbook away from a Manager to withhold one column, and
+              took it from opndoor_manager and developer as well, neither of whom
+              the sweep was about. Withheld figures, not withheld documents. */}
           <Button variant="dark" size="sm" onClick={() => void exportBranded(buildLeagueDoc(role, partnerScope, partner, period, view))} title={`Downloads the ${TABS.find((t) => t.id === view)?.label} table as a branded Excel workbook`}>
             <Icon name="download" /> Export
           </Button>

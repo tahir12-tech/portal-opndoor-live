@@ -161,7 +161,17 @@ export function Home() {
 
       {/* Finance lives on the ops Home (Operations stays one home): commission
           settlement + the underwriter bordereau, for opndoor admin. A partner
-          still sees its own settlement on its own Reporting dashboard. */}
+          still sees its own settlement on its own Reporting dashboard.
+
+          THE COMMISSION AUDIT, AND WHY THIS LINE IS UNCHANGED. Nothing above is
+          a commission figure: the queue tiles, the Direct stages and the
+          awaiting-decision table are counts, routes and names, which is what
+          makes this a home rather than a ledger. The settlement below IS one,
+          and `role === 'superadmin'` is already narrower than maySeeCommission
+          allows, so there is no Manager to refuse here: this page only renders
+          for opndoor staff at all, and a Manager is redirected by
+          ManagerLanding. FinanceSurfaces also refuses itself now, so a future
+          caller cannot widen this by one word. */}
       {role === 'superadmin' && <FinanceSurfaces role={role} partnerScope={ALL_PARTNERS} />}
     </>
   );

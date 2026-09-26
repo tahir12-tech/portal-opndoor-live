@@ -100,12 +100,14 @@ describe('the commission statement an agency exports for a month', () => {
     hydrateFull([stApp({ ref: 'GR-M1' }), stApp({ ref: 'GR-M2', paidAt: D('2026-03-19') })]);
     const { blocks, doc } = await marchStatement();
     const head = blocks.find((b) => b.kind === 'keyvalue')!;
+    /* FIVE LABELS, WHATEVER THE TABLE DROPS. Both lines here are one branch and
+       one rate source, so both columns collapse, and this block used to grow
+       'Branch' and 'Rate source' between the period and the reference. That
+       relocation is withdrawn: a header that changes shape month to month as the
+       table narrows costs the reader something and tells them nothing they do
+       not already know about their own branches. */
     expect(head.items!.map((i) => i.label)).toEqual([
-      'Payee', 'Period',
-      // One branch and one rate source across both lines, so both columns
-      // collapse and their single value moves up here.
-      'Branch', 'Rate source',
-      'Statement reference', 'Generated', 'Basis',
+      'Payee', 'Period', 'Statement reference', 'Generated', 'Basis',
     ]);
     // "Payee level: agency" is our word for where a rate hangs, not a fact the
     // payee reads their statement for; currency is on the meta line.
@@ -135,9 +137,10 @@ describe('the commission statement an agency exports for a month', () => {
     const table = blocks.find((b) => b.kind === 'table')!;
     expect(table.columns!.map((c) => c.header)).toContain('Branch');
     const head = blocks.find((b) => b.kind === 'keyvalue')!;
-    // ...and it is not also asserted once in the header, which would be the
-    // portal naming one of the two branches for the whole statement.
+    // The header names no branch here, and names none when the column collapses
+    // either: it is the same five labels both ways round.
     expect(head.items!.map((i) => i.label)).not.toContain('Branch');
+    expect(head.items!.map((i) => i.label)).not.toContain('Rate source');
   });
 
   it('totals with a label and an amount, and no blended percentage', async () => {

@@ -334,9 +334,10 @@ const num = (v: number | string | null | undefined): number => (v == null ? 0 : 
    THE COLUMN RULE, COPIED FROM THE CLIENT.
 
    A column that says the same thing on every line is dropped, from the header
-   as well as the body, and its one value moves up into the header block. The
-   reasoning, and why this is not viewerShape, is written out in full at the top
-   of src/data/statementColumns.ts.
+   as well as the body, and nothing takes its place: its one value used to move
+   up into the header block and no longer does. The reasoning, and why this is
+   not viewerShape, is written out in full at the top of
+   src/data/statementColumns.ts.
 
    THIS IS A COPY AND IT IS MEANT TO BE. An Edge Function runs on Deno and
    cannot import from src/, and a rule this small does not earn a published
@@ -366,6 +367,20 @@ export interface StatementRow {
   source?: string | null;
 }
 
+/** How many distinct values each dimension holds across these rows, and
+    therefore which of the three columns is worth the room.
+
+    NO onlyAgency / onlyBranch / onlySource, AND THAT IS A REVERSAL. The shape
+    used to hand back the single surviving value of a collapsed dimension, and
+    every rendering moved it into the header block as "Branch: Soho" and
+    "Source: Agreement". The principle was that a fact should not be lost with
+    its column. It is withdrawn. A statement is read by the payee, who knows
+    which of their own branches this is, and a header that grows a line whenever
+    a column shrinks is a header that changes shape month to month for no gain.
+    Collapsing a column is about removing something that says nothing;
+    relocating it puts the same nothing somewhere else. A dropped column is
+    simply gone, so these fields went with the header lines they existed to
+    feed. Do not add them back for that. */
 export interface StatementShape {
   agencies: number;
   branches: number;
@@ -376,24 +391,19 @@ export interface StatementShape {
   oneAgency: boolean;
   oneBranch: boolean;
   oneSource: boolean;
-  /** The one value, for the header line that replaces the column. Null when
-      the rows hold several, and also when the one thing they share is holding
-      none: "every line is missing its branch" is not a fact worth a line. */
-  onlyAgency: string | null;
-  onlyBranch: string | null;
-  onlySource: string | null;
 }
 
-/** Distinct values in one dimension.
+/** How many distinct values one dimension holds.
 
     AN ABSENT VALUE COUNTS AS A VALUE. A statement where some lines name a
     branch and some do not has two things to say and keeps the column; dropping
     it there would quietly attribute the unbranched lines to the named branch.
-    Only when EVERY line is missing it does the dimension collapse, and then
-    there is nothing left to name. */
-function countDimension(
-  values: readonly (string | null | undefined)[],
-): { count: number; only: string | null } {
+    Only when EVERY line is missing it does the dimension collapse.
+
+    A COUNT AND NOTHING ELSE. This used to return the one distinct value beside
+    it, which fed nothing but the header line a collapsed column left behind.
+    That line is withdrawn, so the value has no reader. */
+function countDimension(values: readonly (string | null | undefined)[]): number {
   const seen = new Set<string>();
   let blank = false;
   for (const v of values) {
@@ -401,8 +411,7 @@ function countDimension(
     if (s) seen.add(s);
     else blank = true;
   }
-  const count = seen.size + (blank ? 1 : 0);
-  return { count, only: count === 1 && seen.size === 1 ? [...seen][0] : null };
+  return seen.size + (blank ? 1 : 0);
 }
 
 /**
@@ -414,19 +423,16 @@ function countDimension(
  * by accident, and it would not survive somebody rewriting it as `=== 1`.
  */
 export function statementShape(rows: readonly StatementRow[]): StatementShape {
-  const agency = countDimension(rows.map((r) => r.agency));
-  const branch = countDimension(rows.map((r) => r.branch));
-  const source = countDimension(rows.map((r) => r.source));
+  const agencies = countDimension(rows.map((r) => r.agency));
+  const branches = countDimension(rows.map((r) => r.branch));
+  const sources = countDimension(rows.map((r) => r.source));
   return {
-    agencies: agency.count,
-    branches: branch.count,
-    sources: source.count,
-    oneAgency: agency.count <= 1,
-    oneBranch: branch.count <= 1,
-    oneSource: source.count <= 1,
-    onlyAgency: agency.only,
-    onlyBranch: branch.only,
-    onlySource: source.only,
+    agencies,
+    branches,
+    sources,
+    oneAgency: agencies <= 1,
+    oneBranch: branches <= 1,
+    oneSource: sources <= 1,
   };
 }
 
@@ -488,15 +494,12 @@ function shapeOf(lines: LineRow[]): StatementShape {
   return statementShape(lines.map((l) => ({ branch: l.branch_name, source: l.source })));
 }
 
-/** The header block's label and value pairs for the columns that collapsed.
-    A dropped column must not take its fact with it: a statement that was all
-    Leeds still says Leeds, once, at the top. */
-function collapsedMeta(shape: StatementShape): Array<[string, string]> {
-  const meta: Array<[string, string]> = [];
-  if (shape.onlyBranch) meta.push(["Branch", shape.onlyBranch]);
-  if (shape.onlySource) meta.push(["Source", SOURCE_LABEL[shape.onlySource] ?? shape.onlySource]);
-  return meta;
-}
+/* THERE WAS A collapsedMeta() HERE, and it is gone on purpose. It turned each
+   collapsed dimension into a header pair, ["Branch", "Leeds"], and both the PDF
+   and the CSV spread it into their meta blocks. See StatementShape above: the
+   payee knows which of their own branches this is, and a header block that grows
+   a line whenever the table loses a column changes shape month to month for
+   nothing. Both header blocks are fixed-shape again. */
 
 /** One line's cells, in STATEMENT_COLUMNS order, with the collapsed columns
     left out so the row still lines up with the header. `empty` is the one thing
@@ -556,8 +559,9 @@ function statementPdf(payee: PayeeRow, lines: LineRow[], label: string, referenc
     meta: [
       ["Payee", payee.org_name],
       ["Month", label],
-      // What the dropped columns took with them, said once.
-      ...collapsedMeta(shape),
+      // NO "Branch" OR "Source" LINE FOR A COLLAPSED COLUMN. This block is the
+      // same six pairs every month whatever the table below drops.
+      //
       // The stored number, so a finance team can reconcile this document by
       // reference and find the same one in the portal. See REF_ON_SEND.
       ["Statement reference", reference],
@@ -608,9 +612,9 @@ function statementCsv(payee: PayeeRow, lines: LineRow[], label: string, referenc
     ["opndoor commission statement"],
     ["Payee", payee.org_name],
     ["Month", label],
-    // The same two lines the PDF puts in its header block, for the same reason:
-    // a column that was dropped must not take its one value with it.
-    ...collapsedMeta(shape),
+    // No Branch or Source line either, exactly as the PDF above: the two
+    // attachments have to head the same statement the same way, and a dropped
+    // column leaves nothing behind in either of them.
     ["Statement reference", reference],
     ["Basis", "Commission on fees paid in the month, refunds excluded"],
     ["Applications", lines.length],

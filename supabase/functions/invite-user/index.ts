@@ -11,6 +11,13 @@
 // Authorisation mirrors the Add-user UI: opndoor admins may invite any role
 // (superadmins land under opndoor, everyone else under a named partner);
 // management may invite referrers/managers into THEIR OWN partner only.
+//
+// AND IT CARRIES THE AGENCY LEVEL. Director, Manager and Negotiator are two roles
+// and one boolean: Negotiator is 'referrer', Director and Manager are both
+// 'management' and differ only by users.sees_commission. That boolean is written
+// here, from the dialog's choice, and may only be granted by a caller who holds it
+// themselves. It used to be ignored, so every management invite landed as a
+// Manager whatever the dialog said.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
@@ -44,6 +51,16 @@ Deno.serve(async (req) => {
     // Optional org position to grant on creation, so a brand/group manager (or a
     // branch manager) is placed the moment they are invited rather than in a second
     // step on the Users screen. '' = none (e.g. a negotiator, placed by home branch).
+    /* THE AGENCY LEVEL, which this function used to drop on the floor.
+       The invite dialog offers three levels (Director, Manager, Negotiator) and
+       usersService sends `seesCommission` with every invite. Nothing here read
+       it, and users.sees_commission defaults to FALSE, so every management person
+       ever invited landed as a MANAGER and a Director could not be created
+       through the product at all: the only ones in existence were the ones the
+       20261005170000 backfill made. The screen offered a choice the server threw
+       away, which is the worst of the three possible bugs here because it looks
+       like it worked. */
+    const seesCommission = b.seesCommission === true;
     const scopeKind = String(b.scopeKind ?? "").trim();
     const scopeTarget = String(b.scopeTarget ?? "").trim();
     const base = String(Deno.env.get("APP_URL") ?? b.origin ?? "").replace(/\/$/, "");
@@ -61,7 +78,9 @@ Deno.serve(async (req) => {
     const { data: userData } = await userClient.auth.getUser();
     const callerId = userData.user?.id;
     if (!callerId) return json({ ok: false, error: "Not authenticated." }, 401);
-    const { data: caller } = await userClient.from("users").select("role, partner_id, full_name").eq("id", callerId).maybeSingle();
+    // sees_commission on the CALLER, because granting it is a ladder like the
+    // positions one: only somebody who holds the capability may hand it out.
+    const { data: caller } = await userClient.from("users").select("role, partner_id, full_name, sees_commission").eq("id", callerId).maybeSingle();
     if (!caller) return json({ ok: false, error: "Not permitted." }, 403);
 
     const service = createClient(SUPABASE_URL, SERVICE);
@@ -188,6 +207,18 @@ Deno.serve(async (req) => {
         const { error: insErr } = await service.from("users").insert({
           id: targetUserId, email, full_name: fullName, role, partner_id: inviteePartnerId, status: "pending",
           home_branch_id: homeBranchId,
+          /* Only management has a level to hold: maySeeCommission answers true for
+             a superadmin whatever this says, and false for a referrer, so writing
+             it for either would be a value that contradicts the predicate reading
+             it. And only a caller who may see commission may grant it: a Manager
+             inviting a Director would be handing out a capability they do not
+             hold, which is the one shape of escalation the level has to refuse
+             (see 20261005210000, which closed the other one).
+             Written as service_role, so the admin-only trigger on this column does
+             not apply to this insert: it guards UPDATE, and the authorisation for
+             creation is the line below. */
+          sees_commission: role === "management" && seesCommission
+            && (caller.role === "superadmin" || caller.sees_commission === true),
         });
         if (insErr) return json({ ok: false, error: insErr.message }, 400);
       }

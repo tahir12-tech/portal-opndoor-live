@@ -6,17 +6,31 @@
 
    Every figure comes from analyticsService/exportsService (the parametric
    model). INTEGRATION points live in those services, not here.
+
+   COMMISSION IS A SECOND QUESTION ON THIS PAGE, not the same one as role.
+   An agency has three levels and two of them are role 'management': a Director
+   sees what the agency earns, a Manager sees everything else. Every gate here
+   said roles={['superadmin', 'management']}, which a Manager satisfies, so this
+   page read the agency's earnings out to them: the commission tile, Commission
+   by partner, the commission statement, both settlement blocks, the settlements
+   needs-attention line, and the 12-month trend, which OPENED on Commission
+   earned. The surfaces that state earnings now carry `commission` (RoleOnly
+   consults maySeeCommission for those, and only those); the trend keeps its card
+   and loses the one measure. Fees the TENANT was charged, guaranteed rent,
+   volumes, conversion and expiries stay: they are the Manager's own referrals
+   and gating them would take away the level rather than protect it.
    ===================================================================== */
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ALL_PARTNERS, buildApplicationDoc, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
-  fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartners, getPeriods, getTrend, partnerName,
+  fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartners, getPeriods, getTrend, maySeeCommission, partnerName,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
 import { formatLondonDate } from '@/lib/format';
 import { BASIS_META, type ExportBasis } from '@/data';
 import { getAgentRailFunnel, viewerRunsEligibilityJourney, type AgentRailFunnel } from '@/data/agentFunnel';
+import { isAgencyUser } from '@/data/capabilities';
 import { liveScopeShape } from '@/data/liveAnalytics';
 import { CommissionStatement } from '@/components/CommissionStatement';
 import { useSession } from '@/session/SessionContext';
@@ -76,6 +90,20 @@ function buildChartRows(key: ChartKey, rows: LeagueRow[], m: Measure): { bars: B
 export function Dashboard() {
   usePageMeta('dashboard', 'Reporting', ['Home', 'Reporting']);
   const { role, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod } = useSession();
+
+  /* IS THIS ONE OF OUR OWN AGENCIES READING THEIR OWN SCREEN?
+     The same question Reporting, League, Applications and the nav already ask,
+     and the same answer: not the role, which an agency director and a supplier's
+     manager both wear as 'management', but the party in scope. */
+  const agencyFacing = isAgencyUser(role, partnerScope);
+
+  /* MAY THIS READER BE SHOWN WHAT THE AGENCY EARNS? A third question again, and
+     not answerable from the role: Director and Manager are both 'management'.
+     RoleOnly asks it for everything wrapped in `commission`, so this local copy
+     is only for the figures that are not inside a RoleOnly at all (the
+     settlements needs-attention line) and for the trend's measure list, where
+     the card stays and one option goes. */
+  const seesCommission = maySeeCommission(role);
 
   // Every figure comes from getDashboardData: live records in Supabase mode
   // (d.live), the deterministic synthetic model in mock/test mode.
@@ -155,7 +183,14 @@ export function Dashboard() {
   // Settlement moved to the ops Home for opndoor admin; on Reporting the settlement
   // needs-attention line (and the #settlements anchor it jumps to) is a partner's
   // own payable, so it is management-only here.
-  const naSettlements = d.live && role === 'management' && (partnerDue > 0 || agentDue > 0);
+  /* THE LOUDEST LEAK ON THE PAGE, and the only commission figure here that was
+     never inside a RoleOnly to begin with: this line reads "Settlements due 15
+     October: £X partner / £Y agent" at the top of the screen, above the funnel.
+     `role === 'management'` is exactly what a Manager is, so a Manager opened
+     Reporting to the agency's payable in bold before anything else loaded. It
+     also anchors to #settlements, which is now gated, so leaving the line would
+     have pointed at nothing. Both halves answer to the predicate now. */
+  const naSettlements = d.live && role === 'management' && seesCommission && (partnerDue > 0 || agentDue > 0);
   // #93 Deed-delivery failure is ops furniture: management + opndoor admin only.
   const naNoContact = d.live && canSeeSettlements && d.deedsNoContact > 0;
   const naLapsing = d.live && canSeeSettlements && d.lapsing14 > 0;
@@ -207,7 +242,23 @@ export function Dashboard() {
 
   const [measure, setMeasure] = useState<Record<ChartKey, Measure>>({ branch: 'value', agency: 'value', referrer: 'value' });
   const [trendView, setTrendView] = useState<TrendView>('month');
-  const [trendMeasure, setTrendMeasure] = useState<TrendMeasure>('commission');
+  /* THE CARD IS VOLUME, THE DEFAULT MEASURE WAS NOT. "Monthly volume trend" is a
+     Manager's screen by every part of the line (referral counts, fees collected,
+     twelve months of their own branches), so it is not gated. But its measure
+     dropdown offered Commission earned, which is TrendRow.comm, fees times the
+     agency or partner rate, and it OPENED ON IT: a Manager's first sight of this
+     page was twelve bars of agency earnings with the latest month highlighted.
+     So the option goes for them and the card opens on fees collected instead,
+     which is what the title says it measures anyway. */
+  const [trendMeasure, setTrendMeasure] = useState<TrendMeasure>(seesCommission ? 'commission' : 'value');
+  /* Resolved on every read rather than trusted because the option was missing
+     when it was set. The initialiser above is correct on a normal sign-in
+     (hydrateCommissionVisibility runs before the first Reporting paint), but it
+     runs once, and component state outlives the reader: a different user
+     resolving inside the same runtime is a case the session already handles
+     explicitly (#100 in SessionContext), and 'commission' left in this state
+     would survive it. */
+  const shownMeasure: TrendMeasure = trendMeasure === 'commission' && !seesCommission ? 'value' : trendMeasure;
 
   const partners = getPartners();
   const periods = getPeriods();
@@ -230,19 +281,21 @@ export function Dashboard() {
   ];
 
   // ---- monthly trend ----
-  const trendVal = (r: TrendRow): number => (trendMeasure === 'count' ? r.count : trendMeasure === 'commission' ? r.comm : r.fees);
+  // Every read of the measure below goes through shownMeasure, so r.comm is
+  // unreachable for a reader the predicate refuses even if the state says otherwise.
+  const trendVal = (r: TrendRow): number => (shownMeasure === 'count' ? r.count : shownMeasure === 'commission' ? r.comm : r.fees);
   const rawTrend = getTrend(trendView, role, partnerScope);
   const trendRows: BarRow[] = useMemo(() => {
     const rows = rawTrend.slice();
     // "By month" keeps chronological order (latest highlighted); breakdowns sort by value.
     if (trendView !== 'month') rows.sort((a, b) => trendVal(b) - trendVal(a));
-    return rows.map((r) => ({ label: r.label, sub: r.sub, value: trendVal(r), display: trendMeasure === 'count' ? String(r.count) : fmtBig(trendVal(r)) }));
+    return rows.map((r) => ({ label: r.label, sub: r.sub, value: trendVal(r), display: shownMeasure === 'count' ? String(r.count) : fmtBig(trendVal(r)) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawTrend, trendView, trendMeasure]);
+  }, [rawTrend, trendView, shownMeasure]);
   const trendTopIndex = trendView === 'month' ? trendRows.length - 1 : 0;
   // Entity views (branch/agency/referrer) are 12-month TOTALS, not a monthly
   // series, so the caption states that explicitly (the bars have no time axis by design).
-  const trendSub = `${measureLabel(trendMeasure)} · ${trendView === 'month' ? 'last 12 months' : `by ${trendView} · total over the last 12 months`}`;
+  const trendSub = `${measureLabel(shownMeasure)} · ${trendView === 'month' ? 'last 12 months' : `by ${trendView} · total over the last 12 months`}`;
 
   // ---- exports ----
   const [appsOpen, setAppsOpen] = useState(false);
@@ -288,6 +341,12 @@ export function Dashboard() {
               The document it builds carries commission for every role entitled to
               it, so the button has to be gated like its three siblings. The
               builder now refuses for itself as well. */}
+          {/* None of these three buttons takes `commission`, and that is the
+              verdict rather than an oversight: what the reader ends up holding is
+              decided inside the builders, which each ask maySeeCommission and drop
+              the commission lines and columns for a Manager. The rest of each
+              document (referrals, fees, conversion, expiring guarantees) is theirs.
+              Gating the buttons would take the whole document to remove a block. */}
           <RoleOnly roles={['superadmin', 'management', 'referrer']}>
             <Button variant="dark" size="sm" onClick={exportSummary} title="Downloads a structured CSV of the dashboard analytics for the selected time period">
               <Icon name="download" /> Export summary
@@ -460,6 +519,15 @@ export function Dashboard() {
 
         {/* HERO KPIs */}
         <section className="herorow">
+          {/* DELIBERATELY NOT A COMMISSION SURFACE, and the one most likely to be
+              flagged as one because it is the biggest number on the page. Every
+              figure in this tile is the fee the TENANT was charged (gross, less
+              refunds, net) plus the rent those deeds guarantee. That is the price
+              of the product and a fact about referrals the Manager owns and can
+              already read one by one on Applications. No rate is stated and the
+              rate routes return nothing for them, so it does not reconstruct the
+              agency's income. Gating it would leave a Manager a dashboard with no
+              money on it at all, which is not the level. */}
           <RoleOnly roles={['superadmin', 'management']}>
             {/* #85 Net fees leads the money block; Total guaranteed rent value second. */}
             <div className="card hero-kpi hero-kpi--dark">
@@ -471,7 +539,11 @@ export function Dashboard() {
                 {/* The basis is stated as it actually was, never asserted as a
                     month: Regent's single-tenant fee is three weeks and their
                     joint fee is five. Empty in a period with no fees at all. */}
-                Guarantor fees collected across {d.deedcount} issued deeds{d.feeBasisCopy ? `, ${d.feeBasisCopy}` : ''}, net of any refunds.
+                {/* The noun agrees with the count, off deedsIssued (the number)
+                    rather than deedcount (the display string): a first deed read
+                    "across 1 issued deeds". Same idiom as the needs-attention
+                    lines below, which have always agreed. */}
+                Guarantor fees collected across {d.deedcount} issued deed{d.deedsIssued === 1 ? '' : 's'}{d.feeBasisCopy ? `, ${d.feeBasisCopy}` : ''}, net of any refunds.
               </p>
               {d.live && (
                 <div className="hero-kpi__split">
@@ -510,17 +582,32 @@ export function Dashboard() {
             </div>
           </RoleOnly>
 
-          <RoleOnly roles={['superadmin', 'management']}>
+          {/* THE COMMISSION TILE, AND IT IS THE WHOLE TILE THAT GOES. Every figure
+              in it is earnings: commHeadline is the net agent or partner
+              commission, commSecondVal is the other side of the same split, and
+              commExcl is the commission reversed on refunds. A Manager was shown
+              "Commission (agreed terms)" with an amount, beside the fees tile, at
+              the top of their own dashboard. There is no narrower version of this
+              tile to show them, because the amount IS the tile. */}
+          <RoleOnly roles={['superadmin', 'management']} commission>
             <div className="card hero-kpi">
               <div className="spread">
-                <div className="kpi__label">{d.live ? 'Commission earned' : 'Commission earned to date'}</div>
+                {/* The label is the service's, not the page's: it is the one bit
+                    of this tile's copy that has to agree with the tag beside it
+                    about who is reading (see commLbl in analyticsService). */}
+                <div className="kpi__label">{d.commLbl}</div>
                 <Tag>{d.commTag}</Tag>
               </div>
               <div className="hero-kpi__row" style={{ marginTop: 14 }}>
                 <span className="comm-headline">{d.commHeadline}</span>
+                {/* NO PERCENTAGE ANYWHERE ON AN AGENCY'S COMMISSION TILE, and
+                    that includes this one. It is a hard-coded 12.4% that only
+                    ever appears in mock/demo mode, so it is demo furniture
+                    rather than a measurement, and a figure nobody computed is
+                    the worst kind of rate to show somebody their money under. */}
                 {d.live
                   ? (d.refundCount > 0 && <span className="muted" style={{ fontSize: 12 }}>Excluded on refunds {d.commExcl}</span>)
-                  : <span className="kpi__delta kpi__delta--up"><Icon name="caretUp" strokeWidth={2.4} />12.4% vs prior period</span>}
+                  : !agencyFacing && <span className="kpi__delta kpi__delta--up"><Icon name="caretUp" strokeWidth={2.4} />12.4% vs prior period</span>}
               </div>
               {/* Dropped, not zeroed, on the agent rail: one of our agencies has
                   no supplier above it, and a £0 "partner commission" line reads
@@ -560,9 +647,23 @@ export function Dashboard() {
             into the hero KPIs above; there is no separate block. */}
 
         {/* PERFORMANCE BAND: commission-by-partner, then the breakdown cards, then trend. */}
-        {/* COMMISSION BY PARTNER (selected period) */}
-        {d.live && partnerBreakdown.length > 0 && (
-          <RoleOnly roles={['superadmin', 'management']}>
+        {/* COMMISSION BY PARTNER (selected period), OPNDOOR STAFF AND SUPPLIERS ONLY.
+            The RoleOnly allowlist was the whole gate, and 'management' is now
+            worn by a director at one of our own agencies, so this table opened on
+            their dashboard: seven columns splitting their money with a party they
+            have never heard of, under a caption saying "partner" five times.
+            Partner is Opndoor's word for Opndoor's own business. An agency has
+            exactly one route, it is house plumbing, and there is nothing here for
+            them to read. Dropped for them entirely rather than narrowed to one
+            row, because one row of a rate they do not pay is not a smaller
+            version of this table, it is the same mistake in less space. A
+            supplier's manager keeps it: the table is about them. */}
+        {/* And a supplier's manager keeps it only if they may see earnings at all:
+            four of its seven columns are commission, gross and net, on both sides
+            of the split. `agencyFacing` already removed it from our own agencies;
+            `commission` removes it from anyone else's Manager. */}
+        {d.live && partnerBreakdown.length > 0 && !agencyFacing && (
+          <RoleOnly roles={['superadmin', 'management']} commission>
             <section className="card settle">
               <div className="settle__head">
                 <div>
@@ -600,7 +701,11 @@ export function Dashboard() {
           </RoleOnly>
         )}
 
-        {/* CHARTS */}
+        {/* CHARTS. All three stay whole for a Manager. Their three measures are
+            fees collected, referral count and Sent-to-Deed conversion: the ranking
+            is of their own branches, agencies and people, and none of the bars is
+            an earning. Commission is not offered here at all (see Measure), unlike
+            the trend below, so there is nothing on these to gate. */}
         <section className="chartrow">
           {chartMeta.map(({ key, rows, scope }) => {
             const { bars, total, max } = buildChartRows(key, rows, measure[key]);
@@ -665,9 +770,15 @@ export function Dashboard() {
                   />
                   <TrendSelect
                     ariaLabel="Measure for the trend"
-                    value={trendMeasure}
+                    value={shownMeasure}
                     onChange={(v) => setTrendMeasure(v as TrendMeasure)}
-                    options={[{ value: 'commission', label: 'Commission earned' }, { value: 'value', label: 'Fees collected' }, { value: 'count', label: 'Referral count' }]}
+                    options={[
+                      // The measure itself is the commission surface here, so the
+                      // option is what gets gated, not the chart it draws.
+                      ...(seesCommission ? [{ value: 'commission', label: 'Commission earned' }] : []),
+                      { value: 'value', label: 'Fees collected' },
+                      { value: 'count', label: 'Referral count' },
+                    ]}
                   />
                 </div>
               }
@@ -683,23 +794,31 @@ export function Dashboard() {
             about to pay" for the prior month only. Same accumulator, so they
             agree; different question, so both are here. Management and admin:
             a referrer is not a payee and reads their own referrals instead. */}
+        {/* The eyebrow goes with the statement, not before it: "Your commission"
+            standing over an empty space tells a Manager exactly what they are not
+            being shown, which is worse than the heading being absent. */}
         {d.live && (
-          <RoleOnly roles={['superadmin', 'management']}>
+          <RoleOnly roles={['superadmin', 'management']} commission>
             <div className="section-label"><Eyebrow>Your commission</Eyebrow></div>
             <CommissionStatement role={role} scope={partnerScope} />
           </RoleOnly>
         )}
 
-        {/* SETTLEMENTS (below performance) — payable totals; applications collapsed. */}
+        {/* SETTLEMENTS (below performance) — payable totals; applications collapsed.
+            All three blocks are money owed to the agency or to the supplier above
+            it, down to the per-application commission column inside the expanders,
+            so all three carry `commission`. The label included: it is the anchor
+            the needs-attention line jumps to, and a heading reading "Settlements"
+            over nothing is a worse answer than no heading. */}
         {(naSettlements || (d.live && (settlement.partners.length > 0 || agentSettlement.payees.length > 0))) && (
-          <RoleOnly roles={['management']}>
+          <RoleOnly roles={['management']} commission>
             <div id="settlements" className="section-label"><Eyebrow>Settlements</Eyebrow></div>
           </RoleOnly>
         )}
 
         {/* COMMISSION SETTLEMENT (partner, prior calendar month, payable the 15th) */}
         {d.live && settlement.partners.length > 0 && (
-          <RoleOnly roles={['management']}>
+          <RoleOnly roles={['management']} commission>
             <section className="card settle">
               <div className="settle__head">
                 <div>
@@ -749,7 +868,7 @@ export function Dashboard() {
 
         {/* AGENT COMMISSION SETTLEMENT (agency level, prior calendar month, payable the 15th) */}
         {d.live && agentSettlement.payees.length > 0 && (
-          <RoleOnly roles={['management']}>
+          <RoleOnly roles={['management']} commission>
             <section className="card settle">
               <div className="settle__head">
                 <div>

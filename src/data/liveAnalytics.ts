@@ -19,10 +19,23 @@
    commission on fees paid in the period, minus the commission on fees refunded in
    the period. For a single-partner scope this equals feesNet x rate (the Live
    payments block's presentation).
+
+   AND EVERY COMMISSION FIGURE IN HERE ASKS maySeeCommission FIRST.
+   An agency Manager is role 'management' without sees_commission: they read every
+   referral, every branch and the whole team, and they are shown nothing the agency
+   earns. This file is where that has to hold, because it is the MODEL. A screen
+   that hides a figure it was still handed is one refactor away from showing it
+   again, and in the meantime the number is sitting in the page's memory. So a
+   reader the predicate refuses gets commission that was never computed: zero at
+   the row (liveAggregate, groupRows, liveMonths, which are sums of a rate) and an
+   empty settlement or statement (the whole point of which is what is owed).
+   Volumes, conversion, guaranteed value and the FEE THE TENANT WAS CHARGED are
+   untouched: a Manager is supposed to see all of it, and gating those would break
+   the level rather than protect it.
    ===================================================================== */
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
-import { ALL_PARTNERS } from './types';
+import { ALL_PARTNERS, maySeeCommission } from './types';
 import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp } from './applicationsService';
 import { getPartner, getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
@@ -116,6 +129,9 @@ export interface LiveAgg {
 /** Aggregate the scoped set for a period (event-in-period money/counts + current-state ops). */
 export function liveAggregate(role: Role, scope: PartnerScope, period: Period): LiveAgg {
   const [start, end] = periodRange(period);
+  // Asked once, outside the loop: whether this reader may be told what the agency
+  // earns does not change from row to row.
+  const seesComm = maySeeCommission(role);
   // #2/#13 Withdrawn and Expired are terminal and pre-payment: they leave the
   // funnel entirely, so they are excluded from every count, conversion denominator,
   // ops metric and average here (never inside Sent, never in stuck-at-Sent).
@@ -153,7 +169,16 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
     // multiplying by it on one of our own agencies invents a payable that nobody
     // owes and that no invoice will ever be raised for. Zeroed at the row, not
     // hidden at the screen, so exports and the dashboard agree.
-    const r = { partner: agentRailApp(app) ? 0 : app.partnerRate, agent: totalRate(app) };
+    //
+    // AND NEITHER RATE IS APPLIED AT ALL FOR A READER WHO MAY NOT SEE MONEY.
+    // Same technique for the same reason: the four commission totals below are
+    // nothing but sums of these two rates, so zeroing here leaves a Manager's
+    // aggregate with no earnings figure to find. What they could see before: this
+    // aggregate is what fills the dashboard's commission tile (the headline, the
+    // second line and the reversal on refunds) and the commission columns of the
+    // summary export, so the whole of it reached a Manager's Reporting page.
+    const r = !seesComm ? { partner: 0, agent: 0 }
+      : { partner: agentRailApp(app) ? 0 : app.partnerRate, agent: totalRate(app) };
     if (!rentedLets.has(letOf(app))) { rentedLets.add(letOf(app)); rentSum += app.rent; }
     if (inRange(app.sentAt, start, end)) { a.sent += 1; sentLets.add(letOf(app)); }
     if (inRange(app.paidAt, start, end)) {
@@ -326,8 +351,11 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
   return { id: lbl, name: lbl, sub: '', partner: '' };
 }
 
-/** Group the scoped set into ranked LeagueRows by agency / branch / referrer / month. */
-function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date): LeagueRow[] {
+/** Group the scoped set into ranked LeagueRows by agency / branch / referrer / month.
+    `seesComm` is the caller's answer to maySeeCommission: false means the rows carry
+    no commission, and the ranking is unaffected because it has never been a
+    commission ranking (fees, then refs, then name). */
+function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date, seesComm: boolean): LeagueRow[] {
   const monthLabel = (d: Date) => `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`;
   const map = new Map<string, Group>();
   const get = (id: string, name: string, sub: string, partner: string): Group => {
@@ -348,8 +376,13 @@ function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date): Leagu
       : key === 'branch' ? orgRate(app, 'branch', app.branchId, app.branch)
       : totalRate(app);
     // Same rule as liveAggregate: an agency of ours has no partner to pay, so it
-    // contributes no partner commission to any ranking or breakdown row.
-    const r = { partner: agentRailApp(app) ? 0 : app.partnerRate, agent: agentShare };
+    // contributes no partner commission to any ranking or breakdown row. And the
+    // same rule again for a reader who may not see money: LeagueRow.partnerComm /
+    // agentComm are numbers, so "no figure" is zero here, which is the only shape
+    // the row allows. A Manager reading League saw both columns in full, per agency
+    // and per branch, which is the agency's income broken down by office.
+    const r = !seesComm ? { partner: 0, agent: 0 }
+      : { partner: agentRailApp(app) ? 0 : app.partnerRate, agent: agentShare };
     const sentIn = inRange(app.sentAt, start, end);
     const paidIn = inRange(app.paidAt, start, end);
     const deedIn = inRange(app.deedAt, start, end);
@@ -383,11 +416,12 @@ export function liveVolume(role: Role, scope: PartnerScope, period: Period): { b
   const [start, end] = periodRange(period);
   const set = scopeFull(allFull(), role, scope);
   const isRef = role === 'referrer';
+  const seesComm = maySeeCommission(role);
   return {
-    branches: groupRows(set, 'branch', start, end),
-    agencies: groupRows(set, 'agency', start, end),
+    branches: groupRows(set, 'branch', start, end, seesComm),
+    agencies: groupRows(set, 'agency', start, end, seesComm),
     // A referrer's own third chart is their monthly volume; everyone else's is by referrer.
-    referrers: groupRows(set, isRef ? 'month' : 'referrer', start, end),
+    referrers: groupRows(set, isRef ? 'month' : 'referrer', start, end, seesComm),
   };
 }
 
@@ -412,13 +446,20 @@ export function liveLeague(view: LeagueView, role: Role, scope: PartnerScope, pa
     const allow = new Set(branchIds);
     set = set.filter((a) => a.branchId != null && allow.has(a.branchId));
   }
-  const cur = groupRows(set, view, start, end);
+  /* THE LEAGUE IS RANKED ON FEES, WHICH IS WHY A MANAGER STILL HAS ONE.
+     Ordering here is fees collected, then referrals, then name (see groupRows), and
+     the fee a tenant was charged is the price of the product, not the agency's
+     earnings. So refusing a Manager the commission columns costs them no position
+     and no row: the volume ranking IS the ranking, and it is the same table a
+     Director sees with two columns removed. Nothing to substitute. */
+  const seesComm = maySeeCommission(role);
+  const cur = groupRows(set, view, start, end, seesComm);
   // #107 Week-over-week movement: rank the SAME table as it stood 7 days ago (the
   // window pulled back a week) and diff positions by entity (on the fly, no store).
   // A period shorter than a week has no comparable prior table, so movement is null.
   const prevEnd = new Date(end.getTime() - 7 * DAY);
   const priorRank = new Map<string, number>();
-  if (prevEnd > start) groupRows(set, view, start, prevEnd).forEach((r, i) => priorRank.set(leagueKey(r), i));
+  if (prevEnd > start) groupRows(set, view, start, prevEnd, seesComm).forEach((r, i) => priorRank.set(leagueKey(r), i));
   return cur.map((r, i) => {
     const pr = priorRank.get(leagueKey(r));
     return { ...r, movement: pr == null ? null : pr - i };
@@ -432,6 +473,11 @@ export interface MonthRow { label: string; refs: number; fees: number; deeds: nu
     month. Fees are gross (collected), matching the volume/league basis. */
 export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
   const set = scopeFull(allFull(), role, scope);
+  // `comm` stays at its zero for a reader who may not see money: the trend card's
+  // measure dropdown offered "Commission earned" and OPENED on it, so a Manager's
+  // first sight of Reporting was twelve months of the agency's earnings. The months
+  // themselves, the referrals and the fees collected are theirs and are untouched.
+  const seesComm = maySeeCommission(role);
   const end = nowRef();
   const start = new Date(end.getFullYear(), end.getMonth() - 11, 1);
   const months: (MonthRow & { key: number })[] = [];
@@ -447,7 +493,7 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
     if (app.sentAt && idx(app.sentAt) >= lo && idx(app.sentAt) <= hi) { const m = at(app.sentAt); if (m) m.refs += 1; }
     if (app.paidAt && idx(app.paidAt) >= lo && idx(app.paidAt) <= hi) {
       const m = at(app.paidAt);
-      if (m) { m.fees += feeBaseFor(app); if (!app.refunded) m.comm += feeBaseFor(app) * app.partnerRate; }
+      if (m) { m.fees += feeBaseFor(app); if (!app.refunded && seesComm) m.comm += feeBaseFor(app) * app.partnerRate; }
     }
     if (app.deedAt && idx(app.deedAt) >= lo && idx(app.deedAt) <= hi) { const m = at(app.deedAt); if (m) m.deeds += 1; }
   }
@@ -506,6 +552,13 @@ export function getCommissionSettlement(role: Role, scope: PartnerScope): Commis
   const bEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999); // last day of prior month
   const settlementDate = new Date(now.getFullYear(), now.getMonth(), 15); // 15th of this month
   const monthLabel = `${MONTH_LONG[bStart.getMonth()]} ${bStart.getFullYear()}`;
+  /* NO PARTNERS AND SO NO MONEY for a reader who may not see commission. A
+     settlement is nothing but what is owed and to whom, so there is no narrower
+     version of it to compute: the month and the settlement date stay, because they
+     are a calendar and not a figure, and every payable line is absent rather than
+     zero. A Manager read this as the bordereau block on Reporting, one line per
+     partner with the amount due and the constituent applications under it. */
+  if (!maySeeCommission(role)) return { monthLabel, settlementDate, partners: [] };
   const set = scopeFull(allFull(), role, scope);
   const byPartner = new Map<string, PartnerSettlement>();
   for (const a of set) {
@@ -540,6 +593,12 @@ export interface PartnerCommissionRow {
 }
 
 export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Period): PartnerCommissionRow[] {
+  /* EVERY COLUMN OF THIS TABLE IS COMMISSION except the paid count and the fees, and
+     it exists to state the split, so it is refused whole rather than thinned out.
+     The #85 ghost-partner padding below would otherwise hand back a row per active
+     partner with zeros in it, which is a commission table with the figures removed
+     and still reads as one. */
+  if (!maySeeCommission(role)) return [];
   const [start, end] = periodRange(period);
   const set = scopeFull(allFull(), role, scope);
   const map = new Map<string, PartnerCommissionRow>();
@@ -711,6 +770,12 @@ export function getAgentCommissionSettlement(role: Role, scope: PartnerScope): A
   const bEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
   const settlementDate = new Date(now.getFullYear(), now.getMonth(), 15);
   const monthLabel = monthLabelOf(bStart);
+  /* THE AGENCY'S OWN EARNINGS, which is the figure the Manager level exists to
+     withhold, so this is the one that mattered most: no payees, no rollup and a
+     zero total. A Manager saw it on Reporting as "Your commission" with the amount
+     payable on the 15th and every payee under it. Nothing is substituted, because
+     "what you are owed" has no version that is not money. */
+  if (!maySeeCommission(role)) return { monthLabel, settlementDate, agencies: [], payees: [], total: 0 };
   const acc = accruePayees(scopeFull(allFull(), role, scope), bStart, bEnd);
   const payees: AgentSettlementPayee[] = [...acc.values()]
     .map((r) => ({ key: r.key, level: r.level, orgId: r.orgId, agency: r.orgName,
@@ -726,6 +791,10 @@ export function getAgentCommissionSettlement(role: Role, scope: PartnerScope): A
     payment dates actually in their book, so a month with no activity is never
     offered as an empty statement. */
 export function statementMonths(role: Role, scope: PartnerScope): { key: string; label: string }[] {
+  // A list of the months the agency earned in is itself a commission surface: it
+  // says when there was money and how far back the ledger runs, and every month on
+  // it opens a statement. No months for a reader who may not see one.
+  if (!maySeeCommission(role)) return [];
   const seen = new Map<string, string>();
   for (const a of scopeFull(allFull(), role, scope)) {
     if (!a.paidAt || a.refunded) continue;
@@ -743,6 +812,12 @@ export function statementMonths(role: Role, scope: PartnerScope): { key: string;
  * same accumulator; settlement-statement.test.ts holds that to account.
  */
 export function getCommissionStatements(role: Role, scope: PartnerScope, monthKey: string): CommissionStatement[] {
+  // Refused at the model as well as at the panel. The panel (CommissionStatement)
+  // answers the same predicate and shows a sentence instead, which is the right
+  // answer on a screen; this is the answer for anybody who calls the service
+  // directly, now or after the next refactor of that page. Every line carries a
+  // rate, a source and a commission amount: there is no partial statement.
+  if (!maySeeCommission(role)) return [];
   const [y, m] = monthKey.split('-').map(Number);
   if (!y || !m) return [];
   const bStart = new Date(y, m - 1, 1, 0, 0, 0, 0);
@@ -764,10 +839,12 @@ export interface TrendRow { label: string; count: number; fees: number; comm: nu
 /** Live 12-month trend: by-month or an entity breakdown, carrying real net
     partner commission (per-application rates) so it reconciles with the KPIs. */
 export function liveTrend(view: 'month' | 'branch' | 'agency' | 'referrer', role: Role, scope: PartnerScope): TrendRow[] {
+  // Both paths carry a zero `comm` for a reader the predicate refuses: liveMonths
+  // never adds it, and groupRows never applies a rate.
   if (view === 'month') return liveMonths(role, scope).map((m) => ({ label: m.label, count: m.refs, fees: m.fees, comm: m.comm }));
   const set = scopeFull(allFull(), role, scope);
   const end = nowRef();
   const start = new Date(end.getFullYear(), end.getMonth() - 11, 1);
   // Unrounded, for the same reason as liveMonths above.
-  return groupRows(set, view, start, end).map((r) => ({ label: r.name, count: r.refs, fees: r.fees, comm: r.partnerComm, sub: r.sub || undefined }));
+  return groupRows(set, view, start, end, maySeeCommission(role)).map((r) => ({ label: r.name, count: r.refs, fees: r.fees, comm: r.partnerComm, sub: r.sub || undefined }));
 }

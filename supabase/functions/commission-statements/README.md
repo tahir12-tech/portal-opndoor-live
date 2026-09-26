@@ -136,10 +136,19 @@ branch in the month, and most months are all one rate source. So:
   the rule already answers for that dimension, so the column is a row in the RPC
   and an entry in `STATEMENT_COLUMNS` when somebody wants it.
 
-**Dropped means dropped, header included**, never a column of blanks. And the
-value is not lost with the column: it moves into the header block as its own
-line, `Branch: Leeds`, `Source: Opndoor standard`, in the PDF, in the CSV and
-under the payee's name on the Reporting page.
+**Dropped means dropped, header included**, never a column of blanks, and
+nothing takes its place.
+
+The value used to. A collapsed column put its one value into the header block as
+its own line, `Branch: Leeds`, `Source: Opndoor standard`, in the PDF, in the
+CSV, in the exported spreadsheet and under the payee's name on the Reporting
+page, on the principle that a fact should not be lost with its column. **That is
+withdrawn.** A statement is read by the payee, who knows which of their own
+branches this is, and a header block that grows a line whenever a column shrinks
+is a block that changes shape month to month for no gain. Collapsing a column is
+about removing something that says nothing; relocating it puts the same nothing
+somewhere else. So `StatementShape` no longer carries `onlyBranch`,
+`onlySource` or `onlyAgency` at all: they existed only to be relocated.
 
 A mixed statement keeps its column. Some lines with a branch and some without is
 **two** things to say, not one, and collapsing it there would quietly attribute

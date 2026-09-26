@@ -21,9 +21,11 @@
    maySeeCommission decided what this reader may see long before this counts it.
    This decides only whether saying it forty times is worth the room.
 
-   THE COLLAPSED VALUE IS NOT LOST. A dropped column's single value comes back
-   as onlyBranch / onlySource / onlyAgency, and all three renderings put it in
-   the header instead: "every line here is Leeds" said once rather than never.
+   A DROPPED COLUMN IS SIMPLY GONE, and until today it was not: the single value
+   came back as onlyBranch / onlySource / onlyAgency and all four renderings
+   relocated it into the header block, "Branch: Soho". That is withdrawn and the
+   fields are gone with it. StatementShape below says why, at length, because the
+   next reader's instinct will be to put them back.
 
    DUPLICATED, ON PURPOSE. Everything between the BEGIN and END markers below
    also exists, character for character, in
@@ -54,6 +56,20 @@ export interface StatementRow {
   source?: string | null;
 }
 
+/** How many distinct values each dimension holds across these rows, and
+    therefore which of the three columns is worth the room.
+
+    NO onlyAgency / onlyBranch / onlySource, AND THAT IS A REVERSAL. The shape
+    used to hand back the single surviving value of a collapsed dimension, and
+    every rendering moved it into the header block as "Branch: Soho" and
+    "Source: Agreement". The principle was that a fact should not be lost with
+    its column. It is withdrawn. A statement is read by the payee, who knows
+    which of their own branches this is, and a header that grows a line whenever
+    a column shrinks is a header that changes shape month to month for no gain.
+    Collapsing a column is about removing something that says nothing;
+    relocating it puts the same nothing somewhere else. A dropped column is
+    simply gone, so these fields went with the header lines they existed to
+    feed. Do not add them back for that. */
 export interface StatementShape {
   agencies: number;
   branches: number;
@@ -64,24 +80,19 @@ export interface StatementShape {
   oneAgency: boolean;
   oneBranch: boolean;
   oneSource: boolean;
-  /** The one value, for the header line that replaces the column. Null when
-      the rows hold several, and also when the one thing they share is holding
-      none: "every line is missing its branch" is not a fact worth a line. */
-  onlyAgency: string | null;
-  onlyBranch: string | null;
-  onlySource: string | null;
 }
 
-/** Distinct values in one dimension.
+/** How many distinct values one dimension holds.
 
     AN ABSENT VALUE COUNTS AS A VALUE. A statement where some lines name a
     branch and some do not has two things to say and keeps the column; dropping
     it there would quietly attribute the unbranched lines to the named branch.
-    Only when EVERY line is missing it does the dimension collapse, and then
-    there is nothing left to name. */
-function countDimension(
-  values: readonly (string | null | undefined)[],
-): { count: number; only: string | null } {
+    Only when EVERY line is missing it does the dimension collapse.
+
+    A COUNT AND NOTHING ELSE. This used to return the one distinct value beside
+    it, which fed nothing but the header line a collapsed column left behind.
+    That line is withdrawn, so the value has no reader. */
+function countDimension(values: readonly (string | null | undefined)[]): number {
   const seen = new Set<string>();
   let blank = false;
   for (const v of values) {
@@ -89,8 +100,7 @@ function countDimension(
     if (s) seen.add(s);
     else blank = true;
   }
-  const count = seen.size + (blank ? 1 : 0);
-  return { count, only: count === 1 && seen.size === 1 ? [...seen][0] : null };
+  return seen.size + (blank ? 1 : 0);
 }
 
 /**
@@ -102,19 +112,16 @@ function countDimension(
  * by accident, and it would not survive somebody rewriting it as `=== 1`.
  */
 export function statementShape(rows: readonly StatementRow[]): StatementShape {
-  const agency = countDimension(rows.map((r) => r.agency));
-  const branch = countDimension(rows.map((r) => r.branch));
-  const source = countDimension(rows.map((r) => r.source));
+  const agencies = countDimension(rows.map((r) => r.agency));
+  const branches = countDimension(rows.map((r) => r.branch));
+  const sources = countDimension(rows.map((r) => r.source));
   return {
-    agencies: agency.count,
-    branches: branch.count,
-    sources: source.count,
-    oneAgency: agency.count <= 1,
-    oneBranch: branch.count <= 1,
-    oneSource: source.count <= 1,
-    onlyAgency: agency.only,
-    onlyBranch: branch.only,
-    onlySource: source.only,
+    agencies,
+    branches,
+    sources,
+    oneAgency: agencies <= 1,
+    oneBranch: branches <= 1,
+    oneSource: sources <= 1,
   };
 }
 

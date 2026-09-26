@@ -9,6 +9,27 @@
    and application row); amends persist via the amend-tenancy-start Edge Function
    (deed reissue applied server-side); payment and deed generation run on Stripe
    and PandaDoc. Send-deed emails the agent contact resolved by orgService.
+
+   THE THREE LEVELS, AND WHY NOTHING HERE IS BEHIND THE COMMISSION FLAG.
+   Director and Manager are both role 'management'. They have the same screens
+   and the same reach, and the only difference is whether they are shown what the
+   agency earns, which maySeeCommission answers and RoleOnly's `commission` prop
+   enforces. Audited surface by surface, and every figure on this record is a
+   fact about the REFERRAL rather than about our income from it: the guarantor
+   fee as charged and the basis it was charged on, the rent and the annual rent
+   the guarantee covers, a joint tenant's share percentage, the paid and deed
+   tallies across the tenancy, the delivery state. A Manager owns this referral
+   and is meant to read all of it, so none of it is gated and none of it should
+   be: gating the fee would leave the person handling the tenancy unable to say
+   what their own tenant was charged.
+
+   The commission figures for one application (the rate, the effective
+   percentage, the split, the amount payable to the agency) are not drawn on this
+   page at all. getApplicationDetail carries none of them, application_commission_lines
+   is never read here, and no activity_log kind states an amount owed to anybody,
+   so there was no hole on this page to close. If one of those figures is ever
+   added here, it goes in inside <RoleOnly roles={[...]} commission> at the same
+   time, not afterwards.
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -587,7 +608,14 @@ export function ApplicationDetail() {
      only thing that ever writes it, so every seeded or manually settled row has
      none and fell through to the rent. The fallback is now the fee as
      snapshotted on the application (feeLabels puts feeGBP on the record), and
-     only then the rent, for an old record with no fee stored at all. */
+     only then the rent, for an old record with no fee stored at all.
+
+     AND IT IS NOT COMMISSION, so it is not behind the commission flag. This is
+     the price the TENANT paid for the product, on a referral the Manager owns and
+     answers the phone about; what the agency earns out of it is a different
+     number and is not on this page. Every surface below that prints this label
+     (the timeline's Paid caption, the payment card's Amount row, the agent
+     rail's guarantee-fee stage) is a Manager's to see. */
   const paidAmountLabel = paymentInfo?.paidAmount != null
     ? `£${paymentInfo.paidAmount.toLocaleString('en-GB')}`
     : d.feeGBP ?? d.rent;
@@ -1059,6 +1087,12 @@ export function ApplicationDetail() {
           )}
           <div className="drow"><span className="drow__k">Refunded on</span><span className="drow__v">{pi?.refundedAt ? fmtInput(new Date(pi.refundedAt)) : '-'}</span></div>
           <div className="drow"><span className="drow__k">Refund reference</span><span className="drow__v pay-mono">{pi?.refundRef ?? '-'}</span></div>
+          {/* THE ONE MENTION OF COMMISSION ON THIS PAGE, and it is not a
+              commission surface: it names no figure and none can be worked out
+              from it, it says a refund earns nobody anything, and a Negotiator
+              (who sees no commission anywhere) has always read this line. Gating
+              it would take the second sentence away too, which is the only thing
+              on the card that explains why a refunded record still says Paid. */}
           <div className="pay-note">No commission or premium accrues on a refunded fee. The Sent to Paid transition is not reversed (by design).</div>
         </>
       )}

@@ -436,7 +436,13 @@ export function Applications() {
                 {showOrgCol && <th>{showBranch ? 'Branch' : 'Agency'}</th>}
                 <th style={{ textAlign: 'right' }}>Monthly rent</th>
                 <th>Status</th>
-                <th>Date</th>
+                {/* NOT "Date". The cell is the row's MOST RECENT event,
+                    deed issued, else paid, else sent (eventDate/eventTs in
+                    hydrate, and what the Newest/Oldest sort orders on), so
+                    the old heading never said which of the three it
+                    was, and a row that jumped up the list looked mis-sorted
+                    against a "Date" the reader took for the referral date. */}
+                <th>Last activity</th>
                 <th />
               </tr>
             </thead>
@@ -451,7 +457,7 @@ export function Applications() {
                 const last = !!g && pagedRows[i + 1]?.tenancyId !== r.tenancyId;
                 const me = g?.members.find((m) => m.ref === r.ref);
                 const shown = g ? pagedRows.filter((x) => x.tenancyId === r.tenancyId).length : 0;
-                /* Tenant, Property, rent, Status, Date and the chevron are always
+                /* Tenant, Property, rent, Status, Last activity and the chevron are always
                    drawn; the other three come and go with the viewer's shape.
                    Keep this in step with the header row above, or the tenancy
                    heading runs short of the table it sits in. */

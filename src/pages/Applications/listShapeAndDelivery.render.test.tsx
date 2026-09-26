@@ -111,8 +111,10 @@ describe('the columns and filters a one-agency viewer gets', () => {
     expect(headers(view)).not.toContain('Route');
     expect(headers(view)).not.toContain('Branch');
     expect(headers(view)).not.toContain('Agency');
-    // What is left still has to be a list of applications.
-    expect(headers(view)).toEqual(expect.arrayContaining(['Tenant', 'Property', 'Status', 'Date']));
+    // What is left still has to be a list of applications. The date column is
+    // headed "Last activity": the cell is the row's most recent event rather than
+    // the date it was created, and the old "Date" said neither.
+    expect(headers(view)).toEqual(expect.arrayContaining(['Tenant', 'Property', 'Status', 'Last activity']));
     expect(chips(view)).not.toContain('Agency:');
     expect(chips(view)).not.toContain('Branch:');
     expect(chips(view)).not.toContain('Route:');

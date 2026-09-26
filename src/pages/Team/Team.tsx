@@ -27,6 +27,22 @@
    reads like something is broken. A level earns its heading from the second
    node in it. See teamLayout below.
 
+   NO COMMISSION FIGURE LIVES ON THIS PAGE, and that is the audited answer for
+   the Director / Manager split rather than an accident. There is no money on it
+   at all: a person, their email, their level, whether they can get in, and where
+   they sit. A Manager is role 'management' without sees_commission and reads
+   every word of it, which is the point of the level, so nothing here takes the
+   `commission` flag on RoleOnly.
+
+   THE TWO THINGS THAT LOOK LIKE COMMISSION AND ARE NOT. The level pill says
+   "Director" or "Manager", which names who is entitled to see the money and
+   states no figure, so it stays for everyone: a Manager already knows their own
+   level and hiding a colleague's would make the page lie about the shape of the
+   agency. And "Make Negotiator" / "Make Manager" moves somebody between the two
+   roles; it cannot grant the commission bit, so it is not a way to promote
+   yourself to Director. The commission-statement tick is genuinely absent, by
+   the earlier admin-only ruling: see the note further down where it used to be.
+
    THE SCREEN IS NOT THE BOUNDARY. Every list here is already RLS-scoped —
    agencies_select, branches_select and users_select each narrow to the caller's
    positions — and every write runs through the same guard-checked RPC the admin
