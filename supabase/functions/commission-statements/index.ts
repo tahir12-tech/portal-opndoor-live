@@ -73,6 +73,36 @@ const ATTACHMENT_FORMAT = "pdf" as const;
 const ATTACHMENT_MEDIA_TYPE = "application/pdf";
 
 /**
+ * AND A CSV, SECOND.
+ *
+ * The paragraph above used to say the CSV was lost and that anyone wanting the
+ * numbers in a spreadsheet should download the month from Reporting. That is a
+ * fair answer for somebody who has the portal open and a poor one for a finance
+ * mailbox that is reconciling from the email. Both go, PDF first, because the
+ * PDF is the statement and the CSV is the working: a mail client shows the
+ * first attachment as the document and the order is the only signal of which
+ * is which.
+ *
+ * They are the same numbers from the same rows, built in the same pass. There
+ * is no second query and so no way for them to disagree.
+ */
+const CSV_MEDIA_TYPE = "text/csv";
+
+function csvCell(v: unknown): string {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function toCSV(rows: (string | number)[][]): string {
+  // The BOM is what makes Excel open a pound sign as a pound sign.
+  return "\ufeff" + rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
+}
+/** Base64 for a text attachment. The UTF-8 round trip is explicit because
+    btoa() alone throws on any character above U+00FF, and the BOM is one. */
+function textToBase64(s: string): string {
+  return btoa(unescape(encodeURIComponent(s)));
+}
+
+/**
  * A cell with nothing in it reads as one hyphen.
  *
  * Not blank, because a blank cell in a money table looks like a rendering
@@ -167,33 +197,45 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 
 /**
  * The day of the month the statements go out: the 1st, or the next day that is
- * not a UK bank holiday.
+ * neither a weekend nor a UK bank holiday.
  *
- * WEEKENDS DO NOT MATTER. A Saturday or Sunday 1st is a send day. This is not
- * an oversight and not the old rule left behind: statements are an email and a
- * PDF, nobody has to be at a desk to receive them, and a weekend rule would
- * have pushed a Saturday 1st to the 3rd for no reason anyone could point at.
- * Only a bank holiday moves it, because that is when the payment behind the
- * statement cannot clear.
+ * BOTH MATTER, and the interesting case is where they compound. 1 January 2028
+ * is a Saturday; the 2nd is a Sunday; gov.uk moves New Year's Day to Monday the
+ * 3rd as a substitute holiday. So the December 2027 statements go out on
+ * TUESDAY 4 JANUARY, three days late, and that is correct: the statement says
+ * what is payable and the payment behind it cannot move until the banks are
+ * open.
+ *
+ * The substitute holidays are already in the table as the dates they are
+ * OBSERVED, not the dates they commemorate, which is what makes this work: the
+ * 3rd is listed, so the loop steps over it without needing to know why.
  *
  * `covered` is false when the holiday table has run out. The caller surfaces
- * that; the day falls back to the 1st, so an unmaintained table sends on time
- * and possibly on a holiday, rather than skipping a month in silence.
+ * that; weekends are still skipped, because those need no table, and the day
+ * falls back to the first weekday. An unmaintained table sends on time and
+ * possibly on a holiday, rather than skipping a month in silence.
  */
 function statementSendDay(year: number, month1: number): { day: number; covered: boolean } {
-  if (!bankHolidaysKnownFor(year)) {
+  const covered = bankHolidaysKnownFor(year);
+  if (!covered) {
     console.error(
       `commission-statements: UK_BANK_HOLIDAYS has no entries for ${year}. ` +
         `The table has run out and must be extended from gov.uk/bank-holidays. ` +
-        `Treating every day as a working day, so statements send on the 1st.`,
+        `Weekends are still skipped; bank holidays are not, so a statement may ` +
+        `go out on one rather than a month being skipped in silence.`,
     );
-    return { day: 1, covered: false };
   }
-  // Four in a row is the worst Christmas can do; fourteen is room to spare.
+  // Fourteen is room to spare: the worst case is a Saturday 1st followed by
+  // Christmas-scale substitutes, which is four or five days, never fourteen.
   for (let d = 1; d <= 14; d++) {
-    if (!HOLIDAY_SET.has(`${year}-${pad2(month1)}-${pad2(d)}`)) return { day: d, covered: true };
+    // getUTCDay: 0 Sunday, 6 Saturday. Date.UTC avoids the local-timezone shift
+    // that would make the 1st read as the previous day west of Greenwich.
+    const dow = new Date(Date.UTC(year, month1 - 1, d)).getUTCDay();
+    if (dow === 0 || dow === 6) continue;
+    if (covered && HOLIDAY_SET.has(`${year}-${pad2(month1)}-${pad2(d)}`)) continue;
+    return { day: d, covered };
   }
-  return { day: 1, covered: true }; // unreachable
+  return { day: 1, covered }; // unreachable
 }
 
 const ordinal = (d: number) =>
@@ -342,6 +384,59 @@ function settlementPdf(payees: PayeeRow[], label: string, grand: number): Uint8A
   });
 }
 
+/**
+ * The same statement as a spreadsheet, built from the same rows in the same
+ * pass, so the two attachments cannot disagree. Column order matches the PDF,
+ * which matches the table on the Reporting page, so all three can be held side
+ * by side.
+ */
+function statementCsv(payee: PayeeRow, lines: LineRow[], label: string): string {
+  return toCSV([
+    ["opndoor commission statement"],
+    ["Payee", payee.org_name],
+    ["Month", label],
+    ["Basis", "Commission on fees paid in the month, refunds excluded"],
+    ["Applications", lines.length],
+    ["Total commission", gbp(num(payee.total))],
+    [PAYMENT_TERMS_LINE],
+    [],
+    STATEMENT_COLUMNS.map((c) => c.header),
+    ...lines.map((l) => [
+      l.guarantee_ref,
+      l.tenant_name,
+      l.branch_name,
+      l.tenancy_place,
+      // A spreadsheet cell is left EMPTY where the PDF prints a hyphen: the
+      // hyphen is a typographic answer to a blank box on a page, and in a
+      // column somebody is going to sum it is a value that breaks the sum.
+      l.share_percent == null ? "" : `${Number(num(l.share_percent).toFixed(2))}%`,
+      dmy(l.paid_on),
+      gbp(num(l.fee)),
+      pct(num(l.rate)),
+      l.source ? (SOURCE_LABEL[l.source] ?? l.source) : "",
+      gbp(num(l.commission)),
+    ]),
+    [],
+    ["", "", "", "", "", "", "", "", "Total", gbp(num(payee.total))],
+  ]);
+}
+
+/** The staff settlement as a spreadsheet, mirroring settlementPdf. */
+function settlementCsv(payees: PayeeRow[], label: string, grand: number): string {
+  return toCSV([
+    ["opndoor commission settlement"],
+    ["Month", label],
+    ["Payees", payees.length],
+    ["Total payable", gbp(grand)],
+    [PAYMENT_TERMS_LINE],
+    [],
+    ["Payee", "Level", "Applications", "Commission"],
+    ...payees.map((p) => [p.org_name, p.level, p.line_count, gbp(num(p.total))]),
+    [],
+    ["", "", "Total", gbp(grand)],
+  ]);
+}
+
 /** One payee's email. Total in the subject and in the body, per the ruling. */
 function statementMessage(opts: {
   payeeName: string; label: string; total: number; applications: number; appUrl: string;
@@ -463,7 +558,7 @@ Deno.serve(async (req) => {
     // Reported on every response, dry or not, so the schedule can be read off a
     // run without anybody having to work out what the rule did today.
     const schedule = {
-      rule: "The 1st of the month, or the next day that is not a UK bank holiday. Weekends are send days.",
+      rule: "The 1st of the month, or the next day that is neither a weekend nor a UK bank holiday.",
       today: nowL.date,
       sendDate: `${ty}-${pad2(tm)}-${pad2(send.day)}`,
       isSendDay: td === send.day,
@@ -519,7 +614,7 @@ Deno.serve(async (req) => {
     const unaddressed: string[] = [];
     const would: Array<{
       payee: string; level: string; total: number; applications: number; to: string[];
-      attachment: { filename: string; mediaType: string; bytes: number };
+      attachments: { filename: string; mediaType: string; bytes: number }[];
     }> = [];
 
     for (const p of payees) {
@@ -545,13 +640,13 @@ Deno.serve(async (req) => {
         // an agency on the 1st. Building it costs a few milliseconds and turns
         // a crash in the writer into a failed rehearsal instead.
         const pdf = statementPdf(p, lines, label);
+        const csv = statementCsv(p, lines, label);
         would.push({
           payee: p.org_name, level: p.level, total, applications: lines.length, to,
-          attachment: {
-            filename: `opndoor-commission-${monthKey}.${ATTACHMENT_FORMAT}`,
-            mediaType: ATTACHMENT_MEDIA_TYPE,
-            bytes: pdf.length,
-          },
+          attachments: [
+            { filename: `opndoor-commission-${monthKey}.pdf`, mediaType: ATTACHMENT_MEDIA_TYPE, bytes: pdf.length },
+            { filename: `opndoor-commission-${monthKey}.csv`, mediaType: CSV_MEDIA_TYPE, bytes: new TextEncoder().encode(csv).length },
+          ],
         });
         continue;
       }
@@ -559,11 +654,17 @@ Deno.serve(async (req) => {
       const res = await sendMessage({
         to,
         message: statementMessage({ payeeName: p.org_name, label, total, applications: lines.length, appUrl: APP_URL }),
+        // PDF FIRST. A mail client shows the first attachment as the document,
+        // so the order is the only signal of which is the statement and which
+        // is the working.
         attachments: [{
-          filename: `opndoor-commission-${monthKey}.${ATTACHMENT_FORMAT}`,
-          // Bytes, so the chunked encoder, not the CSV path's
+          filename: `opndoor-commission-${monthKey}.pdf`,
+          // Bytes, so the chunked encoder, never the text path's
           // btoa(unescape(encodeURIComponent(...))), which corrupts binary.
           content: bytesToBase64(statementPdf(p, lines, label)),
+        }, {
+          filename: `opndoor-commission-${monthKey}.csv`,
+          content: textToBase64(statementCsv(p, lines, label)),
         }],
       });
       if (!res.ok) { failed += 1; continue; }
@@ -591,8 +692,11 @@ Deno.serve(async (req) => {
           label, grand, payees, unaddressed, posted, alreadySent, failed, appUrl: APP_URL,
         }),
         attachments: [{
-          filename: `opndoor-settlement-${monthKey}.${ATTACHMENT_FORMAT}`,
+          filename: `opndoor-settlement-${monthKey}.pdf`,
           content: bytesToBase64(settlementPdf(payees, label, grand)),
+        }, {
+          filename: `opndoor-settlement-${monthKey}.csv`,
+          content: textToBase64(settlementCsv(payees, label, grand)),
         }],
       });
       if (res.ok) {
@@ -615,7 +719,10 @@ Deno.serve(async (req) => {
       // every response, because "which day does this fire" and "is it still a
       // CSV" are the two questions asked of this function.
       schedule,
-      attachment: { format: ATTACHMENT_FORMAT, mediaType: ATTACHMENT_MEDIA_TYPE },
+      attachments: [
+        { format: ATTACHMENT_FORMAT, mediaType: ATTACHMENT_MEDIA_TYPE },
+        { format: "csv", mediaType: CSV_MEDIA_TYPE },
+      ],
       payees: payees.length,
       totalPayable: grand,
       posted,

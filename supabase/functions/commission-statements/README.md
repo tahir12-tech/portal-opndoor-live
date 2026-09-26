@@ -29,34 +29,41 @@ human runs.
 
 ## The send day
 
-**The 1st, or the next day that is not a UK bank holiday. Weekends do not
-matter.** A Saturday or Sunday 1st is a send day: statements are an email and a
-PDF, nobody has to be at a desk to receive one, and only a bank holiday moves
-the date, because that is when the payment behind the statement cannot clear.
+**The 1st, or the next day that is neither a weekend nor a UK bank holiday.**
+Both matter: a statement is what a payment follows, and the payment cannot move
+until the banks are open.
 
 `UK_BANK_HOLIDAYS` in `index.ts` is a **static table** of England and Wales
 dates from [gov.uk/bank-holidays](https://www.gov.uk/bank-holidays), because a
 cron cannot depend on reaching gov.uk at 08:00 on the 1st. It covers **2026 to
 2030** and **must be extended before it runs out**. If the function is asked
 about a year the table does not cover it logs loudly, reports
-`schedule.bankHolidaysKnownForYear: false` on every response, and falls back to
-sending on the 1st. It never silently skips a month.
+`schedule.bankHolidaysKnownForYear: false` on every response, and still skips
+weekends, which need no table. It never silently skips a month.
+
+The substitute holidays are in the table as the dates they are **observed**, not
+the dates they commemorate, which is what lets the rule work without knowing
+why a date is closed.
 
 Across the table that gives the 1st every month except these:
 
 | Month | Sends | Why |
 | --- | --- | --- |
 | January 2026 | Fri 2 Jan | New Year's Day |
-| January 2027 | **Sat 2 Jan** | New Year's Day, and a Saturday is a send day |
-| January 2028 | **Sat 1 Jan** | 1 January is not itself the holiday; the substitute is Mon 3 Jan |
-| May 2028 | Tue 2 May | the 1st is the Early May bank holiday |
+| January 2027 | Mon 4 Jan | New Year's Day, then a weekend |
+| **January 2028** | **Tue 4 Jan** | **Sat 1st, Sun 2nd, then Mon 3rd is the substitute for New Year's Day** |
+| May 2028 | Tue 2 May | Early May bank holiday |
 | January 2029 | Tue 2 Jan | New Year's Day |
 | January 2030 | Wed 2 Jan | New Year's Day |
 
-January 2028 is the one worth reading twice. When New Year's Day falls on a
-Saturday, gov.uk lists the substitute Monday as the bank holiday and not the
-Saturday, so under this rule the December 2027 statements go out on Saturday
-1 January 2028. That is the rule working, not a bug.
+Plus every month whose 1st simply falls at a weekend, which the rule handles
+without a table: August 2026 sends Mon 3 Aug, April 2028 sends Mon 3 Apr, and so
+on.
+
+**January 2028 is the one worth reading twice.** It is three days late, and
+that is the rule working rather than a fault: Saturday, Sunday, then the
+substitute Monday for a New Year's Day that itself fell at the weekend. The
+December 2027 statements go out on Tuesday 4 January 2028.
 
 ## What the statement says
 
@@ -104,15 +111,22 @@ Preview and Chrome, which rebuild the table, and fails in strict readers and
 server-side parsers, so the bug survives a human opening the attachment and
 saying it looks fine.
 
-**What was lost.** This used to be a CSV, which opened in Excel and reconciled
-line by line. A PDF does not. Anyone who needs the numbers in a spreadsheet
-downloads the month from the Reporting page, which still exports xlsx.
+**And a CSV, second.** The PDF is the statement; the CSV is the working. Both
+are attached, PDF first, because a mail client shows the first attachment as the
+document and the order is the only signal of which is which. They are built from
+the same rows in the same pass, so there is no second query and no way for them
+to disagree.
+
+One deliberate difference between them: where the PDF prints a single hyphen for
+an empty cell, the CSV leaves the cell **empty**. A hyphen is a typographic
+answer to a blank box on a printed page, and in a spreadsheet column somebody is
+going to sum it is a value that breaks the sum.
 
 ## Dry run (prove it without sending)
 
-Add `?dry=1` to either path. It computes everything, **builds each PDF and
-throws it away**, sends nothing, writes nothing, and returns exactly who would
-be written to, with what figure, and with what attached.
+Add `?dry=1` to either path. It computes everything, **builds both attachments
+and throws them away**, sends nothing, writes nothing, and returns exactly who
+would be written to, with what figure, and with what attached.
 
 ```bash
 curl -s -X POST \
@@ -131,8 +145,9 @@ Read these four before scheduling anything:
 - `schedule.sendDate` and `schedule.isSendDay`, which is the day rule's answer
   for the month you are standing in.
 - `schedule.bankHolidaysKnownForYear`, which must be `true`.
-- `attachment.format`, which must be `pdf`, and `would[].attachment.bytes`,
-  which proves the writer ran rather than that a row was counted.
+- `attachments`, which must list `pdf` then `csv` in that order, and
+  `would[].attachments[].bytes`, which proves both were actually built rather
+  than that a row was counted.
 - `would`, `unaddressed` and `totalPayable`.
 
 The PDF is built on the dry path on purpose. A rehearsal that only counted rows
