@@ -637,10 +637,16 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   if (!reissue) {
     await service.from("activity_log").insert({
       application_id: appId, kind: "deed_sent",
-      // Byte-identical for a solo application; a joint tenancy says who the one
-      // deed covers, because "the tenant" would be three people.
+      /* Byte-identical for a solo application. The joint wording described the
+         SUPERSEDED design: "One deed for this tenancy, naming A, B" is what we did
+         before 20261005110000 ruled that each tenant signs their OWN deed for their
+         OWN share, generated once THAT tenant pays. The trail was therefore telling
+         an agency the opposite of what had happened, on the one record they consult
+         when a co-tenant asks where their deed is: it reads as though one document
+         covers everybody and nothing further is coming, when in fact a second deed
+         follows the second payment. */
       message: (unit?.tenant_count ?? 1) > 1
-        ? `Deed of Guarantee sent for signature. One deed for this tenancy, naming ${unit.tenant_names}.`
+        ? `Deed of Guarantee sent for signature. This tenant's own deed, covering their share of the rent, naming all ${unit.tenant_count} tenants: ${unit.tenant_names}. Each tenant signs their own.`
         : "Deed of Guarantee sent to the tenant for signature.",
       actor: "System",
     });
