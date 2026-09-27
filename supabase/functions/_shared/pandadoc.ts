@@ -452,6 +452,31 @@ export async function getSigningLink(
 }
 
 /**
+ * A generation attempt that produced no document.
+ *
+ * Three things, every time, because the live symptom of this whole fault is
+ * SILENCE. Every failure path below used to write an internal activity row and
+ * stop: no ops alert, nothing queryable, nothing that reaches a person. "Deeds
+ * are not generating" was therefore something only the agent found out, days
+ * later, and only about the one deed they happened to chase.
+ *
+ *  - deed_state = 'error', which is what claim_tenancy_deed refuses on, so a
+ *    Stripe redelivery cannot spin generating documents for the same tenancy;
+ *  - the internal feed carries the reason, for whoever opens the application;
+ *  - report_ops_incident, which is deduped to one row per type per hour, so a
+ *    production-wide cause (an unset PANDADOC_TEMPLATE_ID, say) raises one alert
+ *    an hour rather than one per payment.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function failGeneration(service: any, appId: string, message: string, opsType = "deed_generation_failed"): Promise<void> {
+  await service.from("applications").update({ deed_state: "error" }).eq("id", appId);
+  await service.from("activity_log").insert({
+    application_id: appId, kind: "deed_error", message, actor: "System", visibility: "internal",
+  });
+  await service.rpc("report_ops_incident", { p_type: opsType, p_detail: `Application ${appId}: ${message}` }).then(() => {}, () => {});
+}
+
+/**
  * Generate and send the deed for an application (agent email resolved server
  * side; generation is blocked with a clear error if there is no agent contact).
  * Used on the Paid transition and by the manual retry.
@@ -475,7 +500,23 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   //
   // A SOLO APPLICATION is a tenancy of one: co_tenant_names is null, the share
   // is the whole rent, and the document is what it always was.
-  const { data: tgt } = await service.rpc("deed_target", { p_application: appId });
+  const { data: tgt, error: tgtErr } = await service.rpc("deed_target", { p_application: appId });
+  // A FAILED deed_target USED TO READ AS "SOLO TENANCY, ALREADY PAID".
+  //
+  // The error was discarded. supabase-js returns it rather than throwing, so a
+  // transient RPC failure left `unit` undefined, and undefined answers every
+  // question below it the way a tenancy of one does: the has-this-tenant-paid
+  // gate is skipped (`unit &&` is falsy), joint is false, and all three of
+  // tenancy_tenant_names, co_tenant_names and share_amount go null. On a JOINT
+  // tenancy that silently generates a single-tenant document — no co-tenants
+  // named, no guaranteed_amount, the whole rent implied instead of this
+  // tenant's share — and sends it for signature. A deed is a financial
+  // instrument, so not knowing what it should say is a reason to generate
+  // nothing, never a reason to generate the simpler one.
+  if (tgtErr) {
+    await failGeneration(service, appId, `Deed not generated: the tenancy details could not be read (${tgtErr.message}). Nothing was sent; retry once the database is answering.`);
+    return { ok: false, error: "Could not read this tenancy's details, so no deed was generated. Retry shortly." };
+  }
   const unit = Array.isArray(tgt) ? tgt[0] : tgt;
   if (unit && unit.ready === false) {
     // Not an error state on the row: nothing has failed, this tenant simply has
@@ -502,12 +543,35 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   // verification: the verified gate lives on the executed-deed SEND (#6, in
   // pandadoc-webhook), where an unverified tenant-typed address is held for review.
   // Here we only need to know the signed deed has somewhere to land.
-  const { data: target } = await service.rpc("deed_delivery_target", { p_application: appId });
+  const { data: target, error: targetErr } = await service.rpc("deed_delivery_target", { p_application: appId });
+  // Same reasoning as deed_target above: an unread ladder is not an empty one.
+  // Discarding this error made a transient failure indistinguishable from "this
+  // agency has nobody", which is the branch below, and that branch is terminal.
+  if (targetErr) {
+    await failGeneration(service, appId, `Deed not generated: the delivery contact could not be resolved (${targetErr.message}). Retry once the database is answering.`);
+    return { ok: false, error: "Could not resolve where this deed would be delivered. Retry shortly." };
+  }
   const dest = Array.isArray(target) ? target[0] : target;
   const agentEmail = dest?.email ?? null;
   if (!agentEmail) {
-    await service.from("applications").update({ deed_state: "error" }).eq("id", appId);
+    // CANNOT DELIVER, WHICH IS NOT DELIVERY FAILED (20261005100000). Nothing was
+    // sent and nothing errored: this rail's ladder simply has no rung carrying
+    // an address. So it parks in the queue rather than stamping
+    // delivery_failed_at, which would put a Resend button in front of an agency
+    // for a send that was never attempted.
+    //
+    // awaiting_staff_send is the queryable half of that ruling and is the one
+    // thing this branch never set. Generation stopped, deed_state went to
+    // 'error', and the only trace was an internal activity row on an
+    // application nobody had a reason to open — a paid tenant with no deed and
+    // no queue entry anywhere. It parks visibly now, and ops is told, because
+    // on production one unset branch contact is usually many.
+    await service.from("applications").update({ deed_state: "error", awaiting_staff_send: true }).eq("id", appId);
     await service.from("activity_log").insert({ application_id: appId, kind: "deed_error", message: "Deed not generated: no contact to deliver it to. Add the letting agent or landlord (or the branch's primary contact for a referral), then retry.", actor: "System", visibility: "internal" });
+    await service.rpc("report_ops_incident", {
+      p_type: "deed_no_delivery_contact",
+      p_detail: `Application ${appId}: paid, but no deed was generated because nothing resolves as a delivery contact. Add a contact (or activate a person at the agency) and retry from the application.`,
+    }).then(() => {}, () => {});
     return { ok: false, error: "No delivery contact for this application. Add one, then retry." };
   }
 
@@ -525,15 +589,51 @@ export async function generateDeed(service: any, appId: string, reissue = false)
     share_amount: joint ? Number(unit?.share_amount) : null,
   }, app.livemode === true);
   if (!res.ok) {
-    await service.from("applications").update({ deed_state: "error" }).eq("id", appId);
-    await service.from("activity_log").insert({ application_id: appId, kind: "deed_error", message: `Deed generation failed: ${res.error}`, actor: "System", visibility: "internal" });
+    // Every PandaDoc-side reason lands here, and on production the commonest by
+    // far is not a per-application fault at all: an unset PANDADOC_API_KEY or
+    // PANDADOC_TEMPLATE_ID fails EVERY generation identically, and used to do it
+    // one silent internal row at a time. The ops incident is what turns that
+    // from "some agents say deeds are not coming" into one alert naming the
+    // secret.
+    await failGeneration(service, appId, `Deed generation failed: ${res.error}`);
     return res;
+  }
+  if (!res.documentId) {
+    // ok with no id is unusable: nothing can ever match the completion callback
+    // back to this row, so the tenant would sign into a void. Treated as the
+    // failure it is rather than stamping a null id over the row.
+    await failGeneration(service, appId, "Deed generation failed: PandaDoc accepted the document but returned no document id.");
+    return { ok: false, error: "PandaDoc returned no document id." };
   }
   // issue_date is set here (at generation) to the date printed on the deed; the
   // completion webhook leaves it untouched. deed_issued_at stays the execution ts.
   // deed_viewed_at is reset so a freshly sent (or regenerated) deed starts as "not
   // yet viewed" for the new document.
-  await service.from("applications").update({ pandadoc_document_id: res.documentId, deed_state: "awaiting_tenant", deed_sent_at: new Date().toISOString(), deed_viewed_at: null, issue_date: res.issueDateIso ?? null }).eq("id", appId);
+  //
+  // awaiting_staff_send is cleared because a generation that works is the exact
+  // remedy for the no-contact park above: the row must leave the queue it was
+  // put in, or a staff member keeps being asked to act on something already
+  // fixed. Nothing else can be in that queue here, since it is only set at
+  // execution and this runs before any.
+  const { error: stampErr } = await service.from("applications").update({ pandadoc_document_id: res.documentId, deed_state: "awaiting_tenant", deed_sent_at: new Date().toISOString(), deed_viewed_at: null, awaiting_staff_send: false, issue_date: res.issueDateIso ?? null }).eq("id", appId);
+  if (stampErr) {
+    // THE DOCUMENT IS LIVE AND UNATTACHED, and this is the worst shape the whole
+    // chain has. PandaDoc has the deed and the tenant has been emailed it, but
+    // this row does not carry its id: apply_deed_executed matches on
+    // pandadoc_document_id and returns silently when it finds nothing, so the
+    // tenant signs and NOTHING happens, for ever. deed_state is still null too,
+    // so claim_tenancy_deed would hand the next delivery of the same Stripe
+    // event a second document for the same tenancy.
+    //
+    // The row cannot be repaired from here, since the same table just refused a
+    // write. What is left is to name the orphan loudly enough that a person can
+    // attach or void it, with the id they need to do either.
+    await service.rpc("report_ops_incident", {
+      p_type: "deed_document_unattached",
+      p_detail: `Application ${appId}: PandaDoc document ${res.documentId} was created and sent to the tenant, but the application row could not be stamped with it (${stampErr.message}). Signing it will do nothing. Attach the id by hand or void the document in PandaDoc.`,
+    }).then(() => {}, () => {});
+    return { ok: false, documentId: res.documentId, error: "The deed was sent but could not be recorded against the application. This has been raised with opndoor." };
+  }
   if (!reissue) {
     await service.from("activity_log").insert({
       application_id: appId, kind: "deed_sent",

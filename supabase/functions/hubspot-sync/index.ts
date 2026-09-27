@@ -83,6 +83,24 @@ const NEVER_TOUCH = new Set([
   "hubspot_owner_id", "hubspot_owner_assigneddate", "hubspot_team_id",
 ]);
 
+// ---- poison-queue limits ----------------------------------------------
+// The cron fires every two minutes. An event that has failed MAX_ATTEMPTS times
+// AND has been failing for longer than PARK_AFTER_MS is parked: recorded in the
+// ledger as a dead letter, the cursor advanced past it, the rest of that
+// partner's queue drained. Both conditions, not either: the count alone would
+// park real events during a twenty minute HubSpot outage, and the clock alone
+// would park an event the very first time it failed after a quiet spell.
+//
+// Half an hour is the number because it is longer than any HubSpot incident we
+// have seen and far shorter than the weeks a permanently poisoned queue has
+// historically sat unnoticed. A parked event is NOT discarded: its ledger rows
+// name it for replay (see README), and parking raises its own alert type so it
+// cannot hide behind the ordinary error's hourly dedupe.
+const MAX_ATTEMPTS = 8;
+const PARK_AFTER_MS = 30 * 60 * 1000;
+const FAILED = "failed";        // ledger target for one failed attempt
+const DEAD_LETTER = "dead_letter"; // ledger target for a parked event
+
 // ---- value transforms -------------------------------------------------
 const dateOnly = (v: unknown) => String(v).slice(0, 10);                       // YYYY-MM-DD
 const midnightMs = (v: unknown) => String(Date.parse(dateOnly(v) + "T00:00:00Z")); // HubSpot date-picker datetime wants midnight UTC
@@ -101,11 +119,22 @@ type FieldRow = { object: string; hs_property: string; source_kind: string; sour
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const started = Date.now();
+  // Best effort, never throws, never masks the caller's own error. Every exit
+  // below that means "this function cannot work at all" goes through it first:
+  // a bare 500 is recorded only as a non-2xx in net._http_response, which
+  // nobody reads until they already suspect a problem, and the whole point of
+  // these faults is that nobody suspects. Declared out here, with a no-op
+  // default, so the outer catch can use it even if the client never got built.
+  let incident = async (_type: string, _detail: string) => {};
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const CRON_SECRET = Deno.env.get("REMINDERS_CRON_SECRET") ?? "";
     const service = createClient(SUPABASE_URL, SERVICE);
+
+    incident = async (type: string, detail: string) => {
+      try { await service.rpc("report_ops_incident", { p_type: type, p_detail: detail }); } catch { /* ignore */ }
+    };
 
     // ---- auth (x-ops-secret vs edge env OR ops_secrets mirror) --------
     const presented = req.headers.get("x-ops-secret") ?? "";
@@ -122,7 +151,14 @@ Deno.serve(async (req) => {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "hubspot_access_token").maybeSingle();
       TOKEN = sec?.secret ?? "";
     }
-    if (!TOKEN) return json({ ok: false, error: "No HubSpot access token configured." }, 500);
+    if (!TOKEN) {
+      // A missing token stops EVERY partner, and it is the failure most likely
+      // to arrive by surprise: a rotated or expired HubSpot token, or a
+      // redeploy that dropped the edge env var. Say so out loud.
+      await incident("hubspot_sync_error:config",
+        "hubspot-sync: no HubSpot access token (HUBSPOT_ACCESS_TOKEN edge env, x-hubspot-token header, or ops_secrets 'hubspot_access_token'). Nothing is syncing.");
+      return json({ ok: false, error: "No HubSpot access token configured." }, 500);
+    }
 
     const hs = async (path: string, method = "GET", body?: unknown) => {
       const res = await fetch(`${HS_BASE}${path}`, {
@@ -137,7 +173,11 @@ Deno.serve(async (req) => {
 
     // ---- load config --------------------------------------------------
     const { data: env, error: envErr } = await service.from("hubspot_sync_env").select("*").eq("is_active", true).maybeSingle();
-    if (envErr || !env) return json({ ok: false, error: "No active HubSpot environment configured." }, 500);
+    if (envErr || !env) {
+      await incident("hubspot_sync_error:config",
+        `hubspot-sync: no active row in hubspot_sync_env${envErr ? ` (${envErr.message})` : ""}. Nothing is syncing.`);
+      return json({ ok: false, error: "No active HubSpot environment configured." }, 500);
+    }
     const OBJ = env.applicant_object_type as string;
     const APP_BASE = (Deno.env.get("APP_URL") ?? env.app_base_url ?? "").replace(/\/$/, "");
 
@@ -165,8 +205,18 @@ Deno.serve(async (req) => {
     // that is behind is served before one that is current, so a stuck partner
     // cannot be starved by chatty ones once it recovers.
     const { data: partnerCursors, error: pcErr } = await service.rpc("hubspot_sync_partners");
-    if (pcErr) return json({ ok: false, error: `cursors: ${pcErr.message}` }, 500);
-    if (!partnerCursors?.length) return json({ ok: false, error: "No partner cursors initialised." }, 500);
+    if (pcErr) {
+      // The exact shape of a migration applied ahead of this deploy: the RPC
+      // this bundle calls no longer resolves. It is silent by construction
+      // (the function answers, with a 500 nobody reads), so it alerts here.
+      await incident("hubspot_sync_error:config", `hubspot-sync: hubspot_sync_partners() failed: ${pcErr.message}. Nothing is syncing.`);
+      return json({ ok: false, error: `cursors: ${pcErr.message}` }, 500);
+    }
+    if (!partnerCursors?.length) {
+      await incident("hubspot_sync_error:config",
+        "hubspot-sync: hubspot_sync_cursor_partner is empty, so no partner is being drained. Nothing is syncing.");
+      return json({ ok: false, error: "No partner cursors initialised." }, 500);
+    }
 
     const summaryWarn: string[] = [];
     const body = await req.json().catch(() => ({}));
@@ -240,6 +290,22 @@ Deno.serve(async (req) => {
     const summary: any = {
       ok: true, env: env.env, refused_sandbox: summaryWarn, processed: 0, by: {},
       warnings: [], errors: [], partners: [] as any[],
+      // Surfaced in the response body, not just in an alert, so the run itself
+      // answers "is anything being skipped" without a database round trip.
+      config_gaps: [] as string[], parked: [] as any[],
+    };
+
+    // One alert per distinct config gap per run. Without this a single missing
+    // hubspot_partner_map row would call report_ops_incident once per event in
+    // the batch; the hourly dedupe in SQL would absorb them, but the wasted
+    // round trips are real and the intent should be visible here.
+    const gapsSeen = new Set<string>();
+    const configGap = async (what: string) => {
+      summary.warnings.push(what);
+      if (gapsSeen.has(what)) return;
+      gapsSeen.add(what);
+      summary.config_gaps.push(what);
+      await incident("hubspot_sync_error:config", `hubspot-sync config gap: ${what}`);
     };
 
     // ---- idempotency ledger: check BEFORE, record AFTER success -------
@@ -252,9 +318,27 @@ Deno.serve(async (req) => {
     // the retry re-runs it (every HubSpot write here is idempotent → redo is safe).
     const applied = async (id: string) =>
       Boolean((await service.from("hubspot_sync_events").select("id").eq("id", id).maybeSingle()).data);
-    const record = async (id: string, eventId: string, target: string, appId: string | null) => {
-      await service.from("hubspot_sync_events").upsert(
+    const write = async (id: string, eventId: string, target: string, appId: string | null) => {
+      const { error } = await service.from("hubspot_sync_events").upsert(
         { id, event_id: eventId, target, application_id: appId }, { onConflict: "id", ignoreDuplicates: true });
+      return error?.message ?? null;
+    };
+    // A ledger write that fails is not cosmetic: `applied` would keep saying no,
+    // so every later run would redo the HubSpot write (harmless, it is
+    // idempotent) and the association state would never settle (not harmless,
+    // it is silent and permanent). supabase-js returns the error rather than
+    // throwing it, so the old unchecked `await` discarded it. Raise it into the
+    // per-event catch, which knows how to alert and how to give up.
+    const record = async (id: string, eventId: string, target: string, appId: string | null) => {
+      const err = await write(id, eventId, target, appId);
+      if (err) throw new Error(`ledger write ${id}: ${err}`);
+    };
+    // The same write from inside the catch, where throwing again would escape
+    // the per-event handler and abandon every remaining partner.
+    const recordSoft = async (id: string, eventId: string, target: string, appId: string | null) => {
+      const err = await write(id, eventId, target, appId);
+      if (err) summary.warnings.push(`ledger write ${id} failed: ${err}`);
+      return err === null;
     };
 
     // ---- HubSpot primitives ------------------------------------------
@@ -378,7 +462,20 @@ Deno.serve(async (req) => {
           branch_name: branch.name, company_level: "Branch", head_office: isHeadOffice ? "Yes" : "No",
           commission_rate: commissionRate,
         }));
-        // parent-child link: child -> parent ("Parent Company")
+        // parent-child link: child -> parent ("Parent Company").
+        //
+        // An unset association type id is CONFIG, not data. HubSpot answers a
+        // PUT carrying a null associationTypeId with a 400, which threw, which
+        // froze this partner's whole queue for good. That is not hypothetical:
+        // the production hubspot_sync_env row ships with the branch type id
+        // NULL (HANDOVER-MACHINE §6.4), so promotion without setting the ids
+        // would poison every event from the first one. Gate instead: report the
+        // gap, hand back no branch, and let the §6 not-ready path complete the
+        // branch role on a later event once the id is set.
+        if (env.company_parent_type_id == null) {
+          await configGap(`hubspot_sync_env '${env.env}' has no company_parent_type_id, so a branch company cannot be linked to its parent`);
+          return { agencyKey, branchKey: null, agencyCoId: parentId, branchCoId: null, single: false };
+        }
         await assocTyped(COMPANIES, branchCoId!, parentId, env.company_parent_category, env.company_parent_type_id);
       } else {
         summary.warnings.push(`branch ${branchId} not confirmed, branch company and association gated (§6)`);
@@ -400,18 +497,50 @@ Deno.serve(async (req) => {
     // is confirmed (§6 gate). If a referral lands before confirmation, the partner
     // edge is made now and the branch edge is completed on a LATER event once the
     // org is confirmed (§1) — the state is keyed on the application, not the event.
+    //
+    // WHY THE TWO CONFIG CHECKS BELOW GATE RATHER THAN THROW. Both used to be
+    // `throw`, and both are config states that persist until a human changes
+    // config: a partner with no hubspot_partner_map row, and a partner company
+    // that does not exist in the Hub. A throw here stops the partner at this
+    // event and the cron retries the same event every two minutes, so a config
+    // gap did not delay that partner's sync, it ENDED it, and the only trace
+    // was one ops-alert in the first hour. Nothing downstream reads
+    // stuck_since, so nobody found out from the system.
+    //
+    // A missing hubspot_partner_map row is not a rare state. The seed migration
+    // (20260705150500) filled the table from `partners` AS IT WAS THAT DAY, and
+    // nothing has filled it since: the trigger added with the per-partner
+    // cursors seeds hubspot_sync_cursor_partner on insert and has no companion
+    // for the map. Every partner created after the seed ran therefore has a
+    // cursor, has events, and has no map row. On dev that is all seven of them.
+    //
+    // Gating matches what §6 already does for an unconfirmed org: the edge is
+    // skipped, nothing is recorded, and the ledger's per-APPLICATION key means a
+    // later event for the same application completes it once config lands. The
+    // applicant properties still reach HubSpot in the meantime, which is the
+    // part that would otherwise be lost outright.
     const ensureAssoc = async (app: any, applicantId: string, eventId: string) => {
       if (!(await applied(`assoc:${app.id}:partner`))) {
         const pm = partnerMap.get(app.partner_id);
-        if (!pm) throw new Error(`no partner map for partner_id ${app.partner_id}`);
-        const partnerCoId = await findCompanyId(pm.partner_company_key);
-        if (!partnerCoId) throw new Error(`partner company ${pm.partner_company_key} not found in HubSpot`);
-        await assocPrimary(applicantId, partnerCoId); // partner = PRIMARY (the one Workflow E reads)
-        await record(`assoc:${app.id}:partner`, eventId, "assoc_partner", app.id);
+        if (!pm) {
+          await configGap(`no active hubspot_partner_map row for partner ${app.partner_id}, so the PRIMARY partner association cannot be made`);
+        } else {
+          const partnerCoId = await findCompanyId(pm.partner_company_key);
+          if (!partnerCoId) {
+            await configGap(`partner company ${pm.partner_company_key} does not exist in HubSpot, so the PRIMARY partner association cannot be made`);
+          } else {
+            await assocPrimary(applicantId, partnerCoId); // partner = PRIMARY (the one Workflow E reads)
+            await record(`assoc:${app.id}:partner`, eventId, "assoc_partner", app.id);
+          }
+        }
       }
       if (!(await applied(`assoc:${app.id}:branch`))) {
         const c = await syncCompanies(app.agency_id, app.branch_id); // §6 gate mints only confirmed orgs
         if (c.branchCoId) {
+          if (env.company_branch_type_id == null) {
+            await configGap(`hubspot_sync_env '${env.env}' has no company_branch_type_id, so the applicant cannot be associated to its branch company`);
+            return; // unrecorded: completed on a later event once the id is set
+          }
           await assocTyped(OBJ, applicantId, c.branchCoId, env.company_branch_category, env.company_branch_type_id);
           if (AREF_PROP && c.branchKey) await upsertApplicant(app.guarantee_ref, { [AREF_PROP]: c.branchKey });
           await record(`assoc:${app.id}:branch`, eventId, "assoc_branch", app.id);
@@ -439,8 +568,16 @@ Deno.serve(async (req) => {
         p_kinds: Object.keys(KIND_TO_EVENT), p_limit: LIMIT,
       });
       if (evErr) {
+        // THE DEPLOY-ORDER FAILURE LANDS HERE. 20260812030000 drops the old
+        // four-argument hubspot_pending_events and creates the five-argument
+        // one, so a bundle older than that migration gets PGRST202 "Could not
+        // find the function" on every run, for every partner, for ever. That
+        // migration says to apply it and deploy this function together, and the
+        // window is expected to be noisy; it was not, because this branch only
+        // set stuck_since and nothing reads stuck_since. It alerts now.
         summary.errors.push({ partner: partnerId, error: `fetch events: ${evErr.message}` });
         await service.rpc("hubspot_mark_stuck", { p_partner: partnerId, p_error: `fetch events: ${evErr.message}` });
+        await incident(`hubspot_sync_error:${partnerId}`, `hubspot-sync could not read the queue for partner ${partnerId}: ${evErr.message}`);
         continue;
       }
 
@@ -500,26 +637,90 @@ Deno.serve(async (req) => {
           // advance THIS PARTNER's cursor to this event (last success). Also
           // clears stuck_since, so recovery is recorded by the same call that
           // records progress and the two can never disagree.
-          await service.rpc("hubspot_mark_cursor", { p_partner: partnerId, p_last_at: ev.at, p_last_id: ev.event_id });
+          //
+          // Checked, because an unchecked cursor advance is the quietest
+          // failure in the file: supabase-js returns the error instead of
+          // throwing it, so the run would count the event as processed, return
+          // 200, and re-process the same events on the next run and every run
+          // after. Raised into the catch, which alerts.
+          const { error: curErr } = await service.rpc("hubspot_mark_cursor", { p_partner: partnerId, p_last_at: ev.at, p_last_id: ev.event_id });
+          if (curErr) throw new Error(`cursor advance: ${curErr.message}`);
           summary.processed++;
           partnerProcessed++;
           summary.by[eventType] = (summary.by[eventType] ?? 0) + 1;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           summary.errors.push({ partner: partnerId, ref: app?.guarantee_ref, kind: ev.kind, error: msg });
+
+          // ---- bounded retry, then park -------------------------------
+          //
+          // The break below is head-of-line blocking, and on its own it is
+          // unbounded: an event that can never succeed is retried every two
+          // minutes for ever and nothing behind it in that partner's queue is
+          // ever synced. Partitioning the cursor per partner shrank the blast
+          // radius from "the CRM" to "one partner"; it did not put a floor
+          // under it. This does. There is still no proper dead-letter queue
+          // with backoff, which is HANDOVER B7.5 and a rewrite; what there is
+          // now is a limit, a record and an alert.
+          //
+          // Attempts are counted as ledger rows rather than a column because
+          // hubspot_sync_events already exists with a text primary key and an
+          // index on event_id, and adding a column is a migration this change
+          // does not need. If the count cannot be read the event is treated as
+          // failing for the first time, which degrades to exactly the old
+          // behaviour: block, do not park.
+          const { data: priorRaw } = await service
+            .from("hubspot_sync_events").select("applied_at")
+            .eq("event_id", ev.event_id).eq("target", FAILED)
+            .order("applied_at", { ascending: true });
+          const prior = priorRaw ?? [];
+          const attempts = prior.length + 1;
+          const firstFailedMs = prior.length ? Date.parse(prior[0].applied_at as string) : Date.now();
+          await recordSoft(`fail:${ev.event_id}:${attempts}`, ev.event_id, FAILED, app?.id ?? null);
+
+          const park = attempts >= MAX_ATTEMPTS && (Date.now() - firstFailedMs) >= PARK_AFTER_MS;
+          const where = `${ev.kind} ${app?.guarantee_ref ?? ""} (event ${ev.event_id}, attempt ${attempts})`;
+
+          if (park) {
+            // Its own alert type, so the park cannot be swallowed by the
+            // ordinary error's once-an-hour dedupe, and still prefixed
+            // hubspot_sync_error so existing greps and filters find it.
+            await recordSoft(`dead:${ev.event_id}`, ev.event_id, DEAD_LETTER, app?.id ?? null);
+            const { error: skipErr } = await service.rpc("hubspot_mark_cursor", { p_partner: partnerId, p_last_at: ev.at, p_last_id: ev.event_id });
+            summary.parked.push({ partner: partnerId, event_id: ev.event_id, ref: app?.guarantee_ref ?? null, kind: ev.kind, attempts, error: msg, skipped: !skipErr });
+            await incident(`hubspot_sync_error:dead_letter:${partnerId}`,
+              `hubspot-sync PARKED ${where} after ${Math.round((Date.now() - firstFailedMs) / 60000)} minutes of failing: ${msg}. It is recorded in hubspot_sync_events as dead_letter and the queue has moved past it; it will NOT reach HubSpot until it is replayed.`);
+            // Parking is a decision, not a fault state: the cursor advance
+            // cleared stuck_since, so do not re-stick the partner, and do not
+            // break. The rest of its queue drains in this same run.
+            if (!skipErr) continue;
+          }
+
           // stuck_since keeps its FIRST value, so the staleness alert measures how
           // long this partner has actually been stuck rather than resetting on
           // every run that retries and fails again.
           await service.rpc("hubspot_mark_stuck", { p_partner: partnerId, p_error: `${ev.kind} ${app?.guarantee_ref ?? ""}: ${msg}` });
-          try {
-            await service.rpc("report_ops_incident", { p_type: "hubspot_sync_error", p_detail: `hubspot-sync ${ev.kind} ${app?.guarantee_ref ?? ""}: ${msg}` });
-          } catch { /* never mask the original error */ }
+          // Partner-suffixed type: ops_alerts dedupes on (alert_type,
+          // application_id, hour_bucket) and this call passes no application,
+          // so the un-suffixed type meant the first partner to fail in an hour
+          // hid every other partner that failed in the same hour.
+          await incident(`hubspot_sync_error:${partnerId}`, `hubspot-sync ${where}: ${msg}`);
           partnerStuck = true;
           break; // this partner only; its cursor holds and the next partner runs
         }
       }
 
       summary.partners.push({ partner: partnerId, processed: partnerProcessed, stuck: partnerStuck });
+    }
+
+    // What a successful run RECORDS, in the run's own answer. A run that
+    // processed events and left the ledger empty is the signature of a sync
+    // that looks healthy and is writing nothing, so the count that proves it
+    // belongs next to the count that claims it.
+    {
+      const { count } = await service
+        .from("hubspot_sync_events").select("id", { count: "exact", head: true });
+      summary.ledger_rows = count ?? null;
     }
 
     // A partner that failed is reported, but the run is only "not ok" in the

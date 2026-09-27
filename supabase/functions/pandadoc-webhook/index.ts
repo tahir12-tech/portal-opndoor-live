@@ -24,8 +24,30 @@ Deno.serve(async (req) => {
   // sent this. Nothing in the body is trusted for that: a callback is an
   // unauthenticated request until the signature checks out, so any field inside it
   // is a claim rather than a fact.
+  const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
   const verified = await verifyWebhook(body, signature);
-  if (!verified.ok) return new Response("Invalid signature", { status: 401 });
+  if (!verified.ok) {
+    // A 401 HERE IS THE QUIETEST WAY A DEED CAN DIE.
+    //
+    // Nothing downstream is watching for the ABSENCE of a callback. If
+    // PANDADOC_WEBHOOK_SHARED_KEY is unset or has been rotated on one side only,
+    // every completion in the estate 401s, every deed stays at
+    // 'awaiting_tenant' for ever, and the portal's own record of that is a
+    // status code returned to PandaDoc and thrown away. The tenant signed, the
+    // agent is waiting, and there is no row anywhere that says so.
+    //
+    // report_ops_incident is deduped to one row per type per hour, so a broken
+    // key raises one alert an hour rather than one per callback, and an
+    // internet-background probe costs one row and no more.
+    await service.rpc("report_ops_incident", {
+      p_type: "pandadoc_signature_rejected",
+      p_detail: signature
+        ? "A PandaDoc callback failed HMAC verification. If deeds are stuck at awaiting_tenant, PANDADOC_WEBHOOK_SHARED_KEY does not match the shared key on the PandaDoc webhook subscription."
+        : "A request reached pandadoc-webhook with no signature parameter. If this repeats, the PandaDoc subscription is configured without HMAC signing.",
+    }).then(() => {}, () => {});
+    return new Response("Invalid signature", { status: 401 });
+  }
   const eventLivemode = verified.livemode === true;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,8 +59,6 @@ Deno.serve(async (req) => {
     return new Response("Bad body", { status: 400 });
   }
 
-  const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
   for (const ev of events) {
     const docId = ev?.data?.id;
     const status = ev?.data?.status;
@@ -47,7 +67,17 @@ Deno.serve(async (req) => {
 
     const evId = `${docId}:${status ?? type}`;
     const { error: insErr } = await service.from("pandadoc_events").insert({ id: evId, type });
-    if (insErr) continue; // duplicate delivery -> skip
+    if (insErr) {
+      // ONLY A DUPLICATE IS A SKIP. This read every insert failure as one, which
+      // is the same defect stripe-webhook already fixed on its own dedup line
+      // (23505 there, everything else a 500 so Stripe retries). Here a transient
+      // insert failure skipped the event, the handler still answered 200, and
+      // PandaDoc marked delivery successful and never sent it again: a signed
+      // deed lost permanently on a blip, leaving the application at
+      // 'awaiting_tenant' with the tenant's signature already on the document.
+      if (insErr.code === "23505") continue;
+      throw new Error(`Could not record PandaDoc event ${evId}: ${insErr.message}`);
+    }
 
     const { data: app } = await service.from("applications")
       .select("id, guarantee_ref, branch_id, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, tenancy_start, livemode, agency:agencies(name)")
@@ -69,6 +99,32 @@ Deno.serve(async (req) => {
       }).then(() => {}, () => {});
       await service.from("pandadoc_events").delete().eq("id", evId).then(() => {}, () => {});
       return new Response("Event mode does not match the application.", { status: 500 });
+    }
+
+    if (status === "document.completed" && !app) {
+      // A SIGNED DEED WE CANNOT PLACE, and until now the single quietest event
+      // in the chain: apply_deed_executed matches on pandadoc_document_id and
+      // returns silently when it finds nothing, so this arrived, was deduped,
+      // and vanished. On dev, 27 of the 28 completions ever received match no
+      // application, which is how the shape was found at all.
+      //
+      // Two causes, and the alert has to name both because they are opposite
+      // problems. Benign: a superseded document, whose id pandadoc-void-
+      // regenerate deliberately cleared so exactly this would be inert — a
+      // tenant signed a deed that no longer counts, which is worth knowing.
+      // Not benign: this environment's shared key verifies callbacks for
+      // documents belonging to ANOTHER environment, which means one PandaDoc
+      // subscription is pointed at the wrong portal and the deeds that belong
+      // to the other one are being answered 200 here and never delivered there.
+      //
+      // The download is skipped rather than merely unused. It was issued before
+      // this check and its result thrown away, which pulled an executed Deed of
+      // Guarantee belonging to someone else into this function for no purpose.
+      await service.rpc("report_ops_incident", {
+        p_type: "pandadoc_completed_unknown_document",
+        p_detail: `PandaDoc document ${docId} completed but matches no application. Either it was superseded (void-and-regenerate clears the id) or this project's PANDADOC_WEBHOOK_SHARED_KEY is verifying another environment's callbacks, in which case that environment's deeds are not being executed.`,
+      }).then(() => {}, () => {});
+      continue;
     }
 
     if (status === "document.completed") {
@@ -120,7 +176,7 @@ Deno.serve(async (req) => {
         // direct rails always set it true, so they are unaffected.
         if (dest?.email && dest?.auto_send !== false && mayEmail) {
           const agencyName = (Array.isArray(app.agency) ? app.agency[0]?.name : (app.agency as { name?: string } | null)?.name) ?? "";
-          await deliverDeedToAgent(service, {
+          const sent = await deliverDeedToAgent(service, {
             appId: app.id,
             ref: app.guarantee_ref,
             tenantTitle: app.tenant_title ?? "",

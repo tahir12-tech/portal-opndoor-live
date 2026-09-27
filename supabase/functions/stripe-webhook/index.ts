@@ -211,10 +211,36 @@ Deno.serve(async (req) => {
           // in the database: exactly one caller wins. A solo application resolves
           // to itself and the claim succeeds iff deed_state is null, which is the
           // condition this line has always had.
-          if (await service.rpc("claim_tenancy_deed", { p_application: appId }).then((r: { data: unknown }) => r.data === true)) {
+          //
+          // THE ERROR AND THE REFUSAL LOOKED THE SAME. `.then(r => r.data === true)`
+          // reads false for both "somebody else already claimed this" (correct,
+          // do nothing) and "the RPC failed" (a paid application that gets no
+          // deed and no record that one was ever attempted). supabase-js returns
+          // the error rather than throwing, so the second was invisible: the
+          // commonest possible cause of a deed silently not existing was the one
+          // line that could not report it.
+          const claim = await service.rpc("claim_tenancy_deed", { p_application: appId });
+          if (claim.error) {
+            // Deliberately not thrown. The payment is applied and the receipt
+            // below should still go; what must not happen is the deed being
+            // dropped quietly. The manual retry on the application is the
+            // remedy, and this is what tells somebody to press it.
+            await service.rpc("report_ops_incident", {
+              p_type: "deed_claim_failed",
+              p_detail: `Application ${appId}: payment applied but claim_tenancy_deed failed (${claim.error.message}), so no deed was generated. Retry the deed from the application.`,
+            }).then(() => {}, () => {});
+            await service.from("activity_log").insert({
+              application_id: appId, kind: "deed_error",
+              message: `Deed not generated: the deed claim could not be taken (${claim.error.message}). Retry from this application.`,
+              actor: "System", visibility: "internal",
+            });
+          } else if (claim.data === true) {
             const gen = await generateDeed(service, appId);
-            // A failure must not leave the tenancy permanently claimed: the next
-            // event, or a manual retry, has to be able to try again.
+            // A failure must not leave the tenancy permanently claimed: a manual
+            // retry has to be able to try again. Note this does NOT re-open the
+            // path for the next Stripe delivery, and should not: generateDeed
+            // has set deed_state to 'error' by now, which claim_tenancy_deed
+            // refuses on, so a redelivery cannot loop on a broken template.
             if (!gen.ok) await service.rpc("release_tenancy_deed_claim", { p_application: appId });
           }
           // #3 Tenant payment receipt.

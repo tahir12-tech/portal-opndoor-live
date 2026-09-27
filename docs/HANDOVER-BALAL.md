@@ -682,3 +682,139 @@ Stop at any step that does not match and tell Matt before continuing.
 3. **The clone is free.** Any question of the form "what happens if" has an
    answer you can get in ten minutes by restoring another one, and none of those
    answers is worth guessing at on production.
+
+---
+
+## 14. Post-cutover smoke test, before you hand back
+
+Run this **after** the migrations, the deploys and the secrets are all in, and
+**before** you tell anyone it is live. Four things, in this order, because each
+one depends on the one above it. Write the answers in the boxes: if you hand back
+with a box empty, nobody knows whether it works.
+
+The whole point of this list is that **every one of these faults is silent**. A
+deed that never generates, a sync that never runs and a pay link that dies
+tomorrow all look exactly like a quiet Tuesday.
+
+### 14.1 One Regent referral, all the way to a deed
+
+| step | what you do | what proves it | box |
+|---|---|---|---|
+| 1 | Sign in as a Regent user and send a referral to an address you control | the referral appears at status **Sent** | ____ |
+| 2 | Open the email | the fee is the **agreed fee**, not the rent, and the sentence under it names the basis ("3 weeks of rent") | ____ |
+| 3 | Check the link | it is `https://<app>/pay?token=...`. **If it contains `checkout.stripe.com`, stop**: the deploy is stale and every link will die in 24 hours | ____ |
+| 4 | Open the link and pay with a real card | Stripe takes the payment | ____ |
+| 5 | Watch the application | it reaches **Paid**, then a deed is generated | ____ |
+| 6 | Sign the deed from the tenant's email | it reaches **Deed issued** | ____ |
+| 7 | Check the agent got it | the executed deed lands with the agency contact | ____ |
+
+**If it stops at Paid with no deed**, that is the deed fault. Go to 14.4 and copy
+the `stripe-webhook` and `pandadoc-webhook` logs.
+
+### 14.2 One HubSpot sync
+
+The sync is **per partner and cursor-based**: each partner has a row in
+`hubspot_sync_cursor_partner` recording how far it has got, and a partner that
+fails is marked stuck rather than retried for ever.
+
+```sql
+-- 1. IS ANY PARTNER STUCK? This is the whole diagnosis in one query.
+--    stuck_error is the message that stopped it. On a healthy system every
+--    stuck_since is null, which is what dev shows today.
+select partner_id, last_at, stuck_since, left(stuck_error, 200) as stuck_error
+  from public.hubspot_sync_cursor_partner
+ order by stuck_since nulls last, updated_at desc;
+```
+
+Then wait two minutes (the cron runs `*/2 * * * *`) or invoke `hubspot-sync` by
+hand with the ops secret, and:
+
+```sql
+-- 2. A row per event applied, newest first. THIS IS THE PROOF.
+select id, target, application_id, applied_at
+  from public.hubspot_sync_events
+ order by applied_at desc limit 5;
+```
+
+**Do not try `select count(*) from public.hubspot_pending_events()`.** It takes
+five arguments (`p_partner, p_last_at, p_last_id, p_kinds, p_limit`) and is
+driven by the cursor, so it is not a queue you can peek at without supplying a
+partner and its position. Read `hubspot_sync_cursor_partner` instead.
+
+**The failure modes, in the order they are worth checking:**
+
+| what you see | what it means |
+|---|---|
+| `stuck_since` set on one partner, others fine | that partner hit an error and was parked. `stuck_error` names it. The others keep syncing, which is the design |
+| no rows in `hubspot_sync_events` and nothing stuck | the function is not being reached. Almost always a 401: see 14.4 |
+| a 403 in the function logs | the token. `HUBSPOT_ACCESS_TOKEN` is absent, expired, or lacks a scope |
+| the same error every two minutes for ever | one poisoned event. Check `stuck_error` and the newest applied event to see where it halted |
+
+### 14.3 A pay link opened the next day
+
+Send a referral, then **open its pay link tomorrow**. It must still work.
+
+This is the one fault you cannot test in the same sitting, and it is the one that
+has recurred. The token lives 90 days and is refreshed on every reminder and
+resend (asserted in `supabase/tests/pay_link_outlives_a_day.test.sql`). What dies
+in 24 hours is a Stripe Checkout session, which is what the old deployment
+emailed. So if step 3 above showed a `/pay?token=` link, this will pass; check it
+anyway, because it is the only way to be sure the deployed code is the code in
+this repo.
+
+### 14.4 Reading `cron_health` and the function logs
+
+`cron_health()` is an admin RPC, not a table. Run it signed in as an opndoor
+admin at AAL2 (it refuses otherwise), from the SQL editor or the Health screen:
+
+```sql
+select jsonb_pretty(public.cron_health());
+```
+
+**Read it in this order, and mind the trap it was written for:**
+
+1. **`counts`** is the summary. On a healthy production morning:
+   `{"anomalies":0,"http_errors":0,"deed_failures":0,"email_failures":0,"webhook_failures":0}`.
+   Any non-zero is where to look first.
+2. **`recent_http`** is the authoritative signal. Each entry has a real
+   `status_code` and the response `content`, e.g.
+   `{"status_code":200,"content":"{\"ok\":true,\"claimed\":0,...}"}`.
+3. **`jobs[].last_status` is NOT the authoritative signal, and this is the trap.**
+   The crons run `select net.http_post(...)`, so `cron.job_run_details` reports
+   `succeeded` the moment the request is **queued**. A cron whose function
+   answers **401** shows `last_status: "succeeded"` for ever. That is the
+   silent-401 class, incident #1, and it is exactly how "the HubSpot sync is
+   broken" looks from the database: a green cron and no data.
+   Trust `recent_http.status_code`, and if `http_status_code` on a job is `null`
+   it means the correlation could not be made, **not** that it succeeded.
+
+A 401 from a cron means the function's `verify_jwt` gate is on when it should be
+off. Check section 6a: the reconciliation must print `mismatches: 0`.
+
+**Function logs**: Dashboard → Edge Functions → the function → Logs, or
+`npx supabase functions logs <name> --project-ref <REF>`.
+
+### 14.5 If something still fails, copy these to us
+
+We cannot see production. For each fault, copy **the whole log line including the
+timestamp**, not a summary, and redact nothing structural (we redact tokens
+ourselves; `payment_url` and anything matching `token`, `secret` or `key` is
+already redacted by `_shared/redact.ts` before it is logged).
+
+| fault | copy from | what we need to see |
+|---|---|---|
+| **Deed not generating** | `stripe-webhook` logs around the payment | whether `checkout.session.completed` arrived at all, and its HTTP response. If it is absent, the Stripe endpoint is not registered for this mode |
+| | `pandadoc-webhook` logs | any `Invalid signature`, and whether `document.completed` arrived |
+| | the Stripe dashboard, that endpoint's delivery list | the response code Stripe recorded. Stripe retries a 5xx and gives up on a 4xx |
+| | the PandaDoc dashboard, the document | whether it was created at all, and which recipient email it went to |
+| | SQL | `select guarantee_ref, status, deed_state, pandadoc_document_id, paid_at from public.applications where guarantee_ref = '...'` |
+| **HubSpot sync** | `hubspot-sync` logs, the most recent 20 lines | the status code and body. A 401 is the gate; a 403 from HubSpot is the token; a repeated identical error every two minutes is one poisoned event blocking the queue |
+| | SQL | the `hubspot_sync_cursor_partner` row for that partner, especially `stuck_since` and `stuck_error`, and the newest 5 rows of `hubspot_sync_events` |
+| | `cron_health()` | the `hubspot-sync` entry, and `recent_http` around its schedule |
+| **Pay link dead** | the email itself | the full href. `checkout.stripe.com` means a stale deploy; `/pay?token=` means look further |
+| | `payment-page` logs for that token | `410` is genuinely expired, `404` is an unknown token, `400` is a malformed one |
+| | SQL | `select guarantee_ref, expires_at, first_viewed_at from public.payment_page_tokens where guarantee_ref = '...'` |
+
+For any of them, `select jsonb_pretty(public.cron_health())` and the output of
+the section 6a reconciliation are worth sending unprompted. Between them they
+answer "is it deployed, is it gated, and did it run" without another round trip.
