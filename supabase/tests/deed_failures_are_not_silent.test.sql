@@ -116,14 +116,28 @@ select is((select delivery_attempted_to from public.applications where id = '970
   'agent2@silent.test', 'and keeps the address it actually reached');
 
 -- ---------------------------------------------------------------------------
--- TWO. A FAILED GENERATION IS NOT RETRIED BY THE NEXT WEBHOOK DELIVERY.
+-- TWO. ONE PAYMENT MINTS ONE DEED, AND A FAILURE IS RETRIED.
+--
+-- THIS ASSERTED THE OPPOSITE UNTIL 20261005260000, and the ruling reversed it: a
+-- row at deed_state 'error' used to be refused for ever, on the reasoning that a
+-- broken template must not loop. The cost was worse than the loop. deed_state
+-- 'error' is what EVERY failure writes, including a transient RPC blip, and
+-- nothing but an admin void could clear it, so a momentary fault buried the deed
+-- permanently and the two ordinary recovery sequences (add the missing agent
+-- contact and press Generate; the agency's first manager accepts their invite and
+-- press Generate) both needed an admin.
+--
+-- The looping concern is now answered where it belongs, by counting: three
+-- consecutive failures park the application as needs-attention with the last
+-- error, which a person sees. Asserted in a_failed_deed_is_retried.test.sql.
+-- What still refuses is a document that EXISTS, which is the one-deed guarantee.
 -- ---------------------------------------------------------------------------
 select ok((select public.claim_tenancy_deed('97000000-0000-0000-0000-000000000013')),
   'a paid application with no deed_state can be claimed for generation');
 select ok(not (select public.claim_tenancy_deed('97000000-0000-0000-0000-000000000013')),
   'and cannot be claimed twice, so two deliveries of one payment mint one deed');
-select ok(not (select public.claim_tenancy_deed('97000000-0000-0000-0000-000000000014')),
-  'a row already at deed_state error is refused, so a broken template cannot loop');
+select ok((select public.claim_tenancy_deed('97000000-0000-0000-0000-000000000014')),
+  'a row at deed_state error IS retried: a failure is not a decision');
 
 -- ---------------------------------------------------------------------------
 -- THREE. AN UNKNOWN DOCUMENT EXECUTES NOTHING, SILENTLY.

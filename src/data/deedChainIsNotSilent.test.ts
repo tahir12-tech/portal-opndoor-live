@@ -114,7 +114,20 @@ describe('generateDeed does not mistake a broken read for an answer', () => {
     // failGeneration covers the shared paths; the no-contact park and the
     // unattached-document orphan each raise their own named type.
     expect(incidents).toBeGreaterThanOrEqual(2);
-    expect(read(PANDADOC)).toMatch(/async function failGeneration[\s\S]{0,700}report_ops_incident/);
+    /* The failGeneration BODY, not a character budget from its name. The original
+       assertion allowed 700 characters and broke the moment the function grew a
+       comment, which is a test failing for a reason that has nothing to do with
+       what it is protecting. Matched to the closing brace instead, so it asserts
+       the property (this function raises an incident) rather than the layout. */
+    const fg = read(PANDADOC).match(/async function failGeneration[\s\S]*?\n\}/);
+    expect(fg).not.toBeNull();
+    expect(fg![0]).toContain('report_ops_incident');
+    /* And it records the attempt through record_deed_failure, which owns the
+       state, the reason and the consecutive count together. Writing deed_state
+       directly here would let the three drift apart across the call sites, and the
+       count is what parks a repeatedly failing application for staff
+       (20261005260000). */
+    expect(fg![0]).toContain('record_deed_failure');
   });
 });
 

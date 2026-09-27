@@ -469,7 +469,16 @@ export async function getSigningLink(
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function failGeneration(service: any, appId: string, message: string, opsType = "deed_generation_failed"): Promise<void> {
-  await service.from("applications").update({ deed_state: "error" }).eq("id", appId);
+  /* record_deed_failure owns the state, the reason and the consecutive count, so
+     the three cannot drift apart across the eight call sites. deed_state 'error'
+     does NOT bury the row: 20261005260000 ruled that a failure is retried by the
+     next automatic pass and by Generate, and that three consecutive failures park
+     it as needs-attention for staff with this message on the card. Parking is
+     visibility, never a lock: the two recovery sequences this exists for are
+     "add the contact, press Generate" and "the manager accepts their invite,
+     press Generate", and a lock would send exactly those to an admin for a void. */
+  await service.rpc("record_deed_failure", { p_application: appId, p_error: message })
+    .then(() => {}, () => {});
   await service.from("activity_log").insert({
     application_id: appId, kind: "deed_error", message, actor: "System", visibility: "internal",
   });
@@ -500,6 +509,32 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   //
   // A SOLO APPLICATION is a tenancy of one: co_tenant_names is null, the share
   // is the whole rent, and the document is what it always was.
+  /* ONE DOCUMENT PER APPLICATION, ENFORCED HERE AND NOT ONLY IN THE CLAIM.
+
+     claim_tenancy_deed refuses when a document already exists, and that was taken
+     to be the guard. It is not: only stripe-webhook claims. pandadoc-resend's
+     generate branch, which is what the Generate button on the application calls,
+     runs generateDeed directly with no claim at all, so with a live document it
+     would have created a SECOND PandaDoc document for the same application and
+     stamped its id over the first. The first document stays live and signable in
+     PandaDoc with nothing pointing at it.
+
+     It did not happen on GR-20846 during the walk, but not because of a guard: the
+     row's real state was awaiting_tenant, so resend took the remind branch and
+     never reached here. The card was showing a stale error snapshot, which is the
+     only reason the click landed somewhere harmless.
+
+     reissue is the deliberate exception: void-and-regenerate nulls the id first and
+     passes it, which is how a voided deed is legitimately replaced. */
+  if (!reissue) {
+    const { data: existing } = await service.from("applications")
+      .select("pandadoc_document_id").eq("id", appId).maybeSingle();
+    if (existing?.pandadoc_document_id) {
+      return { ok: false, documentId: existing.pandadoc_document_id as string,
+               error: "A deed already exists for this application. Use Resend to chase the signature." };
+    }
+  }
+
   const { data: tgt, error: tgtErr } = await service.rpc("deed_target", { p_application: appId });
   // A FAILED deed_target USED TO READ AS "SOLO TENANCY, ALREADY PAID".
   //
@@ -615,7 +650,11 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   // put in, or a staff member keeps being asked to act on something already
   // fixed. Nothing else can be in that queue here, since it is only set at
   // execution and this runs before any.
-  const { error: stampErr } = await service.from("applications").update({ pandadoc_document_id: res.documentId, deed_state: "awaiting_tenant", deed_sent_at: new Date().toISOString(), deed_viewed_at: null, awaiting_staff_send: false, issue_date: res.issueDateIso ?? null }).eq("id", appId);
+  /* A document exists, so the run of consecutive failures is over: the count goes
+     back to zero and the last error is cleared, or an application that failed twice
+     and then succeeded would park on its next single failure. awaiting_staff_send
+     is already cleared by this same update, which is the parking flag. */
+  const { error: stampErr } = await service.from("applications").update({ pandadoc_document_id: res.documentId, deed_state: "awaiting_tenant", deed_sent_at: new Date().toISOString(), deed_viewed_at: null, awaiting_staff_send: false, deed_attempts: 0, deed_last_error: null, issue_date: res.issueDateIso ?? null }).eq("id", appId);
   if (stampErr) {
     // THE DOCUMENT IS LIVE AND UNATTACHED, and this is the worst shape the whole
     // chain has. PandaDoc has the deed and the tenant has been emailed it, but
