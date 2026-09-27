@@ -143,6 +143,11 @@ Deno.serve(async (req) => {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
       if (sec?.secret && presented === sec.secret) authed = true;
     }
+    // Deliberately silent, unlike every other failure exit below. verify_jwt is
+    // false on this function, so anything on the internet can reach it and a
+    // 401 is the expected answer to a probe; alerting here would hand a
+    // stranger the ops inbox. A cron whose secret is wrong shows up instead as
+    // the partner feed going quiet, which hubspot_stale_partners is for.
     if (!authed) return json({ ok: false, error: "Not authorised." }, 401);
 
     // ---- HubSpot token ------------------------------------------------
@@ -729,6 +734,11 @@ Deno.serve(async (req) => {
     summary.ms = Date.now() - started;
     return json(summary, summary.ok ? 200 : 207);
   } catch (e) {
-    return json({ ok: false, error: e instanceof Error ? e.message : "Unexpected error." }, 500);
+    // Nothing reached the CRM on this run and the response is a 500 the cron
+    // does not read. Alert, on a type of its own so it is not deduped against
+    // a per-partner failure in the same hour.
+    const msg = e instanceof Error ? e.message : "Unexpected error.";
+    await incident("hubspot_sync_error:run", `hubspot-sync run aborted before any partner completed: ${msg}`);
+    return json({ ok: false, error: msg }, 500);
   }
 });
