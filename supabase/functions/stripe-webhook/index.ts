@@ -246,11 +246,20 @@ Deno.serve(async (req) => {
             });
           } else if (claim.data === true) {
             const gen = await generateDeed(service, appId);
-            // A failure must not leave the tenancy permanently claimed: a manual
-            // retry has to be able to try again. Note this does NOT re-open the
-            // path for the next Stripe delivery, and should not: generateDeed
-            // has set deed_state to 'error' by now, which claim_tenancy_deed
-            // refuses on, so a redelivery cannot loop on a broken template.
+            /* A failure must not leave the tenancy permanently claimed: a retry
+               has to be able to try again. It DOES re-open the path for the next
+               Stripe delivery, and that is now the point. This comment used to
+               say the opposite, that deed_state 'error' would stop a redelivery
+               claiming, which was true until 20261005260000 ruled that a failure
+               is retried rather than buried: 'error' no longer refuses, only an
+               existing document and the terminal states do.
+
+               A redelivery cannot loop on a broken template even so, because
+               three consecutive failures park the application for staff and,
+               separately, two runs can no longer overlap: generateDeed holds a
+               lease for the duration (20261005280000). Nothing is raised here
+               either, because a refused lease means another run is already doing
+               this work, which is not a fault. */
             if (!gen.ok) await service.rpc("release_tenancy_deed_claim", { p_application: appId });
           }
           // #3 Tenant payment receipt.
