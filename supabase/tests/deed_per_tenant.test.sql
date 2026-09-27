@@ -76,12 +76,18 @@ select is((select tenant_count from public.deed_target('96000000-0000-0000-0000-
 -- ---------------------------------------------------------------------------
 -- A TENANCY OF ONE IS BYTE-IDENTICAL.
 --
--- co_tenant_names null is what omits BOTH new merge tokens in pandadoc.ts, so
--- the token list for a solo deed is character-for-character the six it always
--- was. These four assertions are that guarantee.
+-- The 27 Sep ruling made every deed byte-identical in structure: the template
+-- does not change, and all six merge tokens are the six it always was on a joint
+-- deed as well as a solo one. The share is recorded on the application and the
+-- bordereau, not in the document, which is why deed_target still answers
+-- share_amount and co_tenant_names: those feed the RECORD, and no longer a merge
+-- field. tenant_names is the only one the document reads, through tenant_name.
+--
+-- These four assertions hold the solo shape: nothing to list, so tenant_name
+-- falls back to the applicant and that document is unchanged.
 -- ---------------------------------------------------------------------------
 select is((select co_tenant_names from public.deed_target('96000000-0000-0000-0000-000000000021')), null,
-  'a solo deed has no co-tenants, which is what drops the two joint-only tokens');
+  'a solo deed has no co-tenants to record');
 select is((select tenant_names from public.deed_target('96000000-0000-0000-0000-000000000021')), null,
   'and no tenancy name list, so tenant_name falls back to the applicant as before');
 select is((select share_amount from public.deed_target('96000000-0000-0000-0000-000000000021')), 2000::numeric,

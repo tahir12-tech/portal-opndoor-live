@@ -74,34 +74,32 @@ redeploy needed.
 5. Leave the opndoor signature as the **static facsimile image** already in the
    document at "Signed for and on behalf of the Guarantor". Do not add a second
    signer role for it.
-6. Define these **merge tokens** (Manage > Tokens, names exact). Six are always
-   filled; two more are filled only on a joint tenancy:
+6. Define these **merge tokens** (Manage > Tokens, names exact). Six, on every
+   deed, joint or solo:
 
-   | Token | Always? | Value |
-   |---|---|---|
-   | `reference_number` | yes | The guarantee reference, one per deed |
-   | `tenant_name` | yes | Every tenant on the tenancy, comma separated. On a tenancy of one, that one person |
-   | `tenancy_start_date` | yes | dd/mm/yyyy |
-   | `rental_address` | yes | Title-cased, postcode raw |
-   | `agent_email` | yes | Where the executed deed is delivered |
-   | `issue_date` | yes | Generation date, Europe/London, dd/mm/yyyy, server-side, never recipient-editable |
-   | `guaranteed_amount` | joint only | What THIS deed guarantees: this tenant's share of the monthly rent, as `£1,234.56` |
-   | `co_tenant_names` | joint only | The OTHER tenants, comma separated |
+   | Token | Value |
+   |---|---|
+   | `reference_number` | The guarantee reference, one per deed |
+   | `tenant_name` | Every tenant on the tenancy, comma separated. On a tenancy of one, that one person |
+   | `tenancy_start_date` | dd/mm/yyyy |
+   | `rental_address` | Title-cased, postcode raw |
+   | `agent_email` | Where the executed deed is delivered |
+   | `issue_date` | Generation date, Europe/London, dd/mm/yyyy, server-side, never recipient-editable |
 
-   **Each tenant of a joint tenancy signs their own deed.** It names all the
-   tenants (`tenant_name`) so the document says what tenancy it belongs to, and
-   it guarantees that tenant's own share of the rent (`guaranteed_amount`), not
-   the whole rent. The template needs wording near the guarantee clause that uses
-   `guaranteed_amount` and `co_tenant_names`, along the lines of "jointly with
-   [co_tenant_names], in respect of [guaranteed_amount] per calendar month".
-   The exact legal wording is for the client to settle; the tokens are ready.
+   **Each tenant of a joint tenancy signs their own deed**, for their own share,
+   and it names all the tenants (`tenant_name`) so the document says what tenancy
+   it belongs to. Ruling of 27 September: the **share is recorded on the
+   application and on the bordereau, not in the document**, so a joint tenant's
+   deed renders exactly as a single tenant's does and the template needs no
+   joint-specific wording.
 
-   **On a tenancy of one the last two tokens are not sent at all**, so a
-   single-tenant deed is character-for-character the document it has always
-   been. That is asserted in `supabase/tests/deed_per_tenant.test.sql`, and it is
-   why the template must render them conditionally (a PandaDoc token that is
-   never supplied renders empty): put them in a block that reads correctly when
-   both are blank, or in a section that only a joint deed reaches.
+   An earlier draft sent two further tokens on joint tenancies,
+   `guaranteed_amount` and `co_tenant_names`. Both have been removed from the
+   code. They needed a template change to render at all, and an unsupplied
+   PandaDoc token renders empty without removing the sentence around it, so
+   against today's template they would have printed "in respect of  per calendar
+   month". If the share is ever to appear in the document, it is a template
+   change and a code change together, never one without the other.
 7. Save, then copy the template id from the URL (or Template > ... > Details) and
    set it as `PANDADOC_TEMPLATE_ID`.
 

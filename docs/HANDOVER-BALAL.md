@@ -396,6 +396,19 @@ the file first, or deploy that one on its own with the flag it needs.
 
 ### 6b. Deploy all of them
 
+> **MIGRATIONS FIRST, FUNCTIONS SECOND. This release makes that mandatory, not
+> just tidy.** `generateDeed` now takes a lease (`take_deed_lease`, migration
+> `20261005280000`) before it will generate anything, and it **fails closed**: if
+> the RPC is not there, it generates no deed and records the failure. Deploy the
+> functions against a database without that migration and *every* deed stops,
+> loudly. The order in section 1.3 and 3.3 already puts migrations first; this is
+> the reason not to improvise.
+>
+> Fail-closed is the deliberate choice. A delayed deed parks as needs-attention
+> after three attempts and a person fixes it in minutes. Two live signable
+> guarantees for one tenancy, one of which nothing in the portal is tracking, is
+> not recoverable at all.
+
 With the reconciliation clean, the flags come from the file and no flag needs
 typing:
 
@@ -558,30 +571,36 @@ paid.
 
 The template is not in the repo; it lives in the PandaDoc workspace and is
 referenced by `PANDADOC_TEMPLATE_ID`. Full build instructions are in
-`supabase/DEEDS-TESTING.md` section 3. What is **new on this branch**:
+`supabase/DEEDS-TESTING.md` section 3.
 
-**Two merge tokens, added for joint tenancies:**
+### THE TEMPLATE DOES NOT CHANGE FOR THIS RELEASE. No action for Balal.
 
-| token | when | value |
-|---|---|---|
-| `guaranteed_amount` | joint only | What this deed guarantees: this tenant's share of the monthly rent, e.g. `£1,234.56` |
-| `co_tenant_names` | joint only | The other tenants, comma separated |
+Ruling, 27 September. Each tenant signs their **own** deed, for their own share,
+**naming all the tenants**. The share is recorded on the application and on the
+bordereau, **not in the document**. So a joint tenant's deed renders exactly as a
+single tenant's does, from the same six merge tokens:
 
-The existing six (`reference_number`, `tenant_name`, `tenancy_start_date`,
-`rental_address`, `agent_email`, `issue_date`) are unchanged. `tenant_name` now
-carries **every** tenant on a joint tenancy.
+| token | value |
+|---|---|
+| `reference_number` | The guarantee reference, one per deed |
+| `tenant_name` | Every tenant on the tenancy, comma separated. On a tenancy of one, that one person |
+| `tenancy_start_date` | dd/mm/yyyy |
+| `rental_address` | Title-cased, postcode raw |
+| `agent_email` | Where the executed deed is delivered |
+| `issue_date` | Generation date, Europe/London, server-side, never recipient-editable |
 
-**On a tenancy of one, the two new tokens are not sent at all.** That is what
-keeps a single-tenant deed byte-identical to the one production issues today, and
-it is asserted in `supabase/tests/deed_per_tenant.test.sql`. So the template must
-render them **conditionally**: put them in a block that reads correctly when both
-are blank, or in a section only a joint deed reaches. A PandaDoc token that is
-never supplied renders empty, it does not remove the surrounding sentence.
+An earlier draft of this branch sent two extra tokens on joint tenancies,
+`guaranteed_amount` and `co_tenant_names`, and this section used to ask for a
+template change to render them. **Both have been removed from the code.** They
+needed the template change to render at all, and an unsupplied PandaDoc token
+renders empty without removing the sentence around it, so shipping them against
+today's template would have printed a deed reading "in respect of  per calendar
+month": an amount the deed appears to state and does not. On a financial
+instrument that is worse than not stating it.
 
-Suggested placement, wording for the client to settle:
-
-> ...jointly and severally with `[co_tenant_names]`, in respect of
-> `[guaranteed_amount]` per calendar month.
+The only thing a joint deed says differently is `tenant_name`, which lists every
+tenant so the document says which tenancy it belongs to. That needs no template
+work, because the token already exists and already prints there.
 
 **Still one signer role.** Opndoor's signature is a static facsimile image, not a
 second recipient. One consequence to flag to Matt: PandaDoc's `document.completed`
@@ -589,6 +608,39 @@ signs and executes in one step, so **"signed" and "executed" are the same event*
 and no screen can show them apart. If Opndoor is to countersign each deed for
 real, the template needs a second signer role and the webhook needs to key on
 recipient-level completion.
+
+### 10.1 The deed-chain alerts, and what each one means
+
+These arrive by email through `ops-alert` and are also rows in `public.ops_alerts`,
+deduped to one per type per hour. Read them here:
+
+```sql
+select hour_bucket, alert_type, detail from public.ops_alerts
+ order by hour_bucket desc limit 50;
+```
+
+**Raise them only through `public.report_ops_incident(type, detail)`.** Never
+insert into `ops_alerts` directly: `hour_bucket` is `not null` with no default, so
+a direct insert fails, and the call sites wrote `.then(() => {}, () => {})` around
+it, which swallowed the error. Three alerts had therefore never been raised once
+in their lives (`stripe_livemode_mismatch`, `pandadoc_livemode_mismatch`,
+`hubspot_map_drift`), which is fixed on this branch. Verified by running the
+insert as it stood against dev: zero rows written.
+
+| alert | what happened | what to do |
+|---|---|---|
+| `deed_generation_failed` | Generation failed for one application. The row keeps the reason and retries; three consecutive failures park it as needs-attention | Usually per-application. If many arrive at once, suspect `PANDADOC_API_KEY` or `PANDADOC_TEMPLATE_ID` |
+| `deed_no_delivery_contact` | Paid, but nothing resolves as a delivery contact, so no deed was generated | Add the branch contact, or activate a person at the agency, then press Generate on the application |
+| `deed_pdf_unavailable` | The tenant signed, but the executed PDF could not be downloaded from PandaDoc. The deed is **not** executed and PandaDoc will redeliver | Expect this to clear itself within minutes: PandaDoc renders the PDF after it fires the callback. If it repeats for over an hour, the PDF is not being rendered and the deed needs executing by hand |
+| `deed_pdf_not_stored` | The PDF downloaded but Storage refused it. Not executed; PandaDoc will redeliver | Check the `deeds` bucket exists and the service key can write it |
+| `deed_orphan_document` | A document was created at PandaDoc but the send failed, and we could not void it | Void the named document id in PandaDoc. The application generates a fresh deed on retry |
+| `deed_stamp_partial` | The document id was recorded but the surrounding deed columns were not. Signing works; the status may read stale | Correct the row at leisure. Nothing is lost |
+| `deed_document_unattached` | The worst one. A deed was sent but the row could not be stamped even with the id alone, so nothing can match the signature. The document is voided automatically where possible | If the alert says the void also failed, void the named id in PandaDoc by hand |
+| `deed_awaiting_staff_send` | The deed is executed but there is nobody to deliver it to | Nominate a recipient or activate a manager, then use Send deed to agent |
+| `deed_delivery_target_unreadable` | The deed is executed but resolving where to send it failed, so it is queued | Use Send deed to agent once the database is answering |
+| `deed_executed_after_refund` | A completion arrived for a refunded application. The deed was refused and not issued | Void the named document in PandaDoc |
+| `pandadoc_completed_unknown_document` | A completion matched no application | Either a superseded document (benign) or this project's shared key is verifying **another environment's** callbacks, which means that environment's deeds are not being executed. Check which |
+| `pandadoc_livemode_mismatch` | A callback's mode does not match the application it names | A sandbox event replayed against a live application, or one shared key configured for both modes. Neither is fixed by choosing one |
 
 ---
 
