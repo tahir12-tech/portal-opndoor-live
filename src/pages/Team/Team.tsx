@@ -51,8 +51,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   cancelInvite, getAgencies, getGroups, inviteUser, resendInvite, setUserStatus,
-  updateUserRole, getUsers, userEmail,
-  agencyLevelOf, AGENCY_LEVELS, type AgencyLevel,
+  resetUserMfa, resetUserPassword, setAgencyLevel, getUsers, userEmail,
+  agencyLevelOf, levelsGrantableBy, mayActOn, type Actor, type AgencyLevel,
   type Agency, type ManagedUser,
 } from '@/data';
 import * as positionsService from '@/data/positionsService';
@@ -257,8 +257,18 @@ export function teamLayout(input: {
 
 export function Team() {
   usePageMeta('team', 'Team', ['Home', 'Team']);
-  const { role, partnerScope, currentUserId, refresh: refreshData, dataVersion } = useSession();
+  const { role, seesCommission, partnerScope, currentUserId, refresh: refreshData, dataVersion } = useSession();
   const toast = useToast();
+
+  /* WHO IS ASKING. Director and Manager are the same role and differ only in the
+     commission bit, so nothing here can be decided from `role` alone. This is a
+     lens for deciding which buttons to draw; assert_may_act_on_user and the
+     users_level_ladder_guard trigger are the rule, and both refuse independently
+     of anything below. */
+  const actor: Actor = useMemo(
+    () => ({ id: currentUserId, role, seesCommission }),
+    [currentUserId, role, seesCommission],
+  );
 
   const [version, setVersion] = useState(0);
   const refresh = () => setVersion((v) => v + 1);
@@ -266,6 +276,11 @@ export function Team() {
   const [positionsByUser, setPositionsByUser] = useState<Record<string, positionsService.Position[]>>({});
   const [ownPositions, setOwnPositions] = useState<positionsService.Position[]>([]);
   const [posUser, setPosUser] = useState<ManagedUser | null>(null);
+  /** The Change level chooser, and the one-line confirmation it asks before acting. */
+  const [levelUser, setLevelUser] = useState<ManagedUser | null>(null);
+  const [levelPick, setLevelPick] = useState<AgencyLevel | null>(null);
+  /** A one-line confirmation for the destructive-ish row actions. */
+  const [confirm, setConfirm] = useState<{ line: string; cta: string; run: () => Promise<void>; done: string } | null>(null);
   /* Who receives the monthly commission statement. Held here rather than on
      ManagedUser: it is read off users.receives_commission_statements by two
      screens, and hydrate's user list is shared by every screen in the portal. */
@@ -345,6 +360,15 @@ export function Team() {
      one answer across the portal instead of four screens' worth of opinions. */
   const shape = useMemo(() => viewerShape(role, partnerScope), [role, partnerScope, dataVersion]);
 
+  /* POSITION ONLY WHERE THERE IS SOMEWHERE TO CHOOSE BETWEEN.
+     On a one-office agency the modal opened on a list of one, where "covers the
+     whole agency" and "covers the one branch" describe the same people: a choice
+     with no difference behind it. So the control is not offered at all and the row
+     shows the level and the level actions. This is the same question showLevel
+     already asks two declarations up, and the same question Reporting, League and
+     Applications ask, so a single-office agency gets one answer across the portal. */
+  const posIsAChoice = groups.length > 0 || multiAgency || branchTargets.length > 1;
+
   const layout = useMemo(
     () => teamLayout({ agencies, people, positionsByUser, ownPositions, shape }),
     [agencies, people, positionsByUser, ownPositions, shape],
@@ -388,17 +412,34 @@ export function Team() {
     if (addLevel === 'Negotiator' && branchTargets.length > 1 && !addBranch) {
       toast('Choose the branch this person works at.', 'error'); return;
     }
+    /* ONE OFFICE MEANS THE BRANCH IS IMPLIED, so it is defaulted and never asked.
+       Asking would be a select of one, and the answer is already known. */
     const branch = addLevel === 'Negotiator' ? (addBranch || branchTargets[0]?.id || '') : '';
     await run(async () => {
-      const chosen = AGENCY_LEVELS.find((l) => l.level === addLevel)!;
+      const chosen = levelsGrantableBy(actor).find((l) => l.level === addLevel);
+      /* The dialog only offers grantable levels, so this cannot normally miss. It
+         is a real check rather than a `!` because the alternative to a clear
+         message here is a crash on a level somebody reached some other way. */
+      if (!chosen) throw new Error('You can only invite someone at or below your own level.');
       await inviteUser({
         firstName: first, lastName: last, email,
         // The LEVEL is what the inviter chose; role and the commission bit are
         // what it means. Kept together in AGENCY_LEVELS so no screen can invent
         // a fourth combination.
         role: chosen.role, seesCommission: chosen.seesCommission,
-        partner: partnerScope, branch: '',
-        ...(branch ? { scopeKind: 'branch' as const, scopeTarget: branch } : {}),
+        /* THE BRANCH GOES IN `branch`, WHICH IS THE BUG THAT MADE THIS FAIL.
+           invite-user reads the home branch from `branch` and refuses a scoped
+           caller who sends none ("Choose the branch this negotiator will work
+           at"). This sent `branch: ''` every time and put the office in
+           scopeKind/scopeTarget instead, so inviting a Negotiator from Team was
+           refused by the server for ANY caller holding a position, one office or
+           twenty. Rosa holds one agency position, so it never worked for her.
+
+           And no scopeKind: a Negotiator is placed by their home branch and needs
+           no position, which usersService's own comment on scopeKind already
+           says. Sending one asked set_user_scope to grant a position the model
+           says a Negotiator does not have. */
+        partner: partnerScope, branch,
       });
       setAddOpen(false);
       setAddFirst(''); setAddLast(''); setAddEmail(''); setAddBranch(''); setAddLevel('Negotiator');
@@ -411,6 +452,7 @@ export function Team() {
     const [statusLabel, statusVariant] = STATUS_PILL[u.status] ?? ['Active', 'deed' as PillVariant];
     const held = positionsByUser[u.id] ?? [];
     const isSelf = u.id === currentUserId;
+    const may = canInvite && mayActOn(actor, { id: u.id, role: u.role, seesCommission: u.seesCommission === true });
     return (
       <div className="tm-person">
         <span className="tm-person__avatar">{initials(u.name)}</span>
@@ -422,44 +464,82 @@ export function Team() {
         <Pill variant={statusVariant}>{statusLabel}</Pill>
         <span className="tm-person__pos">{positionsService.describePosition(held, showLevel)}</span>
         <div className="tm-person__acts">
-          {u.status === 'pending' && canInvite && (
+          {/* NOTHING AT ALL AGAINST SOMEONE AT OR ABOVE YOU. `may` is false for
+              your own row too, since self is somebody at your own level, which is
+              why the old !isSelf tests have gone rather than been kept beside it.
+              Hiding is a courtesy: the ladder refuses in SQL either way, and it
+              refuses at the table as well as at the RPC. */}
+          {may && u.status === 'pending' && (
             <>
               <Button variant="quiet" size="sm" disabled={busy}
                 onClick={() => void run(() => resendInvite(u.id), `Invitation resent to ${userEmail(u)}.`)}>
-                Resend
+                Resend invite
               </Button>
               <Button variant="quiet" size="sm" disabled={busy}
-                onClick={() => void run(() => cancelInvite(u.id), `Invitation to ${userEmail(u)} cancelled.`)}>
+                onClick={() => setConfirm({
+                  line: `Cancel the invitation to ${u.name}?`,
+                  cta: 'Cancel invitation',
+                  run: () => cancelInvite(u.id),
+                  done: `Invitation to ${userEmail(u)} cancelled.`,
+                })}>
                 Cancel invite
               </Button>
             </>
           )}
-          {canGrant && u.status !== 'pending' && (
+          {may && canGrant && posIsAChoice && u.status !== 'pending' && (
             <Button variant="quiet" size="sm" disabled={busy} onClick={() => setPosUser(u)}>Position</Button>
           )}
-          {canInvite && !isSelf && u.status === 'active' && (
+          {/* ONE CONTROL, NOT A FLIP. "Make Manager" could only ever toggle between
+              two of the three levels and could not say which way it was going on a
+              Director's row. The chooser offers the levels this actor may hand out,
+              which is at or below their own, minus the one they already hold. */}
+          {may && u.status === 'active' && levelsGrantableBy(actor).some((l) => l.level !== levelLabel(u)) && (
             <Button variant="quiet" size="sm" disabled={busy}
-              onClick={() => void run(() => setUserStatus(u.id, 'deactivated'), `${u.name} deactivated.`)}>
-              Deactivate
+              onClick={() => { setLevelPick(null); setLevelUser(u); }}>
+              Change level
             </Button>
           )}
-          {canInvite && !isSelf && u.status === 'deactivated' && (
+          {may && u.status !== 'pending' && (
             <Button variant="quiet" size="sm" disabled={busy}
-              onClick={() => void run(() => setUserStatus(u.id, 'active'), `${u.name} reactivated.`)}>
-              Reactivate
+              onClick={() => setConfirm({
+                line: `Send ${u.name} a password reset link?`,
+                cta: 'Send reset link',
+                run: () => resetUserPassword(u.id),
+                // Says what happened and nothing about the account: the same
+                // answer whether or not the address turned out to be reachable.
+                done: 'Password reset link sent.',
+              })}>
+              Send password reset
             </Button>
           )}
-          {canInvite && !isSelf && u.status === 'active' && (
+          {may && u.status !== 'pending' && (
             <Button variant="quiet" size="sm" disabled={busy}
-              onClick={() => void run(
-                () => updateUserRole(u.id, u.role === 'management' ? 'referrer' : 'management'),
-                `${u.name} is now ${u.role === 'management' ? 'a Negotiator' : 'a Manager'}.`,
-              )}>
-              {/* Moves between Negotiator and Manager. Promoting a Manager to
-                  DIRECTOR means granting the commission bit, which is Opndoor's
-                  to grant and is not offered here, for the same reason the
-                  statement tick is not. */}
-              {u.role === 'management' ? 'Make Negotiator' : 'Make Manager'}
+              onClick={() => setConfirm({
+                line: `Reset two-factor for ${u.name}? They will set up a new authenticator the next time they sign in.`,
+                cta: 'Reset two-factor',
+                run: () => resetUserMfa(u.id),
+                done: `${u.name} will enrol a new authenticator at their next sign in.`,
+              })}>
+              Reset two-factor
+            </Button>
+          )}
+          {may && u.status === 'active' && (
+            <Button variant="quiet" size="sm" disabled={busy}
+              onClick={() => setConfirm({
+                // Says what it keeps, because "remove" reads like deletion and this
+                // is not one: the person, their referrals and the history stay.
+                line: `Remove ${u.name}'s access? Their referrals and history are kept, and you can restore access later.`,
+                cta: 'Remove access',
+                run: () => setUserStatus(u.id, 'deactivated'),
+                done: `${u.name} no longer has access.`,
+              })}>
+              Remove access
+            </Button>
+          )}
+          {may && u.status === 'deactivated' && (
+            <Button variant="quiet" size="sm" disabled={busy}
+              onClick={() => void run(() => setUserStatus(u.id, 'active'), `${u.name} has access again.`)}>
+              Restore access
             </Button>
           )}
         </div>
@@ -563,6 +643,77 @@ export function Team() {
         />
       )}
 
+      {/* CHANGE LEVEL. The levels this actor may set, which is at or below their
+          own, minus the one this person already holds, because "make them what
+          they already are" is not a choice. One line of confirmation before it
+          acts, naming the person and the level. */}
+      {levelUser && (
+        <Modal
+          open
+          width={460}
+          title={`Change ${levelUser.name}'s level`}
+          sub="This changes what they can see and do across the portal."
+          onClose={() => { setLevelUser(null); setLevelPick(null); }}
+          footer={<>
+            <Button variant="ghost" disabled={busy} onClick={() => { setLevelUser(null); setLevelPick(null); }}>Cancel</Button>
+            <Button
+              variant="primary" disabled={!levelPick || busy}
+              onClick={() => {
+                const target = levelUser; const pick = levelPick;
+                if (!target || !pick) return;
+                void run(async () => {
+                  await setAgencyLevel(target.id, pick);
+                  setLevelUser(null); setLevelPick(null);
+                }, `${target.name} is now ${pick === 'Director' ? 'a Director' : pick === 'Manager' ? 'a Manager' : 'a Negotiator'}.`);
+              }}
+            >
+              {busy ? 'Saving…' : 'Change level'}
+            </Button>
+          </>}
+        >
+          <div className="roleopts">
+            {levelsGrantableBy(actor)
+              .filter((o) => o.level !== levelLabel(levelUser))
+              .map((o) => (
+                <label key={o.level} className={`roleopt${levelPick === o.level ? ' is-sel' : ''}`} onClick={() => setLevelPick(o.level)}>
+                  <span className="roleopt__radio" />
+                  <div><div className="roleopt__name">{o.level}</div><div className="roleopt__desc">{o.desc}</div></div>
+                </label>
+              ))}
+          </div>
+          {levelPick && (
+            <p className="soft" style={{ marginTop: 14 }}>
+              Make {levelUser.name} {levelPick === 'Director' ? 'a Director' : levelPick === 'Manager' ? 'a Manager' : 'a Negotiator'}?
+            </p>
+          )}
+        </Modal>
+      )}
+
+      {/* ONE LINE, THEN ACT. Team had no confirmation on anything, which was fine
+          while the only actions were a role flip and a deactivate. Removing access,
+          resetting somebody's second factor and mailing a reset link all deserve a
+          sentence first, and they all read the same way, so they share one dialog. */}
+      {confirm && (
+        <Modal
+          open
+          width={440}
+          title={confirm.cta}
+          onClose={() => setConfirm(null)}
+          footer={<>
+            <Button variant="ghost" disabled={busy} onClick={() => setConfirm(null)}>Cancel</Button>
+            <Button variant="primary" disabled={busy}
+              onClick={() => {
+                const c = confirm;
+                void run(async () => { await c.run(); setConfirm(null); }, c.done);
+              }}>
+              {busy ? 'Working…' : confirm.cta}
+            </Button>
+          </>}
+        >
+          <p>{confirm.line}</p>
+        </Modal>
+      )}
+
       <Modal
         open={addOpen}
         onClose={() => setAddOpen(false)}
@@ -579,8 +730,15 @@ export function Team() {
           <Field label="Last name"><input type="text" value={addLast} onChange={(e) => setAddLast(e.target.value)} /></Field>
           <Field label="Email" span2><input type="email" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} /></Field>
         </div>
+        {/* ONLY THE LEVELS THIS INVITER MAY HAND OUT, which is at or below their
+            own: a Director sees all three, a Manager sees Manager and Negotiator.
+            Note this is AT or below, unlike the row actions, which are strictly
+            below: growing a second Manager is an agency's own business, acting on
+            one is not. Offering Director to a Manager used to send the invite and
+            silently downgrade it to Manager, so the person arrived at the wrong
+            level with an email saying otherwise. */}
         <div className="roleopts" style={{ marginTop: 14 }}>
-          {AGENCY_LEVELS.map((o) => (
+          {levelsGrantableBy(actor).map((o) => (
             <label key={o.level} className={`roleopt${addLevel === o.level ? ' is-sel' : ''}`} onClick={() => setAddLevel(o.level)}>
               <span className="roleopt__radio" />
               <div><div className="roleopt__name">{o.level}</div><div className="roleopt__desc">{o.desc}</div></div>

@@ -79,7 +79,10 @@
   font-size: 12px; color: var(--warn); background: var(--warn-bg);
   border-radius: 8px; padding: 8px 12px;
 }
-.ah-deed-warn svg { flex: none; }
+/* Sized here too, for the same reason as .pos-empty > svg. Both call sites pass
+   size={14} today, so this rule is currently harmless; a third that forgets would
+   reproduce the panel-filling icon exactly. */
+.ah-deed-warn svg { width: 14px; height: 14px; flex: none; }
 
 
 /* ---- drill-down: a node name is the control that scopes the page ---- */

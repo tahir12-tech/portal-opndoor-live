@@ -86,6 +86,57 @@ export const AGENCY_LEVELS: { level: AgencyLevel; role: Role; seesCommission: bo
     desc: 'Sees their own referrals only.' },
 ];
 
+/* =====================================================================
+   THE LADDER, CLIENT SIDE.
+
+   A LENS, NOT THE BOUNDARY. public.assert_may_act_on_user and the
+   users_level_ladder_guard trigger are the rule; this decides which buttons are
+   drawn. Both exist because a button that cannot work should not be offered, and
+   because `role` here is mutable by the dev role switcher, so nothing computed
+   from it can be trusted as authority.
+
+   TWO RULES, AND THEY ARE NOT THE SAME COMPARISON:
+
+     the PERSON you act on must be strictly BELOW you   mayActOn
+     the LEVEL you hand out may be AT OR BELOW yours    levelsGrantableBy
+
+   which is why a Director sees all three levels in the invite dialog and a
+   Manager sees Manager and Negotiator, while neither may touch an equal. Keep the
+   two functions separate for that reason: collapsing them into one comparison is
+   how the invite dialog and the row actions would start disagreeing.
+   ===================================================================== */
+
+/** Where somebody sits: 0 opndoor staff, 1 Director, 2 Manager, 3 Negotiator or
+    developer, null for a role with no place on the ladder. Lower is more
+    authority. The twin of public.level_rank_of. */
+export function levelRank(role: Role, seesCommission: boolean): number | null {
+  if (role === 'superadmin' || role === 'opndoor_manager') return 0;
+  if (role === 'management') return seesCommission ? 1 : 2;
+  if (role === 'referrer' || role === 'developer') return 3;
+  return null;
+}
+
+/** The pair a level is resolved from, plus the id, because self is never actionable. */
+export interface Actor { id?: string | null; role: Role; seesCommission: boolean }
+
+/** Strictly below. Self is at your own level, so it is never actionable. */
+export function mayActOn(actor: Actor, target: Actor): boolean {
+  if (actor.id && target.id && actor.id === target.id) return false;
+  const a = levelRank(actor.role, actor.seesCommission);
+  if (a === 0) return true;                       // opndoor staff, above all three
+  const t = levelRank(target.role, target.seesCommission);
+  return a != null && t != null && a < t;
+}
+
+/** The levels this actor may hand out: at or below their own. Drives the invite
+    dialog and the Change level chooser. */
+export function levelsGrantableBy(actor: Actor): typeof AGENCY_LEVELS {
+  const a = levelRank(actor.role, actor.seesCommission);
+  if (a === 0) return AGENCY_LEVELS;
+  if (a == null) return [];
+  return AGENCY_LEVELS.filter((l) => (levelRank(l.role, l.seesCommission) ?? 99) >= a);
+}
+
 /**
  * The role to assume when a stored or supplied role cannot be recognised.
  * Deliberately the LEAST privileged, never the most: an unparseable value must

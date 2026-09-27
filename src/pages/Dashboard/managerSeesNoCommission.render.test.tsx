@@ -376,6 +376,22 @@ describe('the application record', () => {
       </MemoryRouter>,
     );
     await waitFor(() => { if (!document.querySelector('.rec-head')) throw new Error('detail not ready'); });
+    /* AND THEN WAIT FOR IT TO STOP CHANGING, because .rec-head appears before the
+       record has finished filling. Documents and notes resolve after it, so the
+       two renderings this suite compares were being captured at whatever load
+       state each happened to reach: the first render raced the fetch and the
+       second found the mock store already warm. The difference that surfaced was
+       "Nothing uploaded yet." against four files, which has nothing to do with
+       commission, so the comparison was reporting a timing accident as a
+       Director/Manager difference. Settling both sides first makes the assertion
+       measure the thing it names. */
+    let last = '';
+    await waitFor(() => {
+      const now = document.querySelector('.page-main, main, .app-main')?.textContent ?? '';
+      const settled = now !== '' && now === last;
+      last = now;
+      if (!settled) throw new Error('record still filling');
+    }, { timeout: 4000, interval: 60 });
     return view;
   }
 

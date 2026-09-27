@@ -32,6 +32,9 @@ interface Profile {
   name: string;
   email: string;
   partner: string | null;
+  /** The Director / Manager bit, off the signed-in user's own row. Role alone
+      cannot tell the two apart, so anything that compares levels needs this. */
+  seesCommission: boolean;
 }
 
 interface SessionValue {
@@ -42,6 +45,20 @@ interface SessionValue {
   user: RoleIdentity;
   /** The signed-in user's id (Supabase mode), for self-action guards. Null in mock mode. */
   currentUserId: string | null;
+  /* THE VIEWER'S OWN HALF OF THEIR LEVEL, exposed as the raw bit beside `role`
+     rather than as a precomputed level.
+
+     Needed because Director and Manager are the same role and differ only here, so
+     "may I act on this person" cannot be answered from `role`. The two things that
+     look like they would do instead both fail: `user.label` is display copy that
+     falls back to "Management" whenever isAgencyUser is false, and
+     maySeeCommission() reads a module singleton that DEFAULTS TRUE, so in mock,
+     demo and every vitest run a Manager would read as a Director.
+
+     Raw pair, and no isAgencyUser gate: gating it would silently treat a
+     supplier's management staff as Directors of an agency. Like `role`, this is a
+     lens for deciding what to draw. The ladder in SQL is the boundary. */
+  seesCommission: boolean;
   partnerScope: PartnerScope;
   selectedPartner: PartnerScope;
   setSelectedPartner: (id: PartnerScope) => void;
@@ -196,6 +213,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         name: data.full_name as string,
         email: data.email as string,
         partner: emb(data.partner)?.slug ?? null,
+        // Already in the select above, so this costs no extra round trip.
+        seesCommission: data.sees_commission === true,
       };
       /* THE DIRECTOR / MANAGER BIT, set before anything renders.
          Both are management scope and the only difference is whether they are
@@ -333,7 +352,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const user: RoleIdentity = agencyLevel ? { ...base, label: agencyLevel } : base;
 
   const value = useMemo<SessionValue>(
-    () => ({ role, setRole, user, currentUserId: profile?.userId ?? null, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion }),
+    () => ({ role, setRole, user, currentUserId: profile?.userId ?? null,
+             /* Mock and demo have no profile, so they fall back to the singleton and
+                keep behaving exactly as they do today (a mock management viewer
+                reads as a Director). */
+             seesCommission: profile ? profile.seesCommission : maySeeCommission(role),
+             partnerScope, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion }),
     // dataVersion is intentionally a dep: bumping it after (re-)hydration changes
     // the context identity so consumers re-read the refreshed working copies.
     [role, setRole, user, profile, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion],

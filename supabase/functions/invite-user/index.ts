@@ -135,6 +135,26 @@ Deno.serve(async (req) => {
             : "Managers may invite negotiators, managers or developers.",
         }, 403);
       }
+
+      /* THE LEVEL LADDER, ASKED IN SQL AND AS THE CALLER.
+         The allowlist above is about ROLE and is keyed on positions; it cannot
+         tell Director from Manager, because both are 'management'. So a Manager
+         asking for a Director passed it, and the only thing standing in the way
+         was a silent coercion further down that quietly wrote sees_commission
+         false, answered { ok: true } and sent the invitation. The person then
+         arrived as a Manager holding an email that said Director, which is the
+         worst of the three possible outcomes because it looks like it worked.
+
+         assert_may_grant_level refuses instead. Called through the CALLER-scoped
+         client, so auth.uid() inside it is the inviter and not service_role, the
+         same shape placeOrRollback already uses for set_user_scope below.
+         Agency levels only: a developer invite carries no level and is governed
+         by the allowlist above. */
+      if (role === "management" || role === "referrer") {
+        const level = role === "referrer" ? "Negotiator" : (seesCommission ? "Director" : "Manager");
+        const { error: levelErr } = await userClient.rpc("assert_may_grant_level", { p_level: level });
+        if (levelErr) return json({ ok: false, error: levelErr.message }, 403);
+      }
       inviteePartnerId = caller.partner_id ?? null;
     } else {
       return json({ ok: false, error: "Not permitted." }, 403);
@@ -210,15 +230,23 @@ Deno.serve(async (req) => {
           /* Only management has a level to hold: maySeeCommission answers true for
              a superadmin whatever this says, and false for a referrer, so writing
              it for either would be a value that contradicts the predicate reading
-             it. And only a caller who may see commission may grant it: a Manager
-             inviting a Director would be handing out a capability they do not
-             hold, which is the one shape of escalation the level has to refuse
-             (see 20261005210000, which closed the other one).
+             it.
+
+             THE COERCION THAT USED TO BE HERE IS GONE. It read
+
+               && (caller.role === "superadmin" || caller.sees_commission === true)
+
+             which turned a Director request from a Manager into a Manager,
+             silently, answered { ok: true } and sent the invitation, so the person
+             arrived at the wrong level holding an email that said otherwise.
+             assert_may_grant_level REFUSES that request now, above, before
+             anything is created. A request that reaches this line has been
+             authorised, so the honest value is the right one to write.
+
              Written as service_role, so the admin-only trigger on this column does
              not apply to this insert: it guards UPDATE, and the authorisation for
-             creation is the line below. */
-          sees_commission: role === "management" && seesCommission
-            && (caller.role === "superadmin" || caller.sees_commission === true),
+             creation is the assert above. */
+          sees_commission: role === "management" && seesCommission,
         });
         if (insErr) return json({ ok: false, error: insErr.message }, 400);
       }

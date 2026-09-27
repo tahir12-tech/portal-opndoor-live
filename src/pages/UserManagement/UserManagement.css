@@ -264,11 +264,20 @@
    have one or two, so a table of one row is more chrome than content. */
 .pos-empty { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px;
              border: 1px solid var(--line); border-radius: var(--r-md); background: var(--app-bg); margin-bottom: 16px; }
-.pos-empty > svg { color: var(--ink-mute); flex: none; margin-top: 2px; }
+/* SIZE THE ICON, or it fills the panel. <Icon> renders a bare <svg viewBox="0 0
+   24 24"> and only sets width/height when a `size` prop is passed, which these two
+   call sites do not. With no width, `img, svg { max-width: 100% }` in portal.css
+   resolves the icon to the full width of the flex line, and `flex: none` is
+   `0 0 auto`, whose `auto` basis defers to that width and whose 0 shrink forbids it
+   coming back. So the icon became a panel-wide square and pushed the text out of
+   the dialog. Every other `> svg` rule in the tree sets dimensions; these were the
+   only two that did not. 18px matches .rolenote svg, the other modal callout. */
+.pos-empty > svg { width: 18px; height: 18px; color: var(--ink-mute); flex: none; margin-top: 2px; }
 .pos-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; }
 .pos-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px;
             border: 1px solid var(--line); border-radius: var(--r-md); }
-.pos-item > svg { color: var(--ink-mute); flex: none; }
+/* 20px, which is what .apdoc__item > svg (this rule's source) sets. */
+.pos-item > svg { width: 20px; height: 20px; color: var(--ink-mute); flex: none; }
 .pos-item__txt { flex: 1; min-width: 0; }
 .pos-item__name { font-weight: 600; font-size: 14px; color: var(--ink); }
 .pos-add { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; align-items: end; }

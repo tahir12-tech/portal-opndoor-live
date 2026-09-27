@@ -9,8 +9,8 @@
    reset password, reset 2FA, resend invite and deactivate -> the matching
    mutations. Every rule here must also be enforced server-side.
    ===================================================================== */
-import type { Role, User, UserStatus } from './types';
-import { ALL_PARTNERS } from './types';
+import type { AgencyLevel, Role, User, UserStatus } from './types';
+import { AGENCY_LEVELS, ALL_PARTNERS, agencyLevelOf } from './types';
 import { getSelectedPartner, homePartner, partnerName } from './partnersService';
 import { functionErrorMessage } from './paymentService';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
@@ -87,7 +87,7 @@ export function getUsers(opts: GetUsersOpts): ManagedUser[] {
    in mock mode). Every rule (role wall, self/last-admin guard) is enforced
    server-side in the RPC; the client mirrors it for a clean UX. ---- */
 
-export type UserAction = 'status' | 'role' | 'reset_mfa' | 'name';
+export type UserAction = 'status' | 'role' | 'reset_mfa' | 'name' | 'agency level changed' | 'password_reset_sent';
 export interface UserAuditEntry {
   action: UserAction | string;
   oldValue: string;
@@ -193,13 +193,49 @@ export async function resetUserPassword(id: string): Promise<void> {
   const u = USERS.find((x) => x.id === id);
   if (!u) throw new Error('User not found.');
   if (SUPABASE_ENABLED) {
+    /* AUTHORISED IN SQL FIRST, and this is the whole reason it is two calls.
+       send-password-reset is the anonymous Forgot-password endpoint: it takes an
+       email address, reads no Authorization header and is verify_jwt false, by
+       design. So an admin-initiated reset used to be a byte-identical anonymous
+       request, which meant there was nothing to apply the level rule to and no
+       record that a member of staff had triggered it.
+
+       authorise_password_reset takes a USER ID, judges the caller against the
+       ladder, writes the password_reset_sent audit row and hands back the address.
+       The address is not new knowledge for the client (it is already on the
+       hydrated row); what is new is that SQL has agreed, and said so in the audit
+       trail, before any email is minted. */
+    const { data: email, error: authErr } = await sb().rpc('authorise_password_reset', { p_user: id });
+    if (authErr) throw new Error(authErr.message);
+    if (!email) throw new Error('Could not authorise that reset.');
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const { error } = await sb().functions.invoke('send-password-reset', { body: { email: userEmail(u), origin } });
+    const { error } = await sb().functions.invoke('send-password-reset', { body: { email, origin } });
     // The function now answers 503 when the send itself failed, where it used
     // to answer ok. supabase-js turns that into "non-2xx status code", which
     // tells an admin nothing, so say the useful thing instead.
     if (error) throw new Error('We could not send that just now. Try again in a moment.');
   }
+}
+
+/* THE LEVEL, WHICH MOVES role AND sees_commission TOGETHER.
+   updateUserRole moves only `role`, so using it to demote a Director would leave
+   the commission bit behind and produce a Negotiator who still reads as entitled
+   to the money. set_agency_level is the one that cannot do that, and it is what
+   the Change level control calls. */
+export async function setAgencyLevel(id: string, level: AgencyLevel): Promise<void> {
+  const u = USERS.find((x) => x.id === id);
+  if (!u) throw new Error('User not found.');
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('set_agency_level', { p_user: id, p_level: level });
+    if (error) throw new Error(error.message);
+    return; // caller re-hydrates
+  }
+  const spec = AGENCY_LEVELS.find((l) => l.level === level);
+  if (!spec) throw new Error('An agency level is Director, Manager or Negotiator.');
+  const old = agencyLevelOf(u.role, u.seesCommission === true);
+  if (old !== level) recordUserAudit(id, 'agency level changed', old ?? u.role, level);
+  u.role = spec.role;
+  u.seesCommission = spec.seesCommission;
 }
 
 /** Recent lifecycle changes for a user (most recent first). Admin/management scoped. */
