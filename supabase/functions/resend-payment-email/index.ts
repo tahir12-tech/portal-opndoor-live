@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       // Both embedded rows are ones this caller already reads all over the portal
       // (the applications list renders the agency name off the same policy), and
       // a null from either degrades to the approved wording rather than failing.
-      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, monthly_rent, fee_amount, share_amount, status, payment_url, livemode, referencing_mode, agency_id, agency:agencies(name), partner:partners(refers_own_stock)")
+      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, monthly_rent, fee_amount, share_amount, status, livemode, referencing_mode, agency_id, agency:agencies(name), partner:partners(refers_own_stock)")
       .eq("guarantee_ref", ref).maybeSingle();
     if (error) return json({ ok: false, error: error.message }, 400);
     if (!app) return json({ ok: false, error: "Application not found, or you do not have access to it." }, 404);
@@ -64,7 +64,21 @@ Deno.serve(async (req) => {
     if (!maySendOpndoorEmail(app.livemode === true)) {
       return json({ ok: false, error: "This is a sandbox application. Opndoor does not send email for sandbox." }, 400);
     }
-    if (!app.payment_url) return json({ ok: false, error: "No payment link exists for this application yet." }, 400);
+    /* THERE WAS A GATE HERE ON app.payment_url EXISTING, and it refused exactly the
+       case this button exists for.
+
+       payment_url is the URL of the EAGER Stripe session create-referral opens
+       when the referral is made. That session can fail: create-referral handles
+       "Could not mint a payment link", records the send as failed and creates the
+       referral anyway, precisely so an admin can resend. Such a row is status
+       'sent' with payment_url null, and this function answered "No payment link
+       exists for this application yet" and refused, which is both wrong (one can
+       be minted, and is, twelve lines below) and the opposite of the remedy.
+
+       Nothing here needs payment_url: a resend never sends a Stripe URL. The only
+       question is whether the application is still payable, and the status check
+       above is what answers it. The link is minted fresh below and the mint's own
+       failure is what returns an error. */
 
     // WAS: the email quoted monthly_rent in a row labelled "Guarantee fee".
     //
