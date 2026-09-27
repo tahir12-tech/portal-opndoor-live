@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
       /* AND WHAT THAT FIGURE IS MEASURED AGAINST. The amount above has been
          fee_amount since M1, but nothing told this email what the fee was a
          proportion OF, so GR-20837's tenant was asked for £692.31 under a
-         sentence that flatly called the fee one month of rent. It was three
+         sentence that flatly called the fee one month's rent. It was three
          weeks, under Regent's agreement. The basis is a fact passed in now.
 
          MEASURED AGAINST THE RENT THIS FEE WAS A PROPORTION OF, which for a

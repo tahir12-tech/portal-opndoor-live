@@ -11,6 +11,10 @@ export interface PaymentConfirmation {
   firstName?: string;
   reference?: string;
   amount?: number;
+  /** What is still OWED, present only when the fee is unpaid. `amount` means
+      what was PAID and is 0 before payment, which /pay/retry was rendering under
+      the label "Amount due" to a tenant who owed the full fee. */
+  amountDue?: number;
   paid?: boolean;
   deedReady?: boolean;
   deedSigned?: boolean;

@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
     /* AND WHAT THAT FIGURE IS MEASURED AGAINST. The amount above was already
        right; nothing on this page said what it was, so GR-20837 showed a tenant
        £692.31 under "Guarantor fee" with a £1,000 rent above it and left them to
-       guess, while their email called the same fee one month of rent. The basis
+       guess, while their email called the same fee one month's rent. The basis
        is a fact now, stated in the same words everywhere.
 
        Measured against the rent THIS fee was a proportion of: a joint tenant's
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
        FROM app.fee_amount ALONE, with no fall back to monthly_rent, and this is
        the subtle half. feeAmount above falls back to the rent because the page
        has to show a figure; the BASIS must not, because rent divided by rent is
-       exactly 52/12 weeks, so the fallback would manufacture "one month of rent"
+       exactly 52/12 weeks, so the fallback would manufacture "one month's rent"
        out of a row that never recorded a fee and state it as a verified fact. An
        unknown fee has an unknown basis, and every surface here says nothing
        rather than the commonest answer. */
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
       // tenancy's rent beside "3 weeks of rent" contradicts its own arithmetic.
       rentShare: app.share_amount == null ? null : Number(app.share_amount),
       feeGBP,
-      // The words for the figure in feeGBP: "one month of rent", "3 weeks of
+      // The words for the figure in feeGBP: "one month's rent", "3 weeks of
       // rent", or null when the basis cannot be worked out, in which case the
       // page must say nothing about a basis rather than assume the common one.
       feeBasis,

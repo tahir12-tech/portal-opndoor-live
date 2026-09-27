@@ -13,11 +13,15 @@
    implementation and stays where it is: that one answers "how was this SET of
    applications priced" for agency-facing screens, over FullApp rows, and returns
    a mixed/none kind those screens need. This answers one tenant's own question
-   about one fee. It also says "one month of rent" where that one says "one
-   month's rent", matching the tenant emails, because a tenant reading their
-   status screen and the email about the same referral should not find two
-   phrasings. Worth unifying the three one day; not worth moving approved
-   agency-facing copy to do it.
+   about one fee.
+
+   ALL THREE NAME THE ONE-MONTH BASIS IDENTICALLY: "one month's rent". That is by
+   ruling and it is the phrase the rest of the codebase already used in some thirty
+   places. For a while this helper and the email said "one month of rent", which
+   meant a tenant could read one phrasing on their status screen and another in the
+   email about the same referral, and a supplier's Stripe line item changed wording
+   for no reason anybody asked for. Worth collapsing the three implementations one
+   day; the wording is not what was ever in question.
    ===================================================================== */
 
 /** One month is 52/12 weeks. */
@@ -51,7 +55,7 @@ export function tenantFeeBasisWeeks(
  */
 export function tenantFeeBasisPhrase(weeks: number | null | undefined): string | null {
   if (weeks == null || !(weeks > 0)) return null;
-  if (Math.abs(weeks - MONTH_WEEKS) < 0.02) return 'one month of rent';
+  if (Math.abs(weeks - MONTH_WEEKS) < 0.02) return "one month's rent";
   const whole = Math.abs(weeks - Math.round(weeks)) < 0.02;
   const n = whole ? String(Math.round(weeks)) : weeks.toFixed(2);
   return `${n} weeks of rent`;

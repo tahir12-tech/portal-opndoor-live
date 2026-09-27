@@ -51,14 +51,18 @@ function isMonthBasis(weeks: number | null | undefined): boolean {
 
 /** The basis in the reader's words, or null when we cannot work it out.
 
-    A month is said as a month because that is how a tenant thinks of it. Anything
+    A month is said as a month because that is how a tenant thinks of it, and
+    as "one month's rent", which is what the other thirty-odd places in this
+    codebase that name this basis already say. The phrase is the SAME on every
+    surface by ruling: the Stripe line item a tenant reads at the card screen,
+    this email, the pay page and the agency screens. One basis, one wording. Anything
     else is said in weeks, which is how the agreements are written. Rounded to a
     whole week only when it IS a whole week: "3 weeks" is a band, "3.33 weeks" is
     an arithmetic artefact of a share and saying it to 2dp is more honest than
     rounding it to something the agreement does not say. */
 export function feeBasisPhrase(weeks: number | null | undefined): string | null {
   if (weeks == null || !(weeks > 0)) return null;
-  if (isMonthBasis(weeks)) return "one month of rent";
+  if (isMonthBasis(weeks)) return "one month's rent";
   const whole = Math.abs(weeks - Math.round(weeks)) < 0.02;
   const n = whole ? String(Math.round(weeks)) : weeks.toFixed(2);
   return `${n} weeks of rent`;

@@ -97,6 +97,20 @@ Deno.serve(async (req) => {
     const amount = app.paid_amount != null
       ? Number(app.paid_amount)
       : (paid ? Number(app.fee_amount ?? app.monthly_rent ?? 0) : 0);
+    /* AND WHAT IS STILL OWED, which is a different question from what was paid.
+       `amount` above means "amount paid" and is deliberately 0 when nothing has
+       been, which is right on the confirmation page. /pay/retry renders the SAME
+       field under the label "Amount due", and it is reached only when the tenant
+       abandoned or cancelled checkout, so paid is false by definition there: a
+       tenant who owes £692.31 was shown "Amount due £0" beside a Return to
+       payment button. Two labels over one number, so now there are two numbers.
+
+       null rather than 0 when we have neither figure, so the page can omit the
+       row instead of asserting that nothing is due. The monthly_rent fall back is
+       kept for rows created before fee_amount existed, where the two are equal. */
+    const amountDue = app.fee_amount != null
+      ? Number(app.fee_amount)
+      : (app.monthly_rent != null ? Number(app.monthly_rent) : null);
     const deedReady = app.deed_state === "awaiting_tenant" && !!app.pandadoc_document_id;
     const deedSigned = app.deed_state === "executed";
     const deedError = app.deed_state === "error";
@@ -131,6 +145,9 @@ Deno.serve(async (req) => {
       firstName: app.tenant_first_name ?? "",
       reference: app.guarantee_ref,
       amount,
+      // Only when there is something to owe: the retry page reads this and omits
+      // the row entirely rather than printing £0 at somebody who owes money.
+      ...(paid || amountDue == null ? {} : { amountDue }),
       paid,
       deedReady,
       deedSigned,

@@ -14,6 +14,10 @@
    an emailTemplates that hardcoded "The fee is one month of rent and is payable
    once." Nothing about the repo was wrong. The deploy was.
 
+   The one-month wording is now "one month's rent" on every surface, which is what
+   the rest of the codebase already said and what the Stripe line item said last
+   week. This file's history above deliberately quotes the old strings.
+
    That is why this file exists in src/ rather than under supabase/: vitest is the
    suite that actually runs here (Deno is not installed on this machine, so
    `deno test` cannot be the guard), and emailTemplates.ts has no Deno-only
@@ -61,7 +65,7 @@ describe('the basis of a fee, in the reader\'s words', () => {
   });
 
   it('still calls a month a month, which is how a tenant thinks of it', () => {
-    expect(feeBasisPhrase(weeks(2000, 2000))).toBe('one month of rent');
+    expect(feeBasisPhrase(weeks(2000, 2000))).toBe("one month's rent");
   });
 
   it('says nothing rather than guessing when it cannot tell', () => {
@@ -94,9 +98,9 @@ describe('the Regent payment email', () => {
     expect(body).toContain('£692.31');
   });
 
-  it('never claims the fee is a month of rent', () => {
-    expect(body).not.toMatch(/one month of rent/i);
+  it('never claims the fee is a month of rent, in either phrasing', () => {
     expect(body).not.toMatch(/month's rent/i);
+    expect(body).not.toMatch(/month of rent/i);
   });
 
   it('names the agency that arranged it, and asks in the same sentence', () => {
@@ -157,7 +161,7 @@ describe('who made the decision decides the wording', () => {
    not "says the right things", it is "is the same email": anything that changes
    any character of it should fail here and be looked at deliberately.
 
-   Pinned on a STANDARD-TERMS referral, one month of rent, because that is what a
+   Pinned on a STANDARD-TERMS referral, one month's rent, because that is what a
    supplier referral is. A supplier on a negotiated basis now has its basis named
    in the small print where it previously said only "payable once", which is the
    correctness half of the ruling and is asserted separately below.
@@ -206,7 +210,7 @@ describe('the supplier rail', () => {
             ],
           },
           {
-            "small": "The fee is one month of rent and is payable once. The Deed of Guarantee is issued as soon as it clears.",
+            "small": "The fee is one month's rent and is payable once. The Deed of Guarantee is issued as soon as it clears.",
           },
         ],
         "heading": "Your guarantee is approved",

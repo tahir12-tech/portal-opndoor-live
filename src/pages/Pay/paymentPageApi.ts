@@ -28,7 +28,7 @@ export interface PayPageData {
      joining the two: not a missing string, a missing declaration. TypeScript
      could not report the absence of a field the contract never mentioned. */
 
-  /** "one month of rent", "3 weeks of rent". Absent when it cannot be worked out. */
+  /** "one month's rent", "3 weeks of rent". Absent when it cannot be worked out. */
   feeBasis?: string | null;
   /** THIS tenant's share of the rent. On a joint tenancy monthlyRent is the whole
       tenancy's and the fee is only this applicant's share, so printing the two

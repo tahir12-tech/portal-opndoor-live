@@ -44,13 +44,13 @@ describe('what a tenant is told', () => {
   });
 
   it('still calls a month a month', () => {
-    expect(tenantFeeBasis(2000, 2000)).toBe('one month of rent');
+    expect(tenantFeeBasis(2000, 2000)).toBe("one month's rent");
   });
 
   /* THE MANUFACTURED MONTH. Every surface computing a basis takes the fee and the
      rent; several of them fall back to the rent when fee_amount is null, because
      they have to show a figure. If the BASIS took that fallback too, rent over
-     rent is exactly 52/12 weeks and the page would state "one month of rent" as a
+     rent is exactly 52/12 weeks and the page would state "one month's rent" as a
      verified fact about a row that never recorded a fee. Callers pass the raw
      fee_amount for this reason, and a null fee has to answer null. */
   it('says nothing when no fee was recorded, rather than inventing a month', () => {
@@ -58,7 +58,7 @@ describe('what a tenant is told', () => {
     expect(tenantFeeBasis(0, 1000)).toBeNull();
     // And the trap itself: passing the rent as the fee IS a month, which is why
     // the fallback must never reach this function.
-    expect(tenantFeeBasis(1000, 1000)).toBe('one month of rent');
+    expect(tenantFeeBasis(1000, 1000)).toBe("one month's rent");
   });
 
   it('measures a share against the share, not the tenancy', () => {
