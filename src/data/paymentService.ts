@@ -66,6 +66,43 @@ export interface PaymentInfo {
   log: PaymentLogEntry[];
 }
 
+/* =====================================================================
+   WHAT THE GUARANTEE DEED CARD SHOULD SAY.
+
+   Extracted from the JSX it used to be an inline conditional in, so that the rule
+   can be asserted. The rule was `deedState !== 'awaiting_tenant'` used as a
+   catch-all, under copy that asserted a generation FAILURE and offered a
+   supplier-rail remedy. On GR-20846 that showed "Deed could not be generated.
+   Check the branch has an agent contact" while the deed had in fact generated,
+   been signed and been delivered.
+
+   Two facts decide it and neither is a guess: whether a document exists, and what
+   the deed state actually says. "No deed yet" is not "generation failed": a paid
+   application with no document and no error is being prepared, which is the normal
+   state in the seconds after payment.
+   ===================================================================== */
+export type DeedCard = 'awaiting_tenant' | 'preparing' | 'declined' | 'voided' | 'error';
+
+export function deedCardState(pi: Pick<PaymentInfo, 'deedState' | 'pandadocDocumentId'>): DeedCard {
+  if (pi.deedState === 'declined') return 'declined';
+  if (pi.deedState === 'voided') return 'voided';
+  if (pi.deedState === 'error') return 'error';
+  if (pi.deedState === 'awaiting_tenant' && pi.pandadocDocumentId) return 'awaiting_tenant';
+  // Includes deedState null, and awaiting_tenant with no document id, which is a
+  // half-written row rather than a signable deed.
+  return 'preparing';
+}
+
+/** Is the Generate button able to do anything?
+
+    It calls pandadoc-resend, whose generate branch runs generateDeed, which claims
+    through claim_tenancy_deed. That RPC refuses when a document id is already
+    present, so with a live document the button is an offer the database declines:
+    the guard against a second PandaDoc document, and an inert control. */
+export function mayGenerateDeed(pi: Pick<PaymentInfo, 'pandadocDocumentId'>): boolean {
+  return !pi.pandadocDocumentId;
+}
+
 /** Extract a readable message from a Supabase Functions error. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function functionErrorMessage(error: any, fallback: string): Promise<string> {

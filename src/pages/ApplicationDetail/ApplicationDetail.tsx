@@ -33,12 +33,13 @@
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedDownloadUrl, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
+import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedCardState, deedDownloadUrl, mayGenerateDeed, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { maySeeDeliveryState, type DeliveryState } from '@/data/deliveryState';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
 import { titleCaseAddress, formatLondonDate, formatLondonDateTime } from '@/lib/format';
+import { isAgencyUser } from '@/data/capabilities';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
@@ -308,6 +309,10 @@ export function ApplicationDetail() {
      Regent an agency referral while the journey is pre-referenced) and not the
      journey RPC (async, and agent-rail only). */
   const preReferenced = preReferencedJourney(d.referencingMode);
+  /* Is the person READING this one of our own agencies? Used only for copy: an
+     agency user must never be shown the supplier rail's contact-ladder remedy,
+     which names a thing their screens do not have. */
+  const agencyViewer = isAgencyUser(role, partnerScope);
   const showDocuments = maySeeDocuments && !preReferenced;
   /* WHO SEES THE ROUTE. Was `role !== 'referrer'`, which granted the row to
      every role added since by accident. Named positively so the next one has to
@@ -1176,14 +1181,73 @@ export function ApplicationDetail() {
           )}
         </>
       ) : (
+        /* WHAT THIS CARD SAYS WHEN THERE IS NO DEED YET, and it used to say one
+           thing for three different situations.
+
+           The condition was `deedState !== 'awaiting_tenant'`, a catch-all, and the
+           copy under it asserted a generation FAILURE with a supplier-rail remedy:
+           "Check the branch has an agent contact, then retry." Seen on GR-20846
+           during the walk, where the deed had generated at 16:45, been signed, and
+           delivered. Two things were wrong.
+
+           First, the card reads a SNAPSHOT. loadPayment runs once on mount and only
+           re-polls behind ?paid=1, so a page opened before the deed existed keeps
+           showing the state it loaded with until somebody reloads. The remedy is
+           not to guess from a stale field but to say only what the field supports.
+
+           Second, "no deed yet" is not "generation failed". A paid application with
+           no document and no error is simply being prepared, which is the common
+           case in the seconds after payment, and it now says so instead of alleging
+           a fault and offering a retry for something that is already in hand.
+
+           And the agent-contact wording is gone for an agency user. On our own
+           estate the recipient comes from the agency's own active people, not from
+           an "agent contact" on a branch, so it named a thing their screens do not
+           have and a remedy they could not carry out. */
         <>
-          <div className="pay-anomaly">
-            <Icon name="alert" strokeWidth={2.2} />
-            <span>{pi.deedState === 'declined' ? 'Tenant declined to sign the deed. Review required.' : pi.deedState === 'voided' ? 'Deed document voided in PandaDoc. Review required.' : 'Deed could not be generated. Check the branch has an agent contact, then retry.'}</span>
-          </div>
+          {(() => {
+            const card = deedCardState(pi);
+            const st = pi.deedState;
+            if (card === 'preparing') {
+              // Paid, no live document, nothing wrong: it is being prepared.
+              return (
+                <div className="deed" style={{ opacity: 0.95 }}>
+                  <span className="deed__ic" style={{ color: 'var(--sent)' }}><Icon name="clock" strokeWidth={1.8} /></span>
+                  <div className="grow">
+                    <div className="deed__t">Deed being prepared</div>
+                    <div className="deed__s">It is issued automatically and sent to the tenant to sign. Reload to see the latest.</div>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div className="pay-anomaly">
+                <Icon name="alert" strokeWidth={2.2} />
+                <span>{st === 'declined'
+                  ? 'Tenant declined to sign the deed. Review required.'
+                  : st === 'voided'
+                    ? 'Deed document voided in PandaDoc. Review required.'
+                    : agencyViewer
+                      ? 'This deed could not be issued. Opndoor has been notified and will sort it out.'
+                      : 'Deed could not be generated. Check the branch has a deliverable contact, then retry.'}</span>
+              </div>
+            );
+          })()}
+          {/* GENERATE IS OFFERED ONLY WHERE IT CAN DO SOMETHING.
+              It calls pandadoc-resend, whose generate branch runs generateDeed,
+              which claims through claim_tenancy_deed. That RPC refuses when a
+              document id is already present, so with a live document the button was
+              an offer the database declines: nothing happens and the reader learns
+              nothing. It also cannot create a second PandaDoc document, which is
+              the guard, but an inert button is still a lie about what is available.
+              With a document present the honest control is Resend. */}
           {pi.paymentState !== 'refunded' && (
             <div style={{ marginTop: 10 }}>
-              <Button variant="primary" size="sm" block onClick={doResendDeed} disabled={deedBusy}><Icon name="file" /> {deedBusy ? 'Working…' : 'Generate deed'}</Button>
+              {!mayGenerateDeed(pi) ? (
+                <Button variant="primary" size="sm" block onClick={doResendDeed} disabled={deedBusy}><Icon name="send" /> {deedBusy ? 'Sending…' : 'Resend signature request'}</Button>
+              ) : (
+                <Button variant="primary" size="sm" block onClick={doResendDeed} disabled={deedBusy}><Icon name="file" /> {deedBusy ? 'Working…' : 'Generate deed'}</Button>
+              )}
             </div>
           )}
         </>
