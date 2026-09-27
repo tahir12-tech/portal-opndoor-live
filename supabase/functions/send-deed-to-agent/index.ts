@@ -49,12 +49,13 @@ Deno.serve(async (req) => {
     if (rpcErr) return json({ ok: false, error: rpcErr.message }, 400);
     const sentTo = resolved?.sent_to as string | undefined;
     if (!sentTo) {
-      // No resolved contact: record a delivery-failed activity so the record
-      // surfaces on the delivery-failure/needs-attention surfaces. Keep the
-      // client informed by returning a structured error.
+      // CANNOT DELIVER, not delivery failed (20261005100000): the ladder
+      // resolved nothing, so no send was attempted and delivery_failed_at must
+      // stay null. It parks in the queue, admin-facing, because there is no
+      // address, no error and nothing the agency can act on.
       const service = createClient(SUPABASE_URL, SERVICE);
       await service.from("applications").update({ awaiting_staff_send: true }).eq("id", app.id);
-      await service.from("activity_log").insert({ application_id: app.id, kind: "deed_delivery_failed", message: "Deed issued. No agent contact on file, so it could not be delivered.", actor: "System", visibility: "business" });
+      await service.from("activity_log").insert({ application_id: app.id, kind: "deed_delivery_failed", message: "Deed issued. No agent contact on file, so it could not be delivered.", actor: "System", visibility: "internal" });
       return json({ ok: false, sentTo: null, error: "No agent contact on file for this branch. Add one, then resend." }, 400);
     }
     // Greet by the resolved contact's name only when the recipient IS that
@@ -83,9 +84,21 @@ Deno.serve(async (req) => {
       pdfPath: app.executed_pdf_path,
     }, { email: sentTo, name: recipientName }, `sent by ${actor}`);
 
-    // It has been sent by a human, so it leaves the awaiting-staff-send queue.
-    // Only on success: a failed send stays queued, which is the point of the queue.
-    if (out.ok) await service.from("applications").update({ awaiting_staff_send: false }).eq("id", app.id);
+    // WRITE DOWN THE ATTEMPT, both outcomes. record_delivery_attempt is the
+    // only thing that sets delivery_failed_at, and nothing in the tree called
+    // it, so a manual send that the provider refused left no trace but a return
+    // value: the button reported an error to the person pressing it and the
+    // record said nothing had gone wrong. On success it stamps where the deed
+    // actually went, the question asked far more often than why it did not,
+    // and clears awaiting_staff_send itself, which is why the update below is
+    // gone rather than kept alongside it.
+    await service.rpc("record_delivery_attempt", {
+      p_app: app.id, p_ok: out.ok, p_to: sentTo,
+      // The rung is only knowable here when the sender overrode it. Null leaves
+      // whatever the automatic path last recorded, rather than inventing a rung.
+      p_source: recipientEmail ? "explicit" : null,
+      p_reason: out.ok ? null : (out.error ?? "The email provider refused the send."),
+    }).then(() => {}, () => {});
 
     return json({ ok: out.ok, sentTo, emailError: out.ok ? null : out.error });
   } catch (e) {

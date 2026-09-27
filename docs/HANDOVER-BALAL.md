@@ -515,6 +515,15 @@ select jobname, schedule, active from cron.job order by jobname;
 | `partner-webhooks` | `* * * * *` | |
 | `rate-limit-cleanup` | `7 * * * *` | |
 
+**The pairs are deliberate and are not to be tidied away.** `CUTOVER.md` records
+the same decision in the same words: the database runs in UTC, the second job
+covers British Summer Time, both fire, and the ledger makes the second a no-op.
+I checked that claim rather than taking it on trust: `fire_payment_reminders`
+claims into `payment_reminders` with `on conflict do nothing` and skips when the
+insert finds nothing, so a second run the same day returns no rows and sends no
+email. Asserted in `supabase/tests/pay_link_outlives_a_day.test.sql`. If you find
+yourself about to delete one of a pair, read this paragraph again.
+
 **Why the statements cron is daily and not monthly:** the send day is the 1st, or
 the next day that is not a UK bank holiday. That cannot be written as a cron
 expression, and `0 7 1 * *` would silently skip any month whose 1st is a bank
@@ -726,7 +735,14 @@ select partner_id, last_at, stuck_since, left(stuck_error, 200) as stuck_error
  order by stuck_since nulls last, updated_at desc;
 ```
 
-Then wait two minutes (the cron runs `*/2 * * * *`) or invoke `hubspot-sync` by
+**This will be the first proven sync anywhere.** `hubspot_sync_events` is empty on
+dev and always has been, because dev has no HubSpot token: the sync has nothing
+to authenticate with and has therefore never applied an event. So there is no
+"it worked on dev" to compare against, and your run on the clone is the first
+real evidence the chain works end to end. Treat an empty table before your run as
+expected, and a row after it as the thing you were sent to establish.
+
+Wait two minutes (the cron runs `*/2 * * * *`) or invoke `hubspot-sync` by
 hand with the ops secret, and:
 
 ```sql

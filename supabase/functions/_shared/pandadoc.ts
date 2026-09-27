@@ -508,9 +508,9 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   // question below it the way a tenancy of one does: the has-this-tenant-paid
   // gate is skipped (`unit &&` is falsy), joint is false, and all three of
   // tenancy_tenant_names, co_tenant_names and share_amount go null. On a JOINT
-  // tenancy that silently generates a single-tenant document — no co-tenants
-  // named, no guaranteed_amount, the whole rent implied instead of this
-  // tenant's share — and sends it for signature. A deed is a financial
+  // tenancy that silently generates a single-tenant document, with no
+  // co-tenants named, no guaranteed_amount and the whole rent implied instead
+  // of this tenant's share, and sends it for signature. A deed is a financial
   // instrument, so not knowing what it should say is a reason to generate
   // nothing, never a reason to generate the simpler one.
   if (tgtErr) {
@@ -563,7 +563,7 @@ export async function generateDeed(service: any, appId: string, reissue = false)
     // awaiting_staff_send is the queryable half of that ruling and is the one
     // thing this branch never set. Generation stopped, deed_state went to
     // 'error', and the only trace was an internal activity row on an
-    // application nobody had a reason to open — a paid tenant with no deed and
+    // application nobody had a reason to open: a paid tenant with no deed and
     // no queue entry anywhere. It parks visibly now, and ops is told, because
     // on production one unset branch contact is usually many.
     await service.from("applications").update({ deed_state: "error", awaiting_staff_send: true }).eq("id", appId);
