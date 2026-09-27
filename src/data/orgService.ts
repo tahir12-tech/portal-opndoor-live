@@ -427,6 +427,43 @@ export function agencyReferencingMode(agency: Agency, partnerMode: string | null
 }
 
 /**
+ * WHICH JOURNEY a referral against this origin runs, resolved by the server.
+ *
+ * The companion to originIsAgentEstate, and a different question: the ESTATE is
+ * who we are (one of our agencies, or a supplier's), the MODE is who checked the
+ * tenant. Regent is one of ours AND pre-referenced, so the two answers disagree
+ * for them, which is the whole reason both exist.
+ *
+ * Asked of origin_referencing_mode rather than resolved from the hydrated store
+ * by agencyReferencingMode. That helper is right for labelling a row already on
+ * screen, and wrong here: it falls back to the PARTNER's mode when the agency's
+ * own is not hydrated, and Regent is pre_referenced_open under a partner that is
+ * opndoor_referenced. The fallback would therefore tell a Regent tenant's referrer
+ * the opposite of the truth. The RPC resolves through the same function
+ * create_referral uses, so the form and the write agree by construction.
+ *
+ * Returns null when it cannot be resolved (no origin chosen yet, or the call
+ * failed), and every caller must treat null as "do not claim either journey".
+ */
+export async function originReferencingMode(
+  agencyName: string, branchName: string, partnerSlug: string | null | undefined,
+): Promise<string | null> {
+  if (!agencyName) return null;
+  if (orgLive()) {
+    const { data, error } = await sb().rpc('origin_referencing_mode', {
+      p_agency: agencyName, p_branch: branchName, p_partner_slug: partnerSlug || null,
+    });
+    if (error) return null;
+    return (data as string | null) ?? null;
+  }
+  // Mock mode: the same precedence the SQL applies, the agency's own choice over
+  // its partner's, read off the seeded tree.
+  const agency = findAgency(agencyName);
+  if (!agency) return null;
+  return agencyReferencingMode(agency, getPartner(agency.partner || homePartner())?.referencingMode ?? null);
+}
+
+/**
  * IS THIS ONE OF OUR AGENCIES — the estate question, not the journey one.
  *
  * A joint tenancy needs an agency of ours to sit under: an org tree to split

@@ -367,9 +367,16 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* THE LEVELS, IN THE AGENCY'S OWN WORDS. This said "Management and
+          super-admin users see the full portfolio across every agency and
+          branch", which is our vocabulary twice over: nobody at an agency holds
+          "Management" or "super-admin", and "every agency and branch" describes
+          Opndoor's estate rather than the reader's own shop. A Negotiator being
+          told what they cannot see should be told it in the names their own
+          colleagues go by, which are the three the invite dialog offers. */}
       <RoleOnly roles={['referrer']}>
         <RoleNote style={{ marginBottom: 18 }}>
-          You are viewing your <b>own referrals only</b>. Management and super-admin users see the full portfolio across every agency and branch.
+          You are viewing your <b>own referrals only</b>. Directors and Managers see the whole agency.
         </RoleNote>
       </RoleOnly>
 

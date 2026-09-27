@@ -26,7 +26,7 @@
 import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, shareSumError } from './shareMath';
-import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, UNRESOLVED, orgSectionCopy, type OrgShape } from '@/data';
+import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, originReferencingMode, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, UNRESOLVED, orgSectionCopy, type OrgShape } from '@/data';
 import { Modal } from '@/components/ui/Modal';
 import { TITLE_OPTIONS, validateReferral, validateTenant, parseFlexibleDate, toISODate, type ReferralValues, type TenantErrors, type TenantValues } from '@/lib/validation';
 import { useSession } from '@/session/SessionContext';
@@ -92,6 +92,12 @@ export function NewApplication() {
   // because only the second is grounds for throwing away tenants somebody typed.
   const [estate, setEstate] = useState(false);
   const [railState, setRailState] = useState<'none' | 'loading' | 'ready'>('none');
+  /* WHICH JOURNEY, which is a different question from which rail. The rail is who
+     we are (one of our agencies, or a supplier's); the mode is who checked the
+     tenant. Regent is one of ours AND pre-referenced, so the two disagree for them,
+     and the middle-name helper below is copy that depends on the MODE. null until
+     resolved, and the copy then says the thing that is true either way. */
+  const [refMode, setRefMode] = useState<string | null>(null);
   // Said once, when adding a tenant stops being possible and tenants were
   // already entered. Silence would be worse than the interruption.
   const [railNote, setRailNote] = useState('');
@@ -233,8 +239,14 @@ export function NewApplication() {
     let live = true;
     if (!values.agency || !values.branch) { setEstate(false); setRailState('none'); return; }
     setRailState('loading');
-    void originIsAgentEstate(values.agency, values.branch, org.partner || (partnerScope === ALL_PARTNERS ? undefined : partnerScope))
+    const partnerArg = org.partner || (partnerScope === ALL_PARTNERS ? undefined : partnerScope);
+    void originIsAgentEstate(values.agency, values.branch, partnerArg)
       .then((v: boolean) => { if (live) { setEstate(v); setRailState('ready'); } });
+    // Asked beside the rail, off the same origin, so the two cannot describe
+    // different referrals. Its own promise: the tenant button must not wait on
+    // copy, and the copy must not wait on the button.
+    void originReferencingMode(values.agency, values.branch, partnerArg)
+      .then((m) => { if (live) setRefMode(m); });
     return () => { live = false; };
   }, [values.agency, values.branch, org.partner, partnerScope]);
 
@@ -390,7 +402,7 @@ export function NewApplication() {
         <Field label={<>First name <Req /></>} htmlFor={`${p}-first`} error={fieldError('first')}>
           <input id={`${p}-first`} type="text" placeholder="Amelia" value={v.first} onChange={(e) => onField('first', e.target.value)} onBlur={() => onBlurField('first')} />
         </Field>
-        <Field label="Middle name" htmlFor={`${p}-middle`} hint="If they have one. The eligibility check runs against their legal name.">
+        <Field label="Middle name" htmlFor={`${p}-middle`} hint={middleNameHint}>
           <input id={`${p}-middle`} type="text" placeholder="Rose" value={v.middle} onChange={(e) => onField('middle', e.target.value)} />
         </Field>
         <Field label={<>Last name <Req /></>} htmlFor={`${p}-last`} error={fieldError('last')}>
@@ -408,6 +420,21 @@ export function NewApplication() {
       </div>
     );
   }
+
+  /* THE MIDDLE NAME HELPER FOLLOWS THE JOURNEY.
+     It read "If they have one. The eligibility check runs against their legal
+     name." on every referral, and on a PRE-REFERENCED one there is no eligibility
+     check to run: the agency already referenced this tenant and opndoor takes no
+     view of them. Telling a Regent negotiator that our check runs against the
+     name describes a step that does not happen on their journey, and invites them
+     to worry about a spelling for a reason that does not exist. What does matter
+     there is that the name matches the identity document the deed will name.
+     Unresolved mode gets the half that is true of both. */
+  const middleNameHint = refMode === null
+    ? 'If they have one.'
+    : refMode === 'opndoor_referenced'
+      ? 'If they have one. The eligibility check runs against their legal name.'
+      : 'If they have one. As it appears on their ID.';
 
   const tenantNames = [values.first.trim() || 'Tenant 1', ...extra.map((t, i) => t.first.trim() || `Tenant ${i + 2}`)];
 

@@ -174,9 +174,16 @@ function ScopeToggle({ scope, setScope, mineLabel }: { scope: LeagueScope; setSc
 function ReferrerLeagueView() {
   usePageMeta('league', 'League table', ['Home', 'League table']);
   const [period, setPeriod] = useLeaguePeriod();
-  // A negotiator sees their branch's league and their company's. Their branch is
-  // resolved server-side (the branches they have referred at), so the toggle is
-  // always available; it opens on the branch, the nearer view.
+  /* A negotiator sees their branch's league and their company's, and the toggle
+     between them is only worth drawing when the two differ. At a single-office
+     agency, which is most of them, "my branch" and "whole company" are the same
+     table, so the control offered a choice with one answer and switching it
+     appeared to do nothing.
+
+     Same predicate as the full view below (liveScopeShape), so the two cannot
+     disagree about how many branches the reader has. */
+  const { role, partnerScope } = useSession();
+  const shape = useMemo(() => liveScopeShape(role, partnerScope), [role, partnerScope]);
   const [scope, setScope] = useState<LeagueScope>('mine');
   const [board, setBoard] = useState<ReferrerBoard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -193,6 +200,7 @@ function ReferrerLeagueView() {
   const mode = board?.mode ?? 'full';
   const rows = board?.rows ?? [];
   const showFees = mode === 'full' || mode === 'private';
+  const showMovement = rows.some((r) => r.movement != null);
   const own = rows.find((r) => r.self) ?? rows[0];
 
   return (
@@ -214,7 +222,7 @@ function ReferrerLeagueView() {
           </p>
         </div>
         <div className="page-head__actions">
-          <ScopeToggle scope={scope} setScope={setScope} mineLabel="My branch" />
+          {shape.branches > 1 && <ScopeToggle scope={scope} setScope={setScope} mineLabel="My branch" />}
           <PeriodSelect ariaLabel="League time period" value={period.id} onChange={setPeriod} options={getPeriods().map((p) => ({ value: p.id, label: p.label }))} />
         </div>
       </div>
@@ -234,7 +242,14 @@ function ReferrerLeagueView() {
               <thead>
                 <tr>
                   <th className="num" style={{ width: 44 }}>#</th>
-                  <th style={{ width: 56 }} title="Movement since the same table 7 days ago">7d</th>
+                  {/* THE 7d COLUMN NEEDS TWO PERIODS TO BE A COMPARISON.
+                      Movement is the rank difference against the same table seven
+                      days ago, and it is null when there is no prior standing. On a
+                      board whose first week this is, EVERY row is null, so the
+                      column was a header over a full column of the word "new": it
+                      says nothing and takes the width of something that does. It
+                      appears once at least one row has a comparison to make. */}
+                  {showMovement && <th style={{ width: 56 }} title="Movement since the same table 7 days ago">7d</th>}
                   <th>Referrer</th>
                   <th className="num">Referrals</th>
                   {showFees && <th className="num">Fees collected</th>}
@@ -244,7 +259,7 @@ function ReferrerLeagueView() {
                 {rows.map((r, i) => (
                   <tr key={`${r.name}-${i}`} className={r.self ? 'is-self' : ''}>
                     <td className="num"><span className={`rank${i < 3 ? ' top' : ''}`}>{i + 1}</span></td>
-                    <td><Movement m={r.movement} /></td>
+                    {showMovement && <td><Movement m={r.movement} /></td>}
                     <td><div className="lt-name">{r.name}{r.self && <span className="lt-partner">You</span>}</div></td>
                     <td className="num">{r.refs.toLocaleString('en-GB')}</td>
                     {showFees && <td className="num">{fmtBig(r.fees)}</td>}
@@ -353,6 +368,14 @@ function FullLeagueView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [all, q, sort, dir]);
 
+  /* THE 7d COLUMN NEEDS TWO PERIODS TO BE A COMPARISON. Movement is the rank
+     difference against the same table seven days ago and is null with no prior
+     standing, so on a board's first week every row reads "new" and the column is a
+     header over nothing. Computed off the UNFILTERED set: keying it to `filtered`
+     would make the column appear and disappear as somebody searched or paged,
+     which is worse than either state. */
+  const showMovement = all.some((r) => r.movement != null);
+
   const total = filtered.length;
   const pages = Math.max(1, Math.ceil(total / PAGE));
   const safePage = Math.min(page, pages - 1);
@@ -441,7 +464,7 @@ function FullLeagueView() {
             <thead>
               <tr>
                 <th className="num" style={{ width: 44 }}>#</th>
-                <th style={{ width: 56 }} title="Movement since the same table 7 days ago">7d</th>
+                {showMovement && <th style={{ width: 56 }} title="Movement since the same table 7 days ago">7d</th>}
                 {cols.map((c) => {
                   const [key, label, sortable] = c;
                   const isSort = sort === key;
@@ -470,7 +493,7 @@ function FullLeagueView() {
                 return (
                   <tr key={`${r.name}-${r.sub}`} onClick={() => navigate(drill)} style={{ cursor: 'pointer' }} title={`View applications for ${r.name}`}>
                     <td className="num"><span className={`rank${rank <= 3 ? ' top' : ''}`}>{rank}</span></td>
-                    <td><Movement m={r.movement ?? null} /></td>
+                    {showMovement && <td><Movement m={r.movement ?? null} /></td>}
                     {cols.map((c, ci) =>
                       ci === 0 ? (
                         <td key={c[0]}>
