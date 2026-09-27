@@ -146,10 +146,29 @@ Deno.serve(async (req) => {
         // transient failure would leave the deed un-executed while the "signed and
         // issued" emails below still send. Delete the dedup row (so a PandaDoc retry
         // re-processes rather than being deduped) and throw -> 500 -> retry.
-        const { error: execErr } = await service.rpc("apply_deed_executed", { p_document_id: docId, p_pdf_path: path });
+        const { data: execOutcome, error: execErr } = await service.rpc("apply_deed_executed", { p_document_id: docId, p_pdf_path: path });
         if (execErr) {
           await service.from("pandadoc_events").delete().eq("id", evId);
           throw new Error(`apply_deed_executed failed: ${execErr.message}`);
+        }
+        /* AND IT CAN REFUSE WITHOUT ERRORING. The RPC returned void until
+           20261005270000, so a refusal was indistinguishable from a success and
+           this handler carried straight on: it wrote the "signed and issued"
+           trail, sent the agent and tenant emails, and answered PandaDoc 200. The
+           dedup row written before the call then makes a redelivery a no-op, so
+           the refusal could never be re-presented.
+
+           'refunded' is the one that must not be treated as done: the money went
+           back and the deed must not be issued, but the document is signed and
+           live in PandaDoc and somebody has to void it. It is not retryable, so
+           we keep the dedup row and answer 200 (retrying would refuse again), and
+           raise an incident that names the document to void. */
+        if (execOutcome === "refunded") {
+          await service.rpc("report_ops_incident", {
+            p_type: "deed_executed_after_refund",
+            p_detail: `PandaDoc document ${docId} completed for a REFUNDED application. The deed was refused and not issued. Void ${docId} in PandaDoc.`,
+          }).then(() => {}, () => {});
+          continue;
         }
         if (app) {
           // The signing event. The "Deed Issued" milestone (status/timeline) is

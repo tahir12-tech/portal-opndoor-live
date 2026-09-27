@@ -278,7 +278,36 @@ Deno.serve(async (req) => {
           const refusal = await refuseOnModeMismatch(service, pre.id, eventLivemode, event.id);
           if (refusal) return refusal;
         }
-        await service.rpc("apply_stripe_refund", { p_payment_intent: pi, p_refund_id: refundId, p_amount: refundAmount });
+        /* THE ERROR WAS DISCARDED, AND THIS IS THE ONE THAT MATTERS MOST.
+           supabase-js returns errors rather than throwing, and the same defect was
+           fixed three hunks above for apply_stripe_payment, record_eligibility_payment
+           and claim_tenancy_deed while this one was left.
+
+           apply_stripe_refund is the only writer of payment_state = 'refunded'. If
+           it fails, everything below still runs on a refund that never applied: the
+           tenant is emailed a refund confirmation, the outstanding deed is voided,
+           and the activity trail says "Payment refunded in Stripe", while the row
+           still says the fee is paid. We answer 200, so Stripe never redelivers, and
+           the stripe_events dedup row makes a manual redelivery a no-op.
+
+           The consequence is not a stale flag. ApplicationDetail gates the deed
+           controls on `paymentState !== 'refunded'`, which now passes, so Generate
+           renders on a refunded application and mints a fresh Deed of Guarantee.
+           apply_deed_executed's own refund guard reads payment_state too, finds it
+           clean, and executes and delivers that deed to the agent as valid. A
+           refunded tenant ends up guaranteed. That is DEFECTS.md 9 reopened through
+           the front door.
+
+           A 5xx is the correct answer: Stripe retries a refund event, and retrying
+           an unapplied refund is exactly what we want. */
+        const { error: refundErr } = await service.rpc("apply_stripe_refund", { p_payment_intent: pi, p_refund_id: refundId, p_amount: refundAmount });
+        if (refundErr) {
+          await service.rpc("report_ops_incident", {
+            p_type: "stripe_refund_not_applied",
+            p_detail: `Payment intent ${pi}: charge.refunded arrived but apply_stripe_refund failed (${refundErr.message}). Nothing downstream ran. Stripe will retry.`,
+          }).then(() => {}, () => {});
+          return json({ error: "Could not apply the refund." }, 500);
+        }
         const { data: appRow } = await service.from("applications")
           .select("id, guarantee_ref, refund_after_start, tenant_title, tenant_last_name, tenant_email, prop_addr1, prop_postcode, pandadoc_document_id, deed_state, livemode")
           .eq("stripe_payment_intent_id", pi).maybeSingle();
