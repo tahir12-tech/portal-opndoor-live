@@ -27,7 +27,7 @@ import { viewerShape } from './viewerShape';
 // The statement column rule, shared with the screen and (as a copied block) with
 // the PDF and the CSV the cron emails. See statementColumns.ts.
 import { dimensionCollapsed, statementShape, type StatementDimension } from './statementColumns';
-import { guaranteeExpiry, allFull, findRecord, type FullApp } from './applicationsService';
+import { guaranteeExpiry, allFull, findRecord, type FullApp, guaranteedAnnual } from './applicationsService';
 import { getLeague } from './leagueService';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { periodRange as realPeriodRange, scopeFull, basisInPeriod, inRange } from './paymentMetrics';
@@ -1844,7 +1844,7 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
       const addr = [rec?.addr1, rec?.addr2, rec?.city, rec?.postcode].filter(Boolean).join(', ');
       const n = a.tenancyId ? (tenancyCount.get(a.tenancyId) ?? 1) : 1;
       const fee = a.tenancyId ? (tenancyFee.get(a.tenancyId) ?? feeBaseFor(a)) : feeBaseFor(a);
-      dataRows.push([a.ref, rec?.name ?? '', String(n), a.tenancyId ?? '', addr, a.agency, a.branch, a.tenancyStart ? dmy(a.tenancyStart) : '', dmy(exp!), String(daysLeft(exp!)), moneyText(a.rent), moneyText(a.rent * 12), moneyText(fee), a.referrer ?? '']);
+      dataRows.push([a.ref, rec?.name ?? '', String(n), a.tenancyId ?? '', addr, a.agency, a.branch, a.tenancyStart ? dmy(a.tenancyStart) : '', dmy(exp!), String(daysLeft(exp!)), moneyText(a.rent), moneyText(guaranteedAnnual(a)), moneyText(fee), a.referrer ?? '']);
     }
   } else {
     const AG = ['Bracken House Lettings', 'Meridian Residential', 'Crowngate Property'];

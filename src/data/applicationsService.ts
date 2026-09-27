@@ -452,6 +452,32 @@ function notFoundDetail(ref: string): ApplicationDetail {
  * tenant of a joint tenancy pays a share of even that. A screen that prints the
  * rent under the words "guarantor fee" is stating a price nobody will be charged.
  */
+/* =====================================================================
+   WHAT A DEED GUARANTEES, ANNUALISED.
+
+   Twelve months of the rent THIS DEED covers, which on a joint tenancy is this
+   tenant's share and not the tenancy's whole rent.
+
+   Every surface that stated or summed this used `rent * 12`, and rent is the whole
+   tenancy's. So a two-tenant tenancy at £2,000 reported £24,000 on each of its two
+   deeds and £48,000 when they were summed: twice the rent anybody guaranteed. On
+   GR-20846 the tenant's own page showed £24,000 against a deed covering their 46%,
+   which is £920 a month and £11,040 a year.
+
+   The invariant this restores, and the reason the figure is worth getting right:
+   summing the guaranteed value of a tenancy's deeds equals twelve months of the
+   tenancy's rent, exactly, because the shares sum to the rent. £11,040 + £12,960 =
+   £24,000. Asserted in src/data/guaranteedValue.test.ts.
+
+   shareAmount, not sharePercent times rent: the share AMOUNT is what was agreed and
+   frozen, and re-deriving it from a percentage reintroduces the rounding that
+   apportion() settled to the penny.
+   ===================================================================== */
+export function guaranteedAnnual(r: { rent: number; shareAmount?: number | null }): number {
+  const base = r.shareAmount != null && r.shareAmount > 0 ? r.shareAmount : r.rent;
+  return base * 12;
+}
+
 function feeLabels(r: { rent: number; fee?: number | null; sharePercent?: number | null }):
   { feeGBP?: string; feeBasisLabel?: string } {
   const fee = r.fee ?? null;
@@ -529,7 +555,9 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
   const addr2 = real ? (r.addr2 ?? '') : '';
   const city = real ? (r.city ?? '') : 'London';
   const county = real ? (r.county ?? '') : 'Greater London';
-  const annual = r.rent * 12;
+  // This deed's own guaranteed value: a share on a joint tenancy, the whole
+  // rent on a sole one. See guaranteedAnnual.
+  const annual = guaranteedAnnual(r);
 
   // Partner is only on the summary LIST (both mock and live), not AppRecord.
   const summary = LIST.find((x) => x.ref === r.ref);

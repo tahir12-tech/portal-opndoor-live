@@ -36,7 +36,7 @@
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
 import { ALL_PARTNERS, maySeeCommission } from './types';
-import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp } from './applicationsService';
+import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp, guaranteedAnnual } from './applicationsService';
 import { getPartner, getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
 import { payeesFor, orgRate, totalRate, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
@@ -199,7 +199,12 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
         a.agentCommNet += feeBaseFor(app) * r.agent;
       }
     }
-    if (inRange(app.deedAt, start, end)) { a.deed += 1; a.guaranteed += app.rent * 12; }
+    /* PER DEED, AND A DEED COVERS A SHARE. This summed the whole tenancy's rent
+       once per deed, so a two-tenant tenancy at £2,000 contributed £48,000 to a
+       figure labelled "total guaranteed rent value" when £24,000 was guaranteed.
+       Every tile, chart and export total that reads this was overstated by the
+       joint share of the book. */
+    if (inRange(app.deedAt, start, end)) { a.deed += 1; a.guaranteed += guaranteedAnnual(app); }
     // Current-state operational metrics (not period-filtered).
     if (app.status === 'sent') a.stuckSent += 1;
     if (app.status === 'paid' && !app.deedAt && !app.refunded) a.stuckPaid += 1;
