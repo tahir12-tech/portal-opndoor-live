@@ -42,6 +42,10 @@ export interface PayPageData {
   /** The agency arranged this and opndoor made no decision about this tenant, so
       the agency is the subject of the opening line. */
   agencyArranged?: boolean;
+  /** How many tenants share this tenancy's fee. 1 for a sole referral. A joint
+      tenancy is priced once and charged by share, so every figure on the page is a
+      share and the basis beside it is a fact about the whole tenancy. */
+  tenantCount?: number;
   status?: string;
   isPaid?: boolean;
   isExpired?: boolean;
@@ -73,7 +77,7 @@ const DEMO: PayPageData = {
   ok: true, ref: 'GR-20608', partnerName: 'Acme Property Group', tenantName: 'Mr Alex Turner', tenantTitle: 'Mr',
   addr1: '12 Sydney Street', postcode: 'SW3 6PU', propFull: '12 Sydney Street, London, SW3 6PU',
   tenancyStart: '01/09/2026', guaranteeExpiry: '31/08/2027', monthlyRent: 2200, feeGBP: '£1,523.08',
-  feeBasis: '3 weeks of rent', rentShare: 2200,
+  feeBasis: '3 weeks of rent', rentShare: 2200, tenantCount: 1,
   rail: 'agency', referencingMode: 'pre_referenced_open',
   agencyName: 'Marylebone & Co', agencyArranged: true,
   status: 'sent', isPaid: false, isExpired: false, isClosed: false, payable: true,

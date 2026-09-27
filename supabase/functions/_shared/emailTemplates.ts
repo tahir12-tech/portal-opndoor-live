@@ -76,9 +76,44 @@ export function feeBasisPhrase(weeks: number | null | undefined): string | null 
     tenant looking at £692.31 against a £1,000 rent was told only that they would
     not be charged again. The month case is word for word what it was, which is
     every referral on standard terms, so no approved wording moves for them. */
-function feeBasisSentence(weeks: number | null | undefined): string {
+function feeBasisSentence(weeks: number | null | undefined, tenantCount?: number | null): string {
   const phrase = feeBasisPhrase(weeks);
-  return phrase ? `The fee is ${phrase} and is payable once.` : "The fee is payable once.";
+  const split = tenantCount != null && tenantCount > 1 ? `, split between ${tenantCount} tenants,` : "";
+  return phrase ? `The fee is ${phrase}${split} and is payable once.` : "The fee is payable once.";
+}
+
+/* ---- ONE TENANCY, A SHARE EACH ------------------------------------------
+   A joint tenancy is priced ONCE and charged by share. So every figure a joint
+   tenant reads is a share, and the basis beside it is a fact about the whole
+   tenancy: GR-20846 is a £2,000 tenancy priced at five weeks, £2,307.69, of which
+   this tenant's 46% is £1,061.54.
+
+   Naming the share as though it were the whole fee is the defect this closes. A
+   tenant who reads "the guarantee fee of £1,061.54, 5 weeks of rent" can divide
+   one by the other, get nothing like five weeks of anything they recognise, and
+   conclude we have made a mistake. The sentence has to say all three things: that
+   this is their share, what the tenancy's fee is measured against, and how many
+   ways it is split.
+
+   Single tenants are untouched: tenantCount absent or 1 produces exactly the
+   wording that shipped before this. */
+function isJoint(tenantCount?: number | null): boolean {
+  return tenantCount != null && tenantCount > 1;
+}
+
+/** What the fee row is called. A share is not the fee. */
+function feeRowLabel(tenantCount?: number | null): string {
+  return isJoint(tenantCount) ? "Your share of the guarantee fee" : "Guarantee fee";
+}
+
+/* THE HEADING FOLLOWS THE SAME RULE AS THE BODY.
+   "Your guarantee is approved" asserts a decision. On a pre-referenced referral
+   opndoor approved nothing: the agency referenced the tenant and arranged a
+   guarantee, and there is nothing for us to have approved. Fixing the opening
+   sentence and leaving the heading saying "approved" left the contradiction in the
+   largest type on the page. */
+function readyHeading(c: FeeCopy | undefined): string {
+  return isAgencyArranged(c) ? "Your guarantee is ready to put in place" : "Your guarantee is approved";
 }
 
 /* ---- which rail, and therefore which words ------------------------------
@@ -246,32 +281,46 @@ export function paymentLinkEmail(p: {
       and the email reads exactly as it did before any of this, which is what the
       supplier rail must keep getting. */
   copy?: FeeCopy;
+  /** How many tenants share this tenancy's fee. 1 or omitted is a sole tenant and
+      produces the wording that shipped before joint tenancies. */
+  tenantCount?: number | null;
 }): Message {
+  const joint = isJoint(p.tenantCount);
   const rows: [string, string][] = [
     ["Reference", p.guaranteeRef],
     ["Property", p.propertyAddr],
-    ["Guarantee fee", p.amount],
+    [feeRowLabel(p.tenantCount), p.amount],
   ];
   if (p.tenancyStartLabel) rows.push(["Tenancy starts", p.tenancyStartLabel]);
 
   /* AN AGENCY ARRANGED THIS, AND SAYS SO. On a pre-referenced agency referral the
      agency made the decision, so the agency is the subject and the fee and its
      basis are in the ask rather than in the small print underneath. Everything
-     else, including every supplier referral, keeps the approved sentence. */
+     else, including every supplier referral, keeps the approved sentence.
+
+     THE JOINT ASK NAMES THE SHARE AS A SHARE. "pay the guarantee fee of £1,061.54
+     (5 weeks of rent)" invites a tenant to divide one by the other and conclude we
+     have miscounted: £1,061.54 is their 46% of a £2,307.69 tenancy fee, and it is
+     the TENANCY that is priced at five weeks. So the sentence says all three
+     things, their share, the tenancy's basis, and how many ways it splits. */
   const basis = feeBasisPhrase(p.feeBasisWeeks);
+  const ask = joint
+    ? `pay your share of the guarantee fee, ${p.amount}`
+      + (basis ? ` (the fee is ${basis}, split between ${p.tenantCount} tenants)` : "")
+    : `pay the guarantee fee of ${p.amount}${basis ? ` (${basis})` : ""}`;
   const opening = isAgencyArranged(p.copy)
     ? `${p.copy!.agencyName!.trim()} has arranged an opndoor guarantee for your tenancy at ${p.propertyAddr}. `
-      + `To put it in place, pay the guarantee fee of ${p.amount}${basis ? ` (${basis})` : ""}.`
+      + `To put it in place, ${ask}.`
     : `opndoor is acting as guarantor for your tenancy at ${p.propertyAddr}. The last step is the guarantee fee.`;
 
   return {
     audience: "tenant",
     subject: "Your opndoor guarantee is ready to pay",
-    heading: "Your guarantee is approved",
+    heading: readyHeading(p.copy),
     blocks: [
       { p: opening },
       { rows },
-      { small: `${feeBasisSentence(p.feeBasisWeeks)} The Deed of Guarantee is issued as soon as it clears.` },
+      { small: `${feeBasisSentence(p.feeBasisWeeks, p.tenantCount)} The Deed of Guarantee is issued as soon as it clears.` },
     ],
     action: { label: "Pay the guarantee fee", href: p.payUrl },
   };
@@ -313,13 +362,15 @@ export function paymentReminderEmail(p: {
   feeBasisWeeks?: number | null;
   /** Which rail and mode, as for paymentLinkEmail. Omit for today's wording. */
   copy?: FeeCopy;
+  /** Tenants sharing this tenancy's fee. 1 or omitted is a sole tenant. */
+  tenantCount?: number | null;
 }): Message {
   const lead = p.nudge === 1
     ? "Just checking this reached you."
     : p.nudge === 2
       ? `Your tenancy at ${p.propertyAddr} is waiting on the guarantee fee.`
       : "To keep your tenancy on track, the guarantee fee needs paying.";
-  const rows: [string, string][] = [["Reference", p.guaranteeRef], ["Guarantee fee", p.amount]];
+  const rows: [string, string][] = [["Reference", p.guaranteeRef], [feeRowLabel(p.tenantCount), p.amount]];
   if (p.openUntilLabel) rows.push(["Open until", p.openUntilLabel]);
 
   /* THE SAME RULE AS THE FIRST EMAIL, for the same reason: a reminder that tells a
@@ -328,9 +379,15 @@ export function paymentReminderEmail(p: {
      hesitated once. It also gained a basis: a reminder naming a figure and not
      what the figure is measured against is the same misstatement of price. */
   const basis = feeBasisPhrase(p.feeBasisWeeks);
+  // Same joint framing as the first email: a share named as a share, the basis
+  // stated as the tenancy's, and the number of ways it splits.
+  const ask = isJoint(p.tenantCount)
+    ? `pay your share of the guarantee fee, ${p.amount}`
+      + (basis ? ` (the fee is ${basis}, split between ${p.tenantCount} tenants)` : "")
+    : `pay the guarantee fee of ${p.amount}${basis ? ` (${basis})` : ""}`;
   const body = isAgencyArranged(p.copy)
     ? `${lead} ${p.copy!.agencyName!.trim()} has arranged an opndoor guarantee for your tenancy at ${p.propertyAddr}. `
-      + `To put it in place, pay the guarantee fee of ${p.amount}${basis ? ` (${basis})` : ""}.`
+      + `To put it in place, ${ask}.`
     // True whoever referred them, and true if nobody did. This used to say
     // they had been referred, which is false for a direct signup.
     : `${lead} opndoor is acting as guarantor for your tenancy at ${p.propertyAddr}.`;

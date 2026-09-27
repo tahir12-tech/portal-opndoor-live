@@ -154,6 +154,11 @@ export function PayLanding() {
     );
   }
 
+  /* ONE TENANCY, A SHARE EACH. Everything below that states a figure has to say
+     whether it is the tenancy's or this tenant's, because on a joint tenancy they
+     are different numbers and the tenant is being asked to pay one of them. */
+  const joint = (d.tenantCount ?? 1) > 1;
+
   return (
     <PayFrame>
       <h1 className="pay__title">Your guarantor fee, {d.addr1}</h1>
@@ -203,7 +208,11 @@ export function PayLanding() {
       </div>
 
       <div className="pay__fee">
-        <div className="pay__fee-k">Guarantor fee</div>
+        {/* A SHARE IS NOT THE FEE. On a joint tenancy the figure below is this
+            tenant's share of a fee the tenancy was charged once, so labelling it
+            "Guarantor fee" and stating the tenancy's basis under it asks the reader
+            to reconcile two numbers that do not divide into one another. */}
+        <div className="pay__fee-k">{joint ? 'Your share of the guarantor fee' : 'Guarantor fee'}</div>
         <div className="pay__fee-v">{d.feeGBP}</div>
         {/* The fee is not always one month's rent: an agency on a negotiated
             basis pays weeks of it, and one tenant of a joint tenancy pays a
@@ -218,7 +227,11 @@ export function PayLanding() {
             basis genuinely cannot be worked out the sentence stays as it was
             rather than guessing the commonest answer. */}
         <div className="pay__fee-s">
-          {d.feeBasis ? `${d.feeBasis}. ` : ''}One-off payment. Reference {d.ref}.
+          {d.feeBasis
+            ? (joint
+                ? `The fee is ${d.feeBasis}, split between ${d.tenantCount} tenants. `
+                : `${d.feeBasis}. `)
+            : ''}One-off payment. Reference {d.ref}.
         </div>
       </div>
 
@@ -237,7 +250,14 @@ export function PayLanding() {
 
       <div className="pay__faqs">
         <Faq q="What is a Deed of Guarantee?" a={<>It's a legal deed in which opndoor acts as your professional guarantor, in favour of the property. It lets your tenancy proceed when you can't provide your own guarantor. It's a professional guarantor service, not insurance.</>} />
-        <Faq q="What does it cover?" a={<>It supports your obligations under the tenancy, such as rent, for 12 months from your tenancy start. If there's ever a claim, your letting agent is the point of contact with opndoor.</>} />
+        {/* WHAT THE DEED ACTUALLY COVERS, which on a joint tenancy is this tenant's
+            SHARE of the rent and not the whole of it. Each tenant signs their own
+            deed for their own share (see the per-tenant deed ruling), so a page
+            that says "your obligations under the tenancy" without naming the share
+            overstates what this tenant has signed up to. */}
+        <Faq q="What does it cover?" a={joint && d.rentShare != null
+          ? <>Your own Deed of Guarantee covers your share of the rent, £{d.rentShare.toLocaleString('en-GB')} a month, for 12 months from your tenancy start. Each tenant signs their own deed for their own share. If there's ever a claim, your letting agent is the point of contact with opndoor.</>
+          : <>It supports your obligations under the tenancy, such as rent, for 12 months from your tenancy start. If there's ever a claim, your letting agent is the point of contact with opndoor.</>} />
         <Faq q="When does the guarantee take effect?" a={<>Your Deed of Guarantee is in force from your tenancy start date, {d.tenancyStart}, and covers 12 months from then. The guarantor fee is non-refundable from your tenancy start date. If your circumstances change before then, contact us at <a href="mailto:hello@opndoor.co">hello@opndoor.co</a> quoting {d.ref}.</>} />
       </div>
 

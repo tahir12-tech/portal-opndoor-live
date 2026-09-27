@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
       // measured against. referencing_mode, agency_id, the agency's own name and
       // the partner's refers_own_stock are the four facts that decide whose
       // decision this page is describing: see the rail block below.
-      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, fee_amount, share_amount, tenancy_start, status, payment_state, livemode, referencing_mode, agency_id, agency:agencies(name), partner:partners(name, refers_own_stock)")
+      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, fee_amount, share_amount, tenancy_start, status, payment_state, livemode, referencing_mode, agency_id, agency:agencies(name), partner:partners(name, refers_own_stock), tenancy_id")
       .eq("id", tok.application_id).maybeSingle();
     if (!app) return json({ ok: false, error: "This link is not valid." }, 404);
 
@@ -115,6 +115,19 @@ Deno.serve(async (req) => {
        rather than the commonest answer. */
     const feeBasisWeeks = feeBasisWeeksOf(app.fee_amount, app.share_amount ?? app.monthly_rent);
     const feeBasis = feeBasisPhrase(feeBasisWeeks);
+    /* HOW MANY WAYS THIS FEE SPLITS. A joint tenancy is priced once and charged by
+       share, so every figure on this page is a share and the basis beside it is a
+       fact about the whole tenancy. Without the count the page can state the share
+       and the basis and leave the tenant to reconcile £1,061.54 against "5 weeks of
+       rent", which does not reconcile and reads as our arithmetic error.
+       One count per tenancy, and a sole referral has no tenancy_id at all. */
+    let tenantCount = 1;
+    if (app.tenancy_id) {
+      const { count } = await service.from("applications")
+        .select("id", { count: "exact", head: true })
+        .eq("tenancy_id", app.tenancy_id);
+      if (count && count > 1) tenantCount = count;
+    }
     /* WHICH RAIL, AND THEREFORE WHOSE DECISION THIS PAGE IS DESCRIBING. The same
        ruling the payment emails now follow, because a Regent tenant who reads
        "the agency arranged this" in the email and then "opndoor stands as your
@@ -172,6 +185,9 @@ Deno.serve(async (req) => {
       // A joint tenant pays a share of the fee, so a page that prints the whole
       // tenancy's rent beside "3 weeks of rent" contradicts its own arithmetic.
       rentShare: app.share_amount == null ? null : Number(app.share_amount),
+      // How many tenants share this tenancy's fee. 1 for a sole referral, which is
+      // every referral on the supplier and direct rails.
+      tenantCount,
       feeGBP,
       // The words for the figure in feeGBP: "one month's rent", "3 weeks of
       // rent", or null when the basis cannot be worked out, in which case the

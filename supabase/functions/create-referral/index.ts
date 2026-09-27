@@ -171,7 +171,13 @@ Deno.serve(async (req) => {
     // and that was settled by create_joint_referral before this runs.
     // ------------------------------------------------------------------
     // deno-lint-ignore no-explicit-any
-    async function finishApplication(app: any): Promise<FinishResult> {
+    /* tenantCount: how many applicants share this tenancy's fee. Passed in rather
+       than counted here because the caller already knows it (apps.length on the
+       joint path, 1 on the sole path), and a count query per applicant would ask
+       the same question N times for one answer. A joint tenant's email and pay page
+       must say the figure is a SHARE and how many ways the fee splits, or they are
+       handed a number that does not divide into the basis beside it. */
+    async function finishApplication(app: any, tenantCount = 1): Promise<FinishResult> {
       const appId = app.id as string;
       const ref = app.guarantee_ref as string;
       const rent = Number(app.monthly_rent);
@@ -356,7 +362,7 @@ Deno.serve(async (req) => {
             to: tenantEmail,
             message: paymentLinkEmail({
               propertyAddr, guaranteeRef: ref, amount: amountGBP,
-              feeBasisWeeks, copy,
+              feeBasisWeeks, copy, tenantCount,
               payUrl: `${origin}/pay?token=${pageToken}&utm_source=initial`,
             }),
           })
@@ -415,7 +421,7 @@ Deno.serve(async (req) => {
       if (!apps.length) return json({ ok: false, error: "The tenancy was not created." }, 400);
 
       const results: FinishResult[] = [];
-      for (const app of apps) results.push(await finishApplication(app));
+      for (const app of apps) results.push(await finishApplication(app, apps.length));
 
       // The tenancy answers as one thing. ref is the lead applicant's, which is
       // the reference the deed will carry; each tenant's own reference and link

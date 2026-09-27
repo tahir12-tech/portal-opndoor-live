@@ -241,3 +241,116 @@ describe('the supplier rail', () => {
     expect(textOf(m)).toContain('The fee is 3 weeks of rent and is payable once.');
   });
 });
+
+/* =====================================================================
+   A JOINT TENANCY IS PRICED ONCE AND CHARGED BY SHARE.
+
+   GR-20846 as it is on dev: a £2,000 tenancy priced at five weeks, £2,307.69,
+   split between two tenants, of which this one's 46% is £1,061.54. Every figure
+   the tenant reads is a share and the basis beside it is a fact about the whole
+   tenancy, so naming the share as though it were the fee invites them to divide
+   one by the other, get nothing like five weeks, and conclude we miscounted.
+
+   AND THE HEADING FOLLOWS THE BODY. "Your guarantee is approved" asserts a
+   decision opndoor did not make on a pre-referenced referral. Fixing the opening
+   sentence and leaving the heading saying "approved" left the contradiction in the
+   largest type on the page.
+   ===================================================================== */
+const JOINT = {
+  rent: 2000,          // the whole tenancy
+  shareOfRent: 920,    // this tenant's 46%
+  fee: 1061.54,        // this tenant's share of the £2,307.69 tenancy fee
+  feeGBP: '£1,061.54',
+  addr: '8 Marchmont Street, London, WC1N 1AP',
+  ref: 'GR-20846',
+  agency: "Regent's Lettings",
+  tenants: 2,
+};
+
+describe('a joint tenant', () => {
+  const email = paymentLinkEmail({
+    propertyAddr: JOINT.addr, guaranteeRef: JOINT.ref, amount: JOINT.feeGBP,
+    payUrl: 'u',
+    feeBasisWeeks: weeks(JOINT.fee, JOINT.shareOfRent),
+    tenantCount: JOINT.tenants,
+    copy: { rail: 'agency', referencingMode: 'pre_referenced_open', agencyName: JOINT.agency },
+  });
+  const body = textOf(email);
+
+  /* The share measured against the share gives the same answer as the whole
+     against the whole, because both are the same proportion. That is why the basis
+     is quotable as a fact about the tenancy from either. */
+  it('reads five weeks off the share, the same as off the tenancy', () => {
+    expect(weeks(JOINT.fee, JOINT.shareOfRent)).toBeCloseTo(5, 2);
+    expect(weeks(2307.69, JOINT.rent)).toBeCloseTo(5, 2);
+  });
+
+  it('names the share as a share, with the tenancy basis and the split', () => {
+    expect(body).toContain(
+      'To put it in place, pay your share of the guarantee fee, £1,061.54 '
+      + '(the fee is 5 weeks of rent, split between 2 tenants).',
+    );
+  });
+
+  it('never calls the share "the guarantee fee of"', () => {
+    expect(body).not.toContain('pay the guarantee fee of £1,061.54');
+  });
+
+  it('labels the money row as a share too', () => {
+    expect(body).toContain('Your share of the guarantee fee: £1,061.54');
+    expect(body).not.toContain('Guarantee fee: £1,061.54');
+  });
+
+  it('says the split in the small print as well', () => {
+    expect(body).toContain('The fee is 5 weeks of rent, split between 2 tenants, and is payable once.');
+  });
+
+  it('does not say approved, because nobody approved anything', () => {
+    expect(email.heading).toBe('Your guarantee is ready to put in place');
+  });
+});
+
+describe('the heading follows the journey', () => {
+  const base = {
+    propertyAddr: JOINT.addr, guaranteeRef: JOINT.ref, amount: JOINT.feeGBP,
+    payUrl: 'u', feeBasisWeeks: weeks(JOINT.fee, JOINT.shareOfRent),
+  };
+
+  it('says ready to put in place where the agency decided', () => {
+    expect(paymentLinkEmail({ ...base,
+      copy: { rail: 'agency', referencingMode: 'pre_referenced_open', agencyName: JOINT.agency },
+    }).heading).toBe('Your guarantee is ready to put in place');
+  });
+
+  it('says approved where opndoor decided', () => {
+    expect(paymentLinkEmail({ ...base,
+      copy: { rail: 'agency', referencingMode: 'opndoor_referenced', agencyName: JOINT.agency },
+    }).heading).toBe('Your guarantee is approved');
+    expect(paymentLinkEmail({ ...base, copy: { rail: 'direct' } }).heading).toBe('Your guarantee is approved');
+  });
+
+  it('says approved on the supplier rail, unchanged', () => {
+    expect(paymentLinkEmail({ ...base, copy: { rail: 'supplier' } }).heading)
+      .toBe('Your guarantee is approved');
+    expect(paymentLinkEmail(base).heading).toBe('Your guarantee is approved');
+  });
+});
+
+describe('a sole tenant is untouched by any of it', () => {
+  it('reads exactly as before when tenantCount is 1 or absent', () => {
+    const absent = paymentLinkEmail({
+      propertyAddr: REGENT.addr, guaranteeRef: REGENT.ref, amount: REGENT.feeGBP,
+      payUrl: 'u', feeBasisWeeks: weeks(REGENT.fee, REGENT.rent),
+      copy: { rail: 'agency', referencingMode: 'pre_referenced_open', agencyName: REGENT.agency },
+    });
+    const one = paymentLinkEmail({
+      propertyAddr: REGENT.addr, guaranteeRef: REGENT.ref, amount: REGENT.feeGBP,
+      payUrl: 'u', feeBasisWeeks: weeks(REGENT.fee, REGENT.rent), tenantCount: 1,
+      copy: { rail: 'agency', referencingMode: 'pre_referenced_open', agencyName: REGENT.agency },
+    });
+    expect(one).toEqual(absent);
+    expect(textOf(one)).toContain('pay the guarantee fee of £692.31 (3 weeks of rent).');
+    expect(textOf(one)).toContain('Guarantee fee: £692.31');
+    expect(textOf(one)).not.toContain('split between');
+  });
+});
