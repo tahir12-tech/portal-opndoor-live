@@ -73,9 +73,19 @@ async function refuseOnModeMismatch(service: any, appId: string, eventLivemode: 
   if (!row) return null;                       // unknown id is handled by the callers
   if ((row.livemode === true) === eventLivemode) return null;
 
-  await service.from("ops_alerts").insert({
-    alert_type: "stripe_livemode_mismatch",
-    detail: `Stripe event ${eventId} verified as ${eventLivemode ? "live" : "sandbox"} but application ${appId} is ${row.livemode ? "live" : "sandbox"}. Refused.`,
+  /* THROUGH report_ops_incident, BECAUSE THE DIRECT INSERT NEVER WROTE ANYTHING.
+     ops_alerts.hour_bucket is NOT NULL with no default, so this insert failed on
+     every single call, and the .then(noop, noop) swallowed the error: an alert
+     for one of the two conditions that can let a sandbox event act on a live
+     application, which has never once been raised. Verified on dev by running the
+     insert as it stood.
+
+     The RPC is the only correct way in regardless: it fills hour_bucket, dedups
+     to one row per type per hour, and dispatches the ops-alert email. A direct
+     insert would skip all three even if it worked. */
+  await service.rpc("report_ops_incident", {
+    p_type: "stripe_livemode_mismatch",
+    p_detail: `Stripe event ${eventId} verified as ${eventLivemode ? "live" : "sandbox"} but application ${appId} is ${row.livemode ? "live" : "sandbox"}. Refused.`,
   }).then(() => {}, () => {});
 
   // Drop the dedup row so a corrected redelivery is not swallowed as a duplicate.

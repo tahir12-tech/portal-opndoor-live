@@ -87,9 +87,23 @@ Deno.serve(async (req) => {
         throw new Error(`Could not record PandaDoc event ${evId}: ${insErr.message}`);
       }
 
-      const { data: app } = await service.from("applications")
+      const { data: app, error: appErr } = await service.from("applications")
         .select("id, guarantee_ref, branch_id, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, tenancy_start, livemode, agency:agencies(name)")
         .eq("pandadoc_document_id", docId).maybeSingle();
+      /* "COULD NOT LOOK IT UP" IS NOT "IT IS NOT OURS", and conflating the two
+         loses signed deeds. The error was discarded, so a transient read failure
+         left `app` undefined, and undefined is exactly what an unknown document
+         looks like: a completion then fell into the unknown-document branch
+         below, raised an alert blaming a superseded document or a misconfigured
+         webhook key, wrote its dedup row and answered 200. The deed is signed,
+         the application never learns, and PandaDoc will not send it again.
+
+         It is retryable, so it is retried: drop the dedup row and throw, which
+         the handler turns into a 500 and PandaDoc redelivers. */
+      if (appErr) {
+        await service.from("pandadoc_events").delete().eq("id", evId).then(() => {}, () => {});
+        throw new Error(`Could not look up the application for PandaDoc document ${docId}: ${appErr.message}`);
+      }
 
       // Refuse a callback whose mode does not match the application it names. The
       // two can only disagree if a sandbox event is replayed against a live
@@ -101,9 +115,15 @@ Deno.serve(async (req) => {
       // this returns 500 rather than 401 so PandaDoc keeps retrying and the
       // misconfiguration stays visible instead of being silently dropped.
       if (app && (app.livemode === true) !== eventLivemode) {
-        await service.from("ops_alerts").insert({
-          alert_type: "pandadoc_livemode_mismatch",
-          detail: `PandaDoc event ${evId} verified as ${eventLivemode ? "live" : "sandbox"} but application ${app.id} is ${app.livemode ? "live" : "sandbox"}. Refused.`,
+        /* THROUGH report_ops_incident: ops_alerts.hour_bucket is NOT NULL with no
+           default, so this direct insert failed on every call and the
+           .then(noop, noop) swallowed it. The alert for "a sandbox callback is
+           being replayed against a live application, or one shared key is
+           configured for both modes" has never been raised in its life. The RPC
+           fills hour_bucket, dedups hourly and sends the ops email. */
+        await service.rpc("report_ops_incident", {
+          p_type: "pandadoc_livemode_mismatch",
+          p_detail: `PandaDoc event ${evId} verified as ${eventLivemode ? "live" : "sandbox"} but application ${app.id} is ${app.livemode ? "live" : "sandbox"}. Refused.`,
         }).then(() => {}, () => {});
         await service.from("pandadoc_events").delete().eq("id", evId).then(() => {}, () => {});
         return new Response("Event mode does not match the application.", { status: 500 });
@@ -136,11 +156,55 @@ Deno.serve(async (req) => {
       }
 
       if (status === "document.completed") {
+        /* THE EXECUTED DEED IS SECURED BEFORE ANYTHING IS DECLARED DONE.
+
+           This used to download the PDF, ignore whether it worked, and carry on
+           to execute the deed with p_pdf_path null. The dedup row was already
+           committed, so the completion could never be re-presented: the deed was
+           executed and the signed document was gone for good. Four surfaces then
+           have nothing to show, with no repair path between them:
+           send-deed-to-agent and send-deed-to-landlord mail a link to nothing,
+           tenant-portal answers "not ready to download yet" for ever, and
+           referencing-callback counts the application as failed.
+
+           A failed download is nearly always transient, and the commonest case
+           is a race we caused by being fast: PandaDoc renders the signed PDF
+           after it fires document.completed, so an immediate fetch can 404 for a
+           few seconds. So it is retried rather than absorbed: drop the dedup row,
+           raise the incident, throw, and let PandaDoc redeliver.
+
+           THE TRADE, stated plainly because it is a real one. If PandaDoc never
+           serves the PDF and exhausts its redeliveries, the deed stays
+           un-executed instead of executing without its document. That is the
+           better failure: it is visible (the application sits at awaiting_tenant
+           with a signed document behind it), it is alerted hourly, and it is
+           recoverable by hand. The old behaviour was invisible and permanent.
+           HANDOVER-BALAL.md section 10 carries the runbook entry. */
         let path: string | null = null;
-        const pdf = await downloadPdf(docId, eventLivemode);
-        if (pdf && app) {
+        if (app) {
+          const pdf = await downloadPdf(docId, eventLivemode);
+          if (!pdf.ok || !pdf.bytes) {
+            await service.rpc("report_ops_incident", {
+              p_type: "deed_pdf_unavailable",
+              p_detail: `Application ${app.id} (${app.guarantee_ref}): the tenant signed deed ${docId} but the executed PDF could not be downloaded from PandaDoc (${pdf.error}). The deed has NOT been executed and PandaDoc will redeliver. If this repeats for more than an hour, the PDF is not being rendered and the deed must be executed by hand.`,
+            }).then(() => {}, () => {});
+            await service.from("pandadoc_events").delete().eq("id", evId).then(() => {}, () => {});
+            throw new Error(`Executed PDF for ${docId} could not be downloaded: ${pdf.error}`);
+          }
           path = `${app.id}/${app.guarantee_ref}.pdf`;
-          await service.storage.from("deeds").upload(path, pdf, { contentType: "application/pdf", upsert: true });
+          // The upload error was discarded too, which produced the same end state
+          // by a different route: a path written onto the row pointing at an
+          // object that was never stored.
+          const { error: upErr } = await service.storage.from("deeds")
+            .upload(path, pdf.bytes, { contentType: "application/pdf", upsert: true });
+          if (upErr) {
+            await service.rpc("report_ops_incident", {
+              p_type: "deed_pdf_not_stored",
+              p_detail: `Application ${app.id} (${app.guarantee_ref}): the executed deed ${docId} was downloaded from PandaDoc but could not be stored (${upErr.message}). The deed has NOT been executed and PandaDoc will redeliver.`,
+            }).then(() => {}, () => {});
+            await service.from("pandadoc_events").delete().eq("id", evId).then(() => {}, () => {});
+            throw new Error(`Executed PDF for ${docId} could not be stored: ${upErr.message}`);
+          }
         }
         // supabase-js returns a DB error object rather than throwing: check it, or a
         // transient failure would leave the deed un-executed while the "signed and
@@ -194,14 +258,50 @@ Deno.serve(async (req) => {
           // address the tenant gave, on every rail, with no verification gate: if it
           // bounces, that surfaces as a failed delivery on the needs-attention surface,
           // which is enough. Sandbox still sends nothing.
-          const { data: target } = await service.rpc("deed_delivery_target", { p_application: app.id });
+          const { data: target, error: targetErr } = await service.rpc("deed_delivery_target", { p_application: app.id });
           const dest = Array.isArray(target) ? target[0] : target;
-          // auto_send is false when an AGENT-RAIL deed has no ACTIVE person to receive
-          // it — the only manager is still pending, say. A pending account cannot be
-          // opened, so emailing it would be a silent loss; it goes to the same
-          // needs-attention surface below instead, for a staff send. Supplier and
-          // direct rails always set it true, so they are unaffected.
-          if (dest?.email && dest?.auto_send !== false && mayEmail) {
+          /* An unread ladder is not an empty one. Discarding this error made a
+             transient RPC failure indistinguishable from "this agency has
+             nobody", and that branch writes "No agent contact on file" into the
+             feed and parks the row. It cannot be retried from here: the deed is
+             already executed and the dedup row is committed, so a 500 would be
+             deduped into nothing on redelivery. It parks with an HONEST reason
+             instead, which the manual Send deed to agent button clears. */
+          /* CAN THIS DEED BE DELIVERED is a question about the APPLICATION.
+             WHETHER WE MAY SEND EMAIL is a question about the ENVIRONMENT. They
+             were tested together, and mixing them made sandbox lie: with mayEmail
+             false a perfectly deliverable deed fell into the cannot-deliver
+             branch, parked as awaiting_staff_send, wrote "No agent contact on
+             file" into the feed and raised a deed_awaiting_staff_send incident.
+             None of that was true, and it is the needs-attention queue Balal
+             reads at cutover to judge whether the chain is healthy.
+
+             auto_send is false when an AGENT-RAIL deed has no ACTIVE person to
+             receive it, the only manager still being pending, say. A pending
+             account cannot be opened, so emailing it would be a silent loss and
+             it belongs in the same queue. Supplier and direct rails always set it
+             true, so they are unaffected. */
+          const deliverable = !targetErr && !!dest?.email && dest?.auto_send !== false;
+          if (targetErr) {
+            /* An unread ladder is not an empty one. Discarding this error made a
+               transient RPC failure indistinguishable from "this agency has
+               nobody", which is the last branch below, and that one writes "No
+               agent contact on file" into the feed. It cannot be retried from
+               here: the deed is already executed and the dedup row is committed,
+               so a 500 would be deduped into nothing on redelivery. It parks with
+               an HONEST reason instead, which the manual Send deed to agent
+               button clears. */
+            await service.from("applications").update({ awaiting_staff_send: true }).eq("id", app.id);
+            await service.from("activity_log").insert({
+              application_id: app.id, kind: "deed_delivery_failed",
+              message: "Deed issued. Where to deliver it could not be resolved, so it is held for a staff send.",
+              actor: "System", visibility: "internal",
+            });
+            await service.rpc("report_ops_incident", {
+              p_type: "deed_delivery_target_unreadable",
+              p_detail: `Application ${app.id} (${app.guarantee_ref}): the deed is executed but deed_delivery_target failed (${targetErr.message}), so it could not be delivered and is queued for a staff send.`,
+            }).then(() => {}, () => {});
+          } else if (deliverable && mayEmail) {
             const agencyName = (Array.isArray(app.agency) ? app.agency[0]?.name : (app.agency as { name?: string } | null)?.name) ?? "";
             const sent = await deliverDeedToAgent(service, {
               appId: app.id,
@@ -233,6 +333,18 @@ Deno.serve(async (req) => {
               p_source: dest.source ?? null,
               p_reason: sent.ok ? null : (sent.error ?? "The email provider refused the send."),
             }).then(() => {}, () => {});
+          } else if (deliverable) {
+            /* DELIVERABLE, BUT THIS IS SANDBOX. Nothing is wrong with the
+               application and nothing needs a human, so it must not be parked:
+               the only reason no email left the building is that this is not
+               production. Recorded so a dev walk can still see where the deed
+               would have gone. */
+            await service.from("activity_log").insert({
+              application_id: app.id,
+              kind: "deed_delivery_suppressed",
+              message: `Deed issued. Sandbox, so no email was sent; on production this would have gone to ${dest.email}.`,
+              actor: "System", visibility: "internal",
+            });
           } else {
             // CANNOT DELIVER: no rung of this rail's ladder carries an address, or
             // the only people who could receive it are not active yet. Nothing was
@@ -264,7 +376,7 @@ Deno.serve(async (req) => {
               p_detail: `Application ${app.id} (${app.guarantee_ref}): the deed is executed but there is nobody to deliver it to, so it is queued for a staff send.`,
             }).then(() => {}, () => {});
           }
-               // Resend allows 2 req/sec; a short gap keeps the agent + tenant emails
+          // Resend allows 2 req/sec; a short gap keeps the agent + tenant emails
           // (and any review-copy send inside them) from landing in the same window.
           await new Promise((r) => setTimeout(r, 600));
           // #4 Email the tenant their own signed deed (download link), regardless of

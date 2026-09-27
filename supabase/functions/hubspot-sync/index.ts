@@ -272,9 +272,16 @@ Deno.serve(async (req) => {
       }
 
       if (missing.length) {
-        await service.from("ops_alerts").insert({
-          alert_type: "hubspot_map_drift",
-          detail:
+        /* THROUGH report_ops_incident: ops_alerts.hour_bucket is NOT NULL with no
+           default, so this direct insert failed on every call and the
+           .then(noop, noop) swallowed it. Which is the worst one of the three to
+           lose, because the condition it reports is itself silent: HubSpot
+           ACCEPTS writes to properties that do not exist and discards them, so
+           without this alert a drifted mapping looks exactly like a working sync.
+           The RPC fills hour_bucket, dedups hourly and sends the ops email. */
+        await service.rpc("report_ops_incident", {
+          p_type: "hubspot_map_drift",
+          p_detail:
             `${missing.length} mapped HubSpot propert${missing.length === 1 ? "y does" : "ies do"} not exist: `
             + missing.map((m) => `${m.object}.${m.property}`).join(", ")
             + `. Writes to ${missing.length === 1 ? "it are" : "them are"} being accepted and discarded.`,

@@ -86,30 +86,32 @@ export interface DeedApp {
       part of. Absent on a solo application, where the name printed is the
       applicant's own and the document is byte-identical to what it always was. */
   tenancy_tenant_names?: string | null;
-  /** The OTHER tenants on the tenancy, for the co-tenant merge field. Absent on a
-      solo application; its absence is what omits the two joint-only tokens. */
-  co_tenant_names?: string | null;
-  /** What THIS deed guarantees: this tenant's share of the rent. Absent on a solo
-      application, whose deed covers the whole rent and never printed an amount. */
-  share_amount?: number | null;
 }
 
 // The merge tokens. The docx must define these token names (the naming is the
 // contract that keeps the template swappable with no code change). issue_date is
 // the deed's dated line (a merge token, never a recipient-editable field).
 //
-// EIGHT ON A JOINT TENANCY, SIX ON A SOLO ONE, and that is deliberate. Each
-// tenant of a joint tenancy signs their own deed covering their own share, so
-// two tokens carry what the old single-document model did not need: the amount
-// this deed guarantees, and who the other tenants are. A tenancy of one has no
-// co-tenants and no share, so both are omitted entirely and the token list is
-// character-for-character the six it always was. That is what keeps a
-// single-tenant deed byte-identical, and it is asserted in
-// supabase/tests/deed_per_tenant.test.sql.
+// SIX TOKENS, ON EVERY DEED, JOINT OR SOLO.
+//
+// RULING (27 Sep). The template does not change. Each tenant signs their own
+// deed, for their own share, naming all the tenants; the SHARE is recorded on the
+// application and on the bordereau, not in the document. So a joint tenant's deed
+// renders exactly as a single tenant's does, from the same six merge fields.
+//
+// This removed two tokens, guaranteed_amount and co_tenant_names, which briefly
+// existed to print the share and the other tenants into the document. They needed
+// a template change to render at all, and an unrendered token is not a neutral
+// extra: it is an amount a deed appears to state and does not. The share lives
+// where it is authoritative and checkable instead.
+//
+// tenant_name still carries EVERY tenant, which is the part of the joint design
+// the document does keep: the deed says what tenancy it is part of. On a solo
+// application that list is the applicant alone, so the value is unchanged.
 function tokens(a: DeedApp, issueDate: string) {
   // #8 Title-case the printed deed's address merge field for display; postcode left raw.
   const address = [titleCaseAddress(a.prop_addr1), titleCaseAddress(a.prop_addr2), titleCaseAddress(a.prop_city), a.prop_postcode].filter(Boolean).join(", ");
-  const base = [
+  return [
     { name: "reference_number", value: a.guarantee_ref },
     // EVERY DEED NAMES EVERY TENANT, so the document says what tenancy it is
     // part of. On a solo application the list is that one person, so the
@@ -120,20 +122,6 @@ function tokens(a: DeedApp, issueDate: string) {
     { name: "agent_email", value: a.agent_email },
     { name: "issue_date", value: issueDate },
   ];
-  if (!a.co_tenant_names) return base;
-  return [
-    ...base,
-    // WHAT THIS DEED COVERS. This tenant's share of the rent, not the tenancy's
-    // whole rent: each co-tenant signs their own deed for their own share and
-    // the shares sum to the rent exactly (apportion, in create_joint_referral).
-    { name: "guaranteed_amount", value: a.share_amount != null ? gbp(a.share_amount) : "" },
-    { name: "co_tenant_names", value: a.co_tenant_names },
-  ];
-}
-
-/** Money as the deed prints it. Pence always: a deed is a financial instrument. */
-function gbp(n: number): string {
-  return `£${Number(n).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export interface DeedResult {
@@ -385,15 +373,32 @@ export async function voidDocument(documentId: string, livemode: boolean): Promi
 }
 
 /** Download the executed PDF (available once the document is completed). */
-export async function downloadPdf(documentId: string, livemode: boolean): Promise<Uint8Array | null> {
+export interface PdfResult {
+  ok: boolean;
+  bytes?: Uint8Array;
+  /** Why it could not be fetched, for the caller's alert and activity trail. */
+  error?: string;
+}
+
+/* IT RETURNS A REASON NOW, because its one caller has to decide whether to retry
+   and could not: every failure collapsed to null. An unset API key, a 401, a
+   network blip and "PandaDoc has not finished rendering the PDF yet" were the
+   same value, and the caller treated all four as "no PDF, carry on and execute
+   the deed anyway", permanently, with the webhook already deduplicated.
+
+   The last of those is not an edge case. PandaDoc renders the signed PDF
+   asynchronously AFTER it fires document.completed, so a download issued the
+   moment the callback lands can legitimately 404 for a few seconds. That is the
+   commonest reason a deed ends up executed with no stored document. */
+export async function downloadPdf(documentId: string, livemode: boolean): Promise<PdfResult> {
   const cfg = pandadocConfigFor(livemode);
-  if (!cfg.ok) return null;
+  if (!cfg.ok) return { ok: false, error: cfg.error };
   try {
     const res = await fetch(`${API}/documents/${documentId}/download`, { headers: { Authorization: `API-Key ${cfg.value.key}` } });
-    if (!res.ok) return null;
-    return new Uint8Array(await res.arrayBuffer());
-  } catch {
-    return null;
+    if (!res.ok) return { ok: false, error: `PandaDoc download ${res.status}: ${(await res.text()).slice(0, 200)}` };
+    return { ok: true, bytes: new Uint8Array(await res.arrayBuffer()) };
+  } catch (e) {
+    return { ok: false, error: `PandaDoc download failed: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
 
@@ -495,6 +500,52 @@ async function failGeneration(service: any, appId: string, message: string, opsT
 // suppressed so the amend caller can log a single combined amend entry.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateDeed(service: any, appId: string, reissue = false): Promise<DeedResult> {
+  /* ONE GENERATION AT A TIME, AND THIS IS THE ONLY PLACE IT CAN BE ENFORCED.
+
+     The document-exists check below closes the SEQUENTIAL double-press: a second
+     Generate arriving after the first has stamped its id is refused. It cannot
+     close the CONCURRENT one, because both presses read "no document" before
+     either has created one, and creating one at PandaDoc takes seconds. That is
+     exactly the window a person double-clicking a button occupies, and the result
+     is two live signable Deeds of Guarantee for one application, the second
+     stamped over the first, the first left live in PandaDoc with nothing in the
+     portal pointing at it.
+
+     THE LEASE SITS HERE, around the whole run, rather than at the call sites.
+     There are seven of them (stripe-webhook, pandadoc-resend,
+     pandadoc-void-regenerate, tenancy-correction x2, amend-tenancy-start x2) and
+     a guard that each has to remember to take is a guard that the eighth will not
+     have. Wrapping the shared function covers all seven and any that follow.
+
+     FAIL CLOSED. If the lease cannot be taken we do not generate. A paid tenant
+     whose deed is delayed parks as needs-attention after three attempts and a
+     person fixes it in minutes; two live signable guarantees, one of which
+     nothing is tracking, is not recoverable at all. This does mean the migration
+     must be applied before the functions are deployed, which HANDOVER-BALAL.md
+     section 6 already requires and section 10 now says why. */
+  const { data: leased, error: leaseErr } = await service.rpc("take_deed_lease", { p_application: appId });
+  if (leaseErr) {
+    await failGeneration(service, appId, `Deed not generated: the generation lease could not be taken (${leaseErr.message}). Nothing was sent; this retries on the next pass.`);
+    return { ok: false, error: "Could not start deed generation. Retry shortly." };
+  }
+  if (leased !== true) {
+    /* Not a failure, so no failure is recorded: the other run is doing the work
+       and will succeed or record its own. Counting this as an attempt would let
+       three fast double-presses park a perfectly healthy application. */
+    return { ok: false, error: "A deed is already being generated for this application. Give it a moment, then refresh." };
+  }
+  try {
+    return await runGeneration(service, appId, reissue);
+  } finally {
+    /* Always, including on the failure paths: a failure is retried (20261005260000)
+       and holding the lease would make the retry wait out the stale-after window
+       for nothing. */
+    await service.rpc("release_deed_lease", { p_application: appId }).then(() => {}, () => {});
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function runGeneration(service: any, appId: string, reissue: boolean): Promise<DeedResult> {
   // EACH TENANT SIGNS THEIR OWN DEED, FOR THEIR OWN SHARE.
   //
   // This used to resolve the tenancy's LEAD and generate one document for the
@@ -507,8 +558,11 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   // The application id is NOT rewritten any more. Every caller passes the
   // application it has in hand and gets that application's deed.
   //
-  // A SOLO APPLICATION is a tenancy of one: co_tenant_names is null, the share
-  // is the whole rent, and the document is what it always was.
+  // A SOLO APPLICATION is a tenancy of one: the named list is the applicant
+  // alone, and the document is what it always was. Per the 27 Sep ruling a joint
+  // tenant's deed is the same document too, rendered from the same six tokens;
+  // only the tenant list differs, and the share is held on the application and
+  // the bordereau rather than printed.
   /* ONE DOCUMENT PER APPLICATION, ENFORCED HERE AND NOT ONLY IN THE CLAIM.
 
      claim_tenancy_deed refuses when a document already exists, and that was taken
@@ -527,8 +581,20 @@ export async function generateDeed(service: any, appId: string, reissue = false)
      reissue is the deliberate exception: void-and-regenerate nulls the id first and
      passes it, which is how a voided deed is legitimately replaced. */
   if (!reissue) {
-    const { data: existing } = await service.from("applications")
+    const { data: existing, error: existingErr } = await service.from("applications")
       .select("pandadoc_document_id").eq("id", appId).maybeSingle();
+    /* THE GUARD CANNOT BE ALLOWED TO FAIL OPEN. This error was discarded, and
+       supabase-js returns it rather than throwing, so a transient read failure
+       left `existing` undefined and `existing?.pandadoc_document_id` falsy: the
+       one-document check read "no document exists" and generation carried on. The
+       one case where this read fails is the case where it matters most, because
+       whatever is wrong with the database is equally likely to have the other
+       press in flight. Not knowing whether a deed already exists is a reason to
+       generate nothing. */
+    if (existingErr) {
+      await failGeneration(service, appId, `Deed not generated: could not check whether a deed already exists (${existingErr.message}). Nothing was sent; this retries on the next pass.`);
+      return { ok: false, error: "Could not confirm whether a deed already exists, so none was generated. Retry shortly." };
+    }
     if (existing?.pandadoc_document_id) {
       return { ok: false, documentId: existing.pandadoc_document_id as string,
                error: "A deed already exists for this application. Use Resend to chase the signature." };
@@ -541,11 +607,10 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   // The error was discarded. supabase-js returns it rather than throwing, so a
   // transient RPC failure left `unit` undefined, and undefined answers every
   // question below it the way a tenancy of one does: the has-this-tenant-paid
-  // gate is skipped (`unit &&` is falsy), joint is false, and all three of
-  // tenancy_tenant_names, co_tenant_names and share_amount go null. On a JOINT
-  // tenancy that silently generates a single-tenant document, with no
-  // co-tenants named, no guaranteed_amount and the whole rent implied instead
-  // of this tenant's share, and sends it for signature. A deed is a financial
+  // gate is skipped (`unit &&` is falsy), joint is false, and tenancy_tenant_names
+  // goes null. On a JOINT tenancy that silently generates a deed naming ONE
+  // tenant where the deed should name all of them, and sends it for signature: a
+  // guarantee that misstates which tenancy it belongs to. A deed is a financial
   // instrument, so not knowing what it should say is a reason to generate
   // nothing, never a reason to generate the simpler one.
   if (tgtErr) {
@@ -564,11 +629,20 @@ export async function generateDeed(service: any, appId: string, reissue = false)
     return { ok: false, error: "Waiting on this tenant to pay before their deed is generated." };
   }
 
-  const { data: app } = await service
+  const { data: app, error: appErr } = await service
     .from("applications")
     .select("id, guarantee_ref, tenant_first_name, tenant_last_name, tenant_email, tenancy_start, prop_addr1, prop_addr2, prop_city, prop_postcode, branch_id, livemode, referencing_mode")
     .eq("id", appId)
     .maybeSingle();
+  /* "Could not read it" is not "it does not exist". The error was discarded, so a
+     transient failure returned "Application not found." to the caller and recorded
+     nothing at all: no error state, no activity row, no ops incident. The Generate
+     button showed a message saying the application does not exist, about an
+     application the user was looking at. */
+  if (appErr) {
+    await failGeneration(service, appId, `Deed not generated: the application could not be read (${appErr.message}). Nothing was sent; this retries on the next pass.`);
+    return { ok: false, error: "Could not read this application, so no deed was generated. Retry shortly." };
+  }
   if (!app) return { ok: false, error: "Application not found." };
 
   // Where the executed deed will eventually go must exist before we generate one.
@@ -617,11 +691,12 @@ export async function generateDeed(service: any, appId: string, reissue = false)
   const res = await createAndSend({
     ...app, agent_email: agentEmail, reissue,
     direct: app.referencing_mode === "opndoor_referenced",
-    // All three are null on a tenancy of one, which is what omits the two new
-    // tokens entirely and keeps that document byte-identical.
+    // The one thing a joint deed says differently: it names every tenant, so the
+    // document states which tenancy it is part of. Null on a tenancy of one,
+    // where the printed name is the applicant's own. The share is NOT passed:
+    // per the 27 Sep ruling it belongs on the application and the bordereau, and
+    // the document is the same six-token deed on both.
     tenancy_tenant_names: joint ? (unit?.tenant_names as string | null) : null,
-    co_tenant_names: joint ? (unit?.co_tenant_names as string | null) : null,
-    share_amount: joint ? Number(unit?.share_amount) : null,
   }, app.livemode === true);
   if (!res.ok) {
     // Every PandaDoc-side reason lands here, and on production the commonest by
@@ -630,6 +705,30 @@ export async function generateDeed(service: any, appId: string, reissue = false)
     // one silent internal row at a time. The ops incident is what turns that
     // from "some agents say deeds are not coming" into one alert naming the
     // secret.
+    /* A FAILURE THAT STILL LEFT A DOCUMENT BEHIND. createAndSend does two calls:
+       it CREATES the document, then SENDS it. A failure at the send step returns
+       ok:false WITH a documentId, and that id was thrown away here: the row keeps
+       nothing, so the next retry creates a second document and the first is left
+       in PandaDoc for ever. Over a bad afternoon that is one orphan per attempt.
+
+       We created it, so we clean it up rather than merely naming it. Voiding also
+       settles the ambiguous case: a send whose RESPONSE failed after PandaDoc had
+       already processed it means the tenant has been emailed a signable deed we
+       have no id for, and voiding is what stops them signing a document nothing
+       will ever match to their application.
+
+       Only when the void fails does a person need to be involved, and then the
+       incident carries the id they need. The retry itself is not blocked: the row
+       was never stamped, so the next pass generates cleanly, which is the ruling. */
+    if (res.documentId) {
+      const voided = await voidDocument(res.documentId, app.livemode === true);
+      if (!voided.ok && !voided.alreadyGone) {
+        await service.rpc("report_ops_incident", {
+          p_type: "deed_orphan_document",
+          p_detail: `Application ${appId}: PandaDoc document ${res.documentId} was created but not sent (${res.error}), and could not be voided automatically (${voided.error}). Void ${res.documentId} in PandaDoc by hand; the application will generate a fresh deed on retry.`,
+        }).then(() => {}, () => {});
+      }
+    }
     await failGeneration(service, appId, `Deed generation failed: ${res.error}`);
     return res;
   }
@@ -664,12 +763,42 @@ export async function generateDeed(service: any, appId: string, reissue = false)
     // so claim_tenancy_deed would hand the next delivery of the same Stripe
     // event a second document for the same tenancy.
     //
-    // The row cannot be repaired from here, since the same table just refused a
-    // write. What is left is to name the orphan loudly enough that a person can
-    // attach or void it, with the id they need to do either.
+    // It used to stop here, at an incident asking a person to attach an id by
+    // hand. That is a dead end dressed as an alert: nothing retries it, the
+    // tenant is signing into a void the whole time, and the next automatic pass
+    // makes a SECOND document because the row still looks ungenerated.
+    //
+    // SECURE THE ID FIRST, AND ONLY THE ID. The failed write set eight columns,
+    // and the realistic causes (a check constraint, a timestamp-ordering trigger,
+    // a stale column) are properties of ONE of the other seven, not of
+    // pandadoc_document_id. The id is also the only column that matters for
+    // correctness: it is what apply_deed_executed matches on, so with it written
+    // the tenant's signature lands and the one-document guard holds. The rest is
+    // display.
+    const { error: minimalErr } = await service.from("applications")
+      .update({ pandadoc_document_id: res.documentId }).eq("id", appId);
+    if (!minimalErr) {
+      await service.rpc("report_ops_incident", {
+        p_type: "deed_stamp_partial",
+        p_detail: `Application ${appId}: PandaDoc document ${res.documentId} was sent and its id recorded, but the surrounding deed columns could not be written (${stampErr.message}). Signing works and no second deed can be created; the application's deed status may read stale until the row is corrected.`,
+      }).then(() => {}, () => {});
+      // Sent, attached, and matchable. The loss is display state, not the deed.
+      return res;
+    }
+
+    /* THE ROW IS NOT WRITABLE AT ALL, so there is no way to make this document
+       ever match its application. Leaving it live means a tenant signs a deed
+       that can never be executed, and the next pass adds a second one beside it,
+       which is the two-live-deeds failure the lease exists to prevent. We created
+       it, so we void it: the tenant is told the document was withdrawn rather
+       than signing into nothing, and the retry generates cleanly. */
+    const voided = await voidDocument(res.documentId, app.livemode === true);
     await service.rpc("report_ops_incident", {
       p_type: "deed_document_unattached",
-      p_detail: `Application ${appId}: PandaDoc document ${res.documentId} was created and sent to the tenant, but the application row could not be stamped with it (${stampErr.message}). Signing it will do nothing. Attach the id by hand or void the document in PandaDoc.`,
+      p_detail: `Application ${appId}: PandaDoc document ${res.documentId} was created and sent to the tenant, but the application row could not be stamped with it, even with the id alone (${stampErr.message}). `
+        + (voided.ok || voided.alreadyGone
+          ? `The document has been voided so nobody signs into a void; the deed will regenerate once the row is writable.`
+          : `The document could NOT be voided either (${voided.error}). Signing it will do nothing. Void ${res.documentId} in PandaDoc by hand.`),
     }).then(() => {}, () => {});
     return { ok: false, documentId: res.documentId, error: "The deed was sent but could not be recorded against the application. This has been raised with opndoor." };
   }
