@@ -26,7 +26,7 @@
 -- it was opened for. A short session behind a long link is the whole design.
 
 begin;
-select plan(10);
+select plan(12);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock)
 values ('91000000-0000-0000-0000-000000000001', 'zzz-paylink', 'ZZZ Paylink', 'pre_referenced_open', 0.25, 0.10, true, true);
@@ -134,6 +134,33 @@ select throws_ok(
       'other')$$,
   '22023', null,
   'and the token-scoped actions refuse it too, by the same predicate');
+
+-- ---------------------------------------------------------------------------
+-- AND THE TENANT WHOSE STRIPE SESSION NEVER OPENED IS STILL CHASED.
+--
+-- create-referral opens an eager Stripe session at referral time and that call
+-- can fail: it records the send as failed and creates the referral anyway, so
+-- somebody can resend. Such a row is status 'sent' with payment_url null.
+-- fire_payment_reminders used to require `payment_url is not null`, so the
+-- applications whose tenant never got a working link were the exact ones excluded
+-- from every reminder, silently, for ever. The column is not even read by the
+-- caller: the link is minted fresh on every run. Fixed in 20261005240000.
+-- ---------------------------------------------------------------------------
+update public.applications
+   set payment_url = null, sent_at = now() - interval '6 days'
+ where guarantee_ref = 'GR-PAYLINK-1';
+
+select is(
+  (select count(*)::int from public.fire_payment_reminders(current_date)
+    where guarantee_ref = 'GR-PAYLINK-1'),
+  1, 'an application with no Stripe URL is still chased, because it needs it most');
+
+-- And only once: the claim is idempotent per threshold, which is what makes the
+-- duplicated 07:00 and 08:00 crons harmless rather than a second email a day.
+select is(
+  (select count(*)::int from public.fire_payment_reminders(current_date)
+    where guarantee_ref = 'GR-PAYLINK-1'),
+  0, 'and only once a threshold, so a second cron run the same day sends nothing');
 
 select * from finish();
 rollback;

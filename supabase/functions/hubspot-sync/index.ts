@@ -22,8 +22,25 @@
 //                     hubspot_sync_events; and every HubSpot write is idempotent
 //                     by construction (upsert on a unique property; PUT assoc).
 //   Failures        — reported through the existing ops-alert channel via
-//                     report_ops_incident('hubspot_sync_error', …); the cursor
-//                     holds at the last success so the batch retries safely.
+//                     report_ops_incident('hubspot_sync_error:<partner>', …).
+//                     The suffix is not decoration: ops_alerts dedupes on
+//                     (alert_type, coalesce(application_id,zero), hour_bucket)
+//                     and this function always passes a null application_id, so
+//                     a bare type let the FIRST partner to fail in an hour hide
+//                     every other partner's failure for the rest of it. Same
+//                     convention as 'cron_error:<jobname>'.
+//                     The cursor holds at the last success so the batch retries;
+//                     and because a retry that can never succeed is a queue that
+//                     never drains, a repeatedly failing event is PARKED after
+//                     MAX_ATTEMPTS and PARK_AFTER_MS (see the catch) and the
+//                     partner's queue moves past it.
+//   Config gaps     — a missing hubspot_partner_map row, a partner company that
+//                     does not exist in the Hub, an unset association type id:
+//                     these are config, not data, and they used to THROW, which
+//                     froze that partner's whole feed permanently. They now gate
+//                     the affected edge exactly as the §6 org gate does (warn,
+//                     alert, leave the ledger unrecorded so a later event
+//                     completes it) and the queue keeps draining.
 //
 // Auth (manual/cron trigger): x-ops-secret matched against REMINDERS_CRON_SECRET
 // (edge env) OR the ops_secrets 'reminders_cron' mirror — the same shape as
