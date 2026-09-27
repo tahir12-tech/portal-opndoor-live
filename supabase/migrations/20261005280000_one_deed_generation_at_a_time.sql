@@ -31,6 +31,23 @@ alter table public.applications
 comment on column public.applications.deed_generating_since is
   'When a deed generation run took the lease on this application. Null when free. A lease older than the stale-after window is taken over, so a crashed run cannot lock an application out of ever generating.';
 
+/* THE GRANT IS NOT OPTIONAL HERE. 20260811180000 took partner_rate and agent_rate
+   off the applications table grant and re-granted every other column BY NAME, so
+   the grant is a denylist and a column added later is unreadable by
+   `authenticated` until a migration says otherwise. Skipping this step once
+   already broke every staff dashboard with "permission denied for table
+   applications", and applications_column_grants.test.sql exists to catch it. It
+   caught this one.
+
+   Granted rather than withheld because the denylist is a boundary that means
+   exactly one thing: commission is not on the row, it is read through
+   application_commission_rates. Adding an unrelated operational timestamp to that
+   list would blur the only rule it states. There is nothing sensitive in knowing
+   that a deed is being generated right now, and the deed card has a legitimate
+   use for it: "preparing" is a truthful state that the card currently has to
+   infer. */
+grant select (deed_generating_since) on public.applications to authenticated;
+
 create or replace function public.take_deed_lease(p_application uuid, p_stale_after interval default interval '5 minutes')
 returns boolean
 language plpgsql security definer set search_path to ''
