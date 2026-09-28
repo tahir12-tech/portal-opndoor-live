@@ -209,3 +209,13 @@
   padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px;
 }
 .ah-agr__lbl { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-mute); }
+
+/* The people table's action cell now carries up to four controls instead of one
+   Cancel invite. Wrapped and right-aligned so a narrow window stacks them under
+   each other rather than widening the table past the viewport. */
+.ah-rowacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: flex-end;
+}

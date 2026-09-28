@@ -282,3 +282,7 @@
 .pos-item__name { font-weight: 600; font-size: 14px; color: var(--ink); }
 .pos-add { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; align-items: end; }
 @media (max-width: 560px) { .pos-add { grid-template-columns: 1fr; } }
+
+/* A row whose person is at or above the reader's level has no controls. Saying
+   so beats an empty popover, which reads as a fault. */
+.rowmenu__empty { padding: 10px 14px; font-size: 13px; color: var(--ink-mute); white-space: nowrap; }

@@ -41,7 +41,7 @@ import {
   type DeedReadiness,
 } from '@/data/positionsService';
 import { setNodeRate, getCommissionSplits, previewNodeRate, agencyReferencingMode, setAgencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
-import { cancelInvite } from '@/data/usersService';
+import { cancelInvite, resendInvite, resetUserMfa, resetUserPassword, setUserStatus } from '@/data/usersService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
@@ -379,6 +379,38 @@ export function AgencyHome() {
     catch (e) { toast(e instanceof Error ? e.message : 'Could not cancel that invitation.', 'error'); }
   };
 
+  /* THE SAME SET OF CONTROLS AS TEAM AND USERS, on every person.
+
+     These four existed on /users and not here, so an admin looking at an agency
+     could cancel an invitation and nothing else, and had to go and find the
+     person again on another screen to reset their two-factor. One set, three
+     places.
+
+     No level check: every one of these is behind isAdmin, and opndoor staff sit
+     above all three agency levels, so assert_may_act_on_user returns early for
+     them. The ladder still refuses in SQL if this page is ever opened by someone
+     who is not staff. */
+  const doPersonAction = async (what: 'remove' | 'restore' | 'resend' | 'password' | 'mfa', userId: string, who: string) => {
+    const run = {
+      remove: () => setUserStatus(userId, 'deactivated'),
+      restore: () => setUserStatus(userId, 'active'),
+      resend: () => resendInvite(userId),
+      password: () => resetUserPassword(userId),
+      mfa: () => resetUserMfa(userId),
+    }[what];
+    const done = {
+      remove: `${who} no longer has access.`,
+      restore: `${who} has access again.`,
+      resend: `Invitation resent to ${who}.`,
+      // Says what happened and nothing about the account, the same answer
+      // whether or not the address turned out to be reachable.
+      password: 'Password reset link sent.',
+      mfa: `${who} will enrol a new authenticator at their next sign in.`,
+    }[what];
+    try { await run(); refreshSession(); bump(); toast(done, 'ok'); }
+    catch (e) { toast(e instanceof Error ? e.message : 'That did not work.', 'error'); }
+  };
+
   // ---- deed recipient nomination ----
   const [nominateBranch, setNominateBranch] = useState<string | null>(null); // branchId
   const [nomineeId, setNomineeId] = useState('');
@@ -522,6 +554,10 @@ export function AgencyHome() {
             <select value={pFilter.status} onChange={(e) => set('status', e.target.value)} aria-label="Status">
               <option value="">Any status</option>
               <option value="active">Active</option><option value="pending">Pending</option>
+              {/* Deactivated was missing, so Restore access would have landed on
+                  rows nobody could filter to: the only way to find a person you
+                  had just removed was to scroll the whole org. */}
+              <option value="deactivated">Deactivated</option>
             </select>
             {(pFilter.q || pFilter.level || pFilter.position || pFilter.agency || pFilter.branch || pFilter.status) && (
               <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setPFilter({ level: '', position: '', agency: '', branch: '', status: '', q: '' })}>Clear filters</button>
@@ -547,7 +583,15 @@ export function AgencyHome() {
                     <td className="soft">{r.level}</td>
                     <td className="soft">{r.agency}</td>
                     <td className="soft">{r.branch}</td>
-                    <td>{r.status === 'pending' ? <Pill variant="sent">Pending</Pill> : <Pill variant="paid">Active</Pill>}</td>
+                    {/* Three states, not two. This read "Active" for a
+                        deactivated person, because the ternary treated anything
+                        that was not pending as active, which is the same
+                        catch-all shape the deed card had. */}
+                    <td>{r.status === 'pending'
+                      ? <Pill variant="sent">Pending</Pill>
+                      : r.status === 'deactivated'
+                        ? <Pill variant="muted">Deactivated</Pill>
+                        : <Pill variant="paid">Active</Pill>}</td>
                     {isAdmin && (
                       <td>
                         {/* A pending invite has never signed in, so
@@ -570,8 +614,23 @@ export function AgencyHome() {
                       </td>
                     )}
                     <td className="num">
-                      {isAdmin && r.status === 'pending' && (
-                        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doCancelInvite(r.userId, r.name || r.email)}>Cancel invite</button>
+                      {isAdmin && (
+                        <div className="ah-rowacts">
+                          {r.status === 'pending' && <>
+                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('resend', r.userId, r.name || r.email)}>Resend invite</button>
+                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doCancelInvite(r.userId, r.name || r.email)}>Cancel invite</button>
+                          </>}
+                          {r.status !== 'pending' && <>
+                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('password', r.userId, r.name || r.email)}>Send password reset</button>
+                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('mfa', r.userId, r.name || r.email)}>Reset two-factor</button>
+                          </>}
+                          {r.status === 'active' && (
+                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('remove', r.userId, r.name || r.email)}>Remove access</button>
+                          )}
+                          {r.status === 'deactivated' && (
+                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('restore', r.userId, r.name || r.email)}>Restore access</button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>

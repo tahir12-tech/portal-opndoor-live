@@ -130,3 +130,72 @@
      column, which is gone at this width. */
   .tm-stmt { margin-left: 0; grid-column: 2; }
 }
+
+/* ---- AT SCALE: search, filters, collapsing groups, paging ----------------
+   The page was written for an agency of five and is the only screen a group of
+   several hundred has. */
+
+.tm-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+/* The search takes the room, the selects take what they need. min-width rather
+   than a fixed width so the row still wraps rather than overflowing on a phone. */
+.tm-search { flex: 1 1 240px; min-width: 0; }
+.tm-filters select { flex: 0 0 auto; }
+.tm-filters__state { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+/* THE WHOLE HEADING IS THE CONTROL. A button reset rather than a styled div, so
+   it is reachable by keyboard and announces its state, which a clickable div
+   would not. */
+.tm-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tm-group:disabled { cursor: default; }
+/* The chevron is decoration once the group is forced open by a filter. */
+.tm-group:disabled > svg { opacity: 0; }
+.tm-group > svg { color: var(--ink-mute); flex: none; }
+.tm-group__txt { flex: 1; min-width: 0; }
+/* The count is the information a collapsed group carries, so it is not muted
+   into the background the way a caption would be. */
+.tm-group__n {
+  flex: none;
+  min-width: 28px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--app-bg);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--ink-mute);
+}
+.tm-group:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: var(--r-sm); }
+
+.tm-more {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 2px;
+}
+.tm-more .soft { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 560px) {
+  /* Two selects to a row beats four squeezed onto one. */
+  .tm-filters select { flex: 1 1 calc(50% - 5px); }
+  .tm-filters__state { margin-left: 0; width: 100%; }
+}

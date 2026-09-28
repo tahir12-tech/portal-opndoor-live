@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { PositionModal, type ScopeTarget } from './PositionModal';
 import * as positionsService from '@/data/positionsService';
-import { getAgencies, getGroups } from '@/data';
+import { getAgencies, getGroups, mayActOn, type Actor } from '@/data';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -94,7 +94,7 @@ function RoleOptions({ options, selected, onSelect }: { options: RoleOption[]; s
 }
 
 export function UserManagement({ team = false }: { team?: boolean } = {}) {
-  const { role, currentUserId, selectedPartner, setSelectedPartner, refresh: refreshData } = useSession();
+  const { role, seesCommission, currentUserId, selectedPartner, setSelectedPartner, refresh: refreshData } = useSession();
   const toast = useToast();
   const [params] = useSearchParams();
   const partnerParam = params.get('partner');
@@ -177,8 +177,23 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   const activeAdmins = allUsers.filter((u) => u.role === 'superadmin' && u.status === 'active').length;
   const isSelf = (u: ManagedUser) => currentUserId != null && u.id === currentUserId;
   const isLastActiveAdmin = (u: ManagedUser) => u.role === 'superadmin' && u.status === 'active' && activeAdmins <= 1;
-  const canDeactivate = (u: ManagedUser) => u.status === 'active' && !isSelf(u) && !isLastActiveAdmin(u);
-  const canEditRole = (u: ManagedUser) => !isSelf(u) && !isLastActiveAdmin(u);
+
+  /* THE LEVEL LADDER, ON THIS SCREEN TOO.
+
+     /users is not admin-only: App.tsx admits roles ['superadmin','management'],
+     so a supplier's management staff reach it and were offered every control on
+     everybody in their partner, their own Director included. isSelf and
+     isLastActiveAdmin were the only limits, and neither is about seniority.
+
+     Opndoor staff rank above all three agency levels, so mayActOn returns true
+     for them and this narrows nothing for an admin. assert_may_act_on_user and
+     the users_level_ladder_guard trigger refuse regardless; this is about not
+     offering a control that cannot work. */
+  const actor: Actor = { id: currentUserId, role, seesCommission };
+  const mayAct = (u: ManagedUser) => mayActOn(actor, { id: u.id, role: u.role, seesCommission: u.seesCommission === true });
+
+  const canDeactivate = (u: ManagedUser) => u.status === 'active' && !isSelf(u) && !isLastActiveAdmin(u) && mayAct(u);
+  const canEditRole = (u: ManagedUser) => !isSelf(u) && !isLastActiveAdmin(u) && mayAct(u);
 
   // ---- role-aware framing ----
   let eyebrow = 'Administration · opndoor admin';
@@ -367,7 +382,9 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   // The action items for a row, rendered inside the portalled popover.
   function menuItems(u: ManagedUser): ReactNode {
     if (u.status === 'deactivated') {
-      return <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reactivate', u); }}><Icon name="check" />Reactivate user</button>;
+      return mayAct(u)
+        ? <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reactivate', u); }}><Icon name="check" />Restore access</button>
+        : <div className="rowmenu__empty">Nothing you can change here.</div>;
     }
     if (u.status === 'pending') {
       return (
@@ -377,11 +394,11 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
               <Icon name="org" />Set what they see
             </button>
           )}
-          <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('resend', u); }}><Icon name="send" />Resend invite</button>
+          {mayAct(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('resend', u); }}><Icon name="send" />Resend invite</button>}
           {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-name', u); }}><Icon name="edit" />Edit name</button>}
           {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-role', u); }}><Icon name="edit" />Edit role</button>}
           <div className="rowmenu__sep" />
-          <button className="rowmenu__item rowmenu__item--danger" onClick={() => { setMenuOpenId(null); handleAction('cancel-invite', u); }}><Icon name="ban" />Cancel invite</button>
+          {mayAct(u) && <button className="rowmenu__item rowmenu__item--danger" onClick={() => { setMenuOpenId(null); handleAction('cancel-invite', u); }}><Icon name="ban" />Cancel invite</button>}
         </>
       );
     }
@@ -389,11 +406,11 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
       <>
         {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-name', u); }}><Icon name="edit" />Edit name</button>}
         {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-role', u); }}><Icon name="edit" />Edit role</button>}
-        <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-password', u); }}><Icon name="lock" />Reset password</button>
-        <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-2fa', u); }}><Icon name="phone" />Reset 2FA</button>
+        {mayAct(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-password', u); }}><Icon name="lock" />Send password reset</button>}
+        {mayAct(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-2fa', u); }}><Icon name="phone" />Reset two-factor</button>}
         {canDeactivate(u) && <>
           <div className="rowmenu__sep" />
-          <button className="rowmenu__item rowmenu__item--danger" onClick={() => { setMenuOpenId(null); handleAction('deactivate', u); }}><Icon name="ban" />Deactivate user</button>
+          <button className="rowmenu__item rowmenu__item--danger" onClick={() => { setMenuOpenId(null); handleAction('deactivate', u); }}><Icon name="ban" />Remove access</button>
         </>}
       </>
     );

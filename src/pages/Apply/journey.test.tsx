@@ -12,6 +12,21 @@
    the answer. The server side of each is a REGRESSION row. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+
+/* WHY TWO WAITS BELOW ARE EXPLICIT AND THE OTHERS ARE NOT.
+
+   The two assertions that follow a Save and continue click wait on a save that
+   crosses several promise ticks, and testing-library's default waitFor timeout is
+   1000ms. That is ample when this file runs alone, which takes about 800ms for
+   all fifteen, and not always ample when the whole suite runs in parallel: the
+   run that first failed took 2439ms for the same fifteen tests. It failed as
+   "saveProperty was not called", which reads like a behaviour change and was a
+   stopwatch. Measured at roughly one run in five.
+
+   Four seconds, so a loaded machine has room while a real regression still fails
+   in four seconds rather than hanging. Only these two: every other wait in the
+   file is on a render, which does not queue behind a mocked promise chain. */
+const SAVED = { timeout: 4000 } as const;
 import { MemoryRouter } from 'react-router-dom';
 import { Register, InviteLanding } from './FrontDoor';
 import { Apply } from './Apply';
@@ -208,7 +223,7 @@ describe('coming back to a draft', () => {
     expect(next.hasAttribute('disabled')).toBe(false);
 
     fireEvent.click(next);
-    await waitFor(() => expect(saveProperty).toHaveBeenCalled());
+    await waitFor(() => expect(saveProperty).toHaveBeenCalled(), SAVED);
     const [appId, patch] = saveProperty.mock.calls.at(-1)!;
     expect(appId).toBe('a1');
     // The whole step is written on continue, every field it carries, because the
@@ -225,7 +240,7 @@ describe('coming back to a draft', () => {
     const next = await screen.findByRole('button', { name: /save and continue/i });
 
     fireEvent.click(next);
-    await waitFor(() => expect(screen.getByText(/could not save/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/could not save/i)).toBeTruthy(), SAVED);
     // Still on the property step, its button still there to press again.
     expect(screen.getByRole('button', { name: /save and continue/i })).toBeTruthy();
   });

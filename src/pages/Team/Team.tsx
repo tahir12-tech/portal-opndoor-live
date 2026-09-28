@@ -52,7 +52,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   cancelInvite, getAgencies, getGroups, inviteUser, resendInvite, setUserStatus,
   resetUserMfa, resetUserPassword, setAgencyLevel, getUsers, userEmail,
-  agencyLevelOf, levelsGrantableBy, mayActOn, type Actor, type AgencyLevel,
+  agencyLevelOf, AGENCY_LEVELS, levelsGrantableBy, mayActOn, type Actor, type AgencyLevel,
   type Agency, type ManagedUser,
 } from '@/data';
 import * as positionsService from '@/data/positionsService';
@@ -63,6 +63,7 @@ import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHead } from '@/components/ui/Card';
 import { Eyebrow } from '@/components/ui/Eyebrow';
+import { Icon } from '@/components/ui/Icon';
 import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
@@ -255,6 +256,61 @@ export function teamLayout(input: {
   };
 }
 
+/* =====================================================================
+   TEAM AT SCALE.
+
+   The page was written for an agency of five and is now the only screen a group
+   of several hundred has. Three things make it work at that size, and each one
+   has a rule worth stating.
+
+   SEARCH IS THE PRIMARY CONTROL, because at two hundred people nobody browses.
+   Name or email, because those are the two things a person asking about a
+   colleague actually has.
+
+   GROUPS COLLAPSE, BUT NOT WHILE YOU ARE SEARCHING. Collapsed-by-default is right
+   for browsing a structure: the headings and their counts are the information,
+   and opening one is a deliberate act. It is exactly wrong while a filter is on,
+   where it would answer a search with a row of closed doors. So a filter expands
+   the groups that match and the collapse comes back when the filter clears.
+
+   FIFTY TO A GROUP. Long enough that an ordinary office never pages, short enough
+   that a group-wide list does not render eight hundred rows to show the first
+   screenful.
+   ===================================================================== */
+
+/** How many people a group shows before it offers the rest. */
+export const TEAM_PAGE_SIZE = 50;
+
+export interface TeamFilter {
+  /** Name or email, case-insensitive, trimmed. '' means no search. */
+  q: string;
+  /** An agency level, or '' for any. */
+  level: AgencyLevel | '';
+  /** 'active' | 'pending' | 'deactivated', or '' for any. */
+  status: string;
+}
+
+export const NO_TEAM_FILTER: TeamFilter = { q: '', level: '', status: '' };
+
+export function teamFilterActive(f: TeamFilter): boolean {
+  return f.q.trim() !== '' || f.level !== '' || f.status !== '';
+}
+
+/** Does this person match the filter? Pure, and exported so the rule can be
+    asserted without rendering: see teamGrouping.test.ts. */
+export function matchesPerson(u: ManagedUser, f: TeamFilter): boolean {
+  const q = f.q.trim().toLowerCase();
+  if (q) {
+    /* Name OR email, and the email through userEmail() rather than u.email,
+       because mock and demo rows derive one and a raw u.email is blank there. */
+    const hay = `${u.name} ${userEmail(u)}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  if (f.level && levelLabel(u) !== f.level) return false;
+  if (f.status && u.status !== f.status) return false;
+  return true;
+}
+
 export function Team() {
   usePageMeta('team', 'Team', ['Home', 'Team']);
   const { role, seesCommission, partnerScope, currentUserId, refresh: refreshData, dataVersion } = useSession();
@@ -303,6 +359,23 @@ export function Team() {
   const people = useMemo(
     () => getUsers({ viewer: role, scope: partnerScope, team: false }).filter((u) => u.role !== 'superadmin' && u.role !== 'opndoor_manager'),
     [role, partnerScope, dataVersion, version],
+  );
+
+  const [filter, setFilter] = useState<TeamFilter>(NO_TEAM_FILTER);
+  /** '' is every office. Only offered where there is more than one to choose. */
+  const [place, setPlace] = useState('');
+  const filtering = teamFilterActive(filter) || place !== '';
+  /** Which groups the reader has opened. Only consulted when not filtering. */
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  /** How many rows each group is showing, keyed the same way. */
+  const [shown, setShown] = useState<Record<string, number>>({});
+
+  /* FILTERED BEFORE GROUPING, not after, so a group's count is the number of
+     MATCHES in it rather than its total with most of them hidden. A heading that
+     says 12 and opens onto 2 is worse than no heading. */
+  const visiblePeople = useMemo(
+    () => people.filter((u) => matchesPerson(u, filter)),
+    [people, filter],
   );
 
   useEffect(() => {
@@ -370,9 +443,41 @@ export function Team() {
   const posIsAChoice = groups.length > 0 || multiAgency || branchTargets.length > 1;
 
   const layout = useMemo(
-    () => teamLayout({ agencies, people, positionsByUser, ownPositions, shape }),
-    [agencies, people, positionsByUser, ownPositions, shape],
+    () => teamLayout({ agencies, people: visiblePeople, positionsByUser, ownPositions, shape }),
+    [agencies, visiblePeople, positionsByUser, ownPositions, shape],
   );
+
+  /** Every office the reader could narrow to, and whether narrowing is a choice
+      at all. One office is not a filter, it is the page. */
+  const placeOptions = useMemo(() => {
+    const out: { id: string; label: string }[] = [];
+    for (const a of layout.agencies) {
+      if (multiAgency) out.push({ id: `agency:${a.key}`, label: a.name });
+      for (const n of a.branches) out.push({ id: `branch:${n.key}`, label: multiAgency ? `${a.name}, ${n.name}` : n.name });
+    }
+    return out;
+  }, [layout.agencies, multiAgency]);
+  const placeIsAChoice = placeOptions.length > 1;
+
+  /** The blocks and offices left after the place filter. Applied to the LAYOUT
+      rather than to people, because "which office" is a question about the tree
+      and the tree is what the layout already resolved. */
+  const blocks = useMemo(() => {
+    if (!place) return layout.agencies;
+    const [kind, id] = place.split(':');
+    return layout.agencies
+      .filter((a) => (kind === 'agency' ? a.key === id : a.branches.some((n) => n.key === id)))
+      .map((a) => (kind === 'agency' ? a : { ...a, wide: [], branches: a.branches.filter((n) => n.key === id) }));
+  }, [layout.agencies, place]);
+
+  const matchCount = useMemo(
+    () => (place
+      ? blocks.reduce((n, a) => n + a.wide.length + a.branches.reduce((m, x) => m + x.people.length, 0), 0)
+      : visiblePeople.length),
+    [blocks, place, visiblePeople.length],
+  );
+
+  const clearFilters = () => { setFilter(NO_TEAM_FILTER); setPlace(''); };
 
   const headerName = multiAgency
     ? (groups[0]?.name ?? `${agencies.length} agencies`)
@@ -547,15 +652,57 @@ export function Team() {
     );
   }
 
-  function Block({ title, sub, list }: { title: string; sub: string; list: ManagedUser[] }) {
+  /* A GROUP: collapsed by default, counted in its heading, paged at fifty.
+
+     `id` keys both the open set and the page size, so two groups cannot share a
+     state slot and opening one cannot page another.
+
+     While a filter is on it is forced open: a search that answered with a row of
+     closed doors would make the search useless, and the count in the heading is
+     then the number of MATCHES here, which is the thing worth seeing. */
+  function Block({ id, title, sub, list }: { id: string; title: string; sub: string; list: ManagedUser[] }) {
+    const isOpen = filtering || opened.has(id);
+    const limit = shown[id] ?? TEAM_PAGE_SIZE;
+    const page = list.slice(0, limit);
+    const rest = list.length - page.length;
+    const toggle = () => setOpened((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
     return (
       <Card>
-        <CardHead title={title} sub={sub} />
-        <div className="tm-list">
-          {list.length === 0
-            ? <div className="tm-empty">Nobody here yet.</div>
-            : list.map((u) => <PersonRow key={u.id} u={u} />)}
-        </div>
+        {/* The whole heading is the control, not a chevron beside it: at this
+            size the heading is what a reader is already aiming at. */}
+        <button
+          type="button"
+          className={`tm-group${isOpen ? ' is-open' : ''}`}
+          onClick={toggle}
+          aria-expanded={isOpen}
+          disabled={filtering}
+        >
+          <Icon name={isOpen ? 'chevronDown' : 'chevronRight'} size={16} />
+          <span className="tm-group__txt">
+            <CardHead title={title} sub={sub} />
+          </span>
+          <span className="tm-group__n">{list.length}</span>
+        </button>
+        {isOpen && (
+          <div className="tm-list">
+            {list.length === 0
+              ? <div className="tm-empty">{filtering ? 'Nobody here matches.' : 'Nobody here yet.'}</div>
+              : page.map((u) => <PersonRow key={u.id} u={u} />)}
+            {rest > 0 && (
+              <div className="tm-more">
+                <Button variant="quiet" size="sm"
+                  onClick={() => setShown((p) => ({ ...p, [id]: limit + TEAM_PAGE_SIZE }))}>
+                  Show {Math.min(rest, TEAM_PAGE_SIZE)} more
+                </Button>
+                <span className="soft">{page.length} of {list.length}</span>
+              </div>
+            )}
+          </div>
+        )}
       </Card>
     );
   }
@@ -582,8 +729,59 @@ export function Team() {
         )}
       </div>
 
+      {/* THE FILTER BAR. Search always; level and status always, because they are
+          questions about a person and every agency has people; office only where
+          there is more than one, for the same reason the Position control is
+          hidden there. A one-office agency therefore gets search plus two
+          selects, which is the whole of the fold for them. */}
+      <div className="tm-filters">
+        <input
+          type="search"
+          className="tm-search"
+          value={filter.q}
+          placeholder="Search by name or email"
+          aria-label="Search people by name or email"
+          onChange={(e) => setFilter((f) => ({ ...f, q: e.target.value }))}
+        />
+        <select
+          aria-label="Level" value={filter.level}
+          onChange={(e) => setFilter((f) => ({ ...f, level: e.target.value as AgencyLevel | '' }))}
+        >
+          <option value="">Any level</option>
+          {AGENCY_LEVELS.map((l) => <option key={l.level} value={l.level}>{l.level}</option>)}
+        </select>
+        <select
+          aria-label="Status" value={filter.status}
+          onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value }))}
+        >
+          <option value="">Any status</option>
+          <option value="active">Active</option>
+          <option value="pending">Invited</option>
+          <option value="deactivated">Deactivated</option>
+        </select>
+        {placeIsAChoice && (
+          <select aria-label="Office" value={place} onChange={(e) => setPlace(e.target.value)}>
+            <option value="">Everywhere</option>
+            {placeOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </select>
+        )}
+        {filtering && (
+          <div className="tm-filters__state">
+            <span className="soft">{matchCount} {matchCount === 1 ? 'person' : 'people'}</span>
+            <Button variant="quiet" size="sm" onClick={clearFilters}>Clear</Button>
+          </div>
+        )}
+      </div>
+
       <div className="tm-blocks">
-        {!layout.grouped ? (
+        {filtering && matchCount === 0 ? (
+          /* Said once, here, rather than as an empty state inside every group:
+             a search that matches nothing should answer in one sentence, not with
+             a column of empty headings. */
+          <Card>
+            <div className="tm-empty">Nobody matches that. Try a different name, or clear the filters.</div>
+          </Card>
+        ) : !layout.grouped ? (
           /* ONE OFFICE: ONE LIST. No heading on the card either — the page head
              above it already names the agency, and "Across the agency" over the
              only card on the screen is the header said twice. */
@@ -591,12 +789,22 @@ export function Team() {
             <div className="tm-list">
               {layout.flat.length === 0
                 ? <div className="tm-empty">Nobody here yet.</div>
-                : layout.flat.map((u) => <PersonRow key={u.id} u={u} />)}
+                : layout.flat.slice(0, shown.flat ?? TEAM_PAGE_SIZE).map((u) => <PersonRow key={u.id} u={u} />)}
+              {layout.flat.length > (shown.flat ?? TEAM_PAGE_SIZE) && (
+                <div className="tm-more">
+                  <Button variant="quiet" size="sm"
+                    onClick={() => setShown((p) => ({ ...p, flat: (p.flat ?? TEAM_PAGE_SIZE) + TEAM_PAGE_SIZE }))}>
+                    Show {Math.min(layout.flat.length - (shown.flat ?? TEAM_PAGE_SIZE), TEAM_PAGE_SIZE)} more
+                  </Button>
+                  <span className="soft">{Math.min(shown.flat ?? TEAM_PAGE_SIZE, layout.flat.length)} of {layout.flat.length}</span>
+                </div>
+              )}
             </div>
           </Card>
         ) : (<>
-          {layout.groupWide.length > 0 && (
+          {layout.groupWide.length > 0 && !place && (
             <Block
+              id="group-wide"
               title="Across the group"
               sub="Everyone whose remit covers more than one agency."
               list={layout.groupWide}
@@ -606,24 +814,26 @@ export function Team() {
           {/* AGENCY THEN BRANCH. In group scope the agency is a heading with its
               own offices under it, rather than every office in the group in one
               run with its agency name glued to the front. */}
-          {layout.agencies.map((a) => (
+          {blocks.map((a) => (
             <Fragment key={a.key}>
               {multiAgency && <h2 className="tm-agency">{a.name}</h2>}
               {a.wide.length > 0 && (
                 <Block
+                  id={`wide:${a.key}`}
                   title={multiAgency ? `Across ${a.name}` : 'Across the agency'}
                   sub={`Everyone whose remit covers the whole of ${a.name}, not one office.`}
                   list={a.wide}
                 />
               )}
               {a.branches.map((n) => (
-                <Block key={n.key} title={n.name} sub="Branch" list={n.people} />
+                <Block key={n.key} id={`branch:${n.key}`} title={n.name} sub="Branch" list={n.people} />
               ))}
             </Fragment>
           ))}
 
-          {layout.unplaced.length > 0 && (
+          {layout.unplaced.length > 0 && !place && (
             <Block
+              id="unplaced"
               title="Not placed yet"
               sub={canGrant
                 ? 'These people see their own referrals and nothing else. Give them a position to file them at an office.'

@@ -212,3 +212,93 @@ describe('a tree with nothing in it', () => {
     expect(grouped.agencies.map((a) => a.name)).toEqual(['Has offices']);
   });
 });
+
+/* AT SCALE: THE FILTER, which is the other half of making this page usable for a
+   group of several hundred.
+
+   matchesPerson is asserted here rather than through the rendered page for the
+   same reason teamLayout is: the rule is a decision about a person, and a DOM
+   test of it would need a session, a hydrated tree and a positions fetch to
+   assert the same booleans. */
+import { matchesPerson, teamFilterActive, NO_TEAM_FILTER, TEAM_PAGE_SIZE } from './Team';
+
+function staff(over: Partial<ManagedUser>): ManagedUser {
+  return {
+    id: 'u1', name: 'Rosa Vance', email: 'rosa@regents.co.uk', role: 'management',
+    lastActive: 'today', status: 'active', partner: 'northwind', seesCommission: true, ...over,
+  } as ManagedUser;
+}
+
+describe('searching the team', () => {
+  it('matches everybody when nothing is set', () => {
+    expect(matchesPerson(staff({}), NO_TEAM_FILTER)).toBe(true);
+    expect(teamFilterActive(NO_TEAM_FILTER)).toBe(false);
+  });
+
+  it('finds a person by part of their name, whatever the case', () => {
+    expect(matchesPerson(staff({}), { ...NO_TEAM_FILTER, q: 'vance' })).toBe(true);
+    expect(matchesPerson(staff({}), { ...NO_TEAM_FILTER, q: 'ROSA' })).toBe(true);
+    expect(matchesPerson(staff({}), { ...NO_TEAM_FILTER, q: 'nadia' })).toBe(false);
+  });
+
+  /* Email as well as name, because the person asking about a colleague often has
+     the address and not the spelling of the name. */
+  it('finds a person by part of their email', () => {
+    expect(matchesPerson(staff({}), { ...NO_TEAM_FILTER, q: 'regents.co.uk' })).toBe(true);
+    expect(matchesPerson(staff({}), { ...NO_TEAM_FILTER, q: 'rosa@' })).toBe(true);
+  });
+
+  it('ignores surrounding spaces, so a pasted name still matches', () => {
+    expect(matchesPerson(staff({}), { ...NO_TEAM_FILTER, q: '  Vance  ' })).toBe(true);
+    // And a search of only spaces is not a search at all.
+    expect(teamFilterActive({ ...NO_TEAM_FILTER, q: '   ' })).toBe(false);
+  });
+});
+
+describe('filtering the team by level and status', () => {
+  /* THE LEVEL IS THE PAIR, not the role. Director and Manager are both
+     'management' and differ only in the commission bit, so filtering on role
+     would put them in one bucket and make the control useless. */
+  it('tells a Director from a Manager, though both are management', () => {
+    const director = staff({ seesCommission: true });
+    const manager = staff({ seesCommission: false });
+    expect(matchesPerson(director, { ...NO_TEAM_FILTER, level: 'Director' })).toBe(true);
+    expect(matchesPerson(director, { ...NO_TEAM_FILTER, level: 'Manager' })).toBe(false);
+    expect(matchesPerson(manager, { ...NO_TEAM_FILTER, level: 'Manager' })).toBe(true);
+    expect(matchesPerson(manager, { ...NO_TEAM_FILTER, level: 'Director' })).toBe(false);
+  });
+
+  it('calls a referrer a Negotiator, as every other surface does', () => {
+    const neg = staff({ role: 'referrer', seesCommission: false });
+    expect(matchesPerson(neg, { ...NO_TEAM_FILTER, level: 'Negotiator' })).toBe(true);
+  });
+
+  it('filters the three statuses, invited included', () => {
+    expect(matchesPerson(staff({ status: 'pending' }), { ...NO_TEAM_FILTER, status: 'pending' })).toBe(true);
+    expect(matchesPerson(staff({ status: 'active' }), { ...NO_TEAM_FILTER, status: 'pending' })).toBe(false);
+    expect(matchesPerson(staff({ status: 'deactivated' }), { ...NO_TEAM_FILTER, status: 'deactivated' })).toBe(true);
+  });
+
+  it('ands the filters together rather than oring them', () => {
+    const p = staff({ seesCommission: false, status: 'pending' });
+    expect(matchesPerson(p, { q: 'rosa', level: 'Manager', status: 'pending' })).toBe(true);
+    // One mismatch is enough to exclude, which is what makes narrowing work.
+    expect(matchesPerson(p, { q: 'rosa', level: 'Director', status: 'pending' })).toBe(false);
+    expect(matchesPerson(p, { q: 'nadia', level: 'Manager', status: 'pending' })).toBe(false);
+  });
+
+  it('knows when anything is set, which is what forces the groups open', () => {
+    expect(teamFilterActive({ ...NO_TEAM_FILTER, level: 'Director' })).toBe(true);
+    expect(teamFilterActive({ ...NO_TEAM_FILTER, status: 'active' })).toBe(true);
+    expect(teamFilterActive({ ...NO_TEAM_FILTER, q: 'x' })).toBe(true);
+  });
+});
+
+describe('the page size', () => {
+  /* Fifty: long enough that an ordinary office never pages, short enough that a
+     group-wide list does not render eight hundred rows for one screenful. Pinned
+     because both halves of that sentence stop being true if somebody tunes it. */
+  it('is fifty', () => {
+    expect(TEAM_PAGE_SIZE).toBe(50);
+  });
+});
