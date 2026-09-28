@@ -64,6 +64,11 @@ verify_jwt = false
 [functions.expiry-cohorts]
 verify_jwt = false
 
+# The deed sweep is a cron like the reminders, and authenticates the same way:
+# x-reminders-secret, or an opndoor-admin JWT for a manual { test: true } run.
+[functions.deed-sweep]
+verify_jwt = false
+
 [functions.payment-reminders]
 verify_jwt = false
 
