@@ -24,6 +24,19 @@ jobs:
       # supabase/tests/*.test.sql, so a new suite is picked up by adding the file
       # — there is no list here to forget to update. What runs today:
       #
+      #   tenant_isolation            THE STANDING GUARD. Two agencies on the
+      #                               shared house partner, a multi-brand group,
+      #                               a single-office agency, a supplier and a
+      #                               direct tenant, and every role each has.
+      #                               It asserts what each of them can REACH
+      #                               across applications, people, activity,
+      #                               contacts, statement references, the
+      #                               definer functions, the deed and every
+      #                               scheduled email. On this rail partner_id
+      #                               is a route and not a company boundary, so
+      #                               a guard written against the partner reads
+      #                               as correct and is not: this file is what
+      #                               says so out loud.
       #   applications_column_grants  a client-visible column added without its
       #                               authenticated SELECT grant fails here, by
       #                               name, instead of 500ing a staff dashboard.
