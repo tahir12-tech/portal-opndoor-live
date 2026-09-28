@@ -45,6 +45,7 @@ import { RoleOnly } from '@/components/ui/RoleOnly';
 import { RoleNote } from '@/components/ui/RoleNote';
 import { BarChart, type BarRow } from '@/components/ui/BarChart';
 import { MeasureSelect, PeriodSelect, TrendSelect } from '@/components/ui/Select';
+import { FinanceSurfaces } from '@/pages/Home/FinanceSurfaces';
 import './Dashboard.css';
 
 type ChartKey = 'branch' | 'agency' | 'referrer';
@@ -1005,6 +1006,20 @@ export function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* SETTLEMENTS AND THE UNDERWRITER BORDEREAU, moved here from Home.
+
+          Home is the human work queue: what needs a person today. A settlement
+          total and a bordereau are neither a queue nor a thing a person does
+          today, and they were the largest thing on that page. They are money,
+          and money is this page's subject: the figures above and the settlement
+          below come from the same services with the same role and scope, so
+          they reconcile exactly, which they could not visibly do while sitting
+          on two different screens.
+
+          FinanceSurfaces refuses itself for a reader who may not see
+          commission, so the gate is not this line's to get right. */}
+      <FinanceSurfaces role={role} partnerScope={partnerScope} />
 
     </>
   );

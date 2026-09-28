@@ -66,3 +66,12 @@
 .home-tenant { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
 .home-tenant .dt__name { display: block; font-weight: 600; }
 .home-tenant .dt__sub { display: block; font-size: 11.5px; color: var(--ink-mute); }
+
+/* A queue with nothing in it is DONE, and says so where the Open link was. Not
+   a faded link: an empty card that still offers Open asks the reader to check
+   it, which is the work the count was supposed to save them. */
+.home-q__done {
+  position: absolute; top: 15px; right: 14px;
+  font-size: 11.5px; font-weight: 600; color: var(--ink-mute);
+}
+.home-q--empty { cursor: default; }

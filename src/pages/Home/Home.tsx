@@ -19,7 +19,6 @@ import { usePageMeta } from '@/components/layout/pageMeta';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { Icon } from '@/components/ui/Icon';
-import { FinanceSurfaces } from './FinanceSurfaces';
 import './Home.css';
 
 const ROUTE_PILL: Record<Channel, PillVariant> = {
@@ -31,7 +30,7 @@ const ROUTE_PILL: Record<Channel, PillVariant> = {
 const initials = (n: string) => n.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
 export function Home() {
-  usePageMeta('home', 'Home', ['Home']);
+  usePageMeta('home', 'Home', []);
   const { role, dataVersion } = useSession();
   const isOpndoorStaff = role === 'superadmin' || role === 'opndoor_manager';
   const scopeOpts = { role, scope: ALL_PARTNERS as string };
@@ -74,6 +73,11 @@ export function Home() {
   // agency or supplier). They start at Awaiting decision, then Sent -> Paid -> Deed.
   // Each stage links to the applications list pre-filtered to Direct + that stage.
   const direct = countByStatus({ ...scopeOpts, channel: 'Direct' });
+  /* SHOWN ONLY WHERE THE RAIL EXISTS. A panel of four zeros headed "Direct
+     signups" is not information: most days opndoor has no direct tenants at
+     all, and the card was the largest thing on a page whose job is to say what
+     needs doing. */
+  const directTotal = direct.referencing + direct.sent + direct.paid + direct.deed;
   const directStages = [
     { label: 'Awaiting decision', n: direct.referencing, to: '/applications?route=Direct&status=referencing' },
     { label: 'Sent', n: direct.sent, to: '/applications?route=Direct&status=sent' },
@@ -85,25 +89,41 @@ export function Home() {
     <>
       <div className="page-head">
         <div>
-          <div className="page-head__eyebrow">Opndoor</div>
-          <h1 className="page-head__title">Home</h1>
-          <p className="page-head__sub">What needs a person today, across every route.</p>
+          {/* SAID ONCE. The eyebrow read "Opndoor", the title read "Home" and
+              the breadcrumb read "Home" again, so three lines of chrome carried
+              no information between them and the sentence that does was fourth.
+              The sentence IS the title now. */}
+          <h1 className="page-head__title">What needs a person today</h1>
+          <p className="page-head__sub">Across every route. Settlements and the bordereau are on Reporting.</p>
         </div>
       </div>
 
       <div className="home-queues">
-        {tiles.map((t) => (
-          <Link key={t.label} to={t.to} className={`home-q home-q--${t.tone}${t.n > 0 ? '' : ' home-q--empty'}`}>
+        {/* A QUEUE WITH NOTHING IN IT IS DONE, not a link. It rendered as a
+            faded card still offering Open, so the page asked to be worked
+            through four times to find that three of them were empty. An empty
+            one is now a plain div: nothing to click, and it says so. */}
+        {tiles.map((t) => (t.n > 0 ? (
+          <Link key={t.label} to={t.to} className={`home-q home-q--${t.tone}`}>
             <div className="home-q__label">{t.label}</div>
             <div className="home-q__n">{t.n}</div>
             <div className="home-q__meta">{t.meta}</div>
             <span className="home-q__go">Open <Icon name="arrowRight" size={13} /></span>
           </Link>
-        ))}
+        ) : (
+          <div key={t.label} className="home-q home-q--empty">
+            <div className="home-q__label">{t.label}</div>
+            <div className="home-q__n">0</div>
+            <div className="home-q__meta">{t.meta}</div>
+            <span className="home-q__done">Nothing to do</span>
+          </div>
+        )))}
       </div>
 
       {/* DIRECT SIGNUPS — the one route with no agency/supplier home of its own;
-          its stages get a first-class panel here, each deep-linking to the list. */}
+          its stages get a first-class panel here, each deep-linking to the list.
+          Only when there are any: see directTotal. */}
+      {directTotal > 0 && (
       <Card>
         <CardHead
           title="Direct signups"
@@ -121,6 +141,7 @@ export function Home() {
           </div>
         </CardBody>
       </Card>
+      )}
 
       <Card>
         <CardHead
@@ -159,20 +180,11 @@ export function Home() {
         </CardBody>
       </Card>
 
-      {/* Finance lives on the ops Home (Operations stays one home): commission
-          settlement + the underwriter bordereau, for opndoor admin. A partner
-          still sees its own settlement on its own Reporting dashboard.
-
-          THE COMMISSION AUDIT, AND WHY THIS LINE IS UNCHANGED. Nothing above is
-          a commission figure: the queue tiles, the Direct stages and the
-          awaiting-decision table are counts, routes and names, which is what
-          makes this a home rather than a ledger. The settlement below IS one,
-          and `role === 'superadmin'` is already narrower than maySeeCommission
-          allows, so there is no Manager to refuse here: this page only renders
-          for opndoor staff at all, and a Manager is redirected by
-          ManagerLanding. FinanceSurfaces also refuses itself now, so a future
-          caller cannot widen this by one word. */}
-      {role === 'superadmin' && <FinanceSurfaces role={role} partnerScope={ALL_PARTNERS} />}
+      {/* SETTLEMENTS AND THE BORDEREAU HAVE MOVED TO REPORTING. This page is
+          the human work queue: what needs a person today. A settlement total
+          and an underwriter bordereau are neither a queue nor a thing a person
+          does today, and they were the largest thing on the page. They are
+          money, and money is Reporting's subject. See Dashboard. */}
     </>
   );
 }
