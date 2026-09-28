@@ -106,8 +106,8 @@ explicitly "after the push".
 ### Where it stands
 
 Items 1 to 6 are **done** and committed as `3438444`, plus round 2's findings.
-Item 7 is **in progress**: rounds 1 and 2 are complete and fixed, round 3 is
-running.
+Item 7 is **in progress**: rounds 1, 2, 3 and 4 are complete; 1 to 3 are fixed
+and round 4's findings are listed below.
 
 **Done, with proof:**
 
@@ -136,6 +136,39 @@ this branch ships.
 
 ---
 
+### Round 4's instruction, verbatim (2026-09-28)
+
+> Fix all of it, H1 to L5, not just H1 and H2. Rulings: M3, demoting to Manager clears receives_commission_statements, and commission_statement_recipients also requires the recipient may see commission. M4, direct-rail applications never count as the matched agency's business: exclude them from agency digests, cohort CSVs and every other agency-facing surface. M1, no developer role on the house partner by any path, admin_update_user_role included, and the dev_* reads get an agency predicate regardless.
+>
+> Before fixing H1: explain why the suite was green when definer_grants.test.sql and every_browser_rpc_checks_its_reach.test.sql should both have failed against 20261006330000. Make sure every pgTAP and vitest file runs against the final migration state in CI, and prove it by showing both tests failing before the fix.
+>
+> Add a functional guard alongside the security ones: a test for every user-facing action that a security migration touches (invite a new user, re-invite, remove a position, change level, deactivate, reset MFA, send deed, withdraw), run as the role that should be allowed, asserting it succeeds. Lock-downs must not break legitimate work silently again.
+>
+> Then the next fresh reviewer round, as before, until nothing above low. Record all of this in QUEUE.md and carry on.
+
+### Round 4's findings
+
+Two HIGHs, both guards of mine that block legitimate work, and both invisible
+to the suite for reasons that are themselves the finding.
+
+| # | Finding | Status |
+| --- | --- | --- |
+| H1 | `create_invited_user` revoked from `authenticated` by 20261006330000, but invite-user calls it with the caller's JWT. No new user can be invited. | todo |
+| H2 | `user_scopes_delete` calls `may_act_on_user`, which `authenticated` may not execute, so "Remove position" raises permission denied for everyone. | todo |
+| M1 | `admin_update_user_role` can mint a `developer` on the house partner, and the `dev_*` reads are partner-wide with no agency predicate. | todo |
+| M2 | `fire_renewal_notices` joins the referrer with no status filter, so a DEACTIVATED referrer is emailed. | todo |
+| M3 | Demoting a Director to Manager leaves `receives_commission_statements` set, so they keep getting the statement. | todo |
+| M4 | Direct-rail applications appear in the agency expiry-cohort CSV and weekly digest through the auto-matched agency. | todo |
+| L1 | The referrer arm of `applications_update` has no partner pin, so a Negotiator can re-route their own sent application onto a supplier. | todo |
+| L2 | `authenticated` may WRITE `applications.partner_rate`/`agent_rate`, which it may not read. | todo |
+| L3 | expiry-reminders discriminates on `application_is_agent_estate`, true for opndoor-direct, so every direct guarantee raises a false ops incident. | todo |
+| L4 | `app_may_reach_application_org` still ends in a bare `else true`. | todo |
+| L5 | `agency_weekly_climber` has no status filter, so it can name somebody who has left. | todo |
+
+Matt's rulings on the three that were judgement calls are in the verbatim
+instruction above and are not re-stated here.
+
+---
 ## Q-02. Supplier rail notifications
 
 **Status: todo.**
