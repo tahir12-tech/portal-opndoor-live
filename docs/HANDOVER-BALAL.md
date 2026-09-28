@@ -510,7 +510,7 @@ alarming.**
 
 ## 8. Crons
 
-Fifteen jobs after this branch, thirteen of which already exist on production.
+Sixteen jobs after this branch, thirteen of which already exist on production.
 
 ```sql
 select jobname, schedule, active from cron.job order by jobname;
@@ -524,6 +524,7 @@ select jobname, schedule, active from cron.job order by jobname;
 | `renewal-notices-0700` / `-0800` | `0 7,8 * * *` | same |
 | `weekly-digest-0700` / `-0800` | `0 7,8 * * 1` | same, Mondays |
 | **`commission-statements-0700` / `-0800`** | `0 7,8 * * *` | **NEW.** Daily, and the FUNCTION decides whether today is the send day. |
+| **`deed-sweep-hourly`** | `20 * * * *` | **NEW.** Hourly, not a pair: there is no London hour to hit, only how long a paid tenant may wait without a deed. |
 | `hubspot-sync` | `*/2 * * * *` | |
 | `partner-webhooks` | `* * * * *` | |
 | `rate-limit-cleanup` | `7 * * * *` | |
@@ -536,6 +537,59 @@ claims into `payment_reminders` with `on conflict do nothing` and skips when the
 insert finds nothing, so a second run the same day returns no rows and sends no
 email. Asserted in `supabase/tests/pay_link_outlives_a_day.test.sql`. If you find
 yourself about to delete one of a pair, read this paragraph again.
+
+### 8.1 VERIFY THE BASE URL BEFORE YOU TRUST ANY CRON
+
+Four of these jobs end their command with
+
+```sql
+... where public.ops_functions_base_url() is not null;
+```
+
+so if that function returns null the job **runs on schedule, succeeds, and does
+nothing**. `cron.job_run_details` shows "succeeded" every time, because the job's
+work is a `select` that matched no rows. There is no error anywhere to find.
+
+**The four that go silent:**
+
+| job | what stops |
+|---|---|
+| `commission-statements-0700` / `-0800` | the monthly statement emails |
+| `hubspot-sync` | the whole CRM sync |
+| `deed-sweep-hourly` | the safety net that generates a deed for a paid application that never got one |
+
+The other jobs are unaffected because they carry the URL as a literal, which is
+the thing `20260811210000` warns about: a literal survives every later
+correction. That is why these four read it at run time instead, and why it has
+to be right.
+
+**This is a VERIFY step, not a setting.** Production has an
+`ops_secrets.functions_base_url` row already. The failure mode is that it is
+empty or points somewhere else, which is exactly what dev was: empty, with four
+crons quietly idle. Run this after the push, before you believe any cron result:
+
+```sql
+-- Must return the PRODUCTION functions URL, not null and not another project.
+select public.ops_functions_base_url() as base_url;
+
+-- And the row behind it, so you can see whether it is missing or just blank.
+select name, secret is not null and secret <> '' as is_set
+  from public.ops_secrets order by name;
+```
+
+Expected: `https://xogpsaoyprgmxdkmcype.supabase.co`, and `is_set` true for both
+`functions_base_url` and `reminders_cron`.
+
+If it is null or wrong, set it and re-check before moving on:
+
+```sql
+update public.ops_secrets
+   set secret = 'https://xogpsaoyprgmxdkmcype.supabase.co'
+ where name = 'functions_base_url';
+```
+
+Until that query returns the production URL, a green `cron.job_run_details` for
+any of those four jobs means nothing.
 
 **Why the statements cron is daily and not monthly:** the send day is the 1st, or
 the next day that is not a UK bank holiday. That cannot be written as a cron
