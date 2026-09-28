@@ -18,7 +18,7 @@
    working copy live mode fills, so deliveryStateOf and countByStatus are doing
    the deciding exactly as they do in the app. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -111,6 +111,10 @@ describe('the columns and filters a one-agency viewer gets', () => {
     expect(headers(view)).not.toContain('Route');
     expect(headers(view)).not.toContain('Branch');
     expect(headers(view)).not.toContain('Agency');
+    // Origin is Route and Partner merged, so it collapses where they did: one
+    // rail and one agency is one origin on every row.
+    expect(headers(view)).not.toContain('Origin');
+    expect(chips(view)).not.toContain('Origin:');
     // What is left still has to be a list of applications. The date column is
     // headed "Last activity": the cell is the row's most recent event rather than
     // the date it was created, and the old "Date" said neither.
@@ -130,12 +134,144 @@ describe('the columns and filters a one-agency viewer gets', () => {
     expect(sub).not.toMatch(/agency or branch/i);
   });
 
-  it('leaves an opndoor admin across every partner exactly as it was', async () => {
+  /* AND AN ADMIN GETS ORIGIN, WHICH IS ONE COLUMN WHERE THERE WERE TWO.
+     Route said which rail and never whose; Partner said which partner record,
+     and on the agency rail that record is house plumbing. Neither answered
+     "where did this come from", so they are one column now and one filter. */
+  it('gives an opndoor admin one Origin column in place of Route and Partner', async () => {
     const view = await openList('superadmin');
-    expect(headers(view)).toEqual(expect.arrayContaining(['Tenant', 'Route', 'Partner', 'Property', 'Branch', 'Status']));
-    expect(chips(view)).toEqual(expect.arrayContaining(['Agency:', 'Branch:', 'Route:', 'Referrer:']));
+    expect(headers(view)).toEqual(expect.arrayContaining(['Tenant', 'Origin', 'Property', 'Branch', 'Status']));
+    expect(headers(view)).not.toContain('Route');
+    expect(headers(view)).not.toContain('Partner');
+    // One filter, not two. The Agency chip goes with them: the Origin selector
+    // lists every agency and group in the book, and two chips both offering
+    // agencies is the same word twice.
+    expect(chips(view)).toEqual(expect.arrayContaining(['Origin:', 'Branch:', 'Referrer:']));
+    expect(chips(view)).not.toContain('Route:');
+    expect(chips(view)).not.toContain('Partner:');
+    expect(chips(view)).not.toContain('Agency:');
     expect(view.container.querySelector('.page-head__sub')!.textContent)
-      .toMatch(/Filter by status, agency or branch, or search by tenant\./);
+      .toMatch(/Filter by status, origin or branch, or search by tenant\./);
+  });
+
+  /* THE CELL NAMES THE PARTY, not the rail and not the plumbing. Every row in
+     this book is an agency row carried by the seed's agency-rail partner. */
+  it('names the agency in the Origin cell, with the kind under it', async () => {
+    seedDeliveryBook();
+    const view = await openList('superadmin');
+    const cell = rowFor(view, FINE)!.querySelectorAll('td')[1];
+    expect(cell.querySelector('.dt__name')!.textContent).toBe('Foxglove Residential');
+    expect(cell.querySelector('.dt__sub')!.textContent).toBe('Agency');
+    expect(cell.textContent).not.toMatch(/Opndoor/);
+  });
+
+  /* AND THE BRANCH CELL STOPS REPEATING IT. The agency used to sit under the
+     branch; with the origin naming the same agency two columns along, that is
+     the repetition this page takes whole columns off to avoid. */
+  it('drops the agency line under the branch when the origin has just said it', async () => {
+    seedDeliveryBook();
+    const view = await openList('superadmin');
+    const orgCell = rowFor(view, FINE)!.querySelectorAll('td')[3];
+    expect(orgCell.textContent).toContain('Chelsea');
+    expect(orgCell.querySelector('.dt__sub')).toBeNull();
+  });
+});
+
+/* ONE FILTER OVER FOUR KINDS OF PARTY, and the two links that predate it.
+
+   The book here is deliberately mixed, because the whole point of the column is
+   that a list can hold rows from an agency, a supplier and a tenant who came to
+   us directly, and the old pair of columns could not name all three. */
+const A_FOX = 'GR-AG01';
+const A_MARY = 'GR-AG02';
+const A_SUPP = 'GR-SU01';
+const A_DIRECT = 'GR-DI01';
+
+function seedMixedBook(): void {
+  hydrateApplications([
+    row({ ref: A_FOX, tenant: 'Ada Lovelace' }),
+    row({ ref: A_MARY, tenant: 'Grace Hopper', agency: 'Marylebone & Co', branch: 'Marylebone' }),
+    row({ ref: A_SUPP, tenant: 'Alan Turing', partner: 'harbourside', agency: 'Cityscape Lettings', branch: 'City' }),
+    // The direct rail hangs off a placeholder agency in the database, which is
+    // exactly the kind of internal name that must never reach a screen.
+    row({ ref: A_DIRECT, tenant: 'Katherine Johnson', partner: 'opndoor-direct', agency: 'Unattached', branch: 'Unattached' }),
+  ], []);
+}
+
+/* Read off the tenant cell's own sub-line rather than out of the row's text: the
+   Origin column sits right after it and textContent runs the two together. */
+const refs = (v: View) => [...v.container.querySelectorAll('table.dt tbody tr')]
+  .map((tr) => tr.querySelector('.who .dt__sub')?.textContent ?? '').filter(Boolean);
+const originSelect = (v: View) => [...v.container.querySelectorAll<HTMLSelectElement>('.fchip select')]
+  .find((s) => s.getAttribute('aria-label') === 'Origin:')!;
+
+describe('the Origin filter', () => {
+  it('names all four kinds of party in the one column', async () => {
+    seedMixedBook();
+    const view = await openList('superadmin');
+    const cellFor = (ref: string) => rowFor(view, ref)!.querySelectorAll('td')[1];
+    expect(cellFor(A_FOX).querySelector('.dt__name')!.textContent).toBe('Foxglove Residential');
+    expect(cellFor(A_SUPP).querySelector('.dt__name')!.textContent).toBe('Harbourside Homes');
+    expect(cellFor(A_SUPP).querySelector('.dt__sub')!.textContent).toBe('Supplier');
+    expect(cellFor(A_DIRECT).querySelector('.dt__name')!.textContent).toBe('Direct');
+    // Never the placeholder the direct rail hangs off, and never the house
+    // partner that carries it.
+    expect(cellFor(A_DIRECT).textContent).not.toMatch(/Unattached|Opndoor/);
+  });
+
+  it('offers each party in the book once, and nothing the book has no rows from', async () => {
+    seedMixedBook();
+    const view = await openList('superadmin');
+    const labels = [...originSelect(view).querySelectorAll('option')].map((o) => o.textContent);
+    expect(labels).toContain('Everything');
+    expect(labels).toContain('Direct');
+    expect(labels).toContain('Harbourside Homes');
+    expect(labels).toContain('Foxglove Residential');
+    expect(labels).toContain('Marylebone & Co');
+    // Meridian is a supplier in the seed directory with no row in THIS book, and
+    // a choice that selects nothing is a thing to read past.
+    expect(labels).not.toContain('Meridian Lettings');
+    // The agency rail's partner record is not a supplier, wherever it is listed.
+    expect(labels).not.toContain('Northwind Property');
+  });
+
+  it('narrows the list to the party chosen', async () => {
+    seedMixedBook();
+    const view = await openList('superadmin');
+    expect(refs(view)).toHaveLength(4);
+    fireEvent.change(originSelect(view), { target: { value: 'agency:Marylebone & Co' } });
+    expect(refs(view)).toEqual([A_MARY]);
+    fireEvent.change(originSelect(view), { target: { value: 'partner:harbourside' } });
+    expect(refs(view)).toEqual([A_SUPP]);
+    fireEvent.change(originSelect(view), { target: { value: 'direct' } });
+    expect(refs(view)).toEqual([A_DIRECT]);
+    fireEvent.change(originSelect(view), { target: { value: '' } });
+    expect(refs(view)).toHaveLength(4);
+  });
+
+  /* THE LINKS THAT PREDATE THE CONTROL still have to land. Home's Direct tiles
+     link with ?route= and a supplier's own page with ?partner=; both are
+     translated rather than dropped, or the buttons that send people here would
+     quietly start showing the whole book. */
+  it('lands a ?route=Direct link on the Direct rows', async () => {
+    seedMixedBook();
+    const view = await openList('superadmin', '/applications?route=Direct');
+    expect(refs(view)).toEqual([A_DIRECT]);
+    expect(originSelect(view).value).toBe('direct');
+  });
+
+  it('lands a supplier page\'s ?partner= link on that supplier\'s rows', async () => {
+    seedMixedBook();
+    const view = await openList('superadmin', '/applications?partner=harbourside');
+    expect(refs(view)).toEqual([A_SUPP]);
+    expect(originSelect(view).value).toBe('partner:harbourside');
+  });
+
+  it('opens the whole book on a stale ?partner=, rather than an empty list', async () => {
+    seedMixedBook();
+    const view = await openList('superadmin', '/applications?partner=no-such-partner');
+    expect(refs(view)).toHaveLength(4);
+    expect(originSelect(view).value).toBe('');
   });
 });
 

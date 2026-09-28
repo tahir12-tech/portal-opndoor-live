@@ -157,6 +157,11 @@ export interface AppFilterOpts extends AppScopeOpts {
       agent contact, #84). */
   status?: Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' | 'cannot-deliver' | 'withdrawn' | 'expired' | 'invited' | 'fee-unpaid';
   agency?: string;
+  /** Several agencies at once, by name. The origin selector's only selection
+      with no single-value equivalent is a GROUP, which is its agencies; every
+      other selection reaches the filters that already existed. Empty means no
+      agency matches, not every agency (see originToFilter). */
+  agencies?: string[];
   branch?: string;
   /** #owner Referrer display-name filter (management + opndoor admin only). */
   referrer?: string;
@@ -200,6 +205,7 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
   set = set.filter((r) => {
     if (opts.branch && r.branch !== opts.branch) return false;
     if (opts.agency && r.agency !== opts.agency) return false;
+    if (opts.agencies && !opts.agencies.includes(r.agency)) return false;
     if (opts.referrer && r.referrer !== opts.referrer) return false;
     if (opts.channel && channelOfRow(r) !== opts.channel) return false;
     return inPeriod(r, opts.periodRange);
@@ -296,6 +302,7 @@ export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
     else if (opts.status && opts.status !== 'all' && r.status !== opts.status) return false;
     if (opts.branch && r.branch !== opts.branch) return false;
     if (opts.agency && r.agency !== opts.agency) return false;
+    if (opts.agencies && !opts.agencies.includes(r.agency)) return false;
     // #owner Referrer filter (management + opndoor admin) and period (sent-date).
     if (opts.referrer && r.referrer !== opts.referrer) return false;
     if (opts.channel && channelOfRow(r) !== opts.channel) return false;

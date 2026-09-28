@@ -1,22 +1,29 @@
 /* =====================================================================
    Applications — every referral, filterable and searchable. Status tabs,
-   search, agency/branch filters, a partner column + filter (opndoor admin),
-   the drill-through banner when arriving from Agencies & branches, and row
-   click through to the detail view. Partner isolation + the referrer
-   "own referrals only" rule live in applicationsService.
+   search, an Origin column + filter (opndoor admin), branch filter, the
+   drill-through banner when arriving from Agencies & branches, and row click
+   through to the detail view. Partner isolation + the referrer "own referrals
+   only" rule live in applicationsService.
 
    THE COLUMNS ARE NOT FIXED. A viewer inside one agency has one agency, one
    branch and one route, so those columns and their filters repeat the same
    word down every row; viewerShape measures the book and they come off. And
    delivery is shown here, as a badge on the status cell and as its own chips:
    "Deed Issued" reads identically whether or not the deed ever arrived.
+
+   ONE QUESTION, ONE COLUMN. Route and Partner used to sit side by side, and
+   between them they never answered "where did this come from": the pill said
+   which rail and the name said which partner record, which on the agency rail
+   is house plumbing nobody has heard of. They are one Origin column now, and
+   one Origin filter, over the four kinds of party in origin.ts.
    ===================================================================== */
 import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications, getPartners,
-  getPartner, partnerName, referrerNamesForScope, getPeriods, periodRange, ALL_PARTNERS, type Status, type Period,
+  agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications,
+  referrerNamesForScope, getPeriods, periodRange, ALL_PARTNERS, type Status, type Period,
   collateTenancies, groupTenancies, pageWithoutSplitting, scopedSummaries, tenancyDeedTally, tenancyPaidTally,
+  originOf, originOptions, originLabel, originToFilter, originFromParams, ORIGIN_KIND_LABEL,
 } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -25,18 +32,8 @@ import { Icon } from '@/components/ui/Icon';
 import { Card } from '@/components/ui/Card';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
-import { channelOf, ROUTE_LABEL, CHANNELS, type Channel } from '@/data/channel';
 import { deliveryBadge, deliveryStateOf } from '@/data/deliveryState';
 import { viewerShape } from '@/data/viewerShape';
-
-/** The pill variant per route, reusing the portal's status palette so the four
-    routes read distinctly and on-brand. */
-const ROUTE_PILL: Record<Channel, PillVariant> = {
-  'Direct': 'muted',
-  'Agent referral': 'paid',
-  'Partner referral': 'sent',
-  'Provider hand-over': 'warn',
-};
 import { FilterTabs } from '@/components/ui/FilterTabs';
 import { RoleOnly } from '@/components/ui/RoleOnly';
 import { RoleNote } from '@/components/ui/RoleNote';
@@ -55,6 +52,10 @@ type ListFilter = Status | 'all' | 'refunded' | 'awaiting' | 'delivery-failed' |
    somebody to filter by agency or branch beside a toolbar holding neither is
    the estate showing through again. */
 const SUB_ESTATE = 'Every referral from sent through to deed issued. Filter by status, agency or branch, or search by tenant.';
+/* The Origin selector lists the agencies itself, so where it is shown the
+   Agency chip is not, and the sub has to name the control that is actually
+   there rather than the one it replaced. */
+const SUB_ORIGIN = 'Every referral from sent through to deed issued. Filter by status, origin or branch, or search by tenant.';
 const SUB_ONE_AGENCY = 'Every referral from sent through to deed issued. Filter by status or referrer, or search by tenant.';
 const SUB_OWN_ONLY = 'Every referral from sent through to deed issued. Filter by status, or search by tenant.';
 
@@ -113,66 +114,79 @@ export function Applications() {
   });
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('Newest first');
-  // Partner sub-filter (opndoor admin). Seeded from ?partner= so a supplier's page
-  // can deep-link to its own applications; validated against the real partner list
-  // (unknown/stale slugs fall back to no filter rather than an empty, mislabelled
-  // list). A non-superadmin is already confined to their own partner by scope.
-  const [partner, setPartner] = useState(() => {
-    const p = params.get('partner');
-    return p && getPartners().some((x) => x.id === p) ? p : '';
-  });
+  /* ORIGIN: which party this came from (opndoor admin, or anyone whose book runs
+     across more than one rail). One control in place of the old Route and
+     Partner filters.
+
+     Seeded from ?origin=, and from the two deep-links that predate it: ?partner=
+     from a supplier's own page and ?route= from Home's Direct tiles. Both are
+     translated by originFromParams rather than dropped, and both are validated
+     there, so an unknown or stale id opens the whole book rather than an empty
+     list labelled with a party that does not exist. */
+  const [origin, setOrigin] = useState(() => originFromParams({
+    origin: params.get('origin'),
+    partner: params.get('partner'),
+    route: params.get('route'),
+  }));
   const [agency, setAgency] = useState(() => params.get('agency') || (params.get('branch') ? agencyOfBranch(params.get('branch')!) : ''));
   const [branch, setBranch] = useState(() => params.get('branch') || '');
   // #owner Referrer filter (management + opndoor admin only). Referrers only ever
   // see their own applications, so the filter is never offered to them and a
   // ?referrer= they craft is ignored (scopedSet already restricts them to owner rows).
   const [referrer, setReferrer] = useState(() => (role !== 'referrer' ? params.get('referrer') || '' : ''));
-  // Route filter (Direct / Agency / Supplier / Provider), for every role — the one
-  // list, filterable by how each application arrived. Empty = all routes. Seeded
-  // from ?route= (validated against the four channels) so Home's Direct tile and
-  // other deep-links can open the list pre-filtered by route.
-  const [route, setRoute] = useState<Channel | ''>(() => {
-    const r = params.get('route');
-    return (CHANNELS as readonly string[]).includes(r ?? '') ? (r as Channel) : '';
-  });
   // #owner Period filter — the dashboard's options, bucketed on sent date. Defaults
   // to All time so the page's default view (every application) is unchanged.
   const periods = getPeriods();
   const [period, setPeriod] = useState<Period>(() => periods.find((p) => p.id === 'alltime') || periods[periods.length - 1]);
   const range = useMemo(() => periodRange(period), [period]);
 
-  // Reset partner/agency/branch/referrer when the role changes (partner isolation), skipping first run.
+  // Reset origin/agency/branch/referrer when the role changes (partner isolation), skipping first run.
   const firstRole = useRef(true);
   useEffect(() => {
     if (firstRole.current) {
       firstRole.current = false;
       return;
     }
-    setPartner('');
+    setOrigin('');
     setAgency('');
     setBranch('');
     setReferrer('');
-    setRoute('');
   }, [role]);
-
-  // const scopeOpts = { role, scope: partnerScope, partner: partner || undefined };
 
   // opndoor staff (superadmin + opndoor_manager) read the whole book across every
   // partner — RLS permits it and Home counts the same way — so both see all
   // partners here. Everyone else is confined to their own partner scope.
   const isOpsStaff = role === 'superadmin' || role === 'opndoor_manager';
   const effectiveScope = isOpsStaff ? ALL_PARTNERS : partnerScope;
-  const scopeOpts = { role, scope: effectiveScope, partner: partner || undefined };
+  /* THE ORIGIN SELECTION, AS THE QUERY ALREADY UNDERSTANDS IT. A supplier is the
+     partner filter, Direct is the channel filter, an agency or a group is a list
+     of agency names. One selector, no second filtering rule to drift from the
+     first. */
+  const originQuery = useMemo(
+    () => originToFilter(origin, effectiveScope),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [origin, effectiveScope, dataVersion],
+  );
+  const scopeOpts = { role, scope: effectiveScope, partner: originQuery.partner };
+  const filterOpts = {
+    ...scopeOpts,
+    agency: agency || undefined,
+    agencies: originQuery.agencies,
+    branch: branch || undefined,
+    referrer: referrer || undefined,
+    channel: originQuery.channel,
+    periodRange: range,
+  };
   // #owner Chips recount within the selected period and the current filter state.
-  const counts = countByStatus({ ...scopeOpts, agency: agency || undefined, branch: branch || undefined, referrer: referrer || undefined, channel: route || undefined, periodRange: range });
+  const counts = countByStatus(filterOpts);
   // #13: the "Showing X of Y" denominator must match the active status tab.
   // Withdrawn/Expired are terminal and excluded from counts.all, so on those tabs
   // Y must be the tab's own count, not the operational total.
   const total = (counts as Record<string, number>)[status] ?? counts.all;
   const visibleRows = useMemo(
-    () => getApplications({ ...scopeOpts, status, agency: agency || undefined, branch: branch || undefined, referrer: referrer || undefined, channel: route || undefined, q, sort, periodRange: range }),
+    () => getApplications({ ...filterOpts, status, q, sort }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [role, partnerScope, partner, status, agency, branch, referrer, route, q, sort, period],
+    [role, partnerScope, origin, status, agency, branch, referrer, q, sort, period],
   );
 
   // Pagination. Reset to the first page whenever the filtered set changes, and
@@ -180,7 +194,7 @@ export function Applications() {
   const [page, setPage] = useState(1);
   useEffect(() => {
     setPage(1);
-  }, [role, partnerScope, partner, status, agency, branch, referrer, route, q, sort, period]);
+  }, [role, partnerScope, origin, status, agency, branch, referrer, q, sort, period]);
   /* A JOINT TENANCY IS ONE THING, so it is ordered as one thing and never split
      across a page boundary. The tenancy takes the position of its first member
      under whatever sort is active, its members follow in entry order, and a page
@@ -194,7 +208,7 @@ export function Applications() {
   const tenancies = useMemo(
     () => groupTenancies(scopedSummaries(scopeOpts)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [role, partnerScope, partner, dataVersion],
+    [role, partnerScope, origin, dataVersion],
   );
   const collated = useMemo(() => collateTenancies(visibleRows, tenancies), [visibleRows, tenancies]);
   const pages = useMemo(() => pageWithoutSplitting(collated, tenancies, PAGE_SIZE), [collated, tenancies]);
@@ -206,11 +220,25 @@ export function Applications() {
   const shownFrom = pages.slice(0, safePage - 1).reduce((n, p) => n + p.length, 0) + 1;
   const pageRange: [number, number] = [shownFrom, shownFrom + pagedRows.length - 1];
 
+  /* THE BOOK THE ORIGIN SELECTOR IS BUILT FROM, which is deliberately the book
+     BEFORE the origin filter. Building the options from the filtered set would
+     leave the selector holding only what is already selected, with no way back
+     to anything else. */
+  const originBook = useMemo(
+    () => scopedSummaries({ role, scope: effectiveScope }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [role, effectiveScope, dataVersion],
+  );
+  const originOpts = useMemo(() => originOptions(originBook, origin), [originBook, origin]);
+  /* The branch list follows whichever agency has been picked, by the drill-through
+     or by the origin selector. Without the second, choosing one agency as the
+     origin left the Branch chip offering every branch in the book. */
+  const originAgency = originQuery.agencies?.length === 1 ? originQuery.agencies[0] : undefined;
   const agencyOptions = agencyNamesForScope(scopeOpts);
-  const branchOptions = branchNamesForScope(scopeOpts, agency || undefined);
+  const branchOptions = branchNamesForScope(scopeOpts, agency || originAgency);
   const referrerOptions = referrerNamesForScope(scopeOpts);
   // opndoor staff (superadmin + opndoor_manager) view every partner's book, so
-  // both get the Partner column and the Partner filter chip to sub-filter by one.
+  // both get the Origin column and the Origin filter to sub-filter by one party.
   const showPartner = isOpsStaff;
   const showReferrer = role !== 'referrer';
 
@@ -240,13 +268,23 @@ export function Applications() {
   /* Branch and agency share one column (the branch, its agency underneath), so
      the column survives while either half still varies. */
   const showOrgCol = showBranch || showAgency;
+  /* ORIGIN IS SHOWN WHERE EITHER OF THE TWO COLUMNS IT REPLACES WAS: opndoor
+     staff, who read across every partner, and anybody else whose book runs
+     across more than one rail. An agency user has one of each and gets neither,
+     exactly as before. */
+  const showOrigin = showPartner || showRoute;
+  /* AND IT SUBSUMES THE AGENCY CHIP where it is shown, because it lists every
+     agency and group in the book itself. Two chips both offering agencies is the
+     same word twice, which is what this page takes columns off for. The Branch
+     chip stays: it is the drill INTO the party the origin names. */
+  const showAgencyChip = showAgency && !showOrigin;
 
-  /* A control that is not on screen must not still be filtering. A ?route=
-     deep-link into a one-route book would otherwise leave the list filtered to
-     a route nothing matches, with nothing on screen to clear it. */
+  /* A control that is not on screen must not still be filtering. A ?route= or
+     ?partner= deep-link into a one-rail book would otherwise leave the list
+     filtered to a party nothing matches, with nothing on screen to clear it. */
   useEffect(() => {
-    if (!showRoute && route) setRoute('');
-  }, [showRoute, route]);
+    if (!showOrigin && origin) setOrigin('');
+  }, [showOrigin, origin]);
 
   const tabs = [
     { id: 'all', label: 'All', count: counts.all },
@@ -321,7 +359,7 @@ export function Applications() {
         <div>
           <Eyebrow>Tracking</Eyebrow>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>Applications</h1>
-          <p className="page-head__sub">{showAgency ? SUB_ESTATE : showReferrer ? SUB_ONE_AGENCY : SUB_OWN_ONLY}</p>
+          <p className="page-head__sub">{showOrigin ? SUB_ORIGIN : showAgency ? SUB_ESTATE : showReferrer ? SUB_ONE_AGENCY : SUB_OWN_ONLY}</p>
         </div>
         {/* Management too: the route guard on /new-application admits them and
             the sidebar has always offered it, so withholding the button here
@@ -365,28 +403,36 @@ export function Applications() {
             onChange={(e) => setPeriod(periods.find((p) => p.id === e.target.value) || period)}>
             {periods.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
           </FilterChip>
-          {showPartner && (
-           <FilterChip
-                icon={<Icon name="shield" />}
-                label="Partner:"
-                display={!partner || partner === ALL_PARTNERS ? 'All' : partnerName(partner)}
-                value={partner}
-                onChange={(e) => {
-                  setPartner(e.target.value);
-                  setAgency('');
-                  setBranch('');
-                  setReferrer('');
-                }}
-              >
-                <option value="">All</option>
-                {getPartners().map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </FilterChip>
+          {showOrigin && (
+            <FilterChip
+              icon={<Icon name="shield" />}
+              label="Origin:"
+              display={originLabel(origin, originBook)}
+              value={origin}
+              onChange={(e) => {
+                setOrigin(e.target.value);
+                /* The branch and the referrer belong to whoever was selected
+                   before, so they go with the selection rather than sitting
+                   there narrowing a different party to nothing. The agency
+                   filter is the drill-through banner's, and has its own Clear. */
+                setBranch('');
+                setReferrer('');
+              }}
+            >
+              {originOpts.filter((o) => !o.group).map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+              {['Suppliers', 'Agencies', 'Selected'].map((g) => {
+                const items = originOpts.filter((o) => o.group === g);
+                return items.length ? (
+                  <optgroup key={g} label={g}>
+                    {items.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </optgroup>
+                ) : null;
+              })}
+            </FilterChip>
           )}
-          {showAgency && (
+          {showAgencyChip && (
             <FilterChip icon={<Icon name="building" />} label="Agency:" display={agency || 'All'} value={agency}
               onChange={(e) => { setAgency(e.target.value); setBranch(''); }}>
               <option value="">All</option>
@@ -407,13 +453,6 @@ export function Applications() {
               {referrerOptions.map((n) => <option key={n} value={n}>{n}</option>)}
             </FilterChip>
           )}
-          {showRoute && (
-            <FilterChip icon={<Icon name="filter" />} label="Route:" display={route ? ROUTE_LABEL[route] : 'All'} value={route}
-              onChange={(e) => setRoute(e.target.value as Channel | '')}>
-              <option value="">All</option>
-              {CHANNELS.map((c) => <option key={c} value={c}>{ROUTE_LABEL[c]}</option>)}
-            </FilterChip>
-          )}
           <FilterChip icon={<Icon name="chevronDown" />} label="Sort:" display={sort} value={sort}
             onChange={(e) => setSort(e.target.value)}>
             <option>Newest first</option>
@@ -430,8 +469,7 @@ export function Applications() {
             <thead>
               <tr>
                 <th>Tenant</th>
-                {showRoute && <th>Route</th>}
-                {showPartner && <th>Partner</th>}
+                {showOrigin && <th>Origin</th>}
                 <th>Property</th>
                 {showOrgCol && <th>{showBranch ? 'Branch' : 'Agency'}</th>}
                 <th style={{ textAlign: 'right' }}>Monthly rent</th>
@@ -448,7 +486,10 @@ export function Applications() {
             </thead>
             <tbody>
               {pagedRows.map((r, i) => {
-                const ch = channelOf({ partnerSlug: r.partner, partnerMode: getPartner(r.partner)?.referencingMode });
+                // Where it came from, named as the reader knows the party. Read
+                // by the Origin cell and by the branch cell below it, which
+                // drops its agency line when the origin has already said it.
+                const o = originOf(r);
                 /* THE TENANCY, when this row is part of one. The heading is drawn
                    once, above the first member, and every member row then reads
                    as part of it rather than as its own let. */
@@ -461,7 +502,7 @@ export function Applications() {
                    drawn; the other three come and go with the viewer's shape.
                    Keep this in step with the header row above, or the tenancy
                    heading runs short of the table it sits in. */
-                const cols = 6 + (showRoute ? 1 : 0) + (showPartner ? 1 : 0) + (showOrgCol ? 1 : 0);
+                const cols = 6 + (showOrigin ? 1 : 0) + (showOrgCol ? 1 : 0);
                 /* DID THIS TENANT'S DEED GET THERE? deliveryBadge owns both the
                    wording and who is shown which state; the state itself is read
                    again only to pick the tone, which is not its business. */
@@ -526,8 +567,17 @@ export function Applications() {
                         </div>
                       </div>
                     </td>
-                    {showRoute && <td><Pill variant={ROUTE_PILL[ch]}>{ROUTE_LABEL[ch]}</Pill></td>}
-                    {showPartner && <td>{partnerName(r.partner)}</td>}
+                    {/* THE PARTY, then what kind of party it is. The name on its
+                        own is not enough — "Regent's Lettings" and "Homeppl"
+                        are both just names until something says which rail each
+                        is on — and the kind on its own is the Route pill this
+                        replaced, which never said whose. */}
+                    {showOrigin && (
+                      <td>
+                        <div className="dt__name">{o.name}</div>
+                        <div className="dt__sub">{ORIGIN_KIND_LABEL[o.kind]}</div>
+                      </td>
+                    )}
                     {/* THE PROPERTY BELONGS TO THE HEADING when this row is in
                         a tenancy. It is stated once above the group, and
                         repeating it down the siblings is exactly what made two
@@ -536,7 +586,11 @@ export function Applications() {
                     {showOrgCol && (
                       <td>
                         {showBranch ? r.branch : r.agency}
-                        {showBranch && showAgency && <div className="dt__sub">{r.agency}</div>}
+                        {/* Not when the Origin column has just said it. On the
+                            agency rail the origin IS the agency, and printing it
+                            again under the branch is the repetition this page
+                            takes whole columns off to avoid. */}
+                        {showBranch && showAgency && r.agency !== o.name && <div className="dt__sub">{r.agency}</div>}
                       </td>
                     )}
                     {/* The rent is the PROPERTY's and is the same on every sibling,
