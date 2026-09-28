@@ -135,7 +135,19 @@ export async function enrolTotp(): Promise<EnrolResult> {
     }
   } catch { /* best effort */ }
   const friendlyName = `opndoor ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  const res = await sb().auth.mfa.enroll({ factorType: 'totp', friendlyName });
+  /* ISSUER, so the entry in the authenticator app says who it is for.
+
+     Without it GoTrue labels the entry with the project reference, so a person
+     who holds accounts on more than one opndoor environment, or who has any
+     other Supabase-backed app, sees a list of indistinguishable six-digit codes
+     labelled with opaque strings. The account half of the label is the user's
+     own email, which GoTrue takes from the session, so the entry reads
+     "opndoor (rosa@regents.co.uk)".
+
+     friendlyName stays unique and separate: it is our own handle for the factor
+     row and is what stops the duplicate-name collision that used to strand
+     invitees. It is not what the phone displays. */
+  const res = await sb().auth.mfa.enroll({ factorType: 'totp', friendlyName, issuer: 'opndoor' });
   if (res.error || !res.data) {
     const detail = res.error?.message ?? '';
     // #92/#73 Never surface a raw server-ism. A session/token error means the
@@ -146,6 +158,30 @@ export async function enrolTotp(): Promise<EnrolResult> {
     return { ok: false, error: detail ? `We could not start two-factor setup: ${detail}` : 'We could not start two-factor setup. Please try again, or ask your administrator to reset your 2FA.' };
   }
   return { ok: true, factorId: res.data.id, qr: res.data.totp.qr_code, secret: res.data.totp.secret, uri: res.data.totp.uri };
+}
+
+/* WHAT THE PHONE WILL DISPLAY, read back off the otpauth URI.
+
+   An otpauth URI is otpauth://totp/LABEL?secret=...&issuer=ISSUER, where LABEL
+   is either "account" or "issuer:account". Both halves matter and they are
+   carried twice, in the path and in the query, so a URI can disagree with
+   itself; the query parameter is the authoritative issuer per the Key Uri
+   Format, and the path is what older apps read.
+
+   Exported so the labelling can be ASSERTED rather than eyeballed on a phone,
+   which is the only reason it exists as a function. */
+export function otpauthParts(uri: string): { issuer: string; account: string } {
+  try {
+    const u = new URL(uri);
+    // The pathname is '/' + the label, percent-encoded.
+    const label = decodeURIComponent(u.pathname.replace(/^\/+/, ''));
+    const colon = label.indexOf(':');
+    const pathIssuer = colon > -1 ? label.slice(0, colon) : '';
+    const account = colon > -1 ? label.slice(colon + 1) : label;
+    return { issuer: u.searchParams.get('issuer') || pathIssuer, account: account.trim() };
+  } catch {
+    return { issuer: '', account: '' };
+  }
 }
 
 /** Verify a 6-digit code against a factor (enrolment or step-up). Reaches AAL2.

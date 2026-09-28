@@ -464,6 +464,9 @@ export function deedToSignEmail(p: {
 export function executedDeedAgentEmail(p: {
   guaranteeRef: string; tenantName: string; propertyAddr: string;
   tenancyStartLabel?: string | null; portalUrl?: string;
+  /** On a joint tenancy: this deed's place, the number of tenants, and the
+      others by name. Absent on a tenancy of one, where the email is unchanged. */
+  joint?: { position: number; count: number; coTenants: string } | null;
 }): Message {
   // Tenancy start + the 12-month period first, so "the guarantor for the term
   // above" in the small print has a term above it to point at.
@@ -478,11 +481,34 @@ export function executedDeedAgentEmail(p: {
   const portalLine = p.portalUrl
     ? ` You can also view it any time in <a href="${p.portalUrl}">the portal</a>.`
     : "";
+
+  /* SAY THAT ANOTHER DEED IS COMING, on a joint tenancy.
+
+     Each tenant signs their own deed for their own share, generated when THAT
+     tenant pays, so the agent receives two emails days apart for one tenancy.
+     Without this line the first one reads as the whole thing and the second
+     reads as a duplicate, and an agent who files the first and ignores the
+     second ends up believing a tenancy is fully guaranteed when half of it is.
+
+     The row names it, and the sentence says what to expect. Both are omitted
+     entirely on a tenancy of one, so that email is unchanged. */
+  if (p.joint && p.joint.count > 1) {
+    rows.push(["This deed", `Joint tenancy, deed ${p.joint.position} of ${p.joint.count}`]);
+    if (p.joint.coTenants) rows.push(["Also on this tenancy", p.joint.coTenants]);
+  }
+  const jointLine = p.joint && p.joint.count > 1
+    ? (p.joint.position < p.joint.count
+      ? ` This is a joint tenancy: each tenant signs their own deed for their own share, so ${p.joint.count - 1 === 1 ? "one more deed follows" : `${p.joint.count - p.joint.position} more deeds follow`} once ${p.joint.count - 1 === 1 ? "the other tenant has" : "the other tenants have"} paid.`
+      : " This is the last of this tenancy's deeds: every tenant has now signed their own.")
+    : "";
+
   return {
-    subject: `Signed Deed of Guarantee for ${p.guaranteeRef}`,
+    subject: p.joint && p.joint.count > 1
+      ? `Signed Deed of Guarantee for ${p.guaranteeRef} (${p.joint.position} of ${p.joint.count})`
+      : `Signed Deed of Guarantee for ${p.guaranteeRef}`,
     heading: "The Deed of Guarantee has been signed",
     blocks: [
-      { p: `Your signed copy is attached. Keep it with the tenancy paperwork, it is the reference for any claim under the guarantee.${portalLine}` },
+      { p: `Your signed copy is attached. Keep it with the tenancy paperwork, it is the reference for any claim under the guarantee.${portalLine}${jointLine}` },
       { rows },
       { p: "We will email you a month before the guarantee ends." },
       { small: "opndoor remains the guarantor for the term above. You remain the claim contact." },

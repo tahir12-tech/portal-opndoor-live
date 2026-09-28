@@ -31,7 +31,7 @@
    approved wording stands, and the supplier rail does not move at all. */
 import { describe, expect, it } from 'vitest';
 import {
-  feeBasisPhrase, feeBasisWeeksOf, paymentLinkEmail,
+  executedDeedAgentEmail, feeBasisPhrase, feeBasisWeeksOf, paymentLinkEmail,
 } from '../../supabase/functions/_shared/emailTemplates';
 
 /** GR-20837 as it actually is on dev: rent £1,000, fee £692.31, sole tenant. */
@@ -352,5 +352,63 @@ describe('a sole tenant is untouched by any of it', () => {
     expect(textOf(one)).toContain('pay the guarantee fee of £692.31 (3 weeks of rent).');
     expect(textOf(one)).toContain('Guarantee fee: £692.31');
     expect(textOf(one)).not.toContain('split between');
+  });
+});
+
+/* THE AGENT IS TOLD ANOTHER DEED IS COMING.
+
+   Each tenant of a joint tenancy signs their own deed for their own share,
+   generated when THAT tenant pays, so the agent receives two executed-deed
+   emails days apart for one tenancy. Both said the same thing. The first read as
+   the whole tenancy and the second read as a duplicate, and an agent who files
+   the first and ignores the second believes a tenancy is fully guaranteed when
+   half of it is. */
+describe('the executed-deed email on a joint tenancy', () => {
+  const base = {
+    guaranteeRef: 'GR-20846', tenantName: 'Ms Lena Brandt',
+    propertyAddr: '14 Chalcot Road, NW1 8LH', tenancyStartLabel: '1 October 2026',
+  };
+  const flat = (m: { blocks: unknown[] }) => JSON.stringify(m.blocks);
+
+  it('says which deed this is, and names the other tenants', () => {
+    const m = executedDeedAgentEmail({ ...base, joint: { position: 1, count: 2, coTenants: 'Tomas Brandt' } });
+    expect(flat(m)).toContain('Joint tenancy, deed 1 of 2');
+    expect(flat(m)).toContain('Tomas Brandt');
+  });
+
+  it('says another one follows, so the second email is expected', () => {
+    const m = executedDeedAgentEmail({ ...base, joint: { position: 1, count: 2, coTenants: 'Tomas Brandt' } });
+    expect(flat(m)).toMatch(/one more deed follows/);
+  });
+
+  /* The LAST deed closes the loop. Without this the final email would still
+     promise another, which is the same error in the other direction. */
+  it('says so when it is the last one', () => {
+    const m = executedDeedAgentEmail({ ...base, joint: { position: 2, count: 2, coTenants: 'Tomas Brandt' } });
+    expect(flat(m)).toContain('last of this tenancy');
+    expect(flat(m)).not.toMatch(/more deeds? follow/);
+  });
+
+  it('counts correctly on a three-tenant tenancy', () => {
+    const m = executedDeedAgentEmail({ ...base, joint: { position: 1, count: 3, coTenants: 'Tomas Brandt, Ana Ruiz' } });
+    expect(flat(m)).toContain('deed 1 of 3');
+    expect(flat(m)).toMatch(/2 more deeds follow/);
+  });
+
+  it('puts the count in the subject, so two emails are distinguishable in a list', () => {
+    expect(executedDeedAgentEmail({ ...base, joint: { position: 2, count: 2, coTenants: 'T B' } }).subject)
+      .toBe('Signed Deed of Guarantee for GR-20846 (2 of 2)');
+  });
+
+  /* A TENANCY OF ONE IS UNCHANGED, which is most of the book. */
+  it('says nothing about joint tenancies on a sole tenancy', () => {
+    const m = executedDeedAgentEmail(base);
+    expect(m.subject).toBe('Signed Deed of Guarantee for GR-20846');
+    expect(flat(m)).not.toMatch(/joint|deed 1 of|more deed/i);
+  });
+
+  it('is also unchanged when a joint block arrives describing one tenant', () => {
+    const m = executedDeedAgentEmail({ ...base, joint: { position: 1, count: 1, coTenants: '' } });
+    expect(flat(m)).not.toMatch(/joint/i);
   });
 });

@@ -80,12 +80,39 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
     if (tok?.token) correctionUrl = `${appBase}/tenancy-correction?token=${tok.token}`;
   }
 
+  /* THE TENANCY THIS DEED IS PART OF, so the email can say that another is
+     coming. Read here rather than threaded through DeedTarget because both
+     callers (the completion webhook and the manual send) would otherwise have to
+     fetch and pass it, and one of them would eventually not. */
+  let joint: { position: number; count: number; coTenants: string } | null = null;
+  const { data: me } = await service.from("applications")
+    .select("tenancy_id, tenancy_position").eq("id", target.appId).maybeSingle();
+  if (me?.tenancy_id && me?.tenancy_position) {
+    const { data: mates } = await service.from("applications")
+      .select("tenancy_position, tenant_first_name, tenant_last_name")
+      .eq("tenancy_id", me.tenancy_id)
+      .order("tenancy_position");
+    if (mates && mates.length > 1) {
+      joint = {
+        position: Number(me.tenancy_position),
+        count: mates.length,
+        coTenants: mates
+          .filter((m: { tenancy_position: number }) => Number(m.tenancy_position) !== Number(me.tenancy_position))
+          .map((m: { tenant_first_name: string; tenant_last_name: string }) =>
+            `${m.tenant_first_name ?? ""} ${m.tenant_last_name ?? ""}`.trim())
+          .filter(Boolean)
+          .join(", "),
+      };
+    }
+  }
+
   const message = executedDeedAgentEmail({
     guaranteeRef: target.ref,
     tenantName: `${target.tenantTitle ?? ""} ${target.tenantName ?? ""}`.trim() || target.tenantName,
     propertyAddr: [target.addr1, target.postcode].filter(Boolean).join(", "),
     tenancyStartLabel: target.tenancyStartLabel ?? formatTenancyStart(target.tenancyStart),
     portalUrl,
+    joint,
   });
   // The correction link sits in the small print as its own line.
   if (correctionUrl) {

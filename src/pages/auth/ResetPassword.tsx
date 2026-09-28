@@ -228,7 +228,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
               <h2 className="auth__title">Confirm it is you</h2>
               <p className="auth__sub">Enter the current 6-digit code from your authenticator app before setting a new password.</p>
               {codeField(submitStepup, 'Authenticator code', 'Verify and continue')}
-              <p className="auth__foot">Lost your authenticator? <Link to="/login">Ask your administrator to reset it.</Link></p>
+              <p className="auth__foot">Lost your authenticator? Ask your Opndoor contact to reset it.</p>
             </div>
           )}
 
@@ -249,7 +249,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
           {phase === 'enrol' && (
             <div>
               <h2 className="auth__title">Set up two-factor authentication</h2>
-              <p className="auth__sub">Scan this QR code with an authenticator app (Google Authenticator, 1Password, Authy), then enter the 6-digit code it shows.</p>
+              <p className="auth__sub">Scan this QR code with an authenticator app, then enter the 6-digit code it shows. Google Authenticator is free on both app stores, and an iPhone's built-in Passwords app works too.</p>
               {qr && <div className="twofa-qr"><img className="twofa-qr__img" src={qr} alt="Authenticator setup QR code" width={160} height={160} /></div>}
               {secret && <div className="twofa-key"><span className="twofa-key__label">Can't scan? Enter this key manually.</span><code className="twofa-key__code">{secret}</code></div>}
               {codeField(submitEnrol, '6-digit code', 'Verify and finish')}

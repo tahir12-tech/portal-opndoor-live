@@ -18,6 +18,7 @@
    and the row actions would start disagreeing with each other and with SQL. */
 import { describe, expect, it } from 'vitest';
 import { levelRank, mayActOn, levelsGrantableBy, type Actor } from './types';
+import { otpauthParts } from './authService';
 
 const director: Actor = { id: 'd', role: 'management', seesCommission: true };
 const manager: Actor = { id: 'm', role: 'management', seesCommission: false };
@@ -127,5 +128,45 @@ describe('which levels may be handed out', () => {
   it('lets a Manager grant a level she could not then act on', () => {
     expect(names(manager)).toContain('Manager');
     expect(mayActOn(manager, { ...manager, id: 'other' })).toBe(false);
+  });
+});
+
+/* THE AUTHENTICATOR ENTRY SAYS WHO IT IS FOR.
+
+   Without an issuer, GoTrue labels the TOTP entry with the project reference, so
+   a person holding accounts on more than one opndoor environment, or any other
+   Supabase-backed app, sees a list of indistinguishable six-digit codes against
+   opaque strings. Asserted by reading the otpauth URI, because the alternative
+   is eyeballing a phone.
+
+   An otpauth URI carries the issuer TWICE, in the path label and in the query,
+   and the two can disagree. The Key Uri Format makes the query authoritative. */
+describe('the otpauth URI', () => {
+  it('carries the issuer and the account, which is the user email', () => {
+    const p = otpauthParts('otpauth://totp/opndoor:rosa%40regents.co.uk?secret=ABC&issuer=opndoor');
+    expect(p.issuer).toBe('opndoor');
+    expect(p.account).toBe('rosa@regents.co.uk');
+  });
+
+  it('prefers the query issuer when the label disagrees with it', () => {
+    const p = otpauthParts('otpauth://totp/Supabase:rosa%40regents.co.uk?secret=ABC&issuer=opndoor');
+    expect(p.issuer).toBe('opndoor');
+  });
+
+  it('still finds the account when the label carries no issuer prefix', () => {
+    const p = otpauthParts('otpauth://totp/rosa%40regents.co.uk?secret=ABC&issuer=opndoor');
+    expect(p.account).toBe('rosa@regents.co.uk');
+    expect(p.issuer).toBe('opndoor');
+  });
+
+  /* THE STATE THIS EXISTS TO CATCH: no issuer at all, which is what the enrol
+     call produced before it passed one. */
+  it('reports an empty issuer when nothing set one', () => {
+    expect(otpauthParts('otpauth://totp/rosa%40regents.co.uk?secret=ABC').issuer).toBe('');
+  });
+
+  it('does not throw on a URI it cannot parse', () => {
+    expect(otpauthParts('not a uri')).toEqual({ issuer: '', account: '' });
+    expect(otpauthParts('')).toEqual({ issuer: '', account: '' });
   });
 });

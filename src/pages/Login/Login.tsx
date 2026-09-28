@@ -66,6 +66,13 @@ export function Login() {
   const [qr, setQr] = useState('');
   const [secret, setSecret] = useState('');
   const [error, setError] = useState('');
+  /* THREE STRIKES. A person whose authenticator is gone cannot be helped by
+     another attempt at it, and the fourth, fifth and sixth tries are the ones
+     that end in a support call framed as "the portal is broken". After three the
+     screen stops asking and says who can fix it. Counted here rather than
+     server-side on purpose: this is guidance, not a lockout. GoTrue's own rate
+     limit is the security control and is unchanged. */
+  const [codeFails, setCodeFails] = useState(0);
   const [busy, setBusy] = useState(false);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
   const mfaSetup = useRef(false);
@@ -162,7 +169,11 @@ export function Login() {
     try {
       const r = await authService.verifyCode(factorId, code);
       if (!r.ok) {
-        setError(r.error ?? 'That code was not right. Try again.');
+        const n = codeFails + 1;
+        setCodeFails(n);
+        setError(n >= 3
+          ? 'Lost your authenticator? Ask your Opndoor contact to reset it.'
+          : (r.error ?? 'That code was not right. Try again.'));
         setCodes(['', '', '', '', '', '']);
         focusFirst();
         return;
@@ -328,6 +339,12 @@ export function Login() {
                     <a className="auth__app-link" href={GOOGLE_PLAY_GA} target="_blank" rel="noreferrer">Google Play</a>
                     <br />
                     On an iPhone, the built-in Passwords app works too.
+                    {/* SAID AT ENROLMENT, because it is the only moment it can be
+                        acted on cheaply. A person who loses a phone with no backup
+                        needs an admin to reset their factor and has to enrol
+                        again; one tap now avoids that entirely. */}
+                    <br />
+                    Turn on your authenticator app's cloud backup, so a new phone keeps your codes.
                   </p>
                   {qr && (
                     <div className="twofa-qr">
