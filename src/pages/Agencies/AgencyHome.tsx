@@ -1103,8 +1103,16 @@ export function AgencyHome() {
                   </div>
                   {open && (a.branches ?? []).map((b) => {
                     const bPeople = b.id ? (people.branch[b.id] ?? []) : [];
-                    const nomineeId = b.id ? deedRecipients[b.id] : undefined;
-                    const nominee = nomineeId ? usersById[nomineeId] : undefined;
+                    /* NOT `nomineeId`. That is the picker's own state, declared
+                       at the top of the page, and a const of the same name here
+                       shadowed it for the whole of this map -- including the
+                       select's `value` and the Nominate button's `disabled`,
+                       both of which then read the recipient this branch does
+                       not have. The button was permanently disabled and a deed
+                       recipient could not be nominated through the product at
+                       all. Two different things, so two different names. */
+                    const recipientId = b.id ? deedRecipients[b.id] : undefined;
+                    const nominee = recipientId ? usersById[recipientId] : undefined;
                     const bOpen = sel?.level === 'branch' && sel.id === b.id;
                     const branchReady = b.id ? readiness?.branches.get(b.id) : undefined;
                     return (
@@ -1133,7 +1141,15 @@ export function AgencyHome() {
                               <>
                                 <select value={nomineeId} onChange={(e) => setNomineeId(e.target.value)} aria-label="Nominate deed recipient">
                                   <option value="">Choose a person…</option>
-                                  {Object.values(usersById).map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+                                  {/* ACTIVE PEOPLE ONLY. deed_people_target skips
+                                      anyone who is not active, so nominating a
+                                      pending or deactivated person writes the row,
+                                      says "Deed recipient nominated" and then
+                                      silently falls through to the manager chain:
+                                      a nomination that reads as done and is not. */}
+                                  {Object.values(usersById)
+                                    .filter((u) => u.status === 'active')
+                                    .map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
                                 </select>
                                 <button className="ah-linkbtn" onClick={doNominate} disabled={!nomineeId}>Nominate</button>
                                 <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => { setNominateBranch(null); setNomineeId(''); }}>Cancel</button>
