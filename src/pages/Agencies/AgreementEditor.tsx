@@ -28,7 +28,7 @@
 import { useMemo, useState } from 'react';
 import {
   agreementConfirmKind, createAgreement, endAgreement,
-  type AgreementBandInput, type AgreementTierInput, type AgreementView,
+  type AgreementBandInput, type AgreementTierInput, type AgreementView, type FeeBasisUnit,
 } from '@/data/orgService';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
@@ -47,13 +47,23 @@ const MODELS: { id: PricingModel; name: string; desc: string }[] = [
   { id: 'tiered', name: 'Volume tiered', desc: 'Priced by tenant count as above, with the rate stepping up as the party’s volume grows through the period.' },
 ];
 
-/** A week is rent x 12 / 52; one month is therefore 52/12 weeks. */
-const MONTH_WEEKS = Number((52 / 12).toFixed(4));
+/* A week is rent x 12 / 52, so one month is 52/12 weeks, which does not
+   terminate. MONTH_WEEKS used to live here and be seeded into every new band,
+   and the summary recognised a month by comparing against it within a tolerance.
+   Both are gone: a month is a UNIT now and prices at exactly the rent. See
+   20261006120000. */
+
+/** How a fee basis reads in a sentence. "1 month's rent", "3 weeks of rent". */
+export function feeBasisWords(qty: number, unit: FeeBasisUnit): string {
+  if (!Number.isFinite(qty) || qty <= 0) return 'no fee';
+  if (unit === 'months') return qty === 1 ? "one month's rent" : `${qty} months' rent`;
+  return qty === 1 ? 'one week of rent' : `${qty} weeks of rent`;
+}
 
 const pctOf = (r: number | null) => (r == null ? '' : String(Number((r * 100).toFixed(2))));
 const toRate = (s: string) => (s.trim() === '' ? null : Number(s) / 100);
 
-interface BandRow { min: string; max: string; weeks: string; rate: string }
+interface BandRow { min: string; max: string; weeks: string; unit: FeeBasisUnit; rate: string }
 interface TierRow { from: string; to: string; rate: string }
 
 /** What model is this existing agreement? Read off its own shape rather than
@@ -91,8 +101,10 @@ export function AgreementEditor({
 
   const [bands, setBands] = useState<BandRow[]>(() =>
     live && live.bands.length
-      ? live.bands.map((b) => ({ min: String(b.min), max: b.max == null ? '' : String(b.max), weeks: String(b.weeks), rate: pctOf(b.rate) }))
-      : [{ min: '1', max: '', weeks: String(MONTH_WEEKS), rate: '10' }]);
+      ? live.bands.map((b) => ({ min: String(b.min), max: b.max == null ? '' : String(b.max), weeks: String(b.weeks), unit: b.unit ?? 'weeks', rate: pctOf(b.rate) }))
+      // One month, said as one month. This used to seed 4.3333 weeks, which is
+      // what standard terms had to be written as before the unit existed.
+      : [{ min: '1', max: '', weeks: '1', unit: 'months', rate: '10' }]);
   const [tiers, setTiers] = useState<TierRow[]>(() =>
     live && live.tiers.length
       ? live.tiers.map((t) => ({ from: String(t.from), to: t.to == null ? '' : String(t.to), rate: pctOf(t.rate) }))
@@ -118,8 +130,11 @@ export function AgreementEditor({
       const who = x.max === '' ? (x.min === '1' ? 'every tenancy' : `${x.min}+ tenants`)
         : x.min === x.max ? `${x.min} tenant${x.min === '1' ? '' : 's'}`
         : `${x.min}–${x.max} tenants`;
-      const wk = Number(x.weeks);
-      const fee = Math.abs(wk - MONTH_WEEKS) < 0.02 ? "one month's rent" : `${wk} weeks of rent`;
+      /* THE WORDING FOLLOWS THE UNIT, rather than guessing it back out of the
+         number. This compared the quantity against 4.3333 within a tolerance,
+         which is how a month had to be recognised when a month could only be
+         written as weeks. Now the band says which it is. */
+      const fee = feeBasisWords(Number(x.weeks), x.unit);
       return `${who}: ${fee}${x.rate === '' ? '' : ` at ${x.rate}%`}`;
     }).join(' · ');
     if (model !== 'tiered') return b;
@@ -142,6 +157,7 @@ export function AgreementEditor({
         min: Number(b.min) || 1,
         max: b.max.trim() === '' ? null : Number(b.max),
         weeks: Number(b.weeks),
+        unit: b.unit,
         rate: toRate(b.rate),
       }));
       const tierInput: AgreementTierInput[] = model === 'tiered'
@@ -224,7 +240,7 @@ export function AgreementEditor({
             <table className="dt agr-table">
               <thead>
                 <tr>
-                  <th>From</th><th>To</th><th>Weeks of rent</th>
+                  <th>From</th><th>To</th><th>Fee basis</th><th>Unit</th>
                   <th>Rate %</th>
                   {model !== 'flat' && <th aria-label="Remove" />}
                 </tr>
@@ -235,7 +251,18 @@ export function AgreementEditor({
                     <td><input inputMode="numeric" value={b.min} onChange={(e) => setBand(i, { min: e.target.value })} aria-label={`Band ${i + 1} from`} /></td>
                     {/* Blank = "and above". Exactly one band may be open-ended. */}
                     <td><input inputMode="numeric" value={b.max} placeholder="and above" onChange={(e) => setBand(i, { max: e.target.value })} aria-label={`Band ${i + 1} to`} /></td>
-                    <td><input inputMode="decimal" value={b.weeks} onChange={(e) => setBand(i, { weeks: e.target.value })} aria-label={`Band ${i + 1} weeks`} /></td>
+                    <td><input inputMode="decimal" value={b.weeks} onChange={(e) => setBand(i, { weeks: e.target.value })} aria-label={`Band ${i + 1} fee basis`} /></td>
+                    {/* THE UNIT, on Flat and on every band. A month is not
+                        4.3333 weeks: 52/12 does not terminate, so "one month"
+                        written as weeks priced at 0.99999 of the rent, twopence
+                        under on a £2,000 tenancy. Months are stored as an exact
+                        multiple of the rent instead. */}
+                    <td>
+                      <select value={b.unit} onChange={(e) => setBand(i, { unit: e.target.value as FeeBasisUnit })} aria-label={`Band ${i + 1} unit`}>
+                        <option value="weeks">Weeks</option>
+                        <option value="months">Months</option>
+                      </select>
+                    </td>
                     <td>
                       <input inputMode="decimal" value={b.rate}
                         placeholder={model === 'tiered' ? 'from the tiers' : ''}
@@ -254,14 +281,14 @@ export function AgreementEditor({
             </table>
             {model !== 'flat' && (
               <button type="button" className="ah-linkbtn agr-add"
-                onClick={() => setBands((bs) => [...bs, { min: String(bs.length + 1), max: '', weeks: String(MONTH_WEEKS), rate: '' }])}>
+                onClick={() => setBands((bs) => [...bs, { min: String(bs.length + 1), max: '', weeks: '1', unit: 'months', rate: '' }])}>
                 <Icon name="plus" size={12} /> Add a band
               </button>
             )}
             <p className="agr-hint">
-              Weeks of rent is the FEE. {MONTH_WEEKS} weeks is one month, which is standard terms; 3 weeks
-              and 5 weeks are the common negotiated bases. A tenancy is priced ONCE at the band its tenant
-              count falls in, then split between the tenants by share.
+              The fee basis is the FEE. One month is standard terms; 3 weeks and 5 weeks are the common
+              negotiated bases. A tenancy is priced ONCE at the band its tenant count falls in, then split
+              between the tenants by share.
             </p>
 
             {model === 'tiered' && (

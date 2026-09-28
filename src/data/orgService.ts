@@ -521,7 +521,7 @@ export interface AgreementView {
   note: string | null;
   periodStart: string | null;
   volume: number;
-  bands: { min: number; max: number | null; weeks: number; rate: number | null }[];
+  bands: { min: number; max: number | null; weeks: number; unit?: FeeBasisUnit; rate: number | null }[];
   tiers: { from: number; to: number | null; rate: number }[];
   nextRate: number | null;
   nextBasis: number | null;
@@ -566,11 +566,19 @@ export async function getAgreementForAgency(agencyId: string): Promise<Agreement
    VERBATIM. The screen does not restate a rule it does not own. */
 
 /** One tenant-count band: "2 or more tenants pay 5 weeks of rent at 25%". */
+/** Weeks of rent, or whole months of it. A month is NOT 4.3333 weeks: 52/12 does
+    not terminate, so "one month" priced as weeks came out at 0.99999 of the rent.
+    See 20261006120000. */
+export type FeeBasisUnit = 'weeks' | 'months';
+
 export interface AgreementBandInput {
   min: number;
   /** null = "and above". Exactly one band may be open-ended, and it must be last. */
   max: number | null;
+  /** How many of `unit`, not necessarily weeks. Named for the column it writes. */
   weeks: number;
+  /** Absent means weeks, which is what every band held before months existed. */
+  unit?: FeeBasisUnit;
   /** null on a band that only changes the FEE and leaves the rate to the tiers. */
   rate: number | null;
 }
@@ -610,7 +618,7 @@ export async function createAgreement(input: CreateAgreementInput): Promise<stri
     // string is how "and above" and "no rate on this band" are spelled there.
     p_bands: input.bands.map((b) => ({
       min: b.min, max: b.max == null ? '' : b.max,
-      weeks: b.weeks, rate: b.rate == null ? '' : b.rate,
+      weeks: b.weeks, unit: b.unit ?? 'weeks', rate: b.rate == null ? '' : b.rate,
     })),
     p_tiers: (input.tiers ?? []).map((t) => ({ from: t.from, to: t.to == null ? '' : t.to, rate: t.rate })),
     p_note: input.note ?? null,

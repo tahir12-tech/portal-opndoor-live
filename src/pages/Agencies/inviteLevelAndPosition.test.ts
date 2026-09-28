@@ -23,6 +23,7 @@
    mocked inviteUser to assert the same two fields. */
 import { describe, expect, it } from 'vitest';
 import { AGENCY_LEVELS, type AgencyLevel } from '@/data';
+import { feeBasisWords } from './AgreementEditor';
 
 /** The dialog's own two rules, mirrored. If these drift from InviteToLevel the
     test is worthless, so they are written exactly as the component computes
@@ -96,5 +97,40 @@ describe('the two are decided separately', () => {
   it('lets different levels land on the same position', () => {
     expect(scopeFor('Director', { level: 'brand', agencyId: 'a' }))
       .toEqual(scopeFor('Manager', { level: 'brand', agencyId: 'a' }));
+  });
+});
+
+/* HOW A FEE BASIS READS, now that it has a unit.
+
+   "One month's rent" could only be written as 4.3333 weeks, so the editor
+   recognised a month by comparing the quantity against that within a tolerance
+   of 0.02. That is a guess, and it was the only way to make one while a month
+   was a quantity of weeks. The band says which unit it is now, so the wording
+   reads it rather than inferring it. */
+describe('wording a fee basis', () => {
+  it('says one month, not 4.33 weeks', () => {
+    expect(feeBasisWords(1, 'months')).toBe("one month's rent");
+  });
+
+  it('pluralises months', () => {
+    expect(feeBasisWords(2, 'months')).toBe("2 months' rent");
+  });
+
+  it('says weeks as weeks', () => {
+    expect(feeBasisWords(3, 'weeks')).toBe('3 weeks of rent');
+    expect(feeBasisWords(5, 'weeks')).toBe('5 weeks of rent');
+    expect(feeBasisWords(1, 'weeks')).toBe('one week of rent');
+  });
+
+  /* THE GUESS THAT IS NO LONGER MADE. 4.3333 weeks is a real, if odd, weeks
+     basis and must now read as one, because anybody who has it stored means
+     weeks: the unit is what says month. */
+  it('no longer reads 4.3333 weeks as a month', () => {
+    expect(feeBasisWords(4.3333, 'weeks')).toBe('4.3333 weeks of rent');
+  });
+
+  it('says something sensible about a basis of nothing', () => {
+    expect(feeBasisWords(0, 'weeks')).toBe('no fee');
+    expect(feeBasisWords(Number.NaN, 'months')).toBe('no fee');
   });
 });
