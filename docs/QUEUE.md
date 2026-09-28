@@ -15,6 +15,27 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## Order of work
+
+| id | item | status |
+| --- | --- | --- |
+| Q-01 | The security loop | in progress |
+| Q-02 | Supplier rail notifications | todo |
+| Q-03 | Notification settings per party | todo |
+| Q-04 | Opndoor internal notification routing | todo |
+| Q-05 | Fold 11 and the four commission amendments | todo |
+| Q-06 | The fold-ins A to H | todo |
+| Q-07 | The HubSpot consequences report | todo |
+| Q-08 | The end-to-end walk on dev | todo |
+| Q-09 | HANDOVER-BALAL.md and the cutover checklist | todo |
+| Q-10 | Loose ends from item 4 of the 2026-09-28 mandate | in progress |
+
+Ids were renumbered once, when Q-02 to Q-04 were inserted after the security
+loop on Matt's instruction ("in this order, after the current item"). Nothing
+outside this file refers to them.
+
+---
+
 ## Needs Matt
 
 Things asked for earlier that are NOT recoverable from this repository or from
@@ -24,12 +45,12 @@ at them.
 ### NM-1. Folds 12 to 16
 
 The mandate of 2026-09-28 says "The queued list: folds 11 to 16". Fold 11's
-scope is recoverable and is queued below as Q-02. **Folds 12, 13, 14, 15 and
+scope is recoverable and is queued below as Q-05. **Folds 12, 13, 14, 15 and
 16 are named nowhere** in this repository or in the session transcript, and no
 document lists them. The numbered fold list came from an admin walk in an
 earlier session whose transcript is not on this machine.
 
-The fold-ins A to H (Q-03) came from "the admin walk" and may well BE some of
+The fold-ins A to H (Q-06) came from "the admin walk" and may well BE some of
 folds 12 to 16 renumbered. Matt's covering note says "The numbering was lost,
 so check each against the code as it stands". If A to H is the whole of what
 12 to 16 were, this item closes with them; if there were others, I need them.
@@ -115,7 +136,37 @@ this branch ships.
 
 ---
 
-## Q-02. Fold 11 and the four commission amendments
+## Q-02. Supplier rail notifications
+
+**Status: todo.**
+
+### The instruction, verbatim (2026-09-28)
+
+> 1. Supplier rail notifications. On the supplier rail (Rightmove via the API, Lettings in a Box inbound, Kestrel on dev), list every email and in-app notification sent today and who receives each, from the code, not the documents. Intended rule: the referrer and the branch's agent contact both receive the executed deed and every per-application notification, subject to item 2's settings; the tenant's own emails are unchanged. Where the referrer is an API partner with no human user attached, the agent contact still receives what item 2 allows. Show the table before and after, with tests for each, failing against the current code where it changes anything.
+
+---
+
+## Q-03. Notification settings per party
+
+**Status: todo.** Q-02 is "item 2" in Q-02's text and in this one; they are one
+design and Q-02's "subject to item 2's settings" means this matrix.
+
+### The instruction, verbatim (2026-09-28)
+
+> 2. Notification settings per party. Each supplier and each agency has a matrix: notification types (sent, paid, signed, deed issued, tenancy start correction, renewal notice, lapse, decline) against recipients (referrer, branch agent contact, ticked users), each on or off. Defaults: everything on for agencies; on suppliers, everything on for the referrer and deed issued only for the agent contact. Opndoor admin can edit any party's matrix, on the supplier and agency detail pages; an agency's directors can edit their own agency's, no one else's. Not switchable, and shown as locked with the reason: delivery of the executed deed to its recipient, every email to the tenant, and ops alerts. Enforced in the send path server-side, not by hiding UI, with the change audited. Tests for each default, each toggle, the locked items, and that a director cannot edit another agency's matrix.
+
+---
+
+## Q-04. Opndoor internal notification routing
+
+**Status: todo.**
+
+### The instruction, verbatim (2026-09-28)
+
+> 3. Opndoor internal notification routing. First list every internal email and in-app notification the platform sends to Opndoor today (ops alerts by kind, awaiting decision, reconciliation items, deeds needing a staff send, new applications, payments, refunds, sync failures, security events and any others) and where each goes now, from the code. Then build an admin settings page: each type, grouped (Critical, Operations, Commercial, Information), with its recipients chosen from active Opndoor team members and named shared inboxes, and on or off per recipient. Only superadmin can edit; opndoor_manager can view. Critical types (ops alerts, deed chain failures, security events, sync failures on production) can be rerouted but never left with zero recipients: refused in SQL and shown as locked below one. Enforced in the send path server-side, every change audited. A deactivated team member drops off every route, and any critical type left empty falls back to support@opndoor.co with an alert saying so. Tests for routing, the floor on critical types, deactivation, and that nobody below superadmin can change it.
+
+---
+## Q-05. Fold 11 and the four commission amendments
 
 **Status: todo.**
 
@@ -131,7 +182,7 @@ And from the mandate of 2026-09-28:
 
 ---
 
-## Q-03. The fold-ins A to H
+## Q-06. The fold-ins A to H
 
 **Status: todo.** Audit of what is already done is running.
 
@@ -187,7 +238,7 @@ nothing to fold. This file is it.
 
 ---
 
-## Q-04. The HubSpot consequences report
+## Q-07. The HubSpot consequences report
 
 **Status: todo. Gates NM-2 (fold 17).**
 
@@ -201,7 +252,7 @@ and, from the option Matt accepted:
 
 ---
 
-## Q-05. The end-to-end walk on dev
+## Q-08. The end-to-end walk on dev
 
 **Status: todo.**
 
@@ -211,7 +262,7 @@ and, from the option Matt accepted:
 
 ---
 
-## Q-06. HANDOVER-BALAL.md and the cutover checklist
+## Q-09. HANDOVER-BALAL.md and the cutover checklist
 
 **Status: todo.**
 
@@ -221,7 +272,7 @@ and, from the option Matt accepted:
 
 ---
 
-## Q-07. Loose ends from item 4 of the 2026-09-28 mandate
+## Q-10. Loose ends from item 4 of the 2026-09-28 mandate
 
 **Status: in progress.**
 
