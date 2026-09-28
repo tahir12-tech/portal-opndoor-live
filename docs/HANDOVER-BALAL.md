@@ -541,6 +541,36 @@ insert finds nothing, so a second run the same day returns no rows and sends no
 email. Asserted in `supabase/tests/pay_link_outlives_a_day.test.sql`. If you find
 yourself about to delete one of a pair, read this paragraph again.
 
+### 7.9 EVERY MIGRATION IN THIS BATCH, IN APPLY ORDER
+
+They apply in filename order, so this is the order they run. The count and the
+list are what to diff against `supabase_migrations.schema_migrations` on the
+clone if anything looks wrong; the authoritative count is always the
+`ls | wc -l` in 1.4, never this prose.
+
+| # | migration | what it changes |
+|---|---|---|
+| 1 | `20261006089000_make_manager_has_never_worked` | `admin_update_user_role` wrote seven columns that did not exist; Make Manager had never worked |
+| 2 | `20261006090000_the_level_ladder` | Director / Manager / Negotiator as ranks, `may_act_on_user`, `assert_may_grant_level` |
+| 3 | `20261006091000_every_person_control_respects_the_ladder` | eight person controls gated, plus the `users_level_ladder_guard` trigger |
+| 4 | `20261006100000_a_paid_application_with_no_deed_is_found` | `deeds_awaiting_generation` |
+| 5 | `20261006101000_deed_sweep_cron` | the hourly deed sweep at `:20`. **Inert unless `functions_base_url` is set (see 8.1).** |
+| 6 | `20261006110000_commission_is_apportioned_not_rounded_twice` | commission apportioned to the penny; re-freezes affected rows |
+| 7 | `20261006120000_a_fee_basis_has_a_unit` | Weeks / Months on a fee basis. **Rewrites seven pricing functions; watch this one in the rehearsal.** |
+| 8 | `20261006130000_replay_what_the_missing_map_skipped` | winds the HubSpot cursor back for partners whose events drained without an association |
+| 9 | `20261006140000_health_tells_you_what_to_do` | `cron_health` gains per-job attribution and the base URL; drops `needs_attention` |
+| 10 | `20261006150000_a_manager_may_not_edit_another_agency` | scopes `users_mgmt_update`; adds `receives_notifications`, its RPC and its trigger guard |
+| 11 | `20261006160000_the_deed_goes_to_whoever_sent_the_referral` | the deed goes to the referrer; drops the nominated override; fixes the direct rail |
+| 12 | `20261006170000_an_agency_is_the_boundary_not_the_partner` | **the riskiest one.** Rescopes the three `applications` policies from partner to agency |
+| 13 | `20261006180000_the_resend_follows_the_same_rule_and_reminders_fire` | manual Resend uses the one resolver; `fire_expiry_reminders` stops writing a column that never existed |
+| 14 | `20261006190000_a_cron_email_is_scoped_to_the_reader` | `staff_notification_scopes`: a scheduled email's recipients per reader |
+| 15 | `20261006200000_a_scheduled_send_is_ledgered_per_reader` | `user_id` on the digest and cohort ledgers |
+| 16 | `20261006210000_the_weekly_digest_counts_one_agency` | `agency_weekly_digest`, so the digest's figures are one agency's |
+
+Numbers 10 to 16 are the batch that changes who receives and who can see. If
+you want the smallest possible cutover, 1 to 9 stand on their own and 10 to 16
+can follow after a rehearsal; nothing in 1 to 9 depends on them.
+
 ### 8.0 WHAT CHANGED IN THIS BATCH THAT YOU MUST VERIFY AFTER CUTOVER
 
 Seven migrations in this batch change who receives things and who can see
@@ -579,6 +609,32 @@ wrote to a column that has never existed and only ever inside its loop body, so
 it was silent every day nothing was due and would have thrown `42703` the first
 day something was. Expect reminder emails to begin, and
 `public.expiry_reminders` to start filling.
+
+### 8.05 HUBSPOT: THE TOKEN, AND SUCCESSES ON THE HEALTH PAGE
+
+`hubspot-sync` answers `{"ok":false,"error":"No HubSpot access token
+configured."}` when its secret is missing, and does so on every run: on dev
+that is currently 68 failures out of 211 calls in 24 hours. It is a secret gap
+rather than a code fault, and it is invisible unless somebody reads the
+response body, which is why the Health page now does.
+
+**After the push, in this order:**
+
+1. Confirm the secret is set on production (`HUBSPOT_ACCESS_TOKEN`, or whatever
+   the project names it in Edge Function secrets). The function reads it at
+   call time, so setting it needs no redeploy.
+2. Open `/health` as an Opndoor admin and find `hubspot-sync` under Recent
+   responses. It groups by job now, so it will not be buried under
+   `partner-webhooks`.
+3. The latest response for that job must be a **2xx**. A 500 whose body names
+   the token means step 1 did not take.
+4. Then check the replay from `20261006130000` landed: section 14.2 has the
+   before/after cursor queries and the expected notice.
+
+**What "working" looks like:** `hubspot-sync` showing recent 2xx responses and
+an error count of zero over the window, beside `partner-webhooks` doing the
+same. Any other job showing errors is read the same way: the page states what
+each failure means and what to do about it.
 
 ### 8.1 VERIFY THE BASE URL BEFORE YOU TRUST ANY CRON
 
