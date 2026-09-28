@@ -18,6 +18,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { renewalNoticeEmail } from "../_shared/emailTemplates.ts";
+import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -58,10 +59,13 @@ Deno.serve(async (req) => {
 
     // Cron auth: x-reminders-secret must match the edge env OR the ops_secrets mirror.
     const presented = req.headers.get("x-reminders-secret") ?? "";
-    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && presented === CRON_SECRET;
+    // Constant time: a cron secret is a bearer credential, and `===` leaks a
+    // matching prefix through timing the way a password compare does. The
+    // helper already existed for the partner API and the webhook verifier.
+    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && timingSafeEqual(presented, CRON_SECRET);
     if (!cronAuthed && presented) {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
-      if (sec?.secret && presented === sec.secret) cronAuthed = true;
+      if (sec?.secret && timingSafeEqual(presented, sec.secret)) cronAuthed = true;
     }
     let adminAuthed = false;
     if (!cronAuthed) {
@@ -91,10 +95,11 @@ Deno.serve(async (req) => {
     const due = (fired ?? []) as Array<{
       application_id: string; guarantee_ref: string; tenant_name: string | null; property_addr: string | null;
       end_date: string; tenant_email: string | null; contact_name: string | null; contact_email: string | null;
-      referrer_name: string | null; referrer_email: string | null;
+      referrer_name: string | null; referrer_email: string | null; channel: string | null;
     }>;
 
-    let emailed = 0, emailFailed = 0;
+    // parked: an agency renewal with nobody to send it to, counted and returned.
+    let emailed = 0, emailFailed = 0, parkedCount = 0;
     for (const r of due) {
       const endLabel = fmtDate(String(r.end_date));
       const message = renewalNoticeEmail({
@@ -102,19 +107,64 @@ Deno.serve(async (req) => {
         propertyAddr: r.property_addr || "",
         endDate: endLabel,
       });
-      // One email each to the distinct recipients present on the application.
+      /* WHO IS TOLD A GUARANTEE IS ENDING, BY RAIL.
+
+         This was the tenant, the referrer, and
+         effective_primary_contact(branch_id) -- with no rail test anywhere. A
+         DIRECT tenant's branch_id is pointed at a real agency branch by the
+         auto-matcher, so their name, property and end date went to an agency
+         person nobody chose. That is the fault 20261006160000 fixed for the
+         deed a year earlier in the lifecycle; this job was not in that fix.
+
+         The SQL now resolves the contact per rail and says which rail it is.
+         The agency rail has no single contact -- it has the ladder -- so it is
+         asked here, the way expiry-reminders asks it, and parks with an alert
+         rather than falling back to anything wider. */
+      let agencyLadder: string[] = [];
+      let parked: string | null = null;
+      if (r.channel === "Agent referral") {
+        const { data: scoped, error: ladderErr } = await service.rpc(
+          "agency_notification_recipients", { p_application: r.application_id });
+        if (ladderErr) {
+          parked = `the recipient ladder could not be read: ${ladderErr.message}`;
+        } else {
+          agencyLadder = ((scoped ?? []) as Array<{ email: string }>).map((x) => x.email).filter(Boolean);
+          if (agencyLadder.length === 0) {
+            parked = "nobody on the agency's ladder is active: no referrer, nobody ticked in scope, and no manager covering the branch";
+          }
+        }
+      }
+      if (parked) {
+        parkedCount += 1;
+        await service.rpc("report_ops_incident", {
+          p_type: "renewal_notice_unaddressed",
+          p_detail: `${r.guarantee_ref}: ${parked}`,
+        }).then(() => {}, () => {});
+        await service.from("activity_log").insert({
+          application_id: r.application_id, kind: "renewal_notice_parked",
+          message: `Renewal notice not sent: ${parked}.`, actor: "System", visibility: "internal",
+        });
+        continue;
+      }
+
+      // The tenant is told on every rail; who else depends on the rail.
       const recipients = Array.from(new Set(
-        [r.tenant_email, r.contact_email, r.referrer_email].filter((e): e is string => typeof e === "string" && e.length > 0),
+        [r.tenant_email, ...agencyLadder, r.contact_email, r.referrer_email]
+          .filter((e): e is string => typeof e === "string" && e.length > 0),
       ));
       let anySent = false, anyFailed = false;
       for (const to of recipients) {
         const res = await sendMessage({ to, message });
         if (res.ok) { emailed++; anySent = true; } else { emailFailed++; anyFailed = true; }
       }
+      // Names the rail's own vocabulary rather than "agent/landlord" for all
+      // three, so the activity row on a direct guarantee stops implying an
+      // agency was involved.
       const who = [
         r.tenant_email ? "tenant" : null,
-        r.contact_email ? "agent/landlord" : null,
-        r.referrer_email ? "referrer" : null,
+        agencyLadder.length ? "referrer and the ticked team" : null,
+        r.contact_email ? (r.channel === "Direct" ? "their named contact" : "agent/landlord") : null,
+        r.referrer_email && !agencyLadder.length ? "referrer" : null,
       ].filter(Boolean).join(", ");
       // One activity entry per application. Partner-safe: names who and when.
       await service.from("activity_log").insert({
@@ -135,7 +185,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ ok: true, test, date: pToday, due: due.length, emailed, emailFailed });
+    return json({ ok: true, test, date: pToday, due: due.length, emailed, emailFailed, parked: parkedCount });
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "Unexpected error." }, 500);
   }

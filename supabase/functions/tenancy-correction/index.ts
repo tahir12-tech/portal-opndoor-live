@@ -79,16 +79,37 @@ Deno.serve(async (req) => {
 
       const dateChange = `from ${dmy(full.tenancy_start)} to ${dmy(proposed)}`;
 
-      // 1) Apply the corrected date (expiry_date is a generated column and follows).
-      await service.from("applications").update({ tenancy_start: proposed }).eq("id", full.id);
+      /* 1) CLAIM THE TOKEN FIRST, and claim it conditionally.
 
-      // 2) Record on the token AND resolve it in the same step: an agent
-      //    self-service correction has no review queue, so it is never "pending"
-      //    and the dashboard/health counts stay at zero.
+         submitted_at was written at step 2, AFTER the date change and the deed
+         lifecycle below, and nothing ever refused a token that already had it.
+         The "load" action reported alreadySubmitted and the screen hid the
+         form; the POST behind it did not care. So the link -- which needs no
+         sign-in, because the token IS the authorisation, and which sits in an
+         agent's inbox for seven days -- could be replayed. Each replay moved
+         the tenancy start again and, for an executed guarantee, archived the
+         signed PDF and reissued the deed for signing. A forwarded email or a
+         double-click on a slow connection was enough.
+
+         Claiming first also closes the race that ordering alone would not: the
+         `.is("submitted_at", null)` filter makes the claim the atomic step, so
+         of two simultaneous submits exactly one proceeds. */
       const nowIso = new Date().toISOString();
-      await service.from("tenancy_correction_tokens").update({
-        proposed_start: proposed, note, submitted_at: nowIso, resolved_at: nowIso, resolved_by: null,
-      }).eq("token", token);
+      const { data: claimed } = await service.from("tenancy_correction_tokens")
+        .update({ proposed_start: proposed, note, submitted_at: nowIso, resolved_at: nowIso, resolved_by: null })
+        .eq("token", token)
+        .is("submitted_at", null)
+        .select("token")
+        .maybeSingle();
+      if (!claimed) {
+        return json({
+          ok: false, alreadySubmitted: true,
+          error: "This correction has already been submitted. If the date still looks wrong, reply to the deed email and we will sort it out.",
+        }, 200);
+      }
+
+      // 2) Apply the corrected date (expiry_date is a generated column and follows).
+      await service.from("applications").update({ tenancy_start: proposed }).eq("id", full.id);
 
       // 3) Deed lifecycle, keyed on the state at correction time. Mirrors
       //    amend-tenancy-start (its executed / awaiting_tenant branches); the

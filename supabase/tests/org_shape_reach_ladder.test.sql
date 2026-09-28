@@ -55,13 +55,16 @@ values
 
 insert into public.users (id, full_name, email, role, partner_id, status, home_branch_id) values
   ('92000000-0000-0000-0000-0000000000f1', 'Pos Manager', 'positioned@zzzladder.test', 'management', '92000000-0000-0000-0000-000000000001', 'active', null),
-  -- The reported case: a Negotiator with a home office and no position.
+  -- The reported case: a Negotiator at a single-office agency.
   ('92000000-0000-0000-0000-0000000000f2', 'Tom Negotiator', 'homebranch@zzzladder.test', 'referrer', '92000000-0000-0000-0000-000000000001', 'active', '92000000-0000-0000-0000-0000000000a1'),
   ('92000000-0000-0000-0000-0000000000f3', 'No Place', 'nowhere@zzzladder.test', 'referrer', '92000000-0000-0000-0000-000000000001', 'active', null),
   ('92000000-0000-0000-0000-0000000000f4', 'Supp Person', 'supp@zzzladder.test', 'management', '92000000-0000-0000-0000-000000000002', 'active', null);
 
-insert into public.user_scopes (user_id, kind, agency_id)
-values ('92000000-0000-0000-0000-0000000000f1', 'agency', '92000000-0000-0000-0000-00000000000a');
+insert into public.user_scopes (user_id, kind, agency_id, branch_id)
+values ('92000000-0000-0000-0000-0000000000f1', 'agency', '92000000-0000-0000-0000-00000000000a', null),
+       -- Tom holds a BRANCH position now. He used to hold none and be located
+       -- by home_branch_id, which is what case 2 below was written about.
+       ('92000000-0000-0000-0000-0000000000f2', 'branch', null, '92000000-0000-0000-0000-0000000000a1');
 
 -- ---------------------------------------------------------------------------
 -- 1. A POSITION DECIDES. Unchanged behaviour, asserted so the ladder's first
@@ -78,20 +81,27 @@ select results_eq(
   'a positioned manager sees only their own agency and office');
 
 -- ---------------------------------------------------------------------------
--- 2. NO POSITION, A HOME OFFICE. The reported bug.
+-- 2. A NEGOTIATOR AT ONE OFFICE. The reported bug, and then the second one.
+--
+--    As reported, Tom held no position and my_org_shape fell back to his
+--    home_branch_id. That answered correctly and was still wrong: the column
+--    is one its own subject can PATCH, so the fallback was an editable
+--    boundary. He is positioned at his one office now (20261006300000), and
+--    the answer below is unchanged -- which is the point. The assertion that
+--    he holds NO position has been turned over: holding one is the rule.
 -- ---------------------------------------------------------------------------
 reset role;
 select set_config('request.jwt.claims',
   '{"sub":"92000000-0000-0000-0000-0000000000f2","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
 
-select ok(not public.app_has_scope(), 'a negotiator holds no position, which is the design');
+select ok(public.app_has_scope(), 'a negotiator holds a position, which is now the rule');
 
 select results_eq(
   $$select agency_count, branch_count, collapse_agency, collapse_branch
       from public.my_org_shape(null)$$,
   $$values (1, 1, true, true)$$,
-  'and is resolved from their home office: one agency, one office, nothing to ask');
+  'and is resolved from that position: one agency, one office, nothing to ask');
 
 -- NAMED, not just counted. The form refuses to collapse a level it cannot print,
 -- so a shape that says "one office" without saying which one still draws the
@@ -108,7 +118,13 @@ select isnt(
   'and the second agency on the house route is not offered to them');
 
 -- ---------------------------------------------------------------------------
--- 3. NO POSITION AND NO HOME OFFICE, ON OUR ESTATE. No place is no place.
+-- 3. NO POSITION AT ALL, ON OUR ESTATE. Unreachable now, and still asserted.
+--
+--    20261006300000 refuses to commit this person, so the state is gone rather
+--    than handled. The assertions stay because my_org_shape must not answer
+--    "the whole estate" if one ever appears -- through a restore, a direct
+--    service_role write, or a future path that forgets. A closed default is
+--    only worth having if something checks it is still closed.
 -- ---------------------------------------------------------------------------
 reset role;
 select set_config('request.jwt.claims',

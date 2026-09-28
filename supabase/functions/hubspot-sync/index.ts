@@ -51,6 +51,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { maySyncToHubspot } from "../_shared/livemodeCredentials.ts";
+import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -138,10 +139,13 @@ Deno.serve(async (req) => {
 
     // ---- auth (x-ops-secret vs edge env OR ops_secrets mirror) --------
     const presented = req.headers.get("x-ops-secret") ?? "";
-    let authed = Boolean(presented) && Boolean(CRON_SECRET) && presented === CRON_SECRET;
+    // Constant time: a cron secret is a bearer credential, and `===` leaks a
+    // matching prefix through timing the way a password compare does. The
+    // helper already existed for the partner API and the webhook verifier.
+    let authed = Boolean(presented) && Boolean(CRON_SECRET) && timingSafeEqual(presented, CRON_SECRET);
     if (!authed && presented) {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
-      if (sec?.secret && presented === sec.secret) authed = true;
+      if (sec?.secret && timingSafeEqual(presented, sec.secret)) authed = true;
     }
     // Deliberately silent, unlike every other failure exit below. verify_jwt is
     // false on this function, so anything on the internet can reach it and a

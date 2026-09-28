@@ -27,6 +27,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateDeed } from "../_shared/pandadoc.ts";
+import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -53,10 +54,13 @@ Deno.serve(async (req) => {
     // Same two doors as payment-reminders, including the ops_secrets mirror, which
     // is what keeps the cron working when the edge env has drifted.
     const presented = req.headers.get("x-reminders-secret") ?? "";
-    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && presented === CRON_SECRET;
+    // Constant time: a cron secret is a bearer credential, and `===` leaks a
+    // matching prefix through timing the way a password compare does. The
+    // helper already existed for the partner API and the webhook verifier.
+    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && timingSafeEqual(presented, CRON_SECRET);
     if (!cronAuthed && presented) {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
-      if (sec?.secret && presented === sec.secret) cronAuthed = true;
+      if (sec?.secret && timingSafeEqual(presented, sec.secret)) cronAuthed = true;
     }
     let adminAuthed = false;
     if (!cronAuthed) {

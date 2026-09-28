@@ -1245,7 +1245,14 @@ function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, a
  * as the on-screen league); in mock mode the league is the modelled current
  * book. The metadata date range reflects the actual window filtered.
  */
-export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string, period: Period, view?: LeagueView): BrandedExport {
+/* branchIds: the reader's OWN branch set when the "My brand / branches"
+   toggle is on. The board honoured that toggle and the workbook did not, so
+   Export handed back a wider table than the screen it sits on. It stays inside
+   the reader's reachable agencies either way -- getLeague reads the hydrated,
+   RLS-scoped book -- so this is rule 3's "scoped by position" rather than a
+   leak across agencies. Optional, so a caller that does not pass it behaves
+   exactly as before. */
+export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string, period: Period, view?: LeagueView, branchIds?: string[]): BrandedExport {
   // The league workbook carries per-agency and per-branch commission and had no
   // role test at all, relying on the button being hidden. A builder that emits
   // commission has to refuse for itself.
@@ -1283,7 +1290,7 @@ export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string,
       reportName: `League table: ${name}`,
       metaLine,
       blocks: [
-        { kind: 'table', columns: leagueColumns(view, agency, showComm), rows: leagueRows(view, getLeague(view, { role, scope, partner, period }), showPartner, agency, showComm) },
+        { kind: 'table', columns: leagueColumns(view, agency, showComm), rows: leagueRows(view, getLeague(view, { role, scope, partner, period, branchIds }), showPartner, agency, showComm) },
         // The note explains an empty commission cell. With no commission column it
         // explains nothing and would be the only mention of commission on the sheet.
         ...(showComm && agency && view === 'branch' ? [{ kind: 'keyvalue' as const, items: [{ label: 'Note', value: BRANCH_COMMISSION_NOTE }] }] : []),

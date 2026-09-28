@@ -38,6 +38,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { bytesToBase64, sendMessage } from "../_shared/mailer.ts";
 import { renderTablePdf, type PdfColumn } from "../_shared/pdf.ts";
 import type { Block, Message } from "../_shared/emailLayout.ts";
+import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -291,8 +292,8 @@ function pct(rate: number): string {
   return `${Number((rate * 100).toFixed(2))}%`;
 }
 
-const esc = (s: string) =>
-  String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+// esc() lived here and is gone: emailLayout escapes p, small and list itself
+// now, and a second pass turned "&" into "&amp;amp;" on the page.
 
 /** How a frozen line's source reads in a statement. Mirrors SOURCE_LABEL in
     src/data/commissionSplit.ts, so the PDF and the screen use one vocabulary.
@@ -655,7 +656,12 @@ function statementMessage(opts: {
   payeeName: string; label: string; total: number; applications: number; reference: string; appUrl: string;
 }): Message {
   const blocks: Block[] = [
-    { p: `Your commission statement for <b>${esc(opts.label)}</b> is attached. It comes to <b>${esc(gbp(opts.total))}</b>.` },
+    /* NOT esc() HERE ANY MORE. emailLayout's blockHtml escapes p, small and
+       list content itself now (it did not, which is how a caller-supplied
+       note reached a deed email raw), and escaping twice turns "Smith & Co"
+       into "Smith &amp;amp; Co" on the page. The <b> survives, because the
+       layout re-permits an inline allowlist after escaping. */
+    { p: `Your commission statement for <b>${opts.label}</b> is attached. It comes to <b>${gbp(opts.total)}</b>.` },
     {
       rows: [
         ["Month", opts.label],
@@ -668,7 +674,7 @@ function statementMessage(opts: {
     },
     { p: "It covers every application that paid in the month, and the commission each one earned. Refunded applications are excluded." },
     // Rendered verbatim. See PAYMENT_TERMS_LINE.
-    { p: esc(PAYMENT_TERMS_LINE) },
+    { p: PAYMENT_TERMS_LINE },
     { small: "The same figures are on your Reporting page, where you can pick any month and download it again." },
   ];
   return {
@@ -694,8 +700,8 @@ function settlementMessage(opts: {
   const blocks: Block[] = [
     {
       p: opts.payees.length
-        ? `Commission earned in <b>${esc(opts.label)}</b> comes to <b>${esc(gbp(opts.grand))}</b> across ${opts.payees.length} ${opts.payees.length === 1 ? "payee" : "payees"}.`
-        : `No commission accrued in <b>${esc(opts.label)}</b>, so no statements were posted.`,
+        ? `Commission earned in <b>${opts.label}</b> comes to <b>${gbp(opts.grand)}</b> across ${opts.payees.length} ${opts.payees.length === 1 ? "payee" : "payees"}.`
+        : `No commission accrued in <b>${opts.label}</b>, so no statements were posted.`,
     },
     {
       rows: [
@@ -717,7 +723,7 @@ function settlementMessage(opts: {
   if (opts.unaddressed.length) {
     blocks.push({ h: "Nobody to send to" });
     blocks.push({ p: "These payees earned commission and have no active person ticked to receive statements, and no finance address. Nothing was posted for them." });
-    blocks.push({ list: opts.unaddressed.map((n) => esc(n)) });
+    blocks.push({ list: opts.unaddressed });
   }
   return {
     subject: `Commission settlement for ${opts.label}: ${gbp(opts.grand)}`,
@@ -746,10 +752,13 @@ Deno.serve(async (req) => {
     // Cron auth: x-reminders-secret must match the edge env OR the ops_secrets
     // mirror (resilient to a drifted edge env; the crons pass the Vault secret).
     const presented = req.headers.get("x-reminders-secret") ?? "";
-    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && presented === CRON_SECRET;
+    // Constant time: a cron secret is a bearer credential, and `===` leaks a
+    // matching prefix through timing the way a password compare does. The
+    // helper already existed for the partner API and the webhook verifier.
+    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && timingSafeEqual(presented, CRON_SECRET);
     if (!cronAuthed && presented) {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
-      if (sec?.secret && presented === sec.secret) cronAuthed = true;
+      if (sec?.secret && timingSafeEqual(presented, sec.secret)) cronAuthed = true;
     }
     let adminAuthed = false;
     if (!cronAuthed) {

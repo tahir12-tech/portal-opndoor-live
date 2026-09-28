@@ -56,14 +56,24 @@ from (values
   ('95000000-0000-0000-0000-0000000000da'::uuid, 'neg2@zzzladder.test')
 ) v(id, em);
 
-/* HOME BRANCH ON EVERY AGENCY PERSON, and it is load-bearing rather than
-   decoration. The containment gate these controls share asks app_user_in_scope,
-   which locates an unpositioned Negotiator by their home_branch_id: that is the
-   whole point of the unpositioned-negotiator resolution. A fixture Negotiator with
-   no home branch sits in nobody's scope, so every control refuses them with
-   'not permitted' before the ladder is ever consulted, and the ladder assertions
-   below would be measuring the wrong refusal. Regent's own Tom Reeve has no
-   position row and a home branch, which is the shape being modelled. */
+/* A POSITION ON EVERY AGENCY PERSON, NEGOTIATORS INCLUDED.
+
+   This block used to say the opposite, and said it at length: the Negotiators
+   were deliberately left unpositioned and located by home_branch_id, "which is
+   the whole point of the unpositioned-negotiator resolution".
+
+   That resolution is gone. home_branch_id is a column its own subject could
+   PATCH, and app_scoped_agencies unioned in the agency above it, so a manager
+   could move their own boundary to a competitor's agency: reproduced on dev at
+   7 applications and 1 agency before, 21 and 2 after. 20261006300000 made a
+   position mandatory on our estate and backfilled the six real negotiators from
+   exactly this column; 20261006310000 then took the column out of every
+   predicate that read it.
+
+   So the fixture models what the estate now looks like. The home branches stay,
+   because a Negotiator still sits somewhere and the column is still shown; they
+   are simply no longer what locates them. Containment still never explains a
+   refusal below, which is what keeps these assertions about the ladder. */
 insert into public.users (id, full_name, email, role, partner_id, status, sees_commission, home_branch_id) values
   ('95000000-0000-0000-0000-0000000000d1', 'Mo Manager',   'mgr@zzzladder.test',  'management', '95000000-0000-0000-0000-000000000001', 'active', false, '95000000-0000-0000-0000-00000000000b'),
   ('95000000-0000-0000-0000-0000000000d2', 'Dee Director', 'dir@zzzladder.test',  'management', '95000000-0000-0000-0000-000000000001', 'active', true,  '95000000-0000-0000-0000-00000000000b'),
@@ -81,13 +91,20 @@ insert into public.users (id, full_name, email, role, partner_id, status, sees_c
   ('95000000-0000-0000-0000-0000000000da', 'Nia Negotiator','neg2@zzzladder.test','referrer',  '95000000-0000-0000-0000-000000000001', 'active', false, '95000000-0000-0000-0000-00000000000b');
 
 -- Everyone agency-side holds the same agency position, so containment never
--- explains a refusal below: only the ladder can.
+-- explains a refusal below: only the ladder can. The Negotiators and the
+-- developer are in this list now too -- their LEVEL still comes from role and
+-- sees_commission, not from the kind of position they hold, which is what the
+-- rank assertions immediately below are there to keep true.
 insert into public.user_scopes (user_id, kind, agency_id)
 select id, 'agency', '95000000-0000-0000-0000-00000000000a'
   from (values ('95000000-0000-0000-0000-0000000000d1'::uuid),
                ('95000000-0000-0000-0000-0000000000d2'::uuid),
+               ('95000000-0000-0000-0000-0000000000d3'::uuid),
                ('95000000-0000-0000-0000-0000000000d4'::uuid),
-               ('95000000-0000-0000-0000-0000000000d5'::uuid)) v(id);
+               ('95000000-0000-0000-0000-0000000000d5'::uuid),
+               ('95000000-0000-0000-0000-0000000000d6'::uuid),
+               ('95000000-0000-0000-0000-0000000000d9'::uuid),
+               ('95000000-0000-0000-0000-0000000000da'::uuid)) v(id);
 
 -- ===========================================================================
 -- THE RESOLVER. One place resolves a level, so this is where it is checked.

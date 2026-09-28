@@ -356,7 +356,20 @@ Deno.serve(async (req) => {
       const app = await ownedApplication(body.application_id);
       if (!app) return json({ ok: false, error: "Not found." }, 404);
       if (!editable(app.status)) return json({ ok: false, error: "This application can no longer be edited." }, 409);
-      const p = (body.patch ?? {}) as Record<string, unknown>;
+      /* AN EXPLICIT ALLOWLIST, the same way save_property twelve lines above
+         has one and for the same reason. This spread body.patch straight into
+         a SERVICE-ROLE upsert, and this table carries verified_at and
+         verified_by -- the column whose own comment reads "anything that
+         sends a legal instrument here must read this". A tenant could mark
+         their own delivery contact verified and stamp a real staff member's
+         uuid as the person who verified it. Nothing reads the flag on the
+         send path today, so it was a falsifiable audit field and an armed
+         escalation rather than a live leak; neither is a reason to leave an
+         unfiltered patch behind a service-role client. */
+      const raw = (body.patch ?? {}) as Record<string, unknown>;
+      const ALLOWED = ["kind", "agency_name", "title", "first_name", "last_name", "email", "phone"];
+      const p: Record<string, unknown> = {};
+      for (const k of ALLOWED) if (k in raw) p[k] = raw[k];
       // Held until kind, email AND the naming field the delivery_contact_named
       // check wants are all present, or the upsert is a 23514/NOT NULL failure.
       if (!deliveryContactReady(p)) return json({ ok: true, deferred: true });
@@ -422,9 +435,21 @@ Deno.serve(async (req) => {
     if (action === "confirm_upload") {
       const app = await ownedApplication(body.application_id);
       if (!app) return json({ ok: false, error: "Not found." }, 404);
+      /* THE PATH MUST BE UNDER THIS APPLICATION. It was taken from the body
+         and passed to a service-role RPC that does not validate it either, so
+         a tenant who knew another application's object path could register it
+         against their own -- after which staff get a signed URL for it
+         through application-document-url, and delete_document below will
+         remove it from storage. Paths embed a random uuid so they are not
+         guessable, which made this latent rather than live; the check is one
+         line and the guess is somebody else's problem to be wrong about. */
+      const path = String(body.path ?? "");
+      if (!path.startsWith(`${app.id}/`)) {
+        return json({ ok: false, error: "That upload does not belong to this application." }, 400);
+      }
       const { error } = await service.rpc("record_application_document", {
         p_application: app.id, p_kind: String(body.kind ?? ""), p_bucket: "applicant-docs",
-        p_path: String(body.path ?? ""), p_filename: String(body.filename ?? ""),
+        p_path: path, p_filename: String(body.filename ?? ""),
         p_content_type: String(body.content_type ?? "") || null,
         p_bytes: Number(body.bytes ?? 0) || null, p_source: "applicant",
         p_income: body.income_id ?? null, p_address: body.address_id ?? null,

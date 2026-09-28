@@ -325,7 +325,14 @@ Deno.serve(async (req) => {
             p_type: "stripe_refund_not_applied",
             p_detail: `Payment intent ${pi}: charge.refunded arrived but apply_stripe_refund failed (${refundErr.message}). Nothing downstream ran. Stripe will retry.`,
           }).then(() => {}, () => {});
-          return json({ error: "Could not apply the refund." }, 500);
+          /* WAS `json(...)`, which does not exist in this file -- every other
+             return here builds a Response by hand. It threw a ReferenceError
+             that the outer catch turned into a 500 anyway, so Stripe still
+             retried and the safety property held; what never ran was this
+             intended path, and the catch logged a second, misleading incident
+             on top of the accurate one just reported above. */
+          return new Response(JSON.stringify({ error: "Could not apply the refund." }),
+            { status: 500, headers: { "Content-Type": "application/json" } });
         }
         const { data: appRow } = await service.from("applications")
           .select("id, guarantee_ref, refund_after_start, tenant_title, tenant_last_name, tenant_email, prop_addr1, prop_postcode, pandadoc_document_id, deed_state, livemode")

@@ -5,7 +5,7 @@
 -- and ADMIN paths are untouched.
 --
 -- The ladder, expanded by app_scope_branches():
---   negotiator (no user_scope, home_branch) -> exactly their home branch
+--   negotiator (branch position)             -> exactly that branch
 --   agency manager (agency scope)           -> every branch of that agency
 -- Cross-scope is refused with '42501' and the exact message. Supplier-rail and
 -- admin callers never reach the gate, proven by a scope-less caller who WOULD be
@@ -50,7 +50,11 @@ insert into auth.users (id, instance_id, aud, role, email, created_at, updated_a
   ('50000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@zzz-scope.test',    now(), now(), '{}'::jsonb, '{}'::jsonb, '','','','','','','',''),
   ('50000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'supplier@zzz-scope.test', now(), now(), '{}'::jsonb, '{}'::jsonb, '','','','','','','','');
 
--- Negotiator: referrer, home branch B1, NO user_scope.
+-- Negotiator: referrer, branch position over B1. This fixture used to give
+-- them NO user_scope and let home_branch_id locate them, which is what the
+-- resolver did until 20261006300000: a negotiator is positioned now, like
+-- everybody else on the estate, because home_branch_id is a column its own
+-- subject could PATCH and create_referral's own gate read it.
 -- Agency manager: management, agency scope over A1 (reaches B1 and B2, not B3).
 -- Admin: superadmin, no partner.
 -- Supplier manager: management under the supplier partner, NO scope, NO home branch.
@@ -60,15 +64,16 @@ insert into public.users (id, full_name, email, role, partner_id, status, home_b
   ('50000000-0000-0000-0000-000000000003', 'Adam Admin',     'admin@zzz-scope.test',    'superadmin', null,                                   'active', null),
   ('50000000-0000-0000-0000-000000000004', 'Sam Supplier',   'supplier@zzz-scope.test', 'management', '10000000-0000-0000-0000-000000000002', 'active', null);
 
-insert into public.user_scopes (user_id, kind, agency_id) values
-  ('50000000-0000-0000-0000-000000000002', 'agency', '30000000-0000-0000-0000-000000000001');
+insert into public.user_scopes (user_id, kind, agency_id, branch_id) values
+  ('50000000-0000-0000-0000-000000000002', 'agency', '30000000-0000-0000-0000-000000000001', null),
+  ('50000000-0000-0000-0000-000000000001', 'branch', null, '40000000-0000-0000-0000-000000000001');
 
--- ---------- 1. Negotiator, agent rail: home branch allowed. ----------
+-- ---------- 1. Negotiator, agent rail: their own branch allowed. ----------
 do $$ begin perform set_config('request.jwt.claims',
   json_build_object('sub','50000000-0000-0000-0000-000000000001','role','authenticated','aal','aal2')::text, true); end $$;
 select lives_ok(
   $$ select public.create_referral('40000000-0000-0000-0000-000000000001','Mr','Neg','Tenant','1990-01-01','n@t.test','07700900001','1 A St',null,'Town',null,'SW1A 1AA',1000,(current_date + 30)) $$,
-  'negotiator may refer against their own home branch');
+  'negotiator may refer against the branch they are positioned at');
 
 -- ---------- 2. Negotiator, agent rail: a different branch is refused. ----------
 select throws_ok(

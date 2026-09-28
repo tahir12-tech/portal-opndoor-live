@@ -57,10 +57,17 @@ values
    (select id from public.partners where slug='opndoor-agents'),'active',false,
    '93000000-0000-0000-0000-0000000000b1');
 
+/* THE NEGOTIATOR HOLDS A POSITION TOO, which this fixture did not give them
+   when it was written: they were located by home_branch_id, the way every
+   negotiator on the estate was. 20261006300000 made a position mandatory here
+   and backfilled the real ones from that same column, because a column its own
+   subject can PATCH is not a boundary. Their home branch is left set, since a
+   negotiator still sits somewhere; it is simply not what finds them. */
 insert into public.user_scopes (user_id, kind, agency_id, branch_id, group_id) values
   ('93000000-0000-0000-0000-00000000e0a1','agency','93000000-0000-0000-0000-00000000000a',null,null),
   ('93000000-0000-0000-0000-00000000e0a2','agency','93000000-0000-0000-0000-00000000000a',null,null),
-  ('93000000-0000-0000-0000-00000000e0a3','agency','93000000-0000-0000-0000-00000000000b',null,null);
+  ('93000000-0000-0000-0000-00000000e0a3','agency','93000000-0000-0000-0000-00000000000b',null,null),
+  ('93000000-0000-0000-0000-00000000e0a4','branch',null,'93000000-0000-0000-0000-0000000000b1',null);
 
 -- Act as ZZZ Ours Mgr: a Manager, positioned on ZZZ Ours.
 select set_config('request.jwt.claims',

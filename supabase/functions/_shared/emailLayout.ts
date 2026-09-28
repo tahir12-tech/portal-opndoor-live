@@ -68,6 +68,45 @@ export interface Message {
 const esc = (s: string) =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+/* PROSE BLOCKS CARRY MARKUP, SO THEY CANNOT SIMPLY BE ESCAPED -- AND THEY
+   CANNOT SIMPLY BE TRUSTED EITHER.
+
+   `p`, `small` and `list` interpolated their content raw, while `h`,
+   `callout`, `rows` and every href went through esc(). That reads like an
+   oversight and behaves like one: the `note` on send-deed-to-landlord is
+   caller-supplied, never touches the database (send_deed_to_landlord
+   validates the name and the email and not the note), and lands as the first
+   paragraph of a message sent from Opndoor's verified sender, subject
+   "Signed Deed of Guarantee for GR-...", WITH THE GENUINE EXECUTED DEED
+   ATTACHED, to an address the caller chose. renderText strips tags rather
+   than escaping them, so the text and HTML parts disagreed as well, which is
+   the classic phishing shape.
+
+   Escaping everything is not available: templates legitimately write <b>,
+   <strong> and <a href> in these blocks. So escape first and then re-permit
+   an allowlist, which is the only order that is safe -- re-permitting by
+   pattern-matching the RAW string would let `<b onclick=...>` through.
+
+   Anchors are re-permitted only with an http(s) href and only with a style
+   of colour-safe characters, because one template colours its links. */
+const ALLOWED_INLINE: Array<[RegExp, string]> = [
+  [/&lt;(\/?)(b|strong|em|i|u)&gt;/g, "<$1$2>"],
+  [/&lt;br\s*\/?&gt;/g, "<br>"],
+  [/&lt;\/a&gt;/g, "</a>"],
+];
+
+function rich(s: string): string {
+  let out = esc(String(s ?? ""));
+  for (const [re, to] of ALLOWED_INLINE) out = out.replace(re, to);
+  // <a href="https://..."> with an optional simple style attribute.
+  out = out.replace(
+    /&lt;a href=&quot;(https?:\/\/[^&quot;\s<>]+)&quot;(?: style=&quot;([a-zA-Z0-9:#;.,\- ]*)&quot;)?&gt;/g,
+    (_m, href: string, style?: string) =>
+      `<a href="${href}"${style ? ` style="${style}"` : ""}>`,
+  );
+  return out;
+}
+
 /* ---------------------------------------------------------------------------
    The banner. Rendered by the LAYOUT, so it cannot be forgotten by a template.
    --------------------------------------------------------------------------- */
@@ -88,8 +127,8 @@ function banner(r?: Recipients): string {
 
 function blockHtml(b: Block): string {
   if ("h" in b) return `<h2 style="margin:26px 0 10px;font:700 16px/1.4 ${FONT};color:${VALHALLA};">${esc(b.h)}</h2>`;
-  if ("p" in b) return `<p style="margin:0 0 14px;font:400 15px/1.65 ${FONT};color:${INK_SOFT};">${b.p}</p>`;
-  if ("small" in b) return `<p style="margin:0 0 12px;font:400 13px/1.6 ${FONT};color:${INK_MUTE};">${b.small}</p>`;
+  if ("p" in b) return `<p style="margin:0 0 14px;font:400 15px/1.65 ${FONT};color:${INK_SOFT};">${rich(b.p)}</p>`;
+  if ("small" in b) return `<p style="margin:0 0 12px;font:400 13px/1.6 ${FONT};color:${INK_MUTE};">${rich(b.small)}</p>`;
   if ("callout" in b) {
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
       <tr><td style="background:${WHITE_LILAC};border:1px solid ${LINE};border-radius:10px;padding:16px 18px;
@@ -97,7 +136,7 @@ function blockHtml(b: Block): string {
   }
   if ("list" in b) {
     return `<ul style="margin:0 0 14px;padding-left:20px;font:400 15px/1.7 ${FONT};color:${INK_SOFT};">`
-      + b.list.map((i) => `<li style="margin:0 0 4px;">${i}</li>`).join("") + `</ul>`;
+      + b.list.map((i) => `<li style="margin:0 0 4px;">${rich(i)}</li>`).join("") + `</ul>`;
   }
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">`
     + b.rows.map(([k, v]) => `<tr>

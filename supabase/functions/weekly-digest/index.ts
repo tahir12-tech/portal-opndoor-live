@@ -20,6 +20,7 @@ import { resolveRecipients } from "../_shared/emailRecipients.ts";
 
 import { sendMessage } from "../_shared/mailer.ts";
 import { weeklyDigestEmail } from "../_shared/emailTemplates.ts";
+import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -100,10 +101,13 @@ Deno.serve(async (req) => {
 
     // Cron auth: x-reminders-secret must match the edge env OR the ops_secrets mirror.
     const presented = req.headers.get("x-reminders-secret") ?? "";
-    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && presented === CRON_SECRET;
+    // Constant time: a cron secret is a bearer credential, and `===` leaks a
+    // matching prefix through timing the way a password compare does. The
+    // helper already existed for the partner API and the webhook verifier.
+    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && timingSafeEqual(presented, CRON_SECRET);
     if (!cronAuthed && presented) {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
-      if (sec?.secret && presented === sec.secret) cronAuthed = true;
+      if (sec?.secret && timingSafeEqual(presented, sec.secret)) cronAuthed = true;
     }
     let adminAuthed = false;
     if (!cronAuthed) {
@@ -170,7 +174,12 @@ Deno.serve(async (req) => {
     // Already-sent this week (idempotency), per reader: the ledger gained a
     // user_id in 20261006200000 so one reader's send cannot mark the partner
     // done for everybody else on it.
-    const { data: already } = await service.from("partner_digest_sends").select("partner_id, user_id").eq("week_start", weekStart);
+    // The WRITE was already guarded on `test` below. The READ is guarded here
+    // too, so a test run exercises the whole path instead of skipping whatever
+    // the last real Monday covered, and the two ends agree.
+    const { data: already } = test
+      ? { data: [] as Array<{ partner_id: string; user_id: string | null }> }
+      : await service.from("partner_digest_sends").select("partner_id, user_id").eq("week_start", weekStart);
     const sentSet = new Set((already ?? []).map((s: { partner_id: string; user_id: string | null }) => s.user_id ?? s.partner_id));
 
     let emailed = 0, skipped = 0, failed = 0;

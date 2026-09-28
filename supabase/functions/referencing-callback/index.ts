@@ -23,6 +23,7 @@
 // after a confirmed success, so an interrupted run simply retries.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, x-ops-secret" };
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
@@ -60,13 +61,13 @@ Deno.serve(async (req) => {
   // ops_secrets mirror so a migration-scheduled job can read it from SQL.
   const presented = req.headers.get("x-ops-secret") ?? "";
   const expected = Deno.env.get("REMINDERS_CRON_SECRET") ?? "";
-  let authorised = !!expected && presented === expected;
+  let authorised = !!expected && timingSafeEqual(presented, expected);
   if (!authorised && presented) {
     // The ops_secrets mirror, read exactly as expiry-reminders and hubspot-sync
     // read it, so a migration-scheduled job that reads the secret from SQL
     // authenticates the same way against every ops function.
     const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
-    authorised = !!sec?.secret && presented === sec.secret;
+    authorised = !!sec?.secret && timingSafeEqual(presented, sec.secret);
   }
   if (!authorised) return json({ ok: false, error: "Not authorised." }, 401);
 

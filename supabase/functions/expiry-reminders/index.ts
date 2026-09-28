@@ -18,6 +18,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { expiryReminderEmail } from "../_shared/emailTemplates.ts";
+import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -61,10 +62,13 @@ Deno.serve(async (req) => {
     // Auth: cron secret (edge env OR the ops_secrets mirror, resilient to a drifted
     // edge env), or a signed-in opndoor admin (test path).
     const presented = req.headers.get("x-reminders-secret") ?? "";
-    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && presented === CRON_SECRET;
+    // Constant time: a cron secret is a bearer credential, and `===` leaks a
+    // matching prefix through timing the way a password compare does. The
+    // helper already existed for the partner API and the webhook verifier.
+    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && timingSafeEqual(presented, CRON_SECRET);
     if (!cronAuthed && presented) {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
-      if (sec?.secret && presented === sec.secret) cronAuthed = true;
+      if (sec?.secret && timingSafeEqual(presented, sec.secret)) cronAuthed = true;
     }
     let adminAuthed = false;
     if (!cronAuthed) {
@@ -141,21 +145,72 @@ Deno.serve(async (req) => {
       mgmtByPartner.set(u.partner_id, list);
     }
 
-    let emailed = 0, emailFailed = 0;
+    // parked: an agency reminder with nobody to send it to. Counted and
+    // returned, so Health shows it rather than it reading as a quiet success.
+    let emailed = 0, emailFailed = 0, parkedCount = 0;
     for (const r of newReminders) {
       const isValidEmail = (value: unknown): value is string =>
               typeof value === "string" &&
               /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
-            // The agency rail answers for itself; everything else keeps the
-            // partner list it always had.
-            const { data: scoped } = await service.rpc("agency_notification_recipients", { p_application: r.application_id });
-            const agencyRail = (scoped ?? []) as Array<{ email: string }>;
-            const recipients = (agencyRail.length > 0
-              ? agencyRail.map((x) => x.email)
-              : [r.referrer_email, ...(mgmtByPartner.get(r.partner_id) ?? [])])
-              .filter(isValidEmail)
-              .map((email) => email.trim());
+            /* WHICH RAIL, NOT WHICH LIST LENGTH.
+
+               This chose the partner-wide list whenever the agency ladder came
+               back empty. Empty is not "this is not an agency referral" -- it
+               is a deactivated referrer with nobody ticked and no manager
+               covering the branch, which is precisely the case the ladder
+               exists to handle. So the one application whose recipients could
+               not be resolved was the one that went to every agency on the
+               house route, naming another agency's tenant and property.
+
+               The same expression swallowed the RPC's error: a failed call
+               also returns nothing, so an outage read as "not an agency
+               referral" and broadcast. The channel is asked first, and it is
+               asked of the application. */
+            const { data: onOurEstate, error: railErr } = await service.rpc(
+              "application_is_agent_estate", { p_application: r.application_id });
+
+            let recipients: string[] = [];
+            let parked: string | null = null;
+
+            if (railErr) {
+              parked = `could not tell which rail this is on: ${railErr.message}`;
+            } else if (onOurEstate) {
+              const { data: scoped, error: scopedErr } = await service.rpc(
+                "agency_notification_recipients", { p_application: r.application_id });
+              if (scopedErr) {
+                parked = `the recipient ladder could not be read: ${scopedErr.message}`;
+              } else {
+                recipients = ((scoped ?? []) as Array<{ email: string }>)
+                  .map((x) => x.email).filter(isValidEmail).map((e) => e.trim());
+                if (recipients.length === 0) {
+                  parked = "nobody on the agency's ladder is active: no referrer, nobody ticked in scope, and no manager covering the branch";
+                }
+              }
+            } else {
+              // Supplier and direct: the partner IS the company, so the partner
+              // list is the company's own management. Unchanged.
+              recipients = [r.referrer_email, ...(mgmtByPartner.get(r.partner_id) ?? [])]
+                .filter(isValidEmail).map((email) => email.trim());
+              if (recipients.length === 0) parked = "no referrer and no active management on this partner";
+            }
+
+            /* PARKED, AND SAID OUT LOUD. Sending nothing quietly is how an
+               expiry passes unnoticed; sending it to the route is worse. The
+               reminder row is already written and idempotent, so the guarantee
+               is not lost -- somebody has to be told to place a recipient. */
+            if (parked) {
+              parkedCount += 1;
+              await service.rpc("report_ops_incident", {
+                p_type: "expiry_reminder_unaddressed",
+                p_detail: `${r.guarantee_ref}: ${parked}`,
+              }).catch(() => {});
+              await service.from("activity_log").insert({
+                application_id: r.application_id, kind: "expiry_reminder_parked",
+                message: `Expiry reminder not sent: ${parked}.`, actor: "System", visibility: "internal",
+              });
+              continue;
+            }
       const res = await sendMessage({
         to: recipients,
         message: expiryReminderEmail({
@@ -175,7 +230,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ ok: true, test, date: pToday, fired: newReminders.length, emailed, emailFailed });
+    return json({ ok: true, test, date: pToday, fired: newReminders.length, emailed, emailFailed, parked: parkedCount });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unexpected error.";
     // #3 A total cron failure (a crash before it could log anything) still alerts

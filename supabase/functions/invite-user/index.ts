@@ -22,7 +22,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { staffInviteEmail } from "../_shared/emailTemplates.ts";
-import { placeOrRollback } from "../_shared/placeOrRollback.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -163,7 +162,7 @@ Deno.serve(async (req) => {
 
          assert_may_grant_level refuses instead. Called through the CALLER-scoped
          client, so auth.uid() inside it is the inviter and not service_role, the
-         same shape placeOrRollback already uses for set_user_scope below.
+         same shape create_invited_user uses for set_user_scope below.
          Agency levels only: a developer invite carries no level and is governed
          by the allowlist above. */
       if (role === "management" || role === "referrer") {
@@ -177,6 +176,13 @@ Deno.serve(async (req) => {
     }
 
     const fullName = `${firstName} ${lastName}`.trim() || email;
+
+    /* IS THE PERSON BEING INVITED ONTO OUR OWN ESTATE? Asked of the INVITEE's
+       partner, not the caller's, because an admin invites into partners that
+       are not their own. It decides whether a position is optional. */
+    const { data: inviteePartner } = await service
+      .from("partners").select("referencing_mode").eq("id", inviteePartnerId).maybeSingle();
+    const inviteeOnOurEstate = inviteePartner?.referencing_mode === "opndoor_referenced";
 
     // Record the negotiator's home branch, so the scoped manager who invited them
     // sees them from day one (before any referral). branches_select is already
@@ -194,6 +200,29 @@ Deno.serve(async (req) => {
         homeBranchId = br.id;
       } else if (callerScoped) {
         return json({ ok: false, error: "Choose the branch this negotiator will work at." }, 400);
+      }
+    }
+
+    /* EVERYBODY ON OUR ESTATE IS INVITED INTO A POSITION.
+
+       This dialog sent no scopeKind for a Director or a Manager, and the grant
+       below only ran `if (scopeKind)`, so every manager invited from Team was
+       born unpositioned -- the exact state that made `not app_has_scope() or
+       ...` hand somebody every agency on the route. The reviewer found the
+       policy; the sweep found this screen creating the state it needed.
+
+       A negotiator invited with a branch is positioned at that branch: their
+       home branch used to be what located them, and it is no longer allowed
+       to be. 20261006300000 refuses the row at the database either way; this
+       is the sentence a person reads instead of a constraint violation. */
+    let effectiveScopeKind = scopeKind as string | null;
+    let effectiveScopeTarget = scopeTarget as string | null;
+    if (inviteeOnOurEstate && !effectiveScopeKind) {
+      if (role === "referrer" && homeBranchId) {
+        effectiveScopeKind = "branch";
+        effectiveScopeTarget = homeBranchId;
+      } else {
+        return json({ ok: false, error: "Choose the group, brand or branch this person will hold. Everybody on our estate holds a position." }, 400);
       }
     }
 
@@ -224,13 +253,25 @@ Deno.serve(async (req) => {
     let link: string | undefined;
     let targetUserId: string | undefined = existing?.id;
 
-    // Re-inviting must respect the SAME scope as inviting: management may only
-    // re-invite referrers/managers in their own partner. Without this, the
-    // service-role lookup would let management trigger a set-password link and an
-    // audit row for any account (a superadmin's, or another partner's).
+    /* RE-INVITING IS REACHING A PERSON, SO ASK THE PERSON SURFACE.
+
+       This test was `existing.partner_id !== inviteePartnerId`, read through
+       the SERVICE role. On the supplier rail the partner is the company and
+       that was a real boundary. On the house route it is every agency we have
+       onboarded, so a manager at one agency could trigger a set-password link
+       and a user_audit row against a manager at another -- reached by email
+       address, which is guessable, with no position test anywhere in the path.
+
+       The same correction the scope block above already had applied to it:
+       read through the CALLER's client so RLS answers. users_select is now
+       app_may_reach_user, so a row coming back IS the authorisation, and the
+       fail-fast agrees with the real guard instead of being wider than it. */
     if (existing && caller.role !== "superadmin") {
-      const outOfScope = existing.partner_id !== inviteePartnerId || !["referrer", "management"].includes(existing.role);
-      if (outOfScope) return json({ ok: false, error: "Not permitted." }, 403);
+      const { data: reachable } = await userClient
+        .from("users").select("id, role").eq("id", existing.id).maybeSingle();
+      if (!reachable || !["referrer", "management"].includes(reachable.role)) {
+        return json({ ok: false, error: "Not permitted." }, 403);
+      }
     }
 
     if (existing) {
@@ -247,48 +288,52 @@ Deno.serve(async (req) => {
       link = data?.properties?.action_link;
       targetUserId = data?.user?.id;
       if (targetUserId) {
-        const { error: insErr } = await service.from("users").insert({
-          id: targetUserId, email, full_name: fullName, role, partner_id: inviteePartnerId, status: "pending",
-          home_branch_id: homeBranchId,
-          /* Only management has a level to hold: maySeeCommission answers true for
-             a superadmin whatever this says, and false for a referrer, so writing
-             it for either would be a value that contradicts the predicate reading
-             it.
+        /* THE PERSON AND THEIR POSITION, IN ONE TRANSACTION.
 
-             THE COERCION THAT USED TO BE HERE IS GONE. It read
+           This was `service.from("users").insert(...)` followed, forty lines
+           below, by a separate set_user_scope call with a hand-written
+           compensating delete if the grant was refused. Two transactions, and
+           the only thing between a refused grant and an unpositioned account
+           was that compensation running. 20261006300000 makes an unpositioned
+           person on our estate a constraint violation, which a deferred
+           constraint can only enforce if both rows are written together.
 
-               && (caller.role === "superadmin" || caller.sees_commission === true)
+           Called through the CALLER's client, not the service role, so
+           set_user_scope's ladder and containment tests inside it are the
+           inviter's -- exactly as they were when it was a separate call.
 
-             which turned a Director request from a Manager into a Manager,
-             silently, answered { ok: true } and sent the invitation, so the person
-             arrived at the wrong level holding an email that said otherwise.
-             assert_may_grant_level REFUSES that request now, above, before
-             anything is created. A request that reaches this line has been
-             authorised, so the honest value is the right one to write.
-
-             Written as service_role, so the admin-only trigger on this column does
-             not apply to this insert: it guards UPDATE, and the authorisation for
-             creation is the assert above. */
-          sees_commission: role === "management" && seesCommission,
+           sees_commission is written by the function. A Director request from
+           a Manager is refused by assert_may_grant_level above rather than
+           silently downgraded, so the honest value is the right one. */
+        const { error: insErr } = await userClient.rpc("create_invited_user", {
+          p_id: targetUserId,
+          p_email: email,
+          p_full_name: fullName,
+          p_role: role,
+          p_partner: inviteePartnerId,
+          p_home_branch: homeBranchId,
+          p_sees_commission: role === "management" && seesCommission,
+          p_scope_kind: effectiveScopeKind,
+          p_scope_target: effectiveScopeTarget,
         });
-        if (insErr) return json({ ok: false, error: insErr.message }, 400);
+        if (insErr) {
+          // The auth account exists and the portal row does not, so nothing is
+          // left half-made: the same rollback the separate grant used to do.
+          await service.auth.admin.deleteUser(targetUserId).catch(() => {});
+          return json({ ok: false, error: insErr.message }, 400);
+        }
       }
     }
     if (!link) return json({ ok: false, error: "Could not generate the invitation link." }, 400);
 
-    // Grant the org position AS THE INVITER, so set_user_scope's ladder decides
-    // (an admin or a group/agency manager may; a branch-only manager may not) and
-    // the target is checked against their own scope. The account now exists, so the
-    // scope lands on it immediately. FATAL, not best-effort: a refusal rolls back a
-    // just-created account (placeOrRollback) rather than leaving it unscoped, and
-    // fails the whole call. Ordered before the email and audit below.
-    if (scopeKind && targetUserId) {
-      const grantErr = await placeOrRollback(
-        () => userClient.rpc("set_user_scope", { p_user: targetUserId, p_kind: scopeKind, p_target: scopeTarget }),
-        () => service.auth.admin.deleteUser(targetUserId!),
-        !existing,
-      );
-      if (grantErr) return json({ ok: false, error: `Could not grant the position, so the invitation was cancelled: ${grantErr}` }, 400);
+    /* A RE-INVITE may also be given a position, and that is still a separate
+       call because the person already exists and there is nothing to roll
+       back. A NEW person was positioned inside create_invited_user above, in
+       the same transaction as their row, so this no longer runs for them. */
+    if (existing && effectiveScopeKind && targetUserId) {
+      const { error: grantErr } = await userClient.rpc("set_user_scope",
+        { p_user: targetUserId, p_kind: effectiveScopeKind, p_target: effectiveScopeTarget });
+      if (grantErr) return json({ ok: false, error: `Could not grant the position: ${grantErr.message}` }, 400);
     }
 
     // Branded invite email (redirected to the review address in test mode).

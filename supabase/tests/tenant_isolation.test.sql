@@ -28,7 +28,7 @@
 --   alpha.group      Director, GROUP position over Alpha Group
 --   alpha.brand      Manager, AGENCY position on Alpha North
 --   alpha.branch     Manager, BRANCH position on Alpha Central
---   alpha.neg        Negotiator, home branch Alpha Central, no position
+--   alpha.neg        Negotiator, BRANCH position on Alpha Central
 --   beta.dir         Director of the single-office agency
 --   gamma.mgmt       the supplier's management
 --   gamma.ref        the supplier's referrer
@@ -98,7 +98,12 @@ insert into public.user_scopes (user_id, kind, group_id, agency_id, branch_id) v
   ('90000000-0000-0000-0000-00000000c001','group','90000000-0000-0000-0000-00000000ab01',null,null),
   ('90000000-0000-0000-0000-00000000c002','agency',null,'90000000-0000-0000-0000-0000000000a1',null),
   ('90000000-0000-0000-0000-00000000c003','branch',null,null,'90000000-0000-0000-0000-0000000000b1'),
-  ('90000000-0000-0000-0000-00000000c005','agency',null,'90000000-0000-0000-0000-0000000000a3',null);
+  ('90000000-0000-0000-0000-00000000c005','agency',null,'90000000-0000-0000-0000-0000000000a3',null),
+  -- The Negotiator holds a BRANCH position. They used to hold none and be
+  -- located by home_branch_id; 20261006300000 made a position mandatory on
+  -- this estate, because that column is one its own subject can PATCH.
+  ('90000000-0000-0000-0000-00000000c004','branch',null,null,'90000000-0000-0000-0000-0000000000b1'),
+  ('90000000-0000-0000-0000-00000000c007','branch',null,null,'90000000-0000-0000-0000-0000000000b5');
 
 -- One application per branch, each referred by somebody who belongs there.
 insert into public.applications
@@ -438,9 +443,25 @@ set local role authenticated;
 
 select is((select count(*)::int from public.agreement_for_agency('90000000-0000-0000-0000-0000000000a3')), 0,
   'a Manager cannot read another agency''s commercial agreement');
-select is((select count(*)::int from public.deed_target('90000000-0000-0000-0000-00000000e003')), 0,
-  'nor another agency''s deed target, with its tenant names and shares');
-select is(public.tenancy_tenant_names('90000000-0000-0000-0000-00000000e003'), null,
+-- deed_target used to answer this caller with an empty set. It now refuses to
+-- be called at all: 20261006330000 revoked it from public, anon and
+-- authenticated, because the only caller is pandadoc.ts holding service_role.
+-- Zero rows and "you may not ask" are both correct answers, and the second is
+-- the better one: a function that answers nothing is one grant away from
+-- answering something. Asserted as the refusal it now is, not relaxed.
+select throws_ok(
+  $$select public.deed_target('90000000-0000-0000-0000-00000000e003')$$,
+  '42501', null,
+  'nor another agency''s deed target: the browser may not call it at all');
+-- Same again, and this one is worth keeping for what it used to catch:
+-- tenancy_tenant_names was gated only on its tenancy CTE, and the solo branch
+-- of its CASE read applications unguarded, so the names came back for an
+-- agency the caller could not reach. That is fixed, AND the function is
+-- service_role only now. Both facts are asserted, because a later grant would
+-- silently undo this line and nothing else would notice.
+select throws_ok(
+  $$select public.tenancy_tenant_names('90000000-0000-0000-0000-00000000e003')$$,
+  '42501', null,
   'nor those tenant names one level down, where the first gate missed a branch');
 select is((select count(*)::int from public.application_commission_rates()
             a join public.applications ap on ap.id = a.application_id

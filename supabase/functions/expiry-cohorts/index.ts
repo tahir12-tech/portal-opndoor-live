@@ -18,6 +18,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveRecipients } from "../_shared/emailRecipients.ts";
 
 import { sendMessage } from "../_shared/mailer.ts";
+import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -75,10 +76,13 @@ Deno.serve(async (req) => {
     // ops_secrets mirror (resilient to a drifted/unset edge env; the crons pass the
     // Vault secret, which the mirror holds).
     const presented = req.headers.get("x-reminders-secret") ?? "";
-    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && presented === CRON_SECRET;
+    // Constant time: a cron secret is a bearer credential, and `===` leaks a
+    // matching prefix through timing the way a password compare does. The
+    // helper already existed for the partner API and the webhook verifier.
+    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && timingSafeEqual(presented, CRON_SECRET);
     if (!cronAuthed && presented) {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
-      if (sec?.secret && presented === sec.secret) cronAuthed = true;
+      if (sec?.secret && timingSafeEqual(presented, sec.secret)) cronAuthed = true;
     }
     let adminAuthed = false;
     if (!cronAuthed) {
@@ -153,7 +157,23 @@ Deno.serve(async (req) => {
     // Already-sent cohorts (idempotency), now per reader: the ledger gained a
     // user_id in 20261006200000, because a partner-level row would mark the
     // whole partner done on the first reader's send.
-    const { data: sent } = await service.from("expiry_cohort_sends").select("partner_id, user_id").eq("cohort_month", cohortMonth);
+    /* A TEST RUN DOES NOT TOUCH THE REAL LEDGER, in either direction.
+
+       It used to write to it. The ledger is what makes the real 08:00 send
+       idempotent, so one admin pressing the test button marked that reader's
+       cohort as already sent, and the real run then skipped it: a month of
+       expiring guarantees that nobody was told about, reported as a clean
+       `skipped` on a job whose Health row stayed green. The cohort CSV is the
+       renewal pipeline, so that is a silent commercial loss, not a cosmetic
+       one.
+
+       Reading it is dropped too, so a test always exercises the whole path
+       rather than skipping whatever the last real run covered. Test sends are
+       routed to the review address by resolveRecipients, so re-sending on a
+       repeated test costs nothing. */
+    const { data: sent } = test
+      ? { data: [] as Array<{ partner_id: string; user_id: string | null }> }
+      : await service.from("expiry_cohort_sends").select("partner_id, user_id").eq("cohort_month", cohortMonth);
     const alreadySent = new Set((sent ?? []).map((s: { partner_id: string; user_id: string | null }) => s.user_id ?? s.partner_id));
 
     const COLS = ["Guarantee reference", "Tenant name", "Property address", "Agency", "Branch", "Tenancy start", "Expiry date", "Days remaining", "Monthly rent", "Annualised rent", "Referrer"];
@@ -213,11 +233,13 @@ Deno.serve(async (req) => {
         attachments: [{ filename, content: btoa(unescape(encodeURIComponent(csv))) }],
       });
       if (!res.ok) { failed += 1; continue; }
-      await service.from("expiry_cohort_sends").insert({ partner_id: partnerId, user_id: reader.userId, cohort_month: cohortMonth, recipients: recipients.length });
+      if (!test) {
+        await service.from("expiry_cohort_sends").insert({ partner_id: partnerId, user_id: reader.userId, cohort_month: cohortMonth, recipients: recipients.length });
+      }
       sentCount += 1;
     }
 
-    return json({ ok: true, test, cohortMonth, partnersEmailed: sentCount, skipped, failed });
+    return json({ ok: true, test, cohortMonth, partnersEmailed: sentCount, skipped, failed, ledgerWritten: !test });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unexpected error.";
     // #3 A total cron failure (a crash before it could log anything) still alerts

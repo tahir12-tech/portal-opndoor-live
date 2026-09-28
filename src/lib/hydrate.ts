@@ -85,7 +85,7 @@ function toContact(c: any): AgentContact {
    removing it would be an unrelated change to every call site. */
 export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LEAST_PRIVILEGED_ROLE): Promise<void> {
   const client = sb();
-  const [partnersRes, partnerRatesRes, usersRes, ratesRes, agenciesRes, groupsRes, branchesRes, contactsRes, appsRes, linesRes] = await Promise.all([
+  const [partnersRes, partnerRatesRes, usersRes, ratesRes, orgRatesRes, agenciesRes, groupsRes, branchesRes, contactsRes, appsRes, linesRes] = await Promise.all([
     // THE RATES ARE NO LONGER SELECTABLE HERE BY ANYONE, exactly as on
     // applications. They came off the table grant for `authenticated`
     // (20260815030000), because this string was never enforcement: it decided
@@ -108,6 +108,17 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // everyone else, enforced in the function rather than by not calling it: a
     // client that skipped the call would be back to a TypeScript decision.
     client.rpc('application_commission_rates', { p_partner: null }),
+    /* THE ORG TREE'S RATES, for the roles entitled to them. The three selects
+       below used to carry partner_rate/agent_rate on the table grant, which
+       meant every signed-in user -- a Negotiator included -- hydrated their
+       agency's commission rate, the one number may_see_commission() withholds
+       everywhere else. 20261005220000 wrote that down under "STILL OPEN,
+       DELIBERATELY" and it stayed open. Same treatment as applications
+       (20260811180000) and partners (20260815030000): the columns came off the
+       grant in 20261006350000 and this asks for them instead. Unconditional
+       and refused in the function, because a client that skipped the call
+       would be back to a TypeScript decision. */
+    client.rpc('org_rate_tiers'),
     // partner:partners is named to its FK, not left bare. partner_agency_relationships
     // (20260812110000) gave PostgREST a SECOND agencies<->partners relationship, the
     // many-to-many of who-can-reach-whom, on top of the direct owner FK. A bare
@@ -116,11 +127,11 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // the one meant here: the single owning partner, the same one partner_id resolves
     // to. The many-to-many would return an array and, for a shared agency, the wrong
     // partner.
-    client.from('agencies').select('id, name, group_name, group_id, partner_rate, agent_rate, referencing_mode, review_state, is_placeholder, partner_id, partner:partners!agencies_partner_id_fkey(slug)'),
+    client.from('agencies').select('id, name, group_name, group_id, referencing_mode, review_state, is_placeholder, partner_id, partner:partners!agencies_partner_id_fkey(slug)'),
     // Agency groups — the top commission tier and the target of a "whole group"
     // position. RLS scopes them to the caller's partner (or all, for admin/staff).
-    client.from('agency_groups').select('id, name, partner_id, partner_rate, agent_rate'),
-    client.from('branches').select('id, name, area, review_state, is_placeholder, agency_id, partner_id, agent_rate'),
+    client.from('agency_groups').select('id, name, partner_id'),
+    client.from('branches').select('id, name, area, review_state, is_placeholder, agency_id, partner_id'),
     // Ordered oldest-first so the on-screen contact order matches the server's
     // promote-oldest primary backstop (org_*_contact RPCs): the "promotes X to
     // primary" consequence text then names the contact the backstop will pick.
@@ -192,6 +203,13 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   // rather than wrong.
   const rateById = new Map<string, { partner: number; agent: number }>(
     ((ratesRes.data ?? []) as any[]).map((r) => [r.application_id, { partner: num(r.partner_rate), agent: num(r.agent_rate) }]),
+  );
+
+  /* One map per tier, so a null stays a null: "inherit from the tier above"
+     and "you may not see this" both arrive as absent, and every figure
+     downstream is then absent rather than wrong. */
+  const orgRate = new Map<string, { partner_rate: number | null; agent_rate: number | null }>(
+    ((orgRatesRes.data ?? []) as any[]).map((r) => [`${r.level}:${r.org_id}`, { partner_rate: r.partner_rate, agent_rate: r.agent_rate }]),
   );
 
   const partnerSlug = new Map<string, string>(partners.map((p) => [p.id, p.slug]));
@@ -289,7 +307,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
       const branch: Branch = {
         id: b.id,
         name: b.name,
-        agentRate: b.agent_rate == null ? null : Number(b.agent_rate),
+        agentRate: orgRate.get(`branch:${b.id}`)?.agent_rate == null ? null : Number(orgRate.get(`branch:${b.id}`)!.agent_rate),
         area: b.area || '-',
         referrers: new Set(bApps.map((x) => x.referrer_id)).size,
         referrals: bApps.length,
@@ -315,8 +333,9 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     if (a.group_name) agency.group = a.group_name;
     if (a.group_id) agency.groupId = a.group_id;
     // Preserve null (inherit) rather than coercing to 0 (a real 0% override).
-    agency.partnerRate = a.partner_rate == null ? null : Number(a.partner_rate);
-    agency.agentRate = a.agent_rate == null ? null : Number(a.agent_rate);
+    const aRate = orgRate.get(`agency:${a.id}`);
+    agency.partnerRate = aRate?.partner_rate == null ? null : Number(aRate.partner_rate);
+    agency.agentRate = aRate?.agent_rate == null ? null : Number(aRate.agent_rate);
     agency.referencingMode = a.referencing_mode ?? null;
     if (a.review_state === 'pending_review') agency.unreviewed = true;
     if (a.is_placeholder) agency.isPlaceholder = true;
@@ -327,8 +346,8 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     id: g.id,
     partner: partnerSlug.get(g.partner_id) ?? '',
     name: g.name,
-    partnerRate: g.partner_rate == null ? null : Number(g.partner_rate),
-    agentRate: g.agent_rate == null ? null : Number(g.agent_rate),
+    partnerRate: orgRate.get(`group:${g.id}`)?.partner_rate == null ? null : Number(orgRate.get(`group:${g.id}`)!.partner_rate),
+    agentRate: orgRate.get(`group:${g.id}`)?.agent_rate == null ? null : Number(orgRate.get(`group:${g.id}`)!.agent_rate),
   }));
 
   /* ---- applications: summaries + detail records ---- */
