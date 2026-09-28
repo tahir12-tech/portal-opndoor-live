@@ -108,7 +108,13 @@ export function AgreementEditor({
   const [tiers, setTiers] = useState<TierRow[]>(() =>
     live && live.tiers.length
       ? live.tiers.map((t) => ({ from: String(t.from), to: t.to == null ? '' : String(t.to), rate: pctOf(t.rate) }))
-      : [{ from: '1', to: '50', rate: '20' }, { from: '51', to: '', rate: '25' }]);
+      /* FROM ZERO, not from one. agreement_volume is 0 before the first referral
+         of a period, so a lowest tier starting at 1 matches nothing at all on
+         the very referral that opens the period. That used to be invisible
+         because the rate fell back to the BAND's, which is the fallback this
+         model is removing: with the bands carrying fee only, an uncovered
+         volume has no rate to fall back to. */
+      : [{ from: '0', to: '50', rate: '20' }, { from: '51', to: '', rate: '25' }]);
 
   /* A flat deal is one open-ended band, so switching model narrows what is
      edited rather than throwing the numbers away: an administrator who clicks
@@ -135,11 +141,14 @@ export function AgreementEditor({
          which is how a month had to be recognised when a month could only be
          written as weeks. Now the band says which it is. */
       const fee = feeBasisWords(Number(x.weeks), x.unit);
-      return `${who}: ${fee}${x.rate === '' ? '' : ` at ${x.rate}%`}`;
+      // On a tiered agreement the band has no rate to name, and saying one
+      // would contradict the tiers below.
+      const rate = model === 'tiered' || x.rate === '' ? '' : ` at ${x.rate}%`;
+      return `${who}: ${fee}${rate}`;
     }).join(' · ');
     if (model !== 'tiered') return b;
     const t = tiers.map((x) => `${x.from}${x.to === '' ? '+' : `–${x.to}`} at ${x.rate}%`).join(' · ');
-    return `${b}. Rate by volume: ${t}.`;
+    return `${b}. The rate comes from the volume tiers: ${t}.`;
   }, [model, shownBands, tiers]);
 
   async function save(confirmReplace = false, confirmBreach = false) {
@@ -158,11 +167,30 @@ export function AgreementEditor({
         max: b.max.trim() === '' ? null : Number(b.max),
         weeks: Number(b.weeks),
         unit: b.unit,
-        rate: toRate(b.rate),
+        /* NULL ON A TIERED AGREEMENT, so the band states no rate at all rather
+           than storing one the tiers then override. A stored-but-ignored rate
+           is the thing that makes an agreement unreadable a year later: the row
+           says 20% and every referral was priced at 25%. */
+        rate: model === 'tiered' ? null : toRate(b.rate),
       }));
       const tierInput: AgreementTierInput[] = model === 'tiered'
         ? tiers.map((t) => ({ from: Number(t.from), to: t.to.trim() === '' ? null : Number(t.to), rate: Number(t.rate) / 100 }))
         : [];
+
+      /* THE TIERS MUST COVER ZERO, or the first referral of every period has no
+         rate. The bands no longer carry one on this model, so there is nothing
+         behind the tiers to catch a volume they miss: resolve_pricing_agreement
+         coalesces the tier's rate over the band's, and the band's is now null.
+         Refused rather than quietly rewritten, because the lowest number in a
+         pricing table is not ours to change. */
+      if (model === 'tiered') {
+        const lowest = Math.min(...tierInput.map((t) => t.from));
+        if (!Number.isFinite(lowest) || lowest > 0) {
+          setRefusal('The lowest volume tier must start at 0, or the first referral of each period has no rate. The bands set the fee on this model and the tiers set the rate, so nothing else can price it.');
+          setBusy(false);
+          return;
+        }
+      }
       await createAgreement({
         level, id, coverage, period: period as 'month' | 'quarter' | 'year',
         countingScope: countingScope as 'agency' | 'group' | 'branch',
@@ -241,7 +269,13 @@ export function AgreementEditor({
               <thead>
                 <tr>
                   <th>From</th><th>To</th><th>Fee basis</th><th>Unit</th>
-                  <th>Rate %</th>
+                  {/* UNDER VOLUME TIERED THE BANDS CARRY THE FEE ONLY. The rate
+                      comes from the tiers, which is what the model MEANS, and
+                      the column was an editable box whose value the pricing
+                      ignored: resolve_pricing_agreement coalesces the tier's
+                      rate over the band's, so a number typed here on a tiered
+                      agreement changed nothing and read as though it had. */}
+                  {model !== 'tiered' && <th>Rate %</th>}
                   {model !== 'flat' && <th aria-label="Remove" />}
                 </tr>
               </thead>
@@ -263,11 +297,12 @@ export function AgreementEditor({
                         <option value="months">Months</option>
                       </select>
                     </td>
-                    <td>
-                      <input inputMode="decimal" value={b.rate}
-                        placeholder={model === 'tiered' ? 'from the tiers' : ''}
-                        onChange={(e) => setBand(i, { rate: e.target.value })} aria-label={`Band ${i + 1} rate`} />
-                    </td>
+                    {model !== 'tiered' && (
+                      <td>
+                        <input inputMode="decimal" value={b.rate}
+                          onChange={(e) => setBand(i, { rate: e.target.value })} aria-label={`Band ${i + 1} rate`} />
+                      </td>
+                    )}
                     {model !== 'flat' && (
                       <td>
                         {shownBands.length > 1 && (
