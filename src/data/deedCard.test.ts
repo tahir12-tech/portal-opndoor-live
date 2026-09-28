@@ -22,7 +22,7 @@
    The rule is extracted here so it can be asserted at all: it used to be an inline
    conditional inside JSX, which is why it went four months without one. */
 import { describe, expect, it } from 'vitest';
-import { deedCardState, mayGenerateDeed } from './paymentService';
+import { DEED_PREPARING_WINDOW_MIN, deedCardState, deedIsOverdue, mayGenerateDeed } from './paymentService';
 
 const pi = (deedState: string | null, pandadocDocumentId: string | null) =>
   ({ deedState, pandadocDocumentId } as Parameters<typeof deedCardState>[0]);
@@ -76,5 +76,73 @@ describe('whether Generate can do anything', () => {
   it('is offered only when there is nothing to resend', () => {
     expect(mayGenerateDeed(pi('error', null))).toBe(true);
     expect(mayGenerateDeed(pi(null, null))).toBe(true);
+  });
+});
+
+/* WHEN "BEING PREPARED" STOPS BEING TRUE.
+
+   Reported from the walk on GR-20763: paid on 20 September, seen on 28 September,
+   and the card read "Deed sent for signature shortly after payment" with no
+   control of any kind. Two things had to be true at once for that.
+
+   The card's whole branch required `pi.deedState` to be set, and GR-20763 had it
+   null: generation was never ATTEMPTED rather than having failed, so the state a
+   failure would have written was never written. Null is the state this card most
+   needs to speak to, and it was the one state it fell silent on.
+
+   And "being prepared" was unconditional, which was right for the seconds after
+   payment and wrong for ever afterwards. Nothing was preparing it: the only
+   automatic generation in the system was stripe-webhook at the moment of payment,
+   so past Stripe's own redelivery window nothing was coming at all. The hourly
+   sweep (20261006100000) is the other half of this fix; the window here is the
+   same 30 minutes it uses, so the card and the cron never disagree about whether
+   a deed is late. */
+describe('a deed that has not turned up', () => {
+  const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const app = (over: Partial<Parameters<typeof deedIsOverdue>[0]> = {}) =>
+    ({ status: 'paid', paymentState: 'paid', pandadocDocumentId: null, paidAt: ago(60), ...over }) as Parameters<typeof deedIsOverdue>[0];
+
+  it('is not overdue in the minutes after payment, when it really is in flight', () => {
+    expect(deedIsOverdue(app({ paidAt: ago(1) }))).toBe(false);
+    expect(deedIsOverdue(app({ paidAt: ago(DEED_PREPARING_WINDOW_MIN - 1) }))).toBe(false);
+  });
+
+  it('is overdue once the window has passed, which is GR-20763 eight days later', () => {
+    expect(deedIsOverdue(app({ paidAt: ago(DEED_PREPARING_WINDOW_MIN + 1) }))).toBe(true);
+    expect(deedIsOverdue(app({ paidAt: ago(60 * 24 * 8) }))).toBe(true);
+  });
+
+  it('is not overdue once a document exists, however long ago it was paid', () => {
+    expect(deedIsOverdue(app({ paidAt: ago(60 * 24 * 8), pandadocDocumentId: 'EWBPU7owvEQj9NKLiSQ7Qn' }))).toBe(false);
+  });
+
+  /* The money went back, so the guarantee it paid for must not be issued and the
+     card must not invite anyone to issue it. Same exclusion the sweep makes. */
+  it('is never overdue on a refunded application', () => {
+    expect(deedIsOverdue(app({ paymentState: 'refunded' }))).toBe(false);
+  });
+
+  it('says nothing about an application that has not paid', () => {
+    expect(deedIsOverdue(app({ status: 'sent' }))).toBe(false);
+    expect(deedIsOverdue(app({ status: 'draft' }))).toBe(false);
+  });
+
+  /* A paid row with no paid_at is a broken row, not a late deed. Guessing a
+     timestamp for it would offer Generate on something nobody understands. */
+  it('does not guess when there is no payment timestamp', () => {
+    expect(deedIsOverdue(app({ paidAt: null }))).toBe(false);
+    expect(deedIsOverdue(app({ paidAt: 'not a date' }))).toBe(false);
+  });
+
+  /* THE PAIR THAT DECIDES THE BUTTON. Overdue and no document is the only
+     combination that offers Generate; the card says "being prepared" inside the
+     window and offers Resend once a document exists. */
+  it('offers Generate only when it is both overdue and undocumented', () => {
+    const late = app();
+    expect(deedIsOverdue(late) && mayGenerateDeed(late)).toBe(true);
+    const fresh = app({ paidAt: ago(2) });
+    expect(deedIsOverdue(fresh) && mayGenerateDeed(fresh)).toBe(false);
+    const done = app({ pandadocDocumentId: 'doc' });
+    expect(deedIsOverdue(done) && mayGenerateDeed(done)).toBe(false);
   });
 });

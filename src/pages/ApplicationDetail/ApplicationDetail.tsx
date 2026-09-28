@@ -33,7 +33,7 @@
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedCardState, deedDownloadUrl, mayGenerateDeed, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
+import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedCardState, deedDownloadUrl, deedIsOverdue, mayGenerateDeed, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { maySeeDeliveryState, type DeliveryState } from '@/data/deliveryState';
@@ -928,6 +928,14 @@ export function ApplicationDetail() {
   const isReferrer = role === 'referrer';
   // Who may send the issued deed: Referrers only on their own; Management + opndoor admin on any in scope.
   const canSend = canSendDeed(role, d.owner === 1);
+
+  /* WHO MAY RUN THE DEED RECOVERY. Directors and Managers, who are both
+     'management', plus opndoor's own staff. Not a Negotiator: they see their own
+     referrals and are not the person who chases a missing deed for the agency.
+     The database refuses either way, through the same RLS-scoped read
+     pandadoc-resend does; this is about not offering a control that is not
+     theirs. */
+  const mayRunDeedRecovery = role === 'management' || role === 'superadmin' || role === 'opndoor_manager';
   // Referrers are send-only: they can only send when a recipient is already resolved.
   const sendDisabled = isReferrer && !resolved.contact;
 
@@ -1152,7 +1160,15 @@ export function ApplicationDetail() {
           </div>
         )}
       </>
-    ) : SUPABASE_ENABLED && pi && d.status === 'paid' && pi.deedState ? (
+    /* `pi.deedState` USED TO BE REQUIRED HERE, and that is why GR-20763 showed
+       Rosa nothing at all. It paid on 20 September with deed_state null, because
+       generation was never ATTEMPTED rather than having failed, so this whole
+       branch was skipped and the reader got the bottom fallback: "Deed sent for
+       signature shortly after payment", eight days after payment, with no control
+       and nothing coming. Null deed_state is the state this card most needs to
+       speak to, not the one it should fall silent on. deedIsOverdue decides which
+       of the two true things to say. */
+    ) : SUPABASE_ENABLED && pi && d.status === 'paid' && (pi.deedState || deedIsOverdue(pi)) ? (
       pi.deedState === 'awaiting_tenant' ? (
         <>
           <div className="deed" style={{ opacity: 0.95 }}>
@@ -1209,6 +1225,21 @@ export function ApplicationDetail() {
             const card = deedCardState(pi);
             const st = pi.deedState;
             if (card === 'preparing') {
+              /* TWO TRUE THINGS, AND THE CLOCK DECIDES WHICH. Inside the window
+                 the deed really is in flight and there is nothing to do. Past it
+                 nothing is coming on its own until the hourly sweep, so saying
+                 "being prepared" is the card asserting a process that is not
+                 running. It says what it knows and offers the button instead. */
+              if (deedIsOverdue(pi)) {
+                return (
+                  <div className="pay-anomaly">
+                    <Icon name="alert" strokeWidth={2.2} />
+                    <span>{agencyViewer
+                      ? 'This deed has not been issued yet. Generate it below, or leave it and opndoor will pick it up.'
+                      : 'Paid, but no deed has been issued. Generate it below; if that fails the reason is recorded on the application.'}</span>
+                  </div>
+                );
+              }
               // Paid, no live document, nothing wrong: it is being prepared.
               return (
                 <div className="deed" style={{ opacity: 0.95 }}>
@@ -1241,7 +1272,16 @@ export function ApplicationDetail() {
               nothing. It also cannot create a second PandaDoc document, which is
               the guard, but an inert button is still a lie about what is available.
               With a document present the honest control is Resend. */}
-          {pi.paymentState !== 'refunded' && (
+          {/* AND NOT WHILE IT IS STILL IN FLIGHT. Offering Generate in the seconds
+              after payment invites exactly the double-press the lease exists to
+              refuse, and the presser would be told "a deed is already being
+              generated", which reads as a fault. Past the window there is nothing
+              in flight, so the button is the honest control.
+
+              Directors and Managers only. A Negotiator sees their own referrals
+              and does not run the agency's recovery; deedActor keeps the rule in
+              one place. Opndoor staff and supplier management keep what they had. */}
+          {pi.paymentState !== 'refunded' && mayRunDeedRecovery && (!mayGenerateDeed(pi) || deedIsOverdue(pi)) && (
             <div style={{ marginTop: 10 }}>
               {!mayGenerateDeed(pi) ? (
                 <Button variant="primary" size="sm" block onClick={doResendDeed} disabled={deedBusy}><Icon name="send" /> {deedBusy ? 'Sending…' : 'Resend signature request'}</Button>

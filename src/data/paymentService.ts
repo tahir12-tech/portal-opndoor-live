@@ -103,6 +103,38 @@ export function mayGenerateDeed(pi: Pick<PaymentInfo, 'pandadocDocumentId'>): bo
   return !pi.pandadocDocumentId;
 }
 
+/* HOW LONG "BEING PREPARED" IS ALLOWED TO LAST.
+
+   The same 30 minutes deeds_awaiting_generation uses, and the two must stay equal:
+   this decides when a person is offered the button, that decides when the cron
+   does it for them. If the card were more patient than the sweep it would tell a
+   Director to wait while a robot was already retrying; if it were less patient it
+   would invite a second presser into the window the lease exists to protect. */
+export const DEED_PREPARING_WINDOW_MIN = 30;
+
+/** A paid application whose deed has not turned up, past the window in which it
+    could still legitimately be in flight.
+
+    WHY THE WINDOW MATTERS RATHER THAN JUST "no document". In the seconds after
+    payment there is genuinely nothing wrong: stripe-webhook is generating it. The
+    card said so and stopped there, which was right for those seconds and wrong for
+    ever afterwards. GR-20763 paid on 20 September and still read "Deed sent for
+    signature shortly after payment" eight days later, because deed_state was null
+    and the card's whole branch required it to be set. Nothing was coming: the only
+    automatic generation was the webhook at the moment of payment. */
+export function deedIsOverdue(
+  pi: Pick<PaymentInfo, 'status' | 'paymentState' | 'pandadocDocumentId' | 'paidAt'>,
+  now: Date = new Date(),
+): boolean {
+  if (pi.status !== 'paid') return false;
+  if (pi.pandadocDocumentId) return false;
+  if (pi.paymentState === 'refunded') return false;
+  if (!pi.paidAt) return false;
+  const paid = new Date(pi.paidAt).getTime();
+  if (Number.isNaN(paid)) return false;
+  return now.getTime() - paid > DEED_PREPARING_WINDOW_MIN * 60_000;
+}
+
 /** Extract a readable message from a Supabase Functions error. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function functionErrorMessage(error: any, fallback: string): Promise<string> {
