@@ -169,6 +169,55 @@ Matt's rulings on the three that were judgement calls are in the verbatim
 instruction above and are not re-stated here.
 
 ---
+### The drift instruction, verbatim (2026-09-28)
+
+Given after I explained why the suite was green. Matt chose option (b), the
+analytical replay, and the file-derived allowlist.
+
+> Go with (b), and the allowlist derived from the migration files, not the database. Then:
+>
+> 1. Never re-apply an existing migration to dev again. Any correction to an earlier migration goes in a new migration. Add that rule to CLAUDE.md.
+>
+> 2. Drift check: compute the final state from the files (grants, function bodies, policies, triggers, column privileges) and diff it against dev's live catalogue. List every difference. Fix dev to match the files with a new corrective migration, never by editing or re-running old ones. Make the diff a permanent check that fails when dev and the files disagree.
+>
+> 3. Tests run as the role they claim to test. Every RLS and grant assertion runs under set local role authenticated with a real JWT claim for the user in question. Add a lint that fails any test asserting a policy or grant after reset role or as postgres. Fix the H2 test and any others it finds.
+>
+> 4. Then the whole H1 to L5 list and the functional guard suite in one pass, each fix proven by a test that fails first.
+>
+> 5. Add to the cutover rehearsal in HANDOVER-BALAL.md: all migrations applied from zero to the clone in filename order, then the full pgTAP and vitest suites run against the clone before production is touched. That is the real fresh-database proof.
+>
+> Record in QUEUE.md, then the next fresh reviewer round. Carry on without stopping.
+
+### Why the suite was green, which is the finding underneath H1 and H2
+
+Three separate causes, and the third is the one that matters most.
+
+1. **Dev was not a faithful replay of filename order.** `20261006300000:188`
+   grants `create_invited_user` to `authenticated`; `20261006330000:486`
+   revokes it. In filename order the revoke wins and every invite breaks. On
+   dev the grant was live, because when I fixed a plpgsql bug in
+   `user_must_hold_a_position` I RE-APPLIED 300000 after 330000 had already
+   run, re-executing line 188. Dev and a clean migration run disagreed, and
+   every local test run measured the wrong one. Hence rule 1 above.
+
+2. **A test exercised its path as the wrong role.** `user_scopes_delete` calls
+   `may_act_on_user`, which `20261006330000:594` revokes from `authenticated`.
+   The removal test in `every_repro_from_both_reviews.test.sql` did the delete
+   after `reset role`, as `postgres`, which bypasses RLS entirely: the policy
+   predicate was never evaluated. It asserted the constraint trigger and
+   nothing else. Hence rule 3 above.
+
+3. **The allowlist was generated from the database it was testing.** I built
+   `definer_grants.test.sql`'s expected answer by querying dev's catalogue. A
+   test whose expectation is derived from the system under test cannot detect
+   drift in that system; it restates it. That is why the assertion "every
+   allowlisted name is executable by authenticated" passed while the migration
+   on disk said the opposite. Hence the file-derived allowlist above.
+
+CI would have caught (1), because `supabase db start` applies migrations in
+filename order into a fresh database. It would not have caught (2) or (3).
+
+---
 ## Q-02. Supplier rail notifications
 
 **Status: todo.**

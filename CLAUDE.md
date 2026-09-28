@@ -38,6 +38,12 @@ trigger.
 
 ## Rules
 
+- **Never re-apply an existing migration to dev.** Any correction to an earlier
+  migration goes in a NEW migration. Re-running one makes dev disagree with a
+  clean filename-order run, and every test then measures the wrong database:
+  that is exactly how a revoke that broke every user invite sat green in the
+  suite for a day. `npm run drift` computes the final state from the files and
+  diffs it against dev; it must be clean.
 - The live Supabase project `xogpsaoyprgmxdkmcype` is **never** touched, read or
   written. Dev is `nfufwcpgrhfgwtphegca`.
 - `origin` is a third-party live repository. **Matt pushes. Claude only
