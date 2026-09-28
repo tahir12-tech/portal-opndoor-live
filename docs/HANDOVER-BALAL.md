@@ -644,48 +644,59 @@ insert as it stood against dev: zero rows written.
 
 ---
 
-## 10.2 HubSpot, and the fault that looks exactly like "no data yet"
+## 10.2 HubSpot: the fault, and the fix that is already on this branch
 
-The sync pages applications into HubSpot on a `*/2` cron. It has two pieces of
-state and they are set up by different things, which is the whole of the
-problem.
+> **Correcting an earlier draft of this section.** It told you to check
+> `hubspot_partner_map` for unmapped partners and insert portal ids by hand. That
+> described the state before `20261005250000`, which is ON this branch, and it
+> named a column (`portal_id`) the table does not have. Verified on dev while
+> walking onboarding: every partner is mapped, including one created through the
+> Suppliers page minutes earlier. There is no by-hand step here.
 
-| table | what it is | set by |
+The sync needs two facts per partner and they used to be created by different
+things, which was the whole of the problem.
+
+| table | what it is | created by |
 |---|---|---|
-| `hubspot_sync_cursor_partner` | how far the sync has got for each partner | the sync itself, on first run |
-| `hubspot_partner_map` | which HubSpot portal each partner writes into | **by hand** |
+| `hubspot_sync_cursor_partner` | how far the sync has got | a trigger, since 20260812030000 |
+| `hubspot_partner_map` | the partner's CRM mapping | a trigger, **since 20261005250000** |
 
-**THE FAULT, diagnosed on dev.** Seven partners held cursors and
-`hubspot_partner_map` was **empty**. The August trigger that seeded the cursor
-did not seed the map, so the sync ran on schedule, found a cursor, looked up the
-portal, found nothing, and wrote nothing. `cron.job_run_details` said
-"succeeded" every two minutes for weeks, because the cron's job is to POST and
-the POST returned 200.
+**THE FAULT, as it was.** Seven partners held cursors and `hubspot_partner_map`
+was empty: the August migration seeded the cursor and nothing seeded the map. So
+the sync ran every two minutes, found a cursor, looked for a mapping, found none
+and wrote nothing, while `cron.job_run_details` reported "succeeded" throughout,
+because the cron's job is to POST and the POST returned 200.
 
-So on a fresh project **check the map, not the cron**:
+**THE FIX, on this branch.** `20261005250000` backfills every existing partner
+and adds an AFTER INSERT trigger mirroring the cursor trigger, so the two facts
+are created together and cannot drift apart again. AFTER INSERT rather than
+BEFORE, so a failure wiring the CRM cannot abort the creation of the partner
+itself.
+
+**What to check on the clone**, after the migrations, using the columns that
+exist:
 
 ```sql
-select p.slug, m.portal_id is not null as mapped
+select p.slug, m.partner_id is not null as mapped, m.active
   from public.partners p
   left join public.hubspot_partner_map m on m.partner_id = p.id
  order by mapped, p.slug;
 ```
 
-Any `mapped = false` partner is silently not syncing. Insert its portal id
-before the first live referral, not after: the cursor advances whether or not
-the write lands, so an unmapped partner's backlog is not replayed when you fix
-the map. If that has already happened, wind that partner's cursor back.
+Every row should say mapped. If any does not, the backfill in `20261005250000`
+did not run and you are missing that migration, which is a different problem
+from the one this section used to describe.
 
-**THE SECOND SILENT FAILURE is HubSpot's own.** It ACCEPTS a write to a property
-that does not exist and discards it, returning 200. So a mapped, running,
-apparently healthy sync can be writing nothing. `hubspot-sync` checks the
-property list and raises `hubspot_map_drift` when a mapped property is missing,
-which is worth reading as the canary for exactly that. **That alert had never
-fired in its life**, because it was raised by a direct insert into `ops_alerts`
-and `hour_bucket` is `not null` with no default, so the insert failed every time
-and the error was swallowed. Fixed on this branch; see 10.1.
+**THE SILENT FAILURE THAT REMAINS IS HUBSPOT'S OWN.** It ACCEPTS a write to a
+property that does not exist and discards it, returning 200. So a mapped,
+running, apparently healthy sync can be writing nothing. `hubspot-sync` checks
+the property list and raises `hubspot_map_drift` when a mapped property is
+missing, which is the canary for exactly that. **That alert had never fired in
+its life**, because it was raised by a direct insert into `ops_alerts` and
+`hour_bucket` is `not null` with no default, so the insert failed every time and
+the error was swallowed. Fixed on this branch; see 10.1.
 
-**`hubspot_sync_events` being empty is normal on dev** and always has been: dev
+**`hubspot_sync_events` being empty on dev is normal** and always has been: dev
 has no HubSpot token, so there is nothing to record. The first proven sync
 anywhere will be the one on your clone, which is why 14.2 walks it.
 
@@ -864,6 +875,63 @@ partner and its position. Read `hubspot_sync_cursor_partner` instead.
 | no rows in `hubspot_sync_events` and nothing stuck | the function is not being reached. Almost always a 401: see 14.4 |
 | a 403 in the function logs | the token. `HUBSPOT_ACCESS_TOKEN` is absent, expired, or lacks a scope |
 | the same error every two minutes for ever | one poisoned event. Check `stuck_error` and the newest applied event to see where it halted |
+
+#### The production alert you will be replaying
+
+Production has been raising this **daily since at least 25 September**:
+
+```
+hubspot-sync referral_created GR-20675: no partner map for partner_id
+1f305284-a6d8-4eb0-9b06-b5fe50648b7b
+```
+
+Two migrations deal with it and they do different halves, which is why both are
+needed:
+
+| migration | what it does |
+|---|---|
+| `20261005250000` | backfills `hubspot_partner_map` and adds the trigger, so every partner has a mapping and every NEW event associates correctly |
+| `20261006130000` | winds that partner's cursor back, so the events already drained **without** an association are read again |
+
+**Why the backfill alone is not enough.** A missing map row goes through
+`configGap()` in hubspot-sync, which warns and raises an incident and does NOT
+throw. So the event is not an error: the applicant properties are written, the
+event completes, and the cursor moves past it, while the association step
+deliberately leaves its ledger key unwritten because it did not happen. The
+application ends up with an applicant in HubSpot attached to no partner company,
+and a cursor that has already gone past the only events that would retry it.
+`ensureAssoc` runs once per EVENT, so an application whose events are all drained
+is never revisited.
+
+**Why the replay is safe.** Every step that already succeeded wrote its ledger
+key to `hubspot_sync_events`, so the replay reads "applied" and skips it. The one
+step with no key is the one that failed. A replay therefore does exactly the
+missing work and nothing else.
+
+**What to expect on the clone.** `20261006130000` prints a notice naming how many
+partners it rewound. On a database with nothing missing it rewinds none, which is
+what it does on dev for seven of the eight partners; dev's eighth is
+`opndoor-agents`, rewound from 17 September to 14 September. On production expect
+at least `1f305284-...` to move.
+
+```sql
+-- BEFORE the migrations, note this partner's position:
+select partner_id, last_at from public.hubspot_sync_cursor_partner
+ where partner_id = '1f305284-a6d8-4eb0-9b06-b5fe50648b7b';
+
+-- AFTER the migrations, last_at should be EARLIER than it was.
+-- Then let the cron run and check the association keys appear:
+select id, target, application_id, applied_at
+  from public.hubspot_sync_events
+ where id like 'assoc:%:partner'
+ order by applied_at desc limit 10;
+```
+
+**The outcome you are looking for:** rows appearing with ids of the form
+`assoc:<application>:partner`, and the daily "no partner map" alert stopping. If
+the alert persists after a full cron cycle, the map row for that partner is still
+missing, which means `20261005250000` did not run: check it is applied before
+looking anywhere else.
 
 ### 14.3 A pay link opened the next day
 
