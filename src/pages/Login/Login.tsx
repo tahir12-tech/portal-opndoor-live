@@ -17,6 +17,7 @@ import { useSession } from '@/session/SessionContext';
 import { Button } from '@/components/ui/Button';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { PasswordInput } from '@/components/ui/PasswordInput';
+import { AuthenticatorAppHelp } from '@/components/auth/AuthenticatorAppHelp';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { carriedEmail, carriedTab, forgotHref, type Audience } from '@/pages/auth/carry';
 // Namespaced as tenantAuth, never as auth. It exposes signIn(email, password)
@@ -31,14 +32,6 @@ import './Login.css';
 
 
 type Step = 'creds' | '2fa' | 'enrol' | 'verify';
-
-/* Google Authenticator, the free authenticator we point people at. Both links are
-   the vendor's own store pages. Kept as constants so the sign-in page and the
-   invite email cannot drift on which app we recommend: the email's copy is in
-   supabase/functions/_shared/emailTemplates.ts (staffInviteEmail), which cannot
-   import from here because it runs on Deno. If either changes, change both. */
-const APP_STORE_GA = 'https://apps.apple.com/app/google-authenticator/id388497605';
-const GOOGLE_PLAY_GA = 'https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2';
 
 export function Login() {
   useDocumentTitle('Sign in');
@@ -319,33 +312,11 @@ export function Login() {
                   <h2 className="auth__title" style={{ marginTop: 16 }}>Set up your authenticator</h2>
                   <p className="auth__sub">Scan this QR code with an authenticator app, then enter the 6-digit code it shows.</p>
                   {/* WHERE TO GET ONE, above the QR, because somebody arriving here
-                      on their first sign in may not have an authenticator at all and
-                      a QR code is no use without one.
-
-                      ONLY FREE APPS ARE NAMED. This line used to read "(Google
-                      Authenticator, 1Password, Authy)", and 1Password is paid: a
-                      required security step must never be gated behind somebody
-                      buying software. Google Authenticator is free on both stores,
-                      and an iPhone already has one built in, so between them nobody
-                      has to spend anything.
-
-                      The links open in a new tab deliberately. Navigating away from
-                      this step abandons the enrolment, and the factor it started
-                      with it, which is the state enrolTotp has to clean up. */}
-                  <p className="auth__apps">
-                    You need an authenticator app. Google Authenticator is free:{' '}
-                    <a className="auth__app-link" href={APP_STORE_GA} target="_blank" rel="noreferrer">App Store</a>
-                    <span aria-hidden="true"> · </span>
-                    <a className="auth__app-link" href={GOOGLE_PLAY_GA} target="_blank" rel="noreferrer">Google Play</a>
-                    <br />
-                    On an iPhone, the built-in Passwords app works too.
-                    {/* SAID AT ENROLMENT, because it is the only moment it can be
-                        acted on cheaply. A person who loses a phone with no backup
-                        needs an admin to reset their factor and has to enrol
-                        again; one tap now avoids that entirely. */}
-                    <br />
-                    Turn on your authenticator app's cloud backup, so a new phone keeps your codes.
-                  </p>
+                      on their first sign in may not have an authenticator at all
+                      and a QR code is no use without one. Shared with the invite
+                      landing, which is the other screen that enrols a factor and
+                      which drifted for months while this one was correct. */}
+                  <AuthenticatorAppHelp />
                   {qr && (
                     <div className="twofa-qr">
                       <img className="twofa-qr__img" src={qr} alt="Authenticator setup QR code" width={160} height={160} />

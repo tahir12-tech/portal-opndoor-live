@@ -11,11 +11,22 @@
    both, and the Passwords app an iPhone already has.
 
    WHY THIS READS THE SOURCE rather than rendering it. The copy lives in two
-   places that cannot import each other: the enrolment screen (React) and the
+   places that cannot import each other: the enrolment block (React) and the
    invite email (a Deno edge function, which vitest does not load). The rule is
    about what we ship in both, so the test reads both files. It is the only way one
    assertion can cover the pair, and the pair drifting is the actual risk: somebody
    fixes the screen and leaves the email recommending a paid app.
+
+   AND THE DRIFT ALREADY HAPPENED, on the third surface this did not know about.
+   There are TWO screens that enrol a factor: the sign-in page and the invite
+   landing (ResetPassword), which is the first thing a brand new person ever sees.
+   This file asserted the sign-in page only, so the invite landing sat
+   recommending 1Password for months while these assertions passed.
+
+   The copy is now one component, AuthenticatorAppHelp, and the two screens are
+   asserted to USE it rather than to contain the words. That is the assertion that
+   would have caught it: a third enrolment screen that writes its own copy fails
+   here, where a fourth file full of the right words would not.
 
    The enrolment screen's BEHAVIOUR is covered separately; this is about the words. */
 import { describe, expect, it } from 'vitest';
@@ -24,8 +35,13 @@ import { resolve } from 'node:path';
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8');
 
-const SCREEN = read('src/pages/Login/Login.tsx');
+const BLOCK = read('src/components/auth/AuthenticatorAppHelp.tsx');
 const EMAIL = read('supabase/functions/_shared/emailTemplates.ts');
+/** Every screen that enrols a factor. Both must use the shared block. */
+const ENROL_SCREENS = [
+  'src/pages/Login/Login.tsx',
+  'src/pages/auth/ResetPassword.tsx',
+];
 
 const APP_STORE = 'https://apps.apple.com/app/google-authenticator/id388497605';
 const GOOGLE_PLAY = 'https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2';
@@ -45,7 +61,7 @@ function copyOnly(src: string): string {
 }
 
 describe('the authenticator copy on the enrolment screen', () => {
-  const copy = copyOnly(SCREEN);
+  const copy = copyOnly(BLOCK);
 
   it('says an authenticator is needed and that Google Authenticator is free', () => {
     expect(copy).toContain('You need an authenticator app. Google Authenticator is free:');
@@ -62,6 +78,25 @@ describe('the authenticator copy on the enrolment screen', () => {
 
   it('names no paid app', () => {
     for (const app of PAID) expect(copy).not.toContain(app);
+  });
+
+  /* THE ASSERTION THAT WOULD HAVE CAUGHT THE DRIFT. Both enrolment screens must
+     render the shared block rather than their own words, and neither may name a
+     paid app anywhere in its own source. */
+  it('is used by every screen that enrols a factor, not written out again', () => {
+    for (const path of ENROL_SCREENS) {
+      const src = read(path);
+      expect(src, `${path} does not render the shared block`).toContain('<AuthenticatorAppHelp />');
+      expect(src, `${path} writes its own copy instead of using the block`)
+        .not.toContain('You need an authenticator app. Google Authenticator is free:');
+    }
+  });
+
+  it('leaves no paid app named on either enrolment screen', () => {
+    for (const path of ENROL_SCREENS) {
+      const src = copyOnly(read(path));
+      for (const app of PAID) expect(src, `${path} names ${app}`).not.toContain(app);
+    }
   });
 });
 

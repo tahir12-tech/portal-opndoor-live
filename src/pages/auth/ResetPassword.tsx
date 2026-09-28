@@ -24,6 +24,7 @@ import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { AuthenticatorAppHelp } from '@/components/auth/AuthenticatorAppHelp';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import './auth.css';
@@ -249,7 +250,12 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
           {phase === 'enrol' && (
             <div>
               <h2 className="auth__title">Set up two-factor authentication</h2>
-              <p className="auth__sub">Scan this QR code with an authenticator app, then enter the 6-digit code it shows. Google Authenticator is free on both app stores, and an iPhone's built-in Passwords app works too.</p>
+              <p className="auth__sub">Scan this QR code with an authenticator app, then enter the 6-digit code it shows.</p>
+              {/* THE SAME BLOCK AS THE SIGN-IN PAGE, and it matters more here:
+                  this is the invite landing, so it is the first thing a brand new
+                  person ever sees of the portal, and it is the screen that spent
+                  months recommending a paid app after the other one was fixed. */}
+              <AuthenticatorAppHelp />
               {qr && <div className="twofa-qr"><img className="twofa-qr__img" src={qr} alt="Authenticator setup QR code" width={160} height={160} /></div>}
               {secret && <div className="twofa-key"><span className="twofa-key__label">Can't scan? Enter this key manually.</span><code className="twofa-key__code">{secret}</code></div>}
               {codeField(submitEnrol, '6-digit code', 'Verify and finish')}
