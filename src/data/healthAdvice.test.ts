@@ -157,3 +157,63 @@ describe('reading a response body', () => {
     expect(a.meaning).toContain('A scheduled call');
   });
 });
+
+/* OFF ON PURPOSE IS NOT BROKEN.
+
+   hubspot-sync answers 500 every two minutes on an environment with no
+   HubSpot, which on dev is 68 failures in 211 calls a day for a state nobody
+   intends to fix. An alert that fires for a deliberate condition is worse than
+   none: it teaches the operator to skip that line, which is the habit that
+   hides the real one.
+
+   The environment says so explicitly (ops_secrets 'hubspot_disabled'). Nothing
+   is inferred from the project ref or the hostname, so PRODUCTION, which has
+   no such row, still alerts on a missing token exactly as before. Both
+   directions are asserted, because only having the first is how a disabled
+   flag quietly disables production too. */
+describe('an environment with HubSpot deliberately off', () => {
+  const hubspot = (o: Partial<JobLike> = {}): JobLike => job({
+    jobname: 'hubspot-sync', last_status: 'succeeded',
+    http_status_code: 500, http_ok: false, ...o,
+  });
+
+  it('reads as switched off rather than as failing', () => {
+    const a = jobAdvice(hubspot({ disabled_here: true }), true)!;
+    expect(a.tone).toBe('warn');
+    expect(a.meaning).toContain('switched off for this environment');
+    expect(a.action).toContain('Nothing to do here');
+  });
+
+  it('and its responses say the same, instead of naming a missing secret', () => {
+    const a = responseAdvice(response({
+      status_code: 500, ok: false, job: 'hubspot-sync', disabledHere: true,
+      content: '{"ok":false,"error":"No HubSpot access token configured."}',
+    }))!;
+    expect(a.tone).toBe('warn');
+    expect(a.meaning).toContain('switched off');
+    expect(a.action).not.toContain('HUBSPOT_ACCESS_TOKEN');
+  });
+
+  /* THE OTHER DIRECTION, which is the one that matters on Monday. */
+  it('still alerts on production, where the flag is absent', () => {
+    const a = jobAdvice(hubspot(), true)!;
+    expect(a.tone).toBe('error');
+    expect(a.meaning).toContain('500');
+  });
+
+  it('and still names the missing secret there', () => {
+    const a = responseAdvice(response({
+      status_code: 500, ok: false, job: 'hubspot-sync',
+      content: '{"ok":false,"error":"No HubSpot access token configured."}',
+    }))!;
+    expect(a.tone).toBe('error');
+    expect(a.action).toContain('HUBSPOT_ACCESS_TOKEN');
+  });
+
+  /* AND IT IS NOT A BLANKET MUTE. A job that is off must not silence the ones
+     beside it, which is the failure mode of a flag read too broadly. */
+  it('does not quieten any other job', () => {
+    const a = jobAdvice(job({ jobname: 'deed-sweep-hourly', http_status_code: 500, http_ok: false }), true)!;
+    expect(a.tone).toBe('error');
+  });
+});

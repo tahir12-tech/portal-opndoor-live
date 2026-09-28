@@ -120,19 +120,35 @@ Deno.serve(async (req) => {
       // had, plus developer, which the screen already claimed they could grant.
       const isBranchOnly = kinds.size > 0 && !kinds.has("group") && !kinds.has("agency");
 
+      /* A DEVELOPER IS AN API ROLE, AND THE AGENCY RAIL HAS NO API.
+         A developer is pinned to a partner and reaches dev-centre, which mints
+         keys and registers webhook endpoints. On the supplier rail the partner
+         is that supplier's own company and that is the product. On the house
+         route the partner is shared by every agency Opndoor carries, so a
+         developer created there would be a developer for all of them.
+         20261006270000 refuses the endpoint and the key at the database, and
+         this refuses the account, so the route is shut at both ends. */
+      const { data: myPartner } = await userClient
+        .from("partners").select("referencing_mode").eq("id", caller.partner_id).maybeSingle();
+      const onOurEstate = myPartner?.referencing_mode === "opndoor_referenced";
+
       const allowed = isBranchOnly
         // A branch manager staffs their branches. They cannot create another
         // manager, and they certainly cannot create a key-minting developer:
         // both would be a way to climb out of the branch they were given.
         ? ["referrer"]
-        : ["referrer", "management", "developer"];
+        : onOurEstate
+          ? ["referrer", "management"]
+          : ["referrer", "management", "developer"];
 
       if (!allowed.includes(role)) {
         return json({
           ok: false,
           error: isBranchOnly
             ? "Branch managers may invite negotiators only."
-            : "Managers may invite negotiators, managers or developers.",
+            : onOurEstate
+              ? "You can invite negotiators and managers. Developer accounts are for API integrations, which agencies do not use."
+              : "Managers may invite negotiators, managers or developers.",
         }, 403);
       }
 
@@ -189,9 +205,16 @@ Deno.serve(async (req) => {
       if (!["group", "agency", "branch"].includes(scopeKind)) return json({ ok: false, error: "Invalid position level." }, 400);
       if (!scopeTarget) return json({ ok: false, error: "Choose the group, brand or branch for this position." }, 400);
       const tbl = scopeKind === "group" ? "agency_groups" : scopeKind === "agency" ? "agencies" : "branches";
-      const { data: node } = await service.from(tbl).select("partner_id").eq("id", scopeTarget).maybeSingle();
+      /* READ THROUGH THE CALLER, NOT THE SERVICE ROLE. This used the service
+         role and then compared partner_id, which on the house route admits
+         every agency: the fail-fast was wider than the real guard behind it
+         (set_user_scope, which refuses "You can only grant a position within
+         your own scope"). Reading through the caller's own client means RLS
+         answers, and the two agree. Admins are unaffected: their policies
+         return everything. */
+      const { data: node } = await userClient.from(tbl).select("partner_id").eq("id", scopeTarget).maybeSingle();
       if (!node || node.partner_id !== inviteePartnerId) {
-        return json({ ok: false, error: "That group, brand or branch is not within this partner." }, 400);
+        return json({ ok: false, error: "That group, brand or branch is not one you can place somebody at." }, 400);
       }
     }
 

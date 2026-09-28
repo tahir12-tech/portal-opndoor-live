@@ -83,7 +83,7 @@ function AdviceRow({ advice, ref: appRef }: { advice: Advice | null; ref?: strin
 }
 
 /** One HTTP response, with its reading under it. */
-function ResponseRow({ r }: { r: RecentHttp }) {
+function ResponseRow({ r, disabledHere }: { r: RecentHttp; disabledHere?: boolean }) {
   return (
     <div className={`hresp${r.ok ? '' : ' hresp--bad'}`}>
       <div className="hresp__line">
@@ -94,7 +94,7 @@ function ResponseRow({ r }: { r: RecentHttp }) {
         <span className="hresp__when">{fmtDateTime(r.created)}</span>
       </div>
       {(r.content || r.error_msg) && <div className="hsnippet">{r.content ?? r.error_msg}</div>}
-      <AdviceRow advice={responseAdvice(r)} ref={refInResponse(r)} />
+      <AdviceRow advice={responseAdvice({ ...r, disabledHere })} ref={refInResponse(r)} />
     </div>
   );
 }
@@ -187,7 +187,12 @@ export function Health() {
   const baseUrlSet = !!data.functions_base_url;
   const gatedJobs = data.jobs.filter((j) => j.needs_base_url && j.active);
   // The RPC already returns errors first; this is the same rows, named.
-  const failures = data.recent_http.filter((r) => !r.ok);
+  /* A JOB THAT IS OFF ON PURPOSE IS NOT FAILING. Its responses keep their
+     status, so the page still shows what happened, but they are not counted
+     as failures and they carry the "disabled here" reading instead. */
+  const disabledJobs = new Set(data.jobs.filter((j) => j.disabled_here).map((j) => j.jobname));
+  const isDisabled = (job: string | null) => !!job && disabledJobs.has(job);
+  const failures = data.recent_http.filter((r) => !r.ok && !isDisabled(r.job));
   // Any silent-success job (run said succeeded, HTTP said non-2xx) or a non-2xx
   // most-recent response, or any non-2xx in the window: make it loud.
   const silentJobs = data.jobs.filter((j) => j.last_status === 'succeeded' && j.http_ok === false);
@@ -329,8 +334,11 @@ export function Health() {
                 <span className="hresp__job">{g.job ?? 'unattributed'}</span>
                 <span className="muted">
                   {g.total} {g.total === 1 ? 'response' : 'responses'}
-                  {g.errors > 0 && <>, <b className="hresp__errs">{g.errors} failing</b></>}
+                  {g.errors > 0 && (g.disabled_here
+                    ? <>, {g.errors} expected while off</>
+                    : <>, <b className="hresp__errs">{g.errors} failing</b></>)}
                 </span>
+                {g.disabled_here && <span className="hresp__off">disabled on this environment</span>}
                 {g.latest && (
                   <span className={`hhttp${g.latest.ok ? ' hhttp--ok' : ' hhttp--bad'}`}>
                     {g.latest.status_code != null ? g.latest.status_code : g.latest.timed_out ? 'timeout' : 'error'}
@@ -338,10 +346,10 @@ export function Health() {
                 )}
                 {g.latest && <span className="hresp__when">{fmtDateTime(g.latest.created)}</span>}
               </summary>
-              {g.latest ? <ResponseRow r={g.latest} /> : <div className="dt__sub">Nothing recorded.</div>}
+              {g.latest ? <ResponseRow r={g.latest} disabledHere={g.disabled_here} /> : <div className="dt__sub">Nothing recorded.</div>}
               {/* Every response for this job that the snapshot carried. */}
               {data.recent_http.filter((r) => r.job === g.job && r.id !== g.latest?.id)
-                .map((r) => <ResponseRow key={r.id} r={r} />)}
+                .map((r) => <ResponseRow key={r.id} r={r} disabledHere={g.disabled_here} />)}
             </details>
           ))}
         </div>

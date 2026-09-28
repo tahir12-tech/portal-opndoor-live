@@ -35,6 +35,8 @@ export interface Advice {
 export interface JobLike {
   jobname: string;
   active: boolean;
+  /** Switched off for this environment on purpose. */
+  disabled_here?: boolean;
   last_status: string | null;
   last_run: string | null;
   http_status_code: number | null;
@@ -54,6 +56,18 @@ export interface JobLike {
 export function jobAdvice(job: JobLike, baseUrlSet: boolean): Advice | null {
   // A paused job is a decision somebody took, not a fault.
   if (!job.active) return null;
+
+  /* OFF ON PURPOSE IS NOT BROKEN. An environment with no HubSpot says so
+     explicitly, and its sync then fails every two minutes for a reason nobody
+     intends to fix. Reporting that as an error teaches the operator to skip
+     the line, which is exactly the habit that hides a real one. */
+  if (job.disabled_here) {
+    return {
+      tone: 'warn',
+      meaning: `${job.jobname} is switched off for this environment, so its failures are expected.`,
+      action: 'Nothing to do here. On production this is on, and a failure there is real.',
+    };
+  }
 
   /* THE SILENT NO-OP. Four crons end their command with
      `where public.ops_functions_base_url() is not null`. With the secret
@@ -125,12 +139,24 @@ export interface ResponseLike {
   content: string | null;
   error_msg: string | null;
   job: string | null;
+  /** The job this came from is switched off for this environment on purpose. */
+  disabledHere?: boolean;
 }
 
 /** What a failing response means. Null for a 2xx: there is nothing to do. */
 export function responseAdvice(r: ResponseLike): Advice | null {
   if (r.ok) return null;
   const who = r.job ?? 'A scheduled call';
+
+  // Off on purpose: the failure is the expected shape of "there is nothing to
+  // sync to here", and saying what to do about it would be saying nothing.
+  if (r.disabledHere) {
+    return {
+      tone: 'warn',
+      meaning: `${who} is switched off for this environment, so this failure is expected.`,
+      action: 'Nothing to do here. On production this is on.',
+    };
+  }
 
   if (r.timed_out || (r.status_code == null && r.error_msg)) {
     return {

@@ -160,6 +160,18 @@ Deno.serve(async (req) => {
       // A missing token stops EVERY partner, and it is the failure most likely
       // to arrive by surprise: a rotated or expired HubSpot token, or a
       // redeploy that dropped the edge env var. Say so out loud.
+      /* DELIBERATELY OFF IS NOT BROKEN. On an environment with no HubSpot --
+         dev, a clone, a rehearsal -- a missing token is the intended state,
+         and alerting on it every two minutes trains whoever reads the alerts
+         to skip that line. The environment says so explicitly through
+         ops_secrets 'hubspot_disabled'; nothing is inferred from the project
+         ref or the hostname, because an environment that can be guessed wrong
+         is one that will be. Production has no such row, so there a missing
+         token still alerts exactly as before. */
+      const { data: off } = await service.rpc("ops_hubspot_disabled");
+      if (off === true) {
+        return json({ ok: true, skipped: "disabled", detail: "HubSpot is disabled on this environment." });
+      }
       await incident("hubspot_sync_error:config",
         "hubspot-sync: no HubSpot access token (HUBSPOT_ACCESS_TOKEN edge env, x-hubspot-token header, or ops_secrets 'hubspot_access_token'). Nothing is syncing.");
       return json({ ok: false, error: "No HubSpot access token configured." }, 500);

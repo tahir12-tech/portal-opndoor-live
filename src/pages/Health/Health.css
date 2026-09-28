@@ -170,3 +170,5 @@ details.hresp-group > summary::-webkit-details-marker { display: none; }
 .hresp__errs { color: var(--danger, #c0392b); }
 .hstat__card--link { text-decoration: none; color: inherit; cursor: pointer; }
 .hstat__card--link:hover { border-color: var(--heliotrope-deep); }
+/* Off on purpose reads as a state, not as a failure. */
+.hresp__off { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-mute); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }

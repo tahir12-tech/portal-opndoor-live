@@ -21,7 +21,7 @@
 -- wrong for every caller at once.
 
 begin;
-select plan(13);
+select plan(17);
 
 -- ---------------------------------------------------------------------------
 -- THE GATE. Admin and AAL2, both raising 42501.
@@ -132,6 +132,31 @@ select ok(
   >= (select count(*) from snap, jsonb_array_elements((select j from snap) -> 'recent_http') e2
        where (e2 ->> 'ok')::boolean is false),
   'the per-job error tallies account for every failure the list shows');
+
+-- ---------------------------------------------------------------------------
+-- HUBSPOT CAN BE DELIBERATELY OFF, and that is a state rather than a fault.
+-- ---------------------------------------------------------------------------
+reset role;
+delete from public.ops_secrets where name = 'hubspot_disabled';
+select ok(not public.ops_hubspot_disabled(),
+  'with no row at all -- which is production -- HubSpot is on, so a missing token still alerts');
+
+insert into public.ops_secrets(name, secret) values ('hubspot_disabled','true');
+select ok(public.ops_hubspot_disabled(),
+  'and an environment that says so explicitly is off');
+
+-- NEVER INFERRED. An environment that can be guessed wrong is one that will be,
+-- so anything other than an affirmative reads as on.
+delete from public.ops_secrets where name = 'hubspot_disabled';
+insert into public.ops_secrets(name, secret) values ('hubspot_disabled','');
+select ok(not public.ops_hubspot_disabled(),
+  'an empty value is not a disable');
+
+delete from public.ops_secrets where name = 'hubspot_disabled';
+insert into public.ops_secrets(name, secret) values ('hubspot_disabled','true');
+set local role authenticated;
+select ok(((select public.cron_health()) ->> 'hubspot_disabled')::boolean,
+  'and the Health snapshot carries it, so the page can say so rather than alert');
 
 select * from finish();
 rollback;

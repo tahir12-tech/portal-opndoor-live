@@ -31,6 +31,9 @@ export interface CronJobHealth {
       off the command text by the RPC, so a job that gains or loses the guard
       describes itself correctly without anything here being edited. */
   needs_base_url: boolean;
+  /** True when this job is switched off for this environment on purpose. A
+      job that is off by choice is not a job that is failing. */
+  disabled_here: boolean;
 }
 
 /** A recent net._http_response row: the authoritative HTTP signal. */
@@ -56,6 +59,8 @@ export interface HttpByJob {
   job: string | null;
   total: number;
   errors: number;
+  /** Switched off for this environment on purpose. */
+  disabled_here?: boolean;
   latest: RecentHttp | null;
 }
 
@@ -79,6 +84,10 @@ export interface CronHealth {
       "succeeded" having made no call at all, which is the single most
       misleading state this page can be in. */
   functions_base_url: string | null;
+  /** HubSpot is deliberately off on this environment (an explicit
+      ops_secrets row, never inferred). Its failures are expected and are
+      reported as "disabled" rather than alerted on. */
+  hubspot_disabled: boolean;
   jobs: CronJobHealth[];
   /** Errors first, then newest: what the page exists for, at the top. */
   recent_http: RecentHttp[];
