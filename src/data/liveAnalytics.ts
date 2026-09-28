@@ -573,11 +573,39 @@ export interface CommissionSettlement { monthLabel: string; settlementDate: Date
 
 /** Partner commission payable on the 15th of this month, for the prior calendar
     month (net of refunds), broken down per partner with constituent apps. */
-export function getCommissionSettlement(role: Role, scope: PartnerScope): CommissionSettlement {
+/**
+ * THE TWO WINDOWS A SETTLEMENT CAN BE ABOUT.
+ *
+ * 'prior' is the closed month, payable on the 15th of this one: what is owed.
+ * 'current' is this month to date, payable on the 15th of next: what is
+ * building up. Reporting shows both, because showing only the first said "no
+ * commission is payable for August" over a September that was accruing money,
+ * which reads as "you have earned nothing" and is the opposite of true.
+ *
+ * ONE PLACE, so the two blocks cannot disagree about where a month ends.
+ */
+export type SettlementWindow = 'prior' | 'current';
+
+function settlementWindow(w: SettlementWindow): { bStart: Date; bEnd: Date; settlementDate: Date } {
   const now = nowRef();
-  const bStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-  const bEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999); // last day of prior month
-  const settlementDate = new Date(now.getFullYear(), now.getMonth(), 15); // 15th of this month
+  if (w === 'current') {
+    return {
+      bStart: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0),
+      // TO DATE, not to the end of the month: money that has not been taken yet
+      // is not accruing, it is forecast, and this figure is read as a fact.
+      bEnd: now,
+      settlementDate: new Date(now.getFullYear(), now.getMonth() + 1, 15),
+    };
+  }
+  return {
+    bStart: new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0),
+    bEnd: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999),
+    settlementDate: new Date(now.getFullYear(), now.getMonth(), 15),
+  };
+}
+
+export function getCommissionSettlement(role: Role, scope: PartnerScope, window: SettlementWindow = 'prior'): CommissionSettlement {
+  const { bStart, bEnd, settlementDate } = settlementWindow(window);
   const monthLabel = `${MONTH_LONG[bStart.getMonth()]} ${bStart.getFullYear()}`;
   /* NO PARTNERS AND SO NO MONEY for a reader who may not see commission. A
      settlement is nothing but what is owed and to whom, so there is no narrower
@@ -791,11 +819,8 @@ function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
   return byPayee;
 }
 
-export function getAgentCommissionSettlement(role: Role, scope: PartnerScope): AgentCommissionSettlement {
-  const now = nowRef();
-  const bStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-  const bEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-  const settlementDate = new Date(now.getFullYear(), now.getMonth(), 15);
+export function getAgentCommissionSettlement(role: Role, scope: PartnerScope, window: SettlementWindow = 'prior'): AgentCommissionSettlement {
+  const { bStart, bEnd, settlementDate } = settlementWindow(window);
   const monthLabel = monthLabelOf(bStart);
   /* THE AGENCY'S OWN EARNINGS, which is the figure the Manager level exists to
      withhold, so this is the one that mattered most: no payees, no rollup and a

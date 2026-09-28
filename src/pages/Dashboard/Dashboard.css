@@ -483,3 +483,10 @@
 .afunnel__n { font-weight: 700; font-size: 20px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
 .afunnel__l { font-size: 12px; color: var(--ink-mute); margin-top: 5px; }
 .afunnel__sub { font-size: 10.5px; color: var(--ink-mute); margin-top: 3px; }
+
+/* SETTLEMENTS AS TWO BLOCKS: what is owed, and what is building up. */
+.settle__block { display: flex; flex-direction: column; gap: 12px; }
+.settle__block-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.settle__block-amt { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.settle__split { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
+.settle__split .settle__row { font-size: 13px; }

@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { useToast } from '@/components/ui/Toast';
+import { SettlementBlocks } from '@/components/SettlementBlocks';
 import '@/pages/Dashboard/Dashboard.css';
 
 type FinanceProps = { role: Role; partnerScope: PartnerScope };
@@ -66,6 +67,9 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
   // Same services, same role + scope as the dashboard: figures reconcile exactly.
   const settlement = getCommissionSettlement(role, partnerScope);
   const agentSettlement = getAgentCommissionSettlement(role, partnerScope);
+  /* The two blocks at the top of this surface live in SettlementBlocks, which
+     the agency's own Reporting mounts too: one component, so the figure an
+     agency reads and the figure Opndoor reads for them cannot diverge. */
   const live = liveAvailable();
 
   // Money-reconciliation surface: pence on every row and total so rows always sum.
@@ -73,10 +77,9 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
   const dmyShort = (x: Date) => formatLondonDate(x);
   const settleDate = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${settlement.settlementDate.getFullYear()}`;
   const agentSettleDate = `${agentSettlement.settlementDate.getDate()} ${agentSettlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${agentSettlement.settlementDate.getFullYear()}`;
+  // The two summary totals moved into SettlementBlocks with the blocks that
+  // print them; what is left here is the per-payee paperwork below.
   const settleDayMonth = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })}`;
-  const partnerDue = settlement.partners.reduce((s, p) => s + p.commission, 0);
-  // AUTHORITATIVE total: the sum of every payee line. The agencies rollup holds
-  // agency-level lines only, so summing it would miss group and branch payees.
   const agentDue = agentSettlement.total;
 
   // Branded, self-footing statements — read the same settlement data as the rows below.
@@ -154,24 +157,9 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
 
   return (
     <div className="dash-grid">
-      <div className="section-label" style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-        <Eyebrow>Settlements</Eyebrow>
-        {live && (partnerDue > 0 || agentDue > 0) && (
-          <span className="muted" style={{ fontSize: 12.5 }}>
-            Due <b>{settleDayMonth}</b>: {gbpPence(partnerDue)} supplier · {gbpPence(agentDue)} agent
-          </span>
-        )}
-      </div>
+      <div className="section-label"><Eyebrow>Settlements</Eyebrow></div>
 
-      {!hasPartner && !hasAgent && (
-        <section className="card">
-          <div className="muted" style={{ fontSize: 13 }}>
-            {live
-              ? `No commission is payable for ${settlement.monthLabel}. Settlement figures appear here once payments accrue in the prior calendar month.`
-              : 'Commission settlement appears here in live mode.'}
-          </div>
-        </section>
-      )}
+      <SettlementBlocks role={role} scope={partnerScope} />
 
       {/* COMMISSION SETTLEMENT (partner, prior calendar month, payable the 15th) */}
       {hasPartner && (

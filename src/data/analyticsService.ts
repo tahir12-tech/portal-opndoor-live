@@ -33,7 +33,7 @@ import { liveAvailable, liveAggregate, liveVolume, liveTrend, deedsWithoutContac
 import { SOURCE_LABEL } from './commissionSplit';
 export type { TrendRow } from './liveAnalytics';
 export { getCommissionSettlement, getAgentCommissionSettlement, getCommissionStatements, statementMonths, liveScopeShape, agentRailScope, livePartnerBreakdown, liveAvailable } from './liveAnalytics';
-export type { CommissionSettlement, PartnerSettlement, SettlementApp, AgentCommissionSettlement, AgentSettlementAgency, PartnerCommissionRow, CommissionStatement, StatementLine } from './liveAnalytics';
+export type { CommissionSettlement, PartnerSettlement, SettlementApp, AgentCommissionSettlement, AgentSettlementAgency, PartnerCommissionRow, CommissionStatement, StatementLine, SettlementWindow } from './liveAnalytics';
 
 export function getPeriods(): Period[] {
   return PERIODS.map((p) => ({ ...p }));

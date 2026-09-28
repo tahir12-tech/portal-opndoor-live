@@ -46,6 +46,7 @@ import { RoleNote } from '@/components/ui/RoleNote';
 import { BarChart, type BarRow } from '@/components/ui/BarChart';
 import { MeasureSelect, PeriodSelect, TrendSelect } from '@/components/ui/Select';
 import { FinanceSurfaces } from '@/pages/Home/FinanceSurfaces';
+import { SettlementBlocks } from '@/components/SettlementBlocks';
 import './Dashboard.css';
 
 type ChartKey = 'branch' | 'agency' | 'referrer';
@@ -849,11 +850,16 @@ export function Dashboard() {
             so all three carry `commission`. The label included: it is the anchor
             the needs-attention line jumps to, and a heading reading "Settlements"
             over nothing is a worse answer than no heading. */}
-        {(naSettlements || (d.live && (settlement.partners.length > 0 || agentSettlement.payees.length > 0))) && (
-          <RoleOnly roles={['management']} commission>
-            <div id="settlements" className="section-label"><Eyebrow>Settlements</Eyebrow></div>
-          </RoleOnly>
-        )}
+        {/* ALWAYS DRAWN FOR A READER WHO MAY SEE IT, which is the change. The
+            section used to appear only when the CLOSED month had something in
+            it, so a Director at the start of a month saw no settlement at all
+            while this month was already taking money: silence, where the admin
+            surface printed a wrong sentence. The two blocks answer both
+            questions, and the per-payee detail below is unchanged. */}
+        <RoleOnly roles={['management']} commission>
+          <div id="settlements" className="section-label"><Eyebrow>Settlements</Eyebrow></div>
+          <SettlementBlocks role={role} scope={partnerScope} />
+        </RoleOnly>
 
         {/* COMMISSION SETTLEMENT (partner, prior calendar month, payable the 15th) */}
         {d.live && settlement.partners.length > 0 && (
