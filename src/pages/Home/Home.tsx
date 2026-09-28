@@ -64,7 +64,7 @@ export function Home() {
 
   const tiles = [
     { label: 'Awaiting decision', n: awaiting, meta: 'need an eligibility decision', to: '/applications?status=referencing', tone: 'warn' as const },
-    { label: 'Agency matches', n: matches, meta: 'direct tenants, unmatched agent', to: '/reconciliation', tone: 'accent' as const },
+    { label: 'Agency matches', n: matches, meta: 'direct tenants, unmatched agent', to: '/reconciliation?tab=matches', tone: 'accent' as const },
     { label: 'Reconciliation', n: recon, meta: 'agencies/branches to review', to: '/reconciliation', tone: 'accent' as const },
     { label: 'Delivery failed', n: deliveryFailed, meta: 'deed not delivered', to: '/applications?deed=delivery-failed', tone: 'danger' as const },
   ];

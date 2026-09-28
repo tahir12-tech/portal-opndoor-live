@@ -7,9 +7,10 @@
    (audited). The Sync button pushes confirmed records to the CRM on demand (a
    2-minute cron also runs the sync). Merge is not built yet (disabled).
    ===================================================================== */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { confirmReconEntity, loadReconciliationQueue, loadAgencyMatchQueue, triggerCrmSync, type ReconRow } from '@/data';
 import { AgencyMatchQueue } from './AgencyMatchQueue';
+import { useSearchParams } from 'react-router-dom';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -26,7 +27,15 @@ export function Reconciliation() {
   const { refresh: refreshData } = useSession();
   const [queue, setQueue] = useState<ReconRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>('all');
+  const [params] = useSearchParams();
+  /* ?tab= lets Home's cards land on the queue they are counting. Home's
+     "Agency matches" card counts the Direct matches tab and used to link at the
+     page, which opens on All: the reader arrived at a number they had just
+     clicked and a list that does not contain it. */
+  const [filter, setFilter] = useState<Filter>(() => {
+    const t = params.get('tab');
+    return t === 'agency' || t === 'branch' || t === 'dupes' || t === 'matches' ? t : 'all';
+  });
   const [matchCount, setMatchCount] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -57,6 +66,21 @@ export function Reconciliation() {
     { id: 'dupes', label: 'Possible duplicates', count: dupes },
     { id: 'matches', label: 'Direct matches', count: matchCount },
   ];
+
+  /* OPEN ON A TAB THAT HAS WORK. "All" counts the review queue only, so a page
+     whose only outstanding work is a direct match opened on an empty list under
+     a heading that said there was nothing to do, with the count sitting on a
+     tab one click away. Applied ONCE, on the first load that produces counts,
+     and never again: re-deciding on every render would drag the reader off a
+     tab they had chosen the moment they cleared its last row. */
+  const landed = useRef(false);
+  useEffect(() => {
+    if (landed.current || loading) return;
+    landed.current = true;
+    // Only when the reader did not ask for a tab and the default is empty.
+    if (params.get('tab') || queue.length > 0) return;
+    if (matchCount > 0) setFilter('matches');
+  }, [loading, queue.length, matchCount, params]);
 
   const passes = (item: ReconRow) => (filter === 'all' ? true : filter === 'dupes' ? !!item.match : item.type === filter);
   const visible = queue.filter(passes);
@@ -107,7 +131,7 @@ export function Reconciliation() {
 
       <div className="card opbar">
         <Icon name="shield" />
-        <span>Visible to <b>opndoor admins</b> only. Partner super-admins, management and referrers never see this reconciliation view.</span>
+        <span>Visible to <b>opndoor admins</b> only. Supplier and agency users never see this reconciliation view.</span>
       </div>
 
       <div className="qstat">
