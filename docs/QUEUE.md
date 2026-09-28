@@ -20,6 +20,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 | id | item | status |
 | --- | --- | --- |
 | Q-01 | The security loop | in progress |
+| Q-01b | The deed goes to the referrer AND every ticked user in scope | in progress |
 | Q-02 | Supplier rail notifications | todo |
 | Q-03 | Notification settings per party | todo |
 | Q-04 | Opndoor internal notification routing | todo |
@@ -230,6 +231,18 @@ Three separate causes, and the third is the one that matters most.
 
 CI would have caught (1), because `supabase db start` applies migrations in
 filename order into a fresh database. It would not have caught (2) or (3).
+
+---
+## Q-01b. The deed goes to the referrer AND every ticked user in scope
+
+**Status: in progress.** Part of the agency-rail notification rule, and a
+correction to how `deed_delivery_target` resolves it.
+
+### The instruction, verbatim (2026-09-28)
+
+> Add to QUEUE.md verbatim and do it in this pass: the executed deed goes to the referrer AND to every user ticked "Receives notifications" whose position covers the referral, as one send with each as a recipient, same as every other per-application notification. This is the specified rule, not a question. Deed delivery on the agency rail must not resolve to a single address. Fallbacks unchanged when the referrer is deactivated.
+>
+> Also confirm the tickbox exists and works in the interface, not just the database: on the Team screen for an agency's directors and managers (for people at or below their own position), and on the agency People tab for Opndoor admin. Show me where each is, and add a functional test that ticking it as a director makes that user receive the next deed and notification. Tests fail against the current code first.
 
 ---
 ## Q-02. Supplier rail notifications
