@@ -54,7 +54,7 @@ import { InviteToLevel, type InviteContext } from './InviteToLevel';
 import { agencyLevelOf, AGENCY_LEVELS, setAgencyLevel, type AgencyLevel, type Role } from '@/data';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
 import { AgencyGrow } from './AgencyGrow';
-import { AgreementEditor } from './AgreementEditor';
+import { AgreementEditor, agreementSummary } from './AgreementEditor';
 import { CommissionStatement } from '@/components/CommissionStatement';
 import './AgencyHome.css';
 
@@ -67,22 +67,119 @@ const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 
 const EMPTY = '-';
 
 type Level = 'group' | 'agency' | 'branch';
-interface Placed { userId: string; name: string; email: string; role: string; }
+interface Placed {
+  userId: string; name: string; email: string; role: string;
+  /** Carried so the pill can say the LEVEL. A Director and a Manager are the
+      same role and differ only in this bit, so a pill without it can only ever
+      describe the node the person was found under. */
+  seesCommission?: boolean;
+}
 type Org = { kind: 'group'; group: AgencyGroup; agencies: Agency[] } | { kind: 'agency'; agency: Agency };
 
 /** "12%" from 0.12. Formatting only: the arithmetic all lives in SQL. */
 const pctLabel = (frac: number): string => `${+(frac * 100).toFixed(2)}%`;
 
-/** The one plain line a branch shows, built from the lines SQL returned. */
-const payoutSentence = (lines: SplitLine[]): string => {
-  if (!lines.length) return 'A referral here pays out nothing.';
-  const parts = lines.map((l) => `${l.orgName} ${pctLabel(l.rate)}`);
-  const total = pctLabel(lines.reduce((s, l) => s + l.rate, 0));
-  return `A referral here pays out: ${parts.join(' + ')} = ${total} of the fee`;
+/** What a row may have done to it. Named so the branch view and the People
+    table cannot drift on which actions exist. */
+export type PersonAction = 'remove' | 'restore' | 'resend' | 'password' | 'mfa';
+
+interface PersonActionsProps {
+  person: { userId: string; name: string; email: string; status: string; agencyLevel: string };
+  isAdmin: boolean;
+  /** Position is only a choice where there is more than one office to choose. */
+  manyOffices: boolean;
+  onAction: (what: PersonAction, userId: string, who: string) => void;
+  onCancelInvite: (userId: string, who: string) => void;
+  onChangeLevel: (p: { userId: string; name: string; current: string }) => void;
+  onPosition: (p: { id: string; name: string }) => void;
+}
+
+/**
+ * THE ROW ACTIONS, ONCE.
+ *
+ * These were written out inline in the People table, and a branch view needing
+ * "the same row actions as People" would have made a second copy on this page
+ * and a fourth in the product, since Team and Users each hold their own.
+ * Copies of an action set do not stay equal: the two that already exist
+ * disagree about whether a destructive action is confirmed and about which
+ * levels may be granted.
+ *
+ * MODULE SCOPE, EXPLICIT PROPS, NO HOOK. The five render helpers inside
+ * AgencyHome must be CALLED rather than mounted (see the comment on RateLine);
+ * this is a real component with a stable identity, so it mounts normally and
+ * that trap does not apply to it.
+ */
+function PersonActions({ person: r, isAdmin, manyOffices, onAction, onCancelInvite, onChangeLevel, onPosition }: PersonActionsProps) {
+  if (!isAdmin) return null;
+  const who = r.name || r.email;
+  return (
+    <div className="ah-rowacts">
+      {r.status === 'pending' && <>
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('resend', r.userId, who)}>Resend invite</button>
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onCancelInvite(r.userId, who)}>Cancel invite</button>
+      </>}
+      {r.status === 'active' && (
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onChangeLevel({ userId: r.userId, name: who, current: r.agencyLevel })}>Change level</button>
+      )}
+      {/* Position only where there is somewhere to choose between, the same
+          test Team applies: on a one-office agency every node describes the
+          same people. */}
+      {manyOffices && r.status !== 'pending' && (
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onPosition({ id: r.userId, name: who })}>Position</button>
+      )}
+      {r.status !== 'pending' && <>
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('password', r.userId, who)}>Send password reset</button>
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('mfa', r.userId, who)}>Reset two-factor</button>
+      </>}
+      {r.status === 'active' && (
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('remove', r.userId, who)}>Remove access</button>
+      )}
+      {r.status === 'deactivated' && (
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('restore', r.userId, who)}>Restore access</button>
+      )}
+    </div>
+  );
+}
+
+/** How a payout line's source reads inside the line itself, in the sentence's
+    own voice rather than as a column heading. */
+const SOURCE_CAPTION: Record<SplitLine['source'], string> = {
+  standard: 'Opndoor standard',
+  agreement: 'agreement',
+  rate: 'set rate',
 };
 
-const roleLabelFor = (level: Level, role: string) =>
-  level === 'group' ? 'Group director' : level === 'agency' ? 'Agency manager' : role === 'referrer' ? 'Negotiator' : 'Branch manager';
+/**
+ * The one plain line a branch shows, built from the lines SQL returned.
+ *
+ * IT SAYS WHERE EACH RATE CAME FROM. It did not, and the omission had a cost:
+ * Regent's negotiated 20% and the Opndoor standard 20% printed as the same
+ * five characters, so the line could not tell a party on an agreement from a
+ * party on the default. The source is read off SplitLine.source, which is what
+ * the rule reported; it is never inferred from whether an explicit rate is set,
+ * because an agreement party's explicit rate is null by design.
+ *
+ * The total is dropped for a single payee, where "20% ... = 20% of the fee"
+ * says the same number twice.
+ */
+const payoutSentence = (lines: SplitLine[]): string => {
+  if (!lines.length) return 'Pays out nothing.';
+  const parts = lines.map((l) => `${l.orgName} ${pctLabel(l.rate)} (${SOURCE_CAPTION[l.source]})`);
+  if (lines.length === 1) return `Pays out: ${parts[0]}`;
+  const total = pctLabel(lines.reduce((s, l) => s + l.rate, 0));
+  return `Pays out: ${parts.join(' + ')} = ${total} of the fee`;
+};
+
+/** WHAT SOMEBODY IS, not where they were found.
+ *
+ * This read the NODE: everyone under a group was a "Group director", everyone
+ * under an agency an "Agency manager", and a Director and a Manager standing
+ * side by side on the same branch were both "Branch manager". Those are
+ * positions, described as though they were levels, and the one thing the pill
+ * could never say was the level. The ladder is Director / Manager /
+ * Negotiator and it is a fact about the person. */
+const levelLabelFor = (p: Placed): string =>
+  agencyLevelOf(p.role as Role, p.seesCommission === true) ?? 'Developer';
 const inviteLabelFor = (level: Level) =>
   level === 'group' ? 'Invite group director' : level === 'agency' ? 'Invite agency manager' : 'Invite branch manager or negotiator';
 
@@ -174,7 +271,7 @@ export function AgencyHome() {
         const g: Placed[] = []; const ag: Record<string, Placed[]> = {}; const br: Record<string, Placed[]> = {};
         const seen = new Set<string>();
         for (const u of users) {
-          const put = (bucket: Placed[]) => { bucket.push({ userId: u.id, name: u.name, email: u.email, role: u.role }); seen.add(u.id); };
+          const put = (bucket: Placed[]) => { bucket.push({ userId: u.id, name: u.name, email: u.email, role: u.role, seesCommission: u.seesCommission }); seen.add(u.id); };
           for (const p of byUser[u.id] ?? []) {
             if (p.kind === 'group' && groupId && p.targetId === groupId) put(g);
             else if (p.kind === 'agency' && agencyIds.has(p.targetId)) put(ag[p.targetId] ||= []);
@@ -288,6 +385,17 @@ export function AgencyHome() {
 
   type Sel = { level: 'group' | 'agency' | 'branch'; id: string; name: string };
   const [sel, setSel] = useState<Sel | null>(null);
+  /* WHICH NODE IS OPEN AS A VIEW, if any. The tree is how you find a party; the
+     view is where you act on one. A node's NAME opens its view and the tick
+     beside it expands the tree, which is the ordinary tree idiom and what lets
+     a branch be opened at all: a branch has nothing under it, so "expand" and
+     "open" were the same click and the branch only ever got the first. */
+  const [focus, setFocus] = useState<Sel | null>(null);
+  /** Open a node's view, keeping the Referrals tab and its crumb in step. */
+  const openNode = (level: 'agency' | 'branch', id: string, name: string) => {
+    setSel({ level, id, name });
+    setFocus({ level, id, name });
+  };
   const selAgency = sel?.level === 'agency' ? sel.id : sel?.level === 'branch' ? (branchesFlat.find((x) => x.branch.id === sel.id)?.agency.id ?? null) : null;
 
   // An independent agency page opens AT its agency, expanded one level; a group
@@ -322,15 +430,32 @@ export function AgencyHome() {
   // only ever drawn on the Commission tab, so a reader without that tab does not
   // ask for it either.
   const [agreement, setAgreement] = useState<AgreementView | null>(null);
+  /* ONE PER AGENCY, not one per page. A group page lists several agencies and
+     each may be on its own deal, so a single piece of state can only ever be
+     right about the first of them. The Commission tab keeps reading that first
+     one, which is what it always showed; the Overview tree reads the map. */
+  const [agreements, setAgreements] = useState<Record<string, AgreementView | null>>({});
+  /* KEYED ON THE IDS, NOT ON THE ARRAY. `agencies` is rebuilt as a fresh array
+     literal on every render (it is not memoised), so an effect depending on it
+     runs every render. The single-agreement version got away with that because
+     setAgreement(null) over an already-null value is a no-op React bails out
+     of; a map is a new object every time, so it re-rendered, which re-ran the
+     effect, which set a new object. The page span. */
+  const agencyIdsKey = agencies.map((a) => a.id ?? a.name).join('|');
   useEffect(() => {
-    if (!canSeeCommission) { setAgreement(null); return; }
+    if (!canSeeCommission) { setAgreement(null); setAgreements({}); return; }
     let alive = true;
-    const first = agencies.find((a) => a.id)?.id;
-    if (!first) { setAgreement(null); return; }
-    getAgreementForAgency(first).then((v) => { if (alive) setAgreement(v); }).catch(() => { if (alive) setAgreement(null); });
+    const ids = agencyIdsKey ? agencies.map((a) => a.id).filter(Boolean) as string[] : [];
+    if (!ids.length) { setAgreement(null); setAgreements({}); return; }
+    Promise.all(ids.map((id) => getAgreementForAgency(id).then((v) => [id, v] as const).catch(() => [id, null] as const)))
+      .then((pairs) => {
+        if (!alive) return;
+        setAgreements(Object.fromEntries(pairs));
+        setAgreement(pairs[0][1]);
+      });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agencies, dataVersion, tick, canSeeCommission]);
+  }, [agencyIdsKey, dataVersion, tick, canSeeCommission]);
 
   // Deed readiness, the SAME answer the Agencies list uses, so the two surfaces
   // cannot disagree: one RPC, active people only, pending does not clear it.
@@ -552,10 +677,26 @@ export function AgencyHome() {
      inside one would then be running conditionally. If you add state to one of
      these, hoist it to module scope with explicit props rather than putting the
      angle brackets back. */
-  const RateLine = ({ level, id, name, own }: { level: 'group' | 'agency' | 'branch'; id?: string; name: string; own?: number | null }) => {
+  const RateLine = ({ level, id, name, own, deal }: { level: 'group' | 'agency' | 'branch'; id?: string; name: string; own?: number | null; deal?: AgreementView | null }) => {
     if (!canSeeCommission) return null;
     const rowKey = id ? `${level}:${id}` : undefined;
     const editing = !!rowKey && editRow === rowKey;
+    /* A RATE CANNOT BE SET ALONGSIDE AN AGREEMENT, so the control that would
+       set one is replaced by the deal itself. Set rate used to be offered here
+       regardless, and the refusal only arrived after the round trip, from the
+       trigger that owns the rule. Saying what the party is actually on, and
+       pointing at the tab that can change it, is the honest form of the same
+       information. */
+    const summary = agreementSummary(deal);
+    if (summary && !editing) {
+      return (
+        <span className="ah-comm-wrap">
+          <button className="ah-linkbtn ah-agreement-sum" onClick={() => setTab('commission')} title="Open the Commission tab">
+            {summary}
+          </button>
+        </span>
+      );
+    }
     const on = level === 'group' ? 'referrals through this group'
       : level === 'branch' ? 'referrals from this branch'
       : 'its referrals';
@@ -706,35 +847,172 @@ export function AgencyHome() {
                       </td>
                     )}
                     <td className="num">
-                      {isAdmin && (
-                        <div className="ah-rowacts">
-                          {r.status === 'pending' && <>
-                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('resend', r.userId, r.name || r.email)}>Resend invite</button>
-                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doCancelInvite(r.userId, r.name || r.email)}>Cancel invite</button>
-                          </>}
-                          {r.status === 'active' && (
-                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => { setLevelPick(null); setLevelFor({ userId: r.userId, name: r.name || r.email, current: r.agencyLevel }); }}>Change level</button>
-                          )}
-                          {/* Position only where there is somewhere to choose
-                              between, the same test Team applies: on a
-                              one-office agency every node describes the same
-                              people. */}
-                          {manyOffices && r.status !== 'pending' && (
-                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setPosFor({ id: r.userId, name: r.name || r.email })}>Position</button>
-                          )}
-                          {r.status !== 'pending' && <>
-                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('password', r.userId, r.name || r.email)}>Send password reset</button>
-                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('mfa', r.userId, r.name || r.email)}>Reset two-factor</button>
-                          </>}
-                          {r.status === 'active' && (
-                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('remove', r.userId, r.name || r.email)}>Remove access</button>
-                          )}
-                          {r.status === 'deactivated' && (
-                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('restore', r.userId, r.name || r.email)}>Restore access</button>
-                          )}
-                        </div>
-                      )}
+                      <PersonActions
+                        person={r}
+                        isAdmin={isAdmin}
+                        manyOffices={manyOffices}
+                        onAction={(what, id, who) => void doPersonAction(what, id, who)}
+                        onCancelInvite={(id, who) => void doCancelInvite(id, who)}
+                        onChangeLevel={(p) => { setLevelPick(null); setLevelFor(p); }}
+                        onPosition={setPosFor}
+                      />
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardBody>
+      </Card>
+    );
+  };
+
+  /* ---- ONE NODE, OPENED. -------------------------------------------------
+
+     The tree used to answer every question inline: click a branch and its
+     people PILLS appeared under it, with the deed-recipient line beside them.
+     Pills are a summary and cannot carry an action, so the only way to change
+     anything about a branch's people was to leave the Overview for the People
+     tab and filter it back down to that branch by name.
+
+     This is the drill-down. It is the same people, at the depth where you can
+     act on them: the People table's own row actions, the branch's own rate and
+     what a referral there pays out, its nominated deed recipient, and its
+     referrals. The tree stays exactly as it was for scanning; the tick expands
+     it and the name opens this.
+
+     CALLED, NOT MOUNTED, like the helpers above, and it uses no hook. */
+  const NodeView = () => {
+    if (!focus || focus.level === 'group') return null;
+    const isBranch = focus.level === 'branch';
+    const found = isBranch ? branchesFlat.find((x) => (x.branch.id ?? x.branch.name) === focus.id) : undefined;
+    const branch = found?.branch;
+    const agency = isBranch ? found?.agency : agencies.find((a) => (a.id ?? a.name) === focus.id);
+    // The org can change under an open view (a branch deleted, a group edited).
+    // Falling back to the tree is better than a panel about nothing.
+    if (!agency || (isBranch && !branch)) return null;
+
+    /* BY ID, not by name. The People tab filters its Office select on the
+       branch NAME, so two branches called "Head Office" under different
+       agencies select together; the id is already on every row. */
+    const rows = peopleRows.filter((r) => (isBranch
+      ? (branch?.id ? r.branchId === branch.id : r.branch === focus.name)
+      : r.level === 'agency' && (agency.id ? r.agencyId === agency.id : r.agency === agency.name)));
+    const refs = isBranch
+      ? referrals.filter((r) => r.branch === focus.name)
+      : referrals.filter((r) => r.agency === agency.name);
+    const recipientId = isBranch && branch?.id ? deedRecipients[branch.id] : undefined;
+    const nominee = recipientId ? usersById[recipientId] : undefined;
+    const branchReady = isBranch && branch?.id ? readiness?.branches.get(branch.id) : undefined;
+    const inviteCtx: InviteContext = isBranch
+      ? { level: 'branch', partner, branchId: branch?.id, name: focus.name }
+      : { level: 'brand', partner, agencyId: agency.id, name: agency.name, chooseLevel: true };
+
+    return (
+      <Card>
+        <CardHead
+          title={focus.name}
+          sub={isBranch ? `Office of ${agency.name}` : (org.kind === 'group' ? `Agency in ${org.group.name}` : 'Agency')}
+          actions={<button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setFocus(null)}>Back to the tree</button>}
+        />
+        <CardBody>
+          {/* WHAT THIS PARTY IS ON. The same line the tree carries, so the two
+              cannot say different things about one branch. */}
+          <div className="ah-nv-rate">
+            {RateLine({
+              level: focus.level, id: isBranch ? branch?.id : agency.id, name: focus.name,
+              own: isBranch ? branch?.agentRate : agency.agentRate,
+              deal: !isBranch && agency.id ? agreements[agency.id] : null,
+            })}
+          </div>
+          {canSeeCommission && isBranch && branch?.id && splits.has(branch.id) && (
+            <div className="ah-payout">{payoutSentence(splits.get(branch.id)!)}</div>
+          )}
+
+          {/* THE DEED RECIPIENT, which is a branch fact: branch_deed_recipient
+              is keyed by branch alone, so an agency has no nominee of its own,
+              only the manager chain the database resolves. */}
+          {isBranch && (
+            <>
+              {agentRailFor(agency) && branchReady === false && (
+                <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this branch can receive the deed. Invite a branch manager or nominate a recipient.</div>
+              )}
+              {isAdmin && (
+                <div className="ah-deed">
+                  {nominee ? (
+                    <>Deed recipient: <b>{nominee.name || nominee.email}</b> <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => branch?.id && doClear(branch.id)}>Clear</button></>
+                  ) : nominateBranch === branch?.id ? (
+                    <>
+                      <select value={nomineeId} onChange={(e) => setNomineeId(e.target.value)} aria-label="Nominate deed recipient">
+                        <option value="">Choose a person…</option>
+                        {Object.values(usersById)
+                          .filter((u) => u.status === 'active')
+                          .map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+                      </select>
+                      <button className="ah-linkbtn" onClick={doNominate} disabled={!nomineeId}>Nominate</button>
+                      <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => { setNominateBranch(null); setNomineeId(''); }}>Cancel</button>
+                    </>
+                  ) : (
+                    <>No deed recipient nominated. <button className="ah-linkbtn" onClick={() => { setNominateBranch(branch?.id ?? null); setNomineeId(''); }}>Nominate deed recipient</button></>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          <h3 className="ah-nv-h">{isBranch ? 'People at this office' : 'People at agency level'}</h3>
+          {rows.length === 0 ? (
+            <div className="ah-empty">
+              Nobody {isBranch ? 'at this office' : 'at agency level'} yet.
+              {!isBranch && ' People placed at an office appear on that office.'}
+            </div>
+          ) : (
+            <table className="dt ah-table">
+              <thead><tr><th>Name</th><th>Level</th><th>Status</th><th /></tr></thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.userId}>
+                    <td><span className="who__av">{initials(r.name || r.email)}</span> <span className="dt__name">{r.name || r.email}</span><span className="dt__sub">{r.email}</span></td>
+                    <td>{r.agencyLevel}</td>
+                    <td>{r.status === 'pending'
+                      ? <Pill variant="sent">Pending</Pill>
+                      : r.status === 'deactivated'
+                        ? <Pill variant="muted">Deactivated</Pill>
+                        : <Pill variant="paid">Active</Pill>}</td>
+                    <td className="num">
+                      <PersonActions
+                        person={r}
+                        isAdmin={isAdmin}
+                        manyOffices={manyOffices}
+                        onAction={(what, id, who) => void doPersonAction(what, id, who)}
+                        onCancelInvite={(id, who) => void doCancelInvite(id, who)}
+                        onChangeLevel={(p) => { setLevelPick(null); setLevelFor(p); }}
+                        onPosition={setPosFor}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {isAdmin && (
+            <div className="ah-nv-invite">
+              <button className="ah-linkbtn" onClick={() => setInvite(inviteCtx)}><Icon name="send" size={12} /> Invite someone to {focus.name}</button>
+            </div>
+          )}
+
+          <h3 className="ah-nv-h">Referrals</h3>
+          {refs.length === 0 ? (
+            <div className="ah-empty">No referrals from {focus.name} yet.</div>
+          ) : (
+            <table className="dt ah-table">
+              <thead><tr><th>Tenant</th>{!isBranch && <th>Branch</th>}<th>Stage</th></tr></thead>
+              <tbody>
+                {refs.slice(0, 12).map((r) => (
+                  <tr key={r.ref}>
+                    <td><Link className="ah-tenant" to={`/applications/${encodeURIComponent(r.ref)}`}><span className="who__av">{initials(r.tenant)}</span><span><span className="dt__name">{r.tenant}</span><span className="dt__sub">{r.ref}</span></span></Link></td>
+                    {!isBranch && <td className="soft">{r.branch}</td>}
+                    <td><span className={`ah-st ${STATUS_ST[r.status] ?? 'st-neutral'}`}>{STATUS_LABEL[r.status]}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -953,7 +1231,7 @@ export function AgencyHome() {
     <div className="ah-node-people">
       {list.map((p) => (
         <span key={p.userId} className="ah-chip-person" title={p.email}>
-          <span className="ah-av">{initials(p.name || p.email)}</span>{p.name || p.email}<span className="ah-role">{roleLabelFor(level, p.role)}</span>
+          <span className="ah-av">{initials(p.name || p.email)}</span>{p.name || p.email}<span className="ah-role">{levelLabelFor(p)}</span>
         </span>
       ))}
       {isAdmin && <button className="ah-linkbtn ah-invite-inline" onClick={() => setInvite(ctx)}><Icon name="send" size={12} /> {inviteLabelFor(level)}</button>}
@@ -1010,8 +1288,9 @@ export function AgencyHome() {
           ))}
       </div>
 
-      {/* OVERVIEW — the tree. */}
-      {tab === 'overview' && (
+      {/* OVERVIEW — the tree, or the one node opened out of it. */}
+      {tab === 'overview' && focus && NodeView()}
+      {tab === 'overview' && !focus && (
       <Card>
         <CardBody style={{ padding: 0 }}>
           <div className="ah-tree">
@@ -1040,20 +1319,51 @@ export function AgencyHome() {
               const peopleCount = agencyPeople.length + (a.branches ?? []).reduce((s2, b) => s2 + (b.id ? (people.branch[b.id] ?? []).length : 0), 0);
               const open = selAgency === a.id;
               const agencyReady = a.id ? readiness?.agencies.get(a.id) : undefined;
+              /* ONE OFFICE IS NOT A TREE. An agency with a single office drew a
+                 branch node under it holding the same people, the same
+                 referrals and the same name with "Lettings" on the end: a
+                 second row that added a level of indentation and no
+                 information. It is merged into the agency card, and the office
+                 is still a link because the branch view is where its deed
+                 recipient and its own rate live.
+
+                 COUNTED ON THIS AGENCY'S OWN BRANCHES, not on the page's
+                 `manyOffices`, which spans every agency in a group: a
+                 single-office agency sitting beside a two-office sibling would
+                 otherwise never merge. */
+              const soleOffice = (a.branches ?? []).length === 1 ? (a.branches ?? [])[0] : null;
               return (
                 <div key={a.id ?? a.name}>
                   <div className={`ah-node ah-node--agency${org.kind === 'group' ? ' lv2' : ''}${open ? ' is-open is-sel' : ''}`}>
                     <div className="ah-node-main">
-                      <span className="ah-tick t-agency">A</span>
+                      {/* THE TICK EXPANDS, THE NAME OPENS. One click used to do
+                          both jobs and so could only do the first: an agency
+                          name expanded the node and a branch name, having
+                          nothing under it to expand, did almost nothing. */}
+                      <button
+                        className="ah-tick t-agency ah-tick-btn"
+                        aria-expanded={open}
+                        aria-label={`${open ? 'Collapse' : 'Expand'} ${a.name}`}
+                        onClick={() => setSel(open && org.kind === 'group' ? null : { level: 'agency', id: a.id ?? a.name, name: a.name })}
+                      >{open ? '▾' : '▸'}</button>
                       <button
                         className="ah-node-name ah-node-btn"
-                        onClick={() => setSel(open && org.kind === 'group' ? null : { level: 'agency', id: a.id ?? a.name, name: a.name })}
+                        onClick={() => openNode('agency', a.id ?? a.name, a.name)}
                       >{a.name}</button>
                       <span className="ah-node-level">Agency</span>
-                      {RateLine({ level: 'agency', id: a.id, name: a.name, own: a.agentRate })}
+                      {RateLine({ level: 'agency', id: a.id, name: a.name, own: a.agentRate, deal: a.id ? agreements[a.id] : null })}
+                      {/* The merged office reads as the agency's own, and is the
+                          way into its branch view. */}
+                      {soleOffice && (
+                        <button
+                          className="ah-linkbtn ah-linkbtn--quiet ah-office-inline"
+                          onClick={() => openNode('branch', soleOffice.id ?? soleOffice.name, soleOffice.name)}
+                        >Office: {soleOffice.name}</button>
+                      )}
                       {!open && (
                         <span className="ah-node-meta">
-                          {peopleCount} {peopleCount === 1 ? 'person' : 'people'} · {branchCount} {branchCount === 1 ? 'branch' : 'branches'} · {agencyRefs} referrals
+                          {peopleCount} {peopleCount === 1 ? 'person' : 'people'}
+                          {soleOffice ? '' : ` · ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'}`} · {agencyRefs} referrals
                         </span>
                       )}
                     </div>
@@ -1101,7 +1411,11 @@ export function AgencyHome() {
                       </div>
                     )}
                   </div>
-                  {open && (a.branches ?? []).map((b) => {
+                  {/* The sole office is drawn on the card above, so the map
+                      renders nothing for it. The map itself stays exactly where
+                      it was: giving a node two possible JSX positions is what
+                      put NewApplication's picker in a remount loop. */}
+                  {open && (soleOffice ? [] : (a.branches ?? [])).map((b) => {
                     const bPeople = b.id ? (people.branch[b.id] ?? []) : [];
                     /* NOT `nomineeId`. That is the picker's own state, declared
                        at the top of the page, and a const of the same name here
@@ -1112,52 +1426,32 @@ export function AgencyHome() {
                        recipient could not be nominated through the product at
                        all. Two different things, so two different names. */
                     const recipientId = b.id ? deedRecipients[b.id] : undefined;
-                    const nominee = recipientId ? usersById[recipientId] : undefined;
-                    const bOpen = sel?.level === 'branch' && sel.id === b.id;
+                    const bSel = sel?.level === 'branch' && sel.id === (b.id ?? b.name);
                     const branchReady = b.id ? readiness?.branches.get(b.id) : undefined;
                     return (
-                      <div key={b.id ?? b.name} className={`ah-node ah-node--branch${org.kind === 'group' ? ' lv3' : ' lv2'}${bOpen ? ' is-open is-sel' : ''}`}>
+                      <div key={b.id ?? b.name} className={`ah-node ah-node--branch${org.kind === 'group' ? ' lv3' : ' lv2'}${bSel ? ' is-sel' : ''}`}>
                         <div className="ah-node-main">
                           <span className="ah-tick t-branch">•</span>
+                          {/* A BRANCH HAS NOTHING UNDER IT, so its name has only
+                              one job and it is to open the branch. It used to
+                              toggle an inline strip of people pills, which is
+                              why acting on a branch's people meant leaving for
+                              the People tab and filtering back down by name. */}
                           <button
                             className="ah-node-name ah-node-btn"
-                            onClick={() => setSel(bOpen ? { level: 'agency', id: a.id ?? a.name, name: a.name } : { level: 'branch', id: b.id ?? b.name, name: b.name })}
+                            onClick={() => openNode('branch', b.id ?? b.name, b.name)}
                           >{b.name}</button>
                           <span className="ah-node-level">Branch</span>
                           {RateLine({ level: 'branch', id: b.id, name: b.name, own: b.agentRate })}
-                          {!bOpen && <span className="ah-node-meta">{bPeople.length} {bPeople.length === 1 ? 'person' : 'people'} · {b.referrals} referrals</span>}
+                          <span className="ah-node-meta">
+                            {bPeople.length} {bPeople.length === 1 ? 'person' : 'people'} · {b.referrals} referrals
+                            {recipientId ? '' : ' · no deed recipient'}
+                          </span>
                         </div>
                         {/* The whole question in one line, whoever is paid. */}
                         {canSeeCommission && b.id && splits.has(b.id) && <div className="ah-payout">{payoutSentence(splits.get(b.id)!)}</div>}
                         {agentRailFor(a) && branchReady === false && (
                           <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this branch can receive the deed. Invite a branch manager or nominate a recipient.</div>
-                        )}
-                        {bOpen && PeopleInline({ level: 'branch', list: bPeople, ctx: { level: 'branch', partner, branchId: b.id, name: b.name } })}
-                        {bOpen && isAdmin && (
-                          <div className="ah-deed">
-                            {nominee ? (
-                              <>Deed recipient: <b>{nominee.name || nominee.email}</b> <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => b.id && doClear(b.id)}>Clear</button></>
-                            ) : nominateBranch === b.id ? (
-                              <>
-                                <select value={nomineeId} onChange={(e) => setNomineeId(e.target.value)} aria-label="Nominate deed recipient">
-                                  <option value="">Choose a person…</option>
-                                  {/* ACTIVE PEOPLE ONLY. deed_people_target skips
-                                      anyone who is not active, so nominating a
-                                      pending or deactivated person writes the row,
-                                      says "Deed recipient nominated" and then
-                                      silently falls through to the manager chain:
-                                      a nomination that reads as done and is not. */}
-                                  {Object.values(usersById)
-                                    .filter((u) => u.status === 'active')
-                                    .map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
-                                </select>
-                                <button className="ah-linkbtn" onClick={doNominate} disabled={!nomineeId}>Nominate</button>
-                                <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => { setNominateBranch(null); setNomineeId(''); }}>Cancel</button>
-                              </>
-                            ) : (
-                              <button className="ah-linkbtn" onClick={() => { setNominateBranch(b.id ?? null); setNomineeId(''); }}>Nominate deed recipient</button>
-                            )}
-                          </div>
                         )}
                       </div>
                     );

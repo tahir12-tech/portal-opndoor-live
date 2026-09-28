@@ -34,6 +34,23 @@
 .ah-linkbtn { border: none; background: none; padding: 0; font-size: 12px; font-weight: 700; color: var(--heliotrope-deep); cursor: pointer; }
 .ah-linkbtn:hover { text-decoration: underline; }
 .ah-linkbtn--quiet { color: var(--ink-mute); font-weight: 600; }
+/* The agreement summary stands where Set rate used to, so it reads as a
+   statement of what the party is on rather than as another control: the weight
+   of the chip beside it, not the weight of a button. */
+.ah-agreement-sum { font-weight: 600; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* The tick is the expander now, so it has to look and behave like a control
+   rather than a bullet: same box as the glyph it replaces, so the tree's
+   alignment does not shift. */
+.ah-tick-btn { border: none; background: none; padding: 0; cursor: pointer; color: var(--ink-mute); font-size: 11px; line-height: 1; }
+.ah-tick-btn:hover { color: var(--heliotrope-deep); }
+/* The merged office on a one-office agency card. */
+.ah-office-inline { margin-left: 10px; }
+
+/* One node, opened out of the tree. */
+.ah-nv-rate { display: flex; justify-content: flex-end; min-height: 22px; }
+.ah-nv-h { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-mute); margin: 18px 0 8px; }
+.ah-nv-invite { margin-top: 10px; }
 .ah-rate-edit { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; }
 .ah-rate-edit label { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-soft); }
 .ah-rate-edit input { width: 54px; text-align: right; border: 1px solid var(--line-strong); border-radius: 6px; padding: 3px 6px; font-variant-numeric: tabular-nums; }

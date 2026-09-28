@@ -78,15 +78,18 @@ function renderAt(path: string) {
   );
 }
 
-/** Open the agency page and expand its one branch node. */
+/** Open the agency page and open its one office.
+ *
+ *  Harborview has a single office, so there is no branch node to click: the
+ *  office is merged into the agency card and that link is the way in. */
 async function openBranch() {
   const view = renderAt('/agencies/ag-harborview');
   await waitFor(() => { if (!view.container.querySelector('.ah-tree')) throw new Error('not ready'); });
   await settle();
-  const branchBtn = [...view.container.querySelectorAll<HTMLElement>('.ah-node--branch .ah-node-name')]
+  const officeBtn = [...view.container.querySelectorAll<HTMLElement>('.ah-office-inline')]
     .find((el) => (el.textContent ?? '').includes('Brighton Marina'));
-  if (!branchBtn) throw new Error('no branch node');
-  fireEvent.click(branchBtn);
+  if (!officeBtn) throw new Error('no office link on the agency card');
+  fireEvent.click(officeBtn);
   await settle();
   return view;
 }

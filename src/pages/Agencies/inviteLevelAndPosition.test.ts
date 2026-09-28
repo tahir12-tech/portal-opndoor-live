@@ -23,7 +23,8 @@
    mocked inviteUser to assert the same two fields. */
 import { describe, expect, it } from 'vitest';
 import { AGENCY_LEVELS, type AgencyLevel } from '@/data';
-import { feeBasisWords } from './AgreementEditor';
+import { agreementSummary, feeBasisShort, feeBasisWords } from './AgreementEditor';
+import type { AgreementView } from '@/data/orgService';
 
 /** The dialog's own two rules, mirrored. If these drift from InviteToLevel the
     test is worthless, so they are written exactly as the component computes
@@ -132,5 +133,91 @@ describe('wording a fee basis', () => {
   it('says something sensible about a basis of nothing', () => {
     expect(feeBasisWords(0, 'weeks')).toBe('no fee');
     expect(feeBasisWords(Number.NaN, 'months')).toBe('no fee');
+  });
+});
+
+/* THE SAME BASIS, SAID SHORTER.
+
+   feeBasisWords writes a basis into a sentence ("3 weeks of rent"). A summary
+   listing several bands side by side needs the name of the basis and nothing
+   else, and the two live together so they cannot come to disagree about what a
+   month is. */
+describe('a fee basis in a list', () => {
+  it('names the basis without the sentence around it', () => {
+    expect(feeBasisShort(3, 'weeks')).toBe('3 weeks');
+    expect(feeBasisShort(1, 'weeks')).toBe('one week');
+    expect(feeBasisShort(1, 'months')).toBe('one month');
+    expect(feeBasisShort(2, 'months')).toBe('2 months');
+  });
+
+  it('agrees with the long form about which unit it is', () => {
+    expect(feeBasisWords(1, 'months')).toContain('month');
+    expect(feeBasisShort(1, 'months')).toContain('month');
+    expect(feeBasisWords(4.3333, 'weeks')).toContain('weeks');
+    expect(feeBasisShort(4.3333, 'weeks')).toBe('4.3333 weeks');
+  });
+
+  it('says something sensible about a basis of nothing', () => {
+    expect(feeBasisShort(0, 'weeks')).toBe('no fee');
+    expect(feeBasisShort(Number.NaN, 'months')).toBe('no fee');
+  });
+});
+
+/* AN AGREEMENT IN ONE LINE, for the Overview tree, where it stands in place of
+   a Set rate control the database would refuse. */
+function view(o: Partial<AgreementView>): AgreementView {
+  return {
+    agreementId: 'a', scopeLevel: 'agency', coverage: 'additive', period: 'year',
+    countingScope: 'agency', isStandard: false, note: null, periodStart: null, volume: 0,
+    bands: [], tiers: [], nextRate: null, nextBasis: null, ...o,
+  };
+}
+
+describe('wording an agreement', () => {
+  /* Regent's real deal, which is the wording this was specified against. */
+  it('states each band as its basis and its rate', () => {
+    expect(agreementSummary(view({
+      bands: [
+        { min: 1, max: 1, weeks: 3, unit: 'weeks', rate: 0.2 },
+        { min: 2, max: null, weeks: 5, unit: 'weeks', rate: 0.25 },
+      ],
+    }))).toBe('Agreement: 3 weeks at 20%, 5 weeks at 25%');
+  });
+
+  it('reads a month as a month, not as 4.33 weeks', () => {
+    expect(agreementSummary(view({
+      bands: [{ min: 1, max: null, weeks: 1, unit: 'months', rate: 0.15 }],
+    }))).toBe('Agreement: one month at 15%');
+  });
+
+  /* A VOLUME-TIERED BAND HAS NO RATE, by design: the rate lives on the tiers.
+     Reading the band's null as a figure is how "at standard" would appear
+     beside a negotiated deal, since that is what the Commission tab's own
+     percentage helper renders a null as. */
+  it('takes a tiered agreement\'s rate from its tiers, never from the band', () => {
+    const s = agreementSummary(view({
+      bands: [{ min: 1, max: null, weeks: 3, unit: 'weeks', rate: null }],
+      tiers: [{ from: 0, to: 10, rate: 0.2 }, { from: 11, to: null, rate: 0.25 }],
+    }));
+    expect(s).toBe('Agreement: 3 weeks, 20% to 25% by volume');
+    expect(s).not.toContain('standard');
+    expect(s).not.toContain('at ,');
+  });
+
+  it('does not print a range when every tier pays the same', () => {
+    expect(agreementSummary(view({
+      bands: [{ min: 1, max: null, weeks: 3, unit: 'weeks', rate: null }],
+      tiers: [{ from: 0, to: null, rate: 0.2 }],
+    }))).toBe('Agreement: 3 weeks, 20% by volume');
+  });
+
+  /* NULL, NOT AN EMPTY SENTENCE. Standard terms are not an agreement, and the
+     node must go on offering Set rate; a row with no bands must not print the
+     word "Agreement" and then stop. */
+  it('answers nothing for standard terms, and for a deal with no bands', () => {
+    expect(agreementSummary(view({ isStandard: true, bands: [{ min: 1, max: null, weeks: 1, unit: 'months', rate: 0.25 }] }))).toBeNull();
+    expect(agreementSummary(view({ bands: [] }))).toBeNull();
+    expect(agreementSummary(null)).toBeNull();
+    expect(agreementSummary(undefined)).toBeNull();
   });
 });

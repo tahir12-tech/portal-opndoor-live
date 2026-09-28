@@ -60,7 +60,46 @@ export function feeBasisWords(qty: number, unit: FeeBasisUnit): string {
   return qty === 1 ? 'one week of rent' : `${qty} weeks of rent`;
 }
 
+/** The terse form, for a summary that lists several bands side by side.
+    feeBasisWords writes the basis into a sentence ("3 weeks of rent"); this
+    names it in a list ("3 weeks"). Same unit rule, deliberately kept beside its
+    long form so the two cannot drift apart on what a month is. */
+export function feeBasisShort(qty: number, unit: FeeBasisUnit): string {
+  if (!Number.isFinite(qty) || qty <= 0) return 'no fee';
+  if (unit === 'months') return qty === 1 ? 'one month' : `${qty} months`;
+  return qty === 1 ? 'one week' : `${qty} weeks`;
+}
+
 const pctOf = (r: number | null) => (r == null ? '' : String(Number((r * 100).toFixed(2))));
+
+/**
+ * A negotiated agreement in one line, for the Overview tree.
+ *
+ * "Agreement: 3 weeks at 20%, 5 weeks at 25%" — which is Regent's deal.
+ *
+ * NULL FOR STANDARD TERMS, because standard terms are not an agreement and the
+ * node should go on offering Set rate. Null also when there are no bands: a row
+ * with nothing in it must not print the word "Agreement" and nothing else.
+ *
+ * A VOLUME-TIERED AGREEMENT HAS NO BAND RATE, by design (the rate lives on the
+ * tiers alone). Naming one would contradict the tiers, and reading the band's
+ * null as a figure is how "at standard" would appear next to a negotiated deal,
+ * so the tiered form names the basis and then the tier range.
+ */
+export function agreementSummary(a: AgreementView | null | undefined): string | null {
+  if (!a || a.isStandard || !a.bands.length) return null;
+  const tiered = a.tiers.length > 0;
+  const parts = a.bands.map((b) => {
+    const basis = feeBasisShort(b.weeks, b.unit ?? 'weeks');
+    return tiered || b.rate == null ? basis : `${basis} at ${pctOf(b.rate)}%`;
+  });
+  const head = `Agreement: ${parts.join(', ')}`;
+  if (!tiered) return head;
+  const rates = a.tiers.map((t) => t.rate);
+  const lo = pctOf(Math.min(...rates));
+  const hi = pctOf(Math.max(...rates));
+  return `${head}, ${lo === hi ? `${lo}%` : `${lo}% to ${hi}%`} by volume`;
+}
 const toRate = (s: string) => (s.trim() === '' ? null : Number(s) / 100);
 
 interface BandRow { min: string; max: string; weeks: string; unit: FeeBasisUnit; rate: string }
