@@ -160,7 +160,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // The frozen commission split, one row per payee. Deliberately OUTSIDE the
     // throw-list below: a row with no lines is a historic row, not a failure, and
     // losing the payee breakdown must never cost anybody their sign-in.
-    client.from('application_commission_lines').select('application_id, level, org_id, org_name, rate, source, basis_amount'),
+    client.from('application_commission_lines').select('application_id, level, org_id, org_name, rate, source, basis_amount, amount'),
   ]);
 
   // ratesRes is deliberately absent from this list. It returns nothing for a
@@ -410,6 +410,10 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
       // 'standard' for it would relabel a settled statement.
       source: r.source ?? null,
       basisAmount: r.basis_amount == null ? null : Number(r.basis_amount),
+      // The frozen amount, so the client and commission_statement_lines say the
+      // same number for the same line. Null on a pre-column row, where both
+      // sides fall back to the same arithmetic.
+      amount: r.amount == null ? null : Number(r.amount),
     });
     linesByApp.set(String(r.application_id), list);
   }

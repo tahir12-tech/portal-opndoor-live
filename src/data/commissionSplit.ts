@@ -103,7 +103,19 @@ export function totalRate(app: FullApp): number {
   return linesFor(app).reduce((s, l) => s + (l.rate || 0), 0);
 }
 
-/** Lines with money on them, for a fee base (the rent, as everywhere else). */
+/** Lines with money on them, for a fee base (the rent, as everywhere else).
+
+    THE FROZEN AMOUNT WINS where the line has one, so this agrees line for line
+    with commission_statement_lines. They must: the statement is what a payee is
+    paid and this is what the portal shows them, and a joint tenancy makes the two
+    arithmetics differ. Rounding each line on its own let GR-20845 and GR-20846
+    sum to £576.93 against a tenancy commission of £576.92, so the frozen amount
+    is the tenancy's commission apportioned, with the last line taking the
+    rounding.
+
+    The fallback is feeBase x rate for a line frozen before the column existed,
+    which is exactly what those rows have always been worth, and is also what the
+    reconstructed single agency line for a historic row with no split is worth. */
 export function payeesFor(app: FullApp, feeBase: number): PayeeAmount[] {
   return linesFor(app).map((l) => ({
     key: payeeKey(l.level, l.orgId, l.orgName),
@@ -111,7 +123,7 @@ export function payeesFor(app: FullApp, feeBase: number): PayeeAmount[] {
     orgId: l.orgId,
     orgName: l.orgName,
     rate: l.rate,
-    amount: feeBase * (l.rate || 0),
+    amount: l.amount == null ? feeBase * (l.rate || 0) : l.amount,
     source: l.source ?? null,
   }));
 }

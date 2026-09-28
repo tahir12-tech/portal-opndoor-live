@@ -250,6 +250,14 @@ export interface CommissionLine {
       applicant's own share of the tenancy fee, not the whole fee. Null on
       historic rows, where the application's fee is the only basis there is. */
   basisAmount?: number | null;
+  /** WHAT THIS PAYEE EARNS ON THIS APPLICATION, frozen at creation, in pounds.
+      On a joint tenancy it is the TENANCY's commission apportioned across the
+      tenants with the last line taking the rounding, which is not the same as
+      this line's basis times its rate: rounding each line on its own let a
+      tenancy's lines sum to a penny more than the tenancy's own commission.
+      Null on rows frozen before the column existed; readers fall back to
+      basis x rate, which is what those rows were always worth. */
+  amount?: number | null;
 }
 
 export interface AgencyGroup {

@@ -88,3 +88,77 @@ describe('commission split: the shared fallback rule', () => {
     expect(viaLines).toBeCloseTo(viaScalar, 10);
   });
 });
+
+/* THE FROZEN AMOUNT, and why it is not basis times rate.
+
+   Reported on GR-20845 / GR-20846, a £2,000 tenancy split 54/46 with a fee of
+   £2,307.69 at 25%:
+
+     £1,246.15 x 25% = 311.5375 -> £311.54
+     £1,061.54 x 25% = 265.3850 -> £265.39      sum £576.93
+     £2,307.69 x 25% = 576.9225 -> £576.92      the tenancy's own commission
+
+   The database now freezes the tenancy's commission apportioned across the
+   tenants, last line taking the rounding, so the lines foot. This side has to
+   read that number rather than recompute, or the portal and the statement would
+   quote a payee two different figures for the same line. */
+describe('the frozen amount', () => {
+  it('is used verbatim when the line carries one', () => {
+    const a = app({
+      commissionLines: [
+        { level: 'agency', orgId: 'ag-1', orgName: 'Regent’s Lettings', rate: 0.25, basisAmount: 1061.54, amount: 265.38 },
+      ],
+    });
+    // 1061.54 x 0.25 is 265.385, which is NOT what this line is worth.
+    expect(payeesFor(a, 1061.54)[0].amount).toBe(265.38);
+  });
+
+  it('falls back to basis times rate on a line frozen before the column existed', () => {
+    const a = app({
+      commissionLines: [
+        { level: 'agency', orgId: 'ag-1', orgName: 'Northgate Lettings', rate: 0.1 },
+      ],
+    });
+    expect(payeesFor(a, 2000)[0].amount).toBe(200);
+  });
+
+  /* THE ASSERTION THAT WOULD HAVE CAUGHT IT. Two applications of one tenancy,
+     each reading its own frozen line, summing to the tenancy's commission. */
+  it('lets a tenancy’s lines sum to the tenancy’s commission, to the penny', () => {
+    const one = app({ ref: 'GR-20845', commissionLines: [
+      { level: 'agency', orgId: 'ag-r', orgName: 'Regent’s Lettings', rate: 0.25, basisAmount: 1246.15, amount: 311.54 },
+    ] });
+    const two = app({ ref: 'GR-20846', commissionLines: [
+      { level: 'agency', orgId: 'ag-r', orgName: 'Regent’s Lettings', rate: 0.25, basisAmount: 1061.54, amount: 265.38 },
+    ] });
+
+    const summed = payeesFor(one, 1246.15)[0].amount + payeesFor(two, 1061.54)[0].amount;
+    expect(Number(summed.toFixed(2))).toBe(576.92);
+  });
+
+  /* AND THE TWO SIDES CANNOT EVEN AGREE ON HOW TO ROUND, which is the strongest
+     argument for one frozen number rather than two implementations of the same
+     sum.
+
+     Postgres numeric rounds 265.385 half-UP and returns 265.39, which is where
+     the reported £576.93 came from. JavaScript cannot represent 265.385: the
+     nearest double is a hair below it, so toFixed(2) rounds DOWN to 265.38. The
+     same expression, in the two languages that both price this line, gives two
+     different pennies.
+
+     So the client recomputing is not merely duplicated work, it is a second
+     answer. This assertion pins the discrepancy so that nobody "simplifies"
+     payeesFor back to feeBase x rate on the grounds that it looks equivalent. */
+  it('does not recompute, because the two languages round the half differently', () => {
+    // What JavaScript makes of it. Postgres's round(1061.54 * 0.25, 2) is 265.39.
+    expect(Number((1061.54 * 0.25).toFixed(2))).toBe(265.38);
+
+    // And the frozen amount is neither side's guess: it is the tenancy's
+    // commission apportioned, which is 265.38 here for a different reason again
+    // (the last line takes the remainder after 311.54).
+    const two = app({ commissionLines: [
+      { level: 'agency', orgId: 'ag-r', orgName: 'Regent’s Lettings', rate: 0.25, basisAmount: 1061.54, amount: 265.38 },
+    ] });
+    expect(payeesFor(two, 1061.54)[0].amount).toBe(265.38);
+  });
+});
