@@ -40,6 +40,7 @@ import { maySeeDeliveryState, type DeliveryState } from '@/data/deliveryState';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
 import { titleCaseAddress, formatLondonDate, formatLondonDateTime } from '@/lib/format';
 import { isAgencyUser } from '@/data/capabilities';
+import { viewerShape } from '@/data/viewerShape';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
@@ -320,6 +321,34 @@ export function ApplicationDetail() {
      an integration and the route is the first thing they need; it is not money. */
   const maySeeRoute = role === 'superadmin' || role === 'opndoor_manager'
     || role === 'management' || role === 'developer';
+
+  /* THE REFERRING AGENT CARD SHOWS ONLY WHAT DIFFERS WITHIN THE READER'S SCOPE.
+
+     For an agency reader it named their own agency, their own office and their
+     own address, on every application they opened: four rows restating the page
+     header. It is information for an admin looking across the book and, to
+     Regent, furniture.
+
+     So each row survives only where it can differ. Branch stays when there is
+     more than one office; Agency stays for a group; the agent's own address goes
+     with them, because the address of the office is the office. Route is decided
+     separately by maySeeRoute and is untouched.
+
+     With nothing left to say the card goes entirely, and "Deed in favour of"
+     moves to the Property card, which is where a row about the property belongs
+     and where it will be looked for. Admin and supplier views are unchanged:
+     agencyViewer is false for both. */
+  const referrerShape = useMemo(() => viewerShape(role, partnerScope), [role, partnerScope, dataVersion]);
+  const referrerCard = useMemo(() => {
+    if (!agencyViewer) {
+      return { show: true, agency: true, branch: true, address: true, deedRowMoves: false };
+    }
+    const agency = !referrerShape.oneAgency;
+    const branch = !referrerShape.oneBranch;
+    const address = agency || branch;
+    const anything = agency || branch || (maySeeRoute && !!d.partnerName);
+    return { show: anything, agency, branch, address, deedRowMoves: true };
+  }, [agencyViewer, referrerShape, maySeeRoute, d.partnerName]);
   const [notes, setNotes] = useState<AppNote[]>([]);
   const [noteBody, setNoteBody] = useState('');
   const [noteBusy, setNoteBusy] = useState(false);
@@ -1493,6 +1522,15 @@ export function ApplicationDetail() {
               <div className="drow"><span className="drow__k">City / town</span><span className="drow__v">{titleCaseAddress(d.city)}</span></div>
               <div className="drow"><span className="drow__k">County</span><span className="drow__v">{titleCaseAddress(d.county)}</span></div>
               <div className="drow"><span className="drow__k">Postcode</span><span className="drow__v"><b>{d.postcode}</b></span></div>
+              {/* MOVED HERE when the Referring agent card collapses, which it does
+                  for a one-office agency. A row about the property belongs on the
+                  Property card and is where it will be looked for; it only ever
+                  sat on the agent card because that card was always drawn. Shown
+                  in exactly one place: the agent card omits it whenever this
+                  shows it. */}
+              {!isDirect && referrerCard.deedRowMoves && (
+                <div className="drow"><span className="drow__k">Deed in favour of</span><span className="drow__v">{titleCaseAddress(d.addr1)}, {d.postcode}</span></div>
+              )}
             </CardBody>
           </Card>
 
@@ -1541,7 +1579,7 @@ export function ApplicationDetail() {
                 )}
               </CardBody>
             </Card>
-          ) : (
+          ) : referrerCard.show ? (
             <Card>
               {/* No sub. It read "Claim contact. The deed is in favour of the property.",
                   which stated a rule to an audience that does not need it: the agent
@@ -1549,8 +1587,8 @@ export function ApplicationDetail() {
                   own "Deed in favour of" row below says so anyway. */}
               <CardHead title="Referring agent" />
               <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
-                <div className="drow"><span className="drow__k">Agency</span><span className="drow__v"><b>{d.agency}</b></span></div>
-                <div className="drow"><span className="drow__k">Branch</span><span className="drow__v">{d.branch}</span></div>
+                {referrerCard.agency && <div className="drow"><span className="drow__k">Agency</span><span className="drow__v"><b>{d.agency}</b></span></div>}
+                {referrerCard.branch && <div className="drow"><span className="drow__k">Branch</span><span className="drow__v">{d.branch}</span></div>}
                 {/* ROUTE, NOT PARTNER. The value was always the route for one of
                     our agencies — partnerName maps a house slug to its route label,
                     so this row read "Partner: Agency referral" — and "partner" is our
@@ -1558,11 +1596,11 @@ export function ApplicationDetail() {
                     describes what the value actually is, on every screen, so there is
                     one label rather than two that can drift apart. */}
                 {maySeeRoute && d.partnerName && <div className="drow"><span className="drow__k">Route</span><span className="drow__v">{d.partnerName}</span></div>}
-                <div className="drow"><span className="drow__k">Address</span><span className="drow__v">{titleCaseAddress(d.agentAddr)}</span></div>
-                <div className="drow"><span className="drow__k">Deed in favour of</span><span className="drow__v">{titleCaseAddress(d.addr1)}, {d.postcode}</span></div>
+                {referrerCard.address && <div className="drow"><span className="drow__k">Address</span><span className="drow__v">{titleCaseAddress(d.agentAddr)}</span></div>}
+                {!referrerCard.deedRowMoves && <div className="drow"><span className="drow__k">Deed in favour of</span><span className="drow__v">{titleCaseAddress(d.addr1)}, {d.postcode}</span></div>}
               </CardBody>
             </Card>
-          )}
+          ) : null}
 
           <Card>
             <CardHead

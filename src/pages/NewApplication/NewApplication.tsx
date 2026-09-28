@@ -25,7 +25,7 @@
    ===================================================================== */
 import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, shareSumError } from './shareMath';
+import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, rebalanceShares, shareSumError } from './shareMath';
 import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, originReferencingMode, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, UNRESOLVED, orgSectionCopy, type OrgShape } from '@/data';
 import { Modal } from '@/components/ui/Modal';
 import { TITLE_OPTIONS, validateReferral, validateTenant, parseFlexibleDate, toISODate, type ReferralValues, type TenantErrors, type TenantValues } from '@/lib/validation';
@@ -148,6 +148,7 @@ export function NewApplication() {
   const [lookupResults, setLookupResults] = useState<AddressOption[]>([]);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupMsg, setLookupMsg] = useState('');
+  const [editedShares, setEditedShares] = useState<Set<number>>(new Set());
 
   const joint = extra.length > 0;
   const tenantCount = 1 + extra.length;
@@ -188,16 +189,25 @@ export function NewApplication() {
     const n = tenantCount + 1;
     setExtra((prev) => [...prev, newTenant()]);
     setPercents(equalSharePercents(n).map(String));
+    setEditedShares(new Set());
   }
   function removeTenant(i: number) {
     const n = tenantCount - 1;
     setExtra((prev) => prev.filter((_, j) => j !== i));
     setPercents(equalSharePercents(n).map(String));
+    setEditedShares(new Set());
   }
+  /* WHICH SHARES THE AGENT HAS TYPED INTO. Auto-balance spreads the remainder
+     over the ones they have NOT, so this is the list it needs. Cleared whenever
+     the tenant count changes, because adding or removing somebody re-spreads
+     everything anyway and the old marks would be about a different form. */
   function setPercent(i: number, v: string) {
-    setPercents((prev) => prev.map((p, j) => (j === i ? v : p)));
+    setPercents((prev) => rebalanceShares(prev.map(Number), i, Number(v), editedShares)
+      .map((n, j) => (j === i ? v : String(n))));
+    setEditedShares((prev) => (prev.has(i) ? prev : new Set(prev).add(i)));
   }
-  /** The £ field writes back through the percentage, so there is one stored fact. */
+  /** The £ field writes back through the percentage, so there is one stored fact,
+      and auto-balance therefore behaves identically in either box. */
   function setShareAmount(i: number, v: string) {
     const p = percentFromAmount(rentNum, Number(v));
     if (p !== null) setPercent(i, String(p));

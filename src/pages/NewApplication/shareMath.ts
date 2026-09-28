@@ -103,3 +103,54 @@ export function duplicateEmailIndex(emails: string[]): number {
   }
   return -1;
 }
+
+/* =====================================================================
+   AUTO-BALANCE. Editing one share spreads what is left over the tenants
+   nobody has touched yet.
+
+   WHY IT IS THE UNTOUCHED ONES AND NOT EVERYBODY. An agent typing 60 into the
+   first of three means "and split the rest between the other two". If the edit
+   re-spread across ALL of them it would immediately overwrite the 60 that was
+   just typed, and if it spread across none the form would sit invalid until
+   every box had been filled by hand. Untouched-only is the reading that matches
+   what the typing means.
+
+   AND IT STOPS. Once every share has been edited by hand there is nobody left to
+   absorb the remainder, so the numbers stand exactly as typed, the total is
+   whatever it is, and shareSumError says so. Silently moving a figure somebody
+   has deliberately set would be worse than an error message.
+
+   THE LAST UNTOUCHED SHARE TAKES THE ROUNDING, the same rule apportion uses on
+   the fee and the rent, so three untouched tenants split a remainder to exactly
+   the remainder rather than to 0.001 less.
+   ===================================================================== */
+export function rebalanceShares(
+  percents: number[],
+  index: number,
+  next: number,
+  /** Indices the reader has already typed into, NOT including `index`. */
+  edited: ReadonlySet<number>,
+): number[] {
+  const out = percents.slice();
+  if (index < 0 || index >= out.length) return out;
+  out[index] = Number.isFinite(next) ? next : 0;
+
+  const free: number[] = [];
+  for (let i = 0; i < out.length; i += 1) {
+    if (i !== index && !edited.has(i)) free.push(i);
+  }
+  // Everybody has been set by hand: leave it alone and let the total speak.
+  if (free.length === 0) return out;
+
+  const fixed = out.reduce((s, p, i) => (free.includes(i) ? s : s + (Number.isFinite(p) ? p : 0)), 0);
+  const remainder = pct(100 - fixed);
+  // A share typed above 100 leaves a negative remainder. Zero the others rather
+  // than showing negative percentages; shareSumError then names the overshoot.
+  const each = remainder <= 0 ? 0 : Math.floor((remainder / free.length) * 1000) / 1000;
+  free.forEach((i, k) => {
+    out[i] = k === free.length - 1 && remainder > 0
+      ? pct(remainder - each * (free.length - 1))
+      : each;
+  });
+  return out;
+}

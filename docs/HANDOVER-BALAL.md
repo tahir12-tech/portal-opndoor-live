@@ -644,6 +644,53 @@ insert as it stood against dev: zero rows written.
 
 ---
 
+## 10.2 HubSpot, and the fault that looks exactly like "no data yet"
+
+The sync pages applications into HubSpot on a `*/2` cron. It has two pieces of
+state and they are set up by different things, which is the whole of the
+problem.
+
+| table | what it is | set by |
+|---|---|---|
+| `hubspot_sync_cursor_partner` | how far the sync has got for each partner | the sync itself, on first run |
+| `hubspot_partner_map` | which HubSpot portal each partner writes into | **by hand** |
+
+**THE FAULT, diagnosed on dev.** Seven partners held cursors and
+`hubspot_partner_map` was **empty**. The August trigger that seeded the cursor
+did not seed the map, so the sync ran on schedule, found a cursor, looked up the
+portal, found nothing, and wrote nothing. `cron.job_run_details` said
+"succeeded" every two minutes for weeks, because the cron's job is to POST and
+the POST returned 200.
+
+So on a fresh project **check the map, not the cron**:
+
+```sql
+select p.slug, m.portal_id is not null as mapped
+  from public.partners p
+  left join public.hubspot_partner_map m on m.partner_id = p.id
+ order by mapped, p.slug;
+```
+
+Any `mapped = false` partner is silently not syncing. Insert its portal id
+before the first live referral, not after: the cursor advances whether or not
+the write lands, so an unmapped partner's backlog is not replayed when you fix
+the map. If that has already happened, wind that partner's cursor back.
+
+**THE SECOND SILENT FAILURE is HubSpot's own.** It ACCEPTS a write to a property
+that does not exist and discards it, returning 200. So a mapped, running,
+apparently healthy sync can be writing nothing. `hubspot-sync` checks the
+property list and raises `hubspot_map_drift` when a mapped property is missing,
+which is worth reading as the canary for exactly that. **That alert had never
+fired in its life**, because it was raised by a direct insert into `ops_alerts`
+and `hour_bucket` is `not null` with no default, so the insert failed every time
+and the error was swallowed. Fixed on this branch; see 10.1.
+
+**`hubspot_sync_events` being empty is normal on dev** and always has been: dev
+has no HubSpot token, so there is nothing to record. The first proven sync
+anywhere will be the one on your clone, which is why 14.2 walks it.
+
+---
+
 ## 11. The walks
 
 ### 11.1 On the clone

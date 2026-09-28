@@ -251,12 +251,34 @@ describe('each share row mirrors, to the penny', () => {
     expect(shareInputs()[1].value).toBe('1200');
   });
 
-  it('names the gap when the shares do not describe the whole tenancy', async () => {
+  /* AUTO-BALANCE CHANGED HOW A GAP IS REACHED, and this test used to reach it by
+     accident. Typing 30 into the first of two left the second on 50 and the
+     total on 80, and that was the gap being asserted. Editing one share now
+     spreads the remainder over the untouched one, so 30 gives 70 and the total
+     is 100: there is no gap to name, which is the point of the fold.
+
+     A gap still happens and still has to be named, but only once BOTH shares
+     have been typed by hand, because auto-balance stops when there is nobody
+     left to absorb the remainder. That is the case asserted now, and it is the
+     one a real agent hits: they set one, then override the other. */
+  it('names the gap once every share has been set by hand and they do not total 100', async () => {
     const { view, change, addTenant, shareInputs, chooseOrigin } = await openForm();
     await chooseOrigin(OUR_AGENCY);
     change('#ty-rent', '1800');
     addTenant();
+
+    /* shareInputs() interleaves the % and £ boxes, so tenant 1 is [0] and [1]
+       and tenant 2 is [2] and [3]. Asserting the £ box as well is worth the line:
+       it proves auto-balance reached the mirrored value and not just the
+       percentage. */
     fireEvent.change(shareInputs()[0], { target: { value: '30' } });
+    expect(shareInputs()[1].value).toBe('540');   // 30% of 1800
+    expect(shareInputs()[2].value).toBe('70');    // the untouched share absorbed the rest
+    expect(view.container.textContent).not.toMatch(/shares total/i);
+
+    // Second edit is the last untouched one, so nothing absorbs the remainder
+    // and the shortfall is real.
+    fireEvent.change(shareInputs()[2], { target: { value: '50' } });
     expect(view.container.textContent).toMatch(/shares total 80%\. Add 20% more/i);
   });
 });
