@@ -19,12 +19,12 @@ You will also create a third, throwaway **clone**, and that is where you start.
 
 ## 0. What this actually is
 
-`partner-api` is 178 migrations and 13 edge functions ahead of `origin/main`.
+`partner-api` is 201 migrations and 13 edge functions ahead of `origin/main`.
 
 ```
-migrations on this branch      243
+migrations on this branch      266
 migrations on origin/main       65
-new                            178
+new                            201
 
 edge function directories       33   (plus _shared)
 on origin/main                  21
@@ -117,8 +117,11 @@ because until this branch the fee WAS one month's rent.
 **Stop and tell Matt** if any existing row's `status` or commission moved.
 
 > The scripts' own headers say "166 migrations". They were written when there
-> were 166; there are now 178. The scripts themselves are generic and do not
-> count, so the number in the comment is stale and harmless.
+> were 166; there are now 201. The scripts themselves are generic and do not
+> count, so the number in the comment is stale and harmless. The same goes for
+> any count written in this document before the branch stopped moving: the
+> authoritative answer is always the `ls | wc -l` in 1.4, never a number typed
+> into prose.
 
 ### 1.5 Then walk it
 
@@ -562,6 +565,26 @@ The other jobs are unaffected because they carry the URL as a literal, which is
 the thing `20260811210000` warns about: a literal survives every later
 correction. That is why these four read it at run time instead, and why it has
 to be right.
+
+**THE HEALTH PAGE NOW LEADS WITH THIS**, so you can check it without a psql
+prompt. `/health` reads the setting and, when it is missing, opens with a red
+banner naming the jobs that are reporting success while making no call, and the
+one thing to do about it. Each job row also says whether its command depends on
+the base URL, read off the command text rather than a list, so a job that gains
+or loses the guard describes itself correctly.
+
+While you are on that page: it is machinery only now, for whoever runs the
+deployment. The human work queue that used to sit on it ("Needs attention") is
+on Home, where the person clearing it is. Every failing row carries one line of
+what it means and one of what to do, naming the secret, the function or the
+application, and a row with nothing to act on is no longer drawn in red.
+
+Recent responses are grouped by job. Read the attribution with one caveat, which
+the page states: pg_net throws away the request URL when the response lands, so
+a response is matched to the job whose run window contains it. Two jobs firing
+in the same second can be attributed to each other. It is right about which job
+is failing and can be wrong about which of two simultaneous jobs a single row
+belongs to.
 
 **This is a VERIFY step, not a setting.** Production has an
 `ops_secrets.functions_base_url` row already. The failure mode is that it is
