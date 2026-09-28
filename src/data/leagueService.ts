@@ -108,7 +108,10 @@ export function getLeague(view: LeagueView, opts: LeagueOpts): LeagueRow[] {
       const sp = 0.72 + ((i * 5) % 16) / 100;
       const pd = 0.86 + ((i * 3) % 10) / 100;
       const cv = sp * pd;
-      rows.push({ name: nm, sub: 'Referrer', refs, fees: Math.round(refs * 0.8 * AVG_RENT), paid: Math.round(refs * sp), deed: Math.round(refs * cv), sp, conv: cv, partnerComm: 0, agentComm: 0, movement: MOCK_MOVE[i % MOCK_MOVE.length] });
+      // 'Negotiator', as every other surface names the level. Mock and demo
+      // read the same words as live, or a walk through the demo teaches the
+      // reader vocabulary the product does not use.
+      rows.push({ name: nm, sub: 'Negotiator', refs, fees: Math.round(refs * 0.8 * AVG_RENT), paid: Math.round(refs * sp), deed: Math.round(refs * cv), sp, conv: cv, partnerComm: 0, agentComm: 0, movement: MOCK_MOVE[i % MOCK_MOVE.length] });
     });
   }
 

@@ -66,6 +66,9 @@ export interface FullApp {
   /** The referring user's actual role (superadmin/management/referrer), so the
       league can label who generated the referral truthfully. */
   referrerRole?: Role | null;
+  /** The commission half of the referrer's level. With referrerRole it names
+      Director, Manager or Negotiator; role alone cannot separate the first two. */
+  referrerSeesCommission?: boolean | null;
   owner: number;
   status: Status;
   rent: number;
@@ -592,6 +595,7 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
     referrer: r.referrer,
     // referrerRole is on the summary LIST (like partner), not AppRecord (#112).
     referrerRole: LIST.find((x) => x.ref === r.ref)?.referrerRole ?? null,
+    referrerSeesCommission: LIST.find((x) => x.ref === r.ref)?.referrerSeesCommission ?? null,
     tenancyStart: fmtLong(tenancyStart),
     tenancyStartDate: tenancyStart,
     sentAt,

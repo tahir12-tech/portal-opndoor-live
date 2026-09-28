@@ -29,6 +29,7 @@ import {
   getReferrerLeague, maySeeCommission,
   type LeagueRow, type LeagueScope, type LeagueView, type ReferrerBoard, type Period,
 } from '@/data';
+import { isAgencyUser } from '@/data/capabilities';
 import { getPositions, type Position } from '@/data/positionsService';
 import { liveScopeShape } from '@/data/liveAnalytics';
 import { useSession } from '@/session/SessionContext';
@@ -38,7 +39,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Card, CardFoot } from '@/components/ui/Card';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { RoleOnly } from '@/components/ui/RoleOnly';
-import { PartnerSelect, PeriodSelect } from '@/components/ui/Select';
+import { PartnerSelect, PeriodSelect, RankSelect } from '@/components/ui/Select';
 import './League.css';
 
 const PAGE = 15;
@@ -53,7 +54,7 @@ const COLS: Record<LeagueView, Col[]> = {
      column shows a dash wherever the branch is not itself a payee — rather than
      repeating its agency's earnings against every branch name. */
   branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees generated', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true], ['partnerComm', 'Partner comm.', true], ['agentComm', 'Own commission', true]],
-  referrer: [['name', 'Referrer', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true]],
+  referrer: [['name', 'Negotiator', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true]],
 };
 
 /* THE TWO COLUMNS A MANAGER MAY NOT HAVE, and why only these two.
@@ -79,8 +80,36 @@ const COMMISSION_COLS = new Set<SortKey>(['partnerComm', 'agentComm']);
 const TABS: { id: LeagueView; label: string }[] = [
   { id: 'agency', label: 'Agencies' },
   { id: 'branch', label: 'Branches' },
-  { id: 'referrer', label: 'Referrers' },
+  { id: 'referrer', label: 'Negotiators' },
 ];
+
+/* RANK BY, per board. Fees is the default everywhere. The fees column is named
+   differently on the branch board (a branch GENERATES fees, it does not collect
+   them, because under the additive model its agency is usually the payee), so
+   the option reads off the same COLS row the column header does rather than
+   restating it and drifting. */
+function RANK_OPTIONS(view: LeagueView): { value: string; label: string }[] {
+  const label = (key: string, fallback: string) =>
+    (COLS[view]?.find((c) => c[0] === key)?.[1] as string) ?? fallback;
+  return [
+    { value: 'fees', label: label('fees', 'Fees collected') },
+    { value: 'refs', label: label('refs', 'Referrals') },
+    { value: 'deed', label: label('deed', 'Deeds') },
+  ];
+}
+
+/** The opening sentence, naming exactly the boards on the page. Lower-cased and
+    listed with an Oxford-free "and", so one tab reads "Every negotiator ranked
+    in full." and three read "Every agency, branch and negotiator ranked in
+    full." */
+export function introFor(tabs: { id: LeagueView; label: string }[]): string {
+  const words = tabs.map((t) => ({ agency: 'agency', branch: 'branch', referrer: 'negotiator' }[t.id] ?? t.label.toLowerCase()));
+  if (!words.length) return 'Nothing to rank in this scope yet.';
+  const list = words.length === 1
+    ? words[0]
+    : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+  return `Every ${list} ranked in full.`;
+}
 
 
 function ConvChip({ cv }: { cv: number }) {
@@ -307,6 +336,7 @@ function FullLeagueView() {
   // and it is the board an agency actually reads. Applies to an admin too, the
   // moment the partner selector narrows them to one agency.
   const shape = useMemo(() => liveScopeShape(role, partnerScope), [role, partnerScope]);
+  const agencyViewer = isAgencyUser(role, partnerScope);
   const tabs = useMemo(() => TABS.filter((t) =>
     t.id === 'referrer'
     || (t.id === 'agency' && shape.agencies > 1)
@@ -388,6 +418,16 @@ function FullLeagueView() {
     setSort('fees');
     setDir(-1);
   }
+  /* The control shows the ranked column when the order is descending by one of
+     the three it offers, and falls back to Fees the moment the reader sorts by
+     something else (a name, a conversion rate) or flips to ascending, because
+     "ranked by fees, smallest first" is not a ranking anybody means. */
+  const rankBy: SortKey = (dir === -1 && (['fees', 'refs', 'deed'] as SortKey[]).includes(sort)) ? sort : 'fees';
+  function rankByChange(col: SortKey) {
+    setSort(col);
+    setDir(-1);
+    setPage(0);
+  }
   function toggleSort(col: SortKey) {
     if (sort === col) setDir((d) => (d === 1 ? -1 : 1));
     else {
@@ -406,13 +446,39 @@ function FullLeagueView() {
       <div className="page-head">
         <div>
           {/* #100 Name the active scope truthfully (the table is scoped by the
-              global partner selection even when the in-page selector is hidden). */}
-          <Eyebrow>Performance · {period.label}{partner ? ` · ${partnerName(partner)}` : partnerScope !== ALL_PARTNERS ? ` · ${partnerName(partnerScope)}` : ''}{myScope.hasToggle && shape.branches > 1 ? ` · ${scope === 'mine' ? myScope.label : 'Whole company'}` : ''}</Eyebrow>
+              global partner selection even when the in-page selector is hidden).
+
+              NOT THE ROUTE, FOR AN AGENCY USER. partnerName resolves a house-route
+              partner through houseRouteLabel, so a Regent reader saw
+              "Performance · This month · Agency referral": the name of the rail
+              their agency sits on, which is opndoor plumbing and means nothing to
+              them. The admin's in-page selector arm (`partner`) and a supplier
+              reading their own partner name both keep it, which is what #100 was
+              about. */}
+          <Eyebrow>Performance · {period.label}{partner ? ` · ${partnerName(partner)}` : (!agencyViewer && partnerScope !== ALL_PARTNERS) ? ` · ${partnerName(partnerScope)}` : ''}{myScope.hasToggle && shape.branches > 1 ? ` · ${scope === 'mine' ? myScope.label : 'Whole company'}` : ''}</Eyebrow>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>League tables</h1>
-          <p className="page-head__sub">Every agency, branch and referrer ranked in full. Search, sort by any metric, and page through the whole book. The dashboard shows the top ten; this is the complete list.</p>
+          {/* BUILT FROM THE TABS ACTUALLY SHOWN. This was hardcoded to "Every
+              agency, branch and referrer", which promised a Regent Director three
+              boards over a page showing one, and named them with the old
+              vocabulary. The tabs are already filtered by scope; the sentence now
+              reads off the same list rather than describing a different page. */}
+          <p className="page-head__sub">{introFor(tabs)} Search, sort by any metric, and page through the whole book. The dashboard shows the top ten; this is the complete list.</p>
         </div>
         <div className="page-head__actions">
           {myScope.hasToggle && shape.branches > 1 && <ScopeToggle scope={scope} setScope={setScope} mineLabel={myScope.label} />}
+          {/* RANK BY, as a control rather than only as a clickable column.
+              Sorting by clicking a heading is discoverable once you know tables
+              do that; the question "who is top by fees" deserves to be answerable
+              without knowing. It writes the same sort state the headings do, so
+              the two cannot disagree, and the heading arrow still moves when you
+              use it. Deeds is offered because the column is already there and
+              already sortable, so it costs one line. */}
+          <RankSelect
+            ariaLabel="Rank by"
+            value={rankBy}
+            onChange={(v: string) => rankByChange(v as SortKey)}
+            options={RANK_OPTIONS(view)}
+          />
           <PeriodSelect ariaLabel="League time period" value={period.id} onChange={setPeriod} options={getPeriods().map((p) => ({ value: p.id, label: p.label }))} />
           {/* NO GATE ON THE BUTTON, because the gate belongs in the document.
               buildLeagueDoc used to write Partner commission and Agent commission
@@ -501,7 +567,11 @@ function FullLeagueView() {
                           <div className="lt-sub">{r.sub}</div>
                         </td>
                       ) : (
-                        <td key={c[0]} className="num">{cellFor(c[0], r, view)}</td>
+                        /* THE RANKED COLUMN IS BOLD, in every row and not only
+                           in its heading. Both columns are always shown, so
+                           without this the only sign of which one the order
+                           follows is a small arrow at the top of a long table. */
+                        <td key={c[0]} className={`num${sort === c[0] ? ' is-ranked' : ''}`}>{cellFor(c[0], r, view)}</td>
                       ),
                     )}
                   </tr>

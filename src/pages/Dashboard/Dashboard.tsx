@@ -295,6 +295,27 @@ export function Dashboard() {
   const trendTopIndex = trendView === 'month' ? trendRows.length - 1 : 0;
   // Entity views (branch/agency/referrer) are 12-month TOTALS, not a monthly
   // series, so the caption states that explicitly (the bars have no time axis by design).
+  /* BY BRANCH AND BY AGENCY FOLLOW THE SCOPE RULE, the same one the three volume
+     charts above already follow. A one-office agency was offered "By branch", and
+     choosing it drew a single bar labelled with the office they are already
+     looking at: a control that can only ever restate the page. By referrer stays
+     for everyone, because every agency has more than one person to compare even
+     when it has one office. */
+  const trendOptions = useMemo(() => [
+    { value: 'month', label: 'By month' },
+    ...(shape.branches > 1 ? [{ value: 'branch', label: 'By branch' }] : []),
+    ...(shape.agencies > 1 ? [{ value: 'agency', label: 'By agency' }] : []),
+    { value: 'referrer', label: 'By referrer' },
+  ], [shape.branches, shape.agencies]);
+
+  /* And fall back if the choice stops being offered, which League already does
+     for its tabs and this did not: a reader who picked By branch on a group and
+     then narrowed to one agency would have been left on a hidden option showing
+     one bar. */
+  useEffect(() => {
+    if (!trendOptions.some((o) => o.value === trendView)) setTrendView('month');
+  }, [trendOptions, trendView]);
+
   const trendSub = `${measureLabel(shownMeasure)} · ${trendView === 'month' ? 'last 12 months' : `by ${trendView} · total over the last 12 months`}`;
 
   // ---- exports ----
@@ -773,7 +794,7 @@ export function Dashboard() {
                     ariaLabel="Break the trend down by"
                     value={trendView}
                     onChange={(v) => setTrendView(v as TrendView)}
-                    options={[{ value: 'month', label: 'By month' }, { value: 'branch', label: 'By branch' }, { value: 'agency', label: 'By agency' }, { value: 'referrer', label: 'By referrer' }]}
+                    options={trendOptions}
                   />
                   <TrendSelect
                     ariaLabel="Measure for the trend"

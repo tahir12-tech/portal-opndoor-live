@@ -155,7 +155,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         'referencing_mode, applicant_id, landlord_name, landlord_email, ' +
         'elig:application_eligibility_payments(paid_at), ' +
         'referrer_id, referrer_name, branch_id, agency_id, partner_id, ' +
-        'branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name, role), partner:partners(slug)',
+        'branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name, role, sees_commission), partner:partners(slug)',
     ),
     // The frozen commission split, one row per payee. Deliberately OUTSIDE the
     // throw-list below: a row with no lines is a historic row, not a failure, and
@@ -368,6 +368,9 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     owner: ownerFlag(a),
     partner: slugOfApp(a),
     referrerRole: emb(a.referrer)?.role ?? null,
+    // The other half of the referrer's LEVEL. Director and Manager are both
+    // 'management' and differ only here, so role alone cannot name either.
+    referrerSeesCommission: emb(a.referrer)?.sees_commission === true,
     // #owner referrer name + sent-date for the Applications referrer/period filters.
     referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? null,
     sentAtTs: a.sent_at ? new Date(a.sent_at).getTime() : null,
@@ -430,6 +433,9 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // fall back to the live join, then a stable placeholder that is never counted.
     referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? '(unknown)',
     referrerRole: emb(a.referrer)?.role ?? null,
+    // The other half of the referrer's LEVEL. Director and Manager are both
+    // 'management' and differ only here, so role alone cannot name either.
+    referrerSeesCommission: emb(a.referrer)?.sees_commission === true,
     owner: ownerFlag(a),
     status: a.status as Status,
     rent: num(a.monthly_rent),

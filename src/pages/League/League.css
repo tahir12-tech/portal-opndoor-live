@@ -234,3 +234,8 @@
 
 /* Position-ladder scope switch (my brand/branch vs whole company). */
 .lt-scope { display: inline-flex; gap: 6px; }
+
+/* THE RANKED COLUMN, in the body as well as the heading. Both columns are always
+   shown, so without this the only sign of which one the order follows is a small
+   arrow at the top of a table that may be fifty rows long. */
+.dt td.is-ranked { font-weight: 700; color: var(--ink); }

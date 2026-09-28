@@ -35,7 +35,7 @@
    ===================================================================== */
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
-import { ALL_PARTNERS, maySeeCommission } from './types';
+import { ALL_PARTNERS, agencyLevelOf, maySeeCommission } from './types';
 import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp, guaranteedAnnual } from './applicationsService';
 import { getPartner, getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
@@ -77,11 +77,22 @@ function nowRef(): Date {
   return SUPABASE_ENABLED ? new Date() : new Date(2026, 5, 26);
 }
 
-/** Display label for a referring user's actual role (league attribution). */
-function roleLabel(role: Role | null | undefined): string {
-  if (role === 'superadmin') return 'opndoor'; // #112: opndoor-admin actors are labelled honestly as "opndoor", never "Referrer"
-  if (role === 'management') return 'Management';
-  return 'Referrer';
+/** Display label for a referring user, under the name, on League and on Volume
+    by referrer.
+
+    THE THREE LEVELS, as the rest of the product names them. This used to print
+    the internal role words: a Director and a Manager both read "Management",
+    which does not distinguish them and is not a word the client uses, and a
+    Negotiator read "Referrer", which is the role name the level replaced. The
+    Director / Manager split needs the commission bit, because that is the only
+    thing separating them.
+
+    The 'opndoor' arm stays (#112): opndoor-admin actors are labelled honestly
+    rather than as an agency level, and agencyLevelOf answers null for them, so
+    that arm has to be explicit. */
+export function roleLabel(role: Role | null | undefined, seesCommission?: boolean | null): string {
+  if (role === 'superadmin' || role === 'opndoor_manager') return 'opndoor';
+  return agencyLevelOf(role ?? 'referrer', seesCommission === true) ?? 'opndoor';
 }
 
 export interface LiveAgg {
@@ -348,7 +359,7 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
     // volume grows every time the direct rail is used. Tested by
     // referrer-exclusion.test.ts alongside the superadmin case.
     if (!app.referrer) return null;
-    return { id: `${app.partner}${S}${app.referrer}`, name: app.referrer || '(unknown)', sub: roleLabel(app.referrerRole), partner: '' };
+    return { id: `${app.partner}${S}${app.referrer}`, name: app.referrer || '(unknown)', sub: roleLabel(app.referrerRole, app.referrerSeesCommission), partner: '' };
   }
   // month: bucket by the sent month (drives the referrer "monthly volume" chart)
   if (!app.sentAt) return null;

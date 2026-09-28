@@ -360,6 +360,9 @@ export interface ApplicationSummary {
   owner: number;
   partner: string;
   referrerRole?: Role | null; // #112 the referring user's role, so opndoor-admin actors read "opndoor"
+  /** The commission half of the referrer's level: with referrerRole it names
+      Director, Manager or Negotiator. Role alone cannot tell the first two apart. */
+  referrerSeesCommission?: boolean | null;
   /** The referring user's display name, for the Applications referrer filter
       (management + opndoor admin). Null when unknown. */
   referrer?: string | null;
@@ -461,6 +464,7 @@ export interface ApplicationDetail {
   feeBasisLabel?: string;
   referrer: string;
   referrerRole?: Role | null; // #112 so opndoor-admin actors can be labelled "opndoor", not "Referrer"
+  referrerSeesCommission?: boolean | null;
   tenancyStart: string;
   tenancyStartDate: Date;
   sentAt: Date;
