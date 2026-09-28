@@ -123,6 +123,7 @@ insert into allowed(name) values
   ('list_managed_users'),
   ('log_view_as'),
   ('mark_withdrawn'),
+  ('may_act_on_user'),
   ('may_see_commission'),
   ('my_application_delivery'),
   ('my_org_shape'),

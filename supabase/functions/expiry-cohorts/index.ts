@@ -189,7 +189,15 @@ Deno.serve(async (req) => {
         // NOT `a.partner_id === partnerId`. The agency is the boundary: a row
         // belongs in this reader's CSV only if they cover its agency.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((a: any) => reader.agencyIds.has(a.agency_id) && a.payment_state !== "refunded" && a.expiry_date && daysBetween(a.expiry_date, nowL.date) >= 0)
+        /* AGENCY-RAIL BUSINESS ONLY, the same rule agency_weekly_digest now
+           applies. A direct application keeps partner_id = 'opndoor-direct'
+           and is given an agency_id and branch_id by the automatic matcher,
+           so it is invisible to that agency in the portal and was shipped to
+           them every month in a CSV of tenant names, addresses and rents. A
+           direct tenant is Opndoor's business, never the matched agency's. */
+        .filter((a: any) => reader.agencyIds.has(a.agency_id)
+          && a.partner_id === reader.partnerId
+          && a.payment_state !== "refunded" && a.expiry_date && daysBetween(a.expiry_date, nowL.date) >= 0)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .sort((x: any, y: any) => (x.expiry_date < y.expiry_date ? -1 : x.expiry_date > y.expiry_date ? 1 : String(x.guarantee_ref).localeCompare(String(y.guarantee_ref))));
       if (!cohort.length) { skipped += 1; continue; }

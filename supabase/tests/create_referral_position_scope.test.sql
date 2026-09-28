@@ -71,6 +71,11 @@ insert into public.user_scopes (user_id, kind, agency_id, branch_id) values
 -- ---------- 1. Negotiator, agent rail: their own branch allowed. ----------
 do $$ begin perform set_config('request.jwt.claims',
   json_build_object('sub','50000000-0000-0000-0000-000000000001','role','authenticated','aal','aal2')::text, true); end $$;
+-- AS THE ROLE, not merely with the claim. Setting request.jwt.claims alone
+-- proves the function's own guards, which read auth.uid(); it proves nothing
+-- about whether the caller may EXECUTE it. Two locks shipped green because of
+-- that gap, so every authorisation assertion here runs as authenticated.
+set local role authenticated;
 select lives_ok(
   $$ select public.create_referral('40000000-0000-0000-0000-000000000001','Mr','Neg','Tenant','1990-01-01','n@t.test','07700900001','1 A St',null,'Town',null,'SW1A 1AA',1000,(current_date + 30)) $$,
   'negotiator may refer against the branch they are positioned at');
@@ -84,6 +89,7 @@ select throws_ok(
 -- ---------- 3 & 4. Agency manager reaches the whole agency (B1 and B2). ----------
 do $$ begin perform set_config('request.jwt.claims',
   json_build_object('sub','50000000-0000-0000-0000-000000000002','role','authenticated','aal','aal2')::text, true); end $$;
+set local role authenticated;
 select lives_ok(
   $$ select public.create_referral('40000000-0000-0000-0000-000000000001','Mr','Neg','Tenant','1990-01-01','n@t.test','07700900001','1 A St',null,'Town',null,'SW1A 1AA',1000,(current_date + 30)) $$,
   'agency manager may refer against branch one of their agency');
@@ -101,6 +107,7 @@ select throws_ok(
 -- user (who WOULD be refused on the agent rail) is allowed, byte-identical.
 do $$ begin perform set_config('request.jwt.claims',
   json_build_object('sub','50000000-0000-0000-0000-000000000004','role','authenticated','aal','aal2')::text, true); end $$;
+set local role authenticated;
 select lives_ok(
   $$ select public.create_referral('40000000-0000-0000-0000-000000000009','Mr','Neg','Tenant','1990-01-01','n@t.test','07700900001','9 A St',null,'Town',null,'SW1A 1AA',1000,(current_date + 30)) $$,
   'supplier-rail management with no scope may still refer: the ladder does not apply off the agent rail');
@@ -108,6 +115,7 @@ select lives_ok(
 -- ---------- 7. Admin is exempt: refers against a branch they hold no position over. ----------
 do $$ begin perform set_config('request.jwt.claims',
   json_build_object('sub','50000000-0000-0000-0000-000000000003','role','authenticated','aal','aal2')::text, true); end $$;
+set local role authenticated;
 select lives_ok(
   $$ select public.create_referral('40000000-0000-0000-0000-000000000002','Mr','Neg','Tenant','1990-01-01','n@t.test','07700900001','2 A St',null,'Town',null,'SW1A 1AA',1000,(current_date + 30)) $$,
   'opndoor admin may refer against any branch on the agent rail');

@@ -229,14 +229,23 @@ select ok(
 -- ---------------------------------------------------------------------------
 -- The tick moves through the RPC or it does not move.
 -- ---------------------------------------------------------------------------
+-- lint:as-postgres users_commission_tick_guard is a COLUMN TRIGGER gated on a
+-- session setting, so it raises for every role including postgres. Running
+-- this as authenticated would prove the same thing less directly: as postgres
+-- there is no policy in the way, so a refusal here can only be the trigger.
 select throws_ok(
   $$update public.users set receives_commission_statements = true
      where id = '96000000-0000-0000-0000-0000000000e2'$$,
   '42501', null,
-  'a raw UPDATE cannot change who receives commission statements');
+  'a raw UPDATE cannot change who receives commission statements, for anyone at all');
 
 select set_config('request.jwt.claims',
   '{"sub":"96000000-0000-0000-0000-0000000000ff","role":"authenticated","aal":"aal2"}', true);
+-- AS THE ROLE, not merely with the claim. Setting request.jwt.claims alone
+-- proves the function's own guards, which read auth.uid(); it proves nothing
+-- about whether the caller may EXECUTE it. Two locks shipped green because of
+-- that gap, so every authorisation assertion here runs as authenticated.
+set local role authenticated;
 select ok(
   public.set_receives_commission_statements('96000000-0000-0000-0000-0000000000e2', true),
   'an Opndoor admin can turn it on for anyone');
@@ -263,6 +272,7 @@ select ok(
 -- ---------------------------------------------------------------------------
 select set_config('request.jwt.claims',
   '{"sub":"96000000-0000-0000-0000-0000000000e2","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
 select throws_ok(
   $$select public.set_receives_commission_statements('96000000-0000-0000-0000-0000000000e3', true)$$,
   '42501',

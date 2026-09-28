@@ -59,6 +59,73 @@ most recent backup **into a new project**. Call it something unmistakable, e.g.
 > Restoring into the SAME project is the mistake to avoid. If the dashboard ever
 > offers "restore in place", you are on the wrong screen.
 
+### 1.1b The fresh-database proof, which is the one that matters most
+
+Apply the migrations to the clone **from zero, in filename order, in one run**,
+and then run BOTH test suites against the clone before production is touched.
+That is the only thing that proves the files are self-consistent. Everything
+else I can tell you was measured against dev, and dev is a working copy that
+has had migrations run against it by hand.
+
+That distinction is not theoretical. On dev, an earlier migration had been
+re-applied after a later one, so dev and the files disagreed, and a revoke
+that made **every user invite fail** sat green in the test suite for a day
+because the tests were measuring dev. Three separate locks were found the same
+way: new invites, "Remove position", and `set_home_branch`. All are fixed, and
+the process that hid them is what this step exists to defeat.
+
+```bash
+# From zero, in filename order, in ONE run. Never file by file, and never
+# re-running one that has already gone in.
+supabase link --project-ref <clone-ref>
+supabase db push            # applies every migration in supabase/migrations, in order
+
+# Then BOTH suites, against the clone.
+supabase test db            # the pgTAP suite: 35 files
+npm test                    # the web suite: 89 files
+npm run typecheck
+```
+
+Two of those suites are there specifically to catch what bit us:
+
+- `supabase/tests/the_work_still_works.test.sql` asserts that the ordinary
+  actions still SUCCEED: invite a user, move them, remove a position,
+  change a level, deactivate, reset MFA, read your own book, withdraw, add a
+  note, reach the deed path. Every other file in that directory asserts a
+  refusal. A suite of refusals cannot see a lock that stops real work, and
+  that is exactly what shipped green.
+- `supabase/tests/definer_grants.test.sql` asserts that no SECURITY DEFINER
+  function is callable by `anon`, and that every one callable by
+  `authenticated` is on an allowlist derived from the migration FILES.
+
+**If `supabase db push` fails part way, stop.** Do not apply the rest by hand
+and do not re-run the one that failed. Fix the migration, re-make the clone,
+and start again. A half-applied chain is the state that produced every problem
+above.
+
+### 1.1c Check the files against themselves, before you even make the clone
+
+Two of these need no database at all and take seconds:
+
+```bash
+npm run schema:final   # replays every migration in filename order and reports
+                       # the final grant state, plus any function whose return
+                       # type changes without a DROP (a 42P13 on a clean apply)
+npm test               # includes migrationPatterns and testsRunAsTheirRole
+```
+
+And once the clone exists and is linked, this compares the two:
+
+```bash
+QSH=<a script that runs SQL against the clone> npm run drift
+```
+
+`npm run drift` computes what a clean apply of the files WOULD produce -- grants,
+function bodies, policies, triggers, column privileges -- and diffs it against a
+live database. Against dev it must print "No drift". Against the clone, after
+`supabase db push`, it must print the same. If it does not, the clone and the
+files disagree and something was applied out of order.
+
 ### 1.2 Capture the before picture
 
 These run under `psql`, not the SQL editor: `10_capture.sql` takes a `label`

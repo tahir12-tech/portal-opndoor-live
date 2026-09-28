@@ -11,7 +11,9 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run --environment jsdom",
     "smoke": "vitest run --environment jsdom",
-    "test:db": "supabase test db"
+    "test:db": "supabase test db",
+    "drift": "node scripts/schema-drift.mjs",
+    "schema:final": "node scripts/schema-final-state.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.0",

@@ -153,17 +153,31 @@ to the suite for reasons that are themselves the finding.
 
 | # | Finding | Status |
 | --- | --- | --- |
-| H1 | `create_invited_user` revoked from `authenticated` by 20261006330000, but invite-user calls it with the caller's JWT. No new user can be invited. | todo |
-| H2 | `user_scopes_delete` calls `may_act_on_user`, which `authenticated` may not execute, so "Remove position" raises permission denied for everyone. | todo |
-| M1 | `admin_update_user_role` can mint a `developer` on the house partner, and the `dev_*` reads are partner-wide with no agency predicate. | todo |
-| M2 | `fire_renewal_notices` joins the referrer with no status filter, so a DEACTIVATED referrer is emailed. | todo |
-| M3 | Demoting a Director to Manager leaves `receives_commission_statements` set, so they keep getting the statement. | todo |
-| M4 | Direct-rail applications appear in the agency expiry-cohort CSV and weekly digest through the auto-matched agency. | todo |
-| L1 | The referrer arm of `applications_update` has no partner pin, so a Negotiator can re-route their own sent application onto a supplier. | todo |
-| L2 | `authenticated` may WRITE `applications.partner_rate`/`agent_rate`, which it may not read. | todo |
-| L3 | expiry-reminders discriminates on `application_is_agent_estate`, true for opndoor-direct, so every direct guarantee raises a false ops incident. | todo |
-| L4 | `app_may_reach_application_org` still ends in a bare `else true`. | todo |
-| L5 | `agency_weekly_climber` has no status filter, so it can name somebody who has left. | todo |
+| H1 | `create_invited_user` revoked from `authenticated`, so no new user could be invited. | **done** `20261006410000`, proven by `the_work_still_works.test.sql` assertion 1 |
+| H2 | `user_scopes_delete` called `may_act_on_user`, which `authenticated` may not execute, so "Remove position" raised permission denied for everyone. | **done** `20261006410000`, proven by assertions 4 and 5 of the same file |
+| H3 (found by the file-derived allowlist, not by the reviewer) | `set_home_branch`, the one sanctioned way to change a home branch, was service-role only. | **done** `20261006430000`, proven by assertion 8 |
+| M1 | `admin_update_user_role` could mint a `developer` on the house partner; the four `dev_*` reads were partner-wide. | **done** `20261006410000`, both halves |
+| M2 | `fire_renewal_notices` emailed a DEACTIVATED referrer. | **done** `20261006410000` |
+| M3 | Demoting a Director left `receives_commission_statements` set. | **done** `20261006410000`, both halves per Matt's ruling: `set_agency_level` clears it AND `commission_statement_recipients` requires the level |
+| M4 | Direct-rail applications counted as the matched agency's business. | **done** `20261006410000` (digest) and `expiry-cohorts/index.ts` (CSV), per Matt's ruling |
+| L1 | The referrer arm of `applications_update` had no partner pin. | **done** `20261006410000` |
+| L2 | `authenticated` could WRITE the commission columns it may not read. | **done** `20261006410000`, table revoke then per-column re-grant, asserted in the migration |
+| L3 | expiry-reminders used the estate flag, true for opndoor-direct, so every direct guarantee raised a false ops incident. | **done** now uses `application_channel` |
+| L4 | `app_may_reach_application_org` bare `else true`. | **done** already closed by `20261006350000`; confirmed by the file replay |
+| L5 | `agency_weekly_climber` had no status filter. | **done** `20261006410000` |
+
+### And the drift work, which is the reason the two HIGHs were invisible
+
+| Part | Proof |
+| --- | --- |
+| The file model | `scripts/schema-final-state.mjs` replays all 295 migrations in filename order and reports the final grants, bodies, policies, triggers and any return-type change without a DROP. `npm run schema:final`. No database needed, so it belongs in CI. |
+| The diff | `scripts/schema-drift.mjs` compares that against a live catalogue. `npm run drift`. It found 68 differences, 54 of which were the model being wrong (type aliases, blanket revokes, generated policies) and 14 real. Now prints "No drift". |
+| The corrections | `20261006400000` (grants dev had that the files closed, plus the two functions that were only callable because of a Supabase platform default) and `20261006420000` (four function BODIES where dev had an older definition than the files, including two fixes that had been written, applied, tested and silently rolled back). |
+| ALTER DEFAULT PRIVILEGES | **Not in effect, and now said plainly.** Measured: a function created on dev right now still gets `=X/postgres`, i.e. PUBLIC EXECUTE, with `anon` and `authenticated` both true, even though the `postgres` default-ACL row is exactly right. Schema `public` is owned by `pg_database_owner` and `postgres` is not a member of `supabase_admin`, whose default-ACL row does grant anon and authenticated and cannot be altered from a migration. So the guard is an explicit revoke per function plus the pgTAP check, not the default. `20261006400000` says so at length. |
+| The allowlist | Now derived from the migration FILES, not the database (`definerAllowlistCoverage.test.ts`). That change alone found two more mismatches: `may_act_on_user` granted but unlisted, and `set_home_branch` listed but not granted (H3). |
+| Tests run as their role | `src/data/testsRunAsTheirRole.test.ts` fails any pgTAP assertion expecting 42501 that runs outside `set local role authenticated`. Found 5; four were fixed to run as the role, one annotated as a column trigger that raises for every role. |
+| The functional guard | `supabase/tests/the_work_still_works.test.sql`, 15 assertions: invite, move, deactivate, remove position, change level both ways, set home branch, rename, reset MFA, read own book, withdraw, add a note, reach the deed path. All `lives_ok`, all as the role that should be allowed. |
+| Cutover | `HANDOVER-BALAL.md` sections 1.1b and 1.1c: apply from zero in filename order in one run, then both suites against the clone, then `npm run drift` against the clone, before production is touched. |
 
 Matt's rulings on the three that were judgement calls are in the verbatim
 instruction above and are not re-stated here.

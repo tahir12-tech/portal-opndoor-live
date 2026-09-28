@@ -167,8 +167,17 @@ Deno.serve(async (req) => {
                also returns nothing, so an outage read as "not an agency
                referral" and broadcast. The channel is asked first, and it is
                asked of the application. */
-            const { data: onOurEstate, error: railErr } = await service.rpc(
-              "application_is_agent_estate", { p_application: r.application_id });
+            /* application_channel, NOT application_is_agent_estate. The
+               estate flag is TRUE for 'opndoor-direct', which is seeded
+               opndoor_referenced, so every direct guarantee asked the agency
+               ladder, got nothing (the ladder is gated on 'Agent referral'),
+               and parked with an ops incident. A permanent false alarm on a
+               rail that has no agency ladder to consult. 20261006160000
+               named this exact trap for deed_delivery_target and switched to
+               application_channel; this call site was not converted. */
+            const { data: channel, error: railErr } = await service.rpc(
+              "application_channel", { p_application: r.application_id });
+            const onOurEstate = channel === "Agent referral";
 
             let recipients: string[] = [];
             let parked: string | null = null;

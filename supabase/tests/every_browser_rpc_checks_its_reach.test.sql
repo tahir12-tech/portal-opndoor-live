@@ -27,7 +27,7 @@
 -- definerAllowlistCoverage.test.ts rather than quietly omitted.
 
 begin;
-select plan(41);
+select plan(43);
 
 -- ===========================================================================
 -- OURS AND THEIRS, one house partner.
@@ -100,6 +100,14 @@ select ok(not public.app_reachable_group('97000000-0000-0000-0000-00000000ab02',
   'app_reachable_group says no to a group they hold no position over');
 select ok(not public.user_within_caller_scope('97000000-0000-0000-0000-00000000c003'),
   'user_within_caller_scope says no to the other agency''s Negotiator');
+-- may_act_on_user is a policy predicate now: user_scopes_delete calls it, so
+-- authenticated must be able to execute it or Remove position raises
+-- "permission denied for function" rather than refusing. Asserted in both
+-- directions so neither the grant nor the rule can go quietly.
+select ok(not public.may_act_on_user('97000000-0000-0000-0000-00000000c002'),
+  'may_act_on_user says no to another agency''s Director');
+select ok(public.may_act_on_user('97000000-0000-0000-0000-00000000c003') = false,
+  'and no to their Negotiator, who is in another agency whatever their level');
 select ok(not public.is_admin(), 'and an agency Director is not an admin, which the rest of this file assumes');
 
 -- ---- reads on somebody else's application ---------------------------------
