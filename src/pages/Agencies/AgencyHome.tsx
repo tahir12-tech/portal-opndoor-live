@@ -51,6 +51,8 @@ import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
+import { agencyLevelOf, AGENCY_LEVELS, setAgencyLevel, type AgencyLevel, type Role } from '@/data';
+import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
 import { AgencyGrow } from './AgencyGrow';
 import { AgreementEditor } from './AgreementEditor';
 import { CommissionStatement } from '@/components/CommissionStatement';
@@ -205,30 +207,56 @@ export function AgencyHome() {
   /* One flat row per person in this org, for the People tab. Built from the same
      buckets the tree draws, so the two can never disagree about who is here. */
   const peopleRows = useMemo(() => {
-    const rows: { userId: string; name: string; email: string; role: string; level: Level; agency: string; branch: string; status: string }[] = [];
-    const statusOf = (id: string) => usersById[id]?.status ?? 'active';
+    const rows: {
+      userId: string; name: string; email: string; role: string; level: Level;
+      agency: string; branch: string; status: string;
+      /* THE AGENCY LEVEL, which is the pair and not the node. `level` above is
+         where somebody sits in the tree (group, agency, branch); this is what
+         they ARE (Director, Manager, Negotiator). The table showed the first and
+         called it Level, which is a different question with the same word, and
+         the answer to it was "branch". */
+      agencyLevel: string; seesCommission: boolean;
+      agencyId?: string; branchId?: string;
+    }[] = [];
+    const u = (id: string) => usersById[id];
+    const statusOf = (id: string) => u(id)?.status ?? 'active';
+    const levelOf = (id: string, role: string) =>
+      agencyLevelOf(role as Role, u(id)?.seesCommission === true) ?? role;
+    const sees = (id: string) => u(id)?.seesCommission === true;
     // EMPTY is a single hyphen, here and in every other cell on this page. A
     // group person has no agency and no branch, which is a fact about the level
     // and not missing data.
-    people.group.forEach((p) => rows.push({ ...p, level: 'group', agency: EMPTY, branch: EMPTY, status: statusOf(p.userId) }));
+    people.group.forEach((p) => rows.push({
+      ...p, level: 'group', agency: EMPTY, branch: EMPTY, status: statusOf(p.userId),
+      agencyLevel: levelOf(p.userId, p.role), seesCommission: sees(p.userId),
+    }));
     agencies.forEach((a) => {
-      (a.id ? people.agency[a.id] ?? [] : []).forEach((p) =>
-        rows.push({ ...p, level: 'agency', agency: a.name, branch: EMPTY, status: statusOf(p.userId) }));
+      (a.id ? people.agency[a.id] ?? [] : []).forEach((p) => rows.push({
+        ...p, level: 'agency', agency: a.name, branch: EMPTY, status: statusOf(p.userId),
+        agencyLevel: levelOf(p.userId, p.role), seesCommission: sees(p.userId), agencyId: a.id,
+      }));
       (a.branches ?? []).forEach((b) => {
-        (b.id ? people.branch[b.id] ?? [] : []).forEach((p) =>
-          rows.push({ ...p, level: 'branch', agency: a.name, branch: b.name, status: statusOf(p.userId) }));
+        (b.id ? people.branch[b.id] ?? [] : []).forEach((p) => rows.push({
+          ...p, level: 'branch', agency: a.name, branch: b.name, status: statusOf(p.userId),
+          agencyLevel: levelOf(p.userId, p.role), seesCommission: sees(p.userId),
+          agencyId: a.id, branchId: b.id,
+        }));
       });
     });
     return rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [people, agencies, usersById]);
 
+
+
   const [pFilter, setPFilter] = useState({ level: '', position: '', agency: '', branch: '', status: '', q: '' });
   const peopleShown = useMemo(() => {
     const q = pFilter.q.trim().toLowerCase();
     return peopleRows.filter((r) =>
-      (!pFilter.level || r.level === pFilter.level)
-      && (!pFilter.position || roleLabelFor(r.level, r.role) === pFilter.position)
+      // THE AGENCY LEVEL, not the node. This compared against r.level, which is
+      // group / agency / branch, so the control now labelled Level and offering
+      // Director, Manager and Negotiator would have matched nothing at all.
+      (!pFilter.level || r.agencyLevel === pFilter.level)
       && (!pFilter.agency || r.agency === pFilter.agency)
       && (!pFilter.branch || r.branch === pFilter.branch)
       && (!pFilter.status || r.status === pFilter.status)
@@ -390,6 +418,44 @@ export function AgencyHome() {
      above all three agency levels, so assert_may_act_on_user returns early for
      them. The ladder still refuses in SQL if this page is ever opened by someone
      who is not staff. */
+  /* CHANGE LEVEL and POSITION, the two Team controls this page lacked. Level
+     moves role and sees_commission together through set_agency_level; nothing
+     else may, because updateUserRole moves only the role and would leave a
+     demoted Director still reading as entitled to the money. */
+  const [levelFor, setLevelFor] = useState<{ userId: string; name: string; current: string } | null>(null);
+  const [levelPick, setLevelPick] = useState<AgencyLevel | null>(null);
+  const [posFor, setPosFor] = useState<{ id: string; name: string } | null>(null);
+
+  /** Everywhere an admin could place somebody in THIS org: the same reach the
+      Overview tree draws, so the picker cannot offer a node off this page. */
+  const scopeTargets = useMemo<ScopeTarget[]>(() => {
+    const out: ScopeTarget[] = [];
+    // org is null while the page is still resolving; the same guard `title`,
+    // `agencies` and `partner` above all use.
+    if (org && org.kind === 'group' && org.group.id) {
+      out.push({ id: org.group.id, name: org.group.name, kind: 'group' });
+    }
+    const several = agencies.length > 1;
+    for (const a of agencies) {
+      if (a.id) out.push({ id: a.id, name: a.name, kind: 'agency' });
+      for (const b of a.branches ?? []) {
+        if (b.id) out.push({ id: b.id, name: several ? `${a.name}, ${b.name}` : b.name, kind: 'branch' });
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org, agencies]);
+
+  const doSetLevel = async () => {
+    if (!levelFor || !levelPick) return;
+    try {
+      await setAgencyLevel(levelFor.userId, levelPick);
+      refreshSession(); bump();
+      toast(`${levelFor.name} is now a ${levelPick}.`, 'ok');
+      setLevelFor(null); setLevelPick(null);
+    } catch (e) { toast(e instanceof Error ? e.message : 'Could not change that level.', 'error'); }
+  };
+
   const doPersonAction = async (what: 'remove' | 'restore' | 'resend' | 'password' | 'mfa', userId: string, who: string) => {
     const run = {
       remove: () => setUserStatus(userId, 'deactivated'),
@@ -438,6 +504,13 @@ export function AgencyHome() {
   }
 
   const branchCount = branchesFlat.length;
+  /* THE SCOPE RULE, on this page's own tree rather than on the viewer's book.
+     An admin looking at a one-office agency should not be offered an Office
+     column or a Branch filter that can only ever hold one value, which is the
+     rule Team and the Referring agent card already follow. Counted off the org
+     being shown, because that is the thing these columns describe. */
+  const manyOffices = branchCount > 1;
+  const manyAgencies = agencies.length > 1;
   const statusBadge = org.kind === 'group' ? 'Group' : 'Agency';
 
   const goApplications = (agencyName: string) => `/applications?agency=${encodeURIComponent(agencyName)}`;
@@ -521,36 +594,53 @@ export function AgencyHome() {
      and, through getUsers, to the caller's own reach. */
   const PeopleTab = () => {
     const uniq = (xs: string[]) => [...new Set(xs.filter((x) => x && x !== EMPTY))].sort();
-    const positions = uniq(peopleRows.map((r) => roleLabelFor(r.level, r.role)));
     const set = (k: keyof typeof pFilter, v: string) => setPFilter((f) => ({ ...f, [k]: v }));
     return (
       <Card>
         <CardHead
           title="People"
           sub={`${peopleShown.length} of ${peopleRows.length} shown`}
-          actions={isAdmin && org.kind === 'group'
-            ? <button className="ah-linkbtn" onClick={() => setInvite({ level: 'group', partner, groupId: org.group.id, name: org.group.name })}>Invite a group director</button>
+          /* ONE INVITE BUTTON, offering all three levels, because an admin
+             adding somebody to an agency is not adding them to a node. The old
+             one appeared on a group only and said "Invite a group director",
+             so staffing an ordinary agency from here was not possible at all:
+             it had to be done from a node in the Overview tree or from /users. */
+          actions={isAdmin
+            ? <button className="ah-linkbtn" onClick={() => setInvite({
+                level: org.kind === 'group' ? 'group' : 'brand',
+                partner,
+                groupId: org.kind === 'group' ? org.group.id : undefined,
+                agencyId: org.kind === 'group' ? undefined : agencies[0]?.id,
+                name: org.kind === 'group' ? org.group.name : (agencies[0]?.name ?? 'this agency'),
+                chooseLevel: true,
+              })}>Invite someone</button>
             : undefined}
         />
         <CardBody>
           <div className="ah-filters">
             <input className="ah-filter-q" type="text" placeholder="Search name or email" value={pFilter.q} onChange={(e) => set('q', e.target.value)} />
+            {/* LEVEL IS THE PERSON, not the node. This filtered on group /
+                agency / branch, which is where somebody sits, under a label
+                that reads as what they are. Two different questions had the
+                same word and only the wrong one was askable. */}
             <select value={pFilter.level} onChange={(e) => set('level', e.target.value)} aria-label="Level">
               <option value="">All levels</option>
-              <option value="group">Group</option><option value="agency">Agency</option><option value="branch">Branch</option>
+              {AGENCY_LEVELS.map((l) => <option key={l.level} value={l.level}>{l.level}</option>)}
             </select>
-            <select value={pFilter.position} onChange={(e) => set('position', e.target.value)} aria-label="Position">
-              <option value="">All positions</option>
-              {positions.map((x) => <option key={x} value={x}>{x}</option>)}
-            </select>
-            <select value={pFilter.agency} onChange={(e) => set('agency', e.target.value)} aria-label="Agency">
-              <option value="">All agencies</option>
-              {uniq(peopleRows.map((r) => r.agency)).map((x) => <option key={x} value={x}>{x}</option>)}
-            </select>
-            <select value={pFilter.branch} onChange={(e) => set('branch', e.target.value)} aria-label="Branch">
-              <option value="">All branches</option>
-              {uniq(peopleRows.map((r) => r.branch)).map((x) => <option key={x} value={x}>{x}</option>)}
-            </select>
+            {/* Agency and Branch follow the scope rule: a filter that can only
+                hold one value is a control that cannot do anything. */}
+            {manyAgencies && (
+              <select value={pFilter.agency} onChange={(e) => set('agency', e.target.value)} aria-label="Agency">
+                <option value="">All agencies</option>
+                {uniq(peopleRows.map((r) => r.agency)).map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            )}
+            {manyOffices && (
+              <select value={pFilter.branch} onChange={(e) => set('branch', e.target.value)} aria-label="Office">
+                <option value="">All offices</option>
+                {uniq(peopleRows.map((r) => r.branch)).map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            )}
             <select value={pFilter.status} onChange={(e) => set('status', e.target.value)} aria-label="Status">
               <option value="">Any status</option>
               <option value="active">Active</option><option value="pending">Pending</option>
@@ -559,7 +649,7 @@ export function AgencyHome() {
                   had just removed was to scroll the whole org. */}
               <option value="deactivated">Deactivated</option>
             </select>
-            {(pFilter.q || pFilter.level || pFilter.position || pFilter.agency || pFilter.branch || pFilter.status) && (
+            {(pFilter.q || pFilter.level || pFilter.agency || pFilter.branch || pFilter.status) && (
               <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setPFilter({ level: '', position: '', agency: '', branch: '', status: '', q: '' })}>Clear filters</button>
             )}
           </div>
@@ -571,7 +661,10 @@ export function AgencyHome() {
           ) : (
             <table className="dt ah-table">
               <thead><tr>
-                <th>Name</th><th>Position</th><th>Level</th><th>Agency</th><th>Branch</th><th>Status</th>
+                <th>Name</th><th>Level</th>
+                {manyAgencies && <th>Agency</th>}
+                {manyOffices && <th>Office</th>}
+                <th>Status</th>
                 {isAdmin && <th>Statements</th>}
                 <th />
               </tr></thead>
@@ -579,10 +672,9 @@ export function AgencyHome() {
                 {peopleShown.map((r) => (
                   <tr key={r.userId}>
                     <td><span className="who__av">{initials(r.name || r.email)}</span> <span className="dt__name">{r.name || r.email}</span><span className="dt__sub">{r.email}</span></td>
-                    <td>{roleLabelFor(r.level, r.role)}</td>
-                    <td className="soft">{r.level}</td>
-                    <td className="soft">{r.agency}</td>
-                    <td className="soft">{r.branch}</td>
+                    <td>{r.agencyLevel}</td>
+                    {manyAgencies && <td className="soft">{r.agency}</td>}
+                    {manyOffices && <td className="soft">{r.branch}</td>}
                     {/* Three states, not two. This read "Active" for a
                         deactivated person, because the ternary treated anything
                         that was not pending as active, which is the same
@@ -620,6 +712,16 @@ export function AgencyHome() {
                             <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('resend', r.userId, r.name || r.email)}>Resend invite</button>
                             <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doCancelInvite(r.userId, r.name || r.email)}>Cancel invite</button>
                           </>}
+                          {r.status === 'active' && (
+                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => { setLevelPick(null); setLevelFor({ userId: r.userId, name: r.name || r.email, current: r.agencyLevel }); }}>Change level</button>
+                          )}
+                          {/* Position only where there is somewhere to choose
+                              between, the same test Team applies: on a
+                              one-office agency every node describes the same
+                              people. */}
+                          {manyOffices && r.status !== 'pending' && (
+                            <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setPosFor({ id: r.userId, name: r.name || r.email })}>Position</button>
+                          )}
                           {r.status !== 'pending' && <>
                             <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('password', r.userId, r.name || r.email)}>Send password reset</button>
                             <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => void doPersonAction('mfa', r.userId, r.name || r.email)}>Reset two-factor</button>
@@ -1116,6 +1218,39 @@ export function AgencyHome() {
       )}
 
       {invite && <InviteToLevel ctx={invite} onClose={() => setInvite(null)} onInvited={() => { setInvite(null); refreshSession(); bump(); }} />}
+
+      {levelFor && (
+        <Modal
+          open
+          width={460}
+          title={`Change ${levelFor.name}'s level`}
+          sub="This changes what they can see and do across the portal."
+          onClose={() => { setLevelFor(null); setLevelPick(null); }}
+          footer={<>
+            <Button variant="ghost" onClick={() => { setLevelFor(null); setLevelPick(null); }}>Cancel</Button>
+            <Button variant="primary" disabled={!levelPick} onClick={() => void doSetLevel()}>Change level</Button>
+          </>}
+        >
+          <div className="roleopts">
+            {AGENCY_LEVELS.filter((o) => o.level !== levelFor.current).map((o) => (
+              <label key={o.level} className={`roleopt${levelPick === o.level ? ' is-sel' : ''}`} onClick={() => setLevelPick(o.level)}>
+                <span className="roleopt__radio" />
+                <div><div className="roleopt__name">{o.level}</div><div className="roleopt__desc">{o.desc}</div></div>
+              </label>
+            ))}
+          </div>
+          {levelPick && <p className="soft" style={{ marginTop: 14 }}>Make {levelFor.name} a {levelPick}?</p>}
+        </Modal>
+      )}
+
+      {posFor && (
+        <PositionModal
+          user={{ id: posFor.id, name: posFor.name } as never}
+          targets={scopeTargets}
+          onClose={() => setPosFor(null)}
+          onSaved={() => { setPosFor(null); refreshSession(); bump(); }}
+        />
+      )}
       {editAgreement && (
         <AgreementEditor
           level={editAgreement.level}
