@@ -502,11 +502,28 @@ export interface HelpResource {
   /** #110 Minimum role that may see this resource. Undefined = everyone.
       'management' = management + opndoor admin; 'superadmin' = opndoor admin only. */
   minRole?: Role;
+  /** WHICH RAIL THIS IS WRITTEN FOR. Undefined = both.
+
+      'supplier' material talks about referring tenants on somebody else's stock,
+      adding agencies, white-labelling and the sales conversation, none of which
+      an agency on our own estate does. Shown to a Regent reader it describes a
+      product they are not using. */
+  rail?: 'supplier' | 'agency';
+  /** This resource describes commission. Only a Director (and opndoor) may open
+      it: minRole 'management' cannot express that, because a Director and a
+      Manager are both 'management' and the whole point of the Manager level is
+      that they are not shown what the agency earns. */
+  needsCommission?: boolean;
 }
 export interface HelpFaq {
   id: string;
   q: string;
   a: string;
+  /** Same two dimensions as HelpResource, for the same reasons: an answer can be
+      supplier-rail material, and an answer can state the commission, which a
+      Manager must not be shown however senior they are. */
+  rail?: 'supplier' | 'agency';
+  needsCommission?: boolean;
 }
 export interface HelpManager {
   id: string;

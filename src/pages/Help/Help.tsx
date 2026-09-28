@@ -7,8 +7,9 @@
    INTEGRATION: helpService.getHelpContent + the mutators back these; real
    file upload replaces the client-side data-URL storage.
    ===================================================================== */
-import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
+import { isAgencyUser } from '@/data/capabilities';
 import { helpService, type HelpResource, type HelpResourceSection, type Role } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -78,9 +79,51 @@ function servableHref(r: HelpResource): string | null {
 // means they see only resources with no minRole at all, which is the honest
 // answer when a model does not fit.
 const ROLE_RANK: Record<Role, number> = { developer: 0, referrer: 1, management: 2, opndoor_manager: 3, superadmin: 3 };
-function visibleTo(r: HelpResource, role: Role): boolean {
-  return !r.minRole || ROLE_RANK[role] >= ROLE_RANK[r.minRole];
+
+/** An FAQ answers to the same rail and commission rules as a resource; it has no
+    role ladder of its own. */
+export function mayOpenFaq(f: { rail?: 'supplier' | 'agency'; needsCommission?: boolean }, v: HelpViewer): boolean {
+  if (f.rail === 'supplier' && v.agency) return false;
+  if (f.rail === 'agency' && !v.agency && !v.admin) return false;
+  if (f.needsCommission && !v.admin && !v.seesCommission) return false;
+  return true;
 }
+
+/** Who is reading, in the three dimensions this page gates on. */
+export interface HelpViewer {
+  role: Role;
+  /** Director rather than Manager, on the agency rail. */
+  seesCommission: boolean;
+  /** On our own estate rather than a supplier referring somebody else's stock. */
+  agency: boolean;
+  /** opndoor's own staff, who see everything including drafts. */
+  admin: boolean;
+}
+
+/* WHAT A READER MAY OPEN. Three tests, and the first two are things minRole
+   cannot say.
+
+   THE RAIL. Supplier material talks about referring somebody else's stock,
+   adding agencies on the fly, white-labelling and the sales conversation. None
+   of that is what an agency on our own estate does, so shown to a Regent reader
+   it describes a product they are not using. The agent one-pager, the sales and
+   conversation guide and the co-branding assets are supplier-rail.
+
+   COMMISSION. minRole 'management' admits Directors AND Managers, because they
+   are the same role: the Manager level exists precisely so somebody can run the
+   team without being shown what the agency earns, and a guide describing the
+   commission would hand it to them in prose. So a resource that describes
+   commission needs the bit, not the role.
+
+   THE LADDER stays for everything else, unchanged. */
+export function mayOpenResource(r: HelpResource, v: HelpViewer): boolean {
+  if (r.minRole && ROLE_RANK[v.role] < ROLE_RANK[r.minRole]) return false;
+  if (r.rail === 'supplier' && v.agency) return false;
+  if (r.rail === 'agency' && !v.agency && !v.admin) return false;
+  if (r.needsCommission && !v.admin && !v.seesCommission) return false;
+  return true;
+}
+
 /** A resource is openable only when it has an uploaded file or a servable href. */
 function hasResourceFile(r: HelpResource): boolean {
   return !!r.file?.url || !!servableHref(r);
@@ -107,12 +150,51 @@ type PendingFile = HelpResource['file'] | null | false;
 export function Help() {
   usePageMeta('help', 'Help & resources', ['Home', 'Help & resources']);
   const { hash } = useLocation();
-  const { role } = useSession();
+  const { role, seesCommission, partnerScope } = useSession();
   const isAdmin = role === 'superadmin';
+  const helpViewer: HelpViewer = {
+    role,
+    seesCommission,
+    agency: isAgencyUser(role, partnerScope),
+    admin: role === 'superadmin' || role === 'opndoor_manager',
+  };
+
   const toast = useToast();
   const [, setVersion] = useState(0);
   const refresh = () => setVersion((v) => v + 1);
   const data = helpService.getHelpContent();
+  /* WHAT IS ACTUALLY ON THE SHELF, for this reader.
+
+     THREE RULES, APPLIED ONCE so every count, every section and the search all
+     agree. They disagreed before: the section counts called visibleTo and the
+     cards called it again, and nothing deduped or checked for content at all.
+
+     1. Rail, level and commission, via mayOpenResource.
+     2. NOTHING WITHOUT CONTENT BEHIND IT. An item with no uploaded file and no
+        servable href opened nothing; it used to render to everyone as "Coming
+        soon", which is a promise the page cannot keep and, on a list of eleven,
+        three of them. Admin still sees them, marked as a draft, because admin is
+        who uploads the file.
+     3. ONCE. The referral checklist is the referrer guide's own #send anchor, so
+        the same document was on the shelf twice under two names. Deduped by the
+        document it opens, keeping the first section it appears in, which is
+        Getting started: a guide is a guide before it is a template. */
+  const shelf = useMemo(() => {
+    const seen = new Set<string>();
+    const pick = (list: HelpResource[]) => list.filter((r) => {
+      if (!mayOpenResource(r, helpViewer)) return false;
+      if (!hasResourceFile(r) && !isAdmin) return false;
+      // The document, not the link: '...referrer-guide.html#send' and
+      // '...referrer-guide.html' are one guide.
+      const doc = (servableHref(r) ?? r.file?.url ?? r.id).split('#')[0];
+      if (seen.has(doc)) return false;
+      seen.add(doc);
+      return true;
+    });
+    return { gettingStarted: pick(data.gettingStarted), templates: pick(data.templates) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, role, seesCommission, partnerScope, isAdmin]);
+
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
 
@@ -296,7 +378,10 @@ export function Help() {
   // ---- render helpers ----
   function ResourceCard({ r, section }: { r: HelpResource; section: HelpResourceSection }) {
     const hasFile = hasResourceFile(r);
-    const metaRight = hasFile ? r.meta : isAdmin ? 'No file yet · edit to upload' : 'Coming soon';
+    // Only admin ever sees a fileless item now, so the other arm is what admin
+    // needs to do about it. 'Coming soon' has gone: it was shown to readers who
+    // could not make it come, about items that had been empty for months.
+    const metaRight = hasFile ? r.meta : 'Draft · no file yet, edit to upload';
     const icClass = r.icon === 'video' ? ' res__ic--video' : r.icon === 'deed' ? ' res__ic--deed' : '';
     return (
       <a className="res" href="#" onClick={(e) => { e.preventDefault(); openResourceFile(r, (e.target as HTMLElement).closest('.res__dl') != null); }}>
@@ -318,7 +403,7 @@ export function Help() {
   }
 
   function renderSection(section: HelpResourceSection, addLabel: string) {
-    const items = data[section].filter((r) => visibleTo(r, role)).filter(matchRes);
+    const items = shelf[section].filter(matchRes);
     return (
       <div className="res-grid">
         {items.map((r) => <ResourceCard key={r.id} r={r} section={section} />)}
@@ -334,7 +419,12 @@ export function Help() {
     );
   }
 
-  const faqs = data.faqs.filter(matchFaq);
+  /* THE SAME THREE-DIMENSION RULE AS THE SHELF. An FAQ that states the
+     commission is not safe merely because the guide describing it is gated:
+     f8 named 25% and 10% in a list every Manager and Negotiator could read. */
+  const faqs = data.faqs
+    .filter((f) => mayOpenFaq(f, helpViewer))
+    .filter(matchFaq);
   const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
   return (
@@ -361,7 +451,7 @@ export function Help() {
           <section id="getting-started">
             <div className="section-title">
               <h2>Getting started</h2>
-              <span className="count">{data.gettingStarted.filter((r) => visibleTo(r, role)).length} guides</span>
+              <span className="count">{shelf.gettingStarted.length} guides</span>
               {isAdmin && <Button variant="primary" size="sm" className="addbtn" onClick={() => openResource('gettingStarted')}><Icon name="plus" /> Add resource</Button>}
             </div>
             {renderSection('gettingStarted', 'Add resource')}
@@ -370,7 +460,7 @@ export function Help() {
           <section id="templates">
             <div className="section-title">
               <h2>Templates &amp; downloads</h2>
-              <span className="count">{data.templates.filter((r) => visibleTo(r, role)).length} files</span>
+              <span className="count">{shelf.templates.length} files</span>
               {isAdmin && <Button variant="primary" size="sm" className="addbtn" onClick={() => openResource('templates')}><Icon name="plus" /> Add file</Button>}
             </div>
             {renderSection('templates', 'Add file')}
