@@ -28,7 +28,7 @@
 -- RPC assertion here would have passed while the product was still broken.
 
 begin;
-select plan(37);
+select plan(38);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
 values ('95000000-0000-0000-0000-000000000001', 'zzz-ladder', 'ZZZ Ladder Route', 'opndoor_referenced', 0.25, 0.10, true);
@@ -208,20 +208,35 @@ select lives_ok(
 -- THE DOOR THAT IS NOT AN RPC. Where "in SQL, not the UI" is actually won.
 -- Each of these APPLIED before the guard existed.
 -- ===========================================================================
-select throws_ok(
+/* REFUSED EARLIER THAN IT USED TO BE, and these two assertions changed shape
+   because of it. 20261006170000 scoped users_mgmt_update to the caller's own
+   agency AND to a level at or below their own, so her Director's row is no
+   longer VISIBLE to her UPDATE: it matches nothing and never reaches the
+   trigger that used to raise. A write that matches nothing is a better answer
+   than a write that raises, and the assertion has to say which it is rather
+   than expecting the old sentence. The trigger is still proved below, on the
+   equal the policy does admit. */
+select lives_ok(
   $$update public.users set status = 'deactivated' where id = '95000000-0000-0000-0000-0000000000d2'$$,
-  '42501', 'You can only change the level or access of someone below your own level.',
-  'a Manager cannot deactivate her Director straight through the table');
+  'a Manager deactivating her Director through the table now matches nothing at all');
 
-select throws_ok(
+select lives_ok(
   $$update public.users set role = 'referrer' where id = '95000000-0000-0000-0000-0000000000d2'$$,
-  '42501', 'You can only change the level or access of someone below your own level.',
-  'nor demote her, which is the escalation that was open');
+  'and so does demoting her, which is the escalation that was open');
 
 select throws_ok(
   $$update public.users set status = 'deactivated' where id = '95000000-0000-0000-0000-0000000000d5'$$,
   '42501', 'You can only change the level or access of someone below your own level.',
   'nor deactivate an equal');
+
+-- ...and the Director is untouched by either, which is what those two assertions
+-- are actually for. Read as the test rather than as her: users_select would let
+-- her see the row, but the point here is the stored value, not her view of it.
+reset role;
+select is((select status || '/' || role from public.users where id = '95000000-0000-0000-0000-0000000000d2'),
+  'active/management',
+  'her Director is still active and still a Director after both attempts');
+set local role authenticated;
 
 -- A LADDER, NOT A WALL. The trigger must leave the legitimate write alone, and must
 -- not fire on a column it does not govern.

@@ -35,9 +35,10 @@ import {
   type Agency, type AgencyGroup, type ManagedUser, type Status,
 } from '@/data';
 import {
-  getPositionsForUsers, getDeedRecipients, nominateDeedRecipient, clearDeedRecipient, getOrgDeedReadiness,
+  getPositionsForUsers, getDeedRecipients, getOrgDeedReadiness,
   getCommissionStatementTicks, setReceivesCommissionStatements,
-  COMMISSION_STATEMENT_LABEL, COMMISSION_STATEMENT_NOTE,
+  getNotificationTicks, setReceivesNotifications,
+  COMMISSION_STATEMENT_LABEL, COMMISSION_STATEMENT_NOTE, NOTIFY_LABEL, NOTIFY_NOTE,
   type DeedReadiness,
 } from '@/data/positionsService';
 import { setNodeRate, getCommissionSplits, previewNodeRate, agencyReferencingMode, setAgencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
@@ -255,9 +256,11 @@ export function AgencyHome() {
      ManagedUser: hydrate's user list is shared by every screen in the portal
      and a boolean two screens read does not belong in it. */
   const [ticks, setTicks] = useState<Record<string, boolean>>({});
+  const [notify, setNotify] = useState<Record<string, boolean>>({});
+  const [notifyBusy, setNotifyBusy] = useState<string | null>(null);
   const [tickBusy, setTickBusy] = useState<string | null>(null);
   useEffect(() => {
-    if (!org || !partner) { setPeople({ group: [], agency: {}, branch: {}, total: 0 }); setDeedRecipients({}); setTicks({}); return; }
+    if (!org || !partner) { setPeople({ group: [], agency: {}, branch: {}, total: 0 }); setDeedRecipients({}); setTicks({}); setNotify({}); return; }
     let alive = true;
     const groupId = org.kind === 'group' ? org.group.id : undefined;
     const agencyIds = new Set(agencies.map((a) => a.id).filter(Boolean) as string[]);
@@ -290,6 +293,9 @@ export function AgencyHome() {
     getCommissionStatementTicks(users.map((u) => u.id))
       .then((t) => { if (alive) setTicks(t); })
       .catch(() => { if (alive) setTicks({}); });
+    getNotificationTicks(users.map((u) => u.id))
+      .then((t) => { if (alive) setNotify(t); })
+      .catch(() => { if (alive) setNotify({}); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org, partner, role, dataVersion, tick]);
@@ -506,6 +512,27 @@ export function AgencyHome() {
      No refreshSession() and no bump(): one boolean moved, nothing else on this
      page reads it, and re-hydrating the whole org tree to redraw a checkbox
      would collapse the tab the administrator is standing in. */
+  /* WHO IS COPIED. Same shape as doSetTick below and for the same reasons: the
+     value the RPC settled on, and SQL's refusal word for word. Unlike the
+     commission tick, an agency's own Directors and Managers may set this for
+     people at or below their position, so a customer can actually see that
+     refusal and it has to read as a sentence rather than a code. */
+  const doSetNotify = async (userId: string, who: string, next: boolean) => {
+    if (notifyBusy) return;
+    setNotifyBusy(userId);
+    try {
+      const now = await setReceivesNotifications(userId, next);
+      setNotify((t) => ({ ...t, [userId]: now }));
+      toast(now
+        ? `${who} is now copied on notifications for their position.`
+        : `${who} is no longer copied on notifications.`, 'ok');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not change that.', 'error');
+    } finally {
+      setNotifyBusy(null);
+    }
+  };
+
   const doSetTick = async (userId: string, who: string, next: boolean) => {
     if (tickBusy) return;
     setTickBusy(userId);
@@ -602,18 +629,11 @@ export function AgencyHome() {
     catch (e) { toast(e instanceof Error ? e.message : 'That did not work.', 'error'); }
   };
 
-  // ---- deed recipient nomination ----
-  const [nominateBranch, setNominateBranch] = useState<string | null>(null); // branchId
-  const [nomineeId, setNomineeId] = useState('');
-  const doNominate = async () => {
-    if (!nominateBranch || !nomineeId) return;
-    try { await nominateDeedRecipient(nominateBranch, nomineeId); bump(); setNominateBranch(null); setNomineeId(''); toast('Deed recipient nominated.', 'ok'); }
-    catch (e) { toast(e instanceof Error ? e.message : 'Could not nominate.', 'error'); }
-  };
-  const doClear = async (branchId: string) => {
-    try { await clearDeedRecipient(branchId); bump(); toast('Deed recipient cleared.', 'ok'); }
-    catch (e) { toast(e instanceof Error ? e.message : 'Could not clear.', 'error'); }
-  };
+  /* THE DEED-RECIPIENT NOMINATION IS GONE (20261006160000). It answered "this
+     branch has nobody obvious"; the referrer answers that better and is always
+     there, so the override was dropped from deed_people_target and the control
+     that set it had nothing left to do. branch_deed_recipient and its two RPCs
+     are left in the schema holding what people nominated, unread. */
 
   if (!org) {
     return (
@@ -796,6 +816,7 @@ export function AgencyHome() {
           </div>
           {/* The column needs a sentence to be readable, and a sentence does not
               fit in a table head. Said once, above the table it governs. */}
+          <p className="ah-stmt-note">{NOTIFY_NOTE}</p>
           {isAdmin && <p className="ah-stmt-note">{COMMISSION_STATEMENT_NOTE}</p>}
           {peopleShown.length === 0 ? (
             <div className="ah-empty">Nobody matches those filters.</div>
@@ -806,6 +827,7 @@ export function AgencyHome() {
                 {manyAgencies && <th>Agency</th>}
                 {manyOffices && <th>Office</th>}
                 <th>Status</th>
+                <th>Notifications</th>
                 {isAdmin && <th>Statements</th>}
                 <th />
               </tr></thead>
@@ -825,6 +847,30 @@ export function AgencyHome() {
                       : r.status === 'deactivated'
                         ? <Pill variant="muted">Deactivated</Pill>
                         : <Pill variant="paid">Active</Pill>}</td>
+                    {/* COPIED ON THIS PERSON'S POSITION. The referrer always
+                        receives their own referral's notifications; this is
+                        who else does. A Negotiator holds no position and their
+                        scope is their own referrals, so there is nothing for a
+                        tick to widen and the cell says so instead of offering
+                        a control that would do nothing. */}
+                    <td>
+                      {r.agencyLevel === 'Negotiator' ? (
+                        <span className="soft" title="A Negotiator sees their own referrals, which is already their scope.">Own referrals</span>
+                      ) : r.status === 'deactivated' ? (
+                        <span className="soft">{EMPTY}</span>
+                      ) : (
+                        <label className="ah-stmt" title={NOTIFY_LABEL}>
+                          <input
+                            type="checkbox"
+                            checked={!!notify[r.userId]}
+                            disabled={notifyBusy !== null}
+                            aria-label={`${NOTIFY_LABEL}: ${r.name || r.email}`}
+                            onChange={(e) => void doSetNotify(r.userId, r.name || r.email, e.target.checked)}
+                          />
+                          <span>{notify[r.userId] ? 'Yes' : 'No'}</span>
+                        </label>
+                      )}
+                    </td>
                     {isAdmin && (
                       <td>
                         {/* A pending invite has never signed in, so
@@ -901,8 +947,6 @@ export function AgencyHome() {
     const refs = isBranch
       ? referrals.filter((r) => r.branch === focus.name)
       : referrals.filter((r) => r.agency === agency.name);
-    const recipientId = isBranch && branch?.id ? deedRecipients[branch.id] : undefined;
-    const nominee = recipientId ? usersById[recipientId] : undefined;
     const branchReady = isBranch && branch?.id ? readiness?.branches.get(branch.id) : undefined;
     const inviteCtx: InviteContext = isBranch
       ? { level: 'branch', partner, branchId: branch?.id, name: focus.name }
@@ -929,33 +973,20 @@ export function AgencyHome() {
             <div className="ah-payout">{payoutSentence(splits.get(branch.id)!)}</div>
           )}
 
-          {/* THE DEED RECIPIENT, which is a branch fact: branch_deed_recipient
-              is keyed by branch alone, so an agency has no nominee of its own,
-              only the manager chain the database resolves. */}
+          {/* WHO RECEIVES A DEED FROM THIS OFFICE. The nominated recipient is
+              gone (20261006160000): a deed goes to the person who sent the
+              referral, which is a fact about the referral and not about the
+              branch, so there is nothing here to nominate. What a BRANCH can
+              still lack is somebody to catch a referral whose referrer has
+              left, and that is what the warning below is about now. */}
           {isBranch && (
             <>
+              <div className="ah-deed">
+                Deeds from this office go to whoever sent the referral. Anyone ticked for
+                notifications at this office, its agency or its group is copied.
+              </div>
               {agentRailFor(agency) && branchReady === false && (
-                <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this branch can receive the deed. Invite a branch manager or nominate a recipient.</div>
-              )}
-              {isAdmin && (
-                <div className="ah-deed">
-                  {nominee ? (
-                    <>Deed recipient: <b>{nominee.name || nominee.email}</b> <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => branch?.id && doClear(branch.id)}>Clear</button></>
-                  ) : nominateBranch === branch?.id ? (
-                    <>
-                      <select value={nomineeId} onChange={(e) => setNomineeId(e.target.value)} aria-label="Nominate deed recipient">
-                        <option value="">Choose a person…</option>
-                        {Object.values(usersById)
-                          .filter((u) => u.status === 'active')
-                          .map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
-                      </select>
-                      <button className="ah-linkbtn" onClick={doNominate} disabled={!nomineeId}>Nominate</button>
-                      <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => { setNominateBranch(null); setNomineeId(''); }}>Cancel</button>
-                    </>
-                  ) : (
-                    <>No deed recipient nominated. <button className="ah-linkbtn" onClick={() => { setNominateBranch(branch?.id ?? null); setNomineeId(''); }}>Nominate deed recipient</button></>
-                  )}
-                </div>
+                <div className="ah-deed-warn"><Icon name="alert" size={14} /> Nobody here could catch a referral whose sender has left. Invite a manager, or tick somebody for notifications.</div>
               )}
             </>
           )}

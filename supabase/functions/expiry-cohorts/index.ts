@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
     // All in-force guarantees expiring in the cohort month (any partner), with the
     // fields the export needs. Refunded and already-expired rows are dropped below.
     const { data: apps, error: appErr } = await service.from("applications")
-      .select("id, guarantee_ref, tenancy_start, expiry_date, monthly_rent, payment_state, partner_id, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name)")
+      .select("id, guarantee_ref, tenancy_start, expiry_date, monthly_rent, payment_state, partner_id, agency_id, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name)")
       // livemode: this list is emailed to each partner's management users as a
       // cohort export. A sandbox rehearsal that reached 'deed' would appear in a
       // real partner's expiring-guarantees report as a guarantee they believe is
@@ -130,30 +130,46 @@ Deno.serve(async (req) => {
       .eq("status", "deed").eq("livemode", true).gte("expiry_date", monthStart).lte("expiry_date", monthEnd);
     if (appErr) return json({ ok: false, error: appErr.message }, 500);
 
-    // Management recipients per partner.
-    const { data: mgmt } = await service.from("users").select("email, partner_id").eq("role", "management");
-    const mgmtByPartner = new Map<string, string[]>();
-    for (const u of (mgmt ?? []) as Array<{ email: string; partner_id: string }>) {
-      if (!u.email || !u.partner_id) continue;
-      const list = mgmtByPartner.get(u.partner_id) ?? [];
-      list.push(u.email);
-      mgmtByPartner.set(u.partner_id, list);
+    /* ONE READER, THE AGENCIES THEY COVER.
+       This was `users where role='management'` bucketed by partner_id, with no
+       status, position or agency filter. On the agency rail every agency
+       shares the house partner, so each reader received every agency's
+       cohort: a CSV of another agency's tenants, their addresses and their
+       rents, monthly. staff_notification_scopes resolves the position each
+       reader already holds, and returns one row per (reader, agency). */
+    const partnerIds = [...new Set(((apps ?? []) as Array<{ partner_id: string }>).map((a) => a.partner_id))];
+    type Reader = { userId: string; email: string; partnerId: string; agencyIds: Set<string> };
+    const readers = new Map<string, Reader>();
+    for (const pid of partnerIds) {
+      const { data: scopes } = await service.rpc("staff_notification_scopes", { p_partner: pid });
+      for (const row of (scopes ?? []) as Array<{ user_id: string; email: string; agency_id: string }>) {
+        if (!row.email) continue;
+        const r = readers.get(row.user_id) ?? { userId: row.user_id, email: row.email, partnerId: pid, agencyIds: new Set<string>() };
+        r.agencyIds.add(row.agency_id);
+        readers.set(row.user_id, r);
+      }
     }
 
-    // Already-sent cohorts (idempotency).
-    const { data: sent } = await service.from("expiry_cohort_sends").select("partner_id").eq("cohort_month", cohortMonth);
-    const alreadySent = new Set((sent ?? []).map((s: { partner_id: string }) => s.partner_id));
+    // Already-sent cohorts (idempotency), now per reader: the ledger gained a
+    // user_id in 20261006200000, because a partner-level row would mark the
+    // whole partner done on the first reader's send.
+    const { data: sent } = await service.from("expiry_cohort_sends").select("partner_id, user_id").eq("cohort_month", cohortMonth);
+    const alreadySent = new Set((sent ?? []).map((s: { partner_id: string; user_id: string | null }) => s.user_id ?? s.partner_id));
 
     const COLS = ["Guarantee reference", "Tenant name", "Property address", "Agency", "Branch", "Tenancy start", "Expiry date", "Days remaining", "Monthly rent", "Annualised rent", "Referrer"];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const emb = (x: any) => (Array.isArray(x) ? x[0] : x);
 
     let sentCount = 0, skipped = 0, failed = 0;
-    for (const [partnerId, recipients] of mgmtByPartner) {
-      if (alreadySent.has(partnerId)) { skipped += 1; continue; }
+    for (const reader of readers.values()) {
+      const partnerId = reader.partnerId;
+      const recipients = [reader.email];
+      if (alreadySent.has(reader.userId)) { skipped += 1; continue; }
       const cohort = (apps ?? [])
+        // NOT `a.partner_id === partnerId`. The agency is the boundary: a row
+        // belongs in this reader's CSV only if they cover its agency.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((a: any) => a.partner_id === partnerId && a.payment_state !== "refunded" && a.expiry_date && daysBetween(a.expiry_date, nowL.date) >= 0)
+        .filter((a: any) => reader.agencyIds.has(a.agency_id) && a.payment_state !== "refunded" && a.expiry_date && daysBetween(a.expiry_date, nowL.date) >= 0)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .sort((x: any, y: any) => (x.expiry_date < y.expiry_date ? -1 : x.expiry_date > y.expiry_date ? 1 : String(x.guarantee_ref).localeCompare(String(y.guarantee_ref))));
       if (!cohort.length) { skipped += 1; continue; }
@@ -197,7 +213,7 @@ Deno.serve(async (req) => {
         attachments: [{ filename, content: btoa(unescape(encodeURIComponent(csv))) }],
       });
       if (!res.ok) { failed += 1; continue; }
-      await service.from("expiry_cohort_sends").insert({ partner_id: partnerId, cohort_month: cohortMonth, recipients: recipients.length });
+      await service.from("expiry_cohort_sends").insert({ partner_id: partnerId, user_id: reader.userId, cohort_month: cohortMonth, recipients: recipients.length });
       sentCount += 1;
     }
 

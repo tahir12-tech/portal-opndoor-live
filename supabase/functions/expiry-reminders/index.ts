@@ -115,8 +115,24 @@ Deno.serve(async (req) => {
       agency: string | null; branch: string | null; referrer_email: string | null; partner_id: string; prop: string | null;
     }>;
 
-    // Management recipients per partner (one query), for the "intended for" line.
-    const { data: mgmt } = await service.from("users").select("email, partner_id").eq("role", "management");
+    /* WHO IS TOLD A GUARANTEE IS ENDING.
+       This was the referrer PLUS `users where role='management'` for the whole
+       partner, with no status, position or agency filter. On the agency rail
+       every agency shares the house partner, so a reminder naming one agency's
+       tenant, property and branch went to every other agency's managers.
+
+       An expiry reminder is a per-application notification, so it takes the
+       same rule as everything else on that rail: the referrer, plus whoever is
+       ticked within their position. agency_notification_recipients is that
+       rule, and it answers for the agency rail only -- a supplier or direct
+       application falls through to the partner list below, where the partner
+       IS the company and nothing changes. */
+    const { data: mgmt } = await service.from("users")
+      .select("email, partner_id")
+      .eq("role", "management")
+      // ACTIVE ONLY. A pending invitee and a deactivated colleague were both
+      // still being emailed.
+      .eq("status", "active");
     const mgmtByPartner = new Map<string, string[]>();
     for (const u of (mgmt ?? []) as Array<{ email: string; partner_id: string }>) {
       if (!u.email) continue;
@@ -131,10 +147,13 @@ Deno.serve(async (req) => {
               typeof value === "string" &&
               /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
-            const recipients = [
-              r.referrer_email,
-              ...(mgmtByPartner.get(r.partner_id) ?? [])
-            ]
+            // The agency rail answers for itself; everything else keeps the
+            // partner list it always had.
+            const { data: scoped } = await service.rpc("agency_notification_recipients", { p_application: r.application_id });
+            const agencyRail = (scoped ?? []) as Array<{ email: string }>;
+            const recipients = (agencyRail.length > 0
+              ? agencyRail.map((x) => x.email)
+              : [r.referrer_email, ...(mgmtByPartner.get(r.partner_id) ?? [])])
               .filter(isValidEmail)
               .map((email) => email.trim());
       const res = await sendMessage({

@@ -83,6 +83,13 @@ export function mayGrantPositions(role: string, own: Position[]): boolean {
 /** The label, written once. Both screens import it so they cannot drift. */
 export const COMMISSION_STATEMENT_LABEL = 'Receives commission statements';
 
+/** The tickbox's own words, in one place so the People tab, the branch view
+    and Team cannot describe the same setting differently. */
+export const NOTIFY_LABEL = 'Receives notifications';
+/** Said once above the column rather than in every row's title attribute. */
+export const NOTIFY_NOTE =
+  'The person who sent a referral always receives its notifications. Tick anyone else who should be copied: they are copied on every referral within the position they already hold.';
+
 /** The one line of explanation, likewise written once.
 
     Deliberately NOT "statements for this party": the ladder is read upwards
@@ -120,6 +127,49 @@ export async function getCommissionStatementTicks(userIds: string[]): Promise<Re
     out[String(r.id)] = !!r.receives_commission_statements;
   });
   return out;
+}
+
+/** In mock mode the notification ticks live here, like the commission ones. */
+const MOCK_NOTIFY = new Map<string, boolean>();
+
+/**
+ * Who is copied on a referral's notifications, for a page of people.
+ *
+ * The same shape as the commission tick above and for the same reasons: one
+ * request for the page, read off the column rather than added to hydrate's
+ * users query, because a boolean two screens read does not earn a place in the
+ * cached ManagedUser every screen shares.
+ */
+export async function getNotificationTicks(userIds: string[]): Promise<Record<string, boolean>> {
+  const out: Record<string, boolean> = {};
+  for (const id of userIds) out[id] = false;
+  if (!userIds.length) return out;
+  if (!SUPABASE_ENABLED) {
+    for (const id of userIds) out[id] = MOCK_NOTIFY.get(id) ?? false;
+    return out;
+  }
+  const { data, error } = await sb().from('users').select('id, receives_notifications').in('id', userIds);
+  if (error) throw new Error(error.message);
+  (data ?? []).forEach((r: Record<string, unknown>) => { out[String(r.id)] = !!r.receives_notifications; });
+  return out;
+}
+
+/**
+ * Copy this person on the notifications for referrals within their position,
+ * or stop.
+ *
+ * Returns what the RPC settled on rather than what we asked for, and surfaces
+ * a refusal as the sentence SQL raised: the rule is
+ * set_receives_notifications, and a paraphrase here would be a second copy of
+ * it that can be wrong. Unlike the commission tick, an agency's own Directors
+ * and Managers may set this for people at or below their position, so the
+ * refusal is something a customer can actually see.
+ */
+export async function setReceivesNotifications(userId: string, on: boolean): Promise<boolean> {
+  if (!SUPABASE_ENABLED) { MOCK_NOTIFY.set(userId, on); return on; }
+  const { data, error } = await sb().rpc('set_receives_notifications', { p_user: userId, p_on: on });
+  if (error) throw new Error(error.message);
+  return data == null ? on : !!data;
 }
 
 /**

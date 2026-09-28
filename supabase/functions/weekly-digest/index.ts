@@ -66,6 +66,14 @@ interface DigestRow {
   climber?: { name: string; delta: number } | null; // #5 climber of the week
 }
 
+/** The same week, grouped one level down, so a reader's email can be summed
+    over exactly the agencies their position covers. */
+interface AgencyDigestRow {
+  agency_id: string; agency_name: string; partner_id: string;
+  sent: number; sent_paid: number; paid: number; fees: number;
+  deeds: number; awaiting: number; top_branch: string | null; top_branch_fees: number;
+}
+
 const V = "#271d5f", INK = "#5b4d86", LILAC = "#f8eff9", HELI = "#d364fb";
 function stat(label: string, value: string): string {
   return `<td style="padding:12px 14px;border:1px solid rgba(39,29,95,0.1);border-radius:12px;background:#fff;" width="50%">
@@ -127,42 +135,56 @@ Deno.serve(async (req) => {
     const endIso = `${weekStart}T00:00:00Z`;
     const rangeLabel = `${dmy(shiftDate(weekStart, -7))} to ${dmy(shiftDate(weekStart, -1))}`;
 
-    const { data: rows, error: rpcErr } = await service.rpc("partner_weekly_digest", { p_start: startIso, p_end: endIso });
+    /* GROUPED BY AGENCY, NOT BY PARTNER. partner_weekly_digest sums every
+       agency on the house route into one row, so each of Regent's, Northgate's,
+       Southbank's and Harborview's managers was emailed the four added
+       together and told it was theirs. agency_weekly_digest is the same
+       aggregate one level down; the per-reader sum below is over the agencies
+       that reader's position actually covers. */
+    const { data: rows, error: rpcErr } = await service.rpc("agency_weekly_digest", { p_start: startIso, p_end: endIso });
     if (rpcErr) return json({ ok: false, error: rpcErr.message }, 500);
-    const digest = (rows ?? []) as DigestRow[];
+    const byAgency = (rows ?? []) as AgencyDigestRow[];
 
-    // #5 Climber of the week: the referrer whose fees-rank rose most vs the prior
-    // 7-day window ([-14d, -7d)). One RPC for all partners; attach to each row.
-    const prevStartIso = `${shiftDate(weekStart, -14)}T00:00:00Z`;
-    const { data: climbers } = await service.rpc("partner_weekly_climbers", {
-      p_curr_start: startIso, p_curr_end: endIso, p_prev_start: prevStartIso, p_prev_end: startIso,
-    });
-    const climberByPartner = new Map<string, { name: string; delta: number }>();
-    for (const c of (climbers ?? []) as Array<{ partner_id: string; climber_name: string; climber_delta: number }>) {
-      climberByPartner.set(c.partner_id, { name: c.climber_name, delta: Number(c.climber_delta) });
+    /* THE CLIMBER IS WITHDRAWN FROM THIS EMAIL, not merely rescoped.
+       partner_weekly_climbers ranks referrers within a PARTNER, which on the
+       house route means Regent's negotiators were ranked against Northgate's
+       and the winner named to both. There is no agency-level twin yet, and
+       naming a competitor's staff member is worse than naming nobody, so the
+       line is omitted until there is. weeklyDigestEmail already accepts
+       climber: null and renders without it. */
+    /* ONE READER, THE AGENCIES THEY COVER. Was `users where role='management'`
+       bucketed by partner_id, with no status, position or agency filter. */
+    const partnerIds = [...new Set(byAgency.map((r) => r.partner_id))];
+    type Reader = { userId: string; email: string; partnerId: string; agencyIds: Set<string> };
+    const readers = new Map<string, Reader>();
+    for (const pid of partnerIds) {
+      const { data: scopes } = await service.rpc("staff_notification_scopes", { p_partner: pid });
+      for (const row of (scopes ?? []) as Array<{ user_id: string; email: string; agency_id: string }>) {
+        if (!row.email) continue;
+        const r = readers.get(row.user_id) ?? { userId: row.user_id, email: row.email, partnerId: pid, agencyIds: new Set<string>() };
+        r.agencyIds.add(row.agency_id);
+        readers.set(row.user_id, r);
+      }
     }
-    for (const row of digest) row.climber = climberByPartner.get(row.partner_id) ?? null;
 
-    // Management recipients per partner.
-    const { data: mgmt } = await service.from("users").select("email, partner_id").eq("role", "management");
-    const mgmtByPartner = new Map<string, string[]>();
-    for (const u of (mgmt ?? []) as Array<{ email: string; partner_id: string }>) {
-      if (!u.email || !u.partner_id) continue;
-      const list = mgmtByPartner.get(u.partner_id) ?? [];
-      list.push(u.email);
-      mgmtByPartner.set(u.partner_id, list);
-    }
-
-    // Already-sent this week (idempotency).
-    const { data: already } = await service.from("partner_digest_sends").select("partner_id").eq("week_start", weekStart);
-    const sentSet = new Set((already ?? []).map((s: { partner_id: string }) => s.partner_id));
+    // Already-sent this week (idempotency), per reader: the ledger gained a
+    // user_id in 20261006200000 so one reader's send cannot mark the partner
+    // done for everybody else on it.
+    const { data: already } = await service.from("partner_digest_sends").select("partner_id, user_id").eq("week_start", weekStart);
+    const sentSet = new Set((already ?? []).map((s: { partner_id: string; user_id: string | null }) => s.user_id ?? s.partner_id));
 
     let emailed = 0, skipped = 0, failed = 0;
-    for (const d of digest) {
-      const recipients = mgmtByPartner.get(d.partner_id) ?? [];
-      // Skip partners with no Management, already sent this week, or no activity.
-      if (recipients.length === 0) { skipped += 1; continue; }
-      if (sentSet.has(d.partner_id)) { skipped += 1; continue; }
+    for (const reader of readers.values()) {
+      const mine = byAgency.filter((r) => reader.agencyIds.has(r.agency_id));
+      const d = {
+        partner_id: reader.partnerId,
+        sent: mine.reduce((n, r) => n + Number(r.sent ?? 0), 0),
+        paid: mine.reduce((n, r) => n + Number(r.paid ?? 0), 0),
+        deeds: mine.reduce((n, r) => n + Number(r.deeds ?? 0), 0),
+        fees: mine.reduce((n, r) => n + Number(r.fees ?? 0), 0),
+      };
+      const recipients = [reader.email];
+      if (sentSet.has(reader.userId)) { skipped += 1; continue; }
       if (d.sent + d.paid + d.deeds === 0) { skipped += 1; continue; }
 
       const routed = resolveRecipients(recipients);
@@ -182,7 +204,7 @@ Deno.serve(async (req) => {
       // preview must never poison it (which would make the real Monday cron skip
       // that partner for the week).
       if (!test) {
-        await service.from("partner_digest_sends").insert({ partner_id: d.partner_id, week_start: weekStart, recipients: recipients.length });
+        await service.from("partner_digest_sends").insert({ partner_id: d.partner_id, user_id: reader.userId, week_start: weekStart, recipients: recipients.length });
       }
       emailed += 1;
     }

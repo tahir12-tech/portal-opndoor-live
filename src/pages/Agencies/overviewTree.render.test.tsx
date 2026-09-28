@@ -249,12 +249,14 @@ describe('a branch view', () => {
     expect(acts).toContain('Remove access');
   });
 
-  it('shows the office\'s referrals and its deed recipient', async () => {
+  /* THE NOMINATION IS GONE. A deed goes to whoever sent the referral, which is
+     a fact about the referral and not about the branch, so there is nothing
+     here to nominate and the view says where deeds actually go instead. */
+  it('shows the office\'s referrals, and who its deeds go to', async () => {
     const view = await openHampstead();
     expect(view.container.textContent).toContain('Referrals');
-    // No recipient is nominated in mock mode, so the view offers the control
-    // rather than silently showing nothing.
-    expect(view.getByText('Nominate deed recipient')).toBeTruthy();
+    expect(view.container.textContent).toContain('go to whoever sent the referral');
+    expect(view.queryByText('Nominate deed recipient')).toBeNull();
   });
 
   /* WHERE THE RATE CAME FROM. Regent's 20% is negotiated and the Opndoor

@@ -17,7 +17,7 @@
 -- level or the only Directors in the world are the ones the backfill made.
 
 begin;
-select plan(12);
+select plan(13);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
 values ('94000000-0000-0000-0000-000000000001', 'zzz-promote', 'ZZZ Promote Route', 'opndoor_referenced', 0.25, 0.10, true);
@@ -67,15 +67,21 @@ select throws_ok(
   '42501', null,
   'and so is posting themselves the monthly statement');
 
--- NOT JUST THEIR OWN ROW. users_mgmt_update covers every management and referrer
--- row under the same partner, and on the house route that is every agency we
--- carry. Demoting the Director would have been a way to make the figures nobody
--- can see, and promoting a colleague a way to get them read out loud.
-select throws_ok(
+/* NOT JUST THEIR OWN ROW -- and the reason this assertion changed shape.
+   users_mgmt_update USED TO cover every management and referrer row under the
+   same partner, which on the house route is every agency Opndoor carries.
+   20261006170000 scoped it to the caller's own agency and to a level at or
+   below their own, so a colleague's row above them is no longer visible to
+   their UPDATE: it matches nothing rather than raising. Refused harder, and
+   the assertion says which. */
+select lives_ok(
   $$update public.users set sees_commission = false
      where id = '94000000-0000-0000-0000-00000000000e'$$,
-  '42501', null,
-  'nor may they change a colleague''s level');
+  'changing a colleague''s level through the table now matches nothing');
+reset role;
+select ok((select sees_commission from public.users where id = '94000000-0000-0000-0000-00000000000e'),
+  'and that colleague is still a Director');
+set local role authenticated;
 
 select ok(not public.may_see_commission(), 'and after all that they still may not see commission');
 
