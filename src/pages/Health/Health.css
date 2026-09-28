@@ -146,3 +146,27 @@
   color: var(--ink-mute);
   text-align: right;
 }
+
+/* WHAT THIS MEANS, AND WHAT TO DO. Two sentences under a failing row, quiet
+   enough not to shout over the table and loud enough to be read. */
+.hadvice { margin-top: 6px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.45; border-left: 3px solid var(--line-strong); background: var(--white-lilac); }
+.hadvice--error { border-left-color: var(--danger, #c0392b); }
+.hadvice--warn { border-left-color: var(--warn, #b8860b); }
+.hadvice__means { color: var(--ink); }
+.hadvice__do { color: var(--ink-soft); margin-top: 3px; }
+.hadvice__link { font-weight: 700; color: var(--heliotrope-deep); }
+.hrow--error td { background: rgba(192, 57, 43, 0.04); }
+
+/* Responses, grouped by the job they came from. */
+.hresp-group { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.hresp-group__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; cursor: pointer; }
+details.hresp-group > summary { list-style: none; }
+details.hresp-group > summary::-webkit-details-marker { display: none; }
+.hresp { padding: 8px 0; border-top: 1px solid var(--line); }
+.hresp:first-of-type { border-top: none; }
+.hresp__line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; }
+.hresp__job { font-weight: 700; }
+.hresp__when { color: var(--ink-mute); font-variant-numeric: tabular-nums; }
+.hresp__errs { color: var(--danger, #c0392b); }
+.hstat__card--link { text-decoration: none; color: inherit; cursor: pointer; }
+.hstat__card--link:hover { border-color: var(--heliotrope-deep); }
