@@ -149,13 +149,15 @@ Deno.serve(async (req) => {
     if (rpcErr) return json({ ok: false, error: rpcErr.message }, 500);
     const byAgency = (rows ?? []) as AgencyDigestRow[];
 
-    /* THE CLIMBER IS WITHDRAWN FROM THIS EMAIL, not merely rescoped.
-       partner_weekly_climbers ranks referrers within a PARTNER, which on the
-       house route means Regent's negotiators were ranked against Northgate's
-       and the winner named to both. There is no agency-level twin yet, and
-       naming a competitor's staff member is worse than naming nobody, so the
-       line is omitted until there is. weeklyDigestEmail already accepts
-       climber: null and renders without it. */
+    /* THE CLIMBER IS BACK, RANKED INSIDE THE READER'S OWN AGENCIES.
+       partner_weekly_climbers ranked referrers within a PARTNER, which on the
+       house route meant Regent's negotiators were ranked against Northgate's
+       and one winner was named to both. It was withdrawn rather than rescoped
+       because there was no agency-level twin and naming a competitor's staff
+       is worse than naming nobody. agency_weekly_climber (20261006370000) is
+       that twin, and it partitions by the READER -- so a group director sees
+       the best riser across the agencies they hold, and a branch manager sees
+       theirs, from the same call. Asked per reader, below. */
     /* ONE READER, THE AGENCIES THEY COVER. Was `users where role='management'`
        bucketed by partner_id, with no status, position or agency filter. */
     const partnerIds = [...new Set(byAgency.map((r) => r.partner_id))];
@@ -201,10 +203,25 @@ Deno.serve(async (req) => {
       // `redirected` was hardcoded false, so the banner three functions up was
       // dead code that could never render. It now reflects what actually
       // happened.
+      /* The previous seven days, so "climbed" compares like with like. A
+         reader whose agencies had no riser gets no line: weeklyDigestEmail
+         renders without it, and inventing a climber out of a flat week is how
+         the feature stops meaning anything. */
+      const { data: climbRows } = await service.rpc("agency_weekly_climber", {
+        p_user: reader.userId,
+        p_curr_start: startIso, p_curr_end: endIso,
+        p_prev_start: `${shiftDate(weekStart, -14)}T00:00:00Z`, p_prev_end: startIso,
+      });
+      const climb = ((climbRows ?? []) as Array<{ climber_name: string; climber_delta: number }>)[0] ?? null;
+
       const tpl = weeklyDigestEmail({
           sent: Number(d.sent ?? 0), paid: Number(d.paid ?? 0), deeds: Number(d.deeds ?? 0),
           fees: `£${Number(d.fees ?? 0).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`,
-          commission: null, climber: null, link: `${APP_URL}/dashboard`,
+          commission: null,
+          climber: climb
+            ? `${climb.climber_name} climbed ${climb.climber_delta} ${climb.climber_delta === 1 ? "place" : "places"} this week.`
+            : null,
+          link: `${APP_URL}/dashboard`,
         });
       if (!RESEND_API_KEY || dest.length === 0) { failed += 1; continue; }
       const res = await sendMessage({ to: dest, message: tpl });

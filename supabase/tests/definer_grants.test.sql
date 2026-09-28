@@ -76,6 +76,7 @@ insert into allowed(name) values
   ('application_commission_rates'),
   ('application_journey'),
   ('assert_may_grant_level'),
+  ('assert_may_grant_position'),
   ('attach_user_to_agency'),
   ('authorise_password_reset'),
   ('clear_branch_deed_recipient'),

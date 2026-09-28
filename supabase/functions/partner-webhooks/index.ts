@@ -21,6 +21,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { signedHeaders } from "../_shared/webhookSigning.ts";
+import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 /** Deliveries claimed per run. */
 const BATCH = 50;
@@ -55,7 +56,10 @@ Deno.serve(async (req) => {
   const { data: expected } = await service
     .from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
 
-  if (!expected?.secret || presented !== expected.secret) {
+  // Constant time, like every sibling ops function. This was the one left on
+  // `!==`, which leaks a matching prefix through timing the way a password
+  // compare does.
+  if (!expected?.secret || !timingSafeEqual(presented, expected.secret)) {
     return json({ ok: false, error: "Unauthorised." }, 401);
   }
 

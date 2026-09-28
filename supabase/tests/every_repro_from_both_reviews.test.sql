@@ -34,7 +34,7 @@
 -- never running.
 
 begin;
-select plan(29);
+select plan(40);
 
 -- ===========================================================================
 -- THE FIXTURE: Ours and Theirs, on the same route.
@@ -287,6 +287,102 @@ select throws_ok(
 select is((select count(*)::int from public.org_deed_readiness()
             where agency_id = '96000000-0000-0000-0000-0000000000a2'), 0,
   'and deed readiness reports on their own agency, not on every agency we carry');
+
+-- ===========================================================================
+-- REPRO 7: THE THIRD REVIEWER'S FOUR, THREE OF WHICH WERE MINE
+-- ===========================================================================
+
+-- A BRANCHLESS AGENCY. 20260927100000 made the first branch optional, so a
+-- group can be stood up as a skeleton. The containment test in set_user_scope
+-- asked "does any branch under the target lie outside my scope", which is
+-- FALSE of an agency with no branches, so it passed vacuously. Reproduced on
+-- dev: a Director placed their own Negotiator onto a branchless agency they
+-- do not reach.
+reset role;
+insert into public.agencies (id, partner_id, name) values
+  ('96000000-0000-0000-0000-0000000000a9',(select id from public.partners where slug='opndoor-agents'),'ZZZ Repro Branchless');
+select set_config('request.jwt.claims',
+  '{"sub":"96000000-0000-0000-0000-00000000c001","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+select throws_ok(
+  $$select public.set_user_scope('96000000-0000-0000-0000-00000000c002','agency','96000000-0000-0000-0000-0000000000a9')$$,
+  '42501', null,
+  'a branchless agency they do not reach is still an agency they may not place somebody at');
+
+-- THE COMMISSION COLUMNS. 20261006350000 wrote a column-level revoke with no
+-- table-level revoke in front of it, which Postgres accepts in silence and
+-- which changes nothing. Asked as a privilege rather than as a query, because
+-- that is the question PostgREST asks and the one the broken version passed.
+reset role;
+select ok(not has_column_privilege('authenticated', 'public.agencies', 'partner_rate', 'SELECT'),
+  'authenticated cannot select agencies.partner_rate');
+select ok(not has_column_privilege('authenticated', 'public.agencies', 'agent_rate', 'SELECT'),
+  'nor agencies.agent_rate');
+select ok(not has_column_privilege('authenticated', 'public.agency_groups', 'agent_rate', 'SELECT'),
+  'nor agency_groups.agent_rate');
+select ok(not has_column_privilege('authenticated', 'public.branches', 'agent_rate', 'SELECT'),
+  'nor branches.agent_rate, which is the one a Negotiator actually read on dev');
+select ok(has_column_privilege('authenticated', 'public.agencies', 'name', 'SELECT'),
+  'while an ordinary column is still selectable, so the re-grant is not too narrow');
+
+-- THE DELIVERY ADDRESS. users.email is what the executed deed, the commission
+-- statement and the weekly digest are sent to, and it was the one meaningful
+-- column on that table with no trigger. A Director rewrote their own
+-- Negotiator's and the deed address became attacker@evil.test.
+select set_config('request.jwt.claims',
+  '{"sub":"96000000-0000-0000-0000-00000000c001","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+select throws_ok(
+  $$update public.users set email = 'attacker@evil.test'
+     where id = '96000000-0000-0000-0000-00000000c002'$$,
+  '42501', null,
+  'a Director cannot rewrite the address their Negotiator''s deeds are sent to');
+-- The NAME is deliberately still editable: users_mgmt_update is meant to be
+-- narrow, three older tests assert exactly that, and a label on a screen is
+-- not a delivery decision. Asserted so the distinction is on purpose.
+select lives_ok(
+  $$update public.users set full_name = 'ZZZ Our Neg Renamed'
+     where id = '96000000-0000-0000-0000-00000000c002'$$,
+  'while their NAME is still theirs to edit, which keeps the policy narrow');
+
+-- AN AGREEMENT IS A COMMISSION FIGURE. agreement_for_agency had the org test
+-- and not the level test, so a Manager read the negotiated bands and tiers.
+-- Our Director may see commission, so this is asserted from the Negotiator,
+-- who may not.
+reset role;
+select set_config('request.jwt.claims',
+  '{"sub":"96000000-0000-0000-0000-00000000c002","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+select is((select count(*)::int from public.agreement_for_agency('96000000-0000-0000-0000-0000000000a1')), 0,
+  'somebody who may not see commission gets no agreement, even for their own agency');
+
+-- SET CONSTRAINTS IS TRANSACTION-WIDE, and REPRO 5 above made them immediate
+-- to force the deferred position guard to fire. That setting is still in
+-- force here, and it would make create_invited_user's two writes fail on the
+-- first of them -- which is precisely the ordering problem the constraint is
+-- DEFERRED to avoid. Put back, or this assertion tests the test harness.
+set constraints all deferred;
+
+-- AND THE REGRESSION. Removing the home-branch arm from app_may_reach_user
+-- left nothing able to locate a person who has no position yet, so
+-- create_invited_user -> set_user_scope -> assert_may_act_on_user refused
+-- every invite on our own estate. This is the case that has to keep working.
+reset role;
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
+values ('96000000-0000-0000-0000-00000000cf01','00000000-0000-0000-0000-000000000000','authenticated','authenticated','zzz.repro.newstarter@r.test','',now(),now(),now());
+select set_config('request.jwt.claims',
+  '{"sub":"96000000-0000-0000-0000-00000000c001","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+select lives_ok(
+  $$select public.create_invited_user(
+      '96000000-0000-0000-0000-00000000cf01','zzz.repro.newstarter@r.test','ZZZ New Starter','referrer',
+      (select id from public.partners where slug='opndoor-agents'),
+      '96000000-0000-0000-0000-0000000000b1', false, 'branch', '96000000-0000-0000-0000-0000000000b1')$$,
+  'a Director can still invite a Negotiator into their own branch');
+reset role;
+select is((select kind from public.user_scopes where user_id = '96000000-0000-0000-0000-00000000cf01'),
+  'branch',
+  'and the new person arrives holding the position, in the same transaction as their row');
 
 select * from finish();
 rollback;

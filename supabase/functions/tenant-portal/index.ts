@@ -392,8 +392,33 @@ Deno.serve(async (req) => {
       if (!table) return json({ ok: false, error: "Unknown table." }, 400);
       const seq = Number(body.seq);
       if (!Number.isFinite(seq)) return json({ ok: false, error: "seq is required." }, 400);
+      /* THE THIRD UNFILTERED PATCH, and the last. save_property has an
+         allowlist and save_agent was given one; this one spread body.patch
+         into a service-role upsert too. Neither of these tables carries a
+         verification flag today, so there was nothing to escalate to, but
+         "no column worth writing yet" is a fact about this week's schema and
+         not a guard. Columns are listed per table rather than shared, so a
+         column added to one does not silently become writable on both. */
+      const ALLOWED: Record<string, string[]> = {
+        application_addresses: ["in_uk", "flat_number", "house_number", "house_name",
+          "address_1", "address_2", "city", "county", "postcode", "residency_type",
+          "residency_other_detail", "moved_in_month", "moved_in_year", "proof_type",
+          "rental_arrears", "rental_arrears_detail"],
+        application_incomes: ["income_type", "is_additional", "start_date", "end_date",
+          "employer_name", "employer_in_uk", "employer_address", "employer_postcode",
+          "job_title", "referee_name", "referee_email", "referee_phone", "pay_basis",
+          "annual_salary", "hourly_rate", "weekly_hours", "has_accountant",
+          "accountant_name", "accountant_email", "pension_income", "probation",
+          "probation_months", "disciplinary", "foreseeable_future", "guaranteed",
+          "amount", "amount_frequency", "savings_amount", "maintenance_loan",
+          "family_support"],
+      };
+      const raw = (body.patch ?? {}) as Record<string, unknown>;
+      const patch: Record<string, unknown> = {};
+      for (const k of ALLOWED[table]) if (k in raw) patch[k] = raw[k];
+
       const { data, error } = await service.from(table)
-        .upsert({ ...(body.patch ?? {}), application_id: app.id, seq }, { onConflict: "application_id,seq" })
+        .upsert({ ...patch, application_id: app.id, seq }, { onConflict: "application_id,seq" })
         .select("id").maybeSingle();
       if (error) {
         console.log(JSON.stringify({ event: "tenant_save_row_failed", table, message: error.message }));

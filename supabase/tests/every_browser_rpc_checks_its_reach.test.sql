@@ -27,7 +27,7 @@
 -- definerAllowlistCoverage.test.ts rather than quietly omitted.
 
 begin;
-select plan(38);
+select plan(41);
 
 -- ===========================================================================
 -- OURS AND THEIRS, one house partner.
@@ -158,6 +158,19 @@ select throws_ok($$select public.admin_cancel_invite('97000000-0000-0000-0000-00
 -- the ladder's rule rather than a reach rule; the_level_ladder.test.sql is
 -- where the refusals live. Asserted positively here so the function is
 -- covered by name and a change that started refusing it would be seen.
+-- assert_may_grant_position is the containment half of placing somebody,
+-- shared by set_user_scope and create_invited_user. Asked directly, because
+-- its vacuous-for-a-branchless-target bug was invisible through its callers.
+select throws_ok(
+  $$select public.assert_may_grant_position('agency','97000000-0000-0000-0000-0000000000a2')$$,
+  '42501', null, 'assert_may_grant_position refuses the other agency');
+select throws_ok(
+  $$select public.assert_may_grant_position('group','97000000-0000-0000-0000-00000000ab02')$$,
+  '42501', null, 'and a group they hold no position over');
+select lives_ok(
+  $$select public.assert_may_grant_position('agency','97000000-0000-0000-0000-0000000000a1')$$,
+  'while their own agency is allowed, so it is not simply refusing everything');
+
 select lives_ok($$select public.assert_may_grant_level('Director')$$,
   'assert_may_grant_level lets a Director grant at their own level');
 
