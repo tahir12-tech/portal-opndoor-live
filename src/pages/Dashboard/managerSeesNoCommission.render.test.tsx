@@ -56,6 +56,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { PageMetaProvider } from '@/components/layout/pageMeta';
 import { hydrateCommissionVisibility, setHomePartner } from '@/data';
 import { hydrateFull, type FullApp } from '@/data/applicationsService';
+import { hydrateOrg } from '@/data/orgService';
 import { CommissionStatement } from '@/components/CommissionStatement';
 import { App } from '@/App';
 import { OrgManagement } from '@/pages/OrgManagement/OrgManagement';
@@ -109,11 +110,25 @@ function agencyBook(partner = AGENCY_PARTNER): FullApp[] {
   ];
 }
 
+/* STAGE THE WHOLE OF LIVE MODE, not half of it. hydrate() loads the
+   applications and the ORG in one pass, and the client narrows the book to the
+   agencies the org contains (reachableAgencyNames), because on the agency rail
+   the partner is a route and not a company. A test that stages the book but
+   leaves the org as the mock seed is staging a state the product never reaches:
+   agencies that do not contain the staged applications' own agency. */
+function stageOrg(names: string[]) {
+  hydrateOrg(names.map((name, i) => ({
+    partner: AGENCY_PARTNER, name, referrals: 0, guaranteed: '£0',
+    id: `ag-staged-${i}`, branches: [],
+  })));
+}
+
 beforeEach(() => {
   localStorage.clear();
   flags.live = true;
   setHomePartner(AGENCY_PARTNER);
   hydrateFull(agencyBook());
+  stageOrg(["Regent's Lettings"]);
 });
 
 afterEach(() => {
@@ -282,6 +297,7 @@ describe("Reporting, read by a supplier's Manager", () => {
   beforeEach(() => {
     setHomePartner(SUPPLIER_PARTNER);
     hydrateFull(agencyBook(SUPPLIER_PARTNER));
+    stageOrg(["Regent's Lettings"]);
   });
 
   it('loses Commission by partner, and their Director keeps it', async () => {

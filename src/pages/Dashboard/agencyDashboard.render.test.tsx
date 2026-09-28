@@ -45,6 +45,7 @@ import { SessionProvider } from '@/session/SessionContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { PageMetaProvider } from '@/components/layout/pageMeta';
 import { hydrateFull, type FullApp } from '@/data/applicationsService';
+import { hydrateOrg } from '@/data/orgService';
 import { Dashboard } from './Dashboard';
 
 const AGENCY_PARTNER = 'northwind';
@@ -70,10 +71,24 @@ function oneDeed(): FullApp {
   };
 }
 
+/* STAGE THE WHOLE OF LIVE MODE, not half of it. hydrate() loads the
+   applications and the ORG in one pass, and the client narrows the book to the
+   agencies the org contains (reachableAgencyNames), because on the agency rail
+   the partner is a route and not a company. A test that stages the book but
+   leaves the org as the mock seed is staging a state the product never reaches:
+   agencies that do not contain the staged applications' own agency. */
+function stageOrg(names: string[]) {
+  hydrateOrg(names.map((name, i) => ({
+    partner: AGENCY_PARTNER, name, referrals: 0, guaranteed: '£0',
+    id: `ag-staged-${i}`, branches: [],
+  })));
+}
+
 beforeEach(() => {
   localStorage.clear();
   flags.live = true;
   hydrateFull([oneDeed()]);
+  stageOrg(["Regent's Lettings"]);
 });
 
 afterEach(cleanup);

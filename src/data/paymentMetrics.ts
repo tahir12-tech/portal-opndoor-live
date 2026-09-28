@@ -9,6 +9,7 @@
    ===================================================================== */
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import type { PartnerScope, Period, Role } from './types';
+import { reachableAgencyNames } from './orgService';
 import { ALL_PARTNERS } from './types';
 import { allFull, type FullApp } from './applicationsService';
 
@@ -31,10 +32,19 @@ export function periodRange(period: Period): [Date, Date] {
   }
 }
 
-/** Role + partner isolation, matching the applications list rule. */
+/** Role + partner + AGENCY isolation, matching the applications list rule. */
 export function scopeFull(apps: FullApp[], role: Role, scope: PartnerScope): FullApp[] {
   let set = apps;
   if (scope !== ALL_PARTNERS) set = set.filter((a) => a.partner === scope);
+  /* THE PARTNER IS A ROUTE, NOT A COMPANY. Every agency on our own estate
+     shares the house partner, so the line above narrows a Regent user to
+     "every agency Opndoor carries". The server already narrows further and
+     this says the same thing, so the two cannot quietly disagree. Null in mock
+     mode means "do not narrow": see reachableAgencyNames. */
+  if (scope !== ALL_PARTNERS) {
+    const mine = reachableAgencyNames();
+    if (mine) set = set.filter((a) => !a.agency || mine.has(a.agency));
+  }
   // Positive allowlist. This scopes the set every downstream metric is built
   // from, so an unrecognised role reaching it with no filter handed over the
   // whole partner book. A role not named here gets nothing.

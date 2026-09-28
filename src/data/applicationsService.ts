@@ -16,6 +16,7 @@ import { ALL_PARTNERS } from './types';
 import { AGENT_ADDR, APPLICATION_RECORDS as RECORDS_SEED, APPLICATIONS_LIST as LIST_SEED, type AppRecord } from './mock/applications';
 import { getPartner, partnerName } from './partnersService';
 import { channelOf, type Channel } from './channel';
+import { reachableAgencyNames } from './orgService';
 import { deliveryStateOf } from './deliveryState';
 
 /** Who works the delivery QUEUE, as opposed to who is waiting for a deed.
@@ -177,10 +178,18 @@ function channelOfRow(r: ApplicationSummary): Channel {
   return channelOf({ partnerSlug: r.partner, partnerMode: getPartner(r.partner)?.referencingMode });
 }
 
-/** Role + partner isolation only (drives counts and the "total" figure). */
+/** Role + partner + AGENCY isolation (drives counts and the "total" figure). */
 function scopedSet(opts: AppScopeOpts): ApplicationSummary[] {
   let set = LIST.slice();
   if (opts.scope !== ALL_PARTNERS) set = set.filter((r) => r.partner === opts.scope);
+  /* THE PARTNER IS A ROUTE, NOT A COMPANY, on the agency rail: every agency
+     shares the house partner, so the line above narrows a Regent user to every
+     agency Opndoor carries. The server narrows further and this agrees with
+     it. Null in mock mode means "do not narrow" (reachableAgencyNames). */
+  if (opts.scope !== ALL_PARTNERS) {
+    const mine = reachableAgencyNames();
+    if (mine) set = set.filter((r) => !r.agency || mine.has(r.agency));
+  }
   if (opts.role === 'referrer') set = set.filter((r) => r.owner);
   return set;
 }

@@ -42,6 +42,43 @@ export function getAgencies(scope: PartnerScope): Agency[] {
   return real.filter((a) => partnerOf(a) === scope);
 }
 
+/**
+ * THE AGENCIES THIS VIEWER CAN REACH, as the server already decided.
+ *
+ * In Supabase mode the org is hydrated through RLS, so the agencies in the
+ * working copy ARE the caller's reachable set: agencies_select was converted
+ * to app_scoped_agencies in 20260924120000 and has no partner-wide fallback.
+ * Measured on dev as a Regent Director: agencies returns Regent's Lettings and
+ * nothing else.
+ *
+ * WHY THE CLIENT FILTERS AT ALL, when the server already has. Because the
+ * client should not be the reason a leak is invisible OR the reason one is
+ * possible. Every list the portal draws is built from one book, and a book
+ * that widens for any reason -- a definer RPC added later, a hydrate query
+ * that forgets a filter -- would widen every figure with it silently. This
+ * makes the client say the same thing the server says, so the two have to
+ * disagree out loud rather than quietly.
+ *
+ * NULL MEANS "DO NOT NARROW", and there are two ways to get it.
+ *
+ * MOCK MODE, because the demo book is not RLS-filtered and its agencies are
+ * the whole seed: filtering by them would be filtering by everything, and a
+ * test that seeds one agency and asserts over another's rows would fail for a
+ * reason that has nothing to do with what it is testing.
+ *
+ * AN EMPTY ORG, because that means the org has not arrived yet rather than
+ * that the viewer reaches nothing. hydrate loads the applications and the org
+ * in one pass but a caller can read the book between them, and narrowing to an
+ * org that is not there would blank every figure on the page mid-load. It is
+ * also safe: a viewer who genuinely reaches no agency is given no applications
+ * by RLS either, so there is nothing for this to have narrowed.
+ */
+export function reachableAgencyNames(): Set<string> | null {
+  if (!SUPABASE_ENABLED) return null;
+  const names = AGENCIES.filter((a) => !a.isPlaceholder).map((a) => a.name);
+  return names.length ? new Set(names) : null;
+}
+
 export function findAgency(name: string): Agency | undefined {
   return AGENCIES.find((a) => a.name === name);
 }
