@@ -578,11 +578,14 @@ export function Applications() {
                         <div className="dt__sub">{ORIGIN_KIND_LABEL[o.kind]}</div>
                       </td>
                     )}
-                    {/* THE PROPERTY BELONGS TO THE HEADING when this row is in
-                        a tenancy. It is stated once above the group, and
-                        repeating it down the siblings is exactly what made two
-                        tenants read as two lets at the same address. */}
-                    <td>{g ? <span className="soft">-</span> : r.prop}</td>
+                    {/* THE PROPERTY IN MUTED TEXT ON A SIBLING, not a dash.
+                        It was a dash on the reasoning that the heading had
+                        already said it and repeating it made two tenants read
+                        as two lets at the same address. The heading does say
+                        it, and the tag and the tallies now make the grouping
+                        unmistakable, so the repetition costs nothing; a column
+                        of dashes reads as missing data, which costs more. */}
+                    <td>{g ? <span className="soft">{r.prop}</span> : r.prop}</td>
                     {showOrgCol && (
                       <td>
                         {showBranch ? r.branch : r.agency}

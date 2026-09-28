@@ -85,12 +85,22 @@ describe('the applications list', () => {
     expect(second).toBe(first + 1);
   });
 
-  it('does not repeat the property on the sibling rows', async () => {
-    // The address is the heading. Saying it again on both rows is what made one
-    // let read as two at the same address.
+  it('repeats the property on the sibling rows, muted', async () => {
+    /* THIS ASSERTION IS THE OPPOSITE OF THE ONE IT REPLACES, on instruction.
+       It used to assert the address was ABSENT from a sibling, because the
+       heading says it and repeating it made one let read as two at the same
+       address. With the heading carrying the address, the "Joint tenancy" tag
+       and the paid/deed tallies, the grouping is unmistakable and the
+       repetition costs nothing. A column of dashes, which is what was there,
+       reads as missing data. */
     const { rowFor } = await openList();
-    expect(rowFor(FIRST)!.textContent).not.toMatch(PROP);
-    expect(rowFor(SECOND)!.textContent).not.toMatch(PROP);
+    for (const ref of [FIRST, SECOND]) {
+      const row = rowFor(ref)!;
+      expect(row.textContent).toMatch(PROP);
+      // Muted, so it reads as context rather than as this row's own subject.
+      expect(row.querySelector('.soft')!.textContent).toMatch(PROP);
+      expect(row.textContent).not.toMatch(/(^|\s)-(\s|$)/);
+    }
   });
 
   it('leaves a sibling row carrying its name and reference, and no rank', async () => {
