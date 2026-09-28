@@ -223,18 +223,20 @@ nothing to fold. This file is it.
 
 ### Per-item status
 
-| Item | Status | Notes |
+Audited against the code on 2026-09-28 by eight parallel readers plus a
+critic that re-checked every "done" and "partial". Verdicts below are theirs,
+spot-checked by me where they bore on something I had just changed.
+
+| Item | Audit verdict | What is left |
 | --- | --- | --- |
-| A. Supplier detail page | todo | |
-| B. Reporting under View as | todo | |
-| C. Searchable scope picker | todo | |
-| D. Joint tenancy grouping | todo | |
-| E. Statement column elision | todo | |
-| F1. One money formatter | todo | |
-| F2. Application export columns | todo | |
-| F3. Statement reference and header | todo | `commission_statement_ref` already mints `STMT-YYYY-MM-NNNN` sequentially per payee per month (`20261005190000`, reach-gated in `20261006350000`). The UI/PDF side is unverified. |
-| G. Three agency levels | todo | "check, likely done" |
-| H. Referred by section | todo | Supersedes the earlier "admin New application Referred by section as specified", which had no recoverable spec. This IS the spec. |
+| A. Supplier detail page | **partial** | `PartnerHome.tsx` has no tabs at all: four flat cards. Overview lacks agent contacts and deed recipients; People is a read-only table with no row actions; Commission is two static figures; Referrals and Integration do not exist. Manage is still a modal on the Suppliers LIST (`PartnerManagement.tsx:301-423`), not folded onto tabs. `PersonActions` (`AgencyHome.tsx:113`) is not exported, so it has to be lifted to a shared module first. **A's Commission tab is blocked on Q-05 (fold 11)**; build the other four tabs first. |
+| B. Reporting under View as | **missing** | There is no view-as predicate on Reporting at all. The bordereau card, the whole Opndoor settlement stack and the "Commission by partner" supplier split all still render under View as. "Your commission" is a hard-coded literal with no party name. Settlements and bordereau are raw `.card` sections, not `Card`/`CardHead` panels. And they are gated on `maySeeCommission`, not admin, so a Director sees them today. No test covers any of it. |
+| C. Searchable scope picker | **partial** (effectively missing) | Reporting's picker is `getPartners()`, which strips house partners, so it cannot select an agency, a group, Direct, or the agency rail. Both controls are bare native selects. No quick choices, no recents (no storage key exists). The two pages use unrelated vocabularies: a `PartnerScope` slug on Reporting, an origin string on Applications. The analytics layer cannot express an agency scope at all (`paymentMetrics.scopeFull` filters `a.partner === scope`), and three export builders re-resolve the scope themselves instead of being handed it. |
+| D. Joint tenancy grouping | **partial** | Nearly done. Two things: `Applications.tsx:585` still renders a literal dash for grouped rows instead of the muted property address, and `jointTenancy.render.test.tsx:88-94` asserts the address is ABSENT from sibling rows, which is the exact instruction D supersedes. |
+| E. Statement column elision | **done** | With three deviations worth keeping: the rule lives in `statementShape()` in `src/data/statementColumns.ts` rather than `viewerShape()`; the Branch rule fires on "every row names the same branch" rather than "the payee's scope holds one branch", which is the same answer by a more direct route; and the Agency clause is inert because no statement line carries an agency today. `buildAllStatementsCsv` is deliberately exempt. |
+| F. Exports and statement | **partial** | **F1**: `bxRound2` is a second money rounder used by the bordereau, outside the one-formatter route, and the test does not walk `buildAllStatementsCsv` or either bordereau builder. **F2**: not started. **F3**: both settlement statements still mint a name-slug reference via `statementRef()`, still carry Currency and Payee level, still print a blended rate in the total row, and still print "Commission statement" twice. The screen shows no reference at all. |
+| G. Three agency levels | **partial** | The SQL half is now done (`agreement_for_agency` gained its `may_see_commission()` gate in `20261006380000`, which was the one open commission route the audit found). The UI half is not: `UserManagement.tsx` still says "Management" and "Referrer" rather than the three level names, its invite has no level picker so every management invite from that screen lands as a Manager, and its change-role dialog cannot move somebody between Director and Manager. |
+| H. Referred by section | **missing** | Nothing of it exists. Sections still run Tenant, Property, Tenancy, Agent and branch. The rail, the route and the fee are all inferred from the branch after the fact, not chosen up front. `AgentBranchPicker` searches by ambient partner scope. No RPC takes a supplier, so there is no server-side check that the branch belongs to one. `/new-application` is open to management and referrer as well as admin. Needs a migration. |
 
 ---
 

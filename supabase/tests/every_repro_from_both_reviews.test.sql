@@ -34,7 +34,7 @@
 -- never running.
 
 begin;
-select plan(40);
+select plan(41);
 
 -- ===========================================================================
 -- THE FIXTURE: Ours and Theirs, on the same route.
@@ -226,10 +226,23 @@ select throws_ok(
   $$select public.set_agency_group('96000000-0000-0000-0000-0000000000a1','96000000-0000-0000-0000-00000000ab02')$$,
   '42501', 'You can only file an agency under a group you hold.',
   'nor file their own agency under a group belonging to somebody else');
+/* THE REAL KEY SHAPE, and this assertion is why. The first version of it
+   passed 'agency:<uuid>', which is the shape I assumed when I wrote the reach
+   gate, and the gate and the test then agreed with each other and with
+   nothing else. payeeKey() in src/data/commissionSplit.ts:84 builds
+   '<level>:<org id>' and the caller prepends '<partner slug>|', so a real key
+   is 'opndoor-agents|agency:<uuid>'. Under the wrong parser EVERY non-admin
+   was refused, including for their own agency, and this test still passed.
+   Both directions are asserted now: their own works, another party's does
+   not. */
 select throws_ok(
-  $$select public.commission_statement_ref('2026-09','agency:96000000-0000-0000-0000-0000000000a2')$$,
+  $$select public.commission_statement_ref('2026-09','opndoor-agents|agency:96000000-0000-0000-0000-0000000000a2')$$,
   '42501', 'You can only read a statement for a party you hold.',
   'nor read or mint another party''s commission statement number');
+select matches(
+  (select public.commission_statement_ref('2026-09','opndoor-agents|agency:96000000-0000-0000-0000-0000000000a1')),
+  '^STMT-2026-09-[0-9]{4}$',
+  'while their OWN agency''s reference is minted, in the STMT-YYYY-MM-NNNN shape');
 
 -- THE INTERNAL TRAIL. Declared opndoor-admin-only and enforced in one render
 -- site in the client, which is not enforcement.
