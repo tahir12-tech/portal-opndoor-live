@@ -20,7 +20,7 @@
    ===================================================================== */
 import type { LeagueRow, Period, PartnerScope, Role } from './types';
 import { fmtRatePct } from '@/lib/format';
-import { ALL_PARTNERS, maySeeCommission } from './types';
+import { maySeeCommission } from './types';
 import { KEYS, loadString, saveString } from './storage';
 import {
   ANNUAL, AVG_RENT, BASE_PAID_FULL, BASE_PAID_REF, BASE_SENT_FULL, BASE_SENT_REF,
@@ -90,6 +90,10 @@ export interface DashboardModel {
   commHeadline: string;
   commSecondLbl: string;
   commSecondVal: string;
+  /** A third line, used by the admin payable split (Agencies / Suppliers). */
+  commThirdLbl: string;
+  commThirdVal: string;
+  commThirdShown: boolean;
   /** False on the agent rail, where there is no partner to pay and the second
       line would be a structural zero presented as a figure. */
   commSecondShown: boolean;
@@ -149,10 +153,12 @@ export interface DashboardModel {
    ===================================================================== */
 type CommissionPart = Pick<DashboardModel,
   'commLbl' | 'commTag' | 'commHeadline' | 'commSecondLbl' | 'commSecondVal'
-  | 'commSecondShown' | 'commExcl' | 'commExclDetail'>;
+  | 'commSecondShown' | 'commThirdLbl' | 'commThirdVal' | 'commThirdShown'
+  | 'commExcl' | 'commExclDetail'>;
 
 const NO_COMMISSION: CommissionPart = {
   commLbl: '', commTag: '', commHeadline: '', commSecondLbl: '', commSecondVal: '',
+  commThirdLbl: '', commThirdVal: '', commThirdShown: false,
   commSecondShown: false, commExcl: '', commExclDetail: '',
 };
 
@@ -220,9 +226,12 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     a.feesGross ? (net + excl) / a.feesGross : fallback;
   const pPct = fmtRatePct(effRate(a.partnerCommNet, a.partnerCommExcl, live.partner));
   const aPct = fmtRatePct(effRate(a.agentCommNet, a.agentCommExcl, live.agent));
-  // Under an all-partners scope the £ amounts blend per-partner rates, so a single
-  // "%" descriptor would not reconcile with the figure - label it per-partner.
-  const blended = !ownOnly && scope === ALL_PARTNERS;
+  /* `blended` lived here: under an all-partners scope the amounts blend
+     per-partner rates, so a single "%" descriptor would not reconcile with the
+     figure, and the tag said "per-partner rates" instead. The admin tag no
+     longer states a rate at all, because the tile is now Commission PAYABLE
+     split by who is owed rather than a rate applied to a fee, so there is
+     nothing left for it to qualify. */
 
   // THE ESTATE. One of our agencies has no supplier above it, so every
   // partner-commission figure on this screen is a structural zero. Read off the
@@ -280,13 +289,21 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     // standard, and the basis is three weeks, not a month. All of which is how
     // OPNDOOR reads this tile; an agency's carries no rate at all, for the reason
     // set out at agencyFacing above.
-    commLbl: agencyFacing ? 'Commission (agreed terms)' : 'Commission earned',
+    /* PAYABLE, FOR OPNDOOR. An admin reading this page is not looking at what
+       opndoor EARNED, they are looking at what it owes out, which is a
+       different number: the house route's partner cut is opndoor's own margin
+       and is not owed to anybody. supplierCommNet excludes it. An agency's own
+       tile is unchanged and still reads as their agreed terms. */
+    commLbl: agencyFacing ? 'Commission (agreed terms)' : ownOnly ? 'Commission earned' : 'Commission payable',
     commTag: agencyFacing
       ? `${sourcePrefix}net of refunds`
       : ownOnly || noPartner
       ? `${sourcePrefix}${aPct} of ${basisPhrase}, net of refunds`
-      : blended ? `Partner commission · per-partner rates, net of refunds` : `Partner · ${pPct} of ${basisPhrase}, net of refunds`,
-    commHeadline: ownOnly || noPartner ? fmtMoney(a.agentCommNet) : fmtMoney(a.partnerCommNet),
+      // No "partner" pill on the admin tile: the split below names who is owed,
+      // and "partner" is our word for one of the two kinds.
+      : 'Net of refunds',
+    commHeadline: ownOnly || noPartner ? fmtMoney(a.agentCommNet)
+      : fmtMoney(a.agentCommNet + a.supplierCommNet),
     // Rate-free for an agency even though commSecondShown is false for them and
     // this string is not currently drawn: the rule is about the TILE, and the
     // next person to draw a second line there must not smuggle the blend back in.
@@ -294,9 +311,14 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
       ? 'Agent commission (net of refunds)'
       : ownOnly
       ? `Passed to opndoor as partner (${pPct}, net)`
-      : blended ? 'Agent commission (per-partner rates, net of refunds)' : `Agent commission (${aPct} of ${basisPhrase}, net)`,
+      : 'Agencies',
     commSecondVal: ownOnly ? fmtMoney(a.partnerCommNet) : fmtMoney(a.agentCommNet),
     commSecondShown: !noPartner,
+    // The other half of the payable split. Admin only: an agency has no
+    // suppliers and a single-partner reader is looking at their own cut.
+    commThirdLbl: 'Suppliers',
+    commThirdVal: fmtMoney(a.supplierCommNet),
+    commThirdShown: !agencyFacing && !ownOnly && !noPartner,
     commExcl: signedNeg(a.partnerCommExcl + a.agentCommExcl),
     commExclDetail: noPartner
       ? fmtMoney(a.agentCommExcl)
@@ -393,11 +415,11 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
      so this is where the figure has to not be computed: there is no aggregate
      upstream to have zeroed. */
   const comm: CommissionPart = !seesComm ? NO_COMMISSION : {
-    commLbl: agencyFacing ? 'Commission (agreed terms)' : 'Commission earned to date',
+    commLbl: agencyFacing ? 'Commission (agreed terms)' : ownOnly ? 'Commission earned to date' : 'Commission payable',
     // No frozen lines to name a source from here and no refunds in the model, so
     // the agency tag is the bare "whose money is this", with no rate.
     commTag: agencyFacing ? 'Agent commission'
-      : ownOnly ? `Your agent commission · ${aPct} of one month's rent` : `Partner · ${pPct} of one month's rent`,
+      : ownOnly ? `Your agent commission · ${aPct} of one month's rent` : 'Net of refunds',
     /* THE HEADLINE IS THE READER'S OWN MONEY, as it already is on the live path.
        This branched on isRef alone, so an agency DIRECTOR was handed the partner
        cut as their headline with their own commission demoted underneath. Live
@@ -408,8 +430,15 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
        a promise, so the mock path now answers the same way the real one does. */
     commHeadline: ownOnly || agencyFacing ? fmtMoney(feesNum * rates.agent) : fmtMoney(feesNum * rates.partner),
     commSecondLbl: agencyFacing ? 'Agent commission'
-      : ownOnly ? `Passed to opndoor as partner (${pPct})` : `Agent commission (${aPct} of one month's rent)`,
+      : ownOnly ? `Passed to opndoor as partner (${pPct})` : 'Agencies',
     commSecondVal: ownOnly ? fmtMoney(feesNum * rates.partner) : fmtMoney(feesNum * rates.agent),
+    /* The synthetic model has no notion of a house route, so every partner in
+       it is a real supplier and the payable split is the pair it already had.
+       Mock and demo therefore read the same words as live rather than a
+       different tile. */
+    commThirdLbl: 'Suppliers',
+    commThirdVal: fmtMoney(feesNum * rates.partner),
+    commThirdShown: !agencyFacing && !ownOnly,
     // The synthetic model prices every referral at one month's rent by
     // construction, so it always has a partner line and a single basis. One of
     // our own agencies is the exception: there is no supplier above them, and a

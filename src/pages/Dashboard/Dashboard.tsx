@@ -647,6 +647,16 @@ export function Dashboard() {
                   <span style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 18, color: 'var(--ink)' }}>{d.commSecondVal}</span>
                 </div>
               )}
+              {/* THE OTHER HALF OF THE PAYABLE SPLIT, for an admin. The headline
+                  is what opndoor owes out; these two say to whom. Suppliers
+                  excludes the house route, whose partner cut is opndoor's own
+                  margin and is not owed to anybody. */}
+              {d.commThirdShown && (
+                <div style={{ paddingTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <span className="muted" style={{ fontSize: 13 }}>{d.commThirdLbl}</span>
+                  <span style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 18, color: 'var(--ink)' }}>{d.commThirdVal}</span>
+                </div>
+              )}
               {d.live && d.refundCount > 0 && (
                 <div className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>{d.commExclDetail} excluded on refunded fees</div>
               )}

@@ -132,14 +132,22 @@ describe('the dashboard a director at one of our agencies reads', () => {
 });
 
 describe('the same agency, read by Opndoor', () => {
-  it('keeps the partner table and the effective rate for an admin scoped to it', async () => {
+  it('keeps the partner table for an admin scoped to it, and reads payable', async () => {
     // Same partner, same rail, same single row: the only thing that changes is
     // who is reading, which is the whole point of asking isAgencyUser.
     const view = await openDashboard('superadmin', AGENCY_PARTNER);
     expect(view.container.textContent).toMatch(/Commission by partner/);
     const tile = commissionTile(view);
-    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Commission earned');
-    expect(tile.textContent).toContain('%');
+    /* PAYABLE, NOT EARNED. An admin reading this page is looking at what
+       opndoor owes out, which is a different number from what it earned: the
+       house route's partner cut is opndoor's own margin and is owed to nobody.
+       This asserted "Commission earned" and a rate in the tile; the rate has
+       moved off it, because the tile is now a total split by who is owed
+       rather than a rate applied to a fee. The effective rate is still on the
+       Commission by partner table above, which is where a rate belongs and
+       which the first assertion still covers. */
+    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Commission payable');
+    expect(tile.textContent).not.toMatch(/\bPartner ·/);
   });
 });
 

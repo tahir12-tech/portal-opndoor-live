@@ -41,6 +41,7 @@ import { getPartner, getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
 import { payeesFor, orgRate, totalRate, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
 import { deliveryStateOf } from './deliveryState';
+import { isHousePartner } from './channel';
 import type { CommissionSource } from './types';
 
 /**
@@ -105,6 +106,12 @@ export interface LiveAgg {
   feesNet: number;
   guaranteed: number; // annualised rent over deeds issued in the period
   partnerCommNet: number;
+  /* COMMISSION PAYABLE TO A REAL SUPPLIER, which is not the same as the
+     partner cut. On the agent rail the "partner" is the house route
+     opndoor-agents, so that cut is opndoor's OWN margin and is not owed to
+     anybody. Summing it under a heading that says payable would state
+     opndoor's revenue as money leaving the business. */
+  supplierCommNet: number;
   agentCommNet: number;
   partnerCommExcl: number; // commission excluded because the fee was refunded (in period)
   agentCommExcl: number;
@@ -149,7 +156,7 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
   const set = scopeFull(allFull(), role, scope).filter((x) => !x.withdrawn && !x.expired);
   const a: LiveAgg = {
     sent: 0, paid: 0, deed: 0, feesGross: 0, refundValue: 0, refundCount: 0, feesNet: 0,
-    guaranteed: 0, partnerCommNet: 0, agentCommNet: 0, partnerCommExcl: 0, agentCommExcl: 0,
+    guaranteed: 0, partnerCommNet: 0, supplierCommNet: 0, agentCommNet: 0, partnerCommExcl: 0, agentCommExcl: 0,
     stuckSent: 0, stuckPaid: 0, awaiting: 0, awaitingAged: 0, avgRent: 0,
     avgSentToPaidDays: null, avgPaidToDeedDays: null, bookSize: set.length,
     sentTenancies: 0, paidTenancies: 0,
@@ -207,6 +214,10 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
         a.agentCommExcl += feeBaseFor(app) * r.agent;
       } else {
         a.partnerCommNet += feeBaseFor(app) * r.partner;
+        // Only a genuine supplier is owed the partner cut; a house route's is
+        // opndoor's own margin. isHousePartner is the same test every screen
+        // uses to keep plumbing partners off it.
+        if (!isHousePartner(app.partner)) a.supplierCommNet += feeBaseFor(app) * r.partner;
         a.agentCommNet += feeBaseFor(app) * r.agent;
       }
     }
