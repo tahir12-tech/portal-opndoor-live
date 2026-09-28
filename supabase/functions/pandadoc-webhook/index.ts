@@ -258,8 +258,17 @@ Deno.serve(async (req) => {
           // address the tenant gave, on every rail, with no verification gate: if it
           // bounces, that surfaces as a failed delivery on the needs-attention surface,
           // which is enough. Sandbox still sends nothing.
+          /* EVERY ROW, not the first. deed_delivery_target returns one row per
+             recipient on the agency rail now -- the referrer and every ticked
+             user whose position covers the referral -- because the deed is a
+             per-application notification like the expiry reminder, and those
+             already go to the whole ladder. The other two rails return one row,
+             so `dest` below is unchanged for them. */
           const { data: target, error: targetErr } = await service.rpc("deed_delivery_target", { p_application: app.id });
-          const dest = Array.isArray(target) ? target[0] : target;
+          const targets = (Array.isArray(target) ? target : target ? [target] : [])
+            .filter((t: { email?: string | null }) => (t.email ?? "").trim().length > 0);
+          const dest = targets[0] ?? (Array.isArray(target) ? target[0] : target);
+          const alsoTo = targets.slice(1).map((t: { email: string }) => t.email);
           /* An unread ladder is not an empty one. Discarding this error made a
              transient RPC failure indistinguishable from "this agency has
              nobody", and that branch writes "No agent contact on file" into the
@@ -314,7 +323,7 @@ Deno.serve(async (req) => {
               tenancyStart: app.tenancy_start ?? null,
               agencyName,
               pdfPath: path,
-            }, { email: dest.email, name: dest.display_name ?? "" }, "automatic");
+            }, { email: dest.email, name: dest.display_name ?? "", also: alsoTo }, "automatic");
             // THE ONE STATE THAT COULD NEVER BE REACHED. record_delivery_attempt
             // and the four columns behind it were added by 20261005100000 to
             // separate "a send was attempted and errored" from "there was nobody

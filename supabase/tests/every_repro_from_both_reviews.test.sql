@@ -34,7 +34,7 @@
 -- never running.
 
 begin;
-select plan(41);
+select plan(43);
 
 -- ===========================================================================
 -- THE FIXTURE: Ours and Theirs, on the same route.
@@ -396,6 +396,37 @@ reset role;
 select is((select kind from public.user_scopes where user_id = '96000000-0000-0000-0000-00000000cf01'),
   'branch',
   'and the new person arrives holding the position, in the same transaction as their row');
+
+-- ===========================================================================
+-- REPRO 8: `not A and B` IS NOT `not (A and B)`
+-- ===========================================================================
+-- agency_match_queue is SECURITY DEFINER with no org predicate at all, and a
+-- string substitution turned its staff-only guard into
+--   if not is_opndoor_staff() and is_aal2() then raise
+-- which refuses a non-staff caller only if they HAVE stepped up. Reproduced
+-- on dev: an agency Negotiator on a password-only session read the whole
+-- direct-rail match queue, and the same person stepped up was refused.
+-- Exactly inverted. A tenant holds a real session too, so the direct-rail
+-- pipeline was readable by the tenants in it.
+--
+-- Asserted at both AAL levels, because one of them passed while it was broken.
+reset role;
+select set_config('request.jwt.claims',
+  '{"sub":"96000000-0000-0000-0000-00000000c002","role":"authenticated","aal":"aal1"}', true);
+set local role authenticated;
+select throws_ok(
+  $$select * from public.agency_match_queue()$$,
+  '42501', null,
+  'a password-only agency session cannot read the direct-rail match queue');
+
+reset role;
+select set_config('request.jwt.claims',
+  '{"sub":"96000000-0000-0000-0000-00000000c002","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+select throws_ok(
+  $$select * from public.agency_match_queue()$$,
+  '42501', null,
+  'and neither can the same person once they have stepped up');
 
 select * from finish();
 rollback;

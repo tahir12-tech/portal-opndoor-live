@@ -128,6 +128,30 @@ export function mayActOn(actor: Actor, target: Actor): boolean {
   return a != null && t != null && a < t;
 }
 
+/**
+ * May this actor set a per-person setting on this person: AT OR BELOW their
+ * own level, in contrast to mayActOn, which is strictly below.
+ *
+ * The difference is not an oversight in either. mayActOn governs things done
+ * TO somebody -- deactivate, reset their MFA, change their level -- and a peer
+ * is not somebody you do those to. This governs a setting about who is copied
+ * on referrals, where set_receives_notifications deliberately admits a peer
+ * and the person themselves: a Manager may tick a fellow Manager, and anybody
+ * may tick themselves.
+ *
+ * Gating the control on mayActOn instead hid it from every Manager on a team
+ * of Managers, and from everybody looking at their own row, while SQL would
+ * happily have accepted the change. A control narrower than its rule is a
+ * feature somebody was told they had and cannot find.
+ */
+export function mayActOnOrEqual(actor: Actor, target: Actor): boolean {
+  if (actor.id && target.id && actor.id === target.id) return true;
+  const a = levelRank(actor.role, actor.seesCommission);
+  if (a === 0) return true;                       // opndoor staff, above all three
+  const t = levelRank(target.role, target.seesCommission);
+  return a != null && t != null && a <= t;
+}
+
 /** The levels this actor may hand out: at or below their own. Drives the invite
     dialog and the Change level chooser. */
 export function levelsGrantableBy(actor: Actor): typeof AGENCY_LEVELS {

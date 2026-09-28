@@ -29,7 +29,12 @@ export interface DeedTarget {
   pdfPath: string | null;
 }
 
-export interface DeedRecipient { email: string; name: string }
+/* ONE SEND, EVERY RECIPIENT. `email` stays for the primary, because the
+   activity line and the "sent to" on screen name one person, and `also` is
+   everybody else the ladder resolved. On the agency rail that is the referrer
+   plus every ticked user whose position covers the referral; on the other two
+   rails it is empty, because those rails have one contact. */
+export interface DeedRecipient { email: string; name: string; also?: string[] }
 
 export async function deliverDeedToAgent(service: any, target: DeedTarget, recipient: DeedRecipient, mode: string): Promise<SendResult> {
   // The signed deed rides as an ATTACHMENT now, not a download link. The PDF is
@@ -120,14 +125,19 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
       small: `Wrong tenancy start date? <a href="${correctionUrl}">Change it here</a>.`,
     }];
   }
-  const res = await sendMessage({ to: recipient.email, message, attachments });
+  // One message with each of them as a recipient, not one message each: the
+  // deed is a single event, and the people on it should see who else has it.
+  const everyone = [recipient.email, ...(recipient.also ?? [])]
+    .map((e) => (e ?? '').trim())
+    .filter((e, i, xs) => e.length > 0 && xs.indexOf(e) === i);
+  const res = await sendMessage({ to: everyone, message, attachments });
 
   // Partner-safe business entry names the intended agent contact; the test-mode
   // redirect target stays admin-only (a separate internal entry).
   await service.from("activity_log").insert({
     application_id: target.appId,
     kind: res.ok ? "deed_delivered" : "deed_delivery_failed",
-    message: res.ok ? `Deed sent to ${recipient.email} · ${mode}` : `Deed email to the agent could not be sent: ${res.error}`,
+    message: res.ok ? `Deed sent to ${everyone.join(", ")} · ${mode}` : `Deed email to the agent could not be sent: ${res.error}`,
     actor: "System",
     visibility: res.ok ? "business" : "internal",
   });

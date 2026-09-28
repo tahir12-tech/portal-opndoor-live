@@ -199,3 +199,31 @@
   .tm-filters select { flex: 1 1 calc(50% - 5px); }
   .tm-filters__state { margin-left: 0; width: 100%; }
 }
+
+/* WHO IS COPIED. The tickbox sits between the position and the row actions,
+   because it is a fact about the person's remit rather than an action taken
+   against them. It collapses with the position on a narrow screen for the
+   same reason. */
+.tm-notify-note {
+  margin: 0 0 12px;
+  color: var(--ink-mute);
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 68ch;
+}
+.tm-person__notify {
+  display: inline-flex;
+  align-items: center;
+  min-width: 96px;
+  font-size: 13px;
+}
+.tm-notify {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.tm-notify input { cursor: pointer; }
+@media (max-width: 900px) {
+  .tm-person__notify { min-width: 0; }
+}

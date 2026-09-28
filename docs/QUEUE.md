@@ -40,7 +40,7 @@ already given. Any of them can be reversed by saying so.
 | id | item | status |
 | --- | --- | --- |
 | Q-01 | The security loop | in progress |
-| Q-01b | The deed goes to the referrer AND every ticked user in scope | in progress |
+| Q-01b | The deed goes to the referrer AND every ticked user in scope | **done** |
 | Q-02 | Supplier rail notifications | todo |
 | Q-03 | Notification settings per party | todo |
 | Q-04 | Opndoor internal notification routing | todo |
@@ -255,8 +255,17 @@ filename order into a fresh database. It would not have caught (2) or (3).
 ---
 ## Q-01b. The deed goes to the referrer AND every ticked user in scope
 
-**Status: in progress.** Part of the agency-rail notification rule, and a
-correction to how `deed_delivery_target` resolves it.
+**Status: done.** `20261006450000`, plus the Team-side control and two test
+files.
+
+| Part | Proof |
+| --- | --- |
+| The resolver is plural on the agency rail | `deed_delivery_target` returns one row per recipient there and one row on the other two rails. `supabase/tests/the_ticked_user_gets_the_deed.test.sql`, 13 assertions. **Four of them fail against the old `limit 1` resolver**, verified by restoring it in a rolled-back transaction. |
+| One send, each as a recipient | `_shared/deedEmail.ts` takes `also[]` and sends one message to all of them; `pandadoc-webhook` passes every row; `send_deed_to_agent` returns the whole list and the manual button uses it. |
+| Fallbacks unchanged | The ladder is `agency_notification_recipients`, untouched. Asserted: with the referrer deactivated the deed goes to the ticked user in scope and not to the branch mailbox. |
+| The tickbox on the agency People tab | Already existed: `src/pages/Agencies/AgencyHome.tsx:862` (control), `:819` (the note), `:520` (handler). Opndoor admin reaches this screen. |
+| The tickbox on Team | **Did not exist and now does**: `src/pages/Team/Team.tsx`, in the person row between the position and the actions, with the shared note above the list. `src/pages/Team/notificationTickbox.render.test.tsx`, 5 assertions, **all failing before the control existed**. |
+| Who may tick | The row gate is `mayActOnOrEqual`, a new predicate in `src/data/types.ts`. `mayActOn` is strictly-below and governs things done TO somebody; `set_receives_notifications` admits a peer and yourself. Gating on `mayActOn` hid the control from every Manager on a team of Managers. |
 
 ### The instruction, verbatim (2026-09-28)
 

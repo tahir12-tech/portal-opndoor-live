@@ -82,7 +82,15 @@ Deno.serve(async (req) => {
       tenancyStart: app.tenancy_start ?? null,
       agencyName,
       pdfPath: app.executed_pdf_path,
-    }, { email: sentTo, name: recipientName }, `sent by ${actor}`);
+      /* The RPC returns the whole ladder in `recipients`, referrer first. An
+         override addresses one person and carries no copies; without one, the
+         button sends to exactly who the automatic path sends to, which is the
+         reason send_deed_to_agent exists at all. */
+    }, {
+      email: sentTo,
+      name: recipientName,
+      also: ((resolved?.recipients as string[] | undefined) ?? []).filter((e) => e !== sentTo),
+    }, `sent by ${actor}`);
 
     // WRITE DOWN THE ATTEMPT, both outcomes. record_delivery_attempt is the
     // only thing that sets delivery_failed_at, and nothing in the tree called
