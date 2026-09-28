@@ -15,6 +15,26 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## How I am working (standing instruction, 2026-09-29, verbatim)
+
+> From now until the queue is empty, work without stopping for me. For every decision: if QUEUE.md or an earlier ruling answers it, apply it. If not, make the choice most consistent with the five rules and my earlier rulings, write it under "Decisions taken without Matt" at the top of QUEUE.md with one line of reasoning, and carry on. Only stop for something irreversible outside dev: pushing, touching production, deleting data that isn't test data, or spending money. Never mark an item done without a test that failed first. If the session is running out, commit, update QUEUE.md with exactly where you are, and end with "Resume: read docs/QUEUE.md". Work through the whole queue in order.
+
+---
+
+## Decisions taken without Matt
+
+Each is the reading most consistent with the five rules and the rulings
+already given. Any of them can be reversed by saying so.
+
+| # | Decision | Reasoning |
+| --- | --- | --- |
+| D1 | `deed_delivery_target` returns one row PER RECIPIENT on the agency rail and one row on the other two. | The rule names a list on the agency rail and a single contact on the others. Making the resolver plural everywhere would invent a list for rails that have one contact. |
+| D2 | The deed is ONE email with every recipient on it, not one email each. | Matt's words: "as one send with each as a recipient". It also lets the people on it see who else holds the deed. |
+| D3 | `auto_send` and `verified` are repeated unchanged on every row rather than made per-recipient. | Both answer questions about the application (may this send automatically, did the tenant verify the address), not about a person. |
+| D4 | A one-off override address on the manual send suppresses the copies. | An override is "send this to this person"; fanning it out to the ladder as well would be a second, unasked-for send. The resolved ladder is still reported to the screen as `resolved_contact`. |
+
+---
+
 ## Order of work
 
 | id | item | status |
