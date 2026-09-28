@@ -1551,6 +1551,59 @@ const SOURCE_WORD: Record<string, string> = {
 };
 
 /**
+ * EVERY PAYEE'S MONTH, IN ONE SHEET.
+ *
+ * The statement panel exports one payee at a time, which is right for sending
+ * a payee their own paperwork and wrong for the month-end job: an admin
+ * reconciling October wanted every line once, not one download per agency.
+ *
+ * ONE ROW PER LINE, with the payee named on each, so the sheet sorts and
+ * subtotals in the reader's own spreadsheet. Every column is drawn, without
+ * the collapse rule the per-payee documents apply: a column that says the same
+ * thing on one payee's statement says different things down a sheet holding
+ * all of them, and a reader pivoting on Branch cannot pivot on a column that
+ * was dropped for being constant somewhere else.
+ *
+ * Gated exactly as the per-payee builder is, and by the same function: this is
+ * the same money, and a second rule here is a second place for it to be wrong.
+ */
+export function buildAllStatementsCsv(
+  role: Role, scope: PartnerScope, monthKey: string,
+): { csv: string; filename: string } | null {
+  if (!maySeeCommission(role)) return null;
+  const statements = getCommissionStatements(role, scope, monthKey)
+    // The same rule the panel lists by: a party with no commission has no
+    // statement, so it has no rows here either.
+    .filter((st) => st.total > 0 && st.lines.length > 0);
+  if (!statements.length) return null;
+
+  const rows: CsvRow[] = [[
+    'Payee', 'Payee level', 'Month', 'Reference', 'Tenant', 'Branch', 'Tenancy',
+    'Share', 'Paid', 'Fee charged', 'Rate', 'Source', 'Commission',
+  ]];
+  for (const st of statements) {
+    for (const l of st.lines) {
+      rows.push([
+        st.payeeName,
+        st.level,
+        st.monthLabel,
+        l.ref,
+        l.tenant,
+        l.branch || EMPTY,
+        l.tenancyPlace ? `Joint, ${l.tenancyPlace}` : 'Single',
+        l.sharePercent == null ? '100%' : `${l.sharePercent}%`,
+        dmy(l.paidAt),
+        money(l.fee),
+        String(l.rate),
+        l.source ? (SOURCE_WORD[l.source] ?? l.source) : 'Not recorded',
+        money(l.commission),
+      ]);
+    }
+  }
+  return { csv: toCSV(rows), filename: `opndoor-commission-statements-${monthKey}.csv` };
+}
+
+/**
  * One payee's commission statement for one month.
  *
  * payeeKey addresses the payee, not a name: an agency and a branch may share a

@@ -66,3 +66,14 @@
   border-top: 2px solid var(--ink);
   padding-top: 10px;
 }
+
+/* THE MONTH AS A LIST OF PAYEES, with one opened out of it. */
+.stmt__tools { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.stmt-list__tools { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.stmt-list__q { flex: 1 1 200px; max-width: 280px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+.stmt-list__row { cursor: pointer; }
+.stmt-list__row:hover { background: var(--white-lilac); }
+.stmt-list__name { border: none; background: none; padding: 0; font-size: 13.5px; font-weight: 700; color: var(--heliotrope-deep); cursor: pointer; text-align: left; }
+.stmt-list__name:hover { text-decoration: underline; }
+.stmt__back { display: inline-flex; align-items: center; gap: 5px; border: none; background: none; padding: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--ink-mute); cursor: pointer; }
+.stmt__back:hover { color: var(--heliotrope-deep); }

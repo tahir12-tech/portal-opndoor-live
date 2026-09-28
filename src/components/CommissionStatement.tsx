@@ -22,7 +22,8 @@
    ===================================================================== */
 import { useEffect, useMemo, useState } from 'react';
 import {
-  buildCommissionStatementDoc, exportBranded, getCommissionStatements, maySeeCommission,
+  buildAllStatementsCsv, buildCommissionStatementDoc, downloadCsv, exportBranded,
+  getCommissionStatements, maySeeCommission,
   statementMonths, type CommissionStatement as Statement,
 } from '@/data';
 import type { PartnerScope, Role } from '@/data';
@@ -149,8 +150,37 @@ function StatementPanel({
   const statements: Statement[] = useMemo(() => {
     if (!monthKey) return [];
     const all = getCommissionStatements(role, scope, monthKey);
-    return orgId ? all.filter((s) => s.orgId === orgId) : all;
+    const mine = orgId ? all.filter((s) => s.orgId === orgId) : all;
+    /* NO STATEMENT FOR A PARTY WITH NO COMMISSION. The direct route hangs off a
+       placeholder agency called "Unattached", which earns nobody anything and
+       appeared in this list every month as a payee with a zero total: a
+       statement for a party that is not a party, about money that does not
+       exist. Sorted by total because that is the order the month is read in. */
+    return mine
+      .filter((s) => s.total > 0 && s.lines.length > 0)
+      .sort((a, b) => b.total - a.total);
   }, [role, scope, monthKey, orgId]);
+
+  /* WHICH PAYEE IS OPEN. The panel used to stack every payee's full table down
+     one page: on a book with thirty agencies that is thirty tables, and finding
+     one of them meant scrolling past the other twenty-nine. The list is the
+     month; a payee is opened out of it.
+
+     ONE PAYEE NEEDS NO LIST. The agency Commission tab passes orgId and gets a
+     single statement, which is what a link from that tab should land on. */
+  const [openPayee, setOpenPayee] = useState<string | null>(null);
+  const [q, setQ] = useState('');
+  const single = !!orgId || statements.length === 1;
+  const shown = single ? statements : statements.filter((s) => s.payeeKey === openPayee);
+  // A payee that vanishes under the reader (month changed, book re-hydrated)
+  // must not leave the panel showing nothing with no way back to the list.
+  useEffect(() => {
+    if (openPayee && !statements.some((s) => s.payeeKey === openPayee)) setOpenPayee(null);
+  }, [statements, openPayee]);
+  const listed = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return needle ? statements.filter((s) => s.payeeName.toLowerCase().includes(needle)) : statements;
+  }, [statements, q]);
 
   if (!months.length) {
     return (
@@ -172,18 +202,73 @@ function StatementPanel({
         title={title}
         sub="Every application that paid in the month, what it was charged, and the commission it earned. Net of refunds, and the same figures as settlement."
         actions={
-          <PeriodSelect
-            ariaLabel="Statement month"
-            value={monthKey}
-            onChange={setMonthKey}
-            options={months.map((m) => ({ value: m.key, label: m.label }))}
-          />
+          <span className="stmt__tools">
+            {/* ONE FILE FOR THE MONTH. Per-payee Export sends a payee their own
+                paperwork; this is the month-end job, and doing it one agency at
+                a time was thirty downloads. */}
+            {!single && statements.length > 0 && (
+              <Button
+                variant="ghost" size="sm"
+                title={`Every payee's ${months.find((m) => m.key === monthKey)?.label ?? 'month'} lines in one sheet.`}
+                onClick={() => {
+                  const out = buildAllStatementsCsv(role, scope, monthKey);
+                  if (out) downloadCsv(out.csv, out.filename);
+                }}
+              >
+                <Icon name="download" /> Export all
+              </Button>
+            )}
+            <PeriodSelect
+              ariaLabel="Statement month"
+              value={monthKey}
+              onChange={setMonthKey}
+              options={months.map((m) => ({ value: m.key, label: m.label }))}
+            />
+          </span>
         }
       />
       <CardBody>
         {statements.length === 0 ? (
           <p className="muted" style={{ fontSize: 13.5 }}>No commission accrued in this month.</p>
-        ) : statements.map((st) => {
+        ) : !single && !openPayee ? (
+          /* THE MONTH, AS A LIST OF WHO IS OWED WHAT. */
+          <div className="stmt-list">
+            <div className="stmt-list__tools">
+              <input
+                type="text" className="stmt-list__q" placeholder="Search payee"
+                aria-label="Search payee" value={q} onChange={(e) => setQ(e.target.value)}
+              />
+              <span className="muted" style={{ fontSize: 12.5 }}>
+                {listed.length} of {statements.length} {statements.length === 1 ? 'payee' : 'payees'}
+              </span>
+            </div>
+            {listed.length === 0 ? (
+              <p className="muted" style={{ fontSize: 13.5 }}>No payee matches that search.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="stmt__table">
+                  <thead>
+                    <tr><th>Payee</th><th>Level</th><th className="num">Applications</th><th className="num">Total</th></tr>
+                  </thead>
+                  <tbody>
+                    {listed.map((st) => (
+                      <tr key={st.payeeKey} className="stmt-list__row" onClick={() => setOpenPayee(st.payeeKey)}>
+                        <td>
+                          <button className="stmt-list__name" onClick={(e) => { e.stopPropagation(); setOpenPayee(st.payeeKey); }}>
+                            {st.payeeName}
+                          </button>
+                        </td>
+                        <td className="muted">{st.level === 'agency' ? 'Agency' : st.level === 'group' ? 'Group' : 'Branch'}</td>
+                        <td className="num">{st.lines.length}</td>
+                        <td className="num">{money(st.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : shown.map((st) => {
           // PER PAYEE, not per screen. Two payees in the same month can have
           // different answers, and each block may only say what its own lines
           // say: a group with two branches keeps the column that the branch
@@ -194,6 +279,11 @@ function StatementPanel({
             <div key={st.payeeKey} className="stmt">
               <div className="stmt__head">
                 <div>
+                  {!single && (
+                    <button className="stmt__back" onClick={() => setOpenPayee(null)}>
+                      <Icon name="arrowLeft" size={13} /> All payees
+                    </button>
+                  )}
                   <div className="stmt__payee">{st.payeeName}</div>
                   <div className="stmt__level">{st.level === 'agency' ? 'Agency' : st.level === 'group' ? 'Group' : 'Branch'} · {st.monthLabel}</div>
                   {/* TWO LINES, ALWAYS. A third used to appear here whenever a
