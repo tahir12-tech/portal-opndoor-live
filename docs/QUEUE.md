@@ -253,6 +253,31 @@ CI would have caught (1), because `supabase db start` applies migrations in
 filename order into a fresh database. It would not have caught (2) or (3).
 
 ---
+### Round 5's findings (2026-09-29)
+
+A fifth fresh reviewer, told to look for LOCKS as well as holes. One critical,
+four high, nine medium, twelve low. The critical and the deed gap are fixed
+(`20261006440000`, `20261006450000`, commit 489ad78); the rest are below.
+
+| # | Finding | Status |
+| --- | --- | --- |
+| C1 | `agency_match_queue` operator precedence inverted its guard: a password-only session, including a tenant's, read the direct-rail queue. | **done** `20261006440000` |
+| H2 | `pricing_agreements` is readable by Managers and Negotiators and states `agent_rate`. The restrictive `may_see_commission()` policy was added to its three child tables and not to the parent. | todo |
+| H3 | LOCK: "Resend invite" can never succeed on the estate. `usersService` sends no scope, and invite-user's position requirement fires before the re-invite branch. | todo |
+| H4 | `commission_statement_recipients` still has no level test. My `20261006410000` changed the comment and not the SQL. | todo |
+| H5 | `agreement_volume` counts direct-rail applications toward an agency's negotiated volume, and therefore its commission tier. | todo |
+| M6 | `referencing-inbound` reads livemode off the token and the creator hardcodes `true`, so a sandbox token mints a live application. | todo |
+| M7 | `referrerNotify` has no livemode test, so sandbox applications send real Opndoor email. | todo |
+| M8 | `admin_update_user_role` skips `assert_may_grant_level` and never touches `sees_commission`: a Manager can promote somebody to Director, one rank above themselves. | todo |
+| M9 | `application_journey`'s developer arm is bounded by `partner_id` alone; its four `dev_*` siblings were widened and it was missed. | todo |
+| M10 | LOCK: the Users screen cannot invite any management user onto the estate, and can never create a Director. | todo |
+| M11 | Agency onboarding invites its "Group director" as a Manager, so a new agency has nobody who may see commission and nobody who can create one. | todo |
+| M12 | LOCK: the position modal offers Remove (refused by the constraint for an active person) and Add position (which silently deletes the existing one). | todo |
+| M13 | `hubspot-sync` accepts its outbound bearer token from a request header. | todo |
+| M14 | `set_receives_commission_statements` has no level test. | todo |
+| L | Twelve lows: `applications_*` policies lost `to authenticated`; `users_mgmt_insert` has no containment; `create-referral` writes caller-supplied shares; `fire_expiry_reminders` does not filter a deactivated referrer on the supplier rail; `application-document-url` signs any bucket; `staff_payment_page_token` and `agency_branches_for_match` lack the AAL2 step-up; `referrer_league` ranks leavers; ten functions still PUBLIC-executable; `tenant-portal` reads the wrong Stripe key; `may_act_on_user` is strictly-above where two siblings are at-or-below. | todo |
+
+---
 ## Q-01b. The deed goes to the referrer AND every ticked user in scope
 
 **Status: done.** `20261006450000`, plus the Team-side control and two test
