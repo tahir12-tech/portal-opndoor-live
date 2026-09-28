@@ -541,6 +541,45 @@ insert finds nothing, so a second run the same day returns no rows and sends no
 email. Asserted in `supabase/tests/pay_link_outlives_a_day.test.sql`. If you find
 yourself about to delete one of a pair, read this paragraph again.
 
+### 8.0 WHAT CHANGED IN THIS BATCH THAT YOU MUST VERIFY AFTER CUTOVER
+
+Seven migrations in this batch change who receives things and who can see
+things. Two are worth a deliberate check on the clone before you believe the
+rest.
+
+**20261006170000 is the riskiest migration on this branch.** It rescopes
+`applications_select`, `applications_update` and `applications_insert` from the
+partner to the AGENCY, because every agency shares the `opndoor-agents` house
+partner. Get it wrong in one direction and an agency sees nothing; in the other
+and they see each other. On the clone, sign in as one agency's Director and
+confirm they see their own applications and only their own:
+
+```sql
+-- As that Director's session, through the app rather than psql.
+-- Or in psql, impersonating: set the JWT claims and `set local role authenticated`.
+select count(*), count(distinct agency_id) from public.applications;
+```
+
+One agency, and a count that matches what that agency has sent. If it returns
+zero, the person has no `user_scopes` row: give them a position. An
+unpositioned management user now reaches nothing, deliberately, because the
+old fallback was "the whole partner".
+
+**The three scheduled emails are now per reader.** `weekly-digest`,
+`expiry-cohorts` and `expiry-reminders` resolved recipients as every management
+user on the partner and built their content the same way, so on the house route
+each agency received the others' figures, and the cohort CSV carried the
+others' tenants. After the push, the first Monday digest should show one
+agency's numbers to that agency. `partner_digest_sends` and
+`expiry_cohort_sends` gained a `user_id`; rows with a null `user_id` are
+pre-cutover partner-level sends and are expected.
+
+**Expiry reminders start working for the first time.** `fire_expiry_reminders`
+wrote to a column that has never existed and only ever inside its loop body, so
+it was silent every day nothing was due and would have thrown `42703` the first
+day something was. Expect reminder emails to begin, and
+`public.expiry_reminders` to start filling.
+
 ### 8.1 VERIFY THE BASE URL BEFORE YOU TRUST ANY CRON
 
 Four of these jobs end their command with
