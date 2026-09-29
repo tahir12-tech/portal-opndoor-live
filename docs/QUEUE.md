@@ -229,8 +229,100 @@ writing a second helper beside it.
 > 23. Reconciliation, Direct matches: "Set branch" and "Not in network" act immediately. Both need a confirmation box first, saying in plain English what will happen (for example "Link this tenant's agent to Foo Lettings, Foo Central?"). Apply the same rule to any other admin action that changes records in one click. After shipping.
 
 **22b is an explicit, named exception to "do not touch the dev project"** and
-is being done immediately. Read-only: no migration, no write, no restart.
-Findings go under "22b findings" below.
+was done immediately. Read-only: no migration, no schema change, no restart.
+Every timing below ran inside a transaction that was rolled back, so dev is
+unchanged.
+
+#### 22b findings, 2026-09-29
+
+**1. What is slow on dev: `cron_health()`, and only that.**
+`pg_stat_statements` is unambiguous. Everything else on the whole database is
+under 1.4 seconds; this one is twenty.
+
+| statement | calls | mean | max |
+| --- | --- | --- | --- |
+| `cron_health()` (direct) | 75 | **20,315 ms** | **24,092 ms** |
+| `cron_health()` via PostgREST | 58 | 232 ms | 1,353 ms |
+| everything else | -- | -- | < 1,356 ms |
+
+`authenticated` carries `statement_timeout = 8s` (and `anon` 3s), so the
+direct form is three times over the limit.
+
+**2. Why it is slow, and it is not the permission checks.**
+`cron.job_run_details` holds **57,240 rows / 34 MB** and grows forever:
+`partner-webhooks` runs every minute (1,440 rows a day) and `hubspot-sync`
+every two (720 a day), so roughly **2,160 rows a day with nothing deleting
+them**. Its only index is the primary key on `runid` -- there is no index on
+`jobid` or `start_time`. `cron_health()` then correlates each of the 546
+`net._http_response` rows against that table with a LATERAL **range** join:
+
+```
+where d.start_time <= r.created
+  and r.created  <  d.start_time + interval '5 minutes'
+order by d.start_time desc limit 1
+```
+
+A range predicate on an unindexed column, run once per response row. It is
+O(responses x run_details), and run_details grows every minute forever. The
+cost is entirely retention and a missing index; no guard is involved.
+
+**3. Matt's hypothesis is disproved: the permission checks are free.**
+Measured as the Regent Director, the reader with the most to resolve:
+
+| check | time |
+| --- | --- |
+| `app_partner()` | 0.3 ms |
+| `may_see_commission()` | 0.6 ms |
+| `app_role()` | 0.9 ms |
+| `app_scoped_agencies()` (the position lookup) | 1.3 ms |
+| `app_may_reach_branch()` | 2.0 ms |
+
+**4. And no step of either journey is slow.** Every one measured end to end:
+
+| step | Regent (agency) | Kestrel (supplier) |
+| --- | --- | --- |
+| sending a referral (`create_referral`) | 25.2 ms | 6.4 ms |
+| the tenant paying (`apply_stripe_payment`) | 3.2 ms | -- |
+| a refund (`apply_stripe_refund`) | 1.5 ms | -- |
+| deed delivery (`deed_delivery_target`) | 7.9 ms | -- |
+| who is emailed (`notification_recipients`) | 4.7 ms | -- |
+| inviting someone (`create_invited_user`) | 12.6 ms | -- |
+
+And the Reconciliation screen itself: `resolve_agency_match` (the Set branch
+button) **6.7 ms**, `agency_match_queue()` 5.4 ms, `agency_branches_for_match()`
+1.2 ms, `reconciliation_queue()` 3.2 ms.
+
+**5. So I could NOT reproduce Matt's timeout, and I will not pretend
+otherwise.** The Set branch path is single-digit milliseconds, `cron_health`
+is not called from Reconciliation, no cron job takes more than 0.02 s, and
+there were no blocking or idle-in-transaction sessions when I looked. The
+match queue is also empty now -- its one row is `dismissed` -- so the row Matt
+clicked is gone and the exact conditions cannot be recreated. The honest
+conclusion is that the Set branch timeout was **transient**, and the thing
+that IS reproducibly over the limit is `cron_health`.
+
+**6. The go-live consequence, which is the part that matters.**
+This is not a dev-only curiosity. `cron.job_run_details` grows unbounded on
+**any** Supabase project running these jobs, live included, and live has been
+running longer. `cron_health` is granted to `authenticated` and admin-gated,
+so the Health screen gets slower every day and will eventually pass 8 seconds
+there too and simply stop working. There is no retention job for it, although
+the pattern exists already -- `rate-limit-cleanup` runs hourly for exactly
+this kind of housekeeping. **Recorded as B21 in the security backlog.**
+
+**7. A side-finding that shrinks walk-fix item 13.**
+`create_invited_user` already takes `p_scope_kind` and `p_scope_target`:
+
+```
+create_invited_user(p_id uuid, p_email text, p_full_name text, p_role text,
+                    p_partner uuid, p_home_branch uuid, p_sees_commission boolean,
+                    p_scope_kind text, p_scope_target uuid)
+```
+
+So the server can **already** create the invite and the position in one
+transaction, which is exactly what item 13 requires. The invite form simply
+does not pass them. Item 13 is therefore mostly a form change against an RPC
+that is already the right shape, not the server rework it looked like.
 
 **22a's timeout is a PERFORMANCE finding, and performance has not been
 measured once in this entire effort.** Round after round asked whether the
@@ -1090,6 +1182,7 @@ easy it is to fix.
 | B18 | No executed-deed immutability at table level independent of the grant: `deed_state`, `pandadoc_document_id` and the deed timestamps can be co-edited to null while `status` is downgraded. | `applications` | Closed in practice by round 7's A. Worth a constraint if any write path to `applications` ever returns. |
 | B20 | A fee basis is stored as `4.35` with the unit `months`. 4.35 is the number of WEEKS in a month, so the pair reads as 4.35 months -- four months' rent -- where the fee is one. | `resolve_fee`, standard agreements | Found by the walk. Not live: the fee itself is right, and the only renderer, `feeBasisLabel`, checks `is_standard` first and says "one month's rent". It is a quantity and a unit that disagree and only agree because nothing reads them together. Anything NEW that reads the pair -- a statement line, an export column, an API field -- states it wrongly. Not fixed here because it means touching the number every fee derives from. |
 | B12 | `definerAllowlistCoverage` counts a function as covered if its NAME appears in any pgTAP file; it does not require the test to assert a refusal. | `src/data/definerAllowlistCoverage.test.ts` | A weakness in a check, not in the product -- but it is how round 6's H3 would have passed the ratchet. Worth tightening. |
+| B21 | **`cron.job_run_details` grows forever and nothing prunes it, and `cron_health()` scans it with an unindexed range join.** 57,240 rows / 34 MB on dev, growing ~2,160 a day; `cron_health()` measured at a **20.3 s mean, 24.1 s max**, against an 8 s `statement_timeout` for `authenticated`. | `cron_health`; `cron.job_run_details` (only index is the `runid` primary key) | Found by 22b. **The first performance finding in this whole effort** -- every round asked whether the guards were right, none asked what they cost, and the answer turns out to be that the guards are free (0.3-2 ms) and the ops housekeeping is not. Not blocking because it degrades one admin-only screen (Health) rather than any customer path, and every step of the Regent and supplier journeys measured in single-digit milliseconds. **But it applies to LIVE as well as dev** -- the same jobs run there and have run longer -- so the Health screen will eventually exceed the timeout in production and stop working. Two cheap fixes, either sufficient: a retention job (the `rate-limit-cleanup` hourly job is the existing pattern) and/or an index on `(jobid, start_time)`. |
 
 ---
 
