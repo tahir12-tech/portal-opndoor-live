@@ -15,6 +15,7 @@
    ===================================================================== */
 import { createAgencyWithBranch, createBranchLive, createAgencyGroup, deleteOrgShape, findAgency, setNodeRate } from './orgService';
 import { inviteUser } from './usersService';
+import { AGENCY_LEVELS } from './types';
 
 export interface BranchSpec { name: string; area?: string }
 export interface AgencySpec {
@@ -100,11 +101,26 @@ export async function createOrgShape(input: {
       const idx = inv.agencyIndex ?? 0;
       const scopeTarget = inv.level === 'group' ? made.groupId : made.agencyIds[idx];
       if (!scopeTarget) throw new Error('There is nothing to place that invitation against.');
+      /* THE FIRST PERSON ON A NEW ORG IS ITS DIRECTOR. Round 5, M11.
+         This sent `role: 'management'` and no commission bit, and Director and
+         Manager are the same role differing only by that bit, so the dialog's
+         own "Group director" option created a Manager.
+
+         It is not only the label being wrong. A Manager may not see commission,
+         and granting a level requires holding it (assert_may_grant_level), so a
+         newly created agency whose only person is a Manager has nobody who can
+         see what it earns and nobody who can promote anyone to it. The org
+         arrives unable to staff itself and needs Opndoor to unstick it.
+
+         The pair comes off AGENCY_LEVELS rather than being written here, so
+         this cannot drift from the Team and Users dialogs. */
+      const director = AGENCY_LEVELS.find((l) => l.level === 'Director')!;
       await inviteUser({
         firstName: inv.firstName?.trim() ?? '',
         lastName: inv.lastName?.trim() ?? '',
         email: inv.email.trim(),
-        role: 'management',
+        role: director.role,
+        seesCommission: director.seesCommission,
         partner: input.partner,
         scopeKind: inv.level === 'branch' ? 'branch' : inv.level,
         scopeTarget,

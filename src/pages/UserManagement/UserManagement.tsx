@@ -14,7 +14,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { PositionModal, type ScopeTarget } from './PositionModal';
 import * as positionsService from '@/data/positionsService';
-import { getAgencies, getGroups, mayActOn, type Actor } from '@/data';
+import { getAgencies, getGroups, levelsGrantableBy, mayActOn, type Actor, type AgencyLevel } from '@/data';
+import { isHousePartner } from '@/data/channel';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -129,6 +130,15 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   const [addRole, setAddRole] = useState<Role>('referrer');
   const [addPartnerId, setAddPartnerId] = useState('');
   const [addBranch, setAddBranch] = useState('');
+  /* THE LEVEL AND THE POSITION, for an invite onto our own estate. Round 5,
+     M10. This screen sent neither: no seesCommission, so every management
+     invite landed as a Manager and a Director could not be created here at
+     all; and no scopeKind, so invite-user refused the invite outright with
+     "Choose the group, brand or branch this person will hold". Team already
+     asks for the level this way, out of the one AGENCY_LEVELS list, so the
+     two screens cannot invent different combinations. */
+  const [addLevel, setAddLevel] = useState<AgencyLevel>('Negotiator');
+  const [addScope, setAddScope] = useState('');
   // edit-role modal
   const [editUser, setEditUser] = useState<ManagedUser | null>(null);
   const [editRole, setEditRole] = useState<Role>('referrer');
@@ -302,6 +312,12 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   // negotiator visible to the inviting manager from day one, before any referral.
   const branchTargets = useMemo(() => scopeTargets.filter((t) => t.kind === 'branch'), [scopeTargets]);
 
+  /* OUR OWN ESTATE, where a person is a LEVEL holding a POSITION rather than a
+     bare role. Everywhere else (the supplier rail) the partner IS the company
+     and the role radio is the right question. */
+  const addOnEstate = !teamMode && isHousePartner(addPartnerId);
+  const grantableLevels = useMemo(() => levelsGrantableBy(actor), [actor]);
+
   useEffect(() => {
     if (currentUserId) {
       positionsService.getPositions(currentUserId).then(setOwnPositions).catch(() => setOwnPositions([]));
@@ -424,6 +440,8 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     setAddPartnerId(selectedPartner !== ALL_PARTNERS ? selectedPartner : homePartner());
     // Pre-pick the only branch a single-branch manager could mean; otherwise they choose.
     setAddBranch(branchTargets.length === 1 ? branchTargets[0].id : '');
+    setAddLevel('Negotiator');
+    setAddScope('');
     setAddOpen(true);
   }
   async function sendInvite() {
@@ -433,16 +451,37 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     // A partner manager placing a negotiator must say which branch, or the new user
     // is invisible to a scoped inviter until their first referral. opndoor admins,
     // who see everyone, may leave it unset.
-    if (addRole === 'referrer' && role === 'management' && branchTargets.length > 0 && !addBranch) {
+    const chosen = addOnEstate ? grantableLevels.find((l) => l.level === addLevel) : null;
+    if (addOnEstate && !chosen) { toast('You can only invite someone at or below your own level.'); return; }
+    const effRole: Role = chosen ? chosen.role : addRole;
+    if (effRole === 'referrer' && role === 'management' && branchTargets.length > 0 && !addBranch) {
       toast('Choose the branch this negotiator will work at.'); return;
+    }
+    /* A Director or a Manager on our estate holds a position, and invite-user
+       refuses the invite without one. Asking here means a sentence in the
+       dialog rather than a 400 after the name and email have been typed. */
+    const scope = addOnEstate && effRole === 'management'
+      ? scopeTargets.find((t) => t.id === addScope) : undefined;
+    if (addOnEstate && effRole === 'management' && !scope) {
+      toast('Choose the group, brand or branch this person will hold.'); return;
     }
     setBusy(true);
     try {
-      const rec = await inviteUser({ firstName: addFirst.trim(), lastName: addLast.trim(), email, role: addRole, partner: addPartnerId, branch: addBranch });
+      const rec = await inviteUser({
+        firstName: addFirst.trim(), lastName: addLast.trim(), email,
+        // The LEVEL is what was chosen; the role and the commission bit are what
+        // it means. Both come from AGENCY_LEVELS so this screen and Team cannot
+        // drift apart.
+        role: effRole, seesCommission: chosen?.seesCommission === true,
+        partner: addPartnerId,
+        branch: effRole === 'referrer' ? addBranch : '',
+        scopeKind: scope?.kind, scopeTarget: scope?.id,
+      });
       await refreshData();
       refresh();
       setAddOpen(false);
-      toast(`Invitation sent to ${email} as ${ROLE_META[addRole][0]}${(addRole === 'superadmin' || addRole === 'opndoor_manager') ? '' : ` at ${partnerName(rec.partner)}`}.`);
+      const what = chosen ? chosen.level : ROLE_META[addRole][0];
+      toast(`Invitation sent to ${email} as ${what}${(addRole === 'superadmin' || addRole === 'opndoor_manager') ? '' : ` at ${partnerName(rec.partner)}`}.`);
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not send the invitation.', 'error');
     } finally {
@@ -614,10 +653,39 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
             </Field>
           )}
         </div>
-        <Field label="Role">
-          <RoleOptions options={addOptions} selected={addRole} onSelect={setAddRole} />
-        </Field>
-        {addRole === 'referrer' && branchTargets.length > 0 && (
+        {/* ON OUR ESTATE A PERSON IS A LEVEL, NOT A ROLE. Director and Manager
+            are the same role and differ only by sees_commission, so a role
+            radio cannot express the difference and this screen could never
+            create a Director. The levels offered are the ones this inviter may
+            hand out, which is at or below their own. Round 5, M10. */}
+        {addOnEstate ? (
+          <Field label="Level" hint="Director sees what the agency earns. Manager sees everything else. Negotiator sees their own referrals.">
+            <select
+              aria-label="Level"
+              value={addLevel}
+              onChange={(e) => { setAddLevel(e.target.value as AgencyLevel); setAddScope(''); }}
+            >
+              {grantableLevels.map((l) => <option key={l.level} value={l.level}>{l.level}</option>)}
+            </select>
+          </Field>
+        ) : (
+          <Field label="Role">
+            <RoleOptions options={addOptions} selected={addRole} onSelect={setAddRole} />
+          </Field>
+        )}
+        {/* AND A DIRECTOR OR MANAGER HOLDS A POSITION. Everybody on our estate
+            does: invite-user refuses the invite without one, and before this
+            was asked here that refusal arrived as a 400 after the whole form
+            had been filled in. */}
+        {addOnEstate && addLevel !== 'Negotiator' && (
+          <Field label="Position" hint="The group, brand or branch this person runs. It is what they can see and who they can act on.">
+            <select aria-label="Position" value={addScope} onChange={(e) => setAddScope(e.target.value)}>
+              <option value="">Select a group, brand or branch</option>
+              {scopeTargets.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </Field>
+        )}
+        {(addOnEstate ? addLevel === 'Negotiator' : addRole === 'referrer') && branchTargets.length > 0 && (
           <Field label="Branch" hint="Where this negotiator works. They show in your team from the moment you invite them.">
             <select value={addBranch} onChange={(e) => setAddBranch(e.target.value)}>
               <option value="">Select a branch</option>

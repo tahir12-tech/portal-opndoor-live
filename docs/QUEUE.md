@@ -34,6 +34,7 @@ already given. Any of them can be reversed by saying so.
 | D4 | A one-off override address on the manual send suppresses the copies. | An override is "send this to this person"; fanning it out to the ladder as well would be a second, unasked-for send. The resolved ladder is still reported to the screen as `resolved_contact`. |
 | D5 | All 205 raising `if not` guards are coalesce-wrapped, not only the ones that can go NULL today. | Wrapping only the exposed ones needs a judgement per guard, silently reopens when a NOT NULL is dropped, and makes the CI rule need an allowlist. Wrapping all of them makes it checkable with none. |
 | D6 | The deny-IF polarity (`if X then raise`) is counted, not wrapped. | Turning NULL into a raise there breaks legitimate paths (`if p_user = auth.uid()` must not fire for a service-role caller). All 54 were audited by hand instead, and the count is asserted so a new one forces a look. |
+| D8 | The first person invited when an org is created is its DIRECTOR, at whatever node, and the "Agency manager" option is relabelled "Agency director". | Granting a level requires holding it, so an agency whose only person is a Manager cannot see what it earns and cannot promote anyone to it. It arrives unable to staff itself. |
 | D7 | `schema-final-state.mjs` now expands `do $$ ... execute $ddl$ ... $ddl$` blocks. | One function (`partner_api_key_rail_guard`) was created that way, so it was in dev's catalogue and absent from the model: both the drift check and the new lint skipped it in silence. A check with a blind spot reads exactly like a check that passes. |
 
 ---
@@ -274,9 +275,9 @@ four high, nine medium, twelve low. The critical and the deed gap are fixed
 | M7 | `referrerNotify` has no livemode test, so sandbox applications send real Opndoor email. | **done** `_shared/referrerNotify.ts` |
 | M8 | `admin_update_user_role` skips `assert_may_grant_level` and never touches `sees_commission`: a Manager can promote somebody to Director, one rank above themselves. | **done** `20261006460000` |
 | M9 | `application_journey`'s developer arm is bounded by `partner_id` alone; its four `dev_*` siblings were widened and it was missed. | **done** `20261006460000`; asserting it is what surfaced C2 |
-| M10 | LOCK: the Users screen cannot invite any management user onto the estate, and can never create a Director. | todo |
-| M11 | Agency onboarding invites its "Group director" as a Manager, so a new agency has nobody who may see commission and nobody who can create one. | todo |
-| M12 | LOCK: the position modal offers Remove (refused by the constraint for an active person) and Add position (which silently deletes the existing one). | todo |
+| M10 | LOCK: the Users screen cannot invite any management user onto the estate, and can never create a Director. | **done** `UserManagement.tsx` |
+| M11 | Agency onboarding invites its "Group director" as a Manager, so a new agency has nobody who may see commission and nobody who can create one. | **done** `orgShapes.ts` |
+| M12 | LOCK: the position modal offers Remove (refused by the constraint for an active person) and Add position (which silently deletes the existing one). | **done** `PositionModal.tsx` |
 | M13 | `hubspot-sync` accepts its outbound bearer token from a request header. | **done** `hubspot-sync/index.ts` |
 | M14 | `set_receives_commission_statements` has no level test. | **done** `20261006460000` |
 | L | Twelve lows: `applications_*` policies lost `to authenticated`; `users_mgmt_insert` has no containment; `create-referral` writes caller-supplied shares; `fire_expiry_reminders` does not filter a deactivated referrer on the supplier rail; `application-document-url` signs any bucket; `staff_payment_page_token` and `agency_branches_for_match` lack the AAL2 step-up; `referrer_league` ranks leavers; ten functions still PUBLIC-executable; `tenant-portal` reads the wrong Stripe key; `may_act_on_user` is strictly-above where two siblings are at-or-below. | todo |

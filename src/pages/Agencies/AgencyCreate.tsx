@@ -240,8 +240,12 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
             {/* Only levels that exist in the shape being created. */}
             <Field span2 label="Level" htmlFor="ac-inv-level">
               <select id="ac-inv-level" value={invLevel} onChange={(e) => setInvLevel(e.target.value as 'group' | 'agency')}>
+                {/* Both are DIRECTORS: the first person on a new org is the one
+                    who will staff it, and only a Director may hand out a level.
+                    Labelling this "Agency manager" while creating a Director
+                    would be the same mismatch the other way round. */}
                 {levels.includes('group') && <option value="group">Group director</option>}
-                {levels.includes('agency') && <option value="agency">Agency manager</option>}
+                {levels.includes('agency') && <option value="agency">Agency director</option>}
               </select>
             </Field>
             {invLevel === 'agency' && namedAgencies.length > 1 && (

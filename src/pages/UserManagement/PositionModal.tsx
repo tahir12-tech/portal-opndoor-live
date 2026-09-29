@@ -14,6 +14,19 @@
    THE SCREEN IS NOT THE RULE. set_user_scope refuses a caller who does not hold
    a group or agency position of their own, so a branch manager who reaches this
    through the DOM is refused by SQL. The button is hidden as a courtesy.
+
+   ONE POSITION, AND IT IS SWAPPED, NOT ADDED. Round 5, M12. There is no insert
+   policy on user_scopes: positions are granted only through set_user_scope,
+   which REPLACES. So nobody has ever held two, and a button saying "Add
+   position" over a list of held positions promised accumulation while the
+   write underneath was a swap -- pressing it silently deleted the position the
+   person already had.
+
+   AND REMOVE ONLY WORKS ON SOMEBODY DEACTIVATED. The deferred constraint from
+   20261006300000 refuses to leave an active person on our estate with no
+   position, so Remove on the only position of an active person always errored.
+   It was offered in exactly the case where it cannot work. The product's real
+   answer is: place them somewhere else, or deactivate them.
    ===================================================================== */
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
@@ -26,6 +39,11 @@ import * as positions from '@/data/positionsService';
 import type { ManagedUser } from '@/data/usersService';
 
 export interface ScopeTarget { id: string; name: string; kind: positions.ScopeKind }
+
+const REMOVE_HINT =
+  'A position can only be taken away once somebody is deactivated, because nobody '
+  + 'on our estate works without one. Move them to another group, brand or branch '
+  + 'instead, or deactivate them first.';
 
 export function PositionModal({
   user, targets, onClose, onSaved,
@@ -52,6 +70,9 @@ export function PositionModal({
   useEffect(() => { void load(); }, [load]);
 
   const options = targets.filter((t) => t.kind === kind);
+
+  /* The one case the constraint allows. Everything else is a move. */
+  const canRemove = user.status === 'deactivated';
 
   const add = async () => {
     const t = options.find((o) => o.id === targetId);
@@ -91,7 +112,7 @@ export function PositionModal({
         <>
           <Button variant="ghost" onClick={onClose}>Done</Button>
           <Button variant="primary" disabled={!targetId || busy} onClick={() => void add()}>
-            {busy ? 'Saving…' : 'Add position'}
+            {busy ? 'Saving…' : held.length ? 'Move position' : 'Set position'}
           </Button>
         </>
       }
@@ -110,6 +131,11 @@ export function PositionModal({
           </div>
         </div>
       ) : (
+        <>
+        <p className="soft pos-note">
+          Everybody holds one position. Choosing another below moves {user.name} to it;
+          it is not added alongside.
+        </p>
         <ul className="pos-list">
           {held.map((p) => (
             <li key={p.id} className="pos-item">
@@ -122,10 +148,20 @@ export function PositionModal({
                     : 'This branch'}
                 </div>
               </div>
-              <Button variant="quiet" size="sm" disabled={busy} onClick={() => void remove(p)}>Remove</Button>
+              {/* Offered, but only pressable where it can succeed. Hiding it
+                  entirely would leave no answer to "how do I take this away";
+                  disabling it with the reason says what to do instead. */}
+              <Button
+                variant="quiet" size="sm"
+                disabled={busy || !canRemove}
+                title={canRemove ? undefined : REMOVE_HINT}
+                onClick={() => void remove(p)}
+              >Remove</Button>
             </li>
           ))}
         </ul>
+        {!canRemove && <p className="soft pos-note">{REMOVE_HINT}</p>}
+        </>
       )}
 
       <div className="pos-add">
