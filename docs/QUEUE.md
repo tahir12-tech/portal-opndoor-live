@@ -305,6 +305,81 @@ some window. So "waiting now" is an accurate label for what the code already
 does, and no arithmetic changes. Direct signups is the opposite case: it is
 genuinely all time, and whether that is right is the question NM-G puts.
 
+### Batch 16 (verbatim)
+
+> Walk fixes, batch 16. Add to QUEUE.md verbatim and commit. Do not build yet.
+>
+> 26. Matt's rule: every tenancy is priced at one month's rent, whether one applicant or two, unless a different deal has been negotiated (like Regent's bands). With two applicants that one month is split between them by share. Suppliers may refer joint tenancies, the same way agencies can: Add another tenant works on the supplier route, shares are set, one fee for the tenancy split by share. Confirm the agency route already follows the one-month rule when no deal is set, and fix it if not.
+> 27. New application: the section numbers repeat (Tenant and Property are both "2"). Number the sections in order.
+
+### Batch 17 (verbatim)
+
+> Walk fixes, batch 17. Add to QUEUE.md verbatim and commit. Do not build yet.
+>
+> 28. Admin New application with Referred by set to Supplier (Kestrel Lettings): the last section says "Your office" and sits on "Working out which office this referral is against" without ever resolving. That's the supplier user's own wording and behaviour. For Opndoor admin it should be "Agency and branch": choose from the chosen supplier's agencies and branches, as specified in the Referred by fold-in. The side navigation should match the section names.
+
+#### Item 26: the confirmation Matt asked for. CONFIRMED, from the files.
+
+**The agency route does follow the one-month rule when no deal is set.** The
+standard basis is 4.35 weeks, which is 52/12, one month expressed in weeks,
+and `create_referral` prices a no-agreement referral at exactly
+`p_rent, 4.35` (`20260928150000_create_referral_resolves_agency_mode.sql:93-94`,
+comment: "One month's rent on a 4.35-week basis, snapshotted, never
+recomputed"). The fee amount is snapshotted and never re-derived from the
+basis.
+
+**And "one month split between them by share" is already the shape, not one
+month each.** The walk's Regent pair priced at 5 weeks TOTAL -- £1,384.62 +
+£1,384.61, summing to £2,769.23, which is five weeks of a £2,400 rent, not
+ten. So the splitting mechanism divides ONE tenancy fee between applicants,
+which is what item 26 describes; Regent's five weeks is the negotiated deal
+the rule allows for. Nothing to fix on this half.
+
+**One caveat on the confirmation.** This is read from the migration files,
+not measured on data, because dev is off limits during the walk except for
+the 22b check. The walk (`docs/THE-WALK.md`) already measured the Regent pair
+against real dev data and it agreed, so the confirmation rests on a
+measurement as well as a reading -- but a no-deal JOINT tenancy specifically
+has not been measured, only the no-deal single and the negotiated joint. That
+one case should be measured when dev is available again.
+
+#### Item 26 REVERSES an earlier instruction, and a test currently asserts the opposite
+
+This needs to be seen rather than quietly absorbed. Matt's Q-06 item H said,
+verbatim, of the supplier path: **"single tenant (no Add another tenant)"**.
+Item 26 now says the opposite: *"Suppliers may refer joint tenancies, the same
+way agencies can: Add another tenant works on the supplier route."*
+
+Batch 16 is newer, so it governs. The consequences of the reversal:
+
+- **`src/pages/NewApplication/referredBy.render.test.tsx` has an assertion
+  that enforces the OLD rule** -- "a supplier referral is single-tenant: the
+  button is offered disabled, with the reason" -- and it passes today. When
+  item 26 is built that test must be inverted, not deleted quietly: it is the
+  record of a decision that changed, and its comment should say so.
+- The supplier rail has **no positions** (B3), so "shares are set" needs
+  checking on a rail whose people model differs from the agency rail's.
+- Joint tenancies are the subject of R3 and R5, both unfixed. **Extending
+  joint tenancies to a second rail before those are fixed widens the blast
+  radius of both** -- R3 is the uncapped commission on joint tenancies, R5 is
+  the correction that leaves two deeds disagreeing. Item 26 should be built
+  after R3 and R5, and its tests should cover the supplier rail for each.
+
+#### Items 27 and 28 are the same screen, and 28 is the larger of the two
+
+Item 27 (repeated section numbers) and item 28 (the wrong last section for an
+admin on the supplier route) are both New application. 28 also says "the side
+navigation should match the section names", which is the same numbering and
+naming machinery item 27 touches. One piece of work.
+
+**Item 28 reports a HANG, not only wrong wording.** "Sits on 'Working out
+which office this referral is against' without ever resolving" is a promise
+that never settles -- the estate probe answering about a branch that was never
+chosen, on a path where the admin was supposed to choose the agency and branch
+from the supplier instead. That is a functional defect and the wording is
+downstream of it, so fixing the copy alone would leave a screen that still
+never finishes.
+
 **The proposal item 15 asks for is written up as NM-F below.** Item 15 itself
 stays unbuilt and unranked until Matt answers it.
 
