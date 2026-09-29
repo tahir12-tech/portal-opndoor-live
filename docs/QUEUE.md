@@ -220,6 +220,39 @@ referrer, the League and the exports -- not three copies. Worth checking
 whether the level subtitle is already centralised (`levelLabel`) before
 writing a second helper beside it.
 
+### Batch 12 (verbatim). 22b IS TO BE DONE NOW, READ-ONLY, ON DEV.
+
+> Walk fixes, batch 12. Add to QUEUE.md verbatim and commit. Do not build yet, except the check in 22b.
+>
+> 22a. Reconciliation, Direct matches: clicking Set branch fails with "canceling statement due to statement timeout". A 100% name match ("Foo Lettings") is shown but not auto-accepted, with no explanation why. The page text is jargon ("canonical records", "Merging likely duplicates is coming in a later release"): rewrite in plain English, explaining that a direct tenant named their letting agent and Opndoor is linking it to a known agency. After shipping.
+> 22b. Do this check now, read-only, on dev: find what timed out and whether the cause (for example the new permission checks) also slows any step on the Regent or supplier path: sending a referral, the tenant paying, signing, deed delivery, inviting someone. Report the timings. Don't change anything.
+> 23. Reconciliation, Direct matches: "Set branch" and "Not in network" act immediately. Both need a confirmation box first, saying in plain English what will happen (for example "Link this tenant's agent to Foo Lettings, Foo Central?"). Apply the same rule to any other admin action that changes records in one click. After shipping.
+
+**22b is an explicit, named exception to "do not touch the dev project"** and
+is being done immediately. Read-only: no migration, no write, no restart.
+Findings go under "22b findings" below.
+
+**22a's timeout is a PERFORMANCE finding, and performance has not been
+measured once in this entire effort.** Round after round asked whether the
+guards were correct; none asked what they cost. A statement timeout on an
+admin action is the first hard evidence that the answer might matter, and
+Matt's parenthesis -- "for example the new permission checks" -- names the
+most likely cause: the reach predicates are `security definer` functions
+called per row from RLS policies, and a policy predicate that is fine on ten
+rows is not necessarily fine on ten thousand.
+
+**22a also reports a product question, not only a fault.** "A 100% name match
+is shown but not auto-accepted, with no explanation why" is a decision
+nobody has taken: whether an exact match should link itself. That is Matt's
+to make, and it should not be quietly decided while fixing the timeout.
+
+**Item 23 is a general rule, not one screen.** "Apply the same rule to any
+other admin action that changes records in one click" means the deliverable is
+an inventory first -- every one-click admin action that writes -- and then a
+shared confirmation, not a box bolted onto two buttons. Worth noting that
+`PersonActions` already has destructive actions ("Remove access") that may
+have the same problem.
+
 **The proposal item 15 asks for is written up as NM-F below.** Item 15 itself
 stays unbuilt and unranked until Matt answers it.
 
