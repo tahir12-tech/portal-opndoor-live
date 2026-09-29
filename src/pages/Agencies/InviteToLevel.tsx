@@ -7,8 +7,8 @@
    once they accept — inviteUser returns before the real account id exists, so the
    scope grant cannot be attached in the same step.
    ===================================================================== */
-import { useState } from 'react';
-import { AGENCY_LEVELS, inviteUser, type AgencyLevel, type Role } from '@/data';
+import { useMemo, useState } from 'react';
+import { AGENCY_LEVELS, ALL_PARTNERS, getAgencies, inviteUser, type AgencyLevel, type Role } from '@/data';
 import { Modal } from '@/components/ui/Modal';
 import { Field } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
@@ -81,8 +81,46 @@ export function InviteToLevel({ ctx, onClose, onInvited }: { ctx: InviteContext;
      Negotiator invited from the People tab gets neither a scope nor a branch,
      lands unplaced, and the admin sets where they sit with Position on their
      row, which is what the dialog's closing line tells them to do. */
+  /* WALK FIX 13. THE DIALOG ASKS WHERE THEY SIT, AND PLACES THEM IN ONE STEP.
+
+     The paragraph above described a design that stopped being possible.
+     20261006300000 made an unpositioned active person a constraint violation,
+     so "lands unplaced, and the admin sets where they sit afterwards" is a
+     plan the database refuses to let anybody carry out: invite-user returns
+     NEEDS_A_POSITION and the invite dies after the form is filled in. The
+     screen was telling the admin to do something the server had already said
+     no to.
+
+     So the question is asked HERE, before sending, and the position is
+     created in the same transaction as the user (create_invited_user has
+     taken p_scope_kind and p_scope_target all along -- the form simply never
+     filled them in).
+
+     AND IT IS NOT ASKED WHEN THERE IS ONE ANSWER. Matt: "If the agency has
+     only one branch, pick it automatically and don't ask." */
+  const branches = useMemo(() => {
+    if (!ctx.agencyId) return [];
+    const ag = getAgencies(ALL_PARTNERS).find((a) => a.id === ctx.agencyId);
+    return (ag?.branches ?? []).filter((b) => !!b.id);
+  }, [ctx.agencyId]);
+
+  const [whereId, setWhereId] = useState('');
+
+  /* A NEGOTIATOR SITS AT A BRANCH. A Manager or Director may sit at the whole
+     agency or at one branch, so the agency is offered first and is the
+     default -- which is what this dialog already did for them, now stated in
+     a control instead of inferred silently. */
+  const mustPickBranch = level === 'Negotiator';
+  const whereOptions: { id: string; label: string; kind: 'agency' | 'branch' }[] = [
+    ...(mustPickBranch || !ctx.agencyId ? [] : [{ id: ctx.agencyId, label: `${ctx.name} (whole agency)`, kind: 'agency' as const }]),
+    ...branches.map((b) => ({ id: b.id!, label: b.name, kind: 'branch' as const })),
+  ];
+  // One option is not a question. Two or more is.
+  const askWhere = ctx.chooseLevel && whereOptions.length > 1;
+  const chosenWhere = whereOptions.find((o) => o.id === whereId) ?? whereOptions[0];
+
   const scope: { scopeKind?: 'group' | 'agency' | 'branch'; scopeTarget?: string } =
-    level === 'Negotiator' ? {}
+    ctx.chooseLevel && chosenWhere ? { scopeKind: chosenWhere.kind, scopeTarget: chosenWhere.id }
     : ctx.level === 'group' && ctx.groupId ? { scopeKind: 'group', scopeTarget: ctx.groupId }
     : ctx.level === 'brand' && ctx.agencyId ? { scopeKind: 'agency', scopeTarget: ctx.agencyId }
     : ctx.level === 'branch' && ctx.branchId ? { scopeKind: 'branch', scopeTarget: ctx.branchId }
@@ -134,6 +172,24 @@ export function InviteToLevel({ ctx, onClose, onInvited }: { ctx: InviteContext;
           ))}
         </div>
       )}
+      {askWhere && (
+        <Field
+          label="Where they sit"
+          htmlFor="inv-where"
+          hint={mustPickBranch
+            ? 'A negotiator works one office, and sees their own referrals there.'
+            : 'The whole agency, or one office of it.'}
+        >
+          <select
+            id="inv-where"
+            aria-label="Where they sit"
+            value={chosenWhere?.id ?? ''}
+            onChange={(e) => setWhereId(e.target.value)}
+          >
+            {whereOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </select>
+        </Field>
+      )}
       {!ctx.chooseLevel && ctx.level === 'branch' && (
         <Field label="Position" htmlFor="inv-role" hint="A negotiator works this branch; a branch manager runs it.">
           <select id="inv-role" value={branchRole} onChange={(e) => setBranchRole(e.target.value as Role)}>
@@ -143,8 +199,13 @@ export function InviteToLevel({ ctx, onClose, onInvited }: { ctx: InviteContext;
         </Field>
       )}
       <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '10px 0 0' }}>
+        {/* WALK FIX 13. This used to read "Set where they sit with Position on
+            their row" -- an instruction to finish afterwards a job the
+            database will not let you start. Where they sit is chosen above
+            and created with the invite, so the line now says what will
+            happen rather than what to do next. */}
         {ctx.chooseLevel
-          ? `They are invited to ${ctx.name} and can work as soon as they accept. Set where they sit with Position on their row.`
+          ? `They are invited to ${chosenWhere?.label ?? ctx.name} and can work there as soon as they accept.`
           : `They are placed on this ${levelWord} the moment they are invited, and can work it as soon as they accept.`}
       </p>
     </Modal>

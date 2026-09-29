@@ -83,7 +83,7 @@ select lives_ok(
 -- ---------- 2. Negotiator, agent rail: a different branch is refused. ----------
 select throws_ok(
   $$ select public.create_referral('40000000-0000-0000-0000-000000000002','Mr','Neg','Tenant','1990-01-01','n@t.test','07700900001','2 A St',null,'Town',null,'SW1A 1AA',1000,(current_date + 30)) $$,
-  '42501', 'You can only refer against a branch within your own scope.',
+  '42501', 'You can only send a referral from one of the offices you work at.',
   'negotiator refused against a branch that is not their home branch');
 
 -- ---------- 3 & 4. Agency manager reaches the whole agency (B1 and B2). ----------
@@ -100,7 +100,7 @@ select lives_ok(
 -- ---------- 5. Agency manager cannot reach a branch of the other agency. ----------
 select throws_ok(
   $$ select public.create_referral('40000000-0000-0000-0000-000000000003','Mr','Neg','Tenant','1990-01-01','n@t.test','07700900001','3 A St',null,'Town',null,'SW1A 1AA',1000,(current_date + 30)) $$,
-  '42501', 'You can only refer against a branch within your own scope.',
+  '42501', 'You can only send a referral from one of the offices you work at.',
   'agency manager refused against a branch of a sibling agency in the same group');
 
 -- ---------- 6. Supplier rail never reaches the gate: a scope-less management ----------

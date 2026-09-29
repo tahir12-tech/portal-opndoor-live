@@ -38,8 +38,19 @@ export type PositionOutcome =
   | { ok: true; scopeKind: string | null; scopeTarget: string | null }
   | { ok: false; error: string };
 
+/* WALK FIX 14. WAS: "Choose the group, brand or branch this person will
+   hold. Everybody on our estate holds a position."
+
+   Two pieces of jargon in one sentence, said to a letting agent about their
+   own member of staff: "our estate" is Opndoor's internal word for the
+   agencies it onboards, and "holds a position" is the model's word for
+   working somewhere. Matt's own suggested wording is the shape used here.
+
+   It should also now be rare rather than routine: walk fix 13 makes the
+   invite dialog ask the question before sending, so this is the backstop for
+   a caller that still does not, not the everyday experience it had become. */
 export const NEEDS_A_POSITION =
-  'Choose the group, brand or branch this person will hold. Everybody on our estate holds a position.';
+  'Choose which branch this person works at. Everyone needs one before they can be invited.';
 
 export function resolveInvitePosition(ask: PositionAsk): PositionOutcome {
   let scopeKind = ask.scopeKind || null;
