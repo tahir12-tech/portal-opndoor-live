@@ -365,6 +365,14 @@ From the scoping of Q-05. Each blocks only the part named.
    control that works today, so I would rather be told than assume. *Blocks:
    the editor's shape.*
 
+   *Also waiting on this, found while building amendment 3:* a route-scoped
+   volume counter now works in the database but cannot be chosen anywhere.
+   The existing agreement editor only ever edits an agency, a group or a
+   branch, and a route counter is only valid on a supplier-level agreement,
+   so adding the option to that editor would put a control on screen that the
+   database refuses. It belongs on the supplier commission editor, which is
+   what this question is about.
+
 4. **Does the 50% cap include the supplier's cut?** Today a supplier on 60%
    with an agency on 10% underneath passes the cap, because the cap only looks
    at the agency side. It is one fee, so a cap that sees half of it is not
