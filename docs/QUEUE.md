@@ -15,7 +15,40 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
-## FIX THE SEVEN (instruction, 2026-09-29, verbatim). IN PROGRESS.
+## Walk fixes (instruction, 2026-09-29, verbatim). RECORDED, NOT STARTED.
+
+> Walk fixes, batch 1. Add to QUEUE.md verbatim under "Walk fixes" and commit. Do not build anything yet; I'm walking dev and it must not change under me.
+>
+> 1. Opndoor team page: the three dots on your own row open an empty menu. Either hide them, or show the actions you can take on your own account (rename, reset your own MFA).
+> 2. "Sees: Own referrals" is shown for an Opndoor admin. Admin sees everything; it should say so.
+> 3. The logo label reads "SUPPLIER PORTAL" when signed in as Opndoor admin. It should say "Admin" for Opndoor staff.
+> 4. The Opndoor team page description still says "partners". It should refer to suppliers and agencies.
+> 5. The "What [person] can see" dialog opens for Opndoor team members and treats them like agency staff: it says "Own referrals only", asks for an office, and offers agency and supplier branches, and choosing one would limit that person to that branch. Opndoor admins see everything by their role and must never be given an office or position. Remove this dialog for Opndoor team members, and make sure a position can never narrow what an Opndoor admin sees, even if one was set.
+
+### Status: nothing built, and THE SEVEN ARE PAUSED
+
+"Do not build anything yet; I'm walking dev and it must not change under me"
+stops the R1-R7 work too, because every one of those fixes is a migration
+applied to dev. Nothing has been applied: R1 had reached the
+investigation stage only, and no migration file was written. Dev is exactly as
+Matt found it.
+
+The only work still running is READ-ONLY and touches no database: the
+determination of whether each of the seven also exists on `origin/main`, which
+reads git and nothing else.
+
+### One note on batch-1 item 5, recorded now so it is not lost
+
+Item 5's last clause -- "make sure a position can never narrow what an Opndoor
+admin sees, even if one was set" -- is not a UI change. It is a server
+question, and the answer has to come from the reach predicates, not from
+hiding the dialog. Hiding the dialog stops new positions being created; it
+does nothing about one already in the table. These two halves want separate
+tests.
+
+---
+
+## FIX THE SEVEN (instruction, 2026-09-29, verbatim). PAUSED at Matt's request.
 
 > Fix problems 1 to 7 from your final review, in the order you ranked them, each with a test that fails first. For 7, the partner API must work out the fee and commission exactly as the portal does when the tenant pays, which is every route today. Where a supplier is set so that someone other than the tenant pays, the API refuses the application with a clear message until Matt decides how that payment works; do not build that payment path. For each problem, say whether it also exists on the live system today. When all seven are fixed and green, stop and report in plain English.
 
