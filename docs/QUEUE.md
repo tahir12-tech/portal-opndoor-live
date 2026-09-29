@@ -81,6 +81,30 @@ already given. Any of them can be reversed by saying so.
 
 ---
 
+## Where I am (2026-09-29)
+
+**Q-01, the security loop, is at round 6 fixed / round 7 not yet run.** Rounds
+1-5 are closed. Round 6 ran four fresh reviewers and produced SEVEN highs, all
+fixed and tested; twelve mediums and a batch of lows are listed under "Round
+6's findings" and are NOT fixed. The mandate says "until nothing above low", so
+the loop is not finished: round 7 should run after those mediums, because a
+round launched over a known list mostly re-finds it.
+
+Two of round 6's highs were in work committed the same day, which is the
+argument for the rounds continuing.
+
+**Q-02 and Q-03** are one design. The inventory (`docs/NOTIFICATIONS.md`) and
+the whole SQL layer are done and tested. NOT done: wiring the six send paths
+to `notification_recipients`, and the matrix UI on the supplier and agency
+detail pages.
+
+**Q-04 onwards** is untouched.
+
+Next action, in order: round 6's mediums (M4, M6-M13), then the Q-02/Q-03
+wiring and UI, then round 7.
+
+---
+
 ## Order of work
 
 | id | item | status |
