@@ -164,6 +164,33 @@ outside this file refers to them.
 
 ---
 
+## Security backlog
+
+Not blocking. Per the standing instruction of 2026-09-29, mediums and lows do
+not hold up the queue: they are listed here, ranked, and fixed when cheap and
+self-contained or when somebody is passing anyway. Round 7's mediums and lows
+join this list when it reports.
+
+Ranked by what it would actually cost us if exploited or noticed, not by how
+easy it is to fix.
+
+| # | finding | where | why it is not blocking |
+| --- | --- | --- | --- |
+| B1 | Direct-rail rows are counted into agency and branch counters, and a group page's "What they earned" lists every payee on the whole rail. Rule 5 and rule 3. | `src/lib/hydrate.ts:281-284,312-315,327-329`; `src/pages/Agencies/AgencyHome.tsx:1251-1256`; `src/components/CommissionStatement.tsx:153` | Opndoor-facing only: `applications_select` pins the partner, so no agency sees it. Mis-attribution in our own numbers, not a customer leak. |
+| B2 | Direct applications become an invented agency payee in the agent settlement, named after the matched agency. | `src/data/commissionSplit.ts:95-99`; `src/data/liveAnalytics.ts:790,832-837` | Superadmin surface. Produces a £0.00 line and an inflated payee count; the statement panel already filters it, the settlement block does not. |
+| B3 | `set_receives_notifications` can never be used on a supplier colleague: its scope test requires the TARGET to hold a position, and positions are mandatory only on the house partner. | `user_within_caller_scope` | A lock, not a hole, and only on the supplier rail. Becomes live work when Q-03's matrix ships to suppliers. |
+| B4 | Unescaped ILIKE in the partner-API referrer lookup gives a cross-partner existence oracle for staff email addresses. | `supabase/functions/_shared/partnerApplications.ts:76,87` | Needs an API key, creates nothing, and leaks only whether an address is known. Escape the pattern and use a bounded select. |
+| B5 | `.neq("partner_id", …)` never matches NULL, so the cross-partner referrer guard is blind to every superadmin and opndoor_manager. | `_shared/partnerApplications.ts:86` | Backstopped today by the `public.users` primary key; becomes real if that path ever upserts. |
+| B6 | `send-password-reset` falls back to the caller-supplied origin when `APP_URL` is unset, contradicting its own comment. | `supabase/functions/send-password-reset/index.ts:52` | GoTrue's redirect allowlist is the remaining gate. `tenant-auth` has the correct `safeOrigin` pattern to copy. |
+| B7 | `commission_statement_refs` has no `may_see_commission()` restrictive policy, unlike `pricing_agreements` and its three children. | policy set on that table | Own agency only, so rule 3 rather than a company boundary. |
+| B8 | `partner_agency_relationships` has no `require_aal2` restrictive policy. | policy set on that table | Reads at aal1 what it would read at aal2; no cross-company exposure found. |
+| B9 | `detach_user_from_agency` requires no group/agency-kind position, unlike `attach_user_to_agency`. | that function | A branch-only manager can detach. Asymmetry with its own sibling. |
+| B10 | `set_branch_deed_recipient` uses `users.partner_id = branches.partner_id` as "a user in this organisation", which on the agency rail is every agency. | `20261006310000:1041` | The table is vestigial: nothing live consumes it. Latent rule-2 violation that goes live the moment something does. |
+| B11 | Cross-company working copies (`grp_org_v3`, `grp_partners_v2`) persist to localStorage and are not cleared at sign-out. | `src/data/orgService.ts:19`; `src/data/partnersService.ts:21`; `src/session/SessionContext.tsx:280-301` | Data at rest on a shared browser, never rendered (hydrate replaces it before paint). |
+| B12 | `definerAllowlistCoverage` counts a function as covered if its NAME appears in any pgTAP file; it does not require the test to assert a refusal. | `src/data/definerAllowlistCoverage.test.ts` | A weakness in a check, not in the product -- but it is how round 6's H3 would have passed the ratchet. Worth tightening. |
+
+---
+
 ## Needs Matt
 
 ### NM-1b. Regent's two bands cannot both exist on the pre-referenced rail
