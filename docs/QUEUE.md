@@ -64,6 +64,41 @@ built until he says so.
 > 13. Inviting someone to an agency fails: "Everybody on our estate holds a position... jane@jane.com has none". The rule that every agency person holds a position is right, but the invite form never asks for one and tells you to set it afterwards, so the invite is refused. Fix: the invite form asks where they sit (branch, brand or whole agency, depending on level) and the position is created with the invite in one step. If the agency has only one branch, pick it automatically and don't ask. Add a functional test inviting each level to a one-branch and a multi-branch agency.
 > 14. Error messages must be plain English for agency users. "On our estate", "position" and "scope" mean nothing to them. This one should say something like "Choose which branch this person works at." Check other user-facing errors for the same jargon.
 
+---
+
+## Walk fixes, after shipping
+
+Matt's own heading, batch 7. These are NOT part of the walk-fix build above:
+they are deferred past shipping.
+
+### Batch 7 (verbatim)
+
+> Walk fixes, batch 7. Add to QUEUE.md verbatim under "Walk fixes, after shipping" and commit. Do not build yet.
+>
+> 15. Reporting scope picker: choosing an option does nothing (same fault as item 7 on Applications), no suppliers appear under Suppliers (Kestrel is missing), Northgate appears twice, and the page header still says "All partners". Matt finds the picker confusing as hell. What he wants is to see the reports for each customer: each supplier and each agency. Don't build a fix to the picker; write a short proposal under "Needs Matt" for how Matt gets a report per supplier and per agency (for example from each one's own page), and wait for his answer.
+
+**The proposal item 15 asks for is written up as NM-F below.** Item 15 itself
+stays unbuilt and unranked until Matt answers it.
+
+**Item 15 reports four faults, and only the first is the same as item 7.**
+"Choosing an option does nothing" is item 7's fault on a second screen, so one
+root cause. The other three are separate and each says something:
+no suppliers listed, Northgate listed twice, and a header still reading "All
+partners" after the Suppliers rename (Q-06). They are recorded here rather
+than fixed because Matt has said not to fix the picker. **If the answer to
+NM-F is "reports live on each customer's own page", the picker goes away and
+three of these four never need fixing** -- which is the reason to ask before
+building.
+
+**"Northgate appears twice" is worth a specific look when NM-F is answered.**
+Matt's ruling of 17 August is that an agency exists once and is never
+duplicated per supplier: an agency under two suppliers is ONE party shown with
+two counters. A name appearing twice in a picker is exactly what that ruling
+forbids, so this may be the ruling not being honoured rather than a display
+bug.
+
+---
+
 ### Status: nothing built, and THE SEVEN ARE PAUSED
 
 "Do not build anything yet; I'm walking dev and it must not change under me"
@@ -733,6 +768,62 @@ easy it is to fix.
 Matt's instruction of 2026-09-29: "Do not decide anything else on Matt's
 behalf." So everything below is open, and the build stops at the point that
 depends on it. Each says what it blocks, so nothing waits unnecessarily.
+
+### NM-F. A report per supplier and per agency. Proposal, asked for by walk-fix item 15.
+
+Matt: *"What he wants is to see the reports for each customer: each supplier
+and each agency... write a short proposal for how Matt gets a report per
+supplier and per agency (for example from each one's own page), and wait for
+his answer."*
+
+**The proposal, in one line: delete the scope picker, and put the report on
+each customer's own page as a Reporting tab.**
+
+Why that and not a better picker:
+
+- **The pages already exist and are already the right shape.** The agency page
+  and the supplier page both carry tabs today (Overview, People, Commission,
+  Referrals, Integration). A Reporting tab is a sixth, in a place that already
+  answers "which customer am I looking at" by being that customer's page. No
+  picker can answer that as clearly, because a picker's answer is a line of
+  text somewhere else on the screen.
+- **It removes the class of bug, not an instance.** All four faults item 15
+  lists -- the dead control, the missing suppliers, the doubled Northgate, the
+  stale "All partners" header -- exist because one screen has to name every
+  customer in a list and stay in sync with the estate. A per-customer page
+  never builds that list.
+- **Reporting is already scope-aware server-side.** The reporting figures are
+  computed per party by the same isolation filters the rest of the product
+  uses, so a per-customer page asks a question the server already answers.
+  This is a move, not a rebuild.
+
+What Matt would lose, stated plainly so the choice is real:
+
+- **The all-customers view.** The picker's one genuine use is "everything, at
+  once, across all customers", which a per-customer page cannot give. The
+  answer is to keep exactly one such view -- today's Reporting page with NO
+  picker, always showing the whole estate, which is what an opndoor admin
+  should see by default anyway.
+- **Side-by-side comparison.** Comparing two agencies means opening two pages.
+  If comparison matters, say so and it changes the proposal.
+
+So the shape is: **Reporting (all customers, no picker) + a Reporting tab on
+each agency and each supplier page.**
+
+Two things I need from Matt before building any of it:
+
+1. **Is that the shape you want?** Per-customer tab plus one estate-wide page,
+   picker deleted.
+2. **Does the agency-side reader get it too**, or is the Reporting tab
+   opndoor-only? An agency Director seeing their own agency's report is a
+   different feature from an opndoor admin seeing everyone's, and it has a
+   commercial-terms question inside it (rule 3: only a Director sees
+   commission).
+
+**Blocks:** walk-fix item 15, and the "simpler alternative" one-liner item 7
+asks for -- because if the picker is deleted, item 7's fix is throwaway work.
+Item 7's own fault (the dead control) is shared with this screen, so answering
+this decides whether item 7 is worth fixing at all.
 
 ### NM-A. Who pays the guarantee fee, and how they pay it
 
