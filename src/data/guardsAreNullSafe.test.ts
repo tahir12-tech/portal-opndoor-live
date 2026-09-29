@@ -208,7 +208,22 @@ describe('a raising guard cannot evaluate to NULL', () => {
        hid the reasoning rather than adding safety. Worth stating which way
        it would fail if it were NOT total: this is a DENY guard, so a NULL
        would read as "do not raise" and the cross-company write would be
-       back. That is why it was audited rather than waved through. */
-    expect(denyIf.length).toBe(61);
+       back. That is why it was audited rather than waved through.
+
+       61 -> 62 with 20261006880000 (R7). The new one is assert_tenant_pays's
+
+           if coalesce(p_mode, '') not in ('pre_referenced_open',
+             'pre_referenced_screened', 'opndoor_referenced')
+
+       Audited: the operand is ALREADY coalesced, which is the whole point of
+       writing it that way. `p_mode` is a parameter and can be NULL; `NULL not
+       in (...)` is NULL, which for a DENY guard reads as "do not raise" and
+       would let an unknown payment arrangement through -- the exact failure
+       this guard exists to prevent. The coalesce to '' makes an absent mode
+       an unknown mode, so it is refused rather than waved past.
+
+       It is in this list rather than the deny-unless one because it is the
+       `if <bad> then raise` polarity, not `if not <good> then raise`. */
+    expect(denyIf.length).toBe(62);
   });
 });
