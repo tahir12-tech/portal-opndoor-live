@@ -121,6 +121,43 @@ reporting tile is worse than either being wrong alone.
 what was genuinely refunded, which is only meaningful once a partial refund
 stops being recorded as a total one.
 
+### Batch 9 (verbatim)
+
+> Walk fixes, batch 9. Add to QUEUE.md verbatim under "Walk fixes, after shipping" and commit. Do not build yet.
+>
+> 17. Reporting, Monthly volume trend for Opndoor admin defaults to "Commission earned" and shows £0 every month, while Commission payable shows £3,232. Opndoor doesn't earn commission, it pays it. For admin, the trend's options should be Opndoor's view: fees collected, commission payable, referrals sent, deeds issued, defaulting to fees collected. "Commission earned" stays for agency and supplier users, where it's their money. Whichever option is chosen, the trend must match the tiles on the same page.
+> 18. Reporting, the referrer list shows "Direct signup" as a Negotiator. A direct signup isn't a person or a referrer; it shouldn't appear there.
+> 19. Reporting, "Northgate Lettings's commission": the possessive should read "Northgate Lettings' commission" where the name ends in s.
+
+**Item 17's last sentence is the testable one.** "Whichever option is chosen,
+the trend must match the tiles on the same page" is a consistency invariant,
+not a copy change, and it is the half most likely to be quietly wrong again
+later. It wants a test per option asserting the trend's total for the period
+equals the tile, rather than a test that the dropdown lists four things.
+
+**Item 17 rests on a distinction the code already makes.** `liveAnalytics.ts`
+separates a genuine supplier's cut from a house route's, with the comment that
+a house route's partner cut "is opndoor's own margin", and
+`our_margin_is_not_theirs.test.sql` asserts it. So "Opndoor doesn't earn
+commission, it pays it" is already true in the money model, and the fault is
+that the TREND offers a reader a series that cannot apply to them. The fix is
+to pick the option set from who is reading, which is the same shape as the
+per-reader digests (rule 4).
+
+**Item 18 is the same root as B1 and B2, and should be fixed with them.** Rule
+5 is that direct-rail business is never the matched agency's. B1 has
+direct-rail rows counted into agency and branch counters; B2 has direct
+applications becoming an invented agency payee named after the matched
+agency. Item 18 is that same invented party surfacing a third time, now in
+the referrer list wearing a level ("Negotiator") it cannot hold. One cause,
+three symptoms: fixing it in the reporting list alone leaves the other two.
+
+**Item 19 should be fixed where the possessive is FORMED, not where it is
+read.** If the string is built by appending `'s` at each call site, item 19 is
+several bugs; if there is one helper, it is one. Worth finding out first,
+because a name ending in s is not the only case -- the rule wants stating once
+and testing once.
+
 **The proposal item 15 asks for is written up as NM-F below.** Item 15 itself
 stays unbuilt and unranked until Matt answers it.
 
