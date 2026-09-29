@@ -245,6 +245,30 @@ the Regent decision:
 - the NULL-guard family, in `amend_tenancy_start` and the three `admin_*_user_*`
   RPCs, plus the four covered in NM-0
 
+### NM-2b. Four internal notifications Q-04 names that do not exist
+
+Q-04 says to list "ops alerts by kind, awaiting decision, reconciliation
+items, deeds needing a staff send, new applications, payments, refunds, sync
+failures, security events and any others" and then build routing for them.
+
+Most exist. Four do not, and they are a build rather than a routing change:
+
+| named | status |
+| --- | --- |
+| awaiting decision | nothing. An application sitting at `referencing` raises no internal alert. |
+| reconciliation items | nothing internal. The screen exists; it does not notify. |
+| new applications | nothing. A referral being created raises no internal alert. |
+| payments | nothing on success. Only `stripe_refund_not_applied`, which fires on a FAILED refund. |
+
+I am building the settings page for the types that DO exist, because a switch
+for something nothing sends is worse than no switch. **What I need:** whether
+to build those four as new alerts now, or leave them. My recommendation is to
+leave "new applications" and "payments" -- on any volume they are a firehose
+that trains people to filter the ops inbox, which is the failure mode the
+whole item is trying to avoid -- and to build "awaiting decision" and
+"reconciliation items" as DIGESTS rather than per-event alerts, because both
+are backlogs and a backlog is a daily list, not an interrupt.
+
 ### NM-0. The 35 orphan accounts are DEV, and the production question is narrower than it looked
 
 **2026-09-29.** Matt ran "auth.users rows with no public.users row" and got 35,
@@ -706,7 +730,20 @@ design and Q-02's "subject to item 2's settings" means this matrix.
 
 ## Q-04. Opndoor internal notification routing
 
-**Status: todo.**
+**Status: in progress.** The inventory is done and committed:
+`docs/OPS-NOTIFICATIONS.md`, read from the code. Today every internal alert
+takes one path -- `report_ops_incident` dedupes per (kind, hour) into
+`ops_alerts`, posts to `ops-alert`, and that sends to ONE address from
+`OPS_ALERT_ADDRESS ?? EMAIL_REVIEW_ADDRESS ?? ""`. If neither is set the alert
+is silently dropped. Twenty-four named kinds plus five `cron_error:<fn>`
+variants.
+
+**Four things the instruction names do not exist as internal notifications
+at all**, and are a build rather than a routing change: awaiting decision,
+reconciliation items, new applications, and payments (only a FAILED refund
+alerts today, not a successful payment). The settings page is being built for
+the types that exist. **Needs Matt:** whether those four should be built now
+or listed. See NM-2b.
 
 ### The instruction, verbatim (2026-09-28)
 
