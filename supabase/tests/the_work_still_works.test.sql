@@ -26,7 +26,7 @@
 -- this is the list of things the product must be able to do.
 
 begin;
-select plan(20);
+select plan(22);
 
 -- ===========================================================================
 -- ONE AGENCY, ITS DIRECTOR, ITS MANAGER, ITS NEGOTIATOR
@@ -130,6 +130,30 @@ select lives_ok(
 select lives_ok(
   $$select public.set_agency_level('95000000-0000-0000-0000-00000000d003','Negotiator')$$,
   'and put them back');
+
+/* AND ACROSS THE TWO MANAGEMENT LEVELS, which is the move the admin screen
+   could not make until Q-06 item G.
+   Director and Manager share role = 'management' and differ only by
+   sees_commission, so /users' "Edit role" -- which writes `role` -- could
+   not move anybody between them at all. It is the move an agency actually
+   argues about, and nothing asserted it worked. set_agency_level is the one
+   door that writes both columns together. */
+select lives_ok(
+  $$select public.set_agency_level('95000000-0000-0000-0000-00000000d002','Director')$$,
+  'a Director can promote their Manager to Director');
+
+/* AND THEN CANNOT PUT THEM BACK, which surprised me and is correct.
+   The ladder is "someone BELOW your own level" (assert_may_act_on_user).
+   The moment that Manager becomes a Director they are a PEER, and demoting a
+   peer is a lateral act on somebody who can do the same to you. It takes an
+   opndoor admin. Asserted rather than worked around, because the obvious
+   test -- promote then demote, the shape used for the Negotiator pair above
+   -- passes only where the two levels are not adjacent to the actor's own,
+   and reading that asymmetry as a bug is exactly how a ladder gets loosened. */
+select throws_ok(
+  $$select public.set_agency_level('95000000-0000-0000-0000-00000000d002','Manager')$$,
+  '42501', 'You can only do this to someone below your own level.',
+  'and then cannot demote them, because a Director is not below a Director');
 
 -- 5. SET A HOME BRANCH through the one sanctioned door.
 select lives_ok(

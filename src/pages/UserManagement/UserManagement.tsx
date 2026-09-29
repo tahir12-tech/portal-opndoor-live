@@ -11,10 +11,12 @@
    and a confirmation dialog stating the consequence. Reachable by opndoor admin
    + Management (route guard).
    ===================================================================== */
+import { LEVEL_PILL, holdsAgencyLevel, personLevelLabel } from '@/data/levelLabel';
+import { ChangeLevelModal } from '@/components/people/ChangeLevelModal';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { PositionModal, type ScopeTarget } from './PositionModal';
 import * as positionsService from '@/data/positionsService';
-import { getAgencies, getGroups, levelsGrantableBy, mayActOn, type Actor, type AgencyLevel } from '@/data';
+import { AGENCY_LEVELS, getAgencies, getGroups, levelsGrantableBy, mayActOn, type Actor, type AgencyLevel } from '@/data';
 import { isHousePartner } from '@/data/channel';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
@@ -141,6 +143,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   const [addScope, setAddScope] = useState('');
   // edit-role modal
   const [editUser, setEditUser] = useState<ManagedUser | null>(null);
+  const [levelUser, setLevelUser] = useState<ManagedUser | null>(null);
   const [editRole, setEditRole] = useState<Role>('referrer');
   const [editAudit, setEditAudit] = useState<UserAuditEntry[]>([]);
   const [showAllUserAudit, setShowAllUserAudit] = useState(false); // #113 cap Recent changes at 6
@@ -179,7 +182,10 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     ? allUsers.filter((u) =>
         u.name.toLowerCase().includes(q) ||
         userEmail(u).toLowerCase().includes(q) ||
-        ROLE_META[u.role][0].toLowerCase().includes(q) ||
+        /* WHAT THE EYE SEES. Searching the internal role word while the
+           column shows the level is the dead search the comment above is
+           about: typing "Director" would match nothing. */
+        personLevelLabel(u).toLowerCase().includes(q) ||
         userPartnerName(u.partner).toLowerCase().includes(q))
     : allUsers;
 
@@ -412,7 +418,16 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
           )}
           {mayAct(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('resend', u); }}><Icon name="send" />Resend invite</button>}
           {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-name', u); }}><Icon name="edit" />Edit name</button>}
-          {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-role', u); }}><Icon name="edit" />Edit role</button>}
+          {/* CHANGE LEVEL ON THE ESTATE, EDIT ROLE OFF IT. On our own estate a
+              person holds one of three LEVELS, and moving them is one RPC that
+              writes role and sees_commission together. "Edit role" there could
+              not move anybody between Director and Manager at all, because
+              those two share a role and differ only by the commission bit. On
+              the supplier rail there are no levels (D11), so the role dialog
+              is still the right control there. */}
+          {canEditRole(u) && (holdsAgencyLevel(u)
+            ? <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); setLevelUser(u); }}><Icon name="org" />Change level</button>
+            : <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-role', u); }}><Icon name="edit" />Edit role</button>)}
           <div className="rowmenu__sep" />
           {mayAct(u) && <button className="rowmenu__item rowmenu__item--danger" onClick={() => { setMenuOpenId(null); handleAction('cancel-invite', u); }}><Icon name="ban" />Cancel invite</button>}
         </>
@@ -421,7 +436,16 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     return (
       <>
         {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-name', u); }}><Icon name="edit" />Edit name</button>}
-        {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-role', u); }}><Icon name="edit" />Edit role</button>}
+        {/* CHANGE LEVEL ON THE ESTATE, EDIT ROLE OFF IT. On our own estate a
+            person holds one of three LEVELS, and moving them is one RPC that
+            writes role and sees_commission together. "Edit role" there could
+            not move anybody between Director and Manager at all, because
+            those two share a role and differ only by the commission bit. On
+            the supplier rail there are no levels (D11), so the role dialog
+            is still the right control there. */}
+        {canEditRole(u) && (holdsAgencyLevel(u)
+          ? <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); setLevelUser(u); }}><Icon name="org" />Change level</button>
+          : <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-role', u); }}><Icon name="edit" />Edit role</button>)}
         {mayAct(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-password', u); }}><Icon name="lock" />Send password reset</button>}
         {mayAct(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-2fa', u); }}><Icon name="phone" />Reset two-factor</button>}
         {canDeactivate(u) && <>
@@ -526,12 +550,26 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   // rejects it from a management caller anyway).
   const addOptions = teamMode
     ? ROLE_OPTIONS.filter((o) => o.id === 'superadmin' || o.id === 'opndoor_manager')
-    : ROLE_OPTIONS.filter((o) => o.id !== 'superadmin' && o.id !== 'opndoor_manager');
+    /* AND NEVER `developer` ON THE ESTATE, which SQL refuses outright:
+       admin_update_user_role's own words are that the developer role is for
+       supplier integration staff. Since Q-06 item G an estate row opens the
+       Change level dialog instead and never reaches this list at all, so
+       this is the brace to that belt -- it stops the option returning if
+       anything else ever opens the role dialog on an estate row. */
+    : ROLE_OPTIONS.filter((o) => o.id !== 'superadmin' && o.id !== 'opndoor_manager'
+        && !(o.id === 'developer' && !!editUser && isHousePartner(editUser.partner ?? '')));
   // Role-model wall: the edit dialog only offers roles on the target's side of it.
   const editTargetIsTeam = !!editUser && (editUser.partner === 'opndoor' || editUser.role === 'superadmin');
   const editRoleOptions = editTargetIsTeam
     ? ROLE_OPTIONS.filter((o) => o.id === 'superadmin' || o.id === 'opndoor_manager')
-    : ROLE_OPTIONS.filter((o) => o.id !== 'superadmin' && o.id !== 'opndoor_manager');
+    /* AND NEVER `developer` ON THE ESTATE, which SQL refuses outright:
+       admin_update_user_role's own words are that the developer role is for
+       supplier integration staff. Since Q-06 item G an estate row opens the
+       Change level dialog instead and never reaches this list at all, so
+       this is the brace to that belt -- it stops the option returning if
+       anything else ever opens the role dialog on an estate row. */
+    : ROLE_OPTIONS.filter((o) => o.id !== 'superadmin' && o.id !== 'opndoor_manager'
+        && !(o.id === 'developer' && !!editUser && isHousePartner(editUser.partner ?? '')));
 
   return (
     <>
@@ -552,8 +590,14 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
           <span className="role-tag role-tag--super">opndoor admin · full control of the portal</span>
         ) : (
           <>
-            <span className="role-tag role-tag--mgmt">Management · sees everything, no opndoor admin</span>
-            <span className="role-tag role-tag--ref">Referrer · own referrals only</span>
+            {/* The three levels, in the words the rest of the product uses
+                and in ladder order. Taken from AGENCY_LEVELS so the legend
+                and the invite dialog cannot describe a level differently. */}
+            {AGENCY_LEVELS.map((l) => (
+              <span key={l.level} className={`role-tag ${LEVEL_PILL[l.level]}`}>
+                {l.level} · {l.desc.replace(/\.$/, '').toLowerCase()}
+              </span>
+            ))}
           </>
         )}
       </div>
@@ -606,7 +650,12 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
                       </div>
                     </td>
                     {showPartner && <td className="soft">{userPartnerName(u.partner)}</td>}
-                    <td><span className={`role-tag ${rm[1]}`}>{rm[0]}</span></td>
+                    {/* THE LEVEL, NOT THE ROLE. This screen lists both rails
+                        side by side, so the word has to follow the rail:
+                        Director / Manager / Negotiator on our estate, and the
+                        role's own word on the supplier rail, where those
+                        levels do not exist (D11). */}
+                    <td><span className={`role-tag ${LEVEL_PILL[personLevelLabel(u)] ?? rm[1]}`}>{personLevelLabel(u)}</span></td>
                     <td className="soft">{positionsService.describePosition(positionsByUser[u.id] ?? [])}</td>
                     <td className="soft">{u.lastActive}</td>
                     <td><Pill variant={sp[1]}>{sp[0]}</Pill></td>
@@ -718,6 +767,17 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
         </p>
       </Modal>
 
+      {/* The estate's own control. Mounted beside the role dialog rather than
+          replacing it, because /users lists both rails and each needs its own. */}
+      {levelUser && (
+        <ChangeLevelModal
+          actor={actor}
+          person={{ id: levelUser.id, name: levelUser.name, current: personLevelLabel(levelUser) }}
+          onClose={() => setLevelUser(null)}
+          onDone={(m) => { toast(m); setLevelUser(null); void refreshData(); refresh(); }}
+          onError={(m) => toast(m, 'error')}
+        />
+      )}
       <Modal
         open={editUser !== null}
         onClose={() => setEditUser(null)}

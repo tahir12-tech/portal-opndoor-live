@@ -36,6 +36,44 @@ insert into public.users (id, full_name, email, role, partner_id, status, sees_c
 insert into public.ops_inboxes (id, name, email) values
   ('a1000000-0000-0000-0000-0000000000b1','ZZZ Ops Desk','zzz.ops.desk@o.test');
 
+/* THIS TEST OWNS EVERY ROUTE IT REASONS ABOUT.
+ *
+ * The floor assertions below are about THE LAST recipient of a critical
+ * alert, so they are only meaningful if the test controls the whole set. It
+ * did not: dev is a real database and somebody has since routed
+ * deed_claim_failed to a real admin through the Internal notifications
+ * screen, which made three recipients where the test assumed two. Turning
+ * two off then left one standing, the floor never fired, and five assertions
+ * failed -- including the two that exist to prove the floor works.
+ *
+ * Nothing was wrong with the product. The test was reading a global set and
+ * calling it its own. It passed in CI, whose Postgres is thrown away and
+ * empty, and would have gone on passing there while being wrong here.
+ *
+ * Deleted rather than disabled, inside the transaction that rolls back. The
+ * floor trigger is deferred and this file never commits, so the delete does
+ * not trip it; the assertions that NEED it fire it deliberately with
+ * `set constraints all immediate`, and by then the only routes left for
+ * these three types are the ones this file made.
+ *
+ * SCOPED, TWICE OVER, and neither is fussiness.
+ *
+ * To the types this file manages, because `set constraints all immediate`
+ * fires the floor for EVERY critical type at once: deleting every foreign
+ * route emptied critical types this test never touches and made those raise
+ * instead, which is the floor working correctly on rows that are none of
+ * this test's business.
+ *
+ * And in TWO PLACES rather than one. A critical type must not sit empty
+ * across a `set constraints all immediate`, so each type is cleared
+ * immediately before this file gives it its own recipients.
+ * deed_claim_failed is cleared here because its routing is the next thing
+ * that happens; deed_void_failed is cleared further down, beside its own.
+ */
+delete from public.ops_routes
+ where alert_type in ('deed_claim_failed', 'hubspot_map_drift')
+   and coalesce(user_id::text, inbox_id::text) not like 'a1000000-%';
+
 -- ===========================================================================
 -- THE TYPES, AND THEIR GROUPS
 -- ===========================================================================
@@ -112,6 +150,12 @@ select lives_ok($$set constraints all deferred$$, 'and again');
 -- This is the one that matters most: nobody is looking at the routing page
 -- when a leaver is processed.
 reset role;
+-- Cleared here, not at the top: see the note beside the first delete. This
+-- type is critical, so it must not be empty when a later assertion fires the
+-- deferred floor, and its own recipient is added on the very next line.
+delete from public.ops_routes
+ where alert_type = 'deed_void_failed'
+   and coalesce(user_id::text, inbox_id::text) not like 'a1000000-%';
 select public.set_ops_route('deed_void_failed','person','a1000000-0000-0000-0000-0000000000f3', true);
 select is(
   (select count(*)::int from public.ops_route_recipients('deed_void_failed')), 1,
