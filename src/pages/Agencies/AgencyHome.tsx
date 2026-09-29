@@ -858,6 +858,18 @@ export function AgencyHome() {
                         <span className="soft" title="A Negotiator sees their own referrals, which is already their scope.">Own referrals</span>
                       ) : r.status === 'deactivated' ? (
                         <span className="soft">{EMPTY}</span>
+                      ) : !isAdmin ? (
+                        /* READ-ONLY FOR AN OPNDOOR MANAGER. Round 6, M11: this
+                           control had no isAdmin gate, unlike the commission
+                           tick in the next column, but nav gives an
+                           opndoor_manager the Agencies section and
+                           set_receives_notifications passes only on is_admin()
+                           or app_role() = 'management'. An opndoor_manager is
+                           neither, so every click raised 42501. The VALUE is
+                           still worth showing them -- they answer "why did
+                           this person not get it?" -- so it is shown, and only
+                           the control is withheld. */
+                        <span className="soft" title={NOTIFY_LABEL}>{notify[r.userId] ? 'Yes' : 'No'}</span>
                       ) : (
                         <label className="ah-stmt" title={NOTIFY_LABEL}>
                           <input

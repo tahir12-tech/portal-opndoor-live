@@ -60,6 +60,16 @@ export function PositionModal({
   const [targetId, setTargetId] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  /* WHERE THEY WORK. Round 6, M12: set_home_branch had no caller anywhere in
+     the product, so a person invited to the wrong office could never be moved.
+     It belongs here rather than on a new screen because this modal is already
+     the answer to "where does this person sit", and for a Negotiator the home
+     branch IS their placement -- the position list above is empty for them by
+     design. */
+  const [home, setHome] = useState<string>(
+    positions.mockHomeBranch(user.id) ?? user.homeBranchId ?? '',
+  );
+  const [homeBusy, setHomeBusy] = useState(false);
 
   const load = useCallback(async () => {
     try { setHeld(await positions.getPositions(user.id)); }
@@ -70,6 +80,7 @@ export function PositionModal({
   useEffect(() => { void load(); }, [load]);
 
   const options = targets.filter((t) => t.kind === kind);
+  const branches = targets.filter((t) => t.kind === 'branch');
 
   /* The one case the constraint allows. Everything else is a move. */
   const canRemove = user.status === 'deactivated';
@@ -87,6 +98,21 @@ export function PositionModal({
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not set that position.', 'error');
     } finally { setBusy(false); }
+  };
+
+  const moveHome = async (branchId: string) => {
+    const prev = home;
+    setHome(branchId);
+    setHomeBusy(true);
+    try {
+      await positions.setHomeBranch(user.id, branchId || null);
+      onSaved();
+      const name = branches.find((b) => b.id === branchId)?.name;
+      toast(branchId ? `${user.name} now works at ${name}.` : `${user.name} is no longer placed at an office.`);
+    } catch (e) {
+      setHome(prev);
+      toast(e instanceof Error ? e.message : 'Could not move them.', 'error');
+    } finally { setHomeBusy(false); }
   };
 
   const remove = async (p: positions.Position) => {
@@ -162,6 +188,27 @@ export function PositionModal({
         </ul>
         {!canRemove && <p className="soft pos-note">{REMOVE_HINT}</p>}
         </>
+      )}
+
+      {/* WHERE THEY WORK, above the position list's own control because for
+          most people it is the only one of the two that applies. Offered only
+          where the caller has a branch to offer: set_home_branch refuses a
+          branch the caller does not reach, and `targets` is already narrowed
+          to the caller's own reach, so an empty list means there is nothing
+          they could legitimately choose. */}
+      {branches.length > 0 && (
+        <Field label="Where they work"
+               hint="Their office. It is what puts them on their manager's team from day one, and it is read by the league, the climber and the commission statement.">
+          <select
+            aria-label="Where they work"
+            value={home}
+            disabled={homeBusy || busy}
+            onChange={(e) => void moveHome(e.target.value)}
+          >
+            <option value="">No office</option>
+            {branches.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </Field>
       )}
 
       <div className="pos-add">

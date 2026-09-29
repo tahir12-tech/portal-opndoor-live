@@ -22,7 +22,7 @@
  * unconditionally and enabled Remove for anybody.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { ToastProvider } from '@/components/ui/Toast';
 import * as positions from '@/data/positionsService';
 import { PositionModal } from './PositionModal';
@@ -90,5 +90,55 @@ describe('the position modal', () => {
   it('lets Remove be pressed once they are deactivated, which is the case that works', async () => {
     await open(person({ status: 'deactivated' }), HELD);
     expect(button(/^remove$/i)!.hasAttribute('disabled')).toBe(false);
+  });
+});
+
+/* WHERE THEY WORK. Round 6, M12.
+ *
+ * 20261006310000 made users.home_branch_id writable only through
+ * set_home_branch, and round 4's H3 granted EXECUTE on it to authenticated
+ * because nothing could turn the one key. Then nobody called it: the only
+ * writer in the product is create_invited_user, at invite time. So a person
+ * invited to the wrong office stayed there permanently, and home_branch_id is
+ * not a label -- commission_statement_party, agency_weekly_climber,
+ * list_managed_users and my_org_shape all read it.
+ *
+ * It belongs in this modal because this modal is already the answer to "where
+ * does this person sit", and for a Negotiator the home branch IS the
+ * placement: the position list above is empty for them by design.
+ */
+describe('where they work', () => {
+  it('offers the offices the caller reaches', async () => {
+    await open(person({ role: 'referrer' }), []);
+    const sel = document.querySelector<HTMLSelectElement>('select[aria-label="Where they work"]');
+    expect(sel).toBeTruthy();
+    expect([...sel!.options].map((o) => o.value)).toContain('br-1');
+  });
+
+  it('shows the office they are at now, so a move is a change and not a guess', async () => {
+    await open(person({ role: 'referrer', homeBranchId: 'br-1' } as Partial<ManagedUser>), []);
+    expect(document.querySelector<HTMLSelectElement>('select[aria-label="Where they work"]')!.value)
+      .toBe('br-1');
+  });
+
+  /* THE ASSERTION THE DEFECT WAS: that choosing one actually calls the one
+     sanctioned door. A control that rendered and wrote nothing would satisfy
+     the two above. */
+  it('moves them through set_home_branch, the only door the column has', async () => {
+    const move = vi.spyOn(positions, 'setHomeBranch').mockResolvedValue(undefined);
+    await open(person({ role: 'referrer' }), []);
+    const sel = document.querySelector<HTMLSelectElement>('select[aria-label="Where they work"]')!;
+    await act(async () => { fireEvent.change(sel, { target: { value: 'br-1' } }); });
+    await waitFor(() => expect(move).toHaveBeenCalled());
+    expect(move.mock.calls.at(-1)).toEqual(['u1', 'br-1']);
+  });
+
+  it('and can take them off an office entirely, which is a null and not an empty string', async () => {
+    const move = vi.spyOn(positions, 'setHomeBranch').mockResolvedValue(undefined);
+    await open(person({ role: 'referrer', homeBranchId: 'br-1' } as Partial<ManagedUser>), []);
+    const sel = document.querySelector<HTMLSelectElement>('select[aria-label="Where they work"]')!;
+    await act(async () => { fireEvent.change(sel, { target: { value: '' } }); });
+    await waitFor(() => expect(move).toHaveBeenCalled());
+    expect(move.mock.calls.at(-1)).toEqual(['u1', null]);
   });
 });

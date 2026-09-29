@@ -86,6 +86,32 @@ describe('invite-user reaches that decision', () => {
   it('asks a re-invite for no branch, because resendInvite sends none', () => {
     expect(src).toMatch(/else if \(callerScoped && !existing\)/);
   });
+
+  /* AND IT ASKS THE LADDER. Round 6, M7: the re-invite branch tested REACH
+     (users_select) and the target's role, and reach is not rank -- a Manager
+     can see the Director above them. So a Manager could send
+     {email: "director@...", role: "referrer"}, pass both tests, and trigger a
+     recovery link and a user_audit row against somebody senior. */
+  it('asks may_act_on_user before re-inviting somebody who already exists', () => {
+    expect(src).toMatch(/rpc\("may_act_on_user", \{ p_user: existing\.id \}\)/);
+    // Before the link is minted, not after.
+    expect(src.indexOf('may_act_on_user')).toBeLessThan(src.indexOf('generateLink'));
+  });
+
+  /* AND IT DOES NOT RE-CLOSE WHAT IT JUST OPENED. Round 6, M2: a supplier
+     management caller may create a developer and could never resend that
+     developer's invitation, because the re-invite role allowlist did not name
+     the role the create allowlist hands out. The ladder resolves on the
+     supplier rail (a supplier Manager is rank 2, their developer rank 3), so
+     adding may_act_on_user above does not undo this. */
+  it('lets a supplier manager resend the developer they were allowed to create', () => {
+    // The re-invite block: from the reach read to the ladder call.
+    const from = src.indexOf('const { data: reachable }');
+    const to = src.indexOf('may_act_on_user', from);
+    expect(from).toBeGreaterThan(-1);
+    expect(to).toBeGreaterThan(from);
+    expect(src.slice(from, to)).toMatch(/\["referrer", "management", "developer"\]/);
+  });
 });
 
 describe('and the rule it must not repeal', () => {

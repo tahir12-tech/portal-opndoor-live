@@ -296,8 +296,30 @@ Deno.serve(async (req) => {
     if (existing && caller.role !== "superadmin") {
       const { data: reachable } = await userClient
         .from("users").select("id, role").eq("id", existing.id).maybeSingle();
-      if (!reachable || !["referrer", "management"].includes(reachable.role)) {
+      /* 'developer' belongs here. Round 6, M2: a supplier management caller
+         may CREATE a developer (the allowlist forty lines above says so) and
+         could then never resend that developer's invitation, because this list
+         did not name the role they had just handed out. */
+      if (!reachable || !["referrer", "management", "developer"].includes(reachable.role)) {
         return json({ ok: false, error: "Not permitted." }, 403);
+      }
+      /* AND THE LADDER, which this branch never asked. Round 6, M7.
+         Reach is not rank: users_select admits everybody a Director or Manager
+         can SEE, which includes the Director above them. So a Manager sent
+         {email: "director@...", role: "referrer"}, passed the reach test and
+         the role allowlist, and triggered a GoTrue recovery link and a
+         user_audit "invited" row against somebody senior to them. Re-inviting
+         is something done TO a person, and may_act_on_user is the predicate
+         for that: strictly below, opndoor staff exempt.
+
+         Checked on dev before adding it, because a lock here would be worse
+         than the hole: the ladder resolves on the SUPPLIER rail too (a
+         supplier Manager is rank 2, their developer rank 3), so this does not
+         re-close what the line above just opened. */
+      const { data: mayAct } = await userClient
+        .rpc("may_act_on_user", { p_user: existing.id });
+      if (mayAct !== true) {
+        return json({ ok: false, error: "You can only do this for someone below your own level." }, 403);
       }
     }
 

@@ -339,6 +339,35 @@ export async function addPosition(userId: string, kind: ScopeKind, targetId: str
   if (error) throw new Error(error.message);
 }
 
+/* WHERE SOMEBODY SITS, which had no caller at all. Round 6, M12.
+   20261006310000 made users.home_branch_id writable only through
+   set_home_branch (the column trigger refuses everything else), and round 4's
+   H3 then granted EXECUTE on it to authenticated because nothing could turn
+   the one key. But no screen ever called it: the only writer in the whole
+   product is create_invited_user, at invite time. So a negotiator invited to
+   the wrong office stayed there, and home_branch_id is read by
+   commission_statement_party, agency_weekly_climber, list_managed_users and
+   my_org_shape -- it is where they sit, not a label.
+
+   The RPC checks both ends of the move and the ladder, so this is a thin
+   pass-through and the screen does not restate the rule. */
+export async function setHomeBranch(userId: string, branchId: string | null): Promise<void> {
+  if (!SUPABASE_ENABLED) {
+    const u = MOCK_HOME.get(userId);
+    void u;
+    MOCK_HOME.set(userId, branchId);
+    return;
+  }
+  const { error } = await sb().rpc('set_home_branch', { p_user: userId, p_branch: branchId });
+  if (error) throw new Error(error.message);
+}
+
+/** Mock-mode home branches, so the modal behaves without a database. */
+const MOCK_HOME = new Map<string, string | null>();
+export function mockHomeBranch(userId: string): string | null | undefined {
+  return MOCK_HOME.get(userId);
+}
+
 export async function removePosition(userId: string, positionId: string): Promise<void> {
   if (!SUPABASE_ENABLED) {
     MOCK.set(userId, (MOCK.get(userId) ?? []).filter((p) => p.id !== positionId));

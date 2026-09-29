@@ -562,12 +562,12 @@ committed earlier the same day, which is the point of a fresh reviewer.
 | M5 | `commission_statement_lines` has no rail exclusion, so a matched direct-rail application becomes the matched agency's statement payee. Held off today only by `opndoor-direct`'s rate being 0. | **done** `20261006580000` |
 | M13 | **Found while fixing M3/M5, not by a reviewer.** `agreement_volume` carries the same inclusion-form predicate the digest had (`application_channel(ap.id) = 'Agent referral'`), so a SUPPLIER agency's negotiated volume is always zero and its commission tier never advances. One line, same rule as `20261006580000`. | **done** `20261006590000` |
 | M6 | `referencing-inbound`'s idempotency claim is keyed on `table_id` alone, so any inbound token can claim or burn another agency's hand-over. Not yet in use (zero rows). | todo |
-| M7 | The re-invite path never asks the ladder: a Manager can trigger a recovery link and an audit row against the Director above them. | todo |
+| M7 | The re-invite path never asks the ladder: a Manager can trigger a recovery link and an audit row against the Director above them. | **done** `invite-user/index.ts` |
 | M8 | Five `language sql` functions still answer a password-only session (`agreement_for_agency`, `commission_preview`, `commission_split_batch`, `org_deed_readiness`, `org_rate_tiers`). The two plpgsql ones are done. | **done** `20261006600000` |
 | M9 | Direct-rail rows counted into agency/branch counters in `hydrate.ts`; a group page's "What they earned" lists every payee on the rail; direct rows become an invented agency payee in `commissionSplit.ts`. | todo |
 | M10 | `set_receives_notifications` can never be used on a supplier colleague (its scope test requires the TARGET to hold a position, which only estate users do). | todo |
-| M11 | `opndoor_manager` sees the notifications tick on the agency People tab and every click raises 42501. | todo |
-| M12 | `set_home_branch` has no caller anywhere in the product: a home branch cannot be corrected after invite. | todo |
+| M11 | `opndoor_manager` sees the notifications tick on the agency People tab and every click raises 42501. | **done** `AgencyHome.tsx` |
+| M12 | `set_home_branch` has no caller anywhere in the product: a home branch cannot be corrected after invite. | **done** `PositionModal.tsx` + `positionsService.setHomeBranch` |
 | L | Several lows: unescaped ILIKE in the partner-API referrer lookup (a cross-partner existence oracle); `.neq("partner_id", …)` misses NULL; `send-password-reset` falls back to the caller's origin; `commission_statement_refs` has no may-see-commission policy; `partner_agency_relationships` has no AAL2 policy; `detach_user_from_agency` needs no group/agency position; `set_branch_deed_recipient` uses partner_id as "same organisation"; localStorage working copies survive sign-out. | todo |
 
 **Does round 6 reach production?** No. `main` carries 65 migrations, newest
