@@ -252,7 +252,14 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   const maxApps = Math.max(1, ...Object.values(appsByPartner));
 
   const partnersOut: Partner[] = partners.map((p) => ({
+    /* THE CLIENT'S PARTNER ID IS THE SLUG, deliberately: every screen, route
+       and scope compares slugs, and `partnerName` resolves a house route by
+       it. But the DATABASE keys on the uuid, so anything calling an RPC that
+       takes a partner needs the real one -- the notification matrix is the
+       first. Carried alongside rather than swapped in, because changing `id`
+       would touch every comparison in the product. */
     id: p.slug,
+    dbId: p.id,
     name: p.name,
     status: p.status,
     since: p.live_from ? String(p.live_from).slice(0, 7) : '',

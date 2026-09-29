@@ -186,7 +186,11 @@ export type UserStatus = 'active' | 'pending' | 'deactivated';
 
 /* ---------- Partner ---------- */
 export interface Partner {
+  /** The SLUG. Every screen, route and scope compares these. */
   id: string;
+  /** The database uuid, present in Supabase mode only. Needed by any RPC that
+   *  takes a partner; `id` is not that. */
+  dbId?: string;
   name: string;
   status: PartnerStatus;
   /** Live-from month, e.g. "2024-09". */

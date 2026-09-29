@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
 import { fmtRatePct } from '@/lib/format';
 import { agencyKey } from '@/pages/Agencies/AgencyHome';
+import { NotificationMatrix } from '@/components/NotificationMatrix';
 import './PartnerHome.css';
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
@@ -255,6 +256,17 @@ export function PartnerHome() {
           )}
         </CardBody>
       </Card>
+      {/* WHO IS TOLD WHAT, under the people who would be told. Q-03. A supplier
+          IS a party: on that rail partner_id is the company, so the matrix is
+          keyed on the partner rather than on an agency under it. Its recipient
+          classes are the referrer and the branch agent contact -- there are no
+          positions on this rail, so there is no "ticked users" column, and the
+          server says so rather than this page assuming it.
+
+          Editing a supplier's matrix stays with opndoor: that rail has no
+          Director level to hold the decision, so there is nobody else it could
+          be given to. The card renders read-only for anyone else. */}
+      {partner.dbId && <NotificationMatrix party={{ partnerId: partner.dbId }} title="Who is told what" />}
     </>
   );
 }

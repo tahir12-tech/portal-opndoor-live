@@ -52,6 +52,7 @@ import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
+import { NotificationMatrix } from '@/components/NotificationMatrix';
 import { agencyLevelOf, AGENCY_LEVELS, setAgencyLevel, type AgencyLevel, type Role } from '@/data';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
 import { AgencyGrow } from './AgencyGrow';
@@ -1508,6 +1509,14 @@ export function AgencyHome() {
       )}
 
       {tab === 'people' && PeopleTab()}
+      {/* WHO IS TOLD WHAT, on the People tab because that is where the "Receives
+          notifications" tick already lives: the tick says WHICH PEOPLE are
+          copied, and this says WHICH EVENTS they are copied on. Q-03. One
+          agency is one party; a group page has no single matrix, so it is
+          drawn only when the page is focused on one. */}
+      {tab === 'people' && agencies.length === 1 && agencies[0]?.id && (
+        <NotificationMatrix party={{ agencyId: agencies[0].id }} />
+      )}
       {tab === 'commission' && canSeeCommission && CommissionTab()}
 
       {/* REFERRALS — follows the selected node, with one click back to the top. */}

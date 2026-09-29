@@ -132,14 +132,16 @@ round launched over a known list mostly re-finds it.
 Two of round 6's highs were in work committed the same day, which is the
 argument for the rounds continuing.
 
-**Q-02 and Q-03** are one design. The inventory (`docs/NOTIFICATIONS.md`), the
-whole SQL layer, and the SEND-PATH WIRING are done and tested. NOT done: the
-matrix UI on the supplier and agency detail pages.
+**Q-02 and Q-03 are DONE.** The inventory (`docs/NOTIFICATIONS.md`), the SQL
+layer, the send-path wiring and the matrix UI, each with tests that failed
+first. The UI is one component on both parties: the agency People tab (beside
+the "Receives notifications" tick, because the tick says which PEOPLE and the
+matrix says which EVENTS) and the supplier detail page.
 
 **Q-04 onwards** is untouched.
 
-Next action, in order: round 6's mediums (M4, M6-M13), then the Q-02/Q-03
-wiring and UI, then round 7.
+Next action, in order: round 7's criticals and highs when it reports (it is
+the last round of the loop), then Q-04 onward.
 
 ---
 
@@ -149,8 +151,8 @@ wiring and UI, then round 7.
 | --- | --- | --- |
 | Q-01 | The security loop | in progress |
 | Q-01b | The deed goes to the referrer AND every ticked user in scope | **done** |
-| Q-02 | Supplier rail notifications | in progress (BEFORE table done) |
-| Q-03 | Notification settings per party | in progress (SQL done, UI + send-path wiring left) |
+| Q-02 | Supplier rail notifications | **done** |
+| Q-03 | Notification settings per party | **done** |
 | Q-04 | Opndoor internal notification routing | todo |
 | Q-05 | Fold 11 and the four commission amendments | todo |
 | Q-06 | The fold-ins A to H | in progress (D and E done) |
