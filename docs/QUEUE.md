@@ -401,6 +401,23 @@ From the scoping of Q-05. Each blocks only the part named.
    visible today; it is a correctness question for the first negotiated
    supplier deal.*
 
+   **Measured 2026-09-29, when the final review round reported it as a HIGH.**
+   It is real and it is not high, and the difference matters because fixing
+   it would be answering this question on Matt's behalf. `create_referral_api`
+   resolves neither the fee nor the rates: it reads `partner_rate` and
+   `agent_rate` straight off the PARTNER row, and writes no `fee_amount` at
+   all. So an API application carries a null fee and flat rates.
+
+   Why it is not live: every partner-scope agreement on dev is `is_standard`,
+   and on standard terms `resolve_fee` returns exactly the rent -- 1500 on a
+   1500 rent -- which is precisely what every reader's `fee_amount ??
+   monthly_rent` already produces. The two agree today by arithmetic, not by
+   luck. They part company the day a supplier negotiates anything, and then
+   the API charges the wrong number silently.
+
+   So: not fixed, severity corrected to latent, and it is now a stronger
+   reason to answer this question than it was before.
+
 8. **Does a refunded application still count towards a volume tier?** It does
    today, while the statement excludes refunds, so "paid" means two different
    things in one pricing chain. Nobody is on a volume tier yet, so either
