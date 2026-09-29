@@ -21,6 +21,43 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## How security work ends (standing instruction, 2026-09-29, verbatim)
+
+This REPLACES "repeat fresh reviewer rounds until nothing above low".
+
+> Change to how security work ends, replacing "repeat until nothing above low":
+>
+> 1. Finish round 7: fix its critical and high findings, each with a failing test first. Then the review loop ends. No more rounds.
+>
+> 2. From here the definition of secure is the test suite, not reviewer opinion: the isolation suite, the functional guard suite, the definer grants check, the pattern checks and the drift check. Every future security fix must add or extend one of these, and every fix runs the full suite before it's committed, so a fix cannot break something elsewhere silently.
+>
+> 3. Mediums and lows from round 7 go into QUEUE.md under "Security backlog", ranked. They do not block the queue. Fix any that are cheap and self-contained as you pass them; leave the rest listed.
+>
+> 4. Move to the queue from Q-02 and build it through to the end.
+>
+> 5. After the queue is done, run exactly one final review round: fresh reviewers, the five rules, the whole codebase. Fix its criticals and highs only, with tests. Anything below that goes to the security backlog. Then the walk and the handover.
+>
+> 6. Never start another review round unless I ask for one.
+>
+> Record this in QUEUE.md and CLAUDE.md so it survives a new session, and carry on.
+
+### The five suites that now define "secure"
+
+Named here so "extend one of these" is unambiguous:
+
+| | what it is |
+| --- | --- |
+| the isolation suite | `supabase/tests/tenant_isolation.test.sql`, `every_repro_from_both_reviews.test.sql`, `every_browser_rpc_checks_its_reach.test.sql`, and the per-round files (`what_the_*_reviewer_found`, `what_the_sixth_round_found`, `a_null_guard_refuses`, `one_rail_excluded_not_one_rail_included`) |
+| the functional guard suite | `supabase/tests/the_work_still_works.test.sql` -- every user-facing action a security migration touches, run as the role that should be allowed, asserting it SUCCEEDS |
+| the definer grants check | `supabase/tests/definer_grants.test.sql` + `src/data/definerAllowlistCoverage.test.ts` |
+| the pattern checks | `src/data/migrationPatterns.test.ts`, `guardsAreNullSafe.test.ts`, `testsRunAsTheirRole.test.ts`, `credentialsAreNotAcceptedFromCallers.test.ts`, `sandboxDoesNotEmailRealPeople.test.ts`, `everyInviteSaysTheLevel.test.ts` |
+| the drift check | `npm run drift` -- final state computed from the migration FILES, diffed against dev |
+
+**Run before every commit from here:** `npm run typecheck`, `npm test`,
+`npm run drift`, and the pgTAP suite.
+
+---
+
 ## The five rules (my restatement, not Matt's words)
 
 Matt's standing instruction says to decide by "the five rules and my earlier

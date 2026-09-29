@@ -2,6 +2,15 @@ Before doing anything else in a session, read docs/QUEUE.md. It is the list of
 outstanding work. Resume from the first item not done. Every new instruction
 from Matt is added to it verbatim and committed before work starts.
 
+**The security review loop is CLOSED.** Do not start a review round unless Matt
+asks for one. The rule that replaced "repeat until nothing above low" is in
+docs/QUEUE.md under "How security work ends", verbatim. In short: round 7 was
+the last of the loop; there is exactly ONE final round after the queue is
+built; from here the definition of secure is the TEST SUITE, not reviewer
+opinion. Every security fix must add to or extend the isolation suite, the
+functional guard suite, the definer grants check, the pattern checks or the
+drift check, and must run the full suite before it is committed.
+
 ---
 
 # The Opndoor referral portal
