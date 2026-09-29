@@ -107,7 +107,44 @@ happens in between.
 
 ---
 
-## FIX THE SEVEN (instruction, 2026-09-29, verbatim). PAUSED at Matt's request.
+## FIX THE SEVEN, IN A WORKTREE (instruction, 2026-09-29, verbatim). ACTIVE.
+
+This supersedes the pause below. The seven are being built again, but nowhere
+near dev.
+
+> Start the seven fixes from your final review now, but without changing anything I'm walking: work in a separate git worktree, test against a local database, and do not apply any migration to dev, restart 5174 or touch the dev project until I say I've finished walking. Each fix with a test that fails first. For 7, the partner API works out the fee and commission exactly as the portal does when the tenant pays; where someone other than the tenant pays, it refuses with a clear message until Matt decides. Keep recording my walk fixes in QUEUE.md as they arrive, but don't build those yet. When I say the walk is done, merge the seven, apply to dev, then build the walk fixes.
+
+### How this is being obeyed
+
+| the constraint | how |
+| --- | --- |
+| separate git worktree | branch `fix-the-seven` off `partner-api`, in its own worktree. The main tree stays on `partner-api` so walk fixes can keep being recorded without touching the fix work. |
+| test against a local database | **a real local Postgres had to be built first -- this machine had none.** See below. |
+| no migration applied to dev | nothing is sent to `nfufwcpgrhfgwtphegca` at all. The dev pgTAP runner is not used. |
+| do not restart 5174 | the dev server is left alone; no `npm run dev`. |
+| do not touch the dev project | no queries, not even reads. |
+| walk fixes still recorded | in the MAIN tree, on `partner-api`, as they arrive. |
+| merge, then apply, then walk fixes | in that order, and only when Matt says the walk is done. |
+
+### The local database, and why this was not a five-minute step
+
+This machine has **no Docker, no Postgres, no Homebrew and no Supabase CLI**.
+`npm run test:db` is `supabase test db`, which needs Docker; that is the
+original reason the pgTAP suite had never been run here and why
+`scripts/pgtap-against-dev.py` was written to run it against dev instead. Dev
+is now off limits, so neither existing route works and a local Postgres had to
+be stood up from nothing.
+
+This is a better test than dev in one specific way, and it is worth saying
+plainly: dev carries real seed rows and the accumulated state of 333 applied
+migrations, so a pass there proves the assertions hold against *that* state. A
+local cluster built by applying all 333 files in filename order to an empty
+database proves a **clean apply** -- which is what CI does, and what
+`npm run drift` only approximates by computing the final state statically.
+
+---
+
+## FIX THE SEVEN (instruction, 2026-09-29, verbatim). Superseded by the above.
 
 > Fix problems 1 to 7 from your final review, in the order you ranked them, each with a test that fails first. For 7, the partner API must work out the fee and commission exactly as the portal does when the tenant pays, which is every route today. Where a supplier is set so that someone other than the tenant pays, the API refuses the application with a clear message until Matt decides how that payment works; do not build that payment path. For each problem, say whether it also exists on the live system today. When all seven are fixed and green, stop and report in plain English.
 
