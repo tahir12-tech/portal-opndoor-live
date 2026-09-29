@@ -1,0 +1,53 @@
+-- THE BROWSER DOES NOT WRITE AN APPLICATION.
+--
+-- Round 7's critical, and the same shape as round 6's H1 on public.users.
+--
+-- 20261006410000 revoked the table-wide INSERT/UPDATE on applications and
+-- re-granted PER COLUMN with a DENYLIST: everything except partner_rate and
+-- agent_rate. That leaves 79 of 82 columns writable by `authenticated`, and it
+-- gets worse on its own -- every column added since has been writable by
+-- default. `applications_update` gates which ROW a caller may touch and has
+-- never gated which COLUMN.
+--
+-- Measured on dev, rolled back, as Regent's MANAGER (sees_commission = false):
+--
+--   update public.applications
+--      set status='paid', payment_state='paid',
+--          paid_at=now()-interval '2 hours', paid_amount=0
+--    where guarantee_ref='GR-20837';          -- never paid, no payment intent
+--
+--   commission_statement_lines  ->  Regent's Lettings | GR-20837 | 138.46
+--   deeds_awaiting_generation   ->  1 row
+--
+-- So a free Deed of Guarantee is generated and SENT by the hourly cron,
+-- unattended, for a payment that never happened, and the forger's own agency
+-- gets a commission line for it. activity_log is unchanged: no audit record.
+--
+-- Two more through the same door. A Negotiator can rewrite `fee_amount` on
+-- their own Sent referral, and payment-page charges exactly that number
+-- (`unit_amount: Math.round(feeAmount * 100)`) with no re-derivation and no
+-- reconciliation -- GBP 1 for a deed, or an overcharge to a consumer. And
+-- `refunded_amount`, `stripe_refund_id`, `deed_state` and `executed_pdf_path`
+-- are all writable, so a refund can be invented and the record of an executed
+-- deed erased, with nothing to reconcile against because stripe_events stores
+-- no amount.
+--
+-- THE FIX IS THE GRANT, AND NOTHING ELSE. The sanctioned doors already refuse
+-- this caller: set_application_status raises 42501 for a Manager and says
+-- "opndoor admin only" in its own comment, and apply_stripe_payment is not
+-- executable by `authenticated` at all. The table grant silently overrode a
+-- decision the codebase had already made. Nothing in src/ writes this table --
+-- every reference is a SELECT -- and create_referral, mark_withdrawn,
+-- add_application_note and amend_tenancy_start are SECURITY DEFINER owned by
+-- the table owner, so none of them needs the grant.
+--
+-- NOT A NARROWER COLUMN LIST. A denylist is what failed; an allowlist would
+-- fail the same way the first time somebody adds a column to it out of
+-- habit. There is no legitimate browser write to narrow down to.
+--
+-- The applications_insert and applications_update POLICIES stay. They are
+-- inert without a grant, and leaving them means a future write path has to
+-- come back through a reviewed door rather than finding the table wide open.
+-- SELECT is untouched: every screen in the product reads this table.
+
+revoke insert, update on public.applications from anon, authenticated;

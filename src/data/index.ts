@@ -20,6 +20,7 @@ export * from './leagueService';
 export * from './exportsService';
 export * from './usersService';
 export * from './notificationMatrixService';
+export * from './opsRoutingService';
 export * from './settingsService';
 export * from './reconciliationService';
 export * from './addressService';

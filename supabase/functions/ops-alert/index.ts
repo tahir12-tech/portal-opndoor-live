@@ -31,7 +31,11 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <payments@opndoor.co>";
 const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
 // Production sets OPS_ALERT_ADDRESS; in this test build it falls back to the review address.
-const OPS_ADDRESS = Deno.env.get("OPS_ALERT_ADDRESS") ?? Deno.env.get("EMAIL_REVIEW_ADDRESS") ?? "";
+/* OPS_ALERT_ADDRESS and EMAIL_REVIEW_ADDRESS are no longer read here. Q-04:
+   who receives an internal alert is the routing table's answer, and a type
+   with nobody routed to it falls back to support@opndoor.co inside
+   ops_route_recipients -- which also SAYS it fell back, so an unrouted
+   critical alert does not look like a configured one. */
 const APP_URL = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
 
 // Human-readable label per failure type (partner-safe wording is irrelevant here:
@@ -93,7 +97,6 @@ Deno.serve(async (req) => {
     const message = String(body.message ?? "");
     const appId = body.application_id ? String(body.application_id) : null;
 
-    if (!OPS_ADDRESS) return json({ ok: false, error: "No OPS_ALERT_ADDRESS/EMAIL_REVIEW_ADDRESS configured." }, 500);
     if (!RESEND_API_KEY) return json({ ok: false, error: "Resend not configured." }, 500);
 
     // Enrich with the application context (ref/tenant/partner) when present.
@@ -119,13 +122,51 @@ Deno.serve(async (req) => {
       ?? (type.startsWith("cron_error") ? "Scheduled job error"
         : type.startsWith("webhook_error") ? "Webhook processing error"
         : type);
-    const tpl = opsAlertEmail({ type, label, ref, message, link });
+    /* WHO GETS IT IS THE ROUTING TABLE'S ANSWER. Q-04. This used to be one
+       address out of OPS_ALERT_ADDRESS ?? EMAIL_REVIEW_ADDRESS ?? "", and if
+       neither was set the function returned 500 and the alert was lost with
+       nothing but an ops_alerts row to show for it.
 
-    const res = await sendMessage({ to: OPS_ADDRESS, message: tpl });
+       The suffix is stripped for routing and kept for the email: the five
+       cron_error:<fn> and webhook_error:<fn> variants dedupe separately, which
+       is right, and route together, which is also right -- nobody would set
+       five switches differently. */
+    const routeType = type.split(":")[0];
+    const { data: routed } = await service.rpc("ops_route_recipients", { p_type: routeType });
+    const rows = (routed ?? []) as Array<{ email: string; fellback: boolean }>;
+    const recipients = rows.map((r) => (r.email ?? "").trim()).filter(Boolean);
+    const fellback = rows.some((r) => r.fellback === true);
+
+    /* NOTHING TO SEND IS A REAL ANSWER for a non-critical type: somebody
+       switched it off, and an unwanted alert is how an inbox stops being read.
+       A CRITICAL type never reaches here empty -- ops_route_recipients falls
+       back rather than returning nothing. */
+    if (!recipients.length) return json({ ok: true, skipped: "no recipients routed", type, ref });
+
+    /* AND THE FALLBACK SAYS SO IN THE EMAIL. A critical alert that arrived at
+       support because its own routing was empty looks identical to one that
+       was routed there deliberately, and telling those apart is the whole
+       point of having a floor. Built as a new message rather than mutating
+       the template, so opsAlertEmail stays the single description of the
+       ordinary case. */
+    const base = opsAlertEmail({ type, label, ref, message, link });
+    const tpl = fellback
+      ? {
+        ...base,
+        subject: `[UNROUTED] ${base.subject}`,
+        blocks: [
+          { p: 'This alert has nobody routed to receive it, so it came here. Set its recipients on the internal notifications page.' },
+          ...base.blocks,
+        ],
+      }
+      : base;
+
+    // ONE SEND WITH EACH AS A RECIPIENT, like every other notification.
     // sendMessage returns a SendResult, not a fetch Response: the shared sender
     // already turned the provider's reply into ok plus a reason.
+    const res = await sendMessage({ to: recipients, message: tpl });
     if (!res.ok) return json({ ok: false, error: res.error ?? "Send failed." }, 502);
-    return json({ ok: true, sent_to: OPS_ADDRESS, type, ref });
+    return json({ ok: true, sent_to: recipients, fellback, type, ref });
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "Unexpected error." }, 500);
   }

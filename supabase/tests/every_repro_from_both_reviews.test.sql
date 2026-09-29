@@ -149,13 +149,23 @@ select set_config('request.jwt.claims',
   '{"sub":"96000000-0000-0000-0000-00000000c002","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
 
--- agency_id alone: structurally re-derived from branch_id by the sync trigger,
--- which now fires on both columns. The write is accepted and changes nothing,
--- which is the correct outcome for a column that is not independently settable.
-select lives_ok(
+/* REFUSED EARLIER THAN IT USED TO BE, AND TWICE OVER.
+   This asserted that the write was ACCEPTED and changed nothing, because
+   agency_id is re-derived from branch_id by the sync trigger. Round 7 closed
+   the door above that one: 20261006660000 revoked INSERT and UPDATE on
+   applications from `authenticated` altogether, because 79 of 82 columns were
+   writable -- a Manager could forge a payment and the hourly deed cron would
+   generate and send a real Deed of Guarantee for it.
+
+   So the repro is now refused by the GRANT, before any policy or trigger is
+   consulted. The thing this repro is actually about -- that a negotiator
+   cannot move their own application to a competitor -- is asserted below and
+   is unchanged. */
+select throws_ok(
   $$update public.applications set agency_id = '96000000-0000-0000-0000-0000000000a2'
      where id = '96000000-0000-0000-0000-00000000e001'$$,
-  'a negotiator may write their own application');
+  '42501', null,
+  'a negotiator may not write their own application at all');
 reset role;
 select is((select agency_id from public.applications where id = '96000000-0000-0000-0000-00000000e001'),
   '96000000-0000-0000-0000-0000000000a1'::uuid,
