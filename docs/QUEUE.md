@@ -21,6 +21,45 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## The five rules (my restatement, not Matt's words)
+
+Matt's standing instruction says to decide by "the five rules and my earlier
+rulings". They have been used as the frame for every reviewer round this
+session and were nowhere in this repository, which is its own small version of
+the problem this file exists for. Written down here so a fresh reviewer, or
+whoever picks this up, is judging against the same five. **This is my wording,
+not Matt's**, and it is a restatement of how they have actually been applied,
+so correct it if it has drifted.
+
+1. **An agency referral reaches the people whose POSITION covers it.** Not the
+   partner, not the home branch, not a setting somebody ticked: the position
+   they already hold. The referrer is always one of them. "Receives
+   notifications" adds a person within their existing position; it is never a
+   subscription to the estate.
+
+2. **On the supplier and direct rails the partner IS the company.** There
+   `partner_id` is a real boundary and there is one contact, not a list. On the
+   agency rail every agency shares the house partner `opndoor-agents`, so the
+   same column is a route and not a boundary. The same predicate means
+   different things on different rails, which is where most of this session's
+   findings came from.
+
+3. **Commercial terms are Director-level.** Rates, bands, statements, what an
+   agency earns. Director and Manager are one role separated by
+   `sees_commission`, so anything that states money tests the capability and
+   not the role.
+
+4. **A digest is built per reader.** Anything sent to a person contains what
+   THAT person may see, resolved for them, rather than one query's rows fanned
+   out to a list.
+
+5. **Direct-rail business is never the matched agency's business.** The
+   auto-matcher points a direct application at a branch so somebody can service
+   it; that does not make it theirs on any agency-facing surface -- not
+   digests, not cohort CSVs, not volume, not the league.
+
+---
+
 ## Decisions taken without Matt
 
 Each is the reading most consistent with the five rules and the rulings
