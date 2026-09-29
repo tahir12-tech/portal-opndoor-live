@@ -45,6 +45,28 @@ describe('application-document-url', () => {
   });
 });
 
+/* AND THE DEED DOWNLOAD, which is the same shape one endpoint over. Round 7,
+ * B: the RLS read authorises the APPLICATION, not what is at the end of the
+ * path stored on it, and until 20261006660000 `executed_pdf_path` was one of
+ * 79 columns the browser could write -- so a caller could point their own row
+ * at any object in the deeds bucket and have the service key sign it.
+ * The grant is closed; the shape is pinned too, because a grant is not a
+ * shape and something else will write that column one day. */
+describe('deed-download', () => {
+  it('signs only a path inside the application\'s own folder', () => {
+    const s = fn('deed-download/index.ts');
+    expect(s).toMatch(/const expected = `\$\{app\.id\}\/`/);
+    const guard = s.indexOf('startsWith(expected)');
+    const sign = s.indexOf('createSignedUrl');
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(sign);
+  });
+
+  it('and refuses a traversal outright', () => {
+    expect(fn('deed-download/index.ts')).toMatch(/includes\("\.\."\)/);
+  });
+});
+
 describe('tenant-portal', () => {
   it('takes its Stripe key from the application livemode, not the environment', () => {
     const s = fn('tenant-portal/index.ts');

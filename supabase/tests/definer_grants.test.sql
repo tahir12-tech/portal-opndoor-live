@@ -118,6 +118,7 @@ insert into allowed(name) values
   ('dismiss_agency_match'),
   ('end_agreement'),
   ('is_admin'),
+  ('is_house_partner_id'),
   ('is_opndoor_staff'),
   ('is_our_estate_partner'),
   ('level_rank_of'),

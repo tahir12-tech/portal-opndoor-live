@@ -225,7 +225,12 @@ Deno.serve(async (req) => {
     logService = service;
 
     // ---- rate limit: unauthenticated tier, before any key work -------------
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    // The RIGHTMOST hop: the leftmost is whatever the caller wrote, so it is a
+    // fresh bucket per request. Round 7, D -- see _shared/rateLimit.ts. Here
+    // it also feeds the repeated_auth_failure threshold below, which a forged
+    // header would suppress permanently.
+    const ip = (req.headers.get("x-forwarded-for") ?? "")
+      .split(",").map((s) => s.trim()).filter(Boolean).pop() ?? "unknown";
     // Refuse an origin that is ALREADY over its failure budget, before spending
     // a hash on it. Checked with a zero-cost read rather than a bump, so a
     // legitimate request does not consume failure budget just by arriving.

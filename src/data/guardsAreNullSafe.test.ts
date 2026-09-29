@@ -45,7 +45,7 @@
    polarity -- `if <cond> then raise`, where NULL also means "do not raise" --
    is not mechanically checkable the same way, because turning NULL into a
    raise there would break legitimate paths (`if p_user = auth.uid()` must not
-   fire for a service-role caller whose auth.uid() is NULL). All 58 of those
+   fire for a service-role caller whose auth.uid() is NULL). All 59 of those
    were audited by hand against the catalogue when 20261006470000 was written:
    all but set_home_branch were already total, using `is distinct from`,
    `is null` or coalesce, or comparing columns that are NOT NULL. Instead of
@@ -175,6 +175,6 @@ describe('a raising guard cannot evaluate to NULL', () => {
      cannot take the same treatment, and were audited individually. If this
      number moves, a new one was written and needs the same audit. */
   it('has exactly the deny-if guards that were audited by hand', () => {
-    expect(denyIf.length).toBe(58);
+    expect(denyIf.length).toBe(59);
   });
 });

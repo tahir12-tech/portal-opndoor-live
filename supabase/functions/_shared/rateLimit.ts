@@ -48,7 +48,26 @@ export async function limitCheck(
   service: any, req: Request, action: string, email: string,
   perAddress: number, perCaller: number,
 ): Promise<LimitVerdict> {
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  /* THE RIGHTMOST HOP, NOT THE LEFTMOST. Round 7, D.
+     x-forwarded-for is a list the client can prepend to: the LEFTMOST entry
+     is whatever the caller wrote, so keying a rate limit on it gives a fresh
+     bucket per request and the limit counts to one forever. The rightmost
+     entry is the one the trusted edge appended.
+
+     Measured against the real bump_rate_limit on dev (rolled back, 10/hour):
+     with a fixed key the 11th probe is refused; with a rotated key all 12
+     pass, because rate_limit is keyed `key text primary key` and a rotated
+     header is simply a new row.
+
+     This matters most on tenant-auth, which is verify_jwt = false and answers
+     one bit per request about whether an address is registered -- on a
+     guarantor service, that is a list of people who failed referencing. The
+     comment at tenant-auth/index.ts:230 calls this cap "the whole defence".
+
+     payment-confirmation/index.ts:52 has taken the rightmost hop since it was
+     written, with this exact reasoning. This is that, here. */
+  const ip = (req.headers.get("x-forwarded-for") ?? "")
+    .split(",").map((s) => s.trim()).filter(Boolean).pop() || "unknown";
   const keys = [`ta:${action}:e:${email}`, `ta:${action}:i:${ip}`];
 
   // allSettled, not all. A thrown RPC and a returned error are the same event
