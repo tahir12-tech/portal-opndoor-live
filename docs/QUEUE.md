@@ -249,17 +249,17 @@ remaining fold-ins, Q-07, Q-08, Q-09.
 
 | id | item | status |
 | --- | --- | --- |
-| Q-01 | The security loop | in progress |
+| Q-01 | The security loop | **closed**. Round 7 was the last of the loop; the one final round is item 13. |
 | Q-01b | The deed goes to the referrer AND every ticked user in scope | **done** |
 | Q-02 | Supplier rail notifications | **done** |
 | Q-03 | Notification settings per party | **done** |
 | Q-04 | Opndoor internal notification routing | **done** (four alert types Matt named do not exist -- NM-2b) |
 | Q-05 | Fold 11 and the four commission amendments | in progress: amendments 3 and 4 **done**, the rest blocked on NM-A and NM-C |
-| Q-06 | The fold-ins A to H | in progress (D and E done) |
-| Q-07 | The HubSpot consequences report | todo |
-| Q-08 | The end-to-end walk on dev | todo |
-| Q-09 | HANDOVER-BALAL.md and the cutover checklist | todo |
-| Q-10 | Loose ends from item 4 of the 2026-09-28 mandate | in progress |
+| Q-06 | The fold-ins A to H | **done** except A's commission EDITOR (NM-C 3/4) and deleting Manage from the suppliers list, both recorded under item 4 above |
+| Q-07 | The HubSpot consequences report | **done** `c7168ef` |
+| Q-08 | The end-to-end walk on dev | **done** for the half that runs here `8b1d839` |
+| Q-09 | HANDOVER-BALAL.md and the cutover checklist | **done** `103bfe6` |
+| Q-10 | Loose ends from item 4 of the 2026-09-28 mandate | **done** `5497a6a` |
 
 Ids were renumbered once, when Q-02 to Q-04 were inserted after the security
 loop on Matt's instruction ("in this order, after the current item"). Nothing
@@ -1192,7 +1192,21 @@ and, from the option Matt accepted:
 
 ## Q-10. Loose ends from item 4 of the 2026-09-28 mandate
 
-**Status: in progress.**
+**Status: DONE, 2026-09-29 (`5497a6a`).** Both halves turned out to be BUILT
+already; what was missing was the tests, and this file was stale in saying
+otherwise.
+
+Climber of the week has nine assertions, and the one that matters is that
+the same function asked by two different readers about the same week returns
+two different correct answers -- the agency reader gets their own agency's
+riser, the group reader the best across both they hold. No
+partition-by-partner implementation can pass both, which is the defect the
+function exists to fix. Proved non-vacuous by breaking it three ways.
+
+The Team tickbox already had five assertions and all five were about whether
+the control is DRAWN. A control that renders perfectly and is wired to
+nothing passed every one of them. Two more cover the write and the Negotiator
+row.
 
 ### The instruction, verbatim
 
