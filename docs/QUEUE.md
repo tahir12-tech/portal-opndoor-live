@@ -15,6 +15,34 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## FIX THE SEVEN (instruction, 2026-09-29, verbatim). IN PROGRESS.
+
+> Fix problems 1 to 7 from your final review, in the order you ranked them, each with a test that fails first. For 7, the partner API must work out the fee and commission exactly as the portal does when the tenant pays, which is every route today. Where a supplier is set so that someone other than the tenant pays, the API refuses the application with a clear message until Matt decides how that payment works; do not build that payment path. For each problem, say whether it also exists on the live system today. When all seven are fixed and green, stop and report in plain English.
+
+### What this instruction settles, and what it does not
+
+It **unblocks R7 only as far as the tenant pays.** NM-A ("how an agency pays
+the fee itself") stays parked: where a supplier is configured so that somebody
+other than the tenant pays, the API refuses with a clear message. That refusal
+is the deliverable; the payment path is explicitly NOT to be built.
+
+"Exactly as the portal does" means R7's fix must call the same resolvers the
+portal calls, not a second implementation that agrees with them today.
+
+### Progress
+
+| # | fix | test that failed first | on live too? | status |
+| --- | --- | --- | --- | --- |
+| R1 | Cross-company contact write, and the deed follows it | | | todo |
+| R2 | Partial refund recorded as a total refund | | | todo |
+| R3 | 50% commission cap not enforced on joint tenancies | | | todo |
+| R4 | Four definer RPCs return the commission rates | | | todo |
+| R5 | Tenancy-start correction fixes only one of a joint pair | | | todo |
+| R6 | Commission rates writable from the browser, no audit row | | | todo |
+| R7 | `create_referral_api` resolves no fee and no rates | | | todo |
+
+---
+
 ## How I am working (standing instruction, 2026-09-29, verbatim)
 
 > From now until the queue is empty, work without stopping for me. For every decision: if QUEUE.md or an earlier ruling answers it, apply it. If not, make the choice most consistent with the five rules and my earlier rulings, write it under "Decisions taken without Matt" at the top of QUEUE.md with one line of reasoning, and carry on. Only stop for something irreversible outside dev: pushing, touching production, deleting data that isn't test data, or spending money. Never mark an item done without a test that failed first. If the session is running out, commit, update QUEUE.md with exactly where you are, and end with "Resume: read docs/QUEUE.md". Work through the whole queue in order.
