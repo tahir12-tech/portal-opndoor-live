@@ -19,27 +19,106 @@ You will also create a third, throwaway **clone**, and that is where you start.
 
 ## 0. What this actually is
 
-`partner-api` is 201 migrations and 13 edge functions ahead of `origin/main`.
+`partner-api` is 268 migrations ahead of `origin/main`.
 
 ```
-migrations on this branch      266
+migrations on this branch      333
 migrations on origin/main       65
-new                            201
+new                            268
 
-edge function directories       33   (plus _shared)
-on origin/main                  21
-new                             12
+edge function directories       34   (plus _shared)
+on origin/main                  22
 ```
+
+*Counts refreshed 2026-09-29. They were 266 / 201 when this was written on
+Monday; everything since is listed in section 0a.*
 
 Production is running `origin/main`, whose schema has not changed since 5 July.
 The branch is not a feature on top of it; it is most of a year of work, and the
 single biggest risk in this handover is treating it as a normal deploy.
 
-So it goes over in **six bites** (section 5), each of which leaves production
-working. It is not all-or-nothing and you should not attempt it as one.
+**The SCHEMA goes over in one push, all 268, in filename order, never split.**
+That is Matt's instruction and it is also the only thing that works:
+migrations are interleaved by date rather than by feature, and the later ones
+replace functions the earlier ones create, so there is no subset that is both
+coherent and smaller.
+
+What is taken in **six bites** (section 5) is the ROLLOUT — what you deploy,
+switch on and point at the database afterwards. The schema being present
+changes nothing a user can see until its function is deployed, its cron is
+scheduled or its screen is shipped. **After the push, production behaves
+exactly as it did before**, and that is the property that makes this safe.
 
 **What has to be true by Monday 28 September** is only bite 1 plus Regent's
 keying. The other five can follow that week.
+
+---
+
+## 0a. Read this before anything else: 2026-09-29
+
+Four things changed after this document was written, and the first one comes
+BEFORE the cutover rather than as part of it.
+
+### There is a hotfix to apply to production now
+
+`docs/HOTFIX-LIVE-FOR-BALAL.md`, and the `.sql` beside it. Two statements, a
+few seconds, no data changed. It closes two things that are open on the live
+system today:
+
+- a manager can mark an application paid without paying, by sending one
+  request straight to the database — no screen does it, but the permission is
+  sitting there unused
+- a sign-in with no user profile is treated as **allowed** rather than
+  refused by twelve functions, one of which lets such an account promote any
+  negotiator, at any company, to manager
+
+That document is written to be worked through on its own and has its own
+before-and-after checks. It does not depend on anything else here, and it
+does not have to wait for the cutover.
+
+### Your local `main` is NOT what production runs
+
+This is the one that could waste a day. The local branch `main` (`f2816a7`)
+and the live repository's `origin/main` (`3520a26`) have **diverged**:
+neither contains the other. `origin/main` carries eight commits from
+27 August to 18 September that the local copy does not — deed email fixes, a
+PandaDoc wait, a refund timeout, toast fixes.
+
+Their `supabase/migrations` trees are **byte-identical**, 65 files each, so
+every statement in this handover about the DATABASE is unaffected. It is the
+application code that differs. **Apply the hotfix against the live
+repository's branch, not the local one.**
+
+### Ten more migrations, and what they are
+
+They are in the apply order below like everything else; nothing special is
+needed for them. Listed because three change behaviour you would otherwise
+meet by surprise.
+
+| | migration | what it does |
+|---|---|---|
+| 1 | `20261006720000_the_branch_is_at_least_as_strict_as_the_hotfix` | revokes DELETE and TRUNCATE on `applications` (round 7 named only INSERT and UPDATE), and brings `app_role()` into line with the production hotfix so the two databases hold the same definition |
+| 2 | `20261006730000_no_portal_identity_has_two_spellings` | the sandbox guard accepts both spellings of "no portal identity". **Without this the partner API's sandbox stops working**, which is how it was found. |
+| 3 | `20261006740000_the_cron_may_mint_a_statement_reference` | **the monthly commission statement has never been sent, to anybody.** The permission check refused the only caller that runs it. Not a production fault — that subsystem does not exist on `main` — but it would have shipped broken. |
+| 4 | `20261006750000_a_counter_belongs_to_a_route` | volume counters become per-route, so an agency under two suppliers has two counters and not one pooled total |
+| 5 | `20261006760000_an_agency_on_two_routes_shows_two_counters` | the same, on the screen |
+| 6 | `20261006770000_a_statement_reference_is_a_commercial_artefact` | a Manager can no longer read statement references |
+| 7 | `20261006780000_the_second_factor_is_not_optional_on_the_money` | **an Opndoor admin with only a password could change commission rates.** Nine tables were missing the MFA rule that eighteen others had. |
+| 8 | `20261006790000_a_supplier_statement_has_a_stored_reference_too` | a supplier's statement can carry the stored `STMT-YYYY-MM-NNNN` |
+| 9 | `20261006800000_an_admin_chooses_the_route` | admin New application can state which supplier a referral came through; the server refuses one the branch does not sit under |
+| 10 | `20261006810000_one_create_referral_not_two` | drops the older `create_referral` overload the one above created |
+
+### The walk is half done, and the half that is missing is the half you can do
+
+`docs/THE-WALK.md`. Every rail was created on dev and every resolver asked
+what it produced and **who it would tell** — the fees, the rates, the
+recipients. What could not be walked here is payment, deed generation and the
+emails: Deno is not installed on this machine, so those edge functions cannot
+run at all and no inbox can be read.
+
+The browser steps are listed at the end of that document. They are worth
+doing before Regent goes live, and the one to watch is step 7: **who is on
+the executed-deed email**. That has been wrong before.
 
 ---
 
@@ -363,7 +442,7 @@ true her deeds park for a staff send.
 **First, a correction to how this sounds.** "Six bites" does not mean six
 database pushes. It cannot: migrations apply in filename order, they are
 interleaved by date rather than by feature, and the later ones replace functions
-the earlier ones created. There is no subset of the 178 that is both coherent and
+the earlier ones created. There is no subset of the 268 that is both coherent and
 smaller. The schema goes over in **one push**.
 
 What IS bitten is the ROLLOUT: what you deploy, switch on and point at the
@@ -374,7 +453,7 @@ you start: **after the push, production behaves exactly as it did before.**
 
 | # | bite | what you do | user-visible effect | Monday? |
 |---|---|---|---|---|
-| **1** | **Schema** | `db push`. All 178. | **None.** New tables, columns and functions nothing yet calls. | **YES** |
+| **1** | **Schema** | `db push`. All 268, in filename order, in one run. | **None.** New tables, columns and functions nothing yet calls. | **YES** |
 | **2** | **The app** | Deploy the built front end. | Everything the UI does: the estate screens, Team, the new Applications and Reporting, agreements. **This is the big one to watch.** | **YES** |
 | **3** | **Regent** | Run the keying script (section 4), invite Rosa. | Regent exists and can refer. | **YES** |
 | 4 | Core functions | Deploy the 12 new edge functions; set their secrets; point the webhooks. | The tenant journey end to end: payment page, deeds, tenant portal, partner API. | only what Regent's journey touches |
@@ -781,6 +860,33 @@ the next day that is not a UK bank holiday. That cannot be written as a cron
 expression, and `0 7 1 * *` would silently skip any month whose 1st is a bank
 holiday. The cheap daily wake-up that almost always answers "not the send day" is
 the honest implementation.
+
+---
+
+## 8a. Settings that live nowhere but the dashboard
+
+Matt asked for these listed, and the reason is the one thing they have in
+common: **none of them is in a migration**, so `npm run drift` cannot see
+them, they leave no trace in git, and a clone made from a database backup
+does not necessarily carry them. Every one has to be set by hand on
+production and checked by eye.
+
+| setting | where | how you know it is wrong |
+| --- | --- | --- |
+| **`hubspot_sync_env.is_active`** | a boolean UPDATE, by hand | The HubSpot sync does nothing, silently. There is no migration that flips it and nothing reports that it is off. Found while writing `docs/HUBSPOT-CONSEQUENCES.md`; it is the single most invisible switch in the system. |
+| **Edge function secrets** | Dashboard → Edge Functions → Secrets, or `supabase secrets set` | Section 7 lists every one. A missing secret usually shows as a function erroring, but two of them fail SILENTLY: see below. |
+| **`ops_secrets.functions_base_url`** | a row in the database, not a settings table | Every cron becomes inert. Nothing errors, nothing is logged, the jobs simply post nowhere. Section 8.1. |
+| **`ops_secrets.reminders_cron`** | a row in the database | The crons are refused by the functions they call, one alert per run. |
+| **MFA enforcement** | Dashboard → Authentication | Not a portal setting at all. The product requires AAL2 throughout and 27 tables now carry a restrictive policy that denies at AAL1, so if enrolment is not enforced a user can reach a signed-in state that sees almost nothing and reads as broken. |
+| **Auth redirect URLs and email templates** | Dashboard → Authentication → URL Configuration | Invitations and password resets land on the wrong host, or nowhere. |
+| **Storage bucket names and their policies** | Dashboard → Storage | The deed PDFs. `deed-download` signs a path inside the application's own folder and refuses anything else, so a wrong bucket is a 404 rather than a leak. |
+| **Stripe keys, live vs test** | Edge function secrets | `_shared/livemodeCredentials.ts` is the only file that chooses between them, and a sandbox application must never reach the live key. |
+| **PandaDoc template and webhook** | PandaDoc, plus the webhook URL | Deeds stop generating, or generate against the wrong template. |
+
+**The check that catches most of these at once** is the Health screen after
+deploy: it names the failing job and what to do about it, rather than showing
+a red dot. If Health is clean and `hubspot-sync` shows successes, the crons,
+the base URL and the ops secret are all right.
 
 ---
 

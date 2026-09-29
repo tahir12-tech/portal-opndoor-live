@@ -104,7 +104,7 @@ unambiguous.
 | 4b. Deleting "Manage" from the suppliers list | todo, and deliberately not done in passing. The SAME modal is the only way to CREATE a supplier: `openAdd` and the else-branch of `save` both use it. Deleting it without first separating create from edit is how the Add button stops working, and that is a change worth making on its own. |
 | 10. HubSpot consequences report | **done** -- `docs/HUBSPOT-CONSEQUENCES.md`. Comes back to Matt before fold 17 is designed. |
 | 11. The end-to-end walk on dev | **done** for the half that can run here -- `docs/THE-WALK.md`. Payment, deed generation and the emails need a browser: Deno is not installed, so those edge functions cannot run on this machine at all. |
-| 12. Handover and cutover checklist | todo, and last: it summarises the rest |
+| 12. Handover and cutover checklist | **done** -- `docs/HANDOVER-BALAL.md` updated: counts refreshed 266->333, section 0a for everything since Monday, section 8a listing the settings no migration can carry. |
 | 13. The one final review round | todo, and after 12 |
 
 Item 5 was taken out of order because items 1 to 3 were blocked on a scoping
