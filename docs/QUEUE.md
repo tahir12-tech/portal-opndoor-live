@@ -15,6 +15,54 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## THE NIGHT RUN (instruction, 2026-09-29, verbatim). ACTIVE. Top of the list.
+
+> I'm stopping for the night and not walking again until morning, so you may merge the worktree and apply to dev when ready.
+>
+> Work through QUEUE.md in order, doing exactly what is recorded there, no more and no less:
+> 1. R2 to R7 of the seven fixes.
+> 2. Walk fixes 13 and 14 (inviting, plain-English errors), since they block shipping.
+> 3. Every other walk fix, batches 1 to 18, including those marked after shipping.
+> 4. Every defect recorded from last week's walks and reviews that is still open in QUEUE.md or DEFECTS.md.
+> 5. Then walk it end to end on dev yourself: as Tom at Regent, a single tenant and a joint pair; as the Kestrel user, a single tenant; each through payment and signature to an executed deed, checking the fee, the commission and who received every email. Also invite one person at each level to Regent. Report what worked and what didn't.
+>
+> Each fix with a test that fails first. Anything under "Needs Matt" stays parked; build up to it and mark it clearly. No review rounds, no new features, nothing not in the queue. Do not touch production. Keep QUEUE.md current as you go. When done, or if you run out of session, commit, report in plain English, and end with "Resume: read docs/QUEUE.md".
+
+### What this changes
+
+Dev is **unlocked**. The worktree merges, R1 applies to dev, and everything
+after that is built the normal way. Production stays untouched.
+
+### Two things flagged at the start rather than discovered at the end
+
+**Step 5 cannot fully run on this machine, and that is not new.** The walk
+needs Stripe, PandaDoc and an inbox, and all three live inside Deno edge
+functions. **Deno is not installed here**, which is why `docs/THE-WALK.md`
+could only walk the database half in the first place. So "through payment and
+signature to an executed deed, checking every email" is not something a
+terminal can do. What CAN be done, and will be, is everything the database
+decides: the fee, the commission split, and exactly who each email would be
+addressed to, per rail, walked as the real users. That distinction is stated
+here so the final report is not read as more than it is.
+
+**Step 5 also needs a Kestrel login, and there isn't one.** There is no active
+user on Kestrel, Harbour, Letly or the referencing partner; the only
+supplier-side account is `123@opndoor.co` on test-supplier, still pending with
+no password. Creating one is a change to Matt's data, so it is NOT done
+silently: it is listed under "Needs Matt" as NM-H, and the supplier half of
+the walk is run against a user this session creates ONLY if Matt says so.
+Until then the supplier rail is walked at the database level, which needs no
+login.
+
+**Step 4's scope, stated before starting it.** `DEFECTS.md` is 19 defects
+about the LIVE system. Several are explicitly not fixable from here -- 1
+(rotate the committed cron secret), 2 and 17's scheduling, 5 (disaster
+recovery) -- because they are actions on live infrastructure, and Matt's own
+instruction says do not touch production. Those get marked, not attempted.
+The ones that are code in this repo get fixed.
+
+---
+
 ## Walk fixes (instruction, 2026-09-29, verbatim). RECORDED, NOT STARTED.
 
 Matt is walking dev. Batches are recorded here as they arrive and NOTHING is
@@ -1303,6 +1351,31 @@ requirement, and it holds even if the answer is "leave it as all time".
 **Blocks:** walk-fix item 25's Direct signups half only. The four queue tiles
 can be labelled "waiting now" without this answer, because they already are
 current-state counts.
+
+### NM-H. There is no supplier login on dev, and step 5 of the night run needs one
+
+The end-to-end walk asks for "the Kestrel user". **There isn't one.** No
+active user exists on `kestrel-lettings`, `harbour-lets`, `letly` or
+`referencing-partner`. The only supplier-side account anywhere is
+`123@opndoor.co` on `test-supplier`, which is still `pending` with no password
+set, so it cannot sign in.
+
+That also means **the supplier rail has never been walked through a browser by
+anyone**, which is worth knowing on its own, and it is the rail R1 was found
+on.
+
+**What I need:** may I create a Kestrel Director and a Kestrel Negotiator with
+a known password on dev? It is dev and disposable, but it is Matt's data and
+it adds accounts, so it is not being done unasked.
+
+**Until answered:** the supplier half of the walk runs at the database level,
+as the real resolvers see it, which needs no login. The browser half of the
+supplier rail stays unwalked and will be reported as such.
+
+**Also parked with it:** the three Regent logins' passwords are not recorded
+anywhere and cannot be read back from their hashes. All three have been signed
+into recently, so Matt or Balal hold them. They are NOT being reset, because
+resetting mid-cutover would lock out whoever is using them.
 
 ### NM-A. Who pays the guarantee fee, and how they pay it
 
