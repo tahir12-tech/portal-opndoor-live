@@ -57,6 +57,13 @@ built until he says so.
 >
 > 12. Agency People tab, same problem as Opndoor's internal notifications: notification settings are split across three places (a "Notifications" tickbox column, a "Statements" tickbox column, and a separate "Who is told what" grid underneath with columns for "The referrer" and "Users ticked Receives notifications"). It's messy and hard to tell who gets what. Matt's direction, same as item 10: notifications move onto each person, like permissions, reached from their row. For each person, one panel showing: whether they're copied on referrals within their position, which events they're told about, and whether they get monthly statements. Remove the separate grid and the two tickbox columns from the table. The locked items (every tenant email, and the executed deed reaching its recipient) show as locked with the reason. Build items 10 and 12 as one shared design so Opndoor team and agency people work the same way; suppliers too.
 
+### Batch 6 (verbatim). ITEM 13 IS RANKED FIRST OF ALL WALK FIXES.
+
+> Walk fixes, batch 6. Add to QUEUE.md verbatim under "Walk fixes" and commit. Do not build yet, but rank this first when building: it blocks a core action.
+>
+> 13. Inviting someone to an agency fails: "Everybody on our estate holds a position... jane@jane.com has none". The rule that every agency person holds a position is right, but the invite form never asks for one and tells you to set it afterwards, so the invite is refused. Fix: the invite form asks where they sit (branch, brand or whole agency, depending on level) and the position is created with the invite in one step. If the agency has only one branch, pick it automatically and don't ask. Add a functional test inviting each level to a one-branch and a multi-branch agency.
+> 14. Error messages must be plain English for agency users. "On our estate", "position" and "scope" mean nothing to them. This one should say something like "Choose which branch this person works at." Check other user-facing errors for the same jargon.
+
 ### Status: nothing built, and THE SEVEN ARE PAUSED
 
 "Do not build anything yet; I'm walking dev and it must not change under me"
@@ -161,6 +168,39 @@ the agent contact is the deed's recipient and there are no positions at all
 because its scope test requires the target to hold a position). A single
 component must therefore ask the SERVER what is locked and why, per party, and
 must not hard-code a list -- or the supplier rail will show agency rules.
+
+**Item 13 is a BUILD ORDER instruction as well as a fix.** Matt: "rank this
+first when building: it blocks a core action." So when the walk fixes start,
+13 goes first, ahead of 1-12, whatever order they were raised in.
+
+**Item 13 must be ONE step server-side, not two calls from the browser.** "The
+position is created with the invite in one step" is what makes the current
+failure impossible to repeat. Inviting and then positioning as two client
+calls reintroduces exactly today's bug the moment the second call fails: a
+user row exists, has no position, and the constraint trigger refuses it. The
+invite RPC has to take the position and create both in one transaction. Note
+the invite path already has history here -- round 6's H4 (resend refused every
+positioned Director/Manager) and M1 (`create_invited_user` did not validate
+`p_role`) -- so it wants its tests at the RPC, not only at the form.
+
+**Item 13's test matrix is specified by Matt and should be built as stated:**
+each level (Director, Manager, Negotiator) into a one-branch agency AND a
+multi-branch agency. Six cases. The one-branch case has its own assertion
+beyond succeeding -- it must NOT ask.
+
+**Item 14 will collide with the pgTAP suite, and that is a feature not a
+problem.** Several tests assert exact error text (`throws_ok(..., 'Only an
+opndoor admin may choose the route for a referral.')`). Rewording a message
+will fail those tests, which is the correct signal: it proves the test was
+pinned to the message a user actually sees. Each one wants updating
+deliberately, not with a find and replace.
+
+**Item 14 needs a line drawn between two audiences.** "On our estate" is
+jargon to an agency user; some other messages are only ever seen by an
+opndoor admin, where the internal vocabulary is correct and clearer. The sweep
+should reword what AGENCY and SUPPLIER users can see, and leave admin-only
+text alone. Which messages reach which audience is worth establishing before
+rewording, not after.
 
 **Item 7's "simpler alternative" note is due AFTER the fix, not now.** Matt's
 words: "after fixing, note in QUEUE.md under 'Needs Matt' a one-line simpler
