@@ -60,7 +60,13 @@ const NOT_YET_COVERED = [
   // --- opndoor-admin globals, which have no agency to be scoped to --------
   'admin_add_agency', 'admin_break_glass_revoke_key', 'admin_delete_org_shape',
   'confirm_org_entity', 'log_view_as', 'set_app_setting_num',
-  'trigger_crm_sync', 'update_partner_settings',
+  'trigger_crm_sync',
+  /* update_partner_settings LEFT THIS LIST with R6 (20261006870000). It is now
+     exercised by the_money_goes_through_the_front_door.test.sql, which had to
+     call it: R6 shuts the browser's direct write to the rate columns, so the
+     governed RPC became the ONLY way to change a commission rate, and a test
+     proving the side door is shut is worthless without one proving the front
+     door still opens. */
   // --- agency-rail, still to cover, and no excuse beyond Monday -----------
   // agency_branches_for_match came off this list when 20261006500000 gave it
   // the AAL2 step-up: the_rest_of_round_fives_lows.test.sql exercises it by
@@ -135,9 +141,14 @@ describe('every allowlisted function is exercised by a pgTAP test', () => {
   /* THE RATCHET. If this number is ever edited upwards, somebody added a
      browser-callable definer function and did not test its reach check, and
      they had to change this line to do it. */
-  it('the uncovered list is 36 and does not grow', () => {
-    expect(NOT_YET_COVERED.length).toBe(36);
-    expect(uncovered.length).toBeLessThanOrEqual(37);
+  /* 36 -> 35 with R6 (20261006870000). The ratchet turned the right way for
+     once: update_partner_settings came OFF the uncovered list because R6
+     made it the only way to change a commission rate, and a test proving the
+     browser's direct write is shut is worthless without one proving the
+     governed path still opens. */
+  it('the uncovered list is 35 and does not grow', () => {
+    expect(NOT_YET_COVERED.length).toBe(35);
+    expect(uncovered.length).toBeLessThanOrEqual(36);
   });
 
   it('so most of the surface IS covered, which is the point of the count', () => {

@@ -603,9 +603,22 @@ select is(
   (select count(*)::int from public.pricing_agreements), 0,
   'an admin with no second factor cannot even see a pricing agreement');
 
-select lives_ok(
+/* STRENGTHENED BY R6 (20261006870000), and the change of assertion is the
+   point rather than an inconvenience.
+
+   This used to be `lives_ok`: at aal1 the rows are invisible, so the UPDATE
+   matched nothing and raised nothing. True, and a weak way to be safe -- the
+   write was still PERMITTED and was stopped only by there being nothing to
+   write to. An admin who could see the rows could move the money.
+
+   R6 took the browser's write privilege on this table away entirely, so the
+   statement is now refused before RLS is consulted at all. The old assertion
+   would still pass on a database where the rates were wide open to anyone who
+   could see them, and this one will not. */
+select throws_ok(
   $$update public.pricing_agreement_bands set agent_rate = 0.99$$,
-  'a rate rewrite at aal1 raises nothing, because the rows are not visible to it');
+  '42501', 'permission denied for table pricing_agreement_bands',
+  'a rate rewrite at aal1 is refused outright, not merely made a no-op by invisibility');
 reset role;
 select is(
   (select count(*)::int from public.pricing_agreement_bands where agent_rate = 0.99), 0,
