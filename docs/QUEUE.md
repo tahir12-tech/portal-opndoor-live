@@ -186,6 +186,40 @@ and the trend should read from one definition of Opndoor's four measures, or
 a row total and a trend total will eventually disagree -- which item 17
 already forbids in its last sentence.
 
+### Batch 11 (verbatim)
+
+> Walk fixes, batch 11. Add to QUEUE.md verbatim under "Walk fixes, after shipping" and commit. Do not build yet.
+>
+> 21. Reporting, Volume by referrer: the line under each name shows their level (Negotiator, Director), which is irrelevant. Show where they work instead, depending on who's looking: Opndoor admin sees agency and branch; an agency with more than one branch sees the branch; a single-branch agency sees just the name, nothing underneath. Same rule anywhere else referrers are listed (League, exports).
+
+**Item 21 RENDERS what item 6 EDITS.** "Where they work" is the home office --
+the same thing item 6 calls "Works at" and splits out from "Oversees". So the
+two items are two ends of one concept and must agree on what the home office
+is. If item 6 lands first, item 21 reads the field it established; if item 21
+lands first it will invent its own answer and they will diverge. Build 6
+before 21, or build them together.
+
+**Item 21 is "depending on who's looking", which is rule 4 again.** That makes
+three walk fixes resting on the same rule -- 17 (which trend options a reader
+is offered), 12 (which notification rows a party has), and now 21. The reader
+is already available to the client, so this is not new machinery; it is
+remembering to ask.
+
+**Item 21's single-branch case is an assertion, not an absence.** "A
+single-branch agency sees just the name, nothing underneath" needs a test that
+nothing is rendered, not merely that the level is gone. That is the same shape
+as item 13's "if the agency has only one branch, pick it automatically and
+don't ask" -- both say the product should stop asking a question with one
+possible answer, and both are easy to implement as "show it anyway, but
+empty", which leaves a stray line under every name.
+
+**"Same rule anywhere else referrers are listed (League, exports)" makes this
+a shared helper**, exactly like item 19's possessive. One function that takes
+the referrer and the reader and returns the subtitle, used by Volume by
+referrer, the League and the exports -- not three copies. Worth checking
+whether the level subtitle is already centralised (`levelLabel`) before
+writing a second helper beside it.
+
 **The proposal item 15 asks for is written up as NM-F below.** Item 15 itself
 stays unbuilt and unranked until Matt answers it.
 
