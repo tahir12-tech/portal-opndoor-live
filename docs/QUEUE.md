@@ -287,6 +287,24 @@ party, so it is also the first that cannot be undone by fixing a bug: a
 prospect wrongly created in HubSpot is in HubSpot. That argues for the dedup
 decision and the payload test landing before the first real send, not after.
 
+### Batch 15 (verbatim)
+
+> Walk fixes, batch 15. Add to QUEUE.md verbatim under "Walk fixes, after shipping" and commit. Do not build yet.
+>
+> 25. Home: nothing says what period the numbers cover. Label every number with what it counts: the four queue tiles as "waiting now", and the Direct signups stages with their period. Confirm from the code what period Direct signups currently uses and write it under "Needs Matt" with the option of a period choice (today, this week, this month, all time) for Matt to decide.
+
+**The "confirm from the code" half is DONE and the answer is ALL TIME.** It is
+written up as NM-G below with the period choice Matt asked for. The labelling
+itself stays unbuilt.
+
+**The four queue tiles are correctly "waiting now" already, which makes item
+25 a labelling fix and not a counting fix for them.** Awaiting decision,
+Agency matches, Reconciliation and Delivery failed are current-state counts by
+construction -- they ask what is in that state now, not what entered it during
+some window. So "waiting now" is an accurate label for what the code already
+does, and no arithmetic changes. Direct signups is the opposite case: it is
+genuinely all time, and whether that is right is the question NM-G puts.
+
 **The proposal item 15 asks for is written up as NM-F below.** Item 15 itself
 stays unbuilt and unranked until Matt answers it.
 
@@ -1041,6 +1059,54 @@ What is still open, and the only thing I need before building:
 item 7 asks for -- because if the picker is deleted, item 7's fix is throwaway
 work. Item 7's own fault, the dead control, is shared with this screen, so
 answering this decides whether item 7 is worth fixing at all.
+
+### NM-G. What period should Home's Direct signups cover? Asked for by walk-fix item 25.
+
+**Confirmed from the code: it is ALL TIME today.** Three lines settle it.
+`src/pages/Home/Home.tsx:36` builds `scopeOpts = { role, scope: ALL_PARTNERS }`
+with no period in it; line 75 passes that straight to
+`countByStatus({ ...scopeOpts, channel: 'Direct' })`; and
+`applicationsService.ts:204` is
+
+```
+function inPeriod(r, range?) { if (!range) return true; ... }
+```
+
+No range is ever supplied, so every direct application ever created is
+counted, in whichever stage it now sits.
+
+**Two consequences worth seeing before choosing.** First, the four numbers
+are a mix of the transient and the permanent: "Awaiting decision" empties as
+work is done, but "Deed issued" only ever grows, so the panel's shape drifts
+from a queue into a lifetime tally. Second, when a period IS supplied
+anywhere else in the product, the bucketing is on the SENT date
+(`sentTsOf`), which for a direct signup is not the date they signed up. If a
+period is chosen here, which date it filters on is a second decision, and
+sent-date is probably the wrong one for this panel.
+
+**The choice Matt asked to be offered:**
+
+| option | what the panel becomes |
+| --- | --- |
+| **Today** | a genuine day's worklist; "Deed issued" means issued today |
+| **This week** | the same, at the cadence direct volume actually arrives at |
+| **This month** | matches the commission and statement cycle |
+| **All time** | what it does today: a lifetime funnel, honest once labelled |
+
+**My recommendation, for Matt to accept or reject: this week.** Home's own
+title is "What needs a person today", and three of the four stages are
+things a person acts on. All time makes the two right-hand stages grow
+forever and stop meaning anything; today is too narrow for a rail that
+Home's own code comments say is empty most days ("most days opndoor has no
+direct tenants at all"). A week is the smallest window in which the panel is
+usually non-empty and still current.
+
+**Whatever is chosen, the label has to say it** -- that is item 25's actual
+requirement, and it holds even if the answer is "leave it as all time".
+
+**Blocks:** walk-fix item 25's Direct signups half only. The four queue tiles
+can be labelled "waiting now" without this answer, because they already are
+current-state counts.
 
 ### NM-A. Who pays the guarantee fee, and how they pay it
 
