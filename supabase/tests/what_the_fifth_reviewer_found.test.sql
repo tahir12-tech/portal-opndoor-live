@@ -125,7 +125,7 @@ select throws_ok(
 -- Two paid applications sit at this branch. One is theirs; one is a direct
 -- tenant the matcher pointed here. Only the first counts, because the count
 -- picks the commission band.
-select is(public.agreement_volume('93000000-0000-0000-0000-000000000531','93000000-0000-0000-0000-000000000511'), 1,
+select is(public.agreement_volume('93000000-0000-0000-0000-000000000531','93000000-0000-0000-0000-000000000511',(select partner_id from public.branches where id='93000000-0000-0000-0000-000000000511')), 1,
   'a direct-rail application does not count toward the agency''s negotiated volume');
 
 -- ===========================================================================

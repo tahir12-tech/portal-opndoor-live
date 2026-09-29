@@ -558,6 +558,11 @@ export interface AgreementView {
   note: string | null;
   periodStart: string | null;
   volume: number;
+  /** ONE ENTRY PER ROUTE the agency has paid business on. An agency exists
+      once and is never duplicated per supplier (Matt, 2026-08-17), so an
+      agency under two suppliers is one party with two counters. Usually a
+      single entry, and then the screen reads exactly as it always did. */
+  volumes: { routeId: string; route: string; count: number }[];
   bands: { min: number; max: number | null; weeks: number; unit?: FeeBasisUnit; rate: number | null }[];
   tiers: { from: number; to: number | null; rate: number }[];
   nextRate: number | null;
@@ -582,6 +587,8 @@ export async function getAgreementForAgency(agencyId: string): Promise<Agreement
     note: (r.note as string) ?? null,
     periodStart: (r.period_start as string) ?? null,
     volume: Number(r.volume ?? 0),
+    volumes: ((r.volumes ?? []) as { route_id: string; route: string; count: number }[])
+      .map((v) => ({ routeId: String(v.route_id), route: String(v.route), count: Number(v.count ?? 0) })),
     bands: (r.bands ?? []) as AgreementView['bands'],
     tiers: (r.tiers ?? []) as AgreementView['tiers'],
     nextRate: r.next_rate == null ? null : Number(r.next_rate),

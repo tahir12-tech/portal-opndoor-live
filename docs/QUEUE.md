@@ -236,7 +236,7 @@ remaining fold-ins, Q-07, Q-08, Q-09.
 | Q-02 | Supplier rail notifications | **done** |
 | Q-03 | Notification settings per party | **done** |
 | Q-04 | Opndoor internal notification routing | **done** (four alert types Matt named do not exist -- NM-2b) |
-| Q-05 | Fold 11 and the four commission amendments | todo |
+| Q-05 | Fold 11 and the four commission amendments | in progress: amendments 3 and 4 **done**, the rest blocked on NM-A and NM-C |
 | Q-06 | The fold-ins A to H | in progress (D and E done) |
 | Q-07 | The HubSpot consequences report | todo |
 | Q-08 | The end-to-end walk on dev | todo |

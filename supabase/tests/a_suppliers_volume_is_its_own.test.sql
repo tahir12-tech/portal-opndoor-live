@@ -20,7 +20,7 @@
 -- that the fix cannot be a regression of it.
 
 begin;
-select plan(4);
+select plan(8);
 
 -- ===========================================================================
 -- A SUPPLIER WITH A NEGOTIATED AGREEMENT, AND AN AGENCY WITH ONE
@@ -84,14 +84,14 @@ values
 -- THE FINDING
 -- ===========================================================================
 select is(
-  public.agreement_volume('93000000-0000-0000-0000-0000000000e1','93000000-0000-0000-0000-0000000000f4'), 1,
+  public.agreement_volume('93000000-0000-0000-0000-0000000000e1','93000000-0000-0000-0000-0000000000f4','93000000-0000-0000-0000-0000000000f1'), 1,
   'a supplier''s own paid referral counts toward its own negotiated volume');
 
 -- ===========================================================================
 -- AND ROUND 5's H5, UNCHANGED
 -- ===========================================================================
 select is(
-  public.agreement_volume('93000000-0000-0000-0000-0000000000e2','93000000-0000-0000-0000-0000000000f5'), 1,
+  public.agreement_volume('93000000-0000-0000-0000-0000000000e2','93000000-0000-0000-0000-0000000000f5',(select id from public.partners where slug='opndoor-agents')), 1,
   'while the agency counts its own referral and NOT the direct tenant at the same branch');
 
 -- Said the other way, so the number above cannot be right by accident: three
@@ -122,8 +122,66 @@ values
    'Mx','Della','Direct','1990-01-01','zzz.vol.tenant@v.test','07700900094','4 Vol Street','London','VL4 4AA',1000,current_date+30,'paid',true,0.25,0.10,'opndoor_referenced',now()-interval '5 days',now()-interval '4 days');
 
 select is(
-  public.agreement_volume('93000000-0000-0000-0000-0000000000e1','93000000-0000-0000-0000-0000000000f4'), 1,
+  public.agreement_volume('93000000-0000-0000-0000-0000000000e1','93000000-0000-0000-0000-0000000000f4','93000000-0000-0000-0000-0000000000f1'), 1,
   'and a direct tenant matched to the SUPPLIER''s branch does not advance its band either');
+
+-- ===========================================================================
+-- AND A COUNTER BELONGS TO A ROUTE. Q-05 amendments 3 and 4, settled by
+-- Matt's ruling of 2026-08-17: "an agency exists once and is never duplicated
+-- per supplier, so an agency under two suppliers is ONE party shown with TWO
+-- counters."
+--
+-- The same agency, ZZZ Volume Agency, now transacts on a second route: a
+-- referral at its own branch that came down the supplier's route instead of
+-- the house one. applications.partner_id is the route, stated at creation --
+-- sync_application_partner only derives it when the caller is silent -- so
+-- this needs no new tables and no duplicate agency row.
+--
+-- Before 20261006750000 the count was route-blind, so both routes returned 2
+-- and volume bought through the supplier paid for a better band on the house
+-- route, and the other way round.
+-- ===========================================================================
+insert into public.applications
+  (id, guarantee_ref, partner_id, agency_id, branch_id, referrer_id, referrer_name, applicant_id,
+   tenant_title, tenant_first_name, tenant_last_name, tenant_dob, tenant_email, tenant_phone,
+   prop_addr1, prop_city, prop_postcode, monthly_rent, tenancy_start, status, livemode,
+   partner_rate, agent_rate, referencing_mode, sent_at, paid_at)
+values
+  ('93000000-0000-0000-0000-00000000c005','ZZZ-VOL-X2','93000000-0000-0000-0000-0000000000f1',
+   '93000000-0000-0000-0000-0000000000f3','93000000-0000-0000-0000-0000000000f5',
+   '93000000-0000-0000-0000-00000000d001','ZZZ Vol Sup Ref',null,
+   'Mx','Cross','Route','1990-01-01','zzz.vol.cross@v.test','07700900095','5 Vol Street','London','VL5 5AA',
+   1000,current_date+30,'paid',true,0.25,0.10,'pre_referenced_open',now()-interval '5 days',now()-interval '4 days');
+
+select is(
+  public.agreement_volume('93000000-0000-0000-0000-0000000000e2','93000000-0000-0000-0000-0000000000f5',
+                          (select id from public.partners where slug='opndoor-agents')), 1,
+  'an agency on two routes counts only the house route''s business against the house route');
+
+select is(
+  public.agreement_volume('93000000-0000-0000-0000-0000000000e2','93000000-0000-0000-0000-0000000000f5',
+                          '93000000-0000-0000-0000-0000000000f1'), 1,
+  'and only the supplier route''s against the supplier route: one party, two counters, not one pooled total');
+
+select is(
+  (select count(*)::int from public.applications
+    where agency_id = '93000000-0000-0000-0000-0000000000f3' and paid_at is not null
+      and public.application_channel(id) <> 'Direct'), 2,
+  'and the two really are two, so neither count above is 1 by accident');
+
+-- THE FOURTH SCOPE. A supplier counting its whole book: every route-partner
+-- application, whichever agency under it. Two here -- its own agency's, and
+-- the one it introduced at ZZZ Volume Agency -- where the agency-scoped
+-- reading of the same route sees only one.
+insert into public.pricing_agreements
+  (id, scope_level, scope_id, coverage, period, counting_scope, is_standard, effective_from)
+values ('93000000-0000-0000-0000-0000000000e3','partner','93000000-0000-0000-0000-0000000000f1',
+        'additive','year','route',false, current_date - 30);
+
+select is(
+  public.agreement_volume('93000000-0000-0000-0000-0000000000e3','93000000-0000-0000-0000-0000000000f4',
+                          '93000000-0000-0000-0000-0000000000f1'), 2,
+  'while a route-scoped agreement counts the supplier''s whole book across every agency under it');
 
 select * from finish();
 rollback;

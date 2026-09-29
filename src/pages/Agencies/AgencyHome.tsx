@@ -1152,10 +1152,29 @@ export function AgencyHome() {
             </>
           )}
           <div className="ah-agr__now">
-            <div>
-              <span className="ah-agr__lbl">Counter</span>
-              <b>{agreement.volume}</b> paid since {agreement.periodStart ?? EMPTY}
-            </div>
+            {/* ONE COUNTER, OR ONE PER ROUTE. An agency is never duplicated
+                per supplier, so an agency doing business under two of them is
+                one party with two counters and the pooled total would be
+                wrong in both directions: volume bought through one supplier
+                would pay for a better band with the other. Almost every
+                agency has a single route, and then this reads exactly as it
+                did before. */}
+            {agreement.volumes.length > 1 ? (
+              <div>
+                <span className="ah-agr__lbl">Counters, one per route</span>
+                {agreement.volumes.map((v) => (
+                  <div key={v.routeId}>
+                    <b>{v.count}</b> paid through {v.route}
+                  </div>
+                ))}
+                <div className="soft">since {agreement.periodStart ?? EMPTY}</div>
+              </div>
+            ) : (
+              <div>
+                <span className="ah-agr__lbl">Counter</span>
+                <b>{agreement.volume}</b> paid since {agreement.periodStart ?? EMPTY}
+              </div>
+            )}
             <div>
               <span className="ah-agr__lbl">The next referral lands at</span>
               <b>{agreement.nextBasis ?? EMPTY} weeks</b> · <b>{pct(agreement.nextRate)}</b>

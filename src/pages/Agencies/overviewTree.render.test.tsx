@@ -45,6 +45,9 @@ const REGENT_AGREEMENT = {
   agreementId: 'agr-1', scopeLevel: 'agency', coverage: 'additive' as const,
   period: 'year', countingScope: 'agency', isStandard: false, note: null,
   periodStart: '2026-09-23', volume: 0,
+  /* ONE ROUTE, which is the ordinary case and must keep reading as a single
+     counter. The two-route case is asserted separately below. */
+  volumes: [{ routeId: 'p-house', route: 'Opndoor agents', count: 0 }],
   bands: [
     { min: 1, max: 1, weeks: 3, unit: 'weeks' as const, rate: 0.2 },
     { min: 2, max: null, weeks: 5, unit: 'weeks' as const, rate: 0.25 },
@@ -69,11 +72,17 @@ vi.mock('@/data/positionsService', async (importOriginal) => {
   };
 });
 
+/* The agreement the mock hands back. A let rather than a spy because the mock
+   below replaces getAgreementForAgency with a plain function, which vi.spyOn
+   cannot intercept. Tests that need a different deal assign to this. */
+let AGREEMENT_OVERRIDE: unknown = null;
+
 vi.mock('@/data/orgService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/data/orgService')>();
   return {
     ...actual,
-    getAgreementForAgency: async (agencyId: string) => (agencyId === 'ag-regent' ? REGENT_AGREEMENT : null),
+    getAgreementForAgency: async (agencyId: string) =>
+      (AGREEMENT_OVERRIDE ?? (agencyId === 'ag-regent' ? REGENT_AGREEMENT : null)),
     getCommissionSplits: async () => new Map([
       ['br-hampstead', [
         { branchId: 'br-hampstead', level: 'agency' as const, orgId: 'ag-regent', orgName: "Regent's Lettings", rate: 0.2, source: 'agreement' as const },
@@ -288,5 +297,65 @@ describe('an agreement replaces Set rate', () => {
     expect(kestrel.querySelector('.ah-agreement-sum')).toBeNull();
     const buttons = [...kestrel.querySelectorAll('.ah-node-main button')].map((b) => (b.textContent ?? '').trim());
     expect(buttons).toContain('Set rate');
+  });
+});
+
+/* ONE AGENCY, TWO COUNTERS.
+ *
+ * Matt, 2026-08-17: an agency exists once and is never duplicated per
+ * supplier, so an agency under two suppliers is ONE party shown with TWO
+ * counters. 20261006750000 made the count belong to a route and
+ * 20261006760000 returns one entry per route the agency has paid business on.
+ * This is the showing half.
+ *
+ * Why it matters that they are separate rather than summed: a pooled total
+ * would let volume bought through one supplier pay for a better commission
+ * band with the other, in both directions.
+ */
+describe('an agency that does business on two routes', () => {
+  const twoRoutes = {
+    ...REGENT_AGREEMENT,
+    volume: 12,
+    volumes: [
+      { routeId: 'p-house', route: 'Opndoor agents', count: 12 },
+      { routeId: 'p-harbour', route: 'Harbour Lets', count: 3 },
+    ],
+  };
+
+  afterEach(() => { AGREEMENT_OVERRIDE = null; });
+
+  async function openAgency(agreement: typeof REGENT_AGREEMENT) {
+    AGREEMENT_OVERRIDE = agreement;
+    const view = renderAt('/agencies/ag-regent');
+    // The counters live on the Commission tab, which only a Director sees.
+    await waitFor(() => { if (!view.container.querySelector('[role="tablist"]')) throw new Error('no tabs'); });
+    const commission = [...view.container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      .find((b) => (b.textContent ?? '').trim() === 'Commission');
+    if (!commission) throw new Error('no Commission tab: is the viewer a Director?');
+    await act(async () => { fireEvent.click(commission); });
+    await waitFor(() => { if (!view.container.querySelector('.ah-agr__now')) throw new Error('no agreement panel'); });
+    await settle();
+    return view;
+  }
+
+  it('shows a counter for each route, named, rather than one pooled total', async () => {
+    const view = await openAgency(twoRoutes);
+    const now = view.container.querySelector('.ah-agr__now')!.textContent ?? '';
+    expect(now).toMatch(/Counters, one per route/);
+    expect(now).toMatch(/12\s*paid through Opndoor agents/);
+    expect(now).toMatch(/3\s*paid through Harbour Lets/);
+    // And never the sum, which is the number that would be wrong.
+    expect(now).not.toMatch(/\b15\b/);
+  });
+
+  it('and still reads as one plain counter when there is only one route', async () => {
+    const view = await openAgency({
+      ...REGENT_AGREEMENT, volume: 7,
+      volumes: [{ routeId: 'p-house', route: 'Opndoor agents', count: 7 }],
+    });
+    const now = view.container.querySelector('.ah-agr__now')!.textContent ?? '';
+    expect(now).toMatch(/Counter/);
+    expect(now).not.toMatch(/one per route/);
+    expect(now).toMatch(/7\s*paid since/);
   });
 });
