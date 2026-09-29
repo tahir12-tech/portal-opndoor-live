@@ -84,7 +84,7 @@ already given. Any of them can be reversed by saying so.
 | --- | --- | --- |
 | Q-01 | The security loop | in progress |
 | Q-01b | The deed goes to the referrer AND every ticked user in scope | **done** |
-| Q-02 | Supplier rail notifications | todo |
+| Q-02 | Supplier rail notifications | in progress (BEFORE table done) |
 | Q-03 | Notification settings per party | todo |
 | Q-04 | Opndoor internal notification routing | todo |
 | Q-05 | Fold 11 and the four commission amendments | todo |
@@ -417,7 +417,20 @@ files.
 ---
 ## Q-02. Supplier rail notifications
 
-**Status: todo.**
+**Status: in progress.** The BEFORE table is done and committed:
+`docs/NOTIFICATIONS.md`, read from the code -- every `sendMessage` in
+`supabase/functions` enumerated and each recipient expression resolved back to
+what produces it. It names three gaps against the intended rule, all on the
+supplier rail: the executed deed does not reach the referrer; the four
+lifecycle notifications do not reach the agent contact (so a supplier
+referring by API key with no human user is told nothing); and the expiry
+reminder adds that partner's management instead of the branch's agent contact.
+Plus a fourth, smaller: the renewal notice loops one email per recipient
+instead of one send with each as a recipient.
+
+The AFTER half is built together with Q-03, because "subject to item 2's
+settings" means they are one design: changing who receives what, with no
+matrix to govern it, would be a change nobody could turn off.
 
 ### The instruction, verbatim (2026-09-28)
 
