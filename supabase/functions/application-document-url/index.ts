@@ -44,6 +44,19 @@ Deno.serve(async (req) => {
     if (error) return json({ ok: false, error: error.message }, 400);
     if (!doc) return json({ ok: false, error: "Document not found, or you do not have access to it." }, 404);
 
+    /* THE BUCKET IS NOT THE ROW'S TO CHOOSE. Round 5's lows. This signed
+       whatever `bucket` the row named, with the service key, so the endpoint's
+       reach was whatever anything that writes application_documents happened to
+       put in that column -- executed deeds, statements, anything in storage.
+       The RLS read above authorises the DOCUMENT; it says nothing about which
+       bucket is a legitimate target for this endpoint. Only one ever has been
+       (applicant-docs is the sole value in the column), so that is stated here
+       rather than inferred from the data. */
+    const SIGNABLE = ["applicant-docs"];
+    if (!SIGNABLE.includes(doc.bucket)) {
+      return json({ ok: false, error: "That document is not downloadable here." }, 400);
+    }
+
     const service = createClient(SUPABASE_URL, SERVICE);
     const { data: signed, error: sErr } = await service.storage.from(doc.bucket).createSignedUrl(doc.path, 300);
     if (sErr || !signed) return json({ ok: false, error: "Could not generate the download link." }, 500);

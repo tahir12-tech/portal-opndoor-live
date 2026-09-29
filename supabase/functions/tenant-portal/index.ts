@@ -37,6 +37,7 @@
 //      applications table grant entirely and must never reappear there.
 // =====================================================================
 import { splitProfilePatch, deliveryContactReady, resolveDeclaredAt } from "../_shared/applicationPatch.ts";
+import { stripeSecretFor } from "../_shared/livemodeCredentials.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { submissionReceivedEmail, feeBasisWeeksOf } from "../_shared/emailTemplates.ts";
@@ -554,8 +555,15 @@ Deno.serve(async (req) => {
       const { data: already } = await service.rpc("eligibility_fee_paid", { p_application: app.id });
       if (already === true) return json({ ok: true, already_paid: true });
 
-      const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
-      if (!STRIPE_SECRET) return json({ ok: false, error: "Payments are not configured." }, 503);
+      /* THE KEY FOLLOWS THE APPLICATION, NOT THE ENVIRONMENT. Round 5's lows.
+         This read STRIPE_SECRET_KEY directly, so a SANDBOX application's tenant
+         was charged against the live Stripe account. _shared/livemodeCredentials
+         exists for exactly this and is the only file that knows which key is
+         which; it also checks the prefix, so a live key configured as the test
+         one is refused rather than used. */
+      const cred = stripeSecretFor(app.livemode === true);
+      if (!cred.ok) return json({ ok: false, error: cred.error }, 503);
+      const STRIPE_SECRET = cred.value;
 
       // The fee, in pence. A constant rather than a setting because it is a
       // commercial decision that should not be changeable by accident, and it

@@ -62,7 +62,10 @@ const NOT_YET_COVERED = [
   'confirm_org_entity', 'log_view_as', 'set_app_setting_num',
   'trigger_crm_sync', 'update_partner_settings',
   // --- agency-rail, still to cover, and no excuse beyond Monday -----------
-  'agency_branches_for_match', 'count_pending_tenancy_corrections', 'dismiss_agency_match',
+  // agency_branches_for_match came off this list when 20261006500000 gave it
+  // the AAL2 step-up: the_rest_of_round_fives_lows.test.sql exercises it by
+  // name, as a password-only session and then at aal2.
+  'count_pending_tenancy_corrections', 'dismiss_agency_match',
   'end_agreement', 'my_partner_summary', 'origin_is_agent_estate',
   'referral_fee_preview', 'resolve_agency_match',
 ].sort();
@@ -132,8 +135,8 @@ describe('every allowlisted function is exercised by a pgTAP test', () => {
   /* THE RATCHET. If this number is ever edited upwards, somebody added a
      browser-callable definer function and did not test its reach check, and
      they had to change this line to do it. */
-  it('the uncovered list is 37 and does not grow', () => {
-    expect(NOT_YET_COVERED.length).toBe(37);
+  it('the uncovered list is 36 and does not grow', () => {
+    expect(NOT_YET_COVERED.length).toBe(36);
     expect(uncovered.length).toBeLessThanOrEqual(37);
   });
 

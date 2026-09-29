@@ -467,8 +467,33 @@ Deno.serve(async (req) => {
       const pct = solo.sharePercent ?? b.sharePercent;
       const amt = solo.shareAmount ?? b.shareAmount;
       if (typeof middle === "string" && middle.trim()) extra.tenant_middle_name = middle.trim();
-      if (pct !== null && pct !== undefined) extra.share_percent = Number(pct);
-      if (amt !== null && amt !== undefined) extra.share_amount = Number(amt);
+      /* A SHARE IS BOUNDED, BECAUSE IT IS THE FEE BASIS. Round 5's lows. Both
+         of these came straight off the request body and were written with the
+         SERVICE key, so no policy and no check stood between a caller and the
+         number the guarantee fee is calculated from: `rentBase` is
+         `app.share_amount` when it is set. share_amount = 1 is a fee of
+         approximately nothing.
+
+         The bounds are the only ones the model allows: a share is a slice of
+         one tenancy, so a percentage is 1..100 and an amount cannot exceed the
+         rent it is a share of. Out of range is refused rather than clamped --
+         silently charging a different number from the one asked for is how a
+         reconciliation argument starts. */
+      const rentCap = Number(app.monthly_rent ?? 0);
+      if (pct !== null && pct !== undefined) {
+        const n = Number(pct);
+        if (!Number.isFinite(n) || n <= 0 || n > 100) {
+          return json({ ok: false, error: "A share is between 1 and 100 per cent." }, 400);
+        }
+        extra.share_percent = n;
+      }
+      if (amt !== null && amt !== undefined) {
+        const n = Number(amt);
+        if (!Number.isFinite(n) || n <= 0 || (rentCap > 0 && n > rentCap)) {
+          return json({ ok: false, error: "A share cannot be more than the rent it is a share of." }, 400);
+        }
+        extra.share_amount = n;
+      }
       if (Object.keys(extra).length) {
         const svc = createClient(SUPABASE_URL, SERVICE);
         await svc.from("applications").update(extra).eq("id", app.id);
