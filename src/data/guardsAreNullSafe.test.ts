@@ -175,6 +175,15 @@ describe('a raising guard cannot evaluate to NULL', () => {
      cannot take the same treatment, and were audited individually. If this
      number moves, a new one was written and needs the same audit. */
   it('has exactly the deny-if guards that were audited by hand', () => {
-    expect(denyIf.length).toBe(59);
+    /* 59 -> 60 with 20261006800000. The new one is create_referral's
+       `if p_route is not null then ... end if`, which wraps the admin route
+       check. Audited, as the header requires: p_route is a PARAMETER, and
+       NULL there means "no route was stated", which is precisely the case
+       that must skip the block -- every existing caller passes nothing. A
+       coalesce here would turn "nobody chose a route" into "somebody chose
+       NULL" and run the admin-only check against every referral in the
+       product. This is the polarity the header says cannot take the same
+       treatment, and this is why. */
+    expect(denyIf.length).toBe(60);
   });
 });

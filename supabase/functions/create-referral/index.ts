@@ -93,6 +93,18 @@ Deno.serve(async (req) => {
     // arbitrary name match. Partner users are RLS-scoped to their own partner
     // anyway; the extra filter is harmless for them.
     let partnerId: string | null = null;
+    /* The chosen route, as a uuid. The form sends whatever it holds -- a slug
+       from the picker -- and the RPC takes a uuid, so it is resolved here
+       through the CALLER's client: an admin who cannot see a partner cannot
+       route to it either. A miss leaves it null and the RPC resolves the
+       route the ordinary way rather than failing. */
+    let routeId: string | null = null;
+    if (b.route) {
+      const { data: rp } = await userClient.from("partners").select("id")
+        .or(`slug.eq.${b.route},id.eq.${b.route}`).maybeSingle();
+      routeId = (rp?.id as string) ?? null;
+    }
+
     if (b.partner) {
       const { data: p } = await userClient.from("partners").select("id").eq("slug", b.partner).maybeSingle();
       partnerId = p?.id ?? null;
@@ -465,6 +477,10 @@ Deno.serve(async (req) => {
       p_branch: branchId, p_tenant_title: solo.title, p_first: solo.firstName, p_last: solo.lastName, p_dob: solo.dob,
       p_email: solo.email, p_phone: solo.phone, p_addr1: b.addr1, p_addr2: b.addr2 ?? null, p_city: b.city,
       p_county: b.county ?? null, p_postcode: b.postcode, p_rent: b.rent, p_tenancy_start: b.tenancyStart,
+      // THE ROUTE, when the admin form stated one. The RPC refuses it from
+      // anybody but an opndoor admin, and refuses a supplier the branch does
+      // not sit under, so nothing here is trusted: this only carries it.
+      p_route: routeId,
     });
     if (rpcErr) return json({ ok: false, error: rpcErr.message }, 400);
     const app = Array.isArray(appRes) ? appRes[0] : appRes;

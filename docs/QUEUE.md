@@ -99,7 +99,7 @@ unambiguous.
 | 6. Searchable scope picker | **done** `dcbc4ad` |
 | 7. Exports and statement | **done** `177c8a7` |
 | 8. Three agency levels in admin screens | **done** `2a8fce6` |
-| 9. "Referred by" on New application | todo |
+| 9. "Referred by" on New application | **done** (this commit) |
 | 4a. The supplier COMMISSION EDITOR | blocked on NM-C 3 and 4. The tab shows today's rate figures and today's form; its new shape (Standard / Flat / Volume tiered, and whether it sets the agency rate underneath) is Matt's to settle. |
 | 4b. Deleting "Manage" from the suppliers list | todo, and deliberately not done in passing. The SAME modal is the only way to CREATE a supplier: `openAdd` and the else-branch of `save` both use it. Deleting it without first separating create from edit is how the Add button stops working, and that is a change worth making on its own. |
 | 10. HubSpot consequences report | **done** -- `docs/HUBSPOT-CONSEQUENCES.md`. Comes back to Matt before fold 17 is designed. |

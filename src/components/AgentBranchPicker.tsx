@@ -92,8 +92,19 @@ export interface AgentBranchValue {
   shape: OrgShape;
 }
 
-export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranchValue) => void }) {
-  const { role, partnerScope } = useSession();
+export function AgentBranchPicker({ onChange, scopePartner }: {
+  onChange?: (value: AgentBranchValue) => void;
+  /* A SCOPE PASSED IN, RATHER THAN READ FROM THE SESSION.
+     Q-06 item H: once an admin has chosen a supplier at the top of the
+     form, "Agency and Branch search only that supplier's agencies and
+     branches". The picker has always read the ambient partnerScope, which
+     is right for every other caller and wrong for this one -- the admin's
+     ambient scope is whatever they last looked at on Reporting, not the
+     supplier they just chose here. */
+  scopePartner?: string | null;
+}) {
+  const { role, partnerScope: ambientScope } = useSession();
+  const partnerScope = scopePartner ?? ambientScope;
   const isAdmin = role === 'superadmin';
   /* What the form should ask. Derived on the server from what this person can
      reach, and from whether the partner owns its stock.

@@ -688,6 +688,11 @@ export interface CreateReferralInput {
       partner users (their own partner is authoritative); required for an opndoor
       admin fly-creating a brand-new agency. Null when scope is "all partners". */
   partner?: string;
+  /** THE ROUTE THIS REFERRAL CAME DOWN, stated rather than inferred.
+      Only an opndoor admin can have chosen one (Q-06 item H); the server
+      refuses any supplier the branch does not sit under. Everyone else
+      omits it and the route resolves from the caller, as before. */
+  route?: string;
 }
 
 /**
@@ -732,6 +737,7 @@ export async function createReferral(input: CreateReferralInput): Promise<Create
       agencyContactPhone: input.agencyContactPhone || null,
       branchContactEmail: input.branchContactEmail || null,
       partner: input.partner || null,
+      route: input.route || null,
     },
   });
   if (error) {

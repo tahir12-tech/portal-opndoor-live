@@ -39,6 +39,7 @@ import { Field } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 import { AgentBranchPicker } from '@/components/AgentBranchPicker';
+import { getPartners } from '@/data/partnersService';
 import './NewApplication.css';
 
 const Req = () => <span className="req" aria-hidden="true">*</span>;
@@ -153,7 +154,29 @@ export function NewApplication() {
 
   const joint = extra.length > 0;
   const tenantCount = 1 + extra.length;
-  const jointAllowed = railState === 'ready' && estate;
+  /* REFERRED BY, section 1, admin only.
+     Q-06 item H: "First field is Supplier or Agency, required, no default."
+     Everything below it used to be inferred from the branch AFTER the fact --
+     the rail, the route and the fee -- which cannot answer the one question
+     that decides them for an agency a supplier introduced. */
+  const isAdminForm = role === 'superadmin';
+  const [referredBy, setReferredBy] = useState<'' | 'supplier' | 'agency'>('');
+  const [routeSupplier, setRouteSupplier] = useState('');
+  /* Complete means: a non-admin has nothing to answer, and an admin has
+     answered. A supplier choice is not complete until the supplier is named. */
+  const referredByDone = !isAdminForm
+    || referredBy === 'agency'
+    || (referredBy === 'supplier' && !!routeSupplier);
+
+  /* A JOINT TENANCY NEEDS AN AGENCY OF OURS TO SIT UNDER, which is the ESTATE
+     question -- not the journey, and not the rail the form drew last. Where an
+     admin has said the referral came through a SUPPLIER, the answer is no
+     before the server is asked: Matt's words for that path are "single tenant
+     (no Add another tenant)". Stated here rather than waiting for the estate
+     probe, because the probe answers about the BRANCH and the admin has just
+     told us the route, and those are the two things that can disagree for an
+     agency a supplier introduced. */
+  const jointAllowed = railState === 'ready' && estate && referredBy !== 'supplier';
   const rentNum = Number(values.rent);
   const pctNums = percents.map((p) => Number(p));
 
@@ -359,6 +382,11 @@ export function NewApplication() {
         agencyNew: org.agencyNew, branchNew: org.branchNew,
         agencyContactEmail: org.agencyContactEmail, agencyContactName: org.agencyContactName,
         agencyContactPhone: org.agencyContactPhone, branchContactEmail: org.branchContactEmail,
+        /* THE ROUTE, STATED. Only an admin can have chosen one, and the
+           server refuses a supplier the branch does not sit under
+           (20261006800000). On the agency path nothing is stated and the
+           route resolves exactly as it always has. */
+        route: referredBy === 'supplier' ? routeSupplier : undefined,
         // The partner the referral belongs to, resolved by the picker (the
         // chosen agency's own partner, or the admin's selected partner for a
         // fly-created agency). Server ignores it for partner users, whose own
@@ -453,7 +481,7 @@ export function NewApplication() {
      and bare in the form where there is not. Written once so the two cannot
      drift on what the form does with the answer. */
   const picker = (
-    <AgentBranchPicker onChange={(v) => {
+    <AgentBranchPicker scopePartner={referredBy === 'supplier' ? routeSupplier : null} onChange={(v) => {
       setOrgShape(v.shape);
       setValues((prev) => ({ ...prev, agency: v.agency, branch: v.branch }));
       setOrg({ agencyNew: v.agencyNew, branchNew: v.branchNew, agencyContactEmail: v.agencyContactEmail, agencyContactName: v.agencyContactName, agencyContactPhone: v.agencyContactPhone, branchContactEmail: v.branchContactEmail, partner: v.partner, singleOffice: v.singleOffice });
@@ -476,9 +504,84 @@ export function NewApplication() {
 
       <div className="na-grid">
         <form className="na-form" id="na-form" onSubmit={submit} noValidate>
+          {/* 0. REFERRED BY — admin only.
+              Q-06 item H, and Matt's answer of 2026-09-29: "'Admin view only'
+              on Referred by means that section only; agencies keep their own
+              form as it is." So there is no route guard here and no change
+              at all for an agency's negotiator: the section simply is not
+              drawn for them, and every existing caller resolves the route the
+              way it always did. */}
+          {isAdminForm && (
+            <section className="card sec" id="sec-referredby">
+              <div className="sec__head"><span className="sec__num">1</span><div>
+                <div className="sec__title">Referred by</div>
+                <div className="sec__sub">Who this referral came through. It decides the rail, the route and the commission, and nothing below can be filled in until it is answered.</div>
+              </div></div>
+              <CardBody>
+                <div className="form-grid">
+                  <div className="field span-2">
+                    <label htmlFor="na-refby">Supplier or Agency <span className="req" aria-hidden="true">*</span></label>
+                    <select
+                      id="na-refby"
+                      aria-label="Referred by"
+                      value={referredBy}
+                      onChange={(e) => {
+                        const v = e.target.value as '' | 'supplier' | 'agency';
+                        setReferredBy(v);
+                        /* CHANGING IT CLEARS WHAT IT SCOPED. Matt: "changing
+                           the supplier clears both". The agency and branch
+                           belonged to the previous answer, and leaving them
+                           is how a referral ends up filed under a supplier
+                           that has never met the agency named on it. */
+                        setRouteSupplier('');
+                        setValues((prev) => ({ ...prev, agency: '', branch: '' }));
+                      }}
+                    >
+                      {/* NO DEFAULT. Matt's words. A default here is a
+                          decision taken for the admin by the form. */}
+                      <option value="">Choose…</option>
+                      <option value="supplier">Supplier</option>
+                      <option value="agency">Agency</option>
+                    </select>
+                    <span className="hint">
+                      {referredBy === 'supplier'
+                        ? 'A supplier referral covers one tenant, is priced at one month’s rent, and pays supplier commission.'
+                        : referredBy === 'agency'
+                        ? 'An agency referral goes on the agent rail with agency commission, even where a supplier introduced the agency.'
+                        : 'Required. Everything below stays closed until this is answered.'}
+                    </span>
+                  </div>
+
+                  {referredBy === 'supplier' && (
+                    <div className="field span-2">
+                      <label htmlFor="na-route">Supplier <span className="req" aria-hidden="true">*</span></label>
+                      <select
+                        id="na-route"
+                        aria-label="Supplier"
+                        value={routeSupplier}
+                        onChange={(e) => {
+                          setRouteSupplier(e.target.value);
+                          setValues((prev) => ({ ...prev, agency: '', branch: '' }));
+                        }}
+                      >
+                        <option value="">Choose a supplier…</option>
+                        {/* REAL SUPPLIERS ONLY. getPartners() strips the house
+                            routes, which is exactly Matt's "never a house
+                            partner". */}
+                        {getPartners().map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                      <span className="hint">Agency and Branch below will search only this supplier’s.</span>
+                    </div>
+                  )}
+                </div>
+              </CardBody>
+            </section>
+          )}
+
           {/* 1. TENANTS */}
-          <section className="card sec" id="sec-tenant">
-            <div className="sec__head"><span className="sec__num">1</span><div>
+          <section className="card sec" id="sec-tenant" aria-disabled={!referredByDone}
+            style={referredByDone ? undefined : { opacity: 0.45, pointerEvents: 'none' }}>
+            <div className="sec__head"><span className="sec__num">{isAdminForm ? 2 : 1}</span><div>
               <div className="sec__title">{joint ? 'Tenants' : 'Tenant'}</div>
               <div className="sec__sub">{joint ? `${tenantCount} tenants on one tenancy, one guarantee` : 'The tenant being referred'}</div>
             </div></div>
@@ -528,7 +631,13 @@ export function NewApplication() {
                     <Icon name="plus" /> Add another tenant
                   </button>
                   <p className="tn-gate__why" id="tn-gate-why">
-                    {railState === 'none'
+                    {referredBy === 'supplier'
+                      /* KNOWN FROM THE ROUTE, not from the branch. Once an
+                         admin has said the referral came through a supplier,
+                         the answer is settled and there is no reason to tell
+                         them to choose a branch to find out. */
+                      ? 'A supplier sends us referrals one tenant at a time. Refer each tenant separately.'
+                      : railState === 'none'
                       ? 'Choose the agent and branch first: whether a referral can cover more than one tenant depends on who it is for.'
                       : railState === 'loading'
                         ? 'Checking this agent\u2026'
