@@ -40,7 +40,7 @@
 -- difference between a policy that filters and a guard that throws.
 
 begin;
-select plan(88);
+select plan(90);
 
 -- ===========================================================================
 -- THE FIXTURE
@@ -537,6 +537,38 @@ select throws_ok(
   $$select public.commission_statement_ref('2026-11','opndoor-agents|agency:90000000-0000-0000-0000-0000000000a3')$$,
   '42501', null,
   'and a signed-in caller cannot reach the cron arm by carrying a service_role claim');
+
+/* B7. A STATEMENT REFERENCE IS A COMMERCIAL ARTEFACT, so it is Director-level.
+   pricing_agreements and pricing_agreement_bands both carry a RESTRICTIVE
+   `may_see_commission()` policy. commission_statement_refs, which is the
+   third member of the same family, carried only a permissive SELECT that
+   tests reach and not capability -- so a Manager who reaches an agency could
+   read the references of its monthly statements. It leaks no amounts, only
+   that a statement exists and its number, which is why it is a backlog item
+   and not a critical. Rule 3 all the same: anything that states commercial
+   business tests the capability, not the role. Fixed by 20261006770000. */
+reset role;
+insert into public.commission_statement_refs (statement_month, payee_key, seq)
+values ('2026-11', 'opndoor-agents|agency:90000000-0000-0000-0000-0000000000a1', 901);
+
+select set_config('request.jwt.claims',
+  '{"sub":"90000000-0000-0000-0000-00000000c002","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.commission_statement_refs
+    where payee_key = 'opndoor-agents|agency:90000000-0000-0000-0000-0000000000a1'),
+  0, 'a Manager without sees_commission cannot read their own agency''s statement references');
+
+-- AND THE DIRECTOR OVER THE SAME AGENCY STILL CAN, so the fix is a capability
+-- test and not a lock-out.
+reset role;
+select set_config('request.jwt.claims',
+  '{"sub":"90000000-0000-0000-0000-00000000c001","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.commission_statement_refs
+    where payee_key = 'opndoor-agents|agency:90000000-0000-0000-0000-0000000000a1'),
+  1, 'while the Director over that agency still reads it');
 
 reset role;
 
