@@ -265,13 +265,94 @@ portal calls, not a second implementation that agrees with them today.
 
 | # | fix | test that failed first | on live too? | status |
 | --- | --- | --- | --- | --- |
-| R1 | Cross-company contact write, and the deed follows it | | | todo |
-| R2 | Partial refund recorded as a total refund | | | todo |
-| R3 | 50% commission cap not enforced on joint tenancies | | | todo |
-| R4 | Four definer RPCs return the commission rates | | | todo |
-| R5 | Tenancy-start correction fixes only one of a joint pair | | | todo |
-| R6 | Commission rates writable from the browser, no audit row | | | todo |
-| R7 | `create_referral_api` resolves no fee and no rates | | | todo |
+| R1 | Cross-company contact write, and the deed follows it | | **no** | todo |
+| R2 | Partial refund recorded as a total refund | | **YES, and worse** | todo |
+| R3 | 50% commission cap not enforced on joint tenancies | | no, feature absent | todo |
+| R4 | Four definer RPCs return the commission rates | | **partly, by another route** | todo |
+| R5 | Tenancy-start correction fixes only one of a joint pair | | no, feature absent | todo |
+| R6 | Commission rates writable from the browser, no audit row | | **YES, and worse** | todo |
+| R7 | `create_referral_api` resolves no fee and no rates | | no, feature absent | todo |
+
+### Does it exist on live? Answered, 2026-09-29. Read-only, git only.
+
+Matt asked this as part of the instruction. Each of the seven was examined
+against `origin/main` (commit `3520a26`, 65 migrations, byte-identical to local
+`main`) by one analyst and then by one refuter told to assume the analyst was
+wrong. **Analyst and refuter agreed on all seven**, every one at high
+confidence. No database was touched; this reads git and nothing else.
+
+**R1 -- NO, and the reason is instructive.** Live has no agency rail at all:
+no `user_scopes`, no house partner, no `app_may_reach_*` family. One partner is
+one company, so `partner_id = app_partner()` IS the boundary there. Live's
+contact policies have the SAME shape as the broken arm, but a BEFORE trigger
+`sync_contact_partner` overwrites `new.partner_id` with the partner read off
+the target agency or branch *before* the WITH CHECK runs, so the writer's
+supplied value is discarded and the value actually tested is the owner's. The
+partner-blind resolver DOES exist live and is reached with the service role
+from `pandadoc-webhook`, but it is not exploitable there precisely because the
+trigger guarantees every contact row already carries its own branch's partner.
+**That trigger is the guard this branch lost**, and it is the shape the fix
+should restore rather than invent.
+
+**R2 -- YES, and live is worse.** `apply_stripe_refund` is the same
+unconditional flip, last defined live at
+`20260702192702_refund_policy_anomaly.sql:10-21`. Live additionally DISCARDS
+the RPC's error (origin/main webhook line 104) where this branch added a 500
+and an ops incident, and lacks the `deed_state='error'` fallback when a
+PandaDoc void fails. Live also carries two consequences the finding did not
+list: expiry reminders stop, and the league and climber queries treat the
+application as fully refunded. **This is the one to tell Balal about.**
+
+**R3 -- cannot happen live.** No joint tenancies, no pricing agreements, no
+`commission_preview`. One flat rate pair per partner, frozen onto the
+application. All three mechanisms are branch inventions dated after live's
+last migration.
+
+**R4 -- PARTLY, and by a different route.** Live has no `sees_commission` and
+no Director/Manager split: its role enum is exactly
+`('superadmin','management','referrer')`, so `management` IS the
+commission-seeing level and half the finding's victim list does not exist
+there. The count is three, not four (`set_application_status` was already
+admin-only). But the RETURN TYPE is not the leak on live: the rate columns are
+readable by a plain table SELECT, so a negotiator's browser already receives
+them and only the screen's choice not to draw them hides it.
+
+**R5 -- cannot happen live.** No joint tenancies; live's own field-mapping
+spec says so in writing. One tenant, one application, one deed. The expiry
+half IS true on live -- `expiry_date` is generated there too, so a correction
+silently moves a signed instrument's expiry -- but it can never produce two
+documents that disagree.
+
+**R6 -- YES, and live is worse.** Same shape, smaller surface: rates live in
+`partners` and in the per-application snapshot, neither with an audit trigger,
+while `update_partner_settings` and `partner_audit` both exist and are simply
+optional. Live is worse on `applications`: `applications_update` permits
+management-in-partner and referrer-owns-while-sent with no column restriction,
+so it is **not only an admin** -- a manager can rewrite the snapshotted rate on
+any application at their partner, and a negotiator on their own.
+
+**R7 -- cannot happen live.** There is no partner API there: no
+`create_referral_api`, no partner-api edge function among live's 34, no API-key
+table. Live's single portal path does resolve the rates correctly.
+
+### What this changes about the live hotfix already with Balal
+
+`docs/HOTFIX-LIVE-FOR-BALAL.sql` revokes insert, update, delete and truncate
+on `public.applications` from `anon` and `authenticated`. That **closes R6's
+applications half on live**, including the manager-and-negotiator route above,
+which is a stronger reason for the hotfix than the one it was written for.
+
+It does **not** close:
+
+- **R6 on `public.partners`.** The hotfix names `applications` only. An
+  opndoor admin can still PATCH `partner_rate` and `agent_rate` on `partners`
+  straight from the browser, unrecorded, after the hotfix is applied.
+- **R2 at all.** The refund defect is in a SECURITY DEFINER function reached
+  by the Stripe webhook with the service role; no table grant touches it.
+
+Both are live-system facts and neither is mine to act on: `origin` is a
+third-party live repository and Matt pushes. Recorded here so the decision is
+his and is made with the full picture.
 
 ---
 
