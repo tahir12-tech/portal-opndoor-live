@@ -100,7 +100,7 @@ unambiguous.
 | 7. Exports and statement | scoping |
 | 8. Three agency levels in admin screens | scoping |
 | 9. "Referred by" on New application | scoping |
-| 10. HubSpot consequences report | in progress |
+| 10. HubSpot consequences report | **done** -- `docs/HUBSPOT-CONSEQUENCES.md`. Comes back to Matt before fold 17 is designed. |
 | 11. The end-to-end walk on dev | todo |
 | 12. Handover and cutover checklist | todo, and last: it summarises the rest |
 | 13. The one final review round | todo, and after 12 |
@@ -1139,7 +1139,32 @@ spot-checked by me where they bore on something I had just changed.
 
 ## Q-07. The HubSpot consequences report
 
-**Status: todo. Gates NM-2 (fold 17).**
+**Status: DONE, 2026-09-29. `docs/HUBSPOT-CONSEQUENCES.md`. Still gates NM-2
+(fold 17), which is the point of it.**
+
+The headline, so it is not buried: **fold 17 is not a reversal.** There is no
+inbound path from HubSpot anywhere in the codebase, the README already calls
+the portal the system of record, and the company name in HubSpot is already
+overwritten by the portal on every sync. What is described as one decision is
+five, three of which need nothing from Matt.
+
+Three things the report found that are wrong TODAY, independent of fold 17:
+
+- **A HubSpot outage over about half an hour destroys events rather than
+  delaying them.** The code cannot tell an outage from a bad record, parks the
+  event after enough retries, and its own alert says the event will not arrive
+  until replayed -- and there is no replay path.
+- **Two of the three rails never produce a referral event**, so on dev 31 of
+  34 applications would reach HubSpot as anonymous records with no channel.
+- **The sandbox gate fails open** when livemode is missing rather than false,
+  and nothing in the suite asserts it.
+
+And one thing that does not exist on production and would be CREATED by
+shipping this branch: the commission rate pushed to each HubSpot company is
+the ROUTE's rate, which is correct on main because main has no negotiated
+agreements, and wrong for several agencies the moment this branch lands --
+Regent among them. Not a reason to delay the branch; a reason to fix the
+pushed number before anything is built on top of it.
 
 ### The instruction, verbatim
 
