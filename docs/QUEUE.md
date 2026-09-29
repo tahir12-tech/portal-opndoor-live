@@ -253,6 +253,40 @@ shared confirmation, not a box bolted onto two buttons. Worth noting that
 `PersonActions` already has destructive actions ("Remove access") that may
 have the same problem.
 
+### Batch 14 (verbatim). NOTE: no batch 13 was received.
+
+Numbering jumps from 12 to 14. Recorded as Matt labelled it. **If a batch 13
+was sent and did not arrive, it is not in this file and nothing from it is
+known** -- flagged rather than silently renumbered, because a lost batch would
+otherwise look like a batch that never existed.
+
+> Walk fixes, batch 14. Add to QUEUE.md verbatim under "Walk fixes, after shipping" and commit. Do not build yet.
+>
+> 24. Reconciliation, "Not in network": when a direct tenant names a letting agent Opndoor doesn't work with, that agency should go to HubSpot as a new company (a prospect), with the agent contact details the tenant gave, marked as having come from a direct tenant. If the company already exists in HubSpot, add to it rather than duplicating. Only the agency and agent contact go across, never the tenant's details. Check this against the HubSpot consequences report before building.
+
+**Item 24's "add to it rather than duplicating" IS the open decision in the
+HubSpot report.** Matt says to check this against Q-07 before building, and
+the check comes back pointed: `docs/HUBSPOT-CONSEQUENCES.md` records that the
+one decision left open there is **whether the portal stores the HubSpot record
+id**. Dedup is not possible without it. Matching on company name instead is
+exactly the "name slug" approach fold F3 already rejected for statement
+references, and it breaks the same way -- rename the agency and the match is
+lost, creating the duplicate the item forbids. So item 24 cannot be built
+until that decision is made, and it is the reason to make it.
+
+**Item 24 states a data-protection boundary that wants a test, not a
+comment.** "Only the agency and agent contact go across, never the tenant's
+details" is the kind of rule that holds on the day it is written and quietly
+stops holding when someone adds a field to the payload. It wants an assertion
+over the outbound payload's keys -- a deny-list that fails when any tenant
+field appears -- rather than a careful `select` that future edits can widen.
+
+**And it is the first walk fix that sends data OUTSIDE the product.**
+Everything else on this list is internal. This one pushes records to a third
+party, so it is also the first that cannot be undone by fixing a bug: a
+prospect wrongly created in HubSpot is in HubSpot. That argues for the dedup
+decision and the payload test landing before the first real send, not after.
+
 **The proposal item 15 asks for is written up as NM-F below.** Item 15 itself
 stays unbuilt and unranked until Matt answers it.
 
