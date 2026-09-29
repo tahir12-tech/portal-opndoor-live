@@ -144,8 +144,8 @@ matrix says which EVENTS) and the supplier detail page.
 are fixed and tested, and its mediums and lows are B13-B18 below. No further
 rounds until the ONE final round after the queue is built.
 
-Next action: Q-04's admin page (the SQL, the routing, the floor and the send
-path are done and tested; the screen is not), then Q-05 onward.
+Next action: Q-05 (fold 11 and the four commission amendments), then Q-06's
+remaining fold-ins, Q-07, Q-08, Q-09.
 
 ---
 
@@ -157,7 +157,7 @@ path are done and tested; the screen is not), then Q-05 onward.
 | Q-01b | The deed goes to the referrer AND every ticked user in scope | **done** |
 | Q-02 | Supplier rail notifications | **done** |
 | Q-03 | Notification settings per party | **done** |
-| Q-04 | Opndoor internal notification routing | todo |
+| Q-04 | Opndoor internal notification routing | **done** (four alert types Matt named do not exist -- NM-2b) |
 | Q-05 | Fold 11 and the four commission amendments | todo |
 | Q-06 | The fold-ins A to H | in progress (D and E done) |
 | Q-07 | The HubSpot consequences report | todo |
@@ -740,7 +740,8 @@ design and Q-02's "subject to item 2's settings" means this matrix.
 
 ## Q-04. Opndoor internal notification routing
 
-**Status: in progress.** The inventory is done and committed:
+**Status: done**, except the four notifications the instruction names that
+the platform does not send at all -- see NM-2b. The inventory is committed:
 `docs/OPS-NOTIFICATIONS.md`, read from the code. Today every internal alert
 takes one path -- `report_ops_incident` dedupes per (kind, hour) into
 `ops_alerts`, posts to `ops-alert`, and that sends to ONE address from

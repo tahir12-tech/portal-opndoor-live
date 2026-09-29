@@ -1,0 +1,26 @@
+/* The routing grid. One column per recipient, so it grows sideways as the
+   team does and scrolls rather than squeezing the alert names. */
+.on-note { margin: 0 0 4px; max-width: 74ch; }
+.on-scroll { overflow-x: auto; }
+
+.on-grid { width: 100%; border-collapse: collapse; font-size: 14px; }
+.on-grid th,
+.on-grid td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--line, #e7e7ea); }
+.on-grid thead th {
+  font-weight: 600; white-space: nowrap; vertical-align: bottom;
+  font-size: 12px; letter-spacing: .02em; color: var(--muted, #6b6b76);
+}
+.on-grid tbody th { font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.on-grid tbody tr:last-child th,
+.on-grid tbody tr:last-child td { border-bottom: 0; }
+
+.on-inbox {
+  display: block; font-weight: 400; text-transform: uppercase;
+  font-size: 10px; letter-spacing: .06em; color: var(--muted, #6b6b76);
+}
+.on-cell { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.on-cell input { cursor: pointer; }
+/* A locked cell is still ticked and still legible; it just cannot be pressed. */
+.on-cell input:disabled { cursor: not-allowed; }
+.on-cell input:disabled + span { color: var(--muted, #6b6b76); }
+.on-na { color: var(--muted, #6b6b76); }
