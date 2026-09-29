@@ -1,5 +1,20 @@
 # Production divergence: what is in the tree and not on live
 
+> **A SECOND, DIFFERENT DIVERGENCE, found 2026-09-29.** This document is about
+> which MIGRATIONS are applied on production. There is also a divergence in
+> the GIT history, and they are not the same thing:
+>
+> the local branch `main` (`f2816a7`) and the live repository's `origin/main`
+> (`3520a26`) have diverged — **neither contains the other**. `origin/main`
+> carries eight commits from 27 August to 18 September that the local copy
+> does not: deed email fixes, a PandaDoc wait, a refund timeout, toast fixes.
+>
+> Their `supabase/migrations` trees are byte-identical, 65 files each, so
+> nothing below changes. But anyone reading local `main` to answer "what does
+> production DO" is reading a September answer for the screens and emails and
+> an August one underneath, and any fix written against it must be written
+> against `origin/main` instead. See `docs/HANDOVER-BALAL.md` section 0a.
+
 `applications.partner_rate` is still selectable by `authenticated` on production,
 which proves `20260811180000` was never applied there. That is one known gap.
 This document is how to find the rest **without inferring it**, because
