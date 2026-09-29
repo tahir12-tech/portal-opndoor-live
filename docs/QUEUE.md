@@ -772,8 +772,8 @@ portal calls, not a second implementation that agrees with them today.
 | --- | --- | --- | --- | --- |
 | R1 | Cross-company contact write, and the deed follows it | `a_contact_belongs_to_a_company_that_holds_the_branch.test.sql` -- failed first on 3 of 10, 6 regression guards green throughout | **no** | **DONE** `7cf3f21` |
 | R2 | Partial refund recorded as a total refund | `a_partial_refund_is_not_a_total_refund.test.sql` (6/11 failed first) + `aPartialRefundKeepsTheGuarantee.test.ts` (1/6 failed first) | **YES, and worse** | **DONE** `581d21c` |
-| R3 | 50% commission cap not enforced on joint tenancies | | no, feature absent | todo |
-| R4 | Four definer RPCs return the commission rates | | **partly, by another route** | todo |
+| R3 | 50% cap + preview ignores agreements | `the_preview_shows_what_is_actually_paid.test.sql` (1/6 failed first) | no, feature absent | **DONE** `017f4f3`. **Half did not reproduce**: the cap IS enforced and DOES see joint bands (measured, a 0.55 joint band refused by name). Only the preview was wrong: it showed 0.10 where the agreement pays 0.30. |
+| R4 | Definer RPCs return the commission rates | `the_rates_are_not_in_the_reply.test.sql` (3/9 failed first) | **partly, by another route** | **DONE** `90b7f4d`. **Six, not four.** Measured: a Negotiator got partner_rate 0.30 and agent_rate 0.10 back from `create_referral`. |
 | R5 | Tenancy-start correction fixes only one of a joint pair | | no, feature absent | todo |
 | R6 | Commission rates writable from the browser, no audit row | | **YES, and worse** | todo |
 | R7 | `create_referral_api` resolves no fee and no rates | | no, feature absent | todo |
