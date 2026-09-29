@@ -51,6 +51,12 @@ built until he says so.
 > 10. Matt's direction: this belongs within the Opndoor team page, per person, like permissions. Each Opndoor team member has their own notification settings, reached from their row (the three dots menu), showing which internal alerts that person receives. Remove the separate Internal notifications page from the menu. The rule that a critical alert can never be left with nobody still applies: where a box can't be unticked because that person is the only recipient, say so plainly next to it.
 > 11. The Opndoor team list shows "Sees: Own referrals" for every admin, including new invites (Matthew Dwyer). Same fix as item 2, applies to every Opndoor team member.
 
+### Batch 5 (verbatim)
+
+> Walk fixes, batch 5. Add to QUEUE.md verbatim under "Walk fixes" and commit. Do not build yet.
+>
+> 12. Agency People tab, same problem as Opndoor's internal notifications: notification settings are split across three places (a "Notifications" tickbox column, a "Statements" tickbox column, and a separate "Who is told what" grid underneath with columns for "The referrer" and "Users ticked Receives notifications"). It's messy and hard to tell who gets what. Matt's direction, same as item 10: notifications move onto each person, like permissions, reached from their row. For each person, one panel showing: whether they're copied on referrals within their position, which events they're told about, and whether they get monthly statements. Remove the separate grid and the two tickbox columns from the table. The locked items (every tenant email, and the executed deed reaching its recipient) show as locked with the reason. Build items 10 and 12 as one shared design so Opndoor team and agency people work the same way; suppliers too.
+
 ### Status: nothing built, and THE SEVEN ARE PAUSED
 
 "Do not build anything yet; I'm walking dev and it must not change under me"
@@ -127,6 +133,34 @@ alert types Q-04 names do not exist (NM-2b, still parked on Matt as NM-B).
 Rebuilding this per person will surface that again: the per-person screen will
 either list four alerts that never fire, or quietly omit them. Neither is
 decided here. Flag it when the item is built rather than choosing.
+
+**Items 9, 10 and 12 are now ONE piece of work, on Matt's instruction:**
+"Build items 10 and 12 as one shared design so Opndoor team and agency people
+work the same way; suppliers too." So the deliverable is a single per-person
+notifications panel used by three parties, reached the same way from a row on
+each. Three screens today (the Internal notifications page, the agency People
+tab's two columns plus grid, and the supplier People tab) collapse into one
+component. It is the largest of the walk fixes by some distance and should not
+be started piecemeal.
+
+**And it has a server side that already exists.** `notification_enabled`,
+`set_notification_setting` and the `notification_types()` catalogue are built
+and tested (Q-03), and they already carry the two things item 12 asks the UI
+to show: the LOCKED cells and the per-party/per-class shape. So this is
+mostly a UI consolidation over a server model that is already the right shape
+-- with one gap to check rather than assume: item 12 wants "whether they get
+monthly statements" on the SAME panel, and statements are a separate
+mechanism from notifications today. Confirm before designing whether that is
+one model or two.
+
+**Item 12's locked items differ per rail, which is why one shared design is
+the risk as well as the instruction.** On the agency rail the deed to its own
+recipient is locked (Q-03) and the copies are switchable; on the supplier rail
+the agent contact is the deed's recipient and there are no positions at all
+(B3: `set_receives_notifications` cannot be used on a supplier colleague,
+because its scope test requires the target to hold a position). A single
+component must therefore ask the SERVER what is locked and why, per party, and
+must not hard-code a list -- or the supplier rail will show agency rules.
 
 **Item 7's "simpler alternative" note is due AFTER the fix, not now.** Matt's
 words: "after fixing, note in QUEUE.md under 'Needs Matt' a one-line simpler
