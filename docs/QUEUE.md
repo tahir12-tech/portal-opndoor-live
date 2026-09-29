@@ -17,6 +17,11 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ## Walk fixes (instruction, 2026-09-29, verbatim). RECORDED, NOT STARTED.
 
+Matt is walking dev. Batches are recorded here as they arrive and NOTHING is
+built until he says so.
+
+### Batch 1 (verbatim)
+
 > Walk fixes, batch 1. Add to QUEUE.md verbatim under "Walk fixes" and commit. Do not build anything yet; I'm walking dev and it must not change under me.
 >
 > 1. Opndoor team page: the three dots on your own row open an empty menu. Either hide them, or show the actions you can take on your own account (rename, reset your own MFA).
@@ -24,6 +29,12 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 > 3. The logo label reads "SUPPLIER PORTAL" when signed in as Opndoor admin. It should say "Admin" for Opndoor staff.
 > 4. The Opndoor team page description still says "partners". It should refer to suppliers and agencies.
 > 5. The "What [person] can see" dialog opens for Opndoor team members and treats them like agency staff: it says "Own referrals only", asks for an office, and offers agency and supplier branches, and choosing one would limit that person to that branch. Opndoor admins see everything by their role and must never be given an office or position. Remove this dialog for Opndoor team members, and make sure a position can never narrow what an Opndoor admin sees, even if one was set.
+
+### Batch 2 (verbatim)
+
+> Walk fixes, batch 2. Add to QUEUE.md verbatim under "Walk fixes" and commit. Do not build yet.
+>
+> 6. The "What [person] can see" dialog mixes two things. Split it into two clearly labelled parts: "Works at" (their home office, which decides their team, league and commission statement) and "Oversees" (the branches, brand or agency they manage, which decides what they can see). Retitle the dialog "Office and responsibilities".
 
 ### Status: nothing built, and THE SEVEN ARE PAUSED
 
@@ -37,14 +48,32 @@ The only work still running is READ-ONLY and touches no database: the
 determination of whether each of the seven also exists on `origin/main`, which
 reads git and nothing else.
 
-### One note on batch-1 item 5, recorded now so it is not lost
+### Notes recorded now so they are not lost
 
-Item 5's last clause -- "make sure a position can never narrow what an Opndoor
-admin sees, even if one was set" -- is not a UI change. It is a server
-question, and the answer has to come from the reach predicates, not from
-hiding the dialog. Hiding the dialog stops new positions being created; it
-does nothing about one already in the table. These two halves want separate
-tests.
+**Item 5's last clause is a SERVER question, not a dialog one.** "Make sure a
+position can never narrow what an Opndoor admin sees, even if one was set" is
+answered by the reach predicates, not by hiding a dialog. Hiding the dialog
+stops new positions being created; it does nothing about a row already in the
+table. Two halves, two tests.
+
+**Items 5 and 6 are the same dialog and must be built together.** 5 removes it
+for Opndoor staff; 6 restructures it for everyone else. Built separately they
+will conflict over the same component.
+
+**Item 6 names a distinction the data model already makes**, which is the
+reason the dialog reads as a muddle: "Works at" is the HOME OFFICE and "Oversees"
+is the POSITION set. They are different columns doing different jobs, and the
+dialog currently presents them as one list. Item 6 is therefore mostly a
+labelling and grouping change over a split that already exists, NOT a data
+model change -- to be confirmed against `user_scopes` and the home-branch
+column before building, because if any screen today infers the home office
+FROM the position set, that inference is the actual bug and wants its own
+test.
+
+**Item 6 touches money.** "Works at" is said to decide the commission
+statement, so the home office is not cosmetic: changing it moves who gets
+paid. Whatever is built needs a test that a change to "Oversees" alone leaves
+the commission statement untouched.
 
 ---
 
