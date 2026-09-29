@@ -12,6 +12,7 @@
     "test": "vitest run --environment jsdom",
     "smoke": "vitest run --environment jsdom",
     "test:db": "supabase test db",
+    "test:db:dev": "python3 scripts/pgtap-against-dev.py supabase/tests/*.test.sql",
     "drift": "node scripts/schema-drift.mjs",
     "schema:final": "node scripts/schema-final-state.mjs"
   },

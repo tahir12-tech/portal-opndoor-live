@@ -21,15 +21,16 @@
  * is resolved against a real application. A render test that mocked its way
  * to an email would be asserting the mock.
  */
-import { afterEach, describe, expect, it } from 'vitest';
-import { act, cleanup, render, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
 import { ToastProvider } from '@/components/ui/Toast';
+import * as positionsService from '@/data/positionsService';
 import { hydrateCommissionVisibility } from '@/data';
 import { App } from '@/App';
 
-afterEach(() => { cleanup(); hydrateCommissionVisibility(true); });
+afterEach(() => { cleanup(); hydrateCommissionVisibility(true); vi.restoreAllMocks(); });
 
 async function openTeam(role: 'management' | 'referrer', director = true) {
   localStorage.setItem('grp_role', role);
@@ -95,5 +96,44 @@ describe('the Receives notifications tickbox on Team', () => {
   it('is nowhere for a Negotiator, who has no Team screen at all', async () => {
     const v = await openTeam('referrer');
     expect(ticks(v).length).toBe(0);
+  });
+
+  /* A NEGOTIATOR'S ROW SAYS WHY, RATHER THAN SHOWING A DEAD CONTROL.
+     "Receives notifications" widens somebody to their whole position. A
+     Negotiator's position IS their own referrals, so there is nothing to
+     widen and the tickbox would do nothing whichever way it was set. An
+     always-inert control reads as a broken one, so the cell states the
+     reason instead. */
+  it('states the reason on a Negotiator row instead of drawing a tickbox', async () => {
+    const v = await openTeam('management', true);
+    const negRows = [...v.container.querySelectorAll('.tm-person')]
+      .filter((r) => r.querySelector('.role-tag')?.textContent === 'Negotiator');
+    // If the fixture ever stops containing one, this must fail rather than
+    // pass vacuously over an empty list.
+    expect(negRows.length).toBeGreaterThan(0);
+    for (const r of negRows) {
+      expect(r.querySelector('.tm-person__notify')?.textContent).toMatch(/Own referrals/i);
+      expect(r.querySelectorAll('input[type="checkbox"]').length).toBe(0);
+    }
+  });
+
+  /* AND TICKING IT ACTUALLY WRITES. Every assertion above is about whether the
+     control is DRAWN. A control that renders correctly and is wired to
+     nothing passes all five, which is the gap this closes: the click must
+     reach set_receives_notifications with that person and the new value.
+     What the server then does with it is asserted in SQL, not here. */
+  it('sends the person and the new value to the server when it is ticked', async () => {
+    const spy = vi.spyOn(positionsService, 'setReceivesNotifications');
+    const v = await openTeam('management', true);
+    const box = ticks(v)[0] as HTMLInputElement;
+    expect(box).toBeTruthy();
+    const wasOn = box.checked;
+    await act(async () => { fireEvent.click(box); });
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    const [userId, next] = spy.mock.calls.at(-1)!;
+    expect(typeof userId).toBe('string');
+    expect(userId.length).toBeGreaterThan(0);
+    // The value sent is the OPPOSITE of what the row showed, not a constant.
+    expect(next).toBe(!wasOn);
   });
 });

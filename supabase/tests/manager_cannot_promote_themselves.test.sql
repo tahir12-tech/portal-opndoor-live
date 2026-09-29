@@ -67,17 +67,31 @@ select throws_ok(
   '42501', null,
   'and so is posting themselves the monthly statement');
 
-/* NOT JUST THEIR OWN ROW -- and the reason this assertion changed shape.
+/* NOT JUST THEIR OWN ROW -- and this assertion has now changed shape TWICE.
    users_mgmt_update USED TO cover every management and referrer row under the
    same partner, which on the house route is every agency Opndoor carries.
    20261006170000 scoped it to the caller's own agency and to a level at or
-   below their own, so a colleague's row above them is no longer visible to
-   their UPDATE: it matches nothing rather than raising. Refused harder, and
-   the assertion says which. */
-select lives_ok(
+   below their own, so a colleague's row above them stopped being visible to
+   their UPDATE and the statement matched nothing rather than raising.
+
+   Then 20261006550000, round 6's ladder finding, revoked UPDATE on
+   public.users and re-granted four columns by name -- full_name, email,
+   last_active_at, receives_notifications. `sees_commission` is not one of
+   them, so the write is now refused by the GRANT before RLS is consulted at
+   all, for a colleague exactly as it already was for the caller's own row two
+   assertions above. Refused harder again, and no longer dependent on the
+   policy being right.
+
+   THIS TEST WAS RED FROM THAT MIGRATION UNTIL NOW and nothing said so. The
+   pgTAP suite runs in CI on push, this branch has never been pushed, and
+   Docker is not installed on the machine the work was done on, so
+   `npm run test:db` could not run either. It was found by running the suite
+   against dev instead. */
+select throws_ok(
   $$update public.users set sees_commission = false
      where id = '94000000-0000-0000-0000-00000000000e'$$,
-  'changing a colleague''s level through the table now matches nothing');
+  '42501', null,
+  'changing a colleague''s level through the table is refused outright');
 reset role;
 select ok((select sees_commission from public.users where id = '94000000-0000-0000-0000-00000000000e'),
   'and that colleague is still a Director');
