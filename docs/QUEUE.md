@@ -576,9 +576,32 @@ bug.
 | R1-R7, all seven | **DONE**, each with a test that failed first, all applied to dev |
 | Walk fix 13 (invite asks where they sit) | **DONE** `bdf260c` -- Matt ranked it first |
 | Walk fix 14 (plain-English errors) | **DONE** `bdf260c` |
-| Walk fixes 1-12, 15-30 | in progress, in order |
-| DEFECTS.md | after the walk fixes |
-| The end-to-end walk | last |
+| Walk fixes 2, 3, 4, 11 (Opndoor team page) | **DONE** `806a300` |
+| Walk fixes 1, 5-10, 12, 15-30 | **NOT STARTED** -- see the order below |
+| DEFECTS.md | not started |
+| The end-to-end walk | not started |
+
+### RESUME HERE. The order the rest should be done in.
+
+Matt's instruction is "in order", and the order below is his, with the
+dependencies found while working recorded against each so nothing is built
+before the thing it needs.
+
+| next | item | note found while working |
+| --- | --- | --- |
+| 1 | **Walk fix 1** -- three dots on your own row open an empty menu | Small. Same screen as 2/3/4/11, which are done. |
+| 2 | **Walk fixes 5 + 6** -- the "What X can see" dialog | MUST be built together: 5 removes it for Opndoor staff, 6 restructures it for everyone else, and they are one component. 5's second half ("a position can never narrow what an Opndoor admin sees, even if one was set") is a SERVER question and wants its own test. |
+| 3 | **Walk fixes 9 + 10 + 12** -- notifications per person | The largest by some distance. Matt: "one shared design so Opndoor team and agency people work the same way; suppliers too." Three screens collapse into one component. The server model already exists (Q-03) and already carries the locked cells; the one thing to CHECK rather than assume is whether monthly statements are the same model or a second one. |
+| 4 | **Walk fix 7** -- Applications Origin picker does nothing | **May be throwaway.** NM-F proposes deleting the picker entirely. Answering NM-F first could save this work; Matt has not answered. |
+| 5 | **Walk fix 8** -- bordereau includes every application | **AFTER R2, which is now done.** Its test must include a partially-refunded executed guarantee and assert it is PRESENT. "In force during the period" is OVERLAP, not containment. |
+| 6 | **Walk fix 16** -- Total guaranteed rent value | Shares both clauses with 8; build together, one helper, one set of tests. The "show how it is calculated" half is already done and written up above. |
+| 7 | **Walk fixes 27 + 28 + 29 + 30** -- the New application form | Four items on one screen; 28 is a HANG, not just wrong wording. |
+| 8 | **Walk fixes 17, 18, 19, 21** -- Reporting labels and lists | 18 shares a root with B1 and B2; 21 renders what 6 edits, so 6 first. |
+| 9 | **Walk fixes 22a, 23, 24, 25** -- Reconciliation and Home | 22b is DONE. 24 is blocked on the HubSpot record-id decision in Q-07. 25's Direct-signups half is blocked on NM-G. |
+| 10 | **Walk fixes 15 + 20** -- Reporting per customer | Both blocked on NM-F. |
+| 11 | **Walk fix 26** -- suppliers may refer joint tenancies | AFTER R3 and R5 (both now done). Reverses Q-06 item H, and `referredBy.render.test.tsx` asserts the OLD rule -- invert it with a comment, do not delete it. |
+| 12 | **DEFECTS.md** | 19 defects. Several are actions on LIVE infrastructure (rotate the committed cron secret, the two scheduling items, disaster recovery) and Matt's own instruction says do not touch production: those get marked, not attempted. |
+| 13 | **The end-to-end walk** | Needs NM-H answered for the supplier half, and cannot cover payment, signature or email at all from a terminal -- Deno is not installed. |
 
 ### Superseded status note (kept for the sequence)
 
