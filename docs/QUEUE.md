@@ -103,7 +103,7 @@ unambiguous.
 | 4a. The supplier COMMISSION EDITOR | blocked on NM-C 3 and 4. The tab shows today's rate figures and today's form; its new shape (Standard / Flat / Volume tiered, and whether it sets the agency rate underneath) is Matt's to settle. |
 | 4b. Deleting "Manage" from the suppliers list | todo, and deliberately not done in passing. The SAME modal is the only way to CREATE a supplier: `openAdd` and the else-branch of `save` both use it. Deleting it without first separating create from edit is how the Add button stops working, and that is a change worth making on its own. |
 | 10. HubSpot consequences report | **done** -- `docs/HUBSPOT-CONSEQUENCES.md`. Comes back to Matt before fold 17 is designed. |
-| 11. The end-to-end walk on dev | todo |
+| 11. The end-to-end walk on dev | **done** for the half that can run here -- `docs/THE-WALK.md`. Payment, deed generation and the emails need a browser: Deno is not installed, so those edge functions cannot run on this machine at all. |
 | 12. Handover and cutover checklist | todo, and last: it summarises the rest |
 | 13. The one final review round | todo, and after 12 |
 
@@ -297,6 +297,7 @@ easy it is to fix.
 | B16 | `VITE_ADDRESS_LOOKUP_KEY` is inlined into the bundle and sent as a query-string `api_key` from the public /apply page. | `src/data/addressService.ts` | Currently commented out, so not live. A public billable credential the moment it is set. |
 | B17 | `create-referral`'s `verify_jwt = false` in `supabase/config.toml:137-138` contradicts its own header comment saying true. | that config | Settle which is intended. The function does its own auth, so this is a discrepancy to resolve rather than a hole found. |
 | B18 | No executed-deed immutability at table level independent of the grant: `deed_state`, `pandadoc_document_id` and the deed timestamps can be co-edited to null while `status` is downgraded. | `applications` | Closed in practice by round 7's A. Worth a constraint if any write path to `applications` ever returns. |
+| B20 | A fee basis is stored as `4.35` with the unit `months`. 4.35 is the number of WEEKS in a month, so the pair reads as 4.35 months -- four months' rent -- where the fee is one. | `resolve_fee`, standard agreements | Found by the walk. Not live: the fee itself is right, and the only renderer, `feeBasisLabel`, checks `is_standard` first and says "one month's rent". It is a quantity and a unit that disagree and only agree because nothing reads them together. Anything NEW that reads the pair -- a statement line, an export column, an API field -- states it wrongly. Not fixed here because it means touching the number every fee derives from. |
 | B12 | `definerAllowlistCoverage` counts a function as covered if its NAME appears in any pgTAP file; it does not require the test to assert a refusal. | `src/data/definerAllowlistCoverage.test.ts` | A weakness in a check, not in the product -- but it is how round 6's H3 would have passed the ratchet. Worth tightening. |
 
 ---
