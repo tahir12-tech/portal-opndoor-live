@@ -30,7 +30,7 @@
 -- writable by default. A test naming columns would have the same flaw.
 
 begin;
-select plan(10);
+select plan(15);
 
 -- ===========================================================================
 -- THE GRANT ITSELF
@@ -63,6 +63,60 @@ select ok(
     where c.table_schema = 'public' and c.table_name = 'applications'
       and has_column_privilege('authenticated', 'public.applications', c.column_name, 'SELECT')) > 50,
   'while SELECT is untouched, because every screen reads this table');
+
+/* AND THE OTHER TWO VERBS, which round 7 did not name.
+ *
+ * 20261006660000 wrote `revoke insert, update`, because INSERT and UPDATE
+ * were what the finding was about. The table sits on Supabase's ALTER DEFAULT
+ * PRIVILEGES, which granted ALL, so naming two of four left DELETE and
+ * TRUNCATE in place -- measured TRUE on dev, for anon as well as
+ * authenticated, until 20261006720000.
+ *
+ * It matters because docs/HOTFIX-LIVE-FOR-BALAL.sql revokes all four on
+ * production before cutover. Anything the hotfix closes and this branch
+ * leaves open would be re-opened by the upgrade itself.
+ *
+ * READ BY RELATION OID rather than through information_schema. The four
+ * assertions above take the obvious route, and it only works because nothing
+ * else in the database is called `applications`: nothing orders the schema
+ * filter before has_column_privilege, so with a second table of that name the
+ * planner feeds it foreign column names and the query dies rather than fails.
+ * These do not have that weakness.
+ */
+select ok(
+  not has_table_privilege('authenticated', 'public.applications', 'DELETE')
+  and not has_table_privilege('anon', 'public.applications', 'DELETE'),
+  'and nobody in the browser may DELETE an application, whatever the policy says');
+
+select ok(
+  not has_table_privilege('authenticated', 'public.applications', 'TRUNCATE')
+  and not has_table_privilege('anon', 'public.applications', 'TRUNCATE'),
+  'nor TRUNCATE the table');
+
+select ok(
+  has_table_privilege('authenticated', 'public.applications', 'SELECT')
+  or (select count(*) from pg_attribute a
+       where a.attrelid = 'public.applications'::regclass and a.attnum > 0
+         and not a.attisdropped
+         and has_column_privilege('authenticated', a.attrelid, a.attnum, 'SELECT')) > 50,
+  'while reading survives, at the table or column level, so no screen goes blank');
+
+/* AND THE FUNCTION THE HOTFIX REPLACES ON PRODUCTION.
+ *
+ * This branch fixed the unknown-caller class from the other end, by wrapping
+ * all 205 raising guards in coalesce (20261006470000). Production cannot take
+ * 205 guards by hand, so its hotfix makes app_role() total instead. Both are
+ * correct; carrying only one of them would leave production and dev holding
+ * different definitions of the same function, with drift clean because drift
+ * compares the files to dev and never looks at production.
+ */
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-000000000000","role":"authenticated","aal":"aal2"}', true);
+select is(public.app_role(), ''::text,
+  'a caller with no users row reads as nobody, not as unknown');
+
+select ok(public.app_role() is not null,
+  'and never as NULL, which is what let `if not (...) then raise` be skipped');
 
 -- ===========================================================================
 -- THE REPRODUCTIONS
