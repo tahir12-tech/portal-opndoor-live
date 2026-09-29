@@ -771,7 +771,7 @@ portal calls, not a second implementation that agrees with them today.
 | # | fix | test that failed first | on live too? | status |
 | --- | --- | --- | --- | --- |
 | R1 | Cross-company contact write, and the deed follows it | `a_contact_belongs_to_a_company_that_holds_the_branch.test.sql` -- failed first on 3 of 10, 6 regression guards green throughout | **no** | **DONE** `7cf3f21` |
-| R2 | Partial refund recorded as a total refund | | **YES, and worse** | todo |
+| R2 | Partial refund recorded as a total refund | `a_partial_refund_is_not_a_total_refund.test.sql` (6/11 failed first) + `aPartialRefundKeepsTheGuarantee.test.ts` (1/6 failed first) | **YES, and worse** | **DONE** `581d21c` |
 | R3 | 50% commission cap not enforced on joint tenancies | | no, feature absent | todo |
 | R4 | Four definer RPCs return the commission rates | | **partly, by another route** | todo |
 | R5 | Tenancy-start correction fixes only one of a joint pair | | no, feature absent | todo |
@@ -1376,6 +1376,28 @@ supplier rail stays unwalked and will be reported as such.
 anywhere and cannot be read back from their hashes. All three have been signed
 into recently, so Matt or Balal hold them. They are NOT being reset, because
 resetting mid-cutover would lock out whoever is using them.
+
+### NM-I. Should a partial refund reduce the commission? Raised by R2.
+
+R2 stopped a partial refund wiping the agency's whole commission line. It did
+NOT decide what the commission should then be, because that is a commercial
+question and nobody has answered it.
+
+**Today, after the fix:** commission stays on the WHOLE fee. That is the
+status quo for any application that was not refunded, and it is the
+conservative choice -- it changes nothing except stopping the wipe.
+
+**The alternative:** pro-rate it. Refund 10% of the fee, pay 10% less
+commission.
+
+Worth knowing before choosing: a partial refund is usually a goodwill
+gesture or a correction, and the agency did the same work either way. But
+Opndoor keeps less and pays the same. On the measured case the difference is
+GBP 311.54 either way against a GBP 10 refund, so it is small per case and
+only matters if partial refunds become common.
+
+**Blocks nothing.** The fix is complete and safe without an answer; this only
+decides whether a later migration adjusts the figure.
 
 ### NM-A. Who pays the guarantee fee, and how they pay it
 
