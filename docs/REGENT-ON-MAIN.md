@@ -1,3 +1,55 @@
+> ## CORRECTION, 2026-09-29, after Matt read this
+>
+> **Sections 5 and 6 were wrong about the BRANCH, and the recommendation has
+> flipped.** Sections 1 to 4, which are about `main`, all stand.
+>
+> I wrote that even on the branch a pre-referenced agency can never have a
+> joint tenancy, citing
+> `20261003110000_joint_is_agent_rail_only.sql:55`. That guard was replaced
+> **the next day** by
+> `20261004100000_estate_and_journey_are_two_questions.sql`, and has been
+> superseded six times since. I read a dead guard as the live rule.
+>
+> **The mistake underneath it.** I treated "pre-referenced" and "on our agent
+> estate" as one axis, so an agency had to be one or the other. They are two
+> questions, and the migration that split them says so in its name:
+>
+> - the **journey** (`referencing_mode`): are this tenant's references already
+>   done before the referral reaches us? A property of the work, frozen onto
+>   each application.
+> - the **estate** (`is_agent_estate(branch, route)`): is this branch one of
+>   the agencies Opndoor onboarded? A property of the relationship, read from
+>   the route partner.
+>
+> An agency can be both, and Regent is: under the house partner
+> `opndoor-agents`, so on the estate, and carrying
+> `referencing_mode = 'pre_referenced_open'`, so pre-referenced. A joint
+> tenancy needs an agency of ours to sit under. Regent has one.
+>
+> **Proved**, not merely re-read:
+> `supabase/tests/a_pre_referenced_agency_of_ours_may_refer_a_pair.test.sql`.
+> A Regent-shaped pair at £2,400 goes through `create_joint_referral`, prices
+> at **five weeks (£2,769.23)** with **25% commission**, and each application
+> still records the pre-referenced journey. The same file asserts the contrast
+> at one tenant (three weeks, 20%) and the still-correct refusal for a real
+> supplier. 12 assertions.
+>
+> **What this document was NOT wrong about, and it matters.** It was answering
+> the proposal as worded: *Regent onboards as their **own partner** on the
+> pre-referenced rail*. In that shape the route partner is Regent's own
+> pre-referenced partner, `is_agent_estate` is false, joint tenancies really
+> are refused, and the 5-week band really is unreachable. That is asserted in
+> the test too. So the fix is not code: it is **onboarding Regent as an agency
+> on the Opndoor estate rather than as their own partner**, which is the shape
+> that was built and walked on dev.
+>
+> **The corrected recommendation: ship the branch, and put Regent on the
+> agency rail.** Both bands work there today. There is no commercial
+> contradiction and nothing left to settle before costing it. Section 6 below
+> is superseded by this box.
+
+---
+
 # Can Regent go live on production as their own pre-referenced partner?
 
 Asked 2026-09-29. Answered against `main` (commit f2816a7, 65 migrations,
@@ -17,7 +69,25 @@ claims were refuted in that pass and are adjudicated at the end.
 
 # Can Regent Property go live on `main`? Decision document
 
-Baseline checked: `main` = `f2816a755fb88fa4a23c7a806ad2dc672b0bb113`, 65 migrations, newest `20260705171000_reconciliation_fold_head_office.sql`. Every claim below was re-checked with `git show main:` / `git grep â¦ main`. The working tree (`partner-api`, 312 migrations, 432 commits ahead, 55k lines changed in `src/` + `supabase/functions/`) is cited only where labelled BRANCH.
+Baseline checked: `main` = `f2816a755fb88fa4a23c7a806ad2dc672b0bb113`, 65 migrations, newest `20260705171000_reconciliation_fold_head_office.sql`.
+
+> **Baseline footnote added 2026-09-29.** That is the LOCAL `main`. The live
+> repository's main is `origin/main` = `3520a26`, and the two have diverged:
+> neither contains the other, and origin/main carries eight commits from
+> 27 August to 18 September that the local copy does not (deed email fixes, a
+> PandaDoc wait, a refund timeout, toast fixes). Their
+> `supabase/migrations` trees are **byte-identical**, 65 files each, so every
+> claim in this document about what `main`'s DATABASE can and cannot do is
+> unaffected.
+>
+> Of the client files cited here, I checked each against `3520a26` rather than
+> assuming: `partnersService.ts`, `NewApplication.tsx`,
+> `applicationsService.ts` and `liveAnalytics.ts` are identical in both, so
+> those citations stand as written. **`PartnerManagement.tsx` is not** -- it is
+> one of the 26 that differ -- so the line number in the phantom "Add partner"
+> finding (`:166`) may have moved on the deployed copy. The finding itself is
+> in `partnersService.ts`, which is identical, so only the line reference is
+> in doubt. Every claim below was re-checked with `git show main:` / `git grep â¦ main`. The working tree (`partner-api`, 312 migrations, 432 commits ahead, 55k lines changed in `src/` + `supabase/functions/`) is cited only where labelled BRANCH.
 
 ---
 
@@ -140,12 +210,45 @@ Against: 247 extra migrations and 55,422 lines changed across 303 files in `src/
 
 For: the branch has had six rounds of security review and **`main` has had none of those fixes**. The four defects above that are not about pricing at all, the phantom "Add partner", the unguarded `applications` column write, the unaudited `users_mgmt_update`, and the NULL-guard family, are all live on `main` today with Opndoor's current partners on it. Shipping Option B leaves every one of them in place. The branch's hardened `users_mgmt_update` (scope plus level-rank comparison) exists only on `partner-api`.
 
-**And the decisive asymmetry:** even on the branch, `20261003110000_joint_is_agent_rail_only.sql:55` refuses `create_joint_referral` for any mode other than `opndoor_referenced`, with the message "a pre-referenced referral covers one tenant. Refer each tenant separately." So **Regent on `pre_referenced_open` never reaches the 5-week/25% band on the branch either.** Shipping 247 migrations to deliver a two-band deal buys exactly one of the two bands. That is a commercial contradiction in the proposal, not a code gap, and it needs settling with Matt before either option is costed.
+~~**And the decisive asymmetry:** even on the branch, `20261003110000_joint_is_agent_rail_only.sql:55` refuses `create_joint_referral` for any mode other than `opndoor_referenced` ... So **Regent on `pre_referenced_open` never reaches the 5-week/25% band on the branch either.** ... That is a commercial contradiction in the proposal, not a code gap.~~
+
+> **WRONG, corrected 2026-09-29. See the box at the top of this file.** That
+> guard was replaced the next day by
+> `20261004100000_estate_and_journey_are_two_questions.sql`. The live rule
+> asks `is_agent_estate(branch, route)`, not `referencing_mode`, and Regent is
+> on the estate *and* pre-referenced. **On the branch a Regent pair at £2,400
+> prices at five weeks with 25% commission**, proved end to end in
+> `supabase/tests/a_pre_referenced_agency_of_ours_may_refer_a_pair.test.sql`.
+> There is no commercial contradiction, and nothing here needs settling before
+> costing.
+>
+> The asymmetry that survives is the opposite one, and it now points the same
+> way as the security argument above: the branch delivers **both** of Regent's
+> bands and `main` delivers neither.
 
 ---
 
 ## 6. Recommendation
 
-Do not put Regent on `main` as proposed, and do not ship the branch to do it. The proposal contains a contradiction that no amount of engineering resolves: the 5-weeks-at-25% band is the two-or-more-tenants band, and a pre-referenced referral covers one tenant by the branch's own explicit rule (`20261003110000_joint_is_agent_rail_only.sql:55`), so on the pre-referenced rail Regent only ever hits 3 weeks at 20% no matter which codebase runs. Settle that with Matt first: either Regent goes on the **agency rail**, where joint tenancies and both bands are real and the branch is the only thing that carries them, or Regent's deal is rewritten as a **single band, 3 weeks at 20%, single tenant**, in which case Option B above is three migrations and eight files on `main` and can be live in days. If it is the agency rail, then the honest answer is ship the branch, because back-porting `referencing_mode`, `user_scopes`, the additive commission split, `pricing_agreements` with bands and tiers, the tenancies schema and `create_joint_referral` is the branch, not a subset of it. Either way, four defects on `main` should be fixed regardless of the Regent decision, because they affect the partners already in production: the phantom "Add partner" (`src/data/partnersService.ts:67`), the unguarded column write through `applications_update` (`20260702134358_access_rls_rpc.sql:124-135`), the unaudited `users_mgmt_update` (`:79-81`), and the NULL-guard family in `amend_tenancy_start` and the three `admin_*_user_*` RPCs.
+> **SUPERSEDED 2026-09-29 by the correction box at the top of this file.** The
+> paragraph below rests on a guard that had already been replaced when it was
+> written. Kept, struck through, because the reasoning around it about `main`
+> is still sound and because a decision document that quietly rewrites its own
+> conclusion is worth less than one that shows the change.
+>
+> **The recommendation now: ship the branch, and onboard Regent as an agency
+> on the Opndoor estate (under `opndoor-agents`) carrying
+> `referencing_mode = 'pre_referenced_open'` -- not as their own partner.**
+> Both bands work in that shape today, proved in
+> `supabase/tests/a_pre_referenced_agency_of_ours_may_refer_a_pair.test.sql`.
+> The security argument in section 5 already pointed at shipping the branch;
+> the commercial argument now points the same way instead of against it.
+>
+> The one thing the struck paragraph gets right and which still holds: if
+> Regent were onboarded as **their own partner**, joint tenancies would still
+> be refused, because `is_agent_estate` reads the route partner. The choice
+> that matters is which estate Regent sits on, not which codebase ships.
+
+~~Do not put Regent on `main` as proposed, and do not ship the branch to do it. The proposal contains a contradiction that no amount of engineering resolves: the 5-weeks-at-25% band is the two-or-more-tenants band, and a pre-referenced referral covers one tenant by the branch's own explicit rule (`20261003110000_joint_is_agent_rail_only.sql:55`), so on the pre-referenced rail Regent only ever hits 3 weeks at 20% no matter which codebase runs. Settle that with Matt first: either Regent goes on the **agency rail**, where joint tenancies and both bands are real and the branch is the only thing that carries them, or Regent's deal is rewritten as a **single band, 3 weeks at 20%, single tenant**, in which case Option B above is three migrations and eight files on `main` and can be live in days. If it is the agency rail, then the honest answer is ship the branch, because back-porting `referencing_mode`, `user_scopes`, the additive commission split, `pricing_agreements` with bands and tiers, the tenancies schema and `create_joint_referral` is the branch, not a subset of it.~~ Either way, four defects on `main` should be fixed regardless of the Regent decision, because they affect the partners already in production: the phantom "Add partner" (`src/data/partnersService.ts:67`), the unguarded column write through `applications_update` (`20260702134358_access_rls_rpc.sql:124-135`), the unaudited `users_mgmt_update` (`:79-81`), and the NULL-guard family in `amend_tenancy_start` and the three `admin_*_user_*` RPCs.
 
 **Reviewer disagreements adjudicated.** Three findings were wrong and I verified each personally. (a) Reviewer 5's "SECURITY DEFINER contact reader with no scope check" is **refuted**: `20260702134957_harden_functions.sql:14` flips `effective_contacts` to `security invoker` 599 seconds after it was created, so a Regent manager holding a foreign branch UUID gets zero rows. The reviewer read the creating migration and not the one that alters it. (b) Reviewers 1 and 2's "nothing can amend the per-application rate" is **refuted**: `applications_update` is row-level with no column list and no guard trigger, so management can write `partner_rate` directly. That makes it a live audit gap, not a missing capability. (c) Reviewer 1's "faking `monthly_rent` misstates every fee, league and digest figure" is **wrong in one clause**: those figures are `sum(monthly_rent)` and would stay consistent with the charge; what breaks is the rent-denominated set. The conclusion "not usable" survives. Reviewer 5's naming of `set_application_status` as the NULL-guard victim is also wrong, `20260703143224:20-22` makes it admin-only and NULL-safe; the real victims are the five functions listed above.

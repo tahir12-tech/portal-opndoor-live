@@ -79,6 +79,20 @@ unambiguous.
 >
 > Record progress in QUEUE.md as you go. When the list is done or only "Needs Matt" items remain, stop and report in plain English.
 
+### Progress against that list
+
+| item | status |
+| --- | --- |
+| 1. The live hotfix for Balal | **done** `476d587` |
+| 2. Verify the Regent correction, fix the two documents | **done** (this commit) |
+| 3. Verify the monthly commission statement fault, fix it, prove a statement sends | in progress |
+| 4. Items 3 to 13 of the thirteen | todo |
+| 5. Climber of the week's test, and the team tickbox | **done** `5497a6a` |
+
+Item 5 was taken out of order because items 1 to 3 were blocked on a scoping
+run and it was fully independent. Both halves turned out to be built already;
+only the tests were missing, and QUEUE.md was stale in saying otherwise.
+
 ### What changed about how I decide
 
 The standing instruction of earlier today said to decide anything the queue did
@@ -370,41 +384,96 @@ From the scoping of Q-05. Each blocks only the part named.
    that was set up as a supplier by mistake? *Blocks: nothing; the editor will
    warn when it sees the combination either way.*
 
-### NM-1b. Regent's two bands cannot both exist on the pre-referenced rail
+### NM-D. One hole on the live system the hotfix deliberately does not close
 
-**2026-09-29.** Asked whether Regent could go live on production as their own
-pre-referenced partner with "3 weeks at 20%, 5 weeks at 25%". Full analysis in
-`docs/REGENT-ON-MAIN.md`. The answer is no, and the reason is not engineering:
+Found while scoping the hotfix, measured, and left open on purpose because
+closing it safely is bigger than a hand-applied paste.
 
-**The 5-week band is the two-or-more-tenants band, and a pre-referenced
-referral covers one tenant by our own explicit rule.**
-`20261003110000_joint_is_agent_rail_only.sql:55` refuses `create_joint_referral`
-for any mode other than `opndoor_referenced`, with the message "a
-pre-referenced referral covers one tenant. Refer each tenant separately." So
-on the pre-referenced rail Regent only ever reaches 3 weeks at 20%, **on either
-codebase**. Shipping the branch would not deliver the second band.
+**What it is.** The same "a guard that cannot tell who you are does not
+refuse" fault, in `create_referral` and eight org/contact functions. The
+hotfix closes twelve functions by making `app_role()` answer "nobody" instead
+of "I don't know". These nine do not test the role at all: they test the
+caller's *company* (`if not (is_admin() or pid = app_partner())`), which is
+also unknown, and so also skips the refusal. A sign-in with no user profile
+can create referrals, and can change an agent contact's email address, which
+is where an executed deed is sent.
 
-**What I need from Matt: which is it?**
+**Why the same trick does not work.** Making `app_partner()` answer a
+placeholder instead of NULL would fix all nine in one line. It would also
+break production: `create_referral_target` uses `pid is not null` to tell a
+partner user from an opndoor admin, and an opndoor admin's company is
+legitimately empty. Every admin would be routed down the partner branch and
+would create agencies belonging to a company that does not exist. I checked
+this before proposing it, and it is why the hotfix stops where it does.
 
-1. **Regent goes on the AGENCY rail**, where joint tenancies and both bands are
-   real. Then the honest answer is that the branch ships, because back-porting
-   `referencing_mode`, `user_scopes`, the additive commission split,
-   `pricing_agreements` with bands and tiers, the tenancies schema and
-   `create_joint_referral` IS the branch, not a subset of it.
-2. **Regent's deal is rewritten as one band, 3 weeks at 20%, single tenant.**
-   Then it is three migrations and about eight files on `main`, live in days.
-   `docs/REGENT-ON-MAIN.md` section 4, Option B.
+**The options.**
 
-Note for option 2: `main` has no fee basis at all. The guarantee fee IS
-`monthly_rent`, hard-wired at both Stripe call sites, and the tenant is told
-"One month's rent" in the product description. On a £1,000 tenancy Regent's
-tenant would be charged £1,000 where the 3-week band is £692.31.
+- **Leave it until cutover.** The new version already fixes it, from the other
+  direction. The exposure in the meantime is: somebody would need a live
+  sign-in, with MFA, that has no profile attached. The two accounts of that
+  shape were deleted on 2026-09-29, and creating another one needs access to
+  the Supabase dashboard.
+- **Fix it now, as a second hotfix.** It means pasting nine complete function
+  bodies rather than one line, each of which must be copied exactly. That is a
+  larger and more error-prone thing to do by hand on a live system, and it
+  wants its own rehearsal first.
 
-And a trap to refuse if it is proposed: faking `monthly_rent` to encode the
-fee gets the fee, league, digest and commission arithmetically right, because
-`main` defines all of those AS `monthly_rent` -- and breaks every
-rent-denominated figure, including the rent shown to the tenant at checkout
-and two adjacent export columns that would read identically.
+**My reading, offered not applied:** the first, because the way in was closed
+this morning and the second option's risk is the paste itself. But it is a
+judgement about how exposed Opndoor is willing to be for a few days, which is
+Matt's call and not mine.
+
+### NM-1b. RESOLVED. Regent gets both bands on the branch. Corrected 2026-09-29.
+
+**This was my error, and Matt caught it.** I recorded that Regent's 5-week /
+25% band was unreachable because a joint tenancy is refused for anyone
+pre-referenced, citing `20261003110000_joint_is_agent_rail_only.sql:55`. That
+guard was replaced **the next day** by
+`20261004100000_estate_and_journey_are_two_questions.sql` and superseded six
+times after that. I quoted a dead rule and its dead error message as current.
+
+**The mistake underneath it**, which is the part worth keeping: I treated
+"pre-referenced" and "on our agent estate" as one axis, so an agency had to be
+one or the other. They are two questions, and the superseding migration is
+named after exactly that.
+
+| | question | read from | property of |
+| --- | --- | --- | --- |
+| the journey | `referencing_mode` | branch, then agency, then partner | the WORK: are these references already done? frozen onto each application |
+| the estate | `is_agent_estate(branch, route)` | the ROUTE PARTNER only | the RELATIONSHIP: is this branch one of the agencies we onboarded? |
+
+An agency can be both, and Regent is: under the house partner
+`opndoor-agents`, so on the estate, and `pre_referenced_open`, so
+pre-referenced. A joint tenancy needs an agency of ours to sit under. It has
+one.
+
+**Proved, not just re-read.**
+`supabase/tests/a_pre_referenced_agency_of_ours_may_refer_a_pair.test.sql`, 12
+assertions. A Regent-shaped pair at £2,400 goes through
+`create_joint_referral` and prices at **five weeks, £2,769.23, 25%
+commission**, with each application still carrying the pre-referenced journey
+and the two fees summing to the whole with nothing lost to rounding twice. The
+same file asserts one tenant at three weeks / 20%, and that a genuine supplier
+is still refused.
+
+**Nothing to build.** The test passed first time against the code as it
+stands, which is what Matt said it would do.
+
+**The one thing that does still need saying, and it is a shape choice not a
+code gap.** The original question was "Regent onboards as **their own
+partner** on the pre-referenced rail". In that shape the route partner is
+Regent's own pre-referenced partner, `is_agent_estate` is false, and joint
+tenancies really are refused, so the 5-week band really would be unreachable.
+That case is asserted too. So Regent must be onboarded as an **agency on the
+Opndoor estate**, under `opndoor-agents`, carrying
+`referencing_mode = 'pre_referenced_open'` -- which is the shape that was
+built and walked on dev. It is not a decision that blocks anything; it is a
+note for whoever does the onboarding.
+
+**What is unchanged:** everything about `main`. `main` has no
+`referencing_mode`, no joint tenancy, no fee basis and one rate per partner,
+so it delivers neither band. `docs/REGENT-ON-MAIN.md` sections 1 to 4 stand;
+its sections 5 and 6 carry the same correction as this one.
 
 ### NM-1c. Four defects on main that are nothing to do with Regent
 
