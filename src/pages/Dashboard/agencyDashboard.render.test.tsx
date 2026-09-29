@@ -41,6 +41,7 @@ vi.mock('@/lib/supabase', () => ({
   sb: () => { throw new Error('This test runs with no Supabase client.'); },
 }));
 
+import { KEYS } from '@/data/storage';
 import { SessionProvider } from '@/session/SessionContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { PageMetaProvider } from '@/components/layout/pageMeta';
@@ -100,7 +101,16 @@ afterAll(() => hydrateFull([]));
    page compiling. */
 async function openDashboard(role: string, scope?: string) {
   localStorage.setItem('grp_role', role);
-  if (scope) localStorage.setItem('grp_partner', scope);
+  /* BOTH KEYS, because that is what the picker writes. `grp_partner` is the
+     isolation scope the server rule speaks in; `grp_scope_sel` is the richer
+     selection the picker holds, and it is what "am I viewing as somebody"
+     is read off. Setting only the first is how this harness used to lie:
+     selecting an AGENCY leaves the partner at All, so a test that drove only
+     the partner could never reach the agency case at all. */
+  if (scope) {
+    localStorage.setItem('grp_partner', scope);
+    localStorage.setItem(KEYS.scopeSel, `partner:${scope}`);
+  }
   const view = render(
     <MemoryRouter initialEntries={['/']}>
       <SessionProvider><ToastProvider><PageMetaProvider><Dashboard /></PageMetaProvider></ToastProvider></SessionProvider>

@@ -7,6 +7,7 @@
    In mock/test mode these figures fall back to the modelled view; the live
    values are computed only when the application set has been hydrated.
    ===================================================================== */
+import { ORIGIN_ALL, originMatches, type OriginScope } from './origin';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import type { PartnerScope, Period, Role } from './types';
 import { reachableAgencyNames } from './orgService';
@@ -32,8 +33,11 @@ export function periodRange(period: Period): [Date, Date] {
   }
 }
 
-/** Role + partner + AGENCY isolation, matching the applications list rule. */
-export function scopeFull(apps: FullApp[], role: Role, scope: PartnerScope): FullApp[] {
+/** Role + partner + AGENCY isolation, matching the applications list rule,
+    and then -- strictly afterwards -- the reader's own selection. */
+export function scopeFull(
+  apps: FullApp[], role: Role, scope: PartnerScope, sel: OriginScope = ORIGIN_ALL,
+): FullApp[] {
   let set = apps;
   if (scope !== ALL_PARTNERS) set = set.filter((a) => a.partner === scope);
   /* THE PARTNER IS A ROUTE, NOT A COMPANY. Every agency on our own estate
@@ -50,6 +54,14 @@ export function scopeFull(apps: FullApp[], role: Role, scope: PartnerScope): Ful
   // whole partner book. A role not named here gets nothing.
   if (role === 'referrer') set = set.filter((a) => a.owner === 1);
   else if (role !== 'superadmin' && role !== 'management') set = [];
+  /* THE READER'S SELECTION, LAST AND DELIBERATELY SO.
+     Everything above is isolation: what this reader is permitted to see. This
+     is preference: which of it they are currently looking at. Running it last
+     means a selection can only ever NARROW what isolation already allowed, so
+     no reader can select their way into another party's rows -- and if this
+     line were ever deleted the page would show too MUCH of the reader's own
+     book, which is visible, rather than somebody else's, which is not. */
+  if (sel) set = set.filter((a) => originMatches(a, sel));
   return set;
 }
 

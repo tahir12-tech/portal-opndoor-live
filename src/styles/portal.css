@@ -490,7 +490,11 @@ table.dt { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   border-bottom: 1px solid var(--line);
 }
 .typeahead__opt:last-child { border-bottom: none; }
-.typeahead__opt:hover, .typeahead__opt.is-focus { background: var(--app-bg-2); }
+.typeahead__opt:hover, .typeahead__opt.is-focus,
+.typeahead__opt--active { background: var(--app-bg-2); }
+/* The keyboard-highlighted row. Same treatment as hover on purpose: the
+   pointer and the arrow keys are two ways of pointing at the same row, and a
+   second colour would read as two different states. */
 .typeahead__opt-main { font-weight: 700; color: var(--ink); font-size: 13.5px; }
 .typeahead__opt-sub { font-size: 12px; color: var(--ink-mute); margin-top: 1px; }
 .typeahead__opt-ic {

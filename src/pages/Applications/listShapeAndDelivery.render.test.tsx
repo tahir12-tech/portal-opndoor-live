@@ -18,6 +18,7 @@
    working copy live mode fills, so deliveryStateOf and countByStatus are doing
    the deciding exactly as they do in the app. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { KEYS } from '@/data/storage';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
@@ -80,6 +81,13 @@ function seedDeliveryBook(): void {
 afterEach(() => {
   cleanup();
   shape = ESTATE;
+  /* THE SCOPE SELECTION IS REMEMBERED NOW, which is the point of it: Matt's
+     answer of 2026-09-29 is that Reporting and Applications share one
+     remembered choice. It therefore persists in localStorage where this
+     page's own `origin` state used to die with the component, and a test
+     that narrowed to one party would hand the next test an empty list. */
+  localStorage.removeItem(KEYS.scopeSel);
+  localStorage.removeItem(KEYS.scopeRecents);
 });
 
 /* The page on its own rather than through <App />: this is a test about one
@@ -99,7 +107,13 @@ async function openList(role: string, path = '/applications') {
 type View = Awaited<ReturnType<typeof openList>>;
 const headers = (v: View) => [...v.container.querySelectorAll('table.dt thead th')].map((th) => (th.textContent ?? '').trim());
 /** Every filter chip, by the label its select is announced as. */
-const chips = (v: View) => [...v.container.querySelectorAll('.fchip select')].map((s) => s.getAttribute('aria-label') ?? '');
+/* The filter bar's controls, whichever element each one is. Origin became a
+   searchable combobox when it became the shared scope picker; the rest are
+   still native selects, and the assertions here are about WHICH filters the
+   bar offers, not about what they are made of. */
+const chips = (v: View) => [
+  ...v.container.querySelectorAll('.fchip select, .fchip input[role="combobox"]'),
+].map((s) => s.getAttribute('aria-label') ?? '');
 const tabs = (v: View) => [...v.container.querySelectorAll('.ftab')].map((b) => b.textContent ?? '');
 const rowFor = (v: View, ref: string) => [...v.container.querySelectorAll<HTMLElement>('table.dt tbody tr')]
   .find((tr) => (tr.textContent ?? '').includes(ref));
@@ -146,7 +160,7 @@ describe('the columns and filters a one-agency viewer gets', () => {
     // One filter, not two. The Agency chip goes with them: the Origin selector
     // lists every agency and group in the book, and two chips both offering
     // agencies is the same word twice.
-    expect(chips(view)).toEqual(expect.arrayContaining(['Origin:', 'Branch:', 'Referrer:']));
+    expect(chips(view)).toEqual(expect.arrayContaining(['Origin', 'Branch:', 'Referrer:']));
     expect(chips(view)).not.toContain('Route:');
     expect(chips(view)).not.toContain('Partner:');
     expect(chips(view)).not.toContain('Agency:');
@@ -202,8 +216,25 @@ function seedMixedBook(): void {
    Origin column sits right after it and textContent runs the two together. */
 const refs = (v: View) => [...v.container.querySelectorAll('table.dt tbody tr')]
   .map((tr) => tr.querySelector('.who .dt__sub')?.textContent ?? '').filter(Boolean);
-const originSelect = (v: View) => [...v.container.querySelectorAll<HTMLSelectElement>('.fchip select')]
-  .find((s) => s.getAttribute('aria-label') === 'Origin:')!;
+/* THE ORIGIN CONTROL IS NOW THE SHARED ScopePicker, a searchable combobox
+   rather than a native select, so these drive it the way a person does:
+   focus it, then click the row. Choosing by the LABEL a user reads rather
+   than by the value underneath it also makes these assertions say what they
+   mean. */
+const originInput = (v: View) =>
+  v.container.querySelector<HTMLInputElement>('.scopepick input[role="combobox"]')!;
+
+function chooseOrigin(v: View, label: string) {
+  const input = originInput(v);
+  fireEvent.focus(input);
+  const row = [...v.container.querySelectorAll('.typeahead__opt')]
+    .find((o) => o.querySelector('.typeahead__opt-main')?.textContent === label);
+  if (!row) {
+    const seen = [...v.container.querySelectorAll('.typeahead__opt-main')].map((o) => o.textContent);
+    throw new Error(`no origin option "${label}". Offered: ${seen.join(' | ')}`);
+  }
+  fireEvent.mouseDown(row);
+}
 
 describe('the Origin filter', () => {
   it('names all four kinds of party in the one column', async () => {
@@ -222,7 +253,8 @@ describe('the Origin filter', () => {
   it('offers each party in the book once, and nothing the book has no rows from', async () => {
     seedMixedBook();
     const view = await openList('superadmin');
-    const labels = [...originSelect(view).querySelectorAll('option')].map((o) => o.textContent);
+    fireEvent.focus(originInput(view));
+    const labels = [...view.container.querySelectorAll('.typeahead__opt-main')].map((o) => o.textContent);
     expect(labels).toContain('Everything');
     expect(labels).toContain('Direct');
     expect(labels).toContain('Harbourside Homes');
@@ -239,13 +271,14 @@ describe('the Origin filter', () => {
     seedMixedBook();
     const view = await openList('superadmin');
     expect(refs(view)).toHaveLength(4);
-    fireEvent.change(originSelect(view), { target: { value: 'agency:Marylebone & Co' } });
+    // Chosen by the label a person reads, which is what the picker offers.
+    chooseOrigin(view, 'Marylebone & Co');
     expect(refs(view)).toEqual([A_MARY]);
-    fireEvent.change(originSelect(view), { target: { value: 'partner:harbourside' } });
+    chooseOrigin(view, 'Harbourside Homes');
     expect(refs(view)).toEqual([A_SUPP]);
-    fireEvent.change(originSelect(view), { target: { value: 'direct' } });
+    chooseOrigin(view, 'Direct');
     expect(refs(view)).toEqual([A_DIRECT]);
-    fireEvent.change(originSelect(view), { target: { value: '' } });
+    chooseOrigin(view, 'Everything');
     expect(refs(view)).toHaveLength(4);
   });
 
@@ -257,21 +290,21 @@ describe('the Origin filter', () => {
     seedMixedBook();
     const view = await openList('superadmin', '/applications?route=Direct');
     expect(refs(view)).toEqual([A_DIRECT]);
-    expect(originSelect(view).value).toBe('direct');
+    expect(originInput(view).value).toBe('Direct');
   });
 
   it('lands a supplier page\'s ?partner= link on that supplier\'s rows', async () => {
     seedMixedBook();
     const view = await openList('superadmin', '/applications?partner=harbourside');
     expect(refs(view)).toEqual([A_SUPP]);
-    expect(originSelect(view).value).toBe('partner:harbourside');
+    expect(originInput(view).value).toBe('Harbourside Homes');
   });
 
   it('opens the whole book on a stale ?partner=, rather than an empty list', async () => {
     seedMixedBook();
     const view = await openList('superadmin', '/applications?partner=no-such-partner');
     expect(refs(view)).toHaveLength(4);
-    expect(originSelect(view).value).toBe('');
+    expect(originInput(view).value).toBe('Everything');
   });
 });
 

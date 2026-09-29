@@ -18,6 +18,8 @@ export const KEYS = {
   partner: 'grp_partner',
   period: 'grp_period',
   notifRead: 'grp_notif_read_v1', // per-user "notifications last read" timestamps
+  scopeSel: 'grp_scope_sel_v1', // the one scope selection Reporting and Applications share
+  scopeRecents: 'grp_scope_recents_v1', // the parties recently looked at, most recent first
 } as const;
 
 export function loadJSON<T>(key: string, fallback: T): T {

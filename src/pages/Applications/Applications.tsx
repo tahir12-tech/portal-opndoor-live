@@ -23,11 +23,13 @@ import {
   agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications,
   referrerNamesForScope, getPeriods, periodRange, ALL_PARTNERS, type Status, type Period,
   collateTenancies, groupTenancies, pageWithoutSplitting, scopedSummaries, tenancyDeedTally, tenancyPaidTally,
-  originOf, originOptions, originLabel, originToFilter, originFromParams, ORIGIN_KIND_LABEL,
+  originOf, originOptions, originToFilter, originFromParams, ORIGIN_KIND_LABEL,
 } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
+import { ScopePicker } from '@/components/ui/ScopePicker';
+import { recentScopes } from '@/data/scopeRecents';
 import { Icon } from '@/components/ui/Icon';
 import { Card } from '@/components/ui/Card';
 import { Eyebrow } from '@/components/ui/Eyebrow';
@@ -90,7 +92,7 @@ function FilterChip({ icon, label, display, value, onChange, children }: {
 
 export function Applications() {
   usePageMeta('applications', 'Applications', ['Home', 'Applications']);
-  const { role, partnerScope, dataVersion } = useSession();
+  const { role, partnerScope, scopeSel, setScopeSel, dataVersion } = useSession();
   const navigate = useNavigate();
   const [params] = useSearchParams();
 
@@ -123,11 +125,26 @@ export function Applications() {
      translated by originFromParams rather than dropped, and both are validated
      there, so an unknown or stale id opens the whole book rather than an empty
      list labelled with a party that does not exist. */
-  const [origin, setOrigin] = useState(() => originFromParams({
-    origin: params.get('origin'),
-    partner: params.get('partner'),
-    route: params.get('route'),
-  }));
+  /* ONE SELECTION, SHARED WITH REPORTING. Matt, 2026-09-29: "Reporting and
+     Applications share one remembered scope choice." So this page no longer
+     keeps its own: it reads and writes the session's. A deep link still wins
+     on arrival -- ?origin=, ?partner= and ?route= are live links from other
+     screens -- and writing it into the shared selection is the right
+     behaviour rather than a side effect: following a link to one supplier's
+     applications IS choosing that supplier. */
+  const origin = scopeSel;
+  const setOrigin = setScopeSel;
+  useEffect(() => {
+    const fromLink = originFromParams({
+      origin: params.get('origin'),
+      partner: params.get('partner'),
+      route: params.get('route'),
+    });
+    if (fromLink && fromLink !== scopeSel) setScopeSel(fromLink);
+    // Arrival only: re-running this on every scopeSel change would make the
+    // link permanently override the picker.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [agency, setAgency] = useState(() => params.get('agency') || (params.get('branch') ? agencyOfBranch(params.get('branch')!) : ''));
   const [branch, setBranch] = useState(() => params.get('branch') || '');
   // #owner Referrer filter (management + opndoor admin only). Referrers only ever
@@ -404,13 +421,14 @@ export function Applications() {
             {periods.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
           </FilterChip>
           {showOrigin && (
-            <FilterChip
-              icon={<Icon name="shield" />}
+            <ScopePicker
               label="Origin:"
-              display={originLabel(origin, originBook)}
+              ariaLabel="Origin"
               value={origin}
-              onChange={(e) => {
-                setOrigin(e.target.value);
+              options={originOpts}
+              recents={recentScopes()}
+              onChange={(v: string) => {
+                setOrigin(v);
                 /* The branch and the referrer belong to whoever was selected
                    before, so they go with the selection rather than sitting
                    there narrowing a different party to nothing. The agency
@@ -418,19 +436,7 @@ export function Applications() {
                 setBranch('');
                 setReferrer('');
               }}
-            >
-              {originOpts.filter((o) => !o.group).map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-              {['Suppliers', 'Agencies', 'Selected'].map((g) => {
-                const items = originOpts.filter((o) => o.group === g);
-                return items.length ? (
-                  <optgroup key={g} label={g}>
-                    {items.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </optgroup>
-                ) : null;
-              })}
-            </FilterChip>
+            />
           )}
           {showAgencyChip && (
             <FilterChip icon={<Icon name="building" />} label="Agency:" display={agency || 'All'} value={agency}

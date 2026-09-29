@@ -24,7 +24,7 @@
 import { channelOf, houseRouteLabel, isHousePartner, ROUTE_LABEL } from './channel';
 import { getPartner, partnerName } from './partnersService';
 import { findAgency, getAgencies, getGroup } from './orgService';
-import type { PartnerScope } from './types';
+import { ALL_PARTNERS, type PartnerScope } from './types';
 
 /** Which rail a party sits on. The column shows it beneath the name and the
     filter groups by it. */
@@ -91,6 +91,33 @@ export function originOf(row: OriginRow): Origin {
    --------------------------------------------------------------------------- */
 export const ORIGIN_ALL = '';
 
+/**
+ * ONE SELECTION VALUE, shared by Reporting and Applications.
+ *
+ * Matt, 2026-09-29: "Reporting and Applications share one remembered scope
+ * choice." So this is not a per-page preference; it is the party the reader
+ * is currently looking at, and it lives on the session.
+ *
+ * The closed set:
+ *
+ *   ''                 Everything
+ *   'rail:agency'      every agency of ours, whichever route
+ *   'rail:supplier'    every supplier
+ *   'direct'           the direct rail
+ *   'provider'         provider hand-over
+ *   'partner:<slug>'   one supplier, by slug
+ *   'agency:<name>'    one agency, BY NAME across partners -- Matt's ruling of
+ *                      2026-08-17, that an agency exists once and is never
+ *                      duplicated per supplier, is already encoded here
+ *   'group:<id>'       one group of agencies
+ */
+export type OriginScope = string;
+
+/** Every agency of ours, whichever route the referral came down. */
+export const RAIL_AGENCY = 'rail:agency';
+/** Every supplier. */
+export const RAIL_SUPPLIER = 'rail:supplier';
+
 export interface OriginOption {
   value: string;
   label: string;
@@ -105,6 +132,76 @@ export function originValue(row: OriginRow): string {
   if (o.kind === 'provider') return 'provider';
   if (o.kind === 'supplier') return `partner:${row.partner}`;
   return `agency:${o.name}`;
+}
+
+/**
+ * DOES THIS ROW BELONG TO THE SELECTION? The one predicate, asked by the list
+ * and by the analytics layer alike.
+ *
+ * It answers only "is this row in the selected party". It says nothing about
+ * whether the reader may SEE the row, and it must never be asked first: the
+ * isolation filters run before it, so a selection can only ever narrow what
+ * the reader was already allowed. Written down because a predicate that looks
+ * like a scope test is exactly the thing somebody reaches for later in place
+ * of one.
+ */
+export function originMatches(row: OriginRow, sel: OriginScope): boolean {
+  if (!sel) return true;
+  const o = originOf(row);
+  if (sel === RAIL_AGENCY) return o.kind === 'agency';
+  if (sel === RAIL_SUPPLIER) return o.kind === 'supplier';
+  if (sel === 'direct') return o.kind === 'direct';
+  if (sel === 'provider') return o.kind === 'provider';
+  if (sel.startsWith('partner:')) return (row.partner || '') === sel.slice('partner:'.length);
+  if (sel.startsWith('agency:')) return o.kind === 'agency' && o.name === sel.slice('agency:'.length);
+  if (sel.startsWith('group:')) {
+    const id = sel.slice('group:'.length);
+    return o.kind === 'agency'
+      && getAgencies(ALL_PARTNERS).some((a) => a.groupId === id && a.name === o.name);
+  }
+  return true;
+}
+
+/**
+ * DOES THIS SELECTION NAME ONE PARTY?
+ *
+ * Everything and the two rails do not: they are a view across parties, and an
+ * admin looking at "all suppliers" is not viewing as anybody. One supplier,
+ * one agency or one group is.
+ */
+export function isOneParty(sel: OriginScope): boolean {
+  return sel.startsWith('partner:') || sel.startsWith('agency:') || sel.startsWith('group:');
+}
+
+/**
+ * IS THE PARTY IN THIS SELECTION ONE OF OUR AGENCIES?
+ *
+ * `partyIsAgency` in capabilities.ts answers this for a partner SLUG, which
+ * is all that existed before the picker could hold an agency by name or a
+ * group. This answers it for the richer thing.
+ */
+export function selectionIsAgency(sel: OriginScope): boolean {
+  if (sel.startsWith('agency:') || sel.startsWith('group:')) return true;
+  if (!sel.startsWith('partner:')) return false;
+  const slug = sel.slice('partner:'.length);
+  if (isHousePartner(slug)) return houseRouteLabel(slug) === 'Agent referral';
+  return getPartner(slug)?.referencingMode === 'opndoor_referenced';
+}
+
+/**
+ * THE PARTNER A SELECTION IMPLIES, for the isolation rule that still speaks in
+ * partners.
+ *
+ * The picker holds a richer thing than `selectedPartner` can: a rail, an
+ * agency by name, a group. But `partnerScope` mirrors the server's isolation
+ * rule and every one of `isAgencyUser`, `agentRailScope` and `scopeFor` is
+ * built on it, so it must keep holding a real partner slug or nothing at all.
+ * Choosing one supplier narrows it; choosing anything else leaves it open and
+ * lets `originMatches` do the narrowing afterwards, where it cannot be
+ * mistaken for an authorisation test.
+ */
+export function partnerFor(sel: OriginScope): PartnerScope {
+  return sel.startsWith('partner:') ? sel.slice('partner:'.length) : ALL_PARTNERS;
 }
 
 /**

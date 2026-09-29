@@ -19,6 +19,8 @@ import {
 } from '@/data';
 import { isAgencyUser } from '@/data/capabilities';
 import { KEYS, loadString, saveString } from '@/data/storage';
+import { ORIGIN_ALL, isOneParty, partnerFor, type OriginScope } from '@/data/origin';
+import { clearScopeRecents, rememberScope } from '@/data/scopeRecents';
 import { ROLES, type RoleIdentity } from '@/constants/roles';
 import { SUPABASE_ENABLED, supabase } from '@/lib/supabase';
 import { hydrateFromSupabase } from '@/lib/hydrate';
@@ -67,9 +69,17 @@ interface SessionValue {
       the exit pill and would otherwise have been computed a second time in
       Reporting to decide what Reporting draws. Two copies of "am I looking at
       somebody else's screen" is how the two screens come to disagree. */
-  viewingAs: PartnerScope | null;
+  viewingAs: OriginScope | null;
   selectedPartner: PartnerScope;
   setSelectedPartner: (id: PartnerScope) => void;
+  /** THE ONE SCOPE SELECTION, shared by Reporting and Applications.
+
+      Matt, 2026-09-29: "Reporting and Applications share one remembered scope
+      choice." It is richer than `selectedPartner` -- it can be a rail, an
+      agency by name or a group -- and `selectedPartner` continues to hold the
+      real partner slug the isolation rule speaks in. See partnerFor(). */
+  scopeSel: OriginScope;
+  setScopeSel: (v: OriginScope) => void;
   period: Period;
   setPeriod: (id: string) => void;
   /** Auth (Supabase mode). In mock mode: status is always "ready". */
@@ -123,6 +133,7 @@ let mfaTrustedThisRuntime = false;
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [role, setRoleState] = useState<Role>(initialRole);
   const [selectedPartner, setSelectedPartnerState] = useState<PartnerScope>(() => getSelectedPartner());
+  const [scopeSel, setScopeSelState] = useState<OriginScope>(() => loadString(KEYS.scopeSel) ?? ORIGIN_ALL);
   const [period, setPeriodState] = useState<Period>(() => getSelectedPeriod());
   const [status, setStatus] = useState<SessionStatus>(SUPABASE_ENABLED ? 'loading' : 'ready');
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -148,6 +159,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // log for non-staff, so this is safe to fire for the superadmin selector).
     if (id !== ALL_PARTNERS) void logViewAs('partner', partnerName(id));
   }, []);
+
+  const setScopeSel = useCallback((v: OriginScope) => {
+    saveString(KEYS.scopeSel, v);
+    setScopeSelState(v);
+    rememberScope(v);
+    /* THE PARTNER SCOPE FOLLOWS, and only for a supplier. partnerScope mirrors
+       the server's isolation rule, so it must keep holding a real partner slug
+       or nothing; a rail, an agency or a group leaves it open and the
+       selection narrows afterwards, in scopeFull, where it cannot be mistaken
+       for an authorisation test. setSelectedPartner also writes the view-as
+       audit row, which is why the call goes through it rather than the setter
+       beneath it. */
+    setSelectedPartner(partnerFor(v));
+  }, [setSelectedPartner]);
 
   const setPeriod = useCallback((id: string) => {
     persistPeriod(id);
@@ -243,6 +268,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (hydratedFor.current !== null && hydratedFor.current !== userId) {
           persistPartner(ALL_PARTNERS);
           setSelectedPartnerState(ALL_PARTNERS);
+          // The recents name real customers; a new seat does not inherit them.
+          saveString(KEYS.scopeSel, ORIGIN_ALL);
+          setScopeSelState(ORIGIN_ALL);
+          clearScopeRecents();
         }
         // Start hydration exactly once per user; concurrent resolves reuse and
         // await the same promise. Critically, 'ready' is only set AFTER this
@@ -302,6 +331,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // value and the React state, since init re-reads localStorage.
       persistPartner(ALL_PARTNERS);
       setSelectedPartnerState(ALL_PARTNERS);
+      saveString(KEYS.scopeSel, ORIGIN_ALL);
+      setScopeSelState(ORIGIN_ALL);
+      clearScopeRecents();
       await authService.signOut();
       setProfile(null);
       setStatus('signedOut');
@@ -325,7 +357,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [role]);
 
   const partnerScope = role === 'superadmin' ? selectedPartner : homePartner();
-  const viewingAs = role === 'superadmin' && selectedPartner !== ALL_PARTNERS ? selectedPartner : null;
+  const viewingAs = role === 'superadmin' && isOneParty(scopeSel) ? scopeSel : null;
 
   /* THE LABEL UNDER THE NAME, in the words the agency uses for itself.
 
@@ -366,10 +398,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 keep behaving exactly as they do today (a mock management viewer
                 reads as a Director). */
              seesCommission: profile ? profile.seesCommission : maySeeCommission(role),
-             partnerScope, viewingAs, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion }),
+             partnerScope, viewingAs, selectedPartner, setSelectedPartner, scopeSel, setScopeSel, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion }),
     // dataVersion is intentionally a dep: bumping it after (re-)hydration changes
     // the context identity so consumers re-read the refreshed working copies.
-    [role, setRole, user, profile, partnerScope, viewingAs, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion],
+    [role, setRole, user, profile, partnerScope, viewingAs, selectedPartner, setSelectedPartner, scopeSel, setScopeSel, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

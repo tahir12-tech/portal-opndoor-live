@@ -24,13 +24,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ALL_PARTNERS, buildApplicationDoc, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
-  fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartners, getPeriods, getTrend, maySeeCommission, partnerName,
+  fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPeriods, getTrend, maySeeCommission, partnerName,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
 import { formatLondonDate, gbpPence } from '@/lib/format';
 import { BASIS_META, type ExportBasis } from '@/data';
 import { getAgentRailFunnel, viewerRunsEligibilityJourney, type AgentRailFunnel } from '@/data/agentFunnel';
-import { isAgencyUser, partyIsAgency } from '@/data/capabilities';
+import { isAgencyUser } from '@/data/capabilities';
+import { ScopePicker } from '@/components/ui/ScopePicker';
+import { originLabel, originOptions, selectionIsAgency } from '@/data/origin';
+import { recentScopes } from '@/data/scopeRecents';
+import { scopedSummaries } from '@/data/applicationsService';
 import type { Role } from '@/data';
 import { liveScopeShape } from '@/data/liveAnalytics';
 import { CommissionStatement } from '@/components/CommissionStatement';
@@ -92,13 +96,13 @@ function buildChartRows(key: ChartKey, rows: LeagueRow[], m: Measure): { bars: B
 
 export function Dashboard() {
   usePageMeta('dashboard', 'Reporting', ['Home', 'Reporting']);
-  const { role, partnerScope, viewingAs, selectedPartner, setSelectedPartner, period, setPeriod } = useSession();
+  const { role, partnerScope, viewingAs, scopeSel, setScopeSel, period, setPeriod } = useSession();
 
   /* IS THIS ONE OF OUR OWN AGENCIES READING THEIR OWN SCREEN?
      The same question Reporting, League, Applications and the nav already ask,
      and the same answer: not the role, which an agency director and a supplier's
      manager both wear as 'management', but the party in scope. */
-  const agencyFacing = isAgencyUser(role, partnerScope) || (viewingAs !== null && partyIsAgency(viewingAs));
+  const agencyFacing = isAgencyUser(role, partnerScope) || (viewingAs !== null && selectionIsAgency(viewingAs));
 
   /* UNDER VIEW AS, THIS PAGE IS THAT PARTY'S PAGE.
      Matt: "under View as, Reporting shows exactly what that party's
@@ -274,7 +278,16 @@ export function Dashboard() {
      would survive it. */
   const shownMeasure: TrendMeasure = trendMeasure === 'commission' && !seesCommission ? 'value' : trendMeasure;
 
-  const partners = getPartners();
+  /* THE BOOK THE PICKER DERIVES ITS CHOICES FROM, same source as Applications
+     so the two controls cannot offer different parties. Scoped by the
+     reader's own isolation, so the list is only ever parties they may
+     already see; ALL_PARTNERS here because narrowing is what the picker is
+     for and narrowing it first would leave it unable to offer the way back. */
+  const scopeBook = useMemo(
+    () => scopedSummaries({ role, scope: ALL_PARTNERS }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [role],
+  );
   const periods = getPeriods();
 
   // The scope label shows only for opndoor admin; Management only ever sees its own partner.
@@ -363,12 +376,18 @@ export function Dashboard() {
         </div>
         <div className="page-head__actions">
           <RoleOnly roles={['superadmin']}>
-            <PeriodSelect
-              ariaLabel="Partner"
-              title="View all partners combined, or drill into one partner"
-              value={selectedPartner}
-              onChange={setSelectedPartner}
-              options={[{ value: ALL_PARTNERS, label: 'All partners' }, ...partners.map((p) => ({ value: p.id, label: p.name }))]}
+            {/* THE SAME CONTROL AS APPLICATIONS, and after Matt's answer of
+                2026-09-29 the same VALUE: "Reporting and Applications share
+                one remembered scope choice." The old control could only
+                offer partners, and getPartners() strips house routes, so an
+                admin could not narrow to an agency at all -- which is most
+                of the estate. */}
+            <ScopePicker
+              ariaLabel="Scope"
+              value={scopeSel}
+              onChange={setScopeSel}
+              options={originOptions(scopeBook, scopeSel)}
+              recents={recentScopes()}
             />
           </RoleOnly>
           <PeriodSelect ariaLabel="Dashboard time period" value={period.id} onChange={setPeriod} options={periods.map((p) => ({ value: p.id, label: p.label }))} />
@@ -850,7 +869,7 @@ export function Dashboard() {
             {/* NAMED, not "Your". Under View as it is not the reader's
                 commission and saying so was the whole of Matt's third point. */}
             <div className="section-label">
-              <Eyebrow>{viewingAs !== null ? `${partnerName(viewingAs)}’s commission` : 'Your commission'}</Eyebrow>
+              <Eyebrow>{viewingAs !== null ? `${originLabel(viewingAs, scopeBook)}’s commission` : 'Your commission'}</Eyebrow>
             </div>
             <CommissionStatement role={role} scope={partnerScope} />
           </RoleOnly>
