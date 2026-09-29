@@ -22,6 +22,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { staffInviteEmail } from "../_shared/emailTemplates.ts";
+import { resolveInvitePosition } from "../_shared/invitePosition.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -214,17 +215,31 @@ Deno.serve(async (req) => {
        A negotiator invited with a branch is positioned at that branch: their
        home branch used to be what located them, and it is no longer allowed
        to be. 20261006300000 refuses the row at the database either way; this
-       is the sentence a person reads instead of a constraint violation. */
-    let effectiveScopeKind = scopeKind as string | null;
-    let effectiveScopeTarget = scopeTarget as string | null;
-    if (inviteeOnOurEstate && !effectiveScopeKind) {
-      if (role === "referrer" && homeBranchId) {
-        effectiveScopeKind = "branch";
-        effectiveScopeTarget = homeBranchId;
-      } else {
-        return json({ ok: false, error: "Choose the group, brand or branch this person will hold. Everybody on our estate holds a position." }, 400);
-      }
+       is the sentence a person reads instead of a constraint violation.
+
+       AND A RE-INVITE GRANTS NO POSITION, because the person already holds
+       one. That was round 5's H3: this refusal sat above the `existing`
+       lookup, `resendInvite` sends no scope, and so "Resend invite" answered
+       "Choose the group, brand or branch" for everybody on the estate. The
+       lookup now happens first and the question is whether the requirement is
+       already SATISFIED -- not whether this is a create, because somebody
+       from before 20261006300000 can exist and hold nothing. */
+    const { data: existing } = await service
+      .from("users").select("id, role, partner_id").ilike("email", email).maybeSingle();
+    let alreadyPositioned = false;
+    if (existing) {
+      const { count } = await service
+        .from("user_scopes").select("user_id", { count: "exact", head: true }).eq("user_id", existing.id);
+      alreadyPositioned = (count ?? 0) > 0;
     }
+
+    const placed = resolveInvitePosition({
+      inviteeOnOurEstate, scopeKind: scopeKind || null, scopeTarget: scopeTarget || null,
+      role, homeBranchId, alreadyPositioned,
+    });
+    if (!placed.ok) return json({ ok: false, error: placed.error }, 400);
+    const effectiveScopeKind = placed.scopeKind;
+    const effectiveScopeTarget = placed.scopeTarget;
 
     // A position to grant on creation must sit within the invitee's own partner.
     // The grant itself is authorised by set_user_scope (the positions ladder),
@@ -248,8 +263,8 @@ Deno.serve(async (req) => {
     }
 
     // New vs re-invite: an existing portal user gets a recovery (set-password)
-    // link; a new one is created by the invite link.
-    const { data: existing } = await service.from("users").select("id, role, partner_id").ilike("email", email).maybeSingle();
+    // link; a new one is created by the invite link. `existing` is read above,
+    // because the position requirement has to know whether this is a re-invite.
     let link: string | undefined;
     let targetUserId: string | undefined = existing?.id;
 
