@@ -43,6 +43,29 @@ const read = (rel: string) => readFileSync(join(DIR, rel), 'utf8');
 /** Files that derive an address from the forwarded-for header at all. */
 const derivers = FILES.filter((f) => /headers\.get\(\s*["']x-forwarded-for["']\s*\)/.test(read(f)));
 
+/* AND THE SAME SHAPE FOR A LINK. Round 7 backlog M1: create-referral was the
+ * only function preferring the CALLER-supplied origin over APP_URL, and what
+ * hangs off it is a genuine Opndoor-branded payment email and a 30-day
+ * tenant-invite link. Every sibling does it the other way; tenant-auth goes
+ * further with safeOrigin. Same class as the header above -- a value the
+ * caller chose, used for something that has to be ours. */
+describe('deriving a link origin', () => {
+  const senders = FILES.filter((f) => /b\.origin|body\.origin/.test(read(f)));
+
+  it('found the functions that take an origin from the request', () => {
+    expect(senders.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('never prefers the caller-supplied origin over APP_URL', () => {
+    const wrong = senders.filter((f) => {
+      const s = read(f);
+      // `b.origin ?? APP_URL` in either spelling: the caller's value first.
+      return /(?:b|body)\.origin\s*\?\?\s*Deno\.env\.get\(\s*["']APP_URL["']/.test(s);
+    });
+    expect(wrong).toEqual([]);
+  });
+});
+
 describe('deriving a caller address', () => {
   it('found the places that do it, so a broken glob cannot pass silently', () => {
     // rateLimit, partner-api, payment-confirmation.

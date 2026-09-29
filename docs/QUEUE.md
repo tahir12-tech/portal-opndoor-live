@@ -140,8 +140,12 @@ matrix says which EVENTS) and the supplier detail page.
 
 **Q-04 onwards** is untouched.
 
-Next action, in order: round 7's criticals and highs when it reports (it is
-the last round of the loop), then Q-04 onward.
+**The review loop is CLOSED.** Round 7 ran, its one critical and five highs
+are fixed and tested, and its mediums and lows are B13-B18 below. No further
+rounds until the ONE final round after the queue is built.
+
+Next action: Q-04's admin page (the SQL, the routing, the floor and the send
+path are done and tested; the screen is not), then Q-05 onward.
 
 ---
 
@@ -190,6 +194,12 @@ easy it is to fix.
 | B9 | `detach_user_from_agency` requires no group/agency-kind position, unlike `attach_user_to_agency`. | that function | A branch-only manager can detach. Asymmetry with its own sibling. |
 | B10 | `set_branch_deed_recipient` uses `users.partner_id = branches.partner_id` as "a user in this organisation", which on the agency rail is every agency. | `20261006310000:1041` | The table is vestigial: nothing live consumes it. Latent rule-2 violation that goes live the moment something does. |
 | B11 | Cross-company working copies (`grp_org_v3`, `grp_partners_v2`) persist to localStorage and are not cleared at sign-out. | `src/data/orgService.ts:19`; `src/data/partnersService.ts:21`; `src/session/SessionContext.tsx:280-301` | Data at rest on a shared browser, never rendered (hydrate replaces it before paint). |
+| B13 | `amend_tenancy_start` is granted to `authenticated` and commits the new date WITHOUT the deed lifecycle, so the edge function's confirm/archive/void/reissue is advisory. No `tenancy_amended` activity row either. | that RPC; `amend-tenancy-start/index.ts:69,100-110` | The direct-PATCH half died with round 7's A. The RPC half needs the lifecycle moved server-side, which is a build. |
+| B14 | On a group with more than one agency, `AgencyHome` passes `orgId=null` to the statement panel, so an admin reading group X's "What they earned" sees other agencies' totals under X's heading. | `AgencyHome.tsx:1251-1256` | Opndoor-facing, and the same root as B1. Fix them together. |
+| B15 | `SEES_COMMISSION` is a module global defaulting to TRUE, set only by `resolve()` and reset by neither `signOut()` nor `refresh()`. | `src/data/types.ts:39,59,64` | A Director demoted mid-session keeps a client that believes it may draw commission. The SERVER refuses either way, so this is a stale screen and not a leak. |
+| B16 | `VITE_ADDRESS_LOOKUP_KEY` is inlined into the bundle and sent as a query-string `api_key` from the public /apply page. | `src/data/addressService.ts` | Currently commented out, so not live. A public billable credential the moment it is set. |
+| B17 | `create-referral`'s `verify_jwt = false` in `supabase/config.toml:137-138` contradicts its own header comment saying true. | that config | Settle which is intended. The function does its own auth, so this is a discrepancy to resolve rather than a hole found. |
+| B18 | No executed-deed immutability at table level independent of the grant: `deed_state`, `pandadoc_document_id` and the deed timestamps can be co-edited to null while `status` is downgraded. | `applications` | Closed in practice by round 7's A. Worth a constraint if any write path to `applications` ever returns. |
 | B12 | `definerAllowlistCoverage` counts a function as covered if its NAME appears in any pgTAP file; it does not require the test to assert a refusal. | `src/data/definerAllowlistCoverage.test.ts` | A weakness in a check, not in the product -- but it is how round 6's H3 would have passed the ratchet. Worth tightening. |
 
 ---

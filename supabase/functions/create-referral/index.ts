@@ -63,7 +63,17 @@ Deno.serve(async (req) => {
     if (!authHeader) return json({ ok: false, error: "Not authenticated." }, 401);
 
     const b = await req.json();
-    const origin = String(b.origin ?? Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
+    /* THE SERVER'S OWN URL FIRST. Round 7 backlog M1. This was the only
+       function in the repo that preferred the CALLER-supplied origin over
+       APP_URL, and what hangs off it is a genuine Opndoor-branded payment
+       email and a 30-day tenant-invite link. An authenticated referrer could
+       point both at a host they control.
+
+       Its siblings all do it the other way round -- invite-user:66,
+       send-password-reset:52 -- and tenant-auth goes further with safeOrigin,
+       which refuses anything but APP_URL or localhost. This is the sibling
+       form; the safeOrigin form is the backlog item that remains. */
+    const origin = String(Deno.env.get("APP_URL") ?? b.origin ?? "").replace(/\/$/, "");
 
     // Caller-scoped client: RLS + create_referral field validation + AAL2 all apply.
     const userClient = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
