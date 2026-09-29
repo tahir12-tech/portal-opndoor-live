@@ -55,8 +55,13 @@ select set_eq(
   $$select recipient::text from public.notification_recipient_classes('supplier')$$,
   $$values ('referrer'::text), ('agent_contact'::text)$$,
   'a supplier has a referrer and a branch agent contact, and no ticked users');
-select is((select count(*)::int from public.notification_types()), 8,
-  'the eight notification types the instruction names');
+-- NINE, not the eight the instruction names. 20261006620000 added `approved`:
+-- notifyReferrer sends submitted, approved, declined and paid, and the list
+-- covered three of them. `decline` was there and its opposite was not, which
+-- reads as an omission -- and mapping approved onto an existing cell would
+-- mean turning off "deed signed" silently also turned off "approved".
+select is((select count(*)::int from public.notification_types()), 9,
+  'the eight notification types the instruction names, plus the approval it omitted');
 
 -- ===========================================================================
 -- THE DEFAULTS, as behaviour, with no rows stored anywhere
@@ -172,8 +177,8 @@ select set_config('request.jwt.claims',
 set local role authenticated;
 select is(
   (select count(*)::int from public.notification_matrix(null, '99000000-0000-0000-0000-0000000000a1')),
-  16,
-  'the agency matrix is eight types by its two classes, and draws no switch that does nothing');
+  18,
+  'the agency matrix is nine types by its two classes, and draws no switch that does nothing');
 
 select * from finish();
 rollback;

@@ -113,6 +113,8 @@ already given. Any of them can be reversed by saying so.
 | D9 | An agency's matrix has the classes `referrer` and `ticked_users`; a supplier's has `referrer` and `agent_contact`. "Everything on for agencies" means every cell an agency HAS. | The deed rule settled two instructions earlier says the deed goes to the ticked user in scope "and not to the branch mailbox", and that is asserted. Defaulting a branch-mailbox class ON for agencies would contradict it. |
 | D10 | The locked cell is deed_issued to the rail's PRIMARY recipient (referrer on the agency rail, agent contact on the supplier rail); copies to the other class stay switchable. | Matt's words are "the executed deed to its recipient", singular. Locking every class would make the matrix pointless for the one event it most matters for. |
 | D11 | A supplier's own people cannot edit their matrix; it stays with Opndoor. | Matt granted editing to "an agency's directors" for their own agency. The supplier rail has no Director level to hold that decision, so there is nobody the permission could be given to. |
+| D12 | The matrix carries a ninth type, `approved`, which Q-03's list of eight omits. | `notifyReferrer` sends submitted, approved, declined and paid; `decline` is in the list and its opposite is not. Mapping `approved` onto `signed` would mean turning off "deed signed" silently also turned off "approved" -- a switch governing something it is not named after. |
+| D13 | The deed's matrix filter goes inside `deed_delivery_target`, not in the three callers. | It is the one resolver every deed send asks. A rule applied in the caller is a rule the other caller forgets, and there are three. |
 | D8 | The first person invited when an org is created is its DIRECTOR, at whatever node, and the "Agency manager" option is relabelled "Agency director". | Granting a level requires holding it, so an agency whose only person is a Manager cannot see what it earns and cannot promote anyone to it. It arrives unable to staff itself. |
 | D7 | `schema-final-state.mjs` now expands `do $$ ... execute $ddl$ ... $ddl$` blocks. | One function (`partner_api_key_rail_guard`) was created that way, so it was in dev's catalogue and absent from the model: both the drift check and the new lint skipped it in silence. A check with a blind spot reads exactly like a check that passes. |
 
@@ -130,10 +132,9 @@ round launched over a known list mostly re-finds it.
 Two of round 6's highs were in work committed the same day, which is the
 argument for the rounds continuing.
 
-**Q-02 and Q-03** are one design. The inventory (`docs/NOTIFICATIONS.md`) and
-the whole SQL layer are done and tested. NOT done: wiring the six send paths
-to `notification_recipients`, and the matrix UI on the supplier and agency
-detail pages.
+**Q-02 and Q-03** are one design. The inventory (`docs/NOTIFICATIONS.md`), the
+whole SQL layer, and the SEND-PATH WIRING are done and tested. NOT done: the
+matrix UI on the supplier and agency detail pages.
 
 **Q-04 onwards** is untouched.
 

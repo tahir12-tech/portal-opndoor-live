@@ -127,24 +127,15 @@ Deno.serve(async (req) => {
 
        An expiry reminder is a per-application notification, so it takes the
        same rule as everything else on that rail: the referrer, plus whoever is
-       ticked within their position. agency_notification_recipients is that
-       rule, and it answers for the agency rail only -- a supplier or direct
-       application falls through to the partner list below, where the partner
-       IS the company and nothing changes. */
-    const { data: mgmt } = await service.from("users")
-      .select("email, partner_id")
-      .eq("role", "management")
-      // ACTIVE ONLY. A pending invitee and a deactivated colleague were both
-      // still being emailed.
-      .eq("status", "active");
-    const mgmtByPartner = new Map<string, string[]>();
-    for (const u of (mgmt ?? []) as Array<{ email: string; partner_id: string }>) {
-      if (!u.email) continue;
-      const list = mgmtByPartner.get(u.partner_id) ?? [];
-      list.push(u.email);
-      mgmtByPartner.set(u.partner_id, list);
-    }
+       ticked within their position. That rule, and the supplier and direct
+       equivalents, are now all behind notification_recipients, which is asked
+       once per reminder below.
 
+       The whole-estate management list that used to be built here is gone
+       with it: it selected every active management user on every partner and
+       was only ever consumed by the non-agency arm. A query that gathers
+       every partner's staff addresses to pick two of them is worth deleting
+       on its own account. */
     // parked: an agency reminder with nobody to send it to. Counted and
     // returned, so Health shows it rather than it reading as a quiet success.
     let emailed = 0, emailFailed = 0, parkedCount = 0;
@@ -175,33 +166,33 @@ Deno.serve(async (req) => {
                rail that has no agency ladder to consult. 20261006160000
                named this exact trap for deed_delivery_target and switched to
                application_channel; this call site was not converted. */
-            const { data: channel, error: railErr } = await service.rpc(
-              "application_channel", { p_application: r.application_id });
-            const onOurEstate = channel === "Agent referral";
+            /* ONE DOOR, FOR EVERY RAIL. Q-02 and Q-03.
+               This asked the agency ladder on one rail and built a list of
+               that PARTNER's management on the others, which is both wider
+               than the rule in one direction (every manager on the partner)
+               and narrower in another (never the branch desk the referral
+               actually came from) -- gap 3 in docs/NOTIFICATIONS.md.
 
+               notification_recipients answers for all three rails and applies
+               the party's matrix, so the rail test, the ladder call and the
+               partner-management list all collapse into it. The PARKING below
+               is untouched and matters more than ever: an expiry that reaches
+               nobody must be said out loud, and now "nobody" can also mean
+               "somebody turned this off", which is a thing worth an ops line
+               rather than a silence. */
             let recipients: string[] = [];
             let parked: string | null = null;
 
-            if (railErr) {
-              parked = `could not tell which rail this is on: ${railErr.message}`;
-            } else if (onOurEstate) {
-              const { data: scoped, error: scopedErr } = await service.rpc(
-                "agency_notification_recipients", { p_application: r.application_id });
-              if (scopedErr) {
-                parked = `the recipient ladder could not be read: ${scopedErr.message}`;
-              } else {
-                recipients = ((scoped ?? []) as Array<{ email: string }>)
-                  .map((x) => x.email).filter(isValidEmail).map((e) => e.trim());
-                if (recipients.length === 0) {
-                  parked = "nobody on the agency's ladder is active: no referrer, nobody ticked in scope, and no manager covering the branch";
-                }
-              }
+            const { data: scoped, error: scopedErr } = await service.rpc(
+              "notification_recipients", { p_application: r.application_id, p_type: "lapse" });
+            if (scopedErr) {
+              parked = `the recipient list could not be read: ${scopedErr.message}`;
             } else {
-              // Supplier and direct: the partner IS the company, so the partner
-              // list is the company's own management. Unchanged.
-              recipients = [r.referrer_email, ...(mgmtByPartner.get(r.partner_id) ?? [])]
-                .filter(isValidEmail).map((email) => email.trim());
-              if (recipients.length === 0) parked = "no referrer and no active management on this partner";
+              recipients = ((scoped ?? []) as Array<{ email: string }>)
+                .map((x) => x.email).filter(isValidEmail).map((e) => e.trim());
+              if (recipients.length === 0) {
+                parked = "nobody is addressed for a lapse on this party: no active referrer, nobody ticked in scope, no branch contact, or the matrix has it switched off";
+              }
             }
 
             /* PARKED, AND SAID OUT LOUD. Sending nothing quietly is how an

@@ -120,17 +120,28 @@ Deno.serve(async (req) => {
          The agency rail has no single contact -- it has the ladder -- so it is
          asked here, the way expiry-reminders asks it, and parks with an alert
          rather than falling back to anything wider. */
-      let agencyLadder: string[] = [];
+      /* ONE DOOR, FOR EVERY RAIL. Q-02 and Q-03. The ladder was asked on the
+         agency rail and the other two fell through to the row's own
+         contact_email and referrer_email, which is a third way of resolving
+         the same question. notification_recipients answers for all three and
+         applies the party's matrix. The tenant is NOT in it -- Q-03 locks
+         every email to the tenant out of the matrix -- so the tenant is added
+         separately below, exactly as before. */
+      let agents: string[] = [];
       let parked: string | null = null;
-      if (r.channel === "Agent referral") {
+      {
         const { data: scoped, error: ladderErr } = await service.rpc(
-          "agency_notification_recipients", { p_application: r.application_id });
+          "notification_recipients", { p_application: r.application_id, p_type: "renewal_notice" });
         if (ladderErr) {
-          parked = `the recipient ladder could not be read: ${ladderErr.message}`;
+          parked = `the recipient list could not be read: ${ladderErr.message}`;
         } else {
-          agencyLadder = ((scoped ?? []) as Array<{ email: string }>).map((x) => x.email).filter(Boolean);
-          if (agencyLadder.length === 0) {
-            parked = "nobody on the agency's ladder is active: no referrer, nobody ticked in scope, and no manager covering the branch";
+          agents = ((scoped ?? []) as Array<{ email: string }>).map((x) => x.email).filter(Boolean);
+          /* Parked only where somebody was EXPECTED. A direct tenant has no
+             agent-facing party at all -- notification_recipients returns
+             nothing for them by design -- so an empty list there is the right
+             answer and not an incident. The tenant is still told. */
+          if (agents.length === 0 && r.channel !== "Direct" && !r.tenant_email) {
+            parked = "nobody is addressed for a renewal on this party: no active referrer, nobody ticked in scope, no branch contact, or the matrix has it switched off";
           }
         }
       }
@@ -147,14 +158,20 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // The tenant is told on every rail; who else depends on the rail.
+      // The tenant is told on every rail; who else is the matrix's answer.
       const recipients = Array.from(new Set(
-        [r.tenant_email, ...agencyLadder, r.contact_email, r.referrer_email]
+        [r.tenant_email, ...agents]
           .filter((e): e is string => typeof e === "string" && e.length > 0),
       ));
+      /* ONE SEND WITH EACH AS A RECIPIENT, not one email each. This looped
+         sendMessage per address, which is the one notification in the product
+         that did -- the shape everything else uses, and the shape the deed
+         rule specified, is a single send carrying all of them. The loop also
+         made "emailed" count addresses where every other job counts
+         notifications. */
       let anySent = false, anyFailed = false;
-      for (const to of recipients) {
-        const res = await sendMessage({ to, message });
+      if (recipients.length) {
+        const res = await sendMessage({ to: recipients, message });
         if (res.ok) { emailed++; anySent = true; } else { emailFailed++; anyFailed = true; }
       }
       // Names the rail's own vocabulary rather than "agent/landlord" for all
@@ -162,9 +179,7 @@ Deno.serve(async (req) => {
       // agency was involved.
       const who = [
         r.tenant_email ? "tenant" : null,
-        agencyLadder.length ? "referrer and the ticked team" : null,
-        r.contact_email ? (r.channel === "Direct" ? "their named contact" : "agent/landlord") : null,
-        r.referrer_email && !agencyLadder.length ? "referrer" : null,
+        agents.length ? `${agents.length} on the referring side` : null,
       ].filter(Boolean).join(", ");
       // One activity entry per application. Partner-safe: names who and when.
       await service.from("activity_log").insert({

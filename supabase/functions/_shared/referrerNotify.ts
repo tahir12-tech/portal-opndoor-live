@@ -3,6 +3,15 @@ import { referrerSubmittedEmail, referrerDecisionEmail, referrerPaidEmail } from
 
 export type ReferrerEvent = "submitted" | "approved" | "declined" | "paid";
 
+/* The lifecycle event, as the matrix names it. One map, so a send path and a
+   switch on a screen cannot mean different things by the same word. */
+const NOTIFICATION_TYPE: Record<ReferrerEvent, string> = {
+  submitted: "sent",
+  approved: "approved",
+  declined: "decline",
+  paid: "paid",
+};
+
 // Email the referrer (the agent who made the referral) at a lifecycle point:
 // submitted for referencing, the decision either way, and the guarantee fee
 // paid. (The executed-deed email to the agent already exists on its own path.)
@@ -15,7 +24,7 @@ export type ReferrerEvent = "submitted" | "approved" | "declined" | "paid";
 export async function notifyReferrer(service: any, appId: string, event: ReferrerEvent): Promise<void> {
   try {
     const { data: app } = await service.from("applications")
-      .select("guarantee_ref, livemode, tenant_first_name, tenant_last_name, prop_addr1, prop_postcode, referrer:users!referrer_id(email)")
+      .select("guarantee_ref, livemode, tenant_first_name, tenant_last_name, prop_addr1, prop_postcode")
       .eq("id", appId).maybeSingle();
     if (!app) return;
     /* A SANDBOX APPLICATION DOES NOT EMAIL A REAL AGENT. Round 5, M7. This had
@@ -31,8 +40,24 @@ export async function notifyReferrer(service: any, appId: string, event: Referre
        send is attempted; a sandbox application simply has no notification,
        which is what sandbox means. */
     if (app.livemode !== true) return;
-    const email = (Array.isArray(app.referrer) ? app.referrer[0]?.email : app.referrer?.email) ?? null;
-    if (!email) return;
+    /* WHO IS TOLD IS THE MATRIX'S ANSWER, NOT THIS FILE'S. Q-02 and Q-03.
+       This read one column -- the referrer's own address -- so on the supplier
+       rail the branch desk was never told, and a referral made by an API key
+       with no live person behind it reached nobody at all. Both are in
+       docs/NOTIFICATIONS.md as gaps 2 and 3.
+
+       notification_recipients answers for every rail and applies that party's
+       matrix, so the defaults decide the change rather than this code: on a
+       supplier everything is on for the referrer and only deed_issued for the
+       desk, so nothing new is sent until somebody turns it on. */
+    const type = NOTIFICATION_TYPE[event];
+    const { data: rows } = await service.rpc("notification_recipients", {
+      p_application: appId, p_type: type,
+    });
+    const recipients = ((rows ?? []) as Array<{ email: string }>)
+      .map((r) => (r.email ?? "").trim())
+      .filter((e) => e.length > 0);
+    if (!recipients.length) return;
     const tenantName = `${app.tenant_first_name ?? ""} ${app.tenant_last_name ?? ""}`.trim() || "your tenant";
     const propertyAddr = [app.prop_addr1, app.prop_postcode].filter(Boolean).join(", ");
     const appBase = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
@@ -41,11 +66,15 @@ export async function notifyReferrer(service: any, appId: string, event: Referre
     const message = event === "submitted" ? referrerSubmittedEmail(common)
       : event === "paid" ? referrerPaidEmail(common)
       : referrerDecisionEmail({ ...common, approved: event === "approved" });
-    const res = await sendMessage({ to: email, message });
+    // ONE SEND WITH EACH AS A RECIPIENT, the shape every other
+    // per-application notification uses and the one the deed rule specified.
+    const res = await sendMessage({ to: recipients, message });
     await service.from("activity_log").insert({
       application_id: appId,
       kind: res.ok ? "referrer_notified" : "referrer_notify_failed",
-      message: res.ok ? `Referrer notified: ${event}.` : `Referrer notification (${event}) failed: ${res.error}`,
+      message: res.ok
+        ? `Notified (${event}): ${recipients.join(", ")}.`
+        : `Notification (${event}) failed: ${res.error}`,
       actor: "System",
       visibility: "internal",
     });
