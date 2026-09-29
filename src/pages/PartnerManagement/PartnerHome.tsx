@@ -25,6 +25,38 @@ import {
 } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
+import { getApplications } from '@/data/applicationsService';
+import { effectivePrimary } from '@/data/orgService';
+import type { Status, Branch } from '@/data';
+
+/* The same words the agency page and the applications list use. Copied
+   rather than imported because AgencyHome does not export them; lifting them
+   is the next thing to do here and is noted in QUEUE.md rather than done
+   mid-tab. */
+/** The agent contact a deed would actually reach, said plainly. */
+function ContactLine({ agency, branch }: { agency: Agency; branch?: Branch }) {
+  const { contact, inherited } = effectivePrimary(agency, branch ?? null);
+  if (!contact) {
+    return <span className="ph-contact ph-contact--none" title="An executed deed has nowhere to go until this is set.">No agent contact</span>;
+  }
+  return (
+    <span className="ph-contact" title={inherited ? "Inherited from the agency" : undefined}>
+      <Icon name="send" size={12} /> {contact.email}{inherited && <span className="ph-contact__inh">agency</span>}
+    </span>
+  );
+}
+
+const PH_STATUS_LABEL: Record<Status, string> = {
+  draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent',
+  paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired',
+};
+const PH_STATUS_ST: Partial<Record<Status, string>> = {
+  referencing: 'st-wait', sent: 'st-live', paid: 'st-live', deed: 'st-ok',
+};
+import { PageTabs } from '@/components/ui/PageTabs';
+import { PersonActions } from '@/components/people/PersonActions';
+import { useToast } from '@/components/ui/Toast';
+import { cancelInvite, resendInvite, resetUserMfa, resetUserPassword, setUserStatus } from '@/data/usersService';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { Icon } from '@/components/ui/Icon';
@@ -66,7 +98,40 @@ export function PartnerHome() {
 
   // Active API-key count is the ONE key signal an admin may read (a count, not the
   // keys). Best-effort: it needs live mode + MFA, so failures degrade to "unknown".
+  const referrals = useMemo(
+    () => (partner ? getApplications({ role, scope: partner.id }) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [partner, role, dataVersion],
+  );
   const [keyCount, setKeyCount] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const isAdmin = role === 'superadmin';
+
+  /* ONE HANDLER FOR THE ROW ACTIONS. Each is a single call into usersService
+     and each reports the same way, so they share a body rather than growing
+     six copies of try/catch/toast -- which is how the two action sets
+     already in the product came to disagree about confirmation. */
+  const runPerson = async (what: string, userId: string, who: string) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (what === 'resend') { await resendInvite(userId); toast(`Invitation resent to ${who}.`); }
+      else if (what === 'cancel') { await cancelInvite(userId); toast(`Invitation to ${who} cancelled.`); }
+      else if (what === 'password') { await resetUserPassword(userId); toast(`Password reset link sent to ${who}.`); }
+      else if (what === 'mfa') { await resetUserMfa(userId); toast(`${who} will set up two-factor again at next sign-in.`); }
+      else if (what === 'remove') { await setUserStatus(userId, 'deactivated'); toast(`${who} no longer has access.`); }
+      else if (what === 'restore') { await setUserStatus(userId, 'active'); toast(`${who} has access again.`); }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
+    } finally { setBusy(false); }
+  };
+  /* FIVE TABS, the same five the agency page has. Q-06 item A: "Supplier
+     detail page mirrors the agency page ... Regent's agency page is the
+     template." The page was four flat cards in document order, so a reader
+     scrolled past the commission rates to reach the people. */
+  type Tab = 'overview' | 'people' | 'commission' | 'referrals' | 'integration';
+  const [tab, setTab] = useState<Tab>('overview');
   useEffect(() => {
     if (!partner || !partner.apiAccessEnabled) { setKeyCount(null); return; }
     let alive = true;
@@ -137,6 +202,17 @@ export function PartnerHome() {
         ))}
       </div>
 
+      <PageTabs<Tab>
+        ariaLabel="Supplier sections"
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          ['overview', 'Overview'], ['people', 'People'], ['commission', 'Commission'],
+          ['referrals', 'Referrals'], ['integration', 'Integration'],
+        ]}
+      />
+
+      {tab === 'commission' && (
       <div className="ph-grid">
         {/* COMMISSION */}
         <Card>
@@ -156,6 +232,11 @@ export function PartnerHome() {
           </CardBody>
         </Card>
 
+      </div>
+      )}
+
+      {tab === 'integration' && (
+      <div className="ph-grid">
         {/* API ACCESS & SANDBOX */}
         <Card>
           <CardHead title="API access" sub="Whether this partner can use the partner API, and how many keys are live." />
@@ -179,12 +260,14 @@ export function PartnerHome() {
             <p className="ph-note muted">
               {partner.apiAccessEnabled
                 ? 'Keys and sandbox data are managed by the partner’s own developer in the Dev Centre. For security, opndoor admin can see that keys exist, but never the keys themselves.'
-                : 'This partner cannot hold API keys. Enable API access from Manage on the Suppliers list first.'}
+                : 'This partner cannot hold API keys. Enable API access on this tab first.'}
             </p>
           </CardBody>
         </Card>
       </div>
+      )}
 
+      {tab === 'overview' && (<>
       {/* STRUCTURE — agencies + branches tree */}
       <Card>
         <CardHead
@@ -204,6 +287,15 @@ export function PartnerHome() {
                     {a.unreviewed && <span className="ph-tag">unreviewed</span>}
                     <span className="ph-tree__meta">{a.branches.length} {a.branches.length === 1 ? 'branch' : 'branches'} · {a.referrals} referrals</span>
                   </div>
+                  {/* WHO THE DEED GOES TO. Q-06 item A asks the Overview to
+                      show "agent contacts and deed recipients". On the
+                      supplier rail those are the same thing: there are no
+                      positions here, so the deed goes to the branch's agent
+                      contact, inheriting the agency's where the branch has
+                      none. A supplier agency with no contact anywhere has
+                      nowhere to send an executed deed, and the page said
+                      nothing about it. */}
+                  <ContactLine agency={a} />
                   {a.branches.length > 0 && (
                     <div className="ph-tree__branches">
                       {a.branches.map((b) => (
@@ -213,6 +305,7 @@ export function PartnerHome() {
                           {b.area && <span className="ph-tree__barea">{b.area}</span>}
                           {b.unreviewed && <span className="ph-tag">unreviewed</span>}
                           <span className="ph-tree__meta">{b.referrals} referrals</span>
+                          <ContactLine agency={a} branch={b} />
                         </div>
                       ))}
                     </div>
@@ -224,6 +317,46 @@ export function PartnerHome() {
         </CardBody>
       </Card>
 
+      </>)}
+
+      {/* REFERRALS. There was no referrals tab at all: the only way to a
+          supplier's own book was the header button that navigates away to
+          the applications list with a partner filter. That is still there
+          and is still the right thing for the full list; this is the recent
+          slice, in place, which is what the agency page gives. */}
+      {tab === 'referrals' && (
+        <Card>
+          <CardHead
+            title="Referrals"
+            sub={`The most recent ${Math.min(referrals.length, 25)} of ${referrals.length}.`}
+            actions={<Button variant="quiet" size="sm" to={`/applications?partner=${encodeURIComponent(partner.id)}`}>All applications</Button>}
+          />
+          <CardBody>
+            {referrals.length === 0 ? (
+              <p className="soft">No referrals from this supplier yet.</p>
+            ) : (
+              <table className="dt">
+                <thead>
+                  <tr><th>Reference</th><th>Tenant</th><th>Property</th><th>Status</th><th>Date</th></tr>
+                </thead>
+                <tbody>
+                  {referrals.slice(0, 25).map((r) => (
+                    <tr key={r.ref}>
+                      <td><Link to={`/applications/${encodeURIComponent(r.ref)}`}>{r.ref}</Link></td>
+                      <td>{r.tenant}</td>
+                      <td className="soft">{r.prop}</td>
+                      <td><span className={`ph-st ${PH_STATUS_ST[r.status] ?? 'st-neutral'}`}>{PH_STATUS_LABEL[r.status]}</span></td>
+                      <td className="soft">{r.date}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </CardBody>
+        </Card>
+      )}
+
+      {tab === 'people' && (<>
       {/* PEOPLE — the partner's users */}
       <Card>
         <CardHead
@@ -236,7 +369,7 @@ export function PartnerHome() {
             <div className="ph-empty">No users for this partner.</div>
           ) : (
             <table className="dt ph-table">
-              <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Last active</th></tr></thead>
+              <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Last active</th>{isAdmin && <th />}</tr></thead>
               <tbody>
                 {users.map((u) => (
                   <tr key={u.id}>
@@ -249,6 +382,27 @@ export function PartnerHome() {
                     <td>{ROLE_LABEL[u.role] ?? u.role}</td>
                     <td><Pill variant={USER_STATUS_PILL[u.status] ?? 'muted'}>{u.status}</Pill></td>
                     <td className="soft">{u.lastActive}</td>
+                    {/* THE SAME ROW ACTIONS THE AGENCY PAGE HAS. Q-06 item A:
+                        "their staff with the same row actions". The table was
+                        read-only, so an admin looking at a supplier had to
+                        leave for /users to resend an invitation. Position is
+                        suppressed because positions are an agency-estate
+                        thing and this rail has none; the level button says
+                        "Change role" for the same reason (D11). */}
+                    {isAdmin && (
+                      <td style={{ textAlign: 'right' }}>
+                        <PersonActions
+                          person={{ userId: u.id, name: u.name, email: u.email, status: u.status, agencyLevel: ROLE_LABEL[u.role] ?? u.role }}
+                          isAdmin
+                          manyOffices={false}
+                          changeLevelLabel="Change role"
+                          onAction={(what, userId, who) => void runPerson(what, userId, who)}
+                          onCancelInvite={(userId, who) => void runPerson('cancel', userId, who)}
+                          onChangeLevel={() => toast('Change a supplier user\u2019s role from Users.')}
+                          onPosition={() => {}}
+                        />
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -267,6 +421,7 @@ export function PartnerHome() {
           Director level to hold the decision, so there is nobody else it could
           be given to. The card renders read-only for anyone else. */}
       {partner.dbId && <NotificationMatrix party={{ partnerId: partner.dbId }} title="Who is told what" />}
+      </>)}
     </>
   );
 }

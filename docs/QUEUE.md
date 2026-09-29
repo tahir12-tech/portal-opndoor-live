@@ -94,12 +94,14 @@ unambiguous.
 | of the thirteen | status |
 | --- | --- |
 | 3. Supplier commission (Q-05) | as far as it can go: amendments 3 and 4 **done** (`1d25b6a`), the Suppliers rename **done** (`37c8b13`). The paid-by switch, the supplier statement and the editor's shape are blocked on NM-A and NM-C. |
-| 4. Supplier detail page as tabs | scoping |
-| 5. Reporting under View as | scoping |
-| 6. Searchable scope picker | scoping |
-| 7. Exports and statement | scoping |
-| 8. Three agency levels in admin screens | scoping |
-| 9. "Referred by" on New application | scoping |
+| 4. Supplier detail page as tabs | **mostly done** -- five tabs, Referrals and Integration built, People given the agency's row actions, Overview now names the agent contact a deed would reach. TWO PIECES LEFT, both recorded below. |
+| 5. Reporting under View as | **done** `a954e94` |
+| 6. Searchable scope picker | **done** `dcbc4ad` |
+| 7. Exports and statement | **done** `177c8a7` |
+| 8. Three agency levels in admin screens | **done** `2a8fce6` |
+| 9. "Referred by" on New application | todo |
+| 4a. The supplier COMMISSION EDITOR | blocked on NM-C 3 and 4. The tab shows today's rate figures and today's form; its new shape (Standard / Flat / Volume tiered, and whether it sets the agency rate underneath) is Matt's to settle. |
+| 4b. Deleting "Manage" from the suppliers list | todo, and deliberately not done in passing. The SAME modal is the only way to CREATE a supplier: `openAdd` and the else-branch of `save` both use it. Deleting it without first separating create from edit is how the Add button stops working, and that is a change worth making on its own. |
 | 10. HubSpot consequences report | **done** -- `docs/HUBSPOT-CONSEQUENCES.md`. Comes back to Matt before fold 17 is designed. |
 | 11. The end-to-end walk on dev | todo |
 | 12. Handover and cutover checklist | todo, and last: it summarises the rest |
