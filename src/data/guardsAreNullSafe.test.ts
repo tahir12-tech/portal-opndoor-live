@@ -183,7 +183,32 @@ describe('a raising guard cannot evaluate to NULL', () => {
        coalesce here would turn "nobody chose a route" into "somebody chose
        NULL" and run the admin-only check against every referral in the
        product. This is the polarity the header says cannot take the same
-       treatment, and this is why. */
-    expect(denyIf.length).toBe(60);
+       treatment, and this is why.
+
+       60 -> 61 with 20261006820000 (R1). The new one is
+       sync_contact_partner's
+
+           if new.partner_id <> v_owner
+              and not exists (select 1 from partner_agency_relationships ...)
+
+       Audited, as the header requires, and it CANNOT evaluate to NULL:
+
+       - `v_owner` is proven non-NULL three lines above, by a guard that
+         raises 'contact owner not found' otherwise. No path reaches this
+         condition with a NULL owner.
+       - `new.partner_id` is proven non-NULL immediately above, by
+         `if new.partner_id is null then new.partner_id :=
+         coalesce(public.app_partner(), v_owner)`, whose last arm is
+         v_owner -- already non-NULL. So the assignment cannot leave it NULL
+         either.
+       - `<>` between two non-NULL values is a plain boolean, and
+         `not exists` is never NULL for any input.
+
+       The condition is therefore total, and a coalesce would be noise that
+       hid the reasoning rather than adding safety. Worth stating which way
+       it would fail if it were NOT total: this is a DENY guard, so a NULL
+       would read as "do not raise" and the cross-company write would be
+       back. That is why it was audited rather than waved through. */
+    expect(denyIf.length).toBe(61);
   });
 });
