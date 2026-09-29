@@ -23,6 +23,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { staffInviteEmail } from "../_shared/emailTemplates.ts";
 import { resolveInvitePosition } from "../_shared/invitePosition.ts";
+import { safeOrigin } from "../_shared/safeOrigin.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -63,7 +64,10 @@ Deno.serve(async (req) => {
     const seesCommission = b.seesCommission === true;
     const scopeKind = String(b.scopeKind ?? "").trim();
     const scopeTarget = String(b.scopeTarget ?? "").trim();
-    const base = String(Deno.env.get("APP_URL") ?? b.origin ?? "").replace(/\/$/, "");
+    // Backlog B6, same as send-password-reset: APP_URL, or localhost when it
+    // is unset, and otherwise no link at all.
+    const base = safeOrigin(b.origin);
+    if (!base) return json({ ok: false, error: "Invitations are not configured." }, 503);
 
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ ok: false, error: "A valid email address is required." }, 400);
     // 'developer' was missing here while the User Management screen offered it

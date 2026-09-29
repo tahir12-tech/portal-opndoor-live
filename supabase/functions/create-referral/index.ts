@@ -22,6 +22,7 @@
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
+import { safeOrigin } from "../_shared/safeOrigin.ts";
 import { feeBasisPhrase, feeBasisWeeksOf, paymentLinkEmail, tenantInviteEmail } from "../_shared/emailTemplates.ts";
 import type { FeeCopy, TenantRail } from "../_shared/emailTemplates.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
@@ -73,7 +74,8 @@ Deno.serve(async (req) => {
        send-password-reset:52 -- and tenant-auth goes further with safeOrigin,
        which refuses anything but APP_URL or localhost. This is the sibling
        form; the safeOrigin form is the backlog item that remains. */
-    const origin = String(Deno.env.get("APP_URL") ?? b.origin ?? "").replace(/\/$/, "");
+    const origin = safeOrigin(b.origin);
+    if (!origin) return json({ ok: false, error: "Referrals are not configured." }, 503);
 
     // Caller-scoped client: RLS + create_referral field validation + AAL2 all apply.
     const userClient = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });

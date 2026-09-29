@@ -23,6 +23,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { assertEmailConfigured, EmailNotConfigured } from "../_shared/emailConfigured.ts";
+import { safeOrigin } from "../_shared/safeOrigin.ts";
 import { sendMessage } from "../_shared/mailer.ts";
 import { limitCheck, LimiterUnavailable } from "../_shared/rateLimit.ts";
 import { accountExistsEmail, codeEmail, passwordResetEmail } from "../_shared/emailTemplates.ts";
@@ -58,16 +59,9 @@ const HELIOTROPE = "#d364fb";
  * sends nothing, because a reset email nobody can use is better than one
  * somebody else can.
  */
-function safeOrigin(supplied: unknown): string | null {
-  const configured = (Deno.env.get("APP_URL") ?? "").trim().replace(/\/+$/, "");
-  if (configured) return configured;
-  const raw = String(supplied ?? "").trim().replace(/\/+$/, "");
-  try {
-    const u = new URL(raw);
-    if (u.hostname === "localhost" || u.hostname === "127.0.0.1") return `${u.protocol}//${u.host}`;
-  } catch { /* not a URL: refuse */ }
-  return null;
-}
+// Moved to _shared/safeOrigin.ts so the other senders share it rather than
+// each keeping a slightly different version. The reasoning above is still
+// the reasoning; it now lives beside the function.
 
 /**
  * Per-address and per-caller throttling.

@@ -38,6 +38,7 @@
 // =====================================================================
 import { splitProfilePatch, deliveryContactReady, resolveDeclaredAt } from "../_shared/applicationPatch.ts";
 import { stripeSecretFor } from "../_shared/livemodeCredentials.ts";
+import { safeOrigin } from "../_shared/safeOrigin.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { submissionReceivedEmail, feeBasisWeeksOf } from "../_shared/emailTemplates.ts";
@@ -569,7 +570,12 @@ Deno.serve(async (req) => {
       // commercial decision that should not be changeable by accident, and it
       // is recorded in HANDOVER so changing it is deliberate.
       const FEE_PENCE = 2000;
-      const origin = String(body.origin ?? "").replace(/\/+$/, "");
+      /* Backlog B6. This took the caller's origin OUTRIGHT, with no APP_URL
+         anywhere -- so the Stripe success and cancel URLs below pointed
+         wherever the request said. safeOrigin allows APP_URL, or localhost
+         when APP_URL is unset, and otherwise refuses. */
+      const origin = safeOrigin(body.origin);
+      if (!origin) return json({ ok: false, error: "Payments are not configured." }, 503);
 
       const form = new URLSearchParams();
       form.set("mode", "payment");

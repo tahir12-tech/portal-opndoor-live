@@ -16,6 +16,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { assertEmailConfigured, EmailNotConfigured } from "../_shared/emailConfigured.ts";
+import { safeOrigin } from "../_shared/safeOrigin.ts";
 import { sendMessage } from "../_shared/mailer.ts";
 import { passwordResetEmail } from "../_shared/emailTemplates.ts";
 
@@ -49,7 +50,14 @@ Deno.serve(async (req) => {
     // unauthenticated client-supplied origin, so a caller cannot point the
     // recovery link (and its token) at an address they control. GoTrue's own
     // redirect allowlist is the ultimate gate; this is defence in depth.
-    const base = String(Deno.env.get("APP_URL") ?? b.origin ?? "").replace(/\/$/, "");
+    /* Backlog B6. This preferred APP_URL and then fell back to the CALLER's
+       origin, which its own comment three lines above said it did not do.
+       verify_jwt is false on this function, so that fallback was reachable by
+       anyone. safeOrigin allows APP_URL, or localhost when APP_URL is unset,
+       and otherwise refuses -- a reset email nobody can use is better than
+       one somebody else can. */
+    const base = safeOrigin(b.origin);
+    if (!base) return json({ ok: false, error: "Password reset is not configured." }, 503);
 
     // The response body is IDENTICAL in every non-error case, so it never
     // reveals whether an account exists (no enumeration). We still attempt the

@@ -64,6 +64,24 @@ describe('deriving a link origin', () => {
     });
     expect(wrong).toEqual([]);
   });
+
+  /* AND EVERY LINK SENDER GOES THROUGH THE SAME FUNCTION. Backlog B6: even in
+     the right order, `APP_URL ?? b.origin` still falls back to the caller's
+     value when APP_URL is unset, and send-password-reset is verify_jwt=false
+     so that fallback was reachable by anyone. safeOrigin allows APP_URL, or
+     localhost when APP_URL is unset, and otherwise refuses -- a reset email
+     nobody can use is better than one somebody else can. Shared rather than
+     copied, because three slightly different versions is how create-referral
+     ended up with the caller's origin first. */
+  it('builds a link origin through the one shared safeOrigin', () => {
+    const wrong = senders.filter((f) => !/safeOrigin\(/.test(read(f)));
+    expect(wrong).toEqual([]);
+  });
+
+  it('and there is exactly one definition of it', () => {
+    const defs = FILES.filter((f) => /export function safeOrigin|^function safeOrigin/m.test(read(f)));
+    expect(defs).toEqual(['_shared/safeOrigin.ts']);
+  });
 });
 
 describe('deriving a caller address', () => {
