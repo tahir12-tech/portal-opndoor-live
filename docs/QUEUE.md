@@ -270,6 +270,106 @@ easy it is to fix.
 
 ## Needs Matt
 
+Matt's instruction of 2026-09-29: "Do not decide anything else on Matt's
+behalf." So everything below is open, and the build stops at the point that
+depends on it. Each says what it blocks, so nothing waits unnecessarily.
+
+### NM-A. Who pays the guarantee fee, and how they pay it
+
+**This is the one that cannot be patched later.** If an agency (or a supplier)
+pays the fee instead of the tenant, how do they pay?
+
+- **By the same tokenised payment link the tenant would get, addressed to
+  them.** Everything that exists already works: the link, the card page, the
+  receipt, the automatic deed. Nothing new to build, and no new way to mark
+  something paid.
+- **By monthly invoice.** This is a different product. There is no invoice
+  anywhere in the system, no record of what a party owes us, and no way for
+  anybody to mark an invoice paid. All three would have to be built, and the
+  last one is a privileged "this is paid" button, which is the exact shape of
+  the fault we just closed on the live system.
+
+**What it blocks:** the whole three-way "paid by" switch. I will build the
+switch so it records WHO pays, which is needed either way, and stop before
+anything that decides HOW they pay. Marked in the code where it stops.
+
+### NM-B. The four internal alerts that do not exist
+
+Unchanged from NM-2b below, repeated here because it is a decision, not a
+finding. Four of the alert types named in the internal-routing instruction have
+nothing that raises them: an application awaiting a decision, reconciliation
+items, new applications, and successful payments. The routing screen is built
+for the types that do exist.
+
+- **Build all four**, and accept that "new applications" and "payments" fire on
+  every single referral and every single payment.
+- **Build none**, and the four stay absent from the screen.
+- **Build two as daily digests** (awaiting decision, reconciliation items) and
+  leave the other two, which is what I would suggest if asked: both are
+  backlogs, and a backlog is a daily list rather than an interruption, while a
+  message on every payment trains people to ignore the ops inbox.
+
+**What it blocks:** nothing. The routing screen is finished and works for
+everything that exists today.
+
+### NM-C. The nine supplier-commission questions
+
+From the scoping of Q-05. Each blocks only the part named.
+
+1. **"Paid by" means which three parties?** Tenant, agency and supplier are the
+   three that have a rate, a mailbox and a commercial relationship with us.
+   There is a landlord email address on the record, but no money code
+   anywhere refers to it. If the third party is meant to be the landlord, the
+   switch is a different switch. *Blocks: the switch's options.*
+
+2. **If the agency pays the fee, is it gross or net?** Gross means they pay us
+   the fee and we pay them their commission on the 15th as usual. Net means we
+   bill them the fee minus their commission and nothing moves on the 15th.
+   Gross changes no arithmetic; net changes the order in which we apportion and
+   round, which is currently pinned to the penny by a test. *Blocks: the
+   statement and the settlement for agency-paid work.*
+
+3. **Does the supplier commission editor set the supplier's own cut only, or
+   the supplier's cut and the agency rate underneath it?** The current form
+   edits both. If the answer is "supplier's own cut only", I am removing a
+   control that works today, so I would rather be told than assume. *Blocks:
+   the editor's shape.*
+
+4. **Does the 50% cap include the supplier's cut?** Today a supplier on 60%
+   with an agency on 10% underneath passes the cap, because the cap only looks
+   at the agency side. It is one fee, so a cap that sees half of it is not
+   really a cap, but raising it will refuse deals that are currently accepted.
+   *Blocks: whether the editor refuses those combinations.*
+
+5. **Does a paid supplier referral pay both the supplier and the agency under
+   it?** I have assumed yes and purely additive, because taking away income an
+   agency already earns is a commercial change nobody asked for. *Blocks: the
+   payee list on supplier work.*
+
+6. **The two-part supplier statement: a summary document plus separate
+   per-agency spreadsheets, or one document with sections?** The document
+   generator we have does exactly one title, one table and one total, and its
+   own notes say not to grow it into a general-purpose library. Separate
+   spreadsheets need nothing new. *Blocks: the statement's format only.*
+
+7. **Should referrals created through the supplier API start charging the
+   agreement's fee?** They currently charge nothing but the rent, ignoring any
+   negotiated deal. On the standard deal this makes no difference at all. It
+   only bites once a supplier has negotiated something. *Blocks: nothing
+   visible today; it is a correctness question for the first negotiated
+   supplier deal.*
+
+8. **Does a refunded application still count towards a volume tier?** It does
+   today, while the statement excludes refunds, so "paid" means two different
+   things in one pricing chain. Nobody is on a volume tier yet, so either
+   answer is free right now. *Blocks: the volume counter's definition.*
+
+9. **A data question, not a code one.** One supplier is recorded as being on
+   the agency estate. That combination means any supplier rate typed for them
+   is saved and then paid to nobody. Is that record a supplier, or an agency
+   that was set up as a supplier by mistake? *Blocks: nothing; the editor will
+   warn when it sees the combination either way.*
+
 ### NM-1b. Regent's two bands cannot both exist on the pre-referenced rail
 
 **2026-09-29.** Asked whether Regent could go live on production as their own
