@@ -105,7 +105,7 @@ unambiguous.
 | 10. HubSpot consequences report | **done** -- `docs/HUBSPOT-CONSEQUENCES.md`. Comes back to Matt before fold 17 is designed. |
 | 11. The end-to-end walk on dev | **done** for the half that can run here -- `docs/THE-WALK.md`. Payment, deed generation and the emails need a browser: Deno is not installed, so those edge functions cannot run on this machine at all. |
 | 12. Handover and cutover checklist | **done** -- `docs/HANDOVER-BALAL.md` updated: counts refreshed 266->333, section 0a for everything since Monday, section 8a listing the settings no migration can carry. |
-| 13. The one final review round | todo, and after 12 |
+| 13. The one final review round | **done** -- 26 findings, 9 serious, **7 survived** three-refuter verification. Ranked in "The one final review round" below. R1 is a cross-company write that misdelivers an executed deed, and it is measured, not argued. **None of the seven is fixed.** |
 
 Item 5 was taken out of order because items 1 to 3 were blocked on a scoping
 run and it was fully independent. Both halves turned out to be built already;
@@ -240,8 +240,15 @@ matrix says which EVENTS) and the supplier detail page.
 are fixed and tested, and its mediums and lows are B13-B18 below. No further
 rounds until the ONE final round after the queue is built.
 
-Next action: Q-05 (fold 11 and the four commission amendments), then Q-06's
-remaining fold-ins, Q-07, Q-08, Q-09.
+**Superseded, 2026-09-29 evening.** The paragraphs above are the state as of
+that morning and are kept only so the sequence reads. The thirteen are now all
+done or blocked, and the one final round has run.
+
+Next action: **nothing is in flight.** The whole of the thirteen is either done
+or recorded as blocked on Matt, and the final round's seven survivors are
+written up above and NOT fixed. The next piece of work is whichever Matt picks:
+the seven (R1 first, it is the only measured cross-company write), or the
+parked NM-A / NM-B / NM-C questions that block the rest of Q-05 and Q-06.
 
 ---
 
@@ -249,7 +256,7 @@ remaining fold-ins, Q-07, Q-08, Q-09.
 
 | id | item | status |
 | --- | --- | --- |
-| Q-01 | The security loop | **closed**. Round 7 was the last of the loop; the one final round is item 13. |
+| Q-01 | The security loop | **closed**. Round 7 was the last of the loop; the one final round is item 13, and it has now run. Seven survivors, none fixed, ranked below. |
 | Q-01b | The deed goes to the referrer AND every ticked user in scope | **done** |
 | Q-02 | Supplier rail notifications | **done** |
 | Q-03 | Notification settings per party | **done** |
@@ -264,6 +271,84 @@ remaining fold-ins, Q-07, Q-08, Q-09.
 Ids were renumbered once, when Q-02 to Q-04 were inserted after the security
 loop on Matt's instruction ("in this order, after the current item"). Nothing
 outside this file refers to them.
+
+---
+
+## The one final review round (item 13). DONE, 2026-09-29. Seven survivors.
+
+This is the round CLAUDE.md's "How security work ends" allows, and it is the
+last one. Nothing below reopens the loop: the survivors are ordinary queue
+items now, and from here the definition of secure is the test suite.
+
+26 findings raised, 9 serious. Each serious one went to three independent
+refuters instructed to REFUTE it and to default to "refuted" when unsure.
+Seven survived. Two died: the "a rate change writes no audit row" editor
+finding (there is no editor to write one from) and a Management-guide static
+asset.
+
+**Nothing below is fixed.** Each is ranked by what it costs if exploited or
+noticed, and each says what is already proven versus what is still argued.
+
+| # | finding | proven? | cost if left |
+| --- | --- | --- | --- |
+| R1 | **Cross-company write, and the executed deed follows it.** A Manager at any agency can attach a deed contact to another company's branch, and that company's next executed Deed of Guarantee is delivered to the address they wrote. | **MEASURED on dev**, end to end. See below. | A legal instrument, naming a tenant and a property, delivered to an unrelated company. Rule 2. |
+| R2 | **A partial refund is recorded as a total refund.** `apply_stripe_refund` sets `payment_state='refunded'` whatever `p_amount` is. | **MEASURED**: a £10 refund on a £1,246.15 fee removed the whole £311.54 commission line. Payees went 5 lines / £1,601.54 to 4 lines / £1,290.00. | Three at once: the agency is short-paid; `stripe-webhook/index.ts:344` voids a deed that is still outstanding; `buildLiveBordereau` drops an executed guarantee off the underwriter return while it remains enforceable. |
+| R3 | **The 50% commission cap is not enforced for joint tenancies**, and `commission_preview` ignores pricing agreements, so the operator is told 30% while 55% is paid. | argued, not yet measured | Overpayment, against a number the operator was shown and trusted. |
+| R4 | **Four authenticated SECURITY DEFINER RPCs `RETURNS applications`**, which carries `partner_rate` and `agent_rate`. | argued | Commercial terms reach a Manager and a Negotiator. Rule 3: those are Director-level. |
+| R5 | **A tenancy-start correction fixes one application**, so a joint tenancy ends with two executed deeds stating contradictory dates. | argued | Two enforceable instruments that disagree on a material term. |
+| R6 | **Commission rates and negotiated bands are writable straight from the browser** by an admin via PostgREST PATCH, with no audit row. | argued | A money number changes with nothing recording who changed it. |
+| R7 | `create_referral_api` never resolves fee or rates. | **MEASURED** earlier, `1eb6fa0` | Already recorded against NM-C 7. Listed here only so the round's output is complete; fixing it is part of answering that question. |
+
+### R1 in full, because it is the one that is measured and the worst
+
+The predicate is `app_may_reach_contact(p_agency, p_branch, p_partner)`, and
+its last arm is the problem:
+
+```
+else p_partner = public.app_partner()
+```
+
+`p_partner` is the partner_id **on the row being written**, supplied by the
+writer. The arm checks it against the caller's own partner and stops there. It
+never checks that the partner agrees with the row's `agency_id` or
+`branch_id`. So a Manager labels the row with their own partner_id, points it
+at somebody else's branch, and the with-check passes.
+
+Which branches are exposed is decided by the FIRST arm, which routes agencies
+on an `opndoor_referenced` partner to `app_reachable_agency` and is sound.
+Everything else falls through to the broken arm. Measured on dev:
+
+| the branch's partner | mode | branches | a stranger may write to it |
+| --- | --- | --- | --- |
+| kestrel-lettings | pre_referenced_open | 2 | **yes** |
+| referencing-partner | pre_referenced_open | 1 | **yes** |
+| harbour-lets | opndoor_referenced | 1 | no |
+| opndoor-agents | opndoor_referenced | 6 | no |
+| opndoor-direct | opndoor_referenced | 1 | no |
+
+So it is every `pre_referenced_*` partner, which is most of the supplier rail,
+and it works supplier-to-supplier as well as agency-to-supplier.
+
+The write alone would be bad enough. What makes it a leak is the rung below
+it. `deed_delivery_target` tries `effective_primary_contact_route(branch,
+partner)` first, which DOES pin the partner and so cannot be fooled; but when
+that finds nothing it falls back to `effective_primary_contact(branch)`, which
+keys on the branch alone with no partner filter at all, and which runs inside
+a SECURITY DEFINER caller and therefore sees every row regardless of RLS. A
+supplier branch with no contact of its own is exactly the state the supplier
+page already calls "No agent contact", so this is not a rare configuration.
+
+Walked on dev in a rolled-back transaction: a Manager at an unrelated
+house-rail agency wrote the contact, and
+
+```
+EXECUTED DEED IS DELIVERED TO  attacker@evil.test via branch_contact
+```
+
+Two things are wrong and both want fixing: the predicate's last arm must
+require the partner to match the branch's own owner, and
+`effective_primary_contact` must not be reachable as a partner-blind fallback
+from a definer function.
 
 ---
 
