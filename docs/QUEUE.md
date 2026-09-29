@@ -129,6 +129,55 @@ outside this file refers to them.
 
 ## Needs Matt
 
+### NM-1b. Regent's two bands cannot both exist on the pre-referenced rail
+
+**2026-09-29.** Asked whether Regent could go live on production as their own
+pre-referenced partner with "3 weeks at 20%, 5 weeks at 25%". Full analysis in
+`docs/REGENT-ON-MAIN.md`. The answer is no, and the reason is not engineering:
+
+**The 5-week band is the two-or-more-tenants band, and a pre-referenced
+referral covers one tenant by our own explicit rule.**
+`20261003110000_joint_is_agent_rail_only.sql:55` refuses `create_joint_referral`
+for any mode other than `opndoor_referenced`, with the message "a
+pre-referenced referral covers one tenant. Refer each tenant separately." So
+on the pre-referenced rail Regent only ever reaches 3 weeks at 20%, **on either
+codebase**. Shipping the branch would not deliver the second band.
+
+**What I need from Matt: which is it?**
+
+1. **Regent goes on the AGENCY rail**, where joint tenancies and both bands are
+   real. Then the honest answer is that the branch ships, because back-porting
+   `referencing_mode`, `user_scopes`, the additive commission split,
+   `pricing_agreements` with bands and tiers, the tenancies schema and
+   `create_joint_referral` IS the branch, not a subset of it.
+2. **Regent's deal is rewritten as one band, 3 weeks at 20%, single tenant.**
+   Then it is three migrations and about eight files on `main`, live in days.
+   `docs/REGENT-ON-MAIN.md` section 4, Option B.
+
+Note for option 2: `main` has no fee basis at all. The guarantee fee IS
+`monthly_rent`, hard-wired at both Stripe call sites, and the tenant is told
+"One month's rent" in the product description. On a £1,000 tenancy Regent's
+tenant would be charged £1,000 where the 3-week band is £692.31.
+
+And a trap to refuse if it is proposed: faking `monthly_rent` to encode the
+fee gets the fee, league, digest and commission arithmetically right, because
+`main` defines all of those AS `monthly_rent` -- and breaks every
+rent-denominated figure, including the rent shown to the tenant at checkout
+and two adjacent export columns that would read identically.
+
+### NM-1c. Four defects on main that are nothing to do with Regent
+
+Live on production today, with the current partners on it, and unaffected by
+the Regent decision:
+
+- the phantom "Add partner" (`src/data/partnersService.ts:67`)
+- the unguarded column write through `applications_update`
+  (`20260702134358_access_rls_rpc.sql:124-135`) -- management can write
+  `partner_rate` directly on an application
+- the unaudited `users_mgmt_update` (`:79-81`)
+- the NULL-guard family, in `amend_tenancy_start` and the three `admin_*_user_*`
+  RPCs, plus the four covered in NM-0
+
 ### NM-0. The 35 orphan accounts are DEV, and the production question is narrower than it looked
 
 **2026-09-29.** Matt ran "auth.users rows with no public.users row" and got 35,
