@@ -43,6 +43,14 @@ built until he says so.
 > 7. Applications, Origin picker: choosing an option does nothing, the list doesn't change. Fix it. Matt isn't sure the picker is helpful in this form; after fixing, note in QUEUE.md under "Needs Matt" a one-line simpler alternative for him to consider, but don't redesign it.
 > 8. The bordereau export includes every application. It should include only guarantees with an executed deed, in force during the period, and not refunded or withdrawn.
 
+### Batch 4 (verbatim)
+
+> Walk fixes, batch 4. Add to QUEUE.md verbatim under "Walk fixes" and commit. Do not build yet.
+>
+> 9. Internal notifications page is messy and confusing. Headings run into their labels ("NOTIFICATIONSWhere opndoor's own alerts go", "CRITICALAlways reaches somebody"), the description is repeated, and it isn't clear whose notifications you are changing or why. Ticked boxes can't be unticked and nothing says why (badges like "last one" and "unrouted" aren't explained).
+> 10. Matt's direction: this belongs within the Opndoor team page, per person, like permissions. Each Opndoor team member has their own notification settings, reached from their row (the three dots menu), showing which internal alerts that person receives. Remove the separate Internal notifications page from the menu. The rule that a critical alert can never be left with nobody still applies: where a box can't be unticked because that person is the only recipient, say so plainly next to it.
+> 11. The Opndoor team list shows "Sees: Own referrals" for every admin, including new invites (Matthew Dwyer). Same fix as item 2, applies to every Opndoor team member.
+
 ### Status: nothing built, and THE SEVEN ARE PAUSED
 
 "Do not build anything yet; I'm walking dev and it must not change under me"
@@ -98,6 +106,27 @@ period" the clause to pin down rather than assume. A guarantee whose term
 starts inside the period, ends inside it, or spans it entirely is in force
 during it; one that expired before it began is not. Overlap, not containment.
 Worth stating in the test explicitly, in both directions.
+
+**Item 11 IS item 2.** Matt says so himself ("Same fix as item 2"). One fix,
+one test, both items close together. Recorded separately only because he
+raised it twice, which is itself evidence the label is wrong in more than one
+place: item 2 was the admin's own row, item 11 is every row including pending
+invites. The fix belongs wherever the label is computed, not on either screen.
+
+**Item 10 already has a server-side invariant, and a test that guards it.**
+"A critical alert can never be left with nobody" is the floor enforced today
+and asserted by `who_opndoor_tells.test.sql`. Moving the UI per person does not
+get to weaken it: the per-person screen must ask the same server question, and
+the existing floor test must still pass unchanged afterwards. What is NEW in
+item 10 is only the explanation -- "say so plainly next to it" -- which is the
+half item 9 says is missing ("badges like 'last one' and 'unrouted' aren't
+explained").
+
+**Item 10 removes a page that NM-2b says is partly fiction.** Four of the
+alert types Q-04 names do not exist (NM-2b, still parked on Matt as NM-B).
+Rebuilding this per person will surface that again: the per-person screen will
+either list four alerts that never fire, or quietly omit them. Neither is
+decided here. Flag it when the item is built rather than choosing.
 
 **Item 7's "simpler alternative" note is due AFTER the fix, not now.** Matt's
 words: "after fixing, note in QUEUE.md under 'Needs Matt' a one-line simpler
