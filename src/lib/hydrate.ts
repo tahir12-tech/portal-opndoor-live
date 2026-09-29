@@ -306,7 +306,10 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   const feeOf = (x: any): number => (x.fee_amount == null ? num(x.monthly_rent) : num(x.fee_amount));
   const feesNet = (rows: any[]): number =>
     sum(rows, (x) => (x.status === 'paid' || x.status === 'deed' ? feeOf(x) : 0))
-    - sum(rows, (x) => (x.payment_state === 'refunded' ? num(x.refunded_amount ?? feeOf(x)) : 0));
+    // R2. Both states take money back out; only a FULL refund may fall back
+    // to the whole fee, because a partial refund's amount is the whole point.
+    - sum(rows, (x) => (x.payment_state === 'refunded' ? num(x.refunded_amount ?? feeOf(x))
+                        : x.payment_state === 'partially_refunded' ? num(x.refunded_amount ?? 0) : 0));
 
   const agenciesOut: Agency[] = agencies.map((a) => {
     const brs: Branch[] = (branchesByAgency[a.id] ?? []).map((b) => {
@@ -401,6 +404,8 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? null,
     sentAtTs: a.sent_at ? new Date(a.sent_at).getTime() : null,
     refunded: a.payment_state === 'refunded',
+    // R2. A partial refund moves money, not the guarantee. See FullApp.
+    partiallyRefunded: a.payment_state === 'partially_refunded',
     withdrawn: a.status === 'withdrawn',
     expired: a.status === 'expired',
     awaitingSignature: a.deed_state === 'awaiting_tenant',
@@ -487,6 +492,8 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     tenancyStart: toLocalDate(a.tenancy_start),
     expiry: toLocalDate(a.expiry_date),
     refunded: a.payment_state === 'refunded',
+    // R2. A partial refund moves money, not the guarantee. See FullApp.
+    partiallyRefunded: a.payment_state === 'partially_refunded',
     refundedAt: toDate(a.refunded_at),
     refundedAmount: a.refunded_amount != null ? num(a.refunded_amount) : null,
     refundAfterStart: !!a.refund_after_start,

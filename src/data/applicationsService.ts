@@ -100,7 +100,15 @@ export interface FullApp {
   deedAt: Date | null;
   tenancyStart: Date | null;
   expiry: Date | null;
+  /** Fully refunded: the guarantee is CANCELLED. Every "is this still in
+   *  force" reader tests this one, so a partial refund must never set it. */
   refunded: boolean;
+  /** R2. Some money went back and the guarantee still stands: the deed is
+   *  live, the underwriter is on risk, the agency keeps its commission. Only
+   *  `refundedAmount` moved. Separate from `refunded` because the two answer
+   *  different questions and one boolean answering both is how a GBP 10
+   *  refund came to wipe a GBP 311.54 commission line. */
+  partiallyRefunded: boolean;
   refundedAt: Date | null;
   refundedAmount: number | null;
   refundAfterStart: boolean;

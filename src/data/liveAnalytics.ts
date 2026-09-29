@@ -212,6 +212,26 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
         a.refundValue += app.refundedAmount ?? feeBaseFor(app);
         a.partnerCommExcl += feeBaseFor(app) * r.partner;
         a.agentCommExcl += feeBaseFor(app) * r.agent;
+      } else if (app.partiallyRefunded) {
+        /* R2. A PARTIAL REFUND MOVES MONEY, NOT THE GUARANTEE. The deed still
+           stands and the underwriter is still on risk, so this is NOT counted
+           as a refunded application and its commission is NOT excluded --
+           losing the whole commission line over ten pounds is the defect this
+           fixes, measured on dev at GBP 311.54 against a GBP 10 refund.
+
+           But the money that went back is not money kept, so the amount still
+           reduces net fees. Only the AMOUNT, never feeBaseFor: falling back to
+           the whole fee here would silently restore the very behaviour being
+           removed.
+
+           Commission stays on the WHOLE fee rather than being pro-rated down.
+           That is the status quo for any application that was not refunded,
+           and whether a partial refund should reduce it is a commercial
+           decision recorded as NM-I, not one to take in an arithmetic fix. */
+        a.refundValue += app.refundedAmount ?? 0;
+        a.partnerCommNet += feeBaseFor(app) * r.partner;
+        if (!isHousePartner(app.partner)) a.supplierCommNet += feeBaseFor(app) * r.partner;
+        a.agentCommNet += feeBaseFor(app) * r.agent;
       } else {
         a.partnerCommNet += feeBaseFor(app) * r.partner;
         // Only a genuine supplier is owed the partner cut; a house route's is

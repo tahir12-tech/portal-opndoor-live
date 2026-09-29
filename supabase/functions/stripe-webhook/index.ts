@@ -335,14 +335,23 @@ Deno.serve(async (req) => {
             { status: 500, headers: { "Content-Type": "application/json" } });
         }
         const { data: appRow } = await service.from("applications")
-          .select("id, guarantee_ref, refund_after_start, tenant_title, tenant_last_name, tenant_email, prop_addr1, prop_postcode, pandadoc_document_id, deed_state, livemode")
+          .select("id, guarantee_ref, refund_after_start, tenant_title, tenant_last_name, tenant_email, prop_addr1, prop_postcode, pandadoc_document_id, deed_state, livemode, payment_state")
           .eq("stripe_payment_intent_id", pi).maybeSingle();
         if (appRow) {
           await service.from("activity_log").insert({ application_id: appRow.id, kind: "refunded", message: "Payment refunded in Stripe.", actor: "Stripe" });
           if (appRow.refund_after_start) {
             await service.from("activity_log").insert({ application_id: appRow.id, kind: "refund_anomaly", message: "POLICY ANOMALY: refunded on or after the tenancy start date, outside the refund policy. Review required.", actor: "System" });
           }
-          if (appRow.pandadoc_document_id && appRow.deed_state === "awaiting_tenant") {
+          /* R2. ONLY A FULL REFUND VOIDS THE DEED.
+             This used to fire on any refund at all, because apply_stripe_refund
+             marked every refund 'refunded' whatever the amount. It now marks a
+             partial one 'partially_refunded', and a partial refund must NOT
+             void an outstanding deed: the tenant is still covered, the money
+             owed is still owed, and voiding it leaves a paid-for guarantee
+             with no instrument behind it. Measured cause: a GBP 10 refund
+             against a GBP 1,246.15 fee. */
+          if (appRow.pandadoc_document_id && appRow.deed_state === "awaiting_tenant"
+              && appRow.payment_state === "refunded") {
             const voidResult = await voidDocument(appRow.pandadoc_document_id, appRow.livemode === true);
             if (voidResult.ok) {
               await service.from("applications").update({ deed_state: "voided", pandadoc_document_id: null }).eq("id", appRow.id);
