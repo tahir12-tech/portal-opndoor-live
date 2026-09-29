@@ -43,17 +43,27 @@ values
    'manager@statement.test', now(), now(), '{}'::jsonb,'{}'::jsonb,'','','','','','','',''),
   ('96000000-0000-0000-0000-0000000000e3','00000000-0000-0000-0000-000000000000','authenticated','authenticated',
    'branch@statement.test', now(), now(), '{}'::jsonb,'{}'::jsonb,'','','','','','','',''),
+  ('96000000-0000-0000-0000-0000000000e5','00000000-0000-0000-0000-000000000000','authenticated','authenticated',
+   'mgr.nocomm@statement.test', now(), now(), '{}'::jsonb,'{}'::jsonb,'','','','','','','',''),
   ('96000000-0000-0000-0000-0000000000e4','00000000-0000-0000-0000-000000000000','authenticated','authenticated',
    'gone@statement.test', now(), now(), '{}'::jsonb,'{}'::jsonb,'','','','','','','',''),
   ('96000000-0000-0000-0000-0000000000ff','00000000-0000-0000-0000-000000000000','authenticated','authenticated',
    'stmtadmin@statement.test', now(), now(), '{}'::jsonb,'{}'::jsonb,'','','','','','','','');
 
-insert into public.users (id, full_name, email, role, partner_id, status) values
-  ('96000000-0000-0000-0000-0000000000e1','Group Director','director@statement.test','management','96000000-0000-0000-0000-000000000001','active'),
-  ('96000000-0000-0000-0000-0000000000e2','Agency Manager','manager@statement.test','management','96000000-0000-0000-0000-000000000001','active'),
-  ('96000000-0000-0000-0000-0000000000e3','Branch Manager','branch@statement.test','management','96000000-0000-0000-0000-000000000001','active'),
-  ('96000000-0000-0000-0000-0000000000e4','Left The Firm','gone@statement.test','management','96000000-0000-0000-0000-000000000001','deactivated'),
-  ('96000000-0000-0000-0000-0000000000ff','Statement Admin','stmtadmin@statement.test','superadmin', null,'active');
+/* sees_commission TRUE on the three who are meant to receive a statement.
+   A statement IS a commission figure, so only somebody who may see commission
+   may be addressed one: commission_statement_recipients tests the level now,
+   and set_receives_commission_statements refuses the tick on anybody else.
+   This fixture predated that rule and made them all Managers, which is the
+   one level that must NOT receive one. The names always said Director. */
+insert into public.users (id, full_name, email, role, partner_id, status, sees_commission) values
+  ('96000000-0000-0000-0000-0000000000e1','Group Director','director@statement.test','management','96000000-0000-0000-0000-000000000001','active',true),
+  ('96000000-0000-0000-0000-0000000000e2','Agency Director','manager@statement.test','management','96000000-0000-0000-0000-000000000001','active',true),
+  ('96000000-0000-0000-0000-0000000000e3','Branch Director','branch@statement.test','management','96000000-0000-0000-0000-000000000001','active',true),
+  ('96000000-0000-0000-0000-0000000000e4','Left The Firm','gone@statement.test','management','96000000-0000-0000-0000-000000000001','deactivated',true),
+  -- A MANAGER at the same party, ticked, who must not be a recipient.
+  ('96000000-0000-0000-0000-0000000000e5','Agency Manager','mgr.nocomm@statement.test','management','96000000-0000-0000-0000-000000000001','active',false),
+  ('96000000-0000-0000-0000-0000000000ff','Statement Admin','stmtadmin@statement.test','superadmin', null,'active',true);
 
 insert into public.user_scopes (user_id, kind, group_id, agency_id, branch_id) values
   ('96000000-0000-0000-0000-0000000000e1','group','96000000-0000-0000-0000-000000000002', null, null),

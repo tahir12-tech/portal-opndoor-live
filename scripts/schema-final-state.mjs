@@ -77,6 +77,26 @@ function statements(sql) {
     start = i + 1;
   }
   if (sql.slice(start).trim()) out.push([sql.slice(start), start]);
+  return expandDoBlocks(out);
+}
+
+/* WHAT A `DO` BLOCK BUILDS IS STILL PART OF THE SCHEMA.
+   20261006270000 creates partner_api_key_rail_guard inside
+   `do $$ ... execute $ddl$ create or replace function ... $ddl$ ... $$`,
+   because the table it guards may not exist yet on every project. The replay
+   saw one `do` statement, matched none of its patterns, and dropped the
+   function on the floor: it was in dev's catalogue and absent from the model,
+   so both the drift check and the NULL-safety lint skipped it in silence.
+   A check with a blind spot reads exactly like a check that passes. */
+function expandDoBlocks(list) {
+  const out = [];
+  for (const entry of list) {
+    out.push(entry);
+    if (!/^\s*do\b/i.test(code(entry[0]))) continue;
+    for (const m of entry[0].matchAll(/execute\s+\$([A-Za-z_][A-Za-z0-9_]*)\$([\s\S]*?)\$\1\$/g)) {
+      out.push([m[2], entry[1]]);
+    }
+  }
   return out;
 }
 

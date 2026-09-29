@@ -32,6 +32,9 @@ already given. Any of them can be reversed by saying so.
 | D2 | The deed is ONE email with every recipient on it, not one email each. | Matt's words: "as one send with each as a recipient". It also lets the people on it see who else holds the deed. |
 | D3 | `auto_send` and `verified` are repeated unchanged on every row rather than made per-recipient. | Both answer questions about the application (may this send automatically, did the tenant verify the address), not about a person. |
 | D4 | A one-off override address on the manual send suppresses the copies. | An override is "send this to this person"; fanning it out to the ladder as well would be a second, unasked-for send. The resolved ladder is still reported to the screen as `resolved_contact`. |
+| D5 | All 205 raising `if not` guards are coalesce-wrapped, not only the ones that can go NULL today. | Wrapping only the exposed ones needs a judgement per guard, silently reopens when a NOT NULL is dropped, and makes the CI rule need an allowlist. Wrapping all of them makes it checkable with none. |
+| D6 | The deny-IF polarity (`if X then raise`) is counted, not wrapped. | Turning NULL into a raise there breaks legitimate paths (`if p_user = auth.uid()` must not fire for a service-role caller). All 54 were audited by hand instead, and the count is asserted so a new one forces a look. |
+| D7 | `schema-final-state.mjs` now expands `do $$ ... execute $ddl$ ... $ddl$` blocks. | One function (`partner_api_key_rail_guard`) was created that way, so it was in dev's catalogue and absent from the model: both the drift check and the new lint skipped it in silence. A check with a blind spot reads exactly like a check that passes. |
 
 ---
 
@@ -262,20 +265,93 @@ four high, nine medium, twelve low. The critical and the deed gap are fixed
 | # | Finding | Status |
 | --- | --- | --- |
 | C1 | `agency_match_queue` operator precedence inverted its guard: a password-only session, including a tenant's, read the direct-rail queue. | **done** `20261006440000` |
-| H2 | `pricing_agreements` is readable by Managers and Negotiators and states `agent_rate`. The restrictive `may_see_commission()` policy was added to its three child tables and not to the parent. | todo |
+| C2 | **Found while asserting M9, not by the reviewer.** Every authorisation guard in the schema evaluates to NULL when any arm is NULL, and `if NULL then raise` does not fire. A Regent Negotiator read a direct application's journey, withdrew it, and minted a 90-day payment-page token for it. | **done** `20261006470000` + `20261006480000` |
+| H2 | `pricing_agreements` is readable by Managers and Negotiators and states `agent_rate`. The restrictive `may_see_commission()` policy was added to its three child tables and not to the parent. | **done** `20261006460000` |
 | H3 | LOCK: "Resend invite" can never succeed on the estate. `usersService` sends no scope, and invite-user's position requirement fires before the re-invite branch. | todo |
-| H4 | `commission_statement_recipients` still has no level test. My `20261006410000` changed the comment and not the SQL. | todo |
-| H5 | `agreement_volume` counts direct-rail applications toward an agency's negotiated volume, and therefore its commission tier. | todo |
+| H4 | `commission_statement_recipients` still has no level test. My `20261006410000` changed the comment and not the SQL. | **done** `20261006460000` |
+| H5 | `agreement_volume` counts direct-rail applications toward an agency's negotiated volume, and therefore its commission tier. | **done** `20261006460000` |
 | M6 | `referencing-inbound` reads livemode off the token and the creator hardcodes `true`, so a sandbox token mints a live application. | todo |
 | M7 | `referrerNotify` has no livemode test, so sandbox applications send real Opndoor email. | todo |
-| M8 | `admin_update_user_role` skips `assert_may_grant_level` and never touches `sees_commission`: a Manager can promote somebody to Director, one rank above themselves. | todo |
-| M9 | `application_journey`'s developer arm is bounded by `partner_id` alone; its four `dev_*` siblings were widened and it was missed. | todo |
+| M8 | `admin_update_user_role` skips `assert_may_grant_level` and never touches `sees_commission`: a Manager can promote somebody to Director, one rank above themselves. | **done** `20261006460000` |
+| M9 | `application_journey`'s developer arm is bounded by `partner_id` alone; its four `dev_*` siblings were widened and it was missed. | **done** `20261006460000`; asserting it is what surfaced C2 |
 | M10 | LOCK: the Users screen cannot invite any management user onto the estate, and can never create a Director. | todo |
 | M11 | Agency onboarding invites its "Group director" as a Manager, so a new agency has nobody who may see commission and nobody who can create one. | todo |
 | M12 | LOCK: the position modal offers Remove (refused by the constraint for an active person) and Add position (which silently deletes the existing one). | todo |
 | M13 | `hubspot-sync` accepts its outbound bearer token from a request header. | todo |
-| M14 | `set_receives_commission_statements` has no level test. | todo |
+| M14 | `set_receives_commission_statements` has no level test. | **done** `20261006460000` |
 | L | Twelve lows: `applications_*` policies lost `to authenticated`; `users_mgmt_insert` has no containment; `create-referral` writes caller-supplied shares; `fire_expiry_reminders` does not filter a deactivated referrer on the supplier rail; `application-document-url` signs any bucket; `staff_payment_page_token` and `agency_branches_for_match` lack the AAL2 step-up; `referrer_league` ranks leavers; ten functions still PUBLIC-executable; `tenant-portal` reads the wrong Stripe key; `may_act_on_user` is strictly-above where two siblings are at-or-below. | todo |
+
+#### C2 in full: a guard that does not know is not a guard
+
+Not a reviewer's finding. It surfaced because the M9 assertion refused to pass,
+and chasing why produced this, measured on dev as Regent's own Negotiator:
+
+```
+  a direct application with no referrer        GR-20626
+  a Negotiator reads its journey               ALLOWED
+  and mints a 90-day payment token for it      384250ed-2f5b-41f9-9d92-16b7a4233527
+```
+
+In plpgsql `if NULL then ...` does not fire. Every authorisation guard in this
+schema is written `if not (A or B or C) then raise`, and
+`applications.referrer_id` is nullable, so for a Negotiator reading an
+application with no referrer the owning arm is `true and NULL` = NULL, the OR
+is NULL, `not NULL` is NULL, and the gate is skipped entirely.
+
+Nine functions were reachable this way: `application_journey`,
+`staff_payment_page_token`, `mark_withdrawn`, `add_application_note`,
+`amend_tenancy_start`, `clear_awaiting_staff_send`, `my_application_delivery`,
+`send_deed_to_agent`, `send_deed_to_landlord`. Two of them write.
+
+| Part | Proof |
+| --- | --- |
+| The nine are refused | `supabase/tests/a_null_guard_refuses.test.sql`, 14 assertions. **Eleven fail against the code before `20261006470000`**, including two that assert the WRITES did not happen (`have: 1` payment token minted, `have: withdrawn`). |
+| The class, not the nine | `referrer_id` is one NULL source of several: `app_partner()` and `app_role()` are both NULL for a caller with no `public.users` row (measured; `is_aal2`, `is_admin`, `is_opndoor_staff`, `app_has_scope`, `may_see_commission` are total). So all 205 raising `if not` guards in 89 functions are wrapped, including the ones provably total today, because wrapping only the exposed ones needs a judgement per guard and reopens the day somebody drops a NOT NULL. |
+| It cannot come back | `src/data/guardsAreNullSafe.test.ts`, 4 assertions over the replayed final state. **Fails with all 205 listed when the two migrations are removed.** |
+| The lock-downs did not break work | `the_work_still_works.test.sql` unchanged and green, plus two assertions in the new file that the owning Negotiator still reads and annotates their own application. |
+
+**`20261006470000` was wrong and `20261006480000` fixes it.** The first wrapped
+the OPERAND of each guard (`if not X` -> `if not coalesce(X, false)`), which is
+right for a single term and wrong for six compound ones, because `not` binds
+tighter than `and`: `(not A) and (not B)` became `not (A and not B)`. This is
+the second precedence slip from a mechanical edit this session. The un-wrap
+proof did not catch it, and that is the lesson worth keeping: **a proof that an
+edit is REVERSIBLE says nothing about whether it is SEMANTICS-PRESERVING.** The
+only form that cannot re-associate is wrapping the whole condition, which is
+what `20261006480000` uses and what the lint now requires wherever a condition
+is compound. All six were left over-strict, never under, so dev refused
+legitimate work (`agent_rail_funnel` and `create_referral_target` stopped
+answering) and opened nothing; the pgTAP suite failed on the next run.
+
+##### Does this reach the live system?
+
+**Yes, partly, and it needs Balal's attention at cutover rather than mine.**
+
+- Four of the nine are on `main` and therefore live: `mark_withdrawn`,
+  `add_application_note`, `amend_tenancy_start`, `send_deed_to_agent`. All four
+  carry the identical `owned := a.referrer_id = auth.uid()` shape.
+- **The `referrer_id` route does NOT reach live.** On `main`
+  `applications.referrer_id` is `not null`; it becomes nullable only in
+  `20260812090000_referrer_optional.sql`, which is on this branch and not on
+  `main`. So the exact reproduction above cannot be run against production.
+- **The `app_role()` route DOES reach live.** For any caller with no
+  `public.users` row, `app_role()` is NULL and the whole shipped guard
+  evaluates to NULL. Measured on dev against the guard as `main` writes it:
+
+  ```
+  app_role  is_admin  shipped_guard_fires  guard_is_null
+  null      false     null                 true
+  ```
+
+  `main` revokes these from `anon` and grants them to `authenticated`, so the
+  exposure is any authenticated principal holding no `public.users` row: a
+  tenant account, or somebody removed from `public.users` while their
+  `auth.users` row survived. `mark_withdrawn` and `add_application_note` both
+  take a `guarantee_ref`, which is sequential.
+
+I have not touched production and am not proposing to. The fix ships with this
+branch. **What Matt or Balal should check on the live project:** whether any
+`auth.users` row exists with no matching `public.users` row.
 
 ---
 ## Q-01b. The deed goes to the referrer AND every ticked user in scope
