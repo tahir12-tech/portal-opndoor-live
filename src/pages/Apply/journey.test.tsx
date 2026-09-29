@@ -13,20 +13,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-/* WHY TWO WAITS BELOW ARE EXPLICIT AND THE OTHERS ARE NOT.
+/* THE FOUR-SECOND WAIT IS GONE, AND THE DIAGNOSIS THAT JUSTIFIED IT WAS WRONG.
 
-   The two assertions that follow a Save and continue click wait on a save that
-   crosses several promise ticks, and testing-library's default waitFor timeout is
-   1000ms. That is ample when this file runs alone, which takes about 800ms for
-   all fifteen, and not always ample when the whole suite runs in parallel: the
-   run that first failed took 2439ms for the same fifteen tests. It failed as
-   "saveProperty was not called", which reads like a behaviour change and was a
-   stopwatch. Measured at roughly one run in five.
+   This used to carry a comment explaining that the two waits after a Save and
+   continue click needed 4000ms because a loaded machine was slow. It was not a
+   stopwatch. The click was being SWALLOWED -- see pressableNext below -- so
+   `saveProperty` was never called at all and no timeout of any length could
+   have rescued it. The failure is bimodal: the save lands in about 9ms or it
+   never lands. Measured, with the click forced into the window:
 
-   Four seconds, so a loaded machine has room while a real regression still fails
-   in four seconds rather than hanging. Only these two: every other wait in the
-   file is on a render, which does not queue behind a mocked promise chain. */
-const SAVED = { timeout: 4000 } as const;
+     saved=false  waitedMs=4011   aria@end=null
+
+   That last part is the proof: the step was complete long before the wait
+   expired, so the save was not late, it was never attempted.
+
+   With the real precondition waited on, the default 1000ms is ample under
+   load, and keeping four seconds would only delay a genuine future regression
+   by four seconds -- which is exactly the unreadable red run the cutover
+   rehearsal is trying to avoid. */
 import { MemoryRouter } from 'react-router-dom';
 import { Register, InviteLanding } from './FrontDoor';
 import { Apply } from './Apply';
@@ -191,6 +195,27 @@ describe('an invite link', () => {
   });
 });
 
+/* WAIT FOR THE BUTTON TO BE PRESSABLE, NOT FOR IT TO EXIST.
+
+   The step footer is rendered the moment the bundle lands, which is ONE COMMIT
+   BEFORE the effect that copies the loaded application into the form mirrors
+   (Apply.tsx:198). In that first commit the step is not complete, so the button
+   carries aria-disabled and StepFooter.press() routes the click to onBlocked
+   instead of onNext (Sections.tsx:40): the press is swallowed and no save is
+   ever attempted.
+
+   findByRole resolves on the mutation that CREATES the button, which is that
+   first, not-yet-seeded commit. Whether the test resumes inside the window or
+   after it is an event-loop coin toss (testing-library drains with a 1ms
+   setTimeout, React continues on a setImmediate), which is why it only lost
+   when the machine was busy. hasAttribute('disabled') could never catch it:
+   the button only sets `disabled` while a save is in flight. */
+async function pressableNext(): Promise<HTMLElement> {
+  const next = await screen.findByRole('button', { name: /save and continue/i });
+  await waitFor(() => expect(next.getAttribute('aria-disabled')).toBeNull());
+  return next;
+}
+
 describe('coming back to a draft', () => {
   it('loads the saved application rather than starting a new one', async () => {
     stubSignedIn();
@@ -219,11 +244,10 @@ describe('coming back to a draft', () => {
     // A complete property + delivery contact, so the step button is enabled.
     stubSignedIn({ agent: { kind: 'letting_agent', agency_name: 'Foo Lettings', last_name: 'Okafor', phone: '07700 900123', email: 'foo@bar.co' } });
     at(<Apply />, '/apply');
-    const next = await screen.findByRole('button', { name: /save and continue/i });
-    expect(next.hasAttribute('disabled')).toBe(false);
+    const next = await pressableNext();
 
     fireEvent.click(next);
-    await waitFor(() => expect(saveProperty).toHaveBeenCalled(), SAVED);
+    await waitFor(() => expect(saveProperty).toHaveBeenCalled());
     const [appId, patch] = saveProperty.mock.calls.at(-1)!;
     expect(appId).toBe('a1');
     // The whole step is written on continue, every field it carries, because the
@@ -237,10 +261,10 @@ describe('coming back to a draft', () => {
     vi.spyOn(api, 'saveAgent').mockResolvedValue(undefined as never);
     stubSignedIn({ agent: { kind: 'letting_agent', agency_name: 'Foo Lettings', last_name: 'Okafor', phone: '07700 900123', email: 'foo@bar.co' } });
     at(<Apply />, '/apply');
-    const next = await screen.findByRole('button', { name: /save and continue/i });
+    const next = await pressableNext();
 
     fireEvent.click(next);
-    await waitFor(() => expect(screen.getByText(/could not save/i)).toBeTruthy(), SAVED);
+    await waitFor(() => expect(screen.getByText(/could not save/i)).toBeTruthy());
     // Still on the property step, its button still there to press again.
     expect(screen.getByRole('button', { name: /save and continue/i })).toBeTruthy();
   });
