@@ -147,8 +147,8 @@ export function Dashboard() {
   // the SAME settlement data rendered below (getCommissionSettlement /
   // getAgentCommissionSettlement, same role + scope), so a downloaded statement foots
   // exactly to the on-screen settlement figure. Gated with the sections below (canSeeSettlements).
-  const downloadPartnerStatement = (partnerId: string) => void exportBranded(buildPartnerStatementDoc(role, partnerScope, partnerId));
-  const downloadAgentStatement = (partner: string, agency: string) => void exportBranded(buildAgentStatementDoc(role, partnerScope, partner, agency));
+  const downloadPartnerStatement = (partnerId: string) => void buildPartnerStatementDoc(role, partnerScope, partnerId).then(exportBranded);
+  const downloadAgentStatement = (partner: string, agency: string) => void buildAgentStatementDoc(role, partnerScope, partner, agency).then(exportBranded);
 
   // ---- Needs-attention row (compact stat-lines promoted from existing data) ----
   // Same scoped figures shown everywhere; each line renders only when non-zero.

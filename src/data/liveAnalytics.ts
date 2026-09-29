@@ -574,7 +574,16 @@ export interface SettlementApp {
   commission: number; tenantInitials: string;
 }
 export interface PartnerSettlement { partner: string; partnerName: string; commission: number; apps: SettlementApp[]; }
-export interface CommissionSettlement { monthLabel: string; settlementDate: Date; partners: PartnerSettlement[]; }
+export interface CommissionSettlement {
+  monthLabel: string;
+  /** THE MACHINE KEY, YYYY-MM. monthLabel is for a human to read; anything
+      that has to ADDRESS the month -- the stored statement reference, above
+      all -- needs this, and parsing the English back out of the label is how
+      a reference ends up depending on a month name. */
+  monthKey: string;
+  settlementDate: Date;
+  partners: PartnerSettlement[];
+}
 
 /** Partner commission payable on the 15th of this month, for the prior calendar
     month (net of refunds), broken down per partner with constituent apps. */
@@ -612,13 +621,14 @@ function settlementWindow(w: SettlementWindow): { bStart: Date; bEnd: Date; sett
 export function getCommissionSettlement(role: Role, scope: PartnerScope, window: SettlementWindow = 'prior'): CommissionSettlement {
   const { bStart, bEnd, settlementDate } = settlementWindow(window);
   const monthLabel = `${MONTH_LONG[bStart.getMonth()]} ${bStart.getFullYear()}`;
+  const monthKey = monthKeyOf(bStart);
   /* NO PARTNERS AND SO NO MONEY for a reader who may not see commission. A
      settlement is nothing but what is owed and to whom, so there is no narrower
      version of it to compute: the month and the settlement date stay, because they
      are a calendar and not a figure, and every payable line is absent rather than
      zero. A Manager read this as the bordereau block on Reporting, one line per
      partner with the amount due and the constituent applications under it. */
-  if (!maySeeCommission(role)) return { monthLabel, settlementDate, partners: [] };
+  if (!maySeeCommission(role)) return { monthLabel, monthKey, settlementDate, partners: [] };
   const set = scopeFull(allFull(), role, scope);
   const byPartner = new Map<string, PartnerSettlement>();
   for (const a of set) {
@@ -643,7 +653,7 @@ export function getCommissionSettlement(role: Role, scope: PartnerScope, window:
   }
   const partners = [...byPartner.values()].sort((x, y) => y.commission - x.commission);
   partners.forEach((p) => p.apps.sort((x, y) => y.commission - x.commission));
-  return { monthLabel, settlementDate, partners };
+  return { monthLabel, monthKey, settlementDate, partners };
 }
 
 /* ---------- Per-partner commission breakdown (selected period) ----------
@@ -724,6 +734,8 @@ export interface AgentSettlementPayee extends AgentSettlementAgency {
 }
 export interface AgentCommissionSettlement {
   monthLabel: string;
+  /** YYYY-MM. See CommissionSettlement.monthKey. */
+  monthKey: string;
   settlementDate: Date;
   /** The agency ROLLUP: agency-level lines only. Kept for every existing reader. */
   agencies: AgentSettlementAgency[];
@@ -838,12 +850,13 @@ function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
 export function getAgentCommissionSettlement(role: Role, scope: PartnerScope, window: SettlementWindow = 'prior'): AgentCommissionSettlement {
   const { bStart, bEnd, settlementDate } = settlementWindow(window);
   const monthLabel = monthLabelOf(bStart);
+  const monthKey = monthKeyOf(bStart);
   /* THE AGENCY'S OWN EARNINGS, which is the figure the Manager level exists to
      withhold, so this is the one that mattered most: no payees, no rollup and a
      zero total. A Manager saw it on Reporting as "Your commission" with the amount
      payable on the 15th and every payee under it. Nothing is substituted, because
      "what you are owed" has no version that is not money. */
-  if (!maySeeCommission(role)) return { monthLabel, settlementDate, agencies: [], payees: [], total: 0 };
+  if (!maySeeCommission(role)) return { monthLabel, monthKey, settlementDate, agencies: [], payees: [], total: 0 };
   const acc = accruePayees(scopeFull(allFull(), role, scope), bStart, bEnd);
   const payees: AgentSettlementPayee[] = [...acc.values()]
     .map((r) => ({ key: r.key, level: r.level, orgId: r.orgId, agency: r.orgName,
@@ -852,7 +865,7 @@ export function getAgentCommissionSettlement(role: Role, scope: PartnerScope, wi
   payees.forEach((p) => p.apps.sort((x, y) => y.commission - x.commission));
   const agencies: AgentSettlementAgency[] = payees.filter((p) => p.level === 'agency');
   const total = payees.reduce((s2, p) => s2 + p.commission, 0);
-  return { monthLabel, settlementDate, agencies, payees, total };
+  return { monthLabel, monthKey, settlementDate, agencies, payees, total };
 }
 
 /** The months this viewer has anything to state, newest first. Built from the

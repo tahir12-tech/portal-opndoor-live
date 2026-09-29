@@ -233,10 +233,10 @@ describe('the three commission statements', () => {
     expect(built.filename).toMatch(/unavailable$/);
   };
 
-  it('refuse a Manager the partner and agent statements', () => {
+  it('refuse a Manager the partner and agent statements', async () => {
     beManager();
-    refused(buildPartnerStatementDoc(MANAGEMENT, SUPPLIER_PARTNER, SUPPLIER_PARTNER));
-    refused(buildAgentStatementDoc(MANAGEMENT, AGENCY_PARTNER, AGENCY_PARTNER, "Regent's Lettings"));
+    refused(await buildPartnerStatementDoc(MANAGEMENT, SUPPLIER_PARTNER, SUPPLIER_PARTNER));
+    refused(await buildAgentStatementDoc(MANAGEMENT, AGENCY_PARTNER, AGENCY_PARTNER, "Regent's Lettings"));
   });
 
   it('refuse a Manager the month statement, and build it for their Director', async () => {

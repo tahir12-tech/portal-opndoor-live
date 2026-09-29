@@ -83,8 +83,8 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
   const agentDue = agentSettlement.total;
 
   // Branded, self-footing statements — read the same settlement data as the rows below.
-  const downloadPartnerStatement = (partnerId: string) => void exportBranded(buildPartnerStatementDoc(role, partnerScope, partnerId));
-  const downloadAgentStatement = (partner: string, agency: string) => void exportBranded(buildAgentStatementDoc(role, partnerScope, partner, agency));
+  const downloadPartnerStatement = (partnerId: string) => void buildPartnerStatementDoc(role, partnerScope, partnerId).then(exportBranded);
+  const downloadAgentStatement = (partner: string, agency: string) => void buildAgentStatementDoc(role, partnerScope, partner, agency).then(exportBranded);
 
   // Agent settlement can span many agencies: top 5 inline, the rest behind an expander.
   const agentTop = agentSettlement.payees.slice(0, 5);

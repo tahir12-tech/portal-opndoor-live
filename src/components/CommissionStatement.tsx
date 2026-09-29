@@ -25,8 +25,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   buildAllStatementsCsv, buildCommissionStatementDoc, downloadCsv, exportBranded,
   getCommissionStatements, maySeeCommission,
-  statementMonths, type CommissionStatement as Statement,
-} from '@/data';
+  statementMonths, type CommissionStatement as Statement, statementReference } from '@/data';
 import type { PartnerScope, Role } from '@/data';
 import { SOURCE_LABEL } from '@/data/commissionSplit';
 import type { CommissionSource } from '@/data/types';
@@ -170,9 +169,33 @@ function StatementPanel({
      ONE PAYEE NEEDS NO LIST. The agency Commission tab passes orgId and gets a
      single statement, which is what a link from that tab should land on. */
   const [openPayee, setOpenPayee] = useState<string | null>(null);
+  /* THE STATEMENT REFERENCE, FOR THE OPEN PAYEE ONLY.
+     Fold F3 asks for it on the screen; the screen showed none at all. It is
+     fetched rather than computed because the number is STORED -- sequential
+     per payee per month, and stable when a party is renamed, which is the
+     whole point of it.
+     ONLY THE OPEN ONE, and that is not laziness: commission_statement_ref
+     MINTS on read. Asking for every payee in the month would burn a
+     sequence number for every party an admin merely scrolled past, and the
+     numbers are meant to be a record of statements issued. */
+  const [refs, setRefs] = useState<Record<string, string>>({});
   const [q, setQ] = useState('');
   const single = !!orgId || statements.length === 1;
   const shown = single ? statements : statements.filter((s) => s.payeeKey === openPayee);
+
+  useEffect(() => {
+    let ignore = false;
+    void (async () => {
+      for (const st of shown) {
+        if (refs[st.payeeKey]) continue;
+        const r = await statementReference(st.monthKey, st.payeeKey);
+        // A month change mid-flight must not write a stale reference.
+        if (!ignore && r) setRefs((prev) => ({ ...prev, [st.payeeKey]: r }));
+      }
+    })();
+    return () => { ignore = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown.map((s) => s.payeeKey).join('|'), monthKey]);
   // A payee that vanishes under the reader (month changed, book re-hydrated)
   // must not leave the panel showing nothing with no way back to the list.
   useEffect(() => {
@@ -286,7 +309,13 @@ function StatementPanel({
                     </button>
                   )}
                   <div className="stmt__payee">{st.payeeName}</div>
-                  <div className="stmt__level">{st.level === 'agency' ? 'Agency' : st.level === 'group' ? 'Group' : 'Branch'} · {st.monthLabel}</div>
+                  <div className="stmt__level">
+                    {st.level === 'agency' ? 'Agency' : st.level === 'group' ? 'Group' : 'Branch'} · {st.monthLabel}
+                    {/* THE REFERENCE THE DOCUMENT CARRIES. It was on the PDF
+                        and the CSV and nowhere on the page, so a payee
+                        querying a statement had nothing to quote. */}
+                    {refs[st.payeeKey] && <> · <span className="stmt__ref">{refs[st.payeeKey]}</span></>}
+                  </div>
                   {/* TWO LINES, ALWAYS. A third used to appear here whenever a
                       column collapsed, "Branch: Soho · Source: Agreement", on
                       the principle that the value should not be lost with its

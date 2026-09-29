@@ -27,6 +27,7 @@ import {
   buildAgentStatementDoc, buildApplicationDoc, buildCommissionStatementDoc, buildExpiriesCsv,
   buildLeagueDoc, buildLivePerformanceDoc, buildPartnerStatementDoc, buildPerformanceDoc,
   buildRealApplicationDoc, type BrandedExport,
+  buildAllStatementsCsv, buildSyntheticBordereau, buildLiveBordereau, BORDEREAU_COLS,
 } from '@/data/exportsService';
 
 const D = (s: string) => new Date(s);
@@ -190,11 +191,11 @@ describe('every money cell in every export is a penny figure', () => {
     }
   });
 
-  it('the settlement statements, partner and agent', () => {
+  it('the settlement statements, partner and agent', async () => {
     // Both are money documents end to end: every figure on them is a cell this
     // rule covers.
-    expectMoneyCells(buildPartnerStatementDoc(ADMIN_ROLE, 'all', 'northwind'), 'partner statement');
-    const agent = buildAgentStatementDoc(AGENCY_ROLE, 'northwind', 'northwind', "Regent's Lettings");
+    expectMoneyCells(await buildPartnerStatementDoc(ADMIN_ROLE, 'all', 'northwind'), 'partner statement');
+    const agent = await buildAgentStatementDoc(AGENCY_ROLE, 'northwind', 'northwind', "Regent's Lettings");
     expect(expectMoneyCells(agent, 'agent statement'), 'agent statement carried no money').toBeGreaterThan(0);
   });
 
@@ -204,6 +205,66 @@ describe('every money cell in every export is a penny figure', () => {
     for (const st of statements) {
       const built = await buildCommissionStatementDoc(AGENCY_ROLE, 'northwind', st.monthKey, st.payeeKey);
       expect(expectMoneyCells(built, `month statement ${st.payeeName}`), 'statement carried no money').toBeGreaterThan(0);
+    }
+  });
+
+  /* THE TWO THE WALK MISSED. Both were outside the loop above: the
+     all-statements CSV, and the bordereau -- which is the one document that
+     leaves the building for an underwriter and the one that carried its own
+     second rounder until it was deleted. A money lint that skips the file
+     the money lint was raised about is not a lint. */
+  it('the all-statements CSV', () => {
+    // The same month and scope the statement walk above uses, so the two
+    // documents are built over the identical book.
+    const out = buildAllStatementsCsv(AGENCY_ROLE, 'northwind', '2025-09');
+    const rows = (out?.csv ?? '').split(/\r?\n/).map((l) => l.split('","').map((c) => c.replace(/^"|"$/g, '')));
+    const head = rows[0];
+    expect(head, 'the CSV has a header').toBeTruthy();
+    /* NUMERIC CELLS, not "£" text: this file writes money through money(),
+       which returns a number so the spreadsheet can sum it. So the assertion
+       is the numeric one -- already exact to the penny -- rather than the
+       string one used for the text exports above. */
+    const moneyAt = head.map((h, i) => ({ h, i })).filter(({ h }) => /fee charged|commission/i.test(h));
+    expect(moneyAt.length, 'the CSV states a fee and a commission').toBe(2);
+    let seen = 0;
+    for (const r of rows.slice(1)) {
+      if (r.length !== head.length) continue;
+      for (const { h, i } of moneyAt) {
+        const v = Number(r[i]);
+        if (!Number.isFinite(v)) continue;
+        seen += 1;
+        expect(Math.round(v * 100) / 100, `all-statements CSV / "${h}"`).toBe(v);
+      }
+    }
+    expect(seen, 'the all-statements CSV carried no money at all').toBeGreaterThan(0);
+  });
+
+  it.each([
+    ['synthetic', () => buildSyntheticBordereau(2026, 8, 0.05)],
+    /* THE LIVE ONE TOO. exportBordereauFile picks between the two on
+       liveAvailable(), which vitest can never satisfy, so this is the only
+       way to reach it -- and it is the builder that carried the second
+       rounder. Walking only the synthetic one would have checked the half
+       that was never wrong. */
+    ['live', () => buildLiveBordereau(2026, 8, 0.05)],
+  ])('the underwriter bordereau (%s), whose money cells are numbers rather than text', (_which, build) => {
+    const bx = build();
+    const head = BORDEREAU_COLS;
+    const moneyAt = head.map((h, i) => ({ h, i })).filter(({ h }) => /rent|premium|amount/i.test(h));
+    expect(moneyAt.length, 'the bordereau states rent').toBeGreaterThan(0);
+    for (const r of bx.rows) {
+      for (const { h, i } of moneyAt) {
+        const v = r[i];
+        if (typeof v !== 'number') continue;
+        /* A NUMERIC CELL IS PENCE IF ROUNDING IT TO 2dp CHANGES NOTHING.
+           The defect this whole file exists for was a figure rounded to the
+           POUND, and 4431 survives that test while 4430.77 does not -- so
+           the assertion is that the value is already exact to the penny,
+           which a pound-rounded figure also satisfies. What it catches is
+           the other half: floating-point dust like 2769.2299999999996,
+           which is what summing apportioned shares reintroduces. */
+        expect(Math.round(v * 100) / 100, `bordereau / "${h}"`).toBe(v);
+      }
     }
   });
 

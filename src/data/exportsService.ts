@@ -1338,7 +1338,7 @@ function dmyhm(x: Date): string {
  * failed call must not invent one, so both read as the empty glyph rather than as
  * a plausible reference nothing can be reconciled against.
  */
-async function storedStatementRef(monthKey: string, payeeKey: string): Promise<string> {
+export async function statementReference(monthKey: string, payeeKey: string): Promise<string> {
   if (!SUPABASE_ENABLED) return EMPTY;
   const { data, error } = await sb().rpc('commission_statement_ref', {
     p_month: monthKey, p_payee_key: payeeKey,
@@ -1346,22 +1346,17 @@ async function storedStatementRef(monthKey: string, payeeKey: string): Promise<s
   return !error && typeof data === 'string' && data ? data : EMPTY;
 }
 
-/** A deterministic statement reference from the payee id + settlement month:
-    `<prefix>-<PAYEE-SLUG>-<YYYYMM>` (e.g. STMT-RIGHTMOVE-202606).
+/* THE NAME-SLUG REFERENCE IS GONE. It built
+   `STMT-<PAYEE-SLUG>-<YYYYMM>` from the payee's NAME, so renaming a party
+   orphaned every reference already issued to them -- which is the whole of
+   fold F3's "stable across renames (no name slug)". Both settlement
+   statements now ask statementReference() for the stored
+   STMT-YYYY-MM-NNNN, the same number the month statement carries and the
+   same one the database will show you.
 
-    STILL THE SETTLEMENT STATEMENTS' REFERENCE, and only theirs:
-    buildPartnerStatementDoc and buildAgentStatementDoc both print one of these.
-    Those two documents address a settlement month rather than a stored statement
-    and have no payee key to ask the RPC with (the partner one is not even keyed
-    on a payee the table knows). The month statement, which is what a payee
-    reconciles by, now reads the stored number instead. */
-function statementRef(prefix: string, payeeId: string, monthLabel: string): string {
-  const [mName, yr] = monthLabel.split(' '); // monthLabel is e.g. "June 2026"
-  const mIdx = MONTH_NAMES.indexOf(mName);
-  const yyyymm = mIdx >= 0 && yr ? `${yr}${pad(mIdx + 1)}` : monthLabel.replace(/\s+/g, '');
-  const slug = payeeId.toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  return `${prefix}-${slug}-${yyyymm}`;
-}
+   The comment that used to stand here said these two documents "have no
+   payee key to ask the RPC with". They do now: 20261006790000 gave the
+   reach test a `partner` arm, which is what was actually missing. */
 
 /** Per-application commission lines (guarantee reference, tenant initials, paid
     date, fee, applied rate, commission). Pence throughout (money-reconciliation
@@ -1394,9 +1389,13 @@ function statementRows(apps: SettlementApp[]): { rows: TableRow[]; totalFee: num
     // Tenant shown as INITIALS ONLY; the guarantee reference stands alone when unknown.
     return [ap.ref, ap.tenantInitials || '', dmy(ap.paidAt), money(ap.fee), rate, money(ap.commission)];
   });
-  // Footing total: the blended effective rate keeps fee x rate = commission on the total line too.
-  const effRate = totalFee ? totalComm / totalFee : 0;
-  rows.push([`Total (${apps.length} application${apps.length === 1 ? '' : 's'})`, '', '', money(totalFee), effRate, money(totalComm)]);
+  /* NO TOTAL ROW INSIDE THE TABLE. Fold F3: "No blended rate in the total
+     row." Both callers already print the total as a labelled figure under
+     the table, so the row was a second copy of it -- carrying a number that
+     is not a rate anybody agreed. The "blended effective rate" is
+     commission divided by fee across a mixed book: on a statement holding
+     one line at 20% and one at 25% it printed 22.7%, a rate that appears in
+     no agreement and that an agency could reasonably query. */
   return { rows, totalFee: money(totalFee), totalComm: money(totalComm) };
 }
 
@@ -1405,7 +1404,7 @@ function statementRows(apps: SettlementApp[]): { rows: TableRow[]; totalFee: num
  * the current settlement month. Foots exactly to the dashboard's partner
  * settlement (reads the same getCommissionSettlement). Tenant initials only.
  */
-export function buildPartnerStatementDoc(role: Role, scope: PartnerScope, partnerId: string): BrandedExport {
+export async function buildPartnerStatementDoc(role: Role, scope: PartnerScope, partnerId: string): Promise<BrandedExport> {
   // A commission statement with a "Total commission payable" figure, previously
   // protected only by a RoleOnly wrapper on a Dashboard button.
   if (!maySeeCommission(role)) return emptyExport('Partner statement');
@@ -1418,7 +1417,10 @@ export function buildPartnerStatementDoc(role: Role, scope: PartnerScope, partne
   const st = getCommissionSettlement(role, scope);
   const ps = st.partners.find((p) => p.partner === partnerId);
   const payee = ps ? ps.partnerName : partnerName(partnerId);
-  const ref = statementRef('STMT', partnerId, st.monthLabel);
+  /* THE STORED REFERENCE, the same STMT-YYYY-MM-NNNN the month statement
+     carries. A supplier is addressed as `partner:<uuid>`, which the reach
+     test learned in 20261006790000. */
+  const ref = await statementReference(st.monthKey, `${partnerId}|partner:${partnerId}`);
   const generated = dmyhm(new Date());
   const blocks: BrandedDoc['blocks'] = [
     { kind: 'section', title: 'Commission statement' },
@@ -1431,7 +1433,6 @@ export function buildPartnerStatementDoc(role: Role, scope: PartnerScope, partne
         { label: 'Settlement date', value: dmy(st.settlementDate) },
         { label: 'Statement reference', value: ref },
         { label: 'Generated', value: generated },
-        { label: 'Currency', value: 'GBP' },
       ],
     },
     { kind: 'blank' },
@@ -1460,7 +1461,7 @@ export function buildPartnerStatementDoc(role: Role, scope: PartnerScope, partne
  * never merge), for the current settlement month. Foots exactly to the dashboard's
  * agent settlement (reads the same getAgentCommissionSettlement). Tenant initials only.
  */
-export function buildAgentStatementDoc(role: Role, scope: PartnerScope, partner: string, agency: string): BrandedExport {
+export async function buildAgentStatementDoc(role: Role, scope: PartnerScope, partner: string, agency: string): Promise<BrandedExport> {
   if (!maySeeCommission(role)) return emptyExport('Agent statement');
   /* The Dashboard offers this statement to whoever can see the settlement, which
      includes the agency's own manager, so it is not purely Opndoor's paperwork
@@ -1474,9 +1475,12 @@ export function buildAgentStatementDoc(role: Role, scope: PartnerScope, partner:
   const ag = st.payees.find((a) => a.partner === partner && a.agency === agency);
   const payee = ag ? ag.agency : agency;
   const partnerLabel = ag ? ag.partnerName : partnerName(partner);
-  // The reference carries the payee LEVEL, so an agency and a branch that share a
-  // name cannot produce the same statement reference in the same month.
-  const ref = statementRef('STMT-AG', `${partner} ${ag ? ag.level : 'agency'} ${agency}`, st.monthLabel);
+  /* THE STORED REFERENCE. The payee key carries the LEVEL as well as the
+     identity, so an agency and a branch that share a name cannot collide --
+     the same reason the old slug carried it, now settled by the key the
+     database already stores statements under rather than by a string built
+     here. */
+  const ref = await statementReference(st.monthKey, `${partner}|${ag ? ag.level : 'agency'}:${ag?.orgId ?? agency}`);
   const generated = dmyhm(new Date());
   const blocks: BrandedDoc['blocks'] = [
     { kind: 'section', title: 'Commission statement' },
@@ -1484,14 +1488,12 @@ export function buildAgentStatementDoc(role: Role, scope: PartnerScope, partner:
       kind: 'keyvalue',
       items: [
         { label: 'Payee', value: payee },
-        { label: 'Payee level', value: ag ? ag.level : 'agency' },
         ...(forAgency ? [] : [{ label: 'Partner', value: partnerLabel }]),
         { label: 'Commission type', value: forAgency ? 'Commission earned' : 'Agent commission' },
         { label: 'Period (month)', value: st.monthLabel },
         { label: 'Settlement date', value: dmy(st.settlementDate) },
         { label: 'Statement reference', value: ref },
         { label: 'Generated', value: generated },
-        { label: 'Currency', value: 'GBP' },
       ],
     },
     { kind: 'blank' },
@@ -1632,7 +1634,7 @@ export async function buildCommissionStatementDoc(
   if (!maySeeCommission(role)) return emptyExport('Commission statement');
   const st = getCommissionStatements(role, scope, monthKey).find((x) => x.payeeKey === payeeKey);
   if (!st) return emptyExport('Commission statement');
-  const ref = await storedStatementRef(st.monthKey, st.payeeKey);
+  const ref = await statementReference(st.monthKey, st.payeeKey);
   const generated = dmyhm(new Date());
 
   // PER PAYEE AND PER MONTH, over this statement's own lines: a group with two
@@ -1818,7 +1820,11 @@ export function buildLiveBordereau(year: number, m0: number, insuranceRate: numb
  * correction is a removal or an explicit negative line is a convention pending
  * C&C confirmation). It is not invented here; flagged for review.
  */
-function buildSyntheticBordereau(year: number, m0: number, insuranceRate: number): BordereauData {
+/* Exported so its column contract can be tested without Supabase, the same
+   reason buildRealApplicationDoc is. exportBordereauFile picks between this
+   and the live builder on liveAvailable(), which vitest can never satisfy,
+   so neither is reachable through the public door under test. */
+export function buildSyntheticBordereau(year: number, m0: number, insuranceRate: number): BordereauData {
   const rate = insuranceRate / 100;
   const N = bxIssuedCount(year, m0);
   const daysInMonth = new Date(year, m0 + 1, 0).getDate();

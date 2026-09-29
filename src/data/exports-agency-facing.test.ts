@@ -178,20 +178,20 @@ describe('an agency-facing export never says partner or estate', () => {
     expect(out.csv).toContain("Regent's Lettings");
   });
 
-  it('the settlement statement the agency can download from the dashboard', () => {
+  it('the settlement statement the agency can download from the dashboard', async () => {
     // The Dashboard offers this one to anyone who can see the settlement, the
     // agency's own manager included, so it is theirs as much as ours.
-    const built = buildAgentStatementDoc(AGENCY_ROLE, 'northwind', 'northwind', "Regent's Lettings");
+    const built = await buildAgentStatementDoc(AGENCY_ROLE, 'northwind', 'northwind', "Regent's Lettings");
     expectClean(copyOf(built), 'agent statement copy');
     expectClean(cellsOf(built), 'agent statement cells');
   });
 
-  it('refuses to build a partner statement for an agency at all', () => {
+  it('refuses to build a partner statement for an agency at all', async () => {
     // There is no version of this document that is theirs: the payee is a party
     // they are not, for a figure that is a structural zero on their rail.
-    expect(buildPartnerStatementDoc(AGENCY_ROLE, 'northwind', 'northwind').sheets).toEqual([]);
+    expect((await buildPartnerStatementDoc(AGENCY_ROLE, 'northwind', 'northwind')).sheets).toEqual([]);
     // Opndoor still gets it.
-    expect(buildPartnerStatementDoc(ADMIN_ROLE, 'all', 'northwind').sheets).toHaveLength(1);
+    expect((await buildPartnerStatementDoc(ADMIN_ROLE, 'all', 'northwind')).sheets).toHaveLength(1);
   });
 
   it('still gives the admin the partner columns, because they are Opndoor', () => {

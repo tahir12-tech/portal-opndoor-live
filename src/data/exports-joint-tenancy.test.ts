@@ -10,7 +10,7 @@
    This locks what a reader can now do with the file: sum the fee column and get
    the tenancy fee, sum the share-of-rent column and get the rent, and tell at a
    glance which rows belong together and which tenant signs. */
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { hydrateFull, type FullApp } from '@/data/applicationsService';
 import { BASIS_META } from '@/data';
 import { buildRealApplicationDoc, buildExpiriesCsv } from '@/data/exportsService';
@@ -171,5 +171,50 @@ describe('the expiries CSV', () => {
   it('names the rent and the fee as the WHOLE tenancy’s, because they are', () => {
     expect(head).toContain('Monthly rent (whole tenancy)');
     expect(head).toContain('Guarantor fee (whole tenancy)');
+  });
+});
+
+/* THE POSITIVE HALF OF EACH COLLAPSE RULE.
+ *
+ * Fold F2 drops the Agency, Branch and Commission payees columns when they
+ * say the same thing on every line. Everything above asserts that they GO.
+ * Nothing asserted that they COME BACK, and a rule that only ever removes is
+ * satisfied by deleting the columns outright -- which would pass every
+ * assertion in this file while losing the agency's name from an export that
+ * spans two agencies.
+ *
+ * Each block below hydrates a book where the column earns its place, and
+ * restores the file's own book afterwards so the assertions above keep
+ * reading what they were written against.
+ */
+describe('the same columns, over a book that needs them', () => {
+  afterEach(() => hydrateFull(APPS));
+
+  it('brings Agency and Branch back when the book holds two of each', () => {
+    hydrateFull([
+      ...APPS,
+      app({ ref: 'GR-3', status: 'paid', agency: 'Northgate Lettings', agencyId: 'ag-n',
+        branch: 'Northgate Central', sentAt: D('2026-05-02'), paidAt: D('2026-05-05') }),
+    ]);
+    expect(appHeaders()).toContain('Agency');
+    expect(appHeaders()).toContain('Branch');
+  });
+
+  it('and leaves them out again the moment the second agency goes', () => {
+    // The pair, so the assertion above cannot pass by the column being
+    // unconditional after all.
+    hydrateFull(APPS);
+    expect(appHeaders()).not.toContain('Agency');
+  });
+
+  it('brings Commission payees back when a row pays more than one party', () => {
+    hydrateFull([
+      app({ ref: 'GR-4', status: 'paid', sentAt: D('2026-05-02'), paidAt: D('2026-05-05'),
+        commissionLines: [
+          { level: 'group', orgId: 'gr-1', orgName: 'Regent Group', rate: 0.05, source: 'agreement' },
+          { level: 'agency', orgId: 'ag-r', orgName: "Regent's Lettings", rate: 0.2, source: 'agreement' },
+        ] }),
+    ]);
+    expect(appHeaders()).toContain('Commission payees');
   });
 });

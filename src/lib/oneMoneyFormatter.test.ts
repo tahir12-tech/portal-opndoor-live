@@ -74,3 +74,45 @@ describe('the penny formatter', () => {
     expect(FILES.some((f) => rel(f) === 'src/components/SettlementBlocks.tsx')).toBe(true);
   });
 });
+
+/* AND ONE ROUNDER, WHICH IS THE OTHER HALF.
+ *
+ * gbpPence above turns a number into text. Inside the export builders the
+ * money cells are NUMBERS -- a spreadsheet has to be able to sum them -- and
+ * they are rounded to 2dp by `money()` in exportsService. There were two:
+ * `money()` and `bxRound2`, the second used only by the bordereau, which is
+ * the one document that leaves the building for an underwriter.
+ *
+ * They agreed. They agreed because they were written the same fortnight, not
+ * because anything made them.
+ */
+describe('the 2dp rounder inside the export builders', () => {
+  const EXPORTS = join(SRC, 'data', 'exportsService.ts');
+
+  it('is declared exactly once', () => {
+    /* COUNTING THE EXPRESSION, not matching a declaration. The obvious
+       version -- a name followed by the rounding shape -- reaches across
+       whatever sits between them, and here that is a `const MONEY` column
+       type ten lines above `money()`, which it duly reported as a second
+       rounder. The expression cannot be ambiguous about itself. */
+    const src = code(EXPORTS);
+    const rounding = [...src.matchAll(/Math\.round\([^;]{0,80}?\*\s*100\s*\)\s*\/\s*100/g)];
+    expect(rounding).toHaveLength(1);
+    expect(src).toMatch(/function money\(n: number\): number \{[\s\S]{0,120}Math\.round/);
+  });
+
+  /* THE RATCHET. A new export builder that nobody walks is a document whose
+     money nothing checks, and the two that were missed -- the all-statements
+     CSV and the bordereau -- were missed for exactly that reason: they were
+     outside the loop rather than wrong. Naming is a weak check and it is
+     deliberately weak; it makes the omission LOUD at the moment the builder
+     is added, which is the only moment anybody is thinking about it. Same
+     device as definerAllowlistCoverage.test.ts. */
+  it('and every exported builder is named in the money walk', () => {
+    const declared = [...code(EXPORTS).matchAll(/export function (build\w+)/g)].map((m) => m[1]);
+    expect(declared.length).toBeGreaterThan(6);
+    const walk = readFileSync(join(SRC, 'data', 'exportMoney.test.ts'), 'utf8');
+    const unwalked = declared.filter((n) => !walk.includes(n));
+    expect(unwalked).toEqual([]);
+  });
+});
