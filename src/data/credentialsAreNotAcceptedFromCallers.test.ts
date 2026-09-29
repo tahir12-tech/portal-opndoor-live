@@ -83,6 +83,25 @@ describe('looking somebody up by the address they sent', () => {
     expect(pattern).toEqual([]);
   });
 
+  /* AND A CALLER'S TEXT IS NOT FILTER SYNTAX EITHER. Found by the final
+     review round, in code written an hour earlier: create-referral resolved
+     the chosen route with
+
+       .or(`slug.eq.${b.route},id.eq.${b.route}`)
+
+     PostgREST's .or() takes an EXPRESSION, so a comma or a parenthesis in
+     the value is syntax rather than data: a route of `x,id.gt.0` adds a
+     third clause and the filter stops meaning what it says. Exactly the
+     shape of B4's ILIKE above -- a value the caller chose, used as something
+     it is not.
+
+     .eq() sends the value as a parameter, so this is a rule about which
+     method is reached for, and that is checkable. */
+  it('never interpolates a value into an .or() filter expression', () => {
+    const interpolated = FILES.filter((f) => /\.or\(\s*`[^`]*\$\{/.test(code(f)));
+    expect(interpolated).toEqual([]);
+  });
+
   it('and does not use .neq on a nullable column, which never matches NULL', () => {
     // Backlog B5: users_partner_by_role REQUIRES partner_id to be NULL for
     // every superadmin and opndoor_manager, so `.neq("partner_id", x)` was

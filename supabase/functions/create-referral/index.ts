@@ -100,9 +100,25 @@ Deno.serve(async (req) => {
        route the ordinary way rather than failing. */
     let routeId: string | null = null;
     if (b.route) {
-      const { data: rp } = await userClient.from("partners").select("id")
-        .or(`slug.eq.${b.route},id.eq.${b.route}`).maybeSingle();
-      routeId = (rp?.id as string) ?? null;
+      /* TWO EXACT MATCHES, NOT ONE .or() STRING.
+         The obvious spelling is `.or(`slug.eq.${b.route},id.eq.${b.route}`)`,
+         and it interpolates a value the caller chose into a PostgREST FILTER
+         EXPRESSION -- where a comma or a parenthesis is syntax, not data. A
+         route of `x,id.gt.0` becomes a third clause and the filter stops
+         meaning what it says. Same family as the ILIKE finding in backlog B4:
+         a caller's text used as something it is not.
+         `.eq()` sends the value as a parameter, so nothing in it can be
+         syntax. A uuid is tried first because that is what the form sends;
+         the slug lookup is the fallback for a hand-made call. */
+      const asUuid = /^[0-9a-f-]{36}$/i.test(b.route)
+        ? await userClient.from("partners").select("id").eq("id", b.route).maybeSingle()
+        : null;
+      routeId = (asUuid?.data?.id as string) ?? null;
+      if (!routeId) {
+        const { data: bySlug } = await userClient.from("partners").select("id")
+          .eq("slug", b.route).maybeSingle();
+        routeId = (bySlug?.id as string) ?? null;
+      }
     }
 
     if (b.partner) {
