@@ -380,6 +380,33 @@ from the supplier instead. That is a functional defect and the wording is
 downstream of it, so fixing the copy alone would leave a screen that still
 never finishes.
 
+### Batch 18 (verbatim)
+
+> Walk fixes, batch 18. Add to QUEUE.md verbatim and commit. Do not build yet.
+>
+> 29. Admin New application, Referred by: after choosing Supplier, Kestrel Lettings, then an agency and branch, the choices disappear and the only way to correct a wrong agency or branch is to cancel and start again. Every choice in Referred by stays visible and changeable until the application is sent, with a Change option on each. Changing an earlier choice clears only what depends on it.
+> 30. The Referred by description is jargon ("It decides the rail, the route and the commission"). Rewrite in plain English, for example "Who sent us this tenant. This decides the price and who is paid commission."
+
+**Items 28, 29 and 30 are all the Referred by fold-in**, and with 27 that is
+four walk fixes on one screen. They want building as one piece: 27 numbers the
+sections, 28 replaces the wrong last section and fixes a hang, 29 makes every
+choice revisable, 30 rewrites the description.
+
+**Item 29's last sentence is the whole of the difficulty.** "Changing an
+earlier choice clears only what depends on it" is a dependency graph, not a
+form: supplier -> agency -> branch, where changing the supplier must clear
+agency and branch, changing the agency must clear the branch, and changing
+the branch clears nothing. The existing test file already asserts the
+supplier half of this ("changing the supplier clears both"), so the rule is
+half-specified in tests already and should be completed there rather than
+re-derived.
+
+**Item 30's replacement wording is Matt's own and should be used as given.**
+"Who sent us this tenant. This decides the price and who is paid commission."
+It is also a good check on item 14's jargon sweep: "rail" and "route" are
+exactly the internal vocabulary item 14 is about, and this is the same fault
+on a description rather than an error.
+
 **The proposal item 15 asks for is written up as NM-F below.** Item 15 itself
 stays unbuilt and unranked until Matt answers it.
 
