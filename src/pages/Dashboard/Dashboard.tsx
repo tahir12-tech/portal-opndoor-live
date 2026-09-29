@@ -27,10 +27,11 @@ import {
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartners, getPeriods, getTrend, maySeeCommission, partnerName,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
-import { formatLondonDate } from '@/lib/format';
+import { formatLondonDate, gbpPence } from '@/lib/format';
 import { BASIS_META, type ExportBasis } from '@/data';
 import { getAgentRailFunnel, viewerRunsEligibilityJourney, type AgentRailFunnel } from '@/data/agentFunnel';
-import { isAgencyUser } from '@/data/capabilities';
+import { isAgencyUser, partyIsAgency } from '@/data/capabilities';
+import type { Role } from '@/data';
 import { liveScopeShape } from '@/data/liveAnalytics';
 import { CommissionStatement } from '@/components/CommissionStatement';
 import { useSession } from '@/session/SessionContext';
@@ -91,13 +92,25 @@ function buildChartRows(key: ChartKey, rows: LeagueRow[], m: Measure): { bars: B
 
 export function Dashboard() {
   usePageMeta('dashboard', 'Reporting', ['Home', 'Reporting']);
-  const { role, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod } = useSession();
+  const { role, partnerScope, viewingAs, selectedPartner, setSelectedPartner, period, setPeriod } = useSession();
 
   /* IS THIS ONE OF OUR OWN AGENCIES READING THEIR OWN SCREEN?
      The same question Reporting, League, Applications and the nav already ask,
      and the same answer: not the role, which an agency director and a supplier's
      manager both wear as 'management', but the party in scope. */
-  const agencyFacing = isAgencyUser(role, partnerScope);
+  const agencyFacing = isAgencyUser(role, partnerScope) || (viewingAs !== null && partyIsAgency(viewingAs));
+
+  /* UNDER VIEW AS, THIS PAGE IS THAT PARTY'S PAGE.
+     Matt: "under View as, Reporting shows exactly what that party's
+     management sees: no bordereau, no Opndoor settlements, 'Your commission'
+     reads as the party's own statement."
+
+     So the gates below are drawn for 'management' while an admin is narrowed
+     to somebody, and the admin-only money-ops stack is not drawn at all. The
+     COMMISSION half of each gate is untouched and still tests the real
+     reader: an admin viewing as an agency is shown that agency's page, not
+     given a capability they lack. */
+  const drawAs: Role | undefined = viewingAs !== null ? 'management' : undefined;
 
   /* MAY THIS READER BE SHOWN WHAT THE AGENCY EARNS? A third question again, and
      not answerable from the role: Director and Manager are both 'management'.
@@ -121,7 +134,6 @@ export function Dashboard() {
   // Settlement is a money-reconciliation surface: show pence on every row and the
   // total so the rows always sum to the stated total (commission is rent x rate,
   // which is frequently a half-pound).
-  const gbpPence = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const settleDate = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${settlement.settlementDate.getFullYear()}`;
   const agentSettleDate = `${agentSettlement.settlementDate.getDate()} ${agentSettlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${agentSettlement.settlementDate.getFullYear()}`;
  const dmyShort = (x: Date) => formatLondonDate(x);
@@ -705,14 +717,10 @@ export function Dashboard() {
         {d.live && partnerBreakdown.length > 0 && !agencyFacing && (
           <RoleOnly roles={['superadmin', 'management']} commission>
             <section className="card settle">
-              <div className="settle__head">
-                <div>
-                  <div className="kpi__label">Commission by partner</div>
-                  <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                    Partner and agent commission for the <b>selected period</b>, gross and net of refunds. Net columns reconcile to the summary totals. Settlement (what is actually payable next) is calculated separately, for the <b>prior calendar month</b>. Active partners are listed even with no paid referrals in the period; paused or onboarding partners with no activity are not shown.
-                  </div>
-                </div>
-              </div>
+              <CardHead
+                title={<>Commission by partner</>}
+                sub={<>Partner and agent commission for the <b>selected period</b>, gross and net of refunds. Net columns reconcile to the summary totals. Settlement (what is actually payable next) is calculated separately, for the <b>prior calendar month</b>. Active partners are listed even with no paid referrals in the period; paused or onboarding partners with no activity are not shown.</>}
+              />
               <div className="settle__apps">
                 <table>
                   <thead>
@@ -839,7 +847,11 @@ export function Dashboard() {
             being shown, which is worse than the heading being absent. */}
         {d.live && (
           <RoleOnly roles={['superadmin', 'management']} commission>
-            <div className="section-label"><Eyebrow>Your commission</Eyebrow></div>
+            {/* NAMED, not "Your". Under View as it is not the reader's
+                commission and saying so was the whole of Matt's third point. */}
+            <div className="section-label">
+              <Eyebrow>{viewingAs !== null ? `${partnerName(viewingAs)}’s commission` : 'Your commission'}</Eyebrow>
+            </div>
             <CommissionStatement role={role} scope={partnerScope} />
           </RoleOnly>
         )}
@@ -856,23 +868,19 @@ export function Dashboard() {
             while this month was already taking money: silence, where the admin
             surface printed a wrong sentence. The two blocks answer both
             questions, and the per-payee detail below is unchanged. */}
-        <RoleOnly roles={['management']} commission>
+        <RoleOnly roles={['management']} as={drawAs} commission>
           <div id="settlements" className="section-label"><Eyebrow>Settlements</Eyebrow></div>
           <SettlementBlocks role={role} scope={partnerScope} />
         </RoleOnly>
 
         {/* COMMISSION SETTLEMENT (partner, prior calendar month, payable the 15th) */}
         {d.live && settlement.partners.length > 0 && (
-          <RoleOnly roles={['management']} commission>
+          <RoleOnly roles={['management']} as={drawAs} commission>
             <section className="card settle">
-              <div className="settle__head">
-                <div>
-                  <div className="kpi__label">Supplier commission settlement</div>
-                  <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                    Supplier commission accrued on payments in <b>{settlement.monthLabel}</b> (calendar month, net of refunds), payable on <b>{settleDate}</b>.
-                  </div>
-                </div>
-              </div>
+              <CardHead
+                title={<>Supplier commission settlement</>}
+                sub={<>Supplier commission accrued on payments in <b>{settlement.monthLabel}</b> (calendar month, net of refunds), payable on <b>{settleDate}</b>.</>}
+              />
               {settlement.partners.map((p) => (
                 <div key={p.partner} className="settle__partner">
                   <div className="settle__row">
@@ -913,16 +921,12 @@ export function Dashboard() {
 
         {/* AGENT COMMISSION SETTLEMENT (agency level, prior calendar month, payable the 15th) */}
         {d.live && agentSettlement.payees.length > 0 && (
-          <RoleOnly roles={['management']} commission>
+          <RoleOnly roles={['management']} as={drawAs} commission>
             <section className="card settle">
-              <div className="settle__head">
-                <div>
-                  <div className="kpi__label">Agent commission settlement</div>
-                  <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                    Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each payee on <b>{agentSettleDate}</b>.
-                  </div>
-                </div>
-              </div>
+              <CardHead
+                title={<>Agent commission settlement</>}
+                sub={<>Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each payee on <b>{agentSettleDate}</b>.</>}
+              />
               <div className="settle__row settle__row--agg">
                 <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.payees.length}</b> {agentSettlement.payees.length === 1 ? 'payee' : 'payees'}</span>
                 <span className="settle__amt">{gbpPence(agentDue)}</span>
@@ -1044,9 +1048,15 @@ export function Dashboard() {
 
           This is an opndoor money-ops surface. The gate is the seat, not the
           capability. */}
-      <RoleOnly roles={['superadmin']}>
-        <FinanceSurfaces role={role} partnerScope={partnerScope} />
-      </RoleOnly>
+      {/* NOT WHILE VIEWING AS SOMEBODY. The gate stays `superadmin` -- the
+          seat, not the capability, which ourMarginIsNotTheirs.test.ts asserts
+          -- and the whole stack simply is not part of the page an agency's
+          management reads. */}
+      {viewingAs === null && (
+        <RoleOnly roles={['superadmin']}>
+          <FinanceSurfaces role={role} partnerScope={partnerScope} />
+        </RoleOnly>
+      )}
 
     </>
   );

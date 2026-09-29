@@ -35,16 +35,24 @@ import { maySeeCommission, type Role } from '@/data';
 import { useSession } from '@/session/SessionContext';
 
 export function RoleOnly({
-  roles, commission = false, children,
+  roles, commission = false, as, children,
 }: {
   roles: Role[];
   /** This surface states what the agency earns. A Manager is refused it even
       though their role is on the allowlist. See the note above. */
   commission?: boolean;
+  /** DRAW THIS GATE AS IF THE READER HELD THIS ROLE.
+   *
+   * Used by Reporting under View as, where an Opndoor admin is shown the page
+   * that party's management reads. It moves the ALLOWLIST test only, and
+   * deliberately not the commission test below: that one stays on the real
+   * reader, because the question it asks is "may THIS PERSON be shown money",
+   * and pretending about that is how a capability check becomes decorative. */
+  as?: Role;
   children: ReactNode;
 }) {
   const { role } = useSession();
-  if (!roles.includes(role)) return null;
+  if (!roles.includes(as ?? role)) return null;
   if (commission && !maySeeCommission(role)) return null;
   return <>{children}</>;
 }

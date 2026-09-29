@@ -60,6 +60,14 @@ interface SessionValue {
      lens for deciding what to draw. The ladder in SQL is the boundary. */
   seesCommission: boolean;
   partnerScope: PartnerScope;
+  /** THE PARTY AN OPNDOOR ADMIN HAS NARROWED TO, or null when they are not
+      narrowed to anybody and for every non-admin reader.
+
+      One definition, here, because it was computed inline in Topbar to draw
+      the exit pill and would otherwise have been computed a second time in
+      Reporting to decide what Reporting draws. Two copies of "am I looking at
+      somebody else's screen" is how the two screens come to disagree. */
+  viewingAs: PartnerScope | null;
   selectedPartner: PartnerScope;
   setSelectedPartner: (id: PartnerScope) => void;
   period: Period;
@@ -317,6 +325,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [role]);
 
   const partnerScope = role === 'superadmin' ? selectedPartner : homePartner();
+  const viewingAs = role === 'superadmin' && selectedPartner !== ALL_PARTNERS ? selectedPartner : null;
 
   /* THE LABEL UNDER THE NAME, in the words the agency uses for itself.
 
@@ -357,10 +366,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 keep behaving exactly as they do today (a mock management viewer
                 reads as a Director). */
              seesCommission: profile ? profile.seesCommission : maySeeCommission(role),
-             partnerScope, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion }),
+             partnerScope, viewingAs, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion }),
     // dataVersion is intentionally a dep: bumping it after (re-)hydration changes
     // the context identity so consumers re-read the refreshed working copies.
-    [role, setRole, user, profile, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion],
+    [role, setRole, user, profile, partnerScope, viewingAs, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

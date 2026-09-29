@@ -30,6 +30,21 @@ import { getPartner } from './partnersService';
  */
 export function isAgencyUser(role: Role, scope: PartnerScope): boolean {
   if (role !== 'management' && role !== 'referrer') return false;
+  return partyIsAgency(scope);
+}
+
+/**
+ * Is this PARTY one of our agencies? Asks nothing about who is reading.
+ *
+ * `isAgencyUser` above is the reader question and is built on this one. They
+ * were the same function, which was fine while the only caller was "what do I
+ * draw for the person signed in". Under View as they come apart: an Opndoor
+ * admin reading Regent's Reporting is not an agency user, but the PARTY is an
+ * agency and the page has to be the agency's page. Conflating the two is what
+ * made Reporting draw Opndoor's own money-ops block while viewing as somebody
+ * else.
+ */
+export function partyIsAgency(scope: PartnerScope): boolean {
   if (scope === ALL_PARTNERS) return false;
   return getPartner(scope)?.referencingMode === 'opndoor_referenced';
 }

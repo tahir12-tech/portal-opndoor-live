@@ -28,7 +28,8 @@ import {
   convFor, scaleRows, type PeriodDef, type ShapeRow,
 } from './mock/analyticsModel';
 import { getRatesFor, weightFor } from './partnersService';
-import { isAgencyUser } from './capabilities';
+import { isAgencyUser, partyIsAgency } from './capabilities';
+import { ALL_PARTNERS } from './types';
 import { liveAvailable, liveAggregate, liveVolume, liveTrend, deedsWithoutContact, lapsingWithin14, agentRailScope, type LiveAgg, type TrendRow } from './liveAnalytics';
 import { SOURCE_LABEL } from './commissionSplit';
 export type { TrendRow } from './liveAnalytics';
@@ -254,7 +255,15 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
      of our agencies answers true to noPartner and is still Opndoor, looking
      across a book where the blend is the thing being measured. They keep the
      rate they have always had. */
-  const agencyFacing = isAgencyUser(role, scope);
+  /* THE TILE'S WORDS FOLLOW THE PARTY, NOT THE READER. Under View as, an
+     Opndoor admin reading an agency's Reporting is not an agency user, but
+     the page is that agency's page and the tile has to say what the agency
+     would read -- "Commission (agreed terms)", no blended rate -- rather than
+     Opndoor's "Commission payable". Same question the page itself asks in
+     Dashboard.tsx; written here too because this function is given the scope
+     and not the session. */
+  const agencyFacing = isAgencyUser(role, scope)
+    || (role === 'superadmin' && scope !== ALL_PARTNERS && partyIsAgency(scope));
   // What the rates in the headline actually are. Named from the frozen lines, so
   // a negotiated 20% is called an agreement and not "the Opndoor standard".
   const srcWord = a.sources.length === 1 ? SOURCE_LABEL[a.sources[0]]
@@ -408,7 +417,15 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
   const aPct = fmtRatePct(rates.agent);
   // The same reader test as the live path, so mock and demo mode show an agency
   // the tile they will meet in the real portal rather than a rate-bearing one.
-  const agencyFacing = isAgencyUser(role, scope);
+  /* THE TILE'S WORDS FOLLOW THE PARTY, NOT THE READER. Under View as, an
+     Opndoor admin reading an agency's Reporting is not an agency user, but
+     the page is that agency's page and the tile has to say what the agency
+     would read -- "Commission (agreed terms)", no blended rate -- rather than
+     Opndoor's "Commission payable". Same question the page itself asks in
+     Dashboard.tsx; written here too because this function is given the scope
+     and not the session. */
+  const agencyFacing = isAgencyUser(role, scope)
+    || (role === 'superadmin' && scope !== ALL_PARTNERS && partyIsAgency(scope));
 
   /* And the tile itself, all of it or none of it, exactly as on the live path. The
      synthetic model multiplies the scope's rates by the period's fees right here,

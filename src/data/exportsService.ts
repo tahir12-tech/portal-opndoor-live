@@ -7,8 +7,7 @@
    The three human-facing exports (Performance, Application, League) are
    branded .xlsx built from one shared template (xlsxTemplate.ts). The
    Bordereau stays a clean, unbranded CSV: its audience is the underwriter's
-   import { feeBaseFor } from './commissionSplit';
-import process, and branding risks breaking it.
+   import process, and branding risks breaking it.
 
    Live mode builds every figure from the hydrated live application set (the
    buildLive and buildReal paths), with the same scoping and gating; mock/test
@@ -37,6 +36,7 @@ import { liveAvailable, liveAggregate, liveVolume, liveMonths, getCommissionSett
 // imported in exportBranded, on demand, when an export is actually run.
 import type { BrandedDoc, ColType, Column, KeyValue, TableRow } from './xlsxTemplate';
 import { feeBaseFor, totalRate, linesFor, agentRailApp } from './commissionSplit';
+import { gbpPence } from '@/lib/format';
 
 /** A named branded sheet + the download filename (the xlsx-free document spec). */
 export interface BrandedExport {
@@ -150,7 +150,7 @@ function moneyKv(label: string, value: number): KeyValue {
     discrepancy the export invented. Built on money(), so the text and the
     numeric cells cannot round differently. */
 function moneyText(n: number): string {
-  return `£${money(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return gbpPence(money(n));
 }
 
 /** The house empty-cell glyph. A cell with nothing in it reads as one hyphen:
@@ -1743,7 +1743,6 @@ export const BORDEREAU_COLS = [
   'Property Address 1', 'Property Address 2', 'City/Town', 'County', 'Postcode', 'Landlord Name',
   'Issue Date', 'Tenancy date', 'Guarantee Expiry', 'Monthly Rent', 'Insurance %', 'Status',
 ];
-const bxRound2 = (n: number) => Math.round(n * 100) / 100;
 export interface BordereauData { rows: (string | number)[][]; issued: number; monthLabel: string; filename: string }
 
 /** Live bordereau ROWS in the template column order. Deed-Issued, non-refunded
@@ -1800,7 +1799,7 @@ export function buildLiveBordereau(year: number, m0: number, insuranceRate: numb
       // THE SHARE, not the tenancy's rent: this deed guarantees this tenant's
       // part of it, and the premium follows what is guaranteed. A tenancy of one
       // has no share and the whole rent is its own, so the cell is unchanged.
-      bxRound2(covered), bxRound2(covered * rate), 'On Cover',
+      money(covered), money(covered * rate), 'On Cover',
     ];
   });
   return { rows, issued: rows.length, monthLabel: `${MONTH_NAMES[m0]} ${year}`, filename: `opndoor-bordereau-${year}-${pad(m0 + 1)}.xlsx` };
@@ -1840,7 +1839,7 @@ function buildSyntheticBordereau(year: number, m0: number, insuranceRate: number
       `GR-${refNo}`, BX_TITLES[i % BX_TITLES.length], BX_FIRST[(i * 5) % BX_FIRST.length], BX_LAST[(i * 3) % BX_LAST.length],
       dmy(dob), 'Tenant', (flat ? `${flat}, ` : '') + st[0], '', 'London', 'Greater London', st[1],
       String(b[0]), // Landlord Name (demo agency stand-in)
-      dmy(issue), dmy(tenancy), dmy(expiry), rent, bxRound2(rent * rate), 'On Cover',
+      dmy(issue), dmy(tenancy), dmy(expiry), rent, money(rent * rate), 'On Cover',
     ]);
   }
   return { rows, issued: N, monthLabel: `${MONTH_NAMES[m0]} ${year}`, filename: `opndoor-bordereau-${year}-${pad(m0 + 1)}.xlsx` };

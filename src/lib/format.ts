@@ -77,3 +77,21 @@ export function formatLondonDateTime(input: string | number | Date | null | unde
   const minute = parts.find((p) => p.type === 'minute')!.value;
   return `${day}/${month}/${year} - ${hour}:${minute}`;
 }
+
+/**
+ * Money, to the penny, for anything a reader might reconcile against a bank
+ * statement or an invoice.
+ *
+ * ONE DEFINITION BECAUSE THERE WERE THREE, character-identical, in
+ * Dashboard.tsx, FinanceSurfaces.tsx and SettlementBlocks.tsx -- three
+ * surfaces that print the SAME settlement figures and so must agree by
+ * construction rather than by coincidence. Fold F1's requirement is exactly
+ * that: "assert every money figure in an export comes from one formatter",
+ * and it is worth as much on the screens the exports are reconciled against.
+ *
+ * Always two decimals, never rounded up to the pound: a settlement that reads
+ * 4,431 against an export reading 4,430.77 is the defect F1 was raised for.
+ */
+export function gbpPence(n: number): string {
+  return `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}

@@ -17,6 +17,7 @@
    There is no part of it a Manager may hold, so the surface asks maySeeCommission
    itself instead of trusting its caller to ask. See the gate below.
    ===================================================================== */
+import { CardHead } from '@/components/ui/Card';
 import { useState } from 'react';
 import {
   exportBranded, buildPartnerStatementDoc, buildAgentStatementDoc, exportBordereauFile,
@@ -24,7 +25,7 @@ import {
   getBordereauRate, getBordereauRateMeta, setBordereauRate,
   type PartnerScope, type Role,
 } from '@/data';
-import { formatLondonDate } from '@/lib/format';
+import { formatLondonDate, gbpPence } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Eyebrow } from '@/components/ui/Eyebrow';
@@ -73,7 +74,6 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
   const live = liveAvailable();
 
   // Money-reconciliation surface: pence on every row and total so rows always sum.
-  const gbpPence = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const dmyShort = (x: Date) => formatLondonDate(x);
   const settleDate = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${settlement.settlementDate.getFullYear()}`;
   const agentSettleDate = `${agentSettlement.settlementDate.getDate()} ${agentSettlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${agentSettlement.settlementDate.getFullYear()}`;
@@ -164,14 +164,10 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
       {/* COMMISSION SETTLEMENT (partner, prior calendar month, payable the 15th) */}
       {hasPartner && (
         <section className="card settle">
-          <div className="settle__head">
-            <div>
-              <div className="kpi__label">Supplier commission settlement</div>
-              <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                Supplier commission accrued on payments in <b>{settlement.monthLabel}</b> (calendar month, net of refunds), payable on <b>{settleDate}</b>.
-              </div>
-            </div>
-          </div>
+          <CardHead
+            title={<>Supplier commission settlement</>}
+            sub={<>Supplier commission accrued on payments in <b>{settlement.monthLabel}</b> (calendar month, net of refunds), payable on <b>{settleDate}</b>.</>}
+          />
           {settlement.partners.map((p) => (
             <div key={p.partner} className="settle__partner">
               <div className="settle__row">
@@ -212,14 +208,10 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
       {/* AGENT COMMISSION SETTLEMENT (agency level, prior calendar month, payable the 15th) */}
       {hasAgent && (
         <section className="card settle">
-          <div className="settle__head">
-            <div>
-              <div className="kpi__label">Agent commission settlement</div>
-              <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each payee on <b>{agentSettleDate}</b>.
-              </div>
-            </div>
-          </div>
+          <CardHead
+            title={<>Agent commission settlement</>}
+            sub={<>Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each payee on <b>{agentSettleDate}</b>.</>}
+          />
           <div className="settle__row settle__row--agg">
             <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.payees.length}</b> {agentSettlement.payees.length === 1 ? 'payee' : 'payees'}</span>
             <span className="settle__amt">{gbpPence(agentDue)}</span>
@@ -237,17 +229,15 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
       {/* UNDERWRITER BORDEREAU (opndoor admin only) */}
       {isAdmin && (
         <section className="card">
-          <div className="settle__head">
-            <div>
-              <div className="kpi__label">Underwriter bordereau</div>
-              <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                Monthly export (C&amp;C format) with full tenant details, for one calendar month by tenancy start date. Contains personal data, for the underwriter only.
-              </div>
-            </div>
+          <CardHead
+            title={<>Underwriter bordereau</>}
+            sub={<>Monthly export (C&amp;C format) with full tenant details, for one calendar month by tenancy start date. Contains personal data, for the underwriter only.</>}
+            actions={
             <Button variant="primary" size="sm" onClick={openBordereau} title="Monthly underwriter bordereau (C&C format) with full tenant details. opndoor admin only.">
-              <Icon name="shield" /> Bordereau
+            <Icon name="shield" /> Bordereau
             </Button>
-          </div>
+            }
+          />
         </section>
       )}
 

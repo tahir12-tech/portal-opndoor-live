@@ -23,6 +23,7 @@
    rows, no repeat card — because a sole tenant carries 100% and should not have
    to say so.
    ===================================================================== */
+import { gbpPence } from '@/lib/format';
 import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, rebalanceShares, shareSumError } from './shareMath';
@@ -42,7 +43,7 @@ import './NewApplication.css';
 
 const Req = () => <span className="req" aria-hidden="true">*</span>;
 
-const money = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = gbpPence;
 
 const EMPTY: ReferralValues = {
   title: '', first: '', middle: '', last: '', dob: '', email: '', phone: '',

@@ -11,6 +11,7 @@
    amendTenancyStartDb -> amend-tenancy-start (deed-state-aware reissue),
    sendDeedToAgent -> send_deed_to_agent RPC. Mock/test mode uses the seed.
    ===================================================================== */
+import { gbpPence } from '@/lib/format';
 import type { CommissionLine, ApplicationDetail, ApplicationSummary, DeedState, PartnerScope, Role, Status, WithdrawReason } from './types';
 import { ALL_PARTNERS } from './types';
 import { AGENT_ADDR, APPLICATION_RECORDS as RECORDS_SEED, APPLICATIONS_LIST as LIST_SEED, type AppRecord } from './mock/applications';
@@ -501,7 +502,7 @@ function feeLabels(r: { rent: number; fee?: number | null; sharePercent?: number
   { feeGBP?: string; feeBasisLabel?: string } {
   const fee = r.fee ?? null;
   if (fee == null) return {};
-  const gbp = `£${fee.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const gbp = gbpPence(fee);
   /* THE BASIS IS A RATIO AND BOTH HALVES MUST BE THE SAME PERSON'S.
      This divided the applicant's own fee by the WHOLE tenancy's rent, so one
      tenant of a 50/50 pair on a five-week deal read "1.67 weeks of rent (this

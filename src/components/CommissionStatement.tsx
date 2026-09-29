@@ -20,6 +20,7 @@
    asks maySeeCommission itself rather than trusting the two callers to ask for
    it. See the gate on CommissionStatement below.
    ===================================================================== */
+import { gbpPence } from '@/lib/format';
 import { useEffect, useMemo, useState } from 'react';
 import {
   buildAllStatementsCsv, buildCommissionStatementDoc, downloadCsv, exportBranded,
@@ -38,7 +39,7 @@ import { Icon } from '@/components/ui/Icon';
 import { PeriodSelect } from '@/components/ui/Select';
 import './CommissionStatement.css';
 
-const money = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = gbpPence;
 const pct = (n: number) => `${Number((n * 100).toFixed(2))}%`;
 const dmy = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 /** A frozen line's source in the reader's words. Falls back to the stored code

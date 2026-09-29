@@ -147,24 +147,37 @@ describe('the dashboard a director at one of our agencies reads', () => {
 });
 
 describe('the same agency, read by Opndoor', () => {
-  it('keeps the partner table for an admin scoped to it, and reads payable', async () => {
-    // Same partner, same rail, same single row: the only thing that changes is
-    // who is reading, which is the whole point of asking isAgencyUser.
+  /* THIS BLOCK CHANGED WITH Q-06 ITEM B, and the case is kept rather than
+     deleted because what it was protecting is still worth protecting.
+
+     It asserted that an admin SCOPED TO an agency keeps Opndoor's page: the
+     commission-by-partner split, and a tile reading "Commission payable".
+     But an admin scoped to a party IS viewing as that party, and Matt's
+     instruction is that Reporting then shows what that party's management
+     sees. So both expectations are now the opposite, and the thing the block
+     was really guarding -- that an ADMIN still reads Opndoor's own numbers --
+     moves to the second case, where the admin is narrowed to nobody and the
+     assertion actually means that. */
+  it('reads the agency\u2019s own page when narrowed to them, not Opndoor\u2019s', async () => {
     const view = await openDashboard('superadmin', AGENCY_PARTNER);
-    expect(view.container.textContent).toMatch(/Commission by partner/);
+    expect(view.container.textContent).not.toMatch(/Commission by partner/);
     const tile = commissionTile(view);
-    /* PAYABLE, NOT EARNED. An admin reading this page is looking at what
-       opndoor owes out, which is a different number from what it earned: the
-       house route's partner cut is opndoor's own margin and is owed to nobody.
-       This asserted "Commission earned" and a rate in the tile; the rate has
-       moved off it, because the tile is now a total split by who is owed
-       rather than a rate applied to a fee. The effective rate is still on the
-       Commission by partner table above, which is where a rate belongs and
-       which the first assertion still covers. */
-    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Commission payable');
-    expect(tile.textContent).not.toMatch(/\bPartner ·/);
+    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Commission (agreed terms)');
+    // Still rate-free: an agency's tile states a total, not a blended rate.
+    expect(tile.textContent).not.toMatch(/\bPartner \u00b7/);
+  });
+
+  it('and keeps Opndoor\u2019s own view when narrowed to nobody', async () => {
+    /* PAYABLE, NOT EARNED. An admin reading the unscoped page is looking at
+       what opndoor owes out, which is a different number from what it earned:
+       the house route's partner cut is opndoor's own margin and is owed to
+       nobody. */
+    const view = await openDashboard('superadmin');
+    expect(view.container.textContent).toMatch(/Commission by partner/);
+    expect(commissionTile(view).querySelector('.kpi__label')!.textContent).toBe('Commission payable');
   });
 });
+
 
 describe('mock and demo mode, where the synthetic model answers', () => {
   it('gives the agency the same rate-free tile, demo delta included', async () => {

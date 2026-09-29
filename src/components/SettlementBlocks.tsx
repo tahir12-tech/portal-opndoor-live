@@ -21,13 +21,13 @@
    MODULE SCOPE with explicit props, and no hook: mounted normally by both
    callers, so there is no remount trap to fall into.
    ===================================================================== */
+import { gbpPence } from '@/lib/format';
 import {
   getAgentCommissionSettlement, getCommissionSettlement, liveAvailable, maySeeCommission,
   type PartnerScope, type Role,
 } from '@/data';
 
 /** Money-reconciliation surface: pence on every row and total, so rows sum. */
-const gbpPence = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const dayMonth = (d: Date) => `${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'long' })}`;
 const fullDate = (d: Date) => `${dayMonth(d)} ${d.getFullYear()}`;
 
