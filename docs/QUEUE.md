@@ -36,6 +36,13 @@ built until he says so.
 >
 > 6. The "What [person] can see" dialog mixes two things. Split it into two clearly labelled parts: "Works at" (their home office, which decides their team, league and commission statement) and "Oversees" (the branches, brand or agency they manage, which decides what they can see). Retitle the dialog "Office and responsibilities".
 
+### Batch 3 (verbatim)
+
+> Walk fixes, batch 3. Add to QUEUE.md verbatim under "Walk fixes" and commit. Do not build yet.
+>
+> 7. Applications, Origin picker: choosing an option does nothing, the list doesn't change. Fix it. Matt isn't sure the picker is helpful in this form; after fixing, note in QUEUE.md under "Needs Matt" a one-line simpler alternative for him to consider, but don't redesign it.
+> 8. The bordereau export includes every application. It should include only guarantees with an executed deed, in force during the period, and not refunded or withdrawn.
+
 ### Status: nothing built, and THE SEVEN ARE PAUSED
 
 "Do not build anything yet; I'm walking dev and it must not change under me"
@@ -74,6 +81,29 @@ test.
 statement, so the home office is not cosmetic: changing it moves who gets
 paid. Whatever is built needs a test that a change to "Oversees" alone leaves
 the commission statement untouched.
+
+**Item 8 DEPENDS ON R2 and must be built after it, not before.** R2 is the
+finding that a PARTIAL refund is recorded as a total one: `apply_stripe_refund`
+sets `payment_state = 'refunded'` whatever the amount. Item 8 says the
+bordereau must exclude what is "refunded". Those two are only consistent once
+"refunded" means fully refunded -- build item 8 first and the export will
+correctly exclude exactly the wrong rows, dropping still-enforceable
+guarantees off the underwriter return because ten pounds came back. That is
+the same defect R2 already names as one of its three consequences. So: R2
+first, then item 8, and item 8's test must include a partially-refunded
+executed guarantee and assert it is PRESENT.
+
+**Item 8 is an underwriter-facing document**, which makes "in force during the
+period" the clause to pin down rather than assume. A guarantee whose term
+starts inside the period, ends inside it, or spans it entirely is in force
+during it; one that expired before it began is not. Overlap, not containment.
+Worth stating in the test explicitly, in both directions.
+
+**Item 7's "simpler alternative" note is due AFTER the fix, not now.** Matt's
+words: "after fixing, note in QUEUE.md under 'Needs Matt' a one-line simpler
+alternative for him to consider, but don't redesign it." So the fix comes
+first, the one line goes under "Needs Matt" when it lands, and no redesign
+happens in between.
 
 ---
 
