@@ -16,9 +16,11 @@
 //
 //   - the token is compared by HASH, never stored or logged in the clear
 //   - the whole payload is recorded verbatim before anything acts on it
-//   - table_id is the idempotency key and the ledger claims it FIRST, so a
-//     redelivery cannot create a second application even if it arrives while
-//     the first is still running
+//   - (partner, livemode, table_id) is the idempotency key and the ledger
+//     claims it FIRST, so a redelivery cannot create a second application even
+//     if it arrives while the first is still running. The provider's table_id
+//     alone is NOT the key: it is unique in their system, not in ours, and a
+//     global one let any token claim or burn another agency's hand-over
 //   - livemode comes from the TOKEN, never from the payload, which is the one
 //     place this can match the existing receivers' discipline
 //
@@ -123,13 +125,23 @@ Deno.serve(async (req) => {
     const tableId = Number(body.table_id);
     if (!Number.isFinite(tableId)) return fail("table_id is required.");
 
-    // ---- claim the ledger BEFORE acting ------------------------------------
-    // The unique primary key on table_id is what makes this a claim rather than
-    // a check-then-act. Two concurrent redeliveries race here and exactly one
-    // wins; the loser sees the row and replays the first outcome.
+    /* ---- claim the ledger BEFORE acting ------------------------------------
+       The unique primary key is what makes this a claim rather than a
+       check-then-act. Two concurrent redeliveries race here and exactly one
+       wins; the loser sees the row and replays the first outcome.
+
+       KEYED BY PARTNER AND MODE, not by table_id alone. Round 6, M6: a
+       table_id is the PROVIDER's row number, unique in their system and not in
+       ours, and a global key let one token claim or burn another agency's
+       hand-over -- answering the provider "User already sent to guarantor." so
+       that the genuine delivery is marked done and the tenant never created.
+       A sandbox token could burn a live delivery the same way. Both columns
+       come from the authenticated TOKEN, never from the payload. */
     const { error: claimErr } = await service.from("referencing_inbound_events").insert({
       table_id: tableId,
       token_id: token.id,
+      partner_id: token.partner_id,
+      livemode: token.livemode,
       agency_from_token: !!token.agency_number,
       tenant_reference_number: String(body.tenant_reference_number ?? "") || null,
       overall_status: String(body.overall_status ?? "") || null,
@@ -138,10 +150,20 @@ Deno.serve(async (req) => {
 
     if (claimErr) {
       if (claimErr.code === "23505") {
+        /* AND THE REPLAY IS READ BACK IN THE SAME NAMESPACE. Round 6, M1:
+           `.eq("table_id", tableId)` alone let any token walk the integer
+           space and learn which hand-overs exist, their state, and
+           `prior.error` verbatim -- which is written as
+           `Unsupported overall_status "<their value>"`, `Missing: <fields>`,
+           or a raw Postgres message. Scoped now to the presenting token's own
+           partner and mode, so a caller only ever reads back its own. */
         const { data: prior } = await service
           .from("referencing_inbound_events")
           .select("status_code, error, application_id, completed_at")
-          .eq("table_id", tableId).maybeSingle();
+          .eq("table_id", tableId)
+          .eq("partner_id", token.partner_id)
+          .eq("livemode", token.livemode)
+          .maybeSingle();
         if (prior?.completed_at && prior.status_code === 200) {
           return ok("User already sent to guarantor.");
         }
@@ -152,10 +174,15 @@ Deno.serve(async (req) => {
       return fail("Could not record the request.", 500);
     }
 
+    // Scoped exactly like the claim above: the row this request owns is
+    // (this partner, this mode, this table_id), and a bare table_id would
+    // stamp somebody else's outcome onto their delivery.
     const finish = async (status: number, error: string | null, appId: string | null) => {
       await service.from("referencing_inbound_events")
         .update({ status_code: status, error, application_id: appId, completed_at: new Date().toISOString() })
-        .eq("table_id", tableId);
+        .eq("table_id", tableId)
+        .eq("partner_id", token.partner_id)
+        .eq("livemode", token.livemode);
     };
 
     // ---- the one status we act on -----------------------------------------

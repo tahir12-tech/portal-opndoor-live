@@ -78,11 +78,35 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
   // a change rather than promising a review.
   let correctionUrl = "";
   if (appBase) {
-    const { data: tok } = await service.from("tenancy_correction_tokens").insert({
-      application_id: target.appId, guarantee_ref: target.ref,
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    }).select("token").maybeSingle();
-    if (tok?.token) correctionUrl = `${appBase}/tenancy-correction?token=${tok.token}`;
+    /* ONE LIVE CORRECTION LINK PER APPLICATION. Round 6, M4.
+       This minted a NEW seven-day token on EVERY call, and it is called by the
+       completion webhook, by every manual "Send deed to agent", and by every
+       reissue. Round 5 closed the same-token replay; it did not close this
+       one, because the claim was scoped to the token presented and the other
+       outstanding links stayed live. Submitting the first archived the signed
+       PDF, reset the status, nulled the executed PDF and reissued; submitting
+       the second did it all again.
+
+       So an unexpired, unsubmitted token for this application is REUSED. The
+       link in the second email is the same link as in the first, which is
+       also what the recipient would expect. */
+    const { data: live } = await service.from("tenancy_correction_tokens")
+      .select("token")
+      .eq("application_id", target.appId)
+      .is("submitted_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .order("expires_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let tokenValue = live?.token as string | undefined;
+    if (!tokenValue) {
+      const { data: tok } = await service.from("tenancy_correction_tokens").insert({
+        application_id: target.appId, guarantee_ref: target.ref,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      }).select("token").maybeSingle();
+      tokenValue = tok?.token as string | undefined;
+    }
+    if (tokenValue) correctionUrl = `${appBase}/tenancy-correction?token=${tokenValue}`;
   }
 
   /* THE TENANCY THIS DEED IS PART OF, so the email can say that another is

@@ -94,13 +94,26 @@ Deno.serve(async (req) => {
          Claiming first also closes the race that ordering alone would not: the
          `.is("submitted_at", null)` filter makes the claim the atomic step, so
          of two simultaneous submits exactly one proceeds. */
+      /* CLAIMED BY APPLICATION, NOT BY TOKEN. Round 6, M4. Scoping the claim
+         to the presented token left every OTHER outstanding link for the same
+         application live, and one is minted on every deed send. The correction
+         is a property of the APPLICATION -- there is one tenancy start and it
+         is either corrected or not -- so claiming burns every unsubmitted
+         token for it in one statement. Still atomic, and still exactly one
+         winner between two simultaneous submits, because `.is("submitted_at",
+         null)` is what makes the update the claim. Also cleans up the
+         accumulation that already exists from before deedEmail started
+         reusing. */
       const nowIso = new Date().toISOString();
-      const { data: claimed } = await service.from("tenancy_correction_tokens")
+      const { data: claimedRows } = await service.from("tenancy_correction_tokens")
         .update({ proposed_start: proposed, note, submitted_at: nowIso, resolved_at: nowIso, resolved_by: null })
-        .eq("token", token)
+        .eq("application_id", tok.application_id)
         .is("submitted_at", null)
-        .select("token")
-        .maybeSingle();
+        .select("token");
+      // The presented token must be one of the ones just claimed. If it is not,
+      // it had already been used, and somebody else's live token being burned
+      // alongside would not make this submit legitimate.
+      const claimed = (claimedRows ?? []).some((r: { token: string }) => r.token === token);
       if (!claimed) {
         return json({
           ok: false, alreadySubmitted: true,

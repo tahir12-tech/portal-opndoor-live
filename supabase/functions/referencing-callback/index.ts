@@ -137,12 +137,20 @@ Deno.serve(async (req) => {
       if (good) {
         await service.from("application_provider_links")
           .update({ notified_at: new Date().toISOString(), notify_error: null })
-          .eq("table_id", row.table_id);
+          // By the PRIMARY KEY. Round 6, M6: table_id is the provider's row
+          // number and is no longer unique on its own -- it is scoped by
+          // partner and mode -- so a bare match could stamp another
+          // provider's link.
+          .eq("application_id", row.application_id);
         summary.sent++;
       } else {
         await service.from("application_provider_links")
           .update({ notify_error: text.slice(0, 500), notify_attempts: (row.notify_attempts ?? 0) + 1 })
-          .eq("table_id", row.table_id);
+          // By the PRIMARY KEY. Round 6, M6: table_id is the provider's row
+          // number and is no longer unique on its own -- it is scoped by
+          // partner and mode -- so a bare match could stamp another
+          // provider's link.
+          .eq("application_id", row.application_id);
         summary.failed++;
         noteFailure(row, `provider responded ${res.status}`);
       }
