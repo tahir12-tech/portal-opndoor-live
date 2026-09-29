@@ -58,6 +58,70 @@ Named here so "extend one of these" is unambiguous:
 
 ---
 
+## The list to finish (standing instruction, 2026-09-29, verbatim)
+
+This supersedes "Order of work" as the running order. Items 1, 2, 3 and 5 are
+new; item 4 is the list of thirteen I gave Matt in the plain-English report of
+2026-09-29, reproduced under "The thirteen" below so "items 3 to 13" is
+unambiguous.
+
+> Carry on and finish the whole list in order, without stopping, starting with the live hotfix:
+>
+> 1. Hotfix for the live system as one file for Balal: managers and referrers may update only the application fields the live screens actually edit, every other column locked; plus the shared change making the four live functions refuse when they cannot tell who the caller is. Prove every live screen action still works and a locked field is refused. Write docs/HOTFIX-LIVE-FOR-BALAL.md in plain English with a read-only check to confirm it took effect. Do not touch production.
+> 2. Verify the Regent correction and fix the two documents.
+> 3. Verify the monthly commission statement fault. If real, fix it and prove a statement sends.
+> 4. Then items 3 to 13 of your list, including the one final review round.
+> 5. Finish Climber of the week's test and the team-side notification tickbox.
+>
+> Matt's decision, already made on 17 August: an agency exists once, never duplicated per supplier, so an agency under two suppliers is one party shown with two counters.
+>
+> Do not decide anything else on Matt's behalf. The fee payment question (tenant's link or monthly invoice), the four alerts that don't exist, and the other nine supplier-commission questions go at the top of QUEUE.md under "Needs Matt", each in one or two plain sentences with the options and what each would mean. Build everything that doesn't depend on those answers. Anything that does, build up to that point and leave it clearly marked.
+>
+> Record progress in QUEUE.md as you go. When the list is done or only "Needs Matt" items remain, stop and report in plain English.
+
+### What changed about how I decide
+
+The standing instruction of earlier today said to decide anything the queue did
+not answer and record it under "Decisions taken without Matt". **That is now
+narrowed: no new decisions on Matt's behalf.** Anything genuinely open goes to
+"Needs Matt" and the build stops at that point, clearly marked, while
+everything independent of it carries on. D1 to D13 stand; D14 onwards will not
+be created.
+
+### The thirteen (item 4 refers to these by number)
+
+| # | item |
+| --- | --- |
+| 1 | Record the two emergency fixes for the live system and get them to Balal |
+| 2 | Verify the Regent correction and fix the two documents that carry the wrong answer |
+| 3 | Supplier commission: the editor, Partners renamed to Suppliers, and the four amendments |
+| 4 | Supplier detail page rebuilt as tabs, matching the agency page |
+| 5 | Reporting under "View as" |
+| 6 | A searchable scope picker on Reporting and Applications |
+| 7 | Export and statement corrections |
+| 8 | The three agency level names in the admin user screens, and Director/Manager moves |
+| 9 | A "Referred by" section at the top of the admin new-application form |
+| 10 | The HubSpot consequences report |
+| 11 | The end-to-end walk on dev |
+| 12 | The handover document and cutover checklist |
+| 13 | Exactly one final review round, criticals and highs only |
+
+Items 1 and 2 of the thirteen are items 1 and 2 of the instruction above, so
+"items 3 to 13" starts at the supplier commission work.
+
+---
+
+## Matt's rulings recorded late
+
+Decisions Matt had already made that were not in this file, and which I would
+otherwise have had to ask about or decide.
+
+| date | ruling | what it settles |
+| --- | --- | --- |
+| 2026-08-17 | **An agency exists once and is never duplicated per supplier. An agency under two suppliers is ONE party shown with TWO counters.** | Answers Q-05 amendment 4 (and the scoping's question M8) in favour of one canonical agency with per-route counters, NOT two agency rows. The scoping recommended the opposite; Matt's ruling wins. It means a canonical agency identity has to exist, and `active_agreement_on`'s one-live-agreement-per-party rule has to admit one agreement per party PER ROUTE. |
+
+---
+
 ## The five rules (my restatement, not Matt's words)
 
 Matt's standing instruction says to decide by "the five rules and my earlier
