@@ -158,6 +158,34 @@ several bugs; if there is one helper, it is one. Worth finding out first,
 because a name ending in s is not the only case -- the rule wants stating once
 and testing once.
 
+### Batch 10 (verbatim)
+
+> Walk fixes, batch 10. Add to QUEUE.md verbatim under "Walk fixes, after shipping" and commit. Do not build yet.
+>
+> 20. Reporting for Opndoor admin should show volume broken down by partner: every supplier and every agency, side by side (referrals sent, fees collected, deeds issued, commission payable). Suppliers are currently left out of the breakdowns entirely (Kestrel appears nowhere). Consider this together with item 15, since both are about Matt seeing results per customer.
+
+**Item 20 ANSWERS the open question in NM-F, and NM-F has been revised.** NM-F
+proposed moving the report onto each customer's own page and stated plainly
+what that would lose: "Comparing two agencies means opening two pages. If
+comparison matters, say so and it changes the proposal." Item 20 is Matt
+saying comparison matters -- "every supplier and every agency, side by side".
+So the per-customer page alone is not the answer, and NM-F now proposes both
+halves. One question to Matt is therefore withdrawn; the other still stands.
+
+**"Kestrel appears nowhere" is the SAME fault as item 15's "no suppliers
+appear under Suppliers".** Twice in two screens means it is not a picker bug
+and not a breakdown bug: something upstream is dropping suppliers out of
+reporting altogether. That shared cause should be found before either screen
+is touched, because it is one fix and it is probably the whole of both
+symptoms.
+
+**Item 20's four measures are the same four as item 17's admin option set**
+(referrals sent, fees collected, deeds issued, commission payable). That is
+not a coincidence and should not become two lists: the per-partner breakdown
+and the trend should read from one definition of Opndoor's four measures, or
+a row total and a trend total will eventually disagree -- which item 17
+already forbids in its last sentence.
+
 **The proposal item 15 asks for is written up as NM-F below.** Item 15 itself
 stays unbuilt and unranked until Matt answers it.
 
@@ -878,33 +906,40 @@ Why that and not a better picker:
   uses, so a per-customer page asks a question the server already answers.
   This is a move, not a rebuild.
 
-What Matt would lose, stated plainly so the choice is real:
+**REVISED after walk-fix item 20.** The first draft of this proposal said the
+per-customer page would lose side-by-side comparison, and asked Matt whether
+that mattered. Item 20 answers it: *"every supplier and every agency, side by
+side (referrals sent, fees collected, deeds issued, commission payable)."* So
+comparison matters, and the proposal is now **both halves, not one**:
 
-- **The all-customers view.** The picker's one genuine use is "everything, at
-  once, across all customers", which a per-customer page cannot give. The
-  answer is to keep exactly one such view -- today's Reporting page with NO
-  picker, always showing the whole estate, which is what an opndoor admin
-  should see by default anyway.
-- **Side-by-side comparison.** Comparing two agencies means opening two pages.
-  If comparison matters, say so and it changes the proposal.
+1. **One estate-wide Reporting page, with no picker**, whose centre is a
+   **table with one row per customer** -- every supplier and every agency
+   together -- and Opndoor's four measures as the columns. That is item 20,
+   and it is also the answer to "I want to see the reports for each
+   customer", because a table of all of them IS the per-customer view when
+   what you want is to compare.
+2. **A Reporting tab on each agency and each supplier page**, for the times
+   the question is about one customer in depth rather than all of them at a
+   glance. Same figures, same definitions, reached from the page that already
+   names the customer.
 
-So the shape is: **Reporting (all customers, no picker) + a Reporting tab on
-each agency and each supplier page.**
+The picker is deleted either way. It exists to answer "which customer", and
+both halves answer that without asking: half 1 shows all of them at once,
+half 2 is on the customer's own page.
 
-Two things I need from Matt before building any of it:
+What is still open, and the only thing I need before building:
 
-1. **Is that the shape you want?** Per-customer tab plus one estate-wide page,
-   picker deleted.
-2. **Does the agency-side reader get it too**, or is the Reporting tab
-   opndoor-only? An agency Director seeing their own agency's report is a
-   different feature from an opndoor admin seeing everyone's, and it has a
-   commercial-terms question inside it (rule 3: only a Director sees
-   commission).
+- **Does the agency-side reader get the Reporting tab too**, or is it
+  opndoor-only? An agency Director seeing their own agency's report is a
+  different feature from an opndoor admin seeing everyone's, and it has a
+  commercial-terms question inside it (rule 3: only a Director sees
+  commission). Half 1 is opndoor-only whatever the answer, because it names
+  every customer.
 
-**Blocks:** walk-fix item 15, and the "simpler alternative" one-liner item 7
-asks for -- because if the picker is deleted, item 7's fix is throwaway work.
-Item 7's own fault (the dead control) is shared with this screen, so answering
-this decides whether item 7 is worth fixing at all.
+**Blocks:** walk-fix items 15 and 20, and the "simpler alternative" one-liner
+item 7 asks for -- because if the picker is deleted, item 7's fix is throwaway
+work. Item 7's own fault, the dead control, is shared with this screen, so
+answering this decides whether item 7 is worth fixing at all.
 
 ### NM-A. Who pays the guarantee fee, and how they pay it
 
