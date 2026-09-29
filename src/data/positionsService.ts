@@ -10,6 +10,7 @@
    button. See 20260813070000.
    ===================================================================== */
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import type { Role } from './types';
 
 export type ScopeKind = 'group' | 'agency' | 'branch';
 
@@ -37,7 +38,17 @@ const LEVELS: ScopeKind[] = ['group', 'agency', 'branch'];
  * Noise on a single-agency customer's Team page, where every position is the
  * same level and the prefix only repeats it: there it reads "Regent's Lettings".
  */
-export function describePosition(positions: Position[], showLevel = true): string {
+export function describePosition(positions: Position[], showLevel = true, role?: Role | null): string {
+  /* WALK FIXES 2 AND 11. AN OPNDOOR ADMIN HOLDS NO POSITION BECAUSE THEIR
+     ROLE ALREADY GRANTS EVERYTHING, so the absence of one means the opposite
+     of what the line below assumes. Reading it as "Own referrals" told Matt
+     his own account, and every Opndoor invite, that it could see the least
+     of anybody in the product.
+
+     The positions alone cannot answer this: the role is the thing that
+     decides. Optional, so the call sites that have not been updated behave
+     exactly as they did rather than silently changing what a screen says. */
+  if (role === 'superadmin' || role === 'opndoor_manager') return 'Everything';
   if (!positions.length) return 'Own referrals';
   for (const kind of LEVELS) {
     const at = positions.filter((p) => p.kind === kind);

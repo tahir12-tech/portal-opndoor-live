@@ -213,12 +213,16 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
 
   // ---- role-aware framing ----
   let eyebrow = 'Administration · opndoor admin';
-  let sub = 'Partner staff by partner. Drill into a partner from the Partners screen, or view all partners at once here.';
+  /* WALK FIX 4. "Partner staff by partner ... view all partners at once"
+     said the internal word three times in one sentence. The product calls
+     these companies Suppliers and Agencies now; "partner" survives only as
+     the internal name for a ROUTE, which is a different thing. */
+  let sub = 'Staff at your suppliers and agencies. Open one from the Suppliers screen, or see everyone at once here.';
   let cardTitle = selectedPartner === ALL_PARTNERS ? 'All partner users' : `${partnerName(selectedPartner)} users`;
   let cardSub = selectedPartner === ALL_PARTNERS ? 'Every partner, with a Partner column' : 'Users for this partner';
   if (teamMode) {
     eyebrow = 'opndoor · internal team';
-    sub = 'opndoor’s own admin staff. They sit above all partners and never appear in a partner’s user list.';
+    sub = 'opndoor’s own staff. They see every supplier and agency, and never appear in a customer’s own people list.';
     cardTitle = 'opndoor team';
     cardSub = 'opndoor admin staff only';
   } else if (role === 'management') {
@@ -656,7 +660,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
                         role's own word on the supplier rail, where those
                         levels do not exist (D11). */}
                     <td><span className={`role-tag ${LEVEL_PILL[personLevelLabel(u)] ?? rm[1]}`}>{personLevelLabel(u)}</span></td>
-                    <td className="soft">{positionsService.describePosition(positionsByUser[u.id] ?? [])}</td>
+                    <td className="soft">{positionsService.describePosition(positionsByUser[u.id] ?? [], true, u.role)}</td>
                     <td className="soft">{u.lastActive}</td>
                     <td><Pill variant={sp[1]}>{sp[0]}</Pill></td>
                     <td style={{ textAlign: 'right' }}>
@@ -687,7 +691,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
         onClose={() => setAddOpen(false)}
         width={560}
         title={teamMode ? 'Add opndoor team member' : 'Add user'}
-        sub={teamMode ? 'Add opndoor staff. An admin has full control of the portal; a manager runs the queues across all partners but not the sensitive settings.' : 'Invite a colleague and set their access level.'}
+        sub={teamMode ? 'Add opndoor staff. An admin has full control of the portal; a manager runs the day-to-day queues across every supplier and agency, but not the sensitive settings.' : 'Invite a colleague and set their access level.'}
         footer={<><Button variant="ghost" onClick={() => setAddOpen(false)} disabled={busy}>Cancel</Button><Button variant="primary" onClick={sendInvite} arrow disabled={busy}>{busy ? 'Sending…' : 'Send invite'}</Button></>}
       >
         <div className="form-grid">

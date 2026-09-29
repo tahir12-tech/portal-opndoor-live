@@ -28,6 +28,25 @@ import { getPartner } from './partnersService';
  * supplier; there is no such thing as a developer at one of our agencies today,
  * and if there were, Team is not the screen they came for.
  */
+/**
+ * WHICH PORTAL THE READER IS IN, for the wordmark.
+ *
+ * WALK FIX 3. This was a ternary in Sidebar.tsx: agency, else supplier. An
+ * Opndoor admin is not an agency user, so they fell through to the other
+ * side of a two-way choice that had no branch for the people who run the
+ * place, and the one person who can see every supplier was told they were
+ * inside one.
+ *
+ * Opndoor staff stay "Admin" under View as. The wordmark is chrome: it says
+ * who YOU are, and the scope picker beside it already says who you are
+ * looking at. Changing it would make an admin think they had signed in as
+ * somebody else.
+ */
+export function portalLabel(role: Role, scope: PartnerScope): 'Admin' | 'Agency' | 'Supplier' {
+  if (role === 'superadmin' || role === 'opndoor_manager') return 'Admin';
+  return isAgencyUser(role, scope) ? 'Agency' : 'Supplier';
+}
+
 export function isAgencyUser(role: Role, scope: PartnerScope): boolean {
   if (role !== 'management' && role !== 'referrer') return false;
   return partyIsAgency(scope);

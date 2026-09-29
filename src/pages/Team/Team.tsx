@@ -603,7 +603,7 @@ export function Team() {
         </div>
         <span className={`role-tag ${pillCls}`}>{pillLabel}</span>
         <Pill variant={statusVariant}>{statusLabel}</Pill>
-        <span className="tm-person__pos">{positionsService.describePosition(held, showLevel)}</span>
+        <span className="tm-person__pos">{positionsService.describePosition(held, showLevel, u.role)}</span>
         {/* WHO IS COPIED ON THIS PERSON'S REFERRALS. The rule for who may set
             it lived in SQL and the control lived on one screen an agency
             cannot reach, so an agency's own Directors had the permission and

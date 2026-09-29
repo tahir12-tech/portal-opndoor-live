@@ -8,7 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { reconciliationPendingCount, awaitingDecisionCount, loadAgencyMatchQueue } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { NAV, NAV_CAPABILITY } from '@/constants/nav';
-import { isAgencyUser } from '@/data/capabilities';
+import { portalLabel } from '@/data/capabilities';
 import { useOnClickOutside } from '@/hooks/useOnClickOutside';
 import { usePageMetaValue } from './pageMeta';
 import { Icon } from '@/components/ui/Icon';
@@ -53,7 +53,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             name for a ROUTE, which is a different thing and is why the
             Dashboard's "Partner comm" column keeps its name. */}
         <span className="sb__cobrand">
-          {isAgencyUser(role, partnerScope) ? <>Agency<br />portal</> : <>Supplier<br />portal</>}
+          {portalLabel(role, partnerScope) === 'Admin'
+            ? <>Admin<br />portal</>
+            : portalLabel(role, partnerScope) === 'Agency'
+              ? <>Agency<br />portal</>
+              : <>Supplier<br />portal</>}
         </span>
       </div>
       <div className="sb__product">
