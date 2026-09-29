@@ -40,7 +40,7 @@
 -- difference between a policy that filters and a guard that throws.
 
 begin;
-select plan(90);
+select plan(93);
 
 -- ===========================================================================
 -- THE FIXTURE
@@ -569,6 +569,47 @@ select is(
   (select count(*)::int from public.commission_statement_refs
     where payee_key = 'opndoor-agents|agency:90000000-0000-0000-0000-0000000000a1'),
   1, 'while the Director over that agency still reads it');
+
+/* THE SECOND FACTOR IS NOT OPTIONAL ON THE MONEY TABLES.
+ *
+ * Found while clearing B8. Eighteen tables carry a RESTRICTIVE
+ * `require_aal2` policy. Nine did not, and three of those nine are the
+ * commercial ones: pricing_agreements, pricing_agreement_bands,
+ * commission_tiers.
+ *
+ * Those three do mention is_aal2(), but only inside a PERMISSIVE select
+ * policy, which constrains reading and says nothing about writing. The write
+ * policy beside it is `using (is_admin())`, and is_admin() does not test the
+ * second factor. Measured on dev at aal:aal1, as a real superadmin:
+ *
+ *   is_aal2() false, is_admin() TRUE, may_see_commission() TRUE
+ *   update pricing_agreements      -> 1 row rewritten
+ *   update pricing_agreement_bands -> 1 rate rewritten to 99%
+ *
+ * So an Opndoor admin holding only a password, with no second factor, could
+ * rewrite the commission rate on any deal. That is the one place where a
+ * stolen password alone moves money.
+ *
+ * Fixed by 20261006780000, which gives all nine the same restrictive policy
+ * the other eighteen already had.
+ */
+reset role;
+select set_config('request.jwt.claims',
+  json_build_object('sub', (select id from public.users where role = 'superadmin' and status = 'active' limit 1),
+                    'role', 'authenticated', 'aal', 'aal1')::text, true);
+set local role authenticated;
+
+select is(
+  (select count(*)::int from public.pricing_agreements), 0,
+  'an admin with no second factor cannot even see a pricing agreement');
+
+select lives_ok(
+  $$update public.pricing_agreement_bands set agent_rate = 0.99$$,
+  'a rate rewrite at aal1 raises nothing, because the rows are not visible to it');
+reset role;
+select is(
+  (select count(*)::int from public.pricing_agreement_bands where agent_rate = 0.99), 0,
+  'and it changes nothing: no rate can be moved without the second factor');
 
 reset role;
 
