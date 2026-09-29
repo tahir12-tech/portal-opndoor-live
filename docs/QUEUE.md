@@ -409,49 +409,40 @@ From the scoping of Q-05. Each blocks only the part named.
    that was set up as a supplier by mistake? *Blocks: nothing; the editor will
    warn when it sees the combination either way.*
 
-### NM-E. Six questions the scoping of items 4 to 9 turned up
+### NM-E. ANSWERED, 2026-09-29. Matt's words, verbatim:
 
-None of these existed when the earlier list was written. Each blocks only the
-thing named; everything else in those six items is being built.
+> Answers to the six questions:
+> 1. Keep the settlement date on the statement. Drop only the two things I named.
+> 2. A supplier's Management sees their own commission rates and statements.
+> 3. Reporting and Applications share one remembered scope choice.
+> 4. "Admin view only" on Referred by means that section only; agencies keep their own form as it is.
+> 5. Leaderboard control placement and the audit-table workaround: your call, record what you chose.
+>
+> Still waiting on me, leave parked: how an agency pays the fee itself, and whether to build the four missing alerts.
 
-1. **On the supplier rail, does "Management" see commission?** There is no
-   Director/Manager split for suppliers (that is ruling D11), but the
-   see-commission bit defaults to off, so every supplier manager invited today
-   lands unable to see their own rates. Either supplier Management sees
-   commission, because there is no second tier to hide it from, or it does not
-   and something separate grants it. *Blocks: only the supplier invite dialog.
-   The rest of the supplier People tab is being built.*
+**What each settles, and what it unblocks.**
 
-2. **Where does the referrer leaderboard control belong?** It governs what a
-   supplier's referrers see on the League. It is the one field on the old
-   Manage form that your five-tab list does not place. People or Commission
-   are both reasonable. *Blocks: nothing. It stays where it is until you say.*
+| # | answer | what it changes |
+| --- | --- | --- |
+| 1 | Settlement date stays. | The statement header drops exactly two labels, Payee level and Currency, and keeps Settlement date and Commission type. Unblocks item 7 (F3). |
+| 2 | A supplier's Management sees their own rates and statements. | `SUPPLIER_LEVELS` is a pair, Management and Referrer, and Management carries the see-commission capability. Unblocks the supplier People tab's invite and the Commission tab's figures. Note this is about a supplier seeing its OWN terms; it does not answer NM-C 3, which is about what the editor may SET. |
+| 3 | One remembered scope choice, shared. | The selection moves into the session rather than living twice. Changes item 6 from two independent selections sharing a control to one selection shared by both pages, and means Applications stops overriding admin scope to all partners. |
+| 4 | "Admin view only" is the SECTION. | No route guard changes. An agency negotiator's own new-application form is untouched; the Referred by block is drawn for admins only. Unblocks item 9. |
+| 5 | Mine to choose, and recorded below. | See "Decisions taken on the two Matt handed back". |
 
-3. **The statement header.** Fold F3 says the header is "Payee, Period,
-   Statement reference, Generated, Basis only; drop Payee level and Currency."
-   Applied literally to the two settlement statements that also deletes
-   **Settlement date** — the date Opndoor actually pays — and Commission type,
-   neither of which you named. I have dropped exactly the two you named and
-   kept the other two. Say if you meant the literal five. *One line either
-   way.*
+**Still parked, not to be built:** NM-A (how an agency pays the fee) and NM-B
+(the four alerts nothing raises). NM-C's nine remain unanswered and continue
+to bound the supplier COMMISSION EDITOR's shape: the Commission tab is built
+with today's two-field form lifted unchanged, which decides nothing.
 
-4. **Reporting and Applications: one remembered choice or two?** Your words
-   are "same control", not "same selection". Applications deliberately
-   overrides admin scope to show all partners today, so sharing the value
-   would quietly change what that page shows. Built as two independent
-   selections sharing one control. *About 15 lines to change if you meant one.*
+### Decisions taken on the two Matt handed back
 
-5. **"Admin view only" on the new-application form.** Almost certainly you
-   mean the Referred by SECTION is admin-only, not that the whole page becomes
-   admin-only — reading it the other way would stop every agency negotiator
-   referring a tenant. Building the first reading. *One line if you meant the
-   second.*
+He asked me to choose these and say what I chose.
 
-6. **A build choice, flagged rather than hidden.** The view-as audit table
-   only accepts the kinds "partner" and "agency", so selecting a GROUP cannot
-   be recorded under its own name. Logging a group as an agency with the group
-   name, and not logging rail-wide or Everything selections, which are not a
-   view of any one party. The alternative is widening the audit table.
+| # | Decision | Reasoning |
+| --- | --- | --- |
+| D14 | The referrer leaderboard control goes on the supplier's **People** tab, not Commission. | It governs what a supplier's referrers SEE of each other, which is a question about people and visibility, not about money. Nothing on it is a rate, a band or a statement. Putting it on Commission would also hide it behind the see-commission capability, and after answer 2 that is exactly the set of people it is not about. |
+| D15 | A group selection is audited as kind `agency` carrying the group's name and the word "group"; rail-wide and Everything selections are not audited at all. | The audit table admits only `partner` and `agency`. Widening it is a migration to the audit trail of who looked at whose data, and I am not making that change to record a UI convenience. "Everything" and a whole rail are not a view of any one party, so there is no party to log; logging them would put rows in a table whose column means something else. If the audit needs to distinguish a group later, that is a migration made deliberately rather than as a side effect of this screen. |
 
 ### NM-D. One hole on the live system the hotfix deliberately does not close
 
