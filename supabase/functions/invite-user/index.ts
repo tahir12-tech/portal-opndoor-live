@@ -194,7 +194,11 @@ Deno.serve(async (req) => {
        test written for H3 missed it because it exercised the extracted
        decision rather than this path. */
     const { data: existing } = await service
-      .from("users").select("id, role, partner_id, home_branch_id").ilike("email", email).maybeSingle();
+      // .eq, not .ilike: `email` is request-body text and .ilike takes a LIKE
+      // PATTERN, so `%` and `_` reach the database. 20261006710000 normalises
+      // users.email to lowercase on write, so equality on the lowercased key
+      // is exact. Backlog B4.
+      .from("users").select("id, role, partner_id, home_branch_id").eq("email", email).maybeSingle();
     let alreadyPositioned = false;
     if (existing) {
       const { count } = await service

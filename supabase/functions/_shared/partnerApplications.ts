@@ -69,23 +69,42 @@ async function resolveReferrer(
   partnerId: string,
   email: string,
 ): Promise<{ id: string } | { error: FieldError }> {
+  /* THE ADDRESS IS MATCHED EXACTLY, NOT AS A PATTERN. Backlog B4.
+     `.ilike()` takes a SQL LIKE pattern, and `email` is the request body
+     verbatim -- so `a%@rightmove.co.uk` matched, and the refusal below
+     answered yes or no about it. That is a cross-partner existence oracle for
+     other suppliers' staff addresses, binary-searchable at the API's own rate
+     limit, creating nothing. The lookup wants equality, case-insensitively,
+     which is what lower() gives without a pattern language. */
+  const key = email.trim().toLowerCase();
+
   const { data: mine } = await service
     .from("users")
     .select("id")
     .eq("partner_id", partnerId)
-    .ilike("email", email)
+    .eq("email", key)
     .maybeSingle();
 
   if (mine) return { id: mine.id };
 
-  // Is the address known under a DIFFERENT partner? If so, refuse. The message
-  // deliberately does not say which partner, or even confirm one exists.
-  const { data: elsewhere } = await service
+  /* Is the address known under a DIFFERENT partner? If so, refuse. The message
+     deliberately does not say which partner, or even confirm one exists.
+
+     NOT `.neq("partner_id", …)`. Backlog B5: SQL `<>` is never true for NULL,
+     and users_partner_by_role REQUIRES partner_id to be NULL for every
+     superadmin and opndoor_manager -- so this guard was blind to exactly the
+     accounts that matter most. Asked as "known to somebody who is not us",
+     which includes them.
+
+     And `.limit(2)` rather than maybeSingle: maybeSingle ERRORS on two rows
+     and the error was discarded, so two matches read as "not known" -- the
+     opposite of the intended answer. */
+  const { data: others } = await service
     .from("users")
-    .select("id")
-    .neq("partner_id", partnerId)
-    .ilike("email", email)
-    .maybeSingle();
+    .select("id, partner_id")
+    .eq("email", key)
+    .limit(2);
+  const elsewhere = (others ?? []).some((u: { partner_id: string | null }) => u.partner_id !== partnerId);
 
   if (elsewhere) {
     return {

@@ -41,6 +41,15 @@ const FILES = readdirSync(DIR)
 
 const read = (rel: string) => readFileSync(join(DIR, rel), 'utf8');
 
+/* COMMENTS STRIPPED, and that is not a detail. Half these files explain the
+   defect they fixed by quoting the old form verbatim, so an unstripped scan
+   flags every fix as the bug -- and a lint that cries wolf gets switched off
+   within a week, which is the real failure mode. migrationPatterns.test.ts
+   makes the same point about the SQL side. */
+const code = (rel: string) => read(rel)
+  .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+
 /** Every identifier bound to an expression that reads a request header. */
 function fromRequest(src: string): string[] {
   const names = new Set<string>();
@@ -57,6 +66,31 @@ function fromRequest(src: string): string[] {
 function presentedAsBearer(src: string): string[] {
   return [...src.matchAll(/Bearer\s+\$\{([^}]+)\}/g)].map((m) => m[1].trim());
 }
+
+/* AND A CALLER'S TEXT IS NOT A QUERY PATTERN. Backlog B4, same family: a
+ * value the caller chose, used as something it is not. `.ilike()` takes a SQL
+ * LIKE pattern, so request-body text reaching it means `%` and `_` reach the
+ * database. In resolveReferrer that turned a deliberate refusal --
+ * "this address is not available as a referrer" -- into a cross-partner
+ * existence oracle for other suppliers' staff, binary-searchable and creating
+ * nothing.
+ *
+ * users.email is normalised to lowercase on write (20261006710000), so
+ * equality on a lowercased key is exact and no pattern is needed anywhere. */
+describe('looking somebody up by the address they sent', () => {
+  it('never matches it as a LIKE pattern', () => {
+    const pattern = FILES.filter((f) => /\.ilike\(\s*["']email["']/.test(code(f)));
+    expect(pattern).toEqual([]);
+  });
+
+  it('and does not use .neq on a nullable column, which never matches NULL', () => {
+    // Backlog B5: users_partner_by_role REQUIRES partner_id to be NULL for
+    // every superadmin and opndoor_manager, so `.neq("partner_id", x)` was
+    // blind to exactly the accounts that matter.
+    const neq = FILES.filter((f) => /\.neq\(\s*["']partner_id["']/.test(code(f)));
+    expect(neq).toEqual([]);
+  });
+});
 
 describe('edge functions', () => {
   it('were found, so a broken glob cannot pass silently', () => {
