@@ -129,6 +129,76 @@ outside this file refers to them.
 
 ## Needs Matt
 
+### NM-0. The 35 orphan accounts are DEV, and the production question is narrower than it looked
+
+**2026-09-29.** Matt ran "auth.users rows with no public.users row" and got 35,
+including `walk*/probe*/bulk*@example.invalid` (21 August), `test@test.com`,
+`john@wayne.com`, `mdwyer@opndoor.co` and six throwaway addresses that had
+signed in.
+
+**Those are dev accounts.** Dev returns exactly 35 for the same query and every
+address named is present with the same dates. The query was run against
+`nfufwcpgrhfgwtphegca` (dev), not production. I cannot read production and have
+not tried.
+
+**And "orphan" is the wrong thing to count.** Broken down on dev:
+
+| | count |
+| --- | --- |
+| orphans | 35 |
+| of those, **applicants (tenants)** | **32** |
+| neither a user nor an applicant | 3 |
+| holding a **verified MFA factor** | **1** |
+
+A tenant having an `auth.users` row and no `public.users` row is the DESIGNED
+shape: the tenant rail is service-role-only behind `tenant-portal`/`tenant-auth`
+and tenants never get a staff row. So 32 of the 35 are not anomalies at all.
+And all four affected functions on `main` open with
+`if not public.is_aal2() then raise 'MFA required'`, so an account without a
+verified MFA factor cannot reach the flaw whatever else is true of it. On dev
+exactly one orphan qualifies: `dev@foolettings.test`, a test fixture from
+10 August.
+
+**The query to run on production** is therefore not the one that returned 35.
+It is this, and it should return zero:
+
+```sql
+select au.id, au.email, au.created_at, au.last_sign_in_at
+from auth.users au
+left join public.users u  on u.id  = au.id
+left join public.applicants ap on ap.id = au.id
+where u.id is null
+  and ap.id is null
+  and exists (select 1 from auth.mfa_factors f
+               where f.user_id = au.id and f.status = 'verified');
+```
+
+That is "somebody who can complete MFA and is neither staff nor a tenant" --
+in practice a former staff member deleted from `public.users` while their
+`auth.users` row and MFA factor survived. **What I need: that query run on
+production.** If it returns rows, each one can do the four things below on live
+data until the branch ships.
+
+#### What those four functions let such an account do on `main`
+
+For a caller with no `public.users` row, `app_role()` is NULL, so in every
+guard below `(r = 'management' and ...)` is NULL and `(r = 'referrer' and
+owned)` is false; `false or NULL or false` is NULL, `not NULL` is NULL, and
+`if NULL then raise` does not fire. All four are reachable, and each has a
+SECOND gate that is defeated the same way.
+
+| function on main | reached by | what it does once past the guard |
+| --- | --- | --- |
+| `mark_withdrawn(ref, reason, note)` | guarantee ref, which is sequential | Refuses unless `status = 'sent'`, then sets status `withdrawn` and stamps `withdrawn_by`. **Kills any unpaid referral, at any agency, before the tenant pays.** Revenue path denial of service; recoverable by an admin, but the tenant has been told it is cancelled. |
+| `add_application_note(ref, body)` | guarantee ref | No status restriction. Inserts a **business-visible** note (up to 2000 chars) on any application, authored as the orphan. Also an existence oracle for any ref. |
+| `amend_tenancy_start(uuid, date)` | application UUID | Second gate `can_amend_tenancy_start(NULL, …)` also returns NULL, **including on `status='deed'` / `deed_state='executed'`**. `expiry_date` is GENERATED from `tenancy_start`, so this **silently moves the expiry of an already-executed Deed of Guarantee** — up to five years out or back to 2000. The most serious of the four: it changes the term of a signed legal instrument with no audit row. |
+| `send_deed_to_agent(uuid, email, bool)` | application UUID | Second gate `can_send_deed(NULL, owned)` returns NULL. Requires `status='deed'`. The `r = 'referrer'` clamp on a caller-supplied address is also NULL, so the orphan may pass **any** recipient address; the function resolves and authorises and the edge function then emails **the executed deed** there. Note it has NO explicit grant on main and both blanket revokes predate its creation, so it keeps the default PUBLIC EXECUTE. |
+
+`applications.referrer_id` is `not null` on main, so the OTHER route into the
+same flaw (a NULL referrer) does not reach production; it is opened only by
+`20260812090000_referrer_optional.sql`, which is branch-only.
+
+
 Things asked for earlier that are NOT recoverable from this repository or from
 the session transcript, so they are not in the queue below. I am not guessing
 at them.
