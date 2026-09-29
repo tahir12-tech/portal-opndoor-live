@@ -569,7 +569,18 @@ bug.
 
 ---
 
-### Status: nothing built, and THE SEVEN ARE PAUSED
+### Status, updated as the night run proceeds
+
+| what | state |
+| --- | --- |
+| R1-R7, all seven | **DONE**, each with a test that failed first, all applied to dev |
+| Walk fix 13 (invite asks where they sit) | **DONE** `bdf260c` -- Matt ranked it first |
+| Walk fix 14 (plain-English errors) | **DONE** `bdf260c` |
+| Walk fixes 1-12, 15-30 | in progress, in order |
+| DEFECTS.md | after the walk fixes |
+| The end-to-end walk | last |
+
+### Superseded status note (kept for the sequence)
 
 "Do not build anything yet; I'm walking dev and it must not change under me"
 stops the R1-R7 work too, because every one of those fixes is a migration
