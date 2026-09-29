@@ -774,9 +774,9 @@ portal calls, not a second implementation that agrees with them today.
 | R2 | Partial refund recorded as a total refund | `a_partial_refund_is_not_a_total_refund.test.sql` (6/11 failed first) + `aPartialRefundKeepsTheGuarantee.test.ts` (1/6 failed first) | **YES, and worse** | **DONE** `581d21c` |
 | R3 | 50% cap + preview ignores agreements | `the_preview_shows_what_is_actually_paid.test.sql` (1/6 failed first) | no, feature absent | **DONE** `017f4f3`. **Half did not reproduce**: the cap IS enforced and DOES see joint bands (measured, a 0.55 joint band refused by name). Only the preview was wrong: it showed 0.10 where the agreement pays 0.30. |
 | R4 | Definer RPCs return the commission rates | `the_rates_are_not_in_the_reply.test.sql` (3/9 failed first) | **partly, by another route** | **DONE** `90b7f4d`. **Six, not four.** Measured: a Negotiator got partner_rate 0.30 and agent_rate 0.10 back from `create_referral`. |
-| R5 | Tenancy-start correction fixes only one of a joint pair | | no, feature absent | todo |
-| R6 | Commission rates writable from the browser, no audit row | | **YES, and worse** | todo |
-| R7 | `create_referral_api` resolves no fee and no rates | | no, feature absent | todo |
+| R5 | Tenancy-start correction fixes only one of a joint pair | `a_tenancy_has_one_start_date.test.sql` (4/8 failed first) | no, feature absent | **DONE** `f681a5a` |
+| R6 | Commission rates writable from the browser, no audit row | `the_money_goes_through_the_front_door.test.sql` (5/8 failed first) | **YES, and worse** | **DONE** `9380426`. Found worse than reported: a **90% band went straight in**, because the 50% cap is called by the save RPC and is not a trigger. |
+| R7 | `create_referral_api` resolves no fee and no rates | `the_api_prices_like_the_portal.test.sql` (7/9 failed first) | no, feature absent | **DONE** `feeeebc`. Refusal built as Matt specified; no payment path. |
 
 ### Does it exist on live? Answered, 2026-09-29. Read-only, git only.
 
@@ -1398,6 +1398,33 @@ only matters if partial refunds become common.
 
 **Blocks nothing.** The fix is complete and safe without an answer; this only
 decides whether a later migration adjusts the figure.
+
+### NM-J. Should a supplier-rail band move the agent rate, or only the fee basis? Raised by R7.
+
+Found while making the partner API price like the portal, and deliberately
+NOT changed, because it is money.
+
+**What happens today.** A pricing agreement's band carries both a
+`fee_basis_weeks` and an `agent_rate`. On the **agency estate** both are
+used: `commission_total` applies the band's rate. On the **supplier rail**
+only the basis is used, and the agent rate stays the partner's flat rate.
+
+Measured on a clean apply: a band of 3 weeks at 20% against a partner whose
+flat rate is 10% produced a three-week fee basis and a **10%** agent rate.
+
+**Why it was left alone.** The PORTAL does exactly the same thing -- R7's
+assertion 4 proves the two paths agree figure for figure -- so changing it
+inside the API fix would have made the API disagree with the portal, which is
+the opposite of what Matt asked for. And it is a commercial question, not a
+defect: it decides what a supplier's agent is actually paid.
+
+**The question:** when a supplier-rail agreement names an agent rate in a
+band, should that rate be paid, or is the band's rate only ever meaningful on
+the agency estate? If the former, is it a change to existing agreements or
+only to new ones?
+
+**Blocks nothing.** R7 is complete and the two paths agree. This only decides
+whether a later migration changes what the supplier rail pays.
 
 ### NM-A. Who pays the guarantee fee, and how they pay it
 
