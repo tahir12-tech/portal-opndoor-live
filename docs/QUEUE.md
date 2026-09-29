@@ -86,8 +86,24 @@ unambiguous.
 | 1. The live hotfix for Balal | **done** `476d587` |
 | 2. Verify the Regent correction, fix the two documents | **done** (this commit) |
 | 3. Verify the monthly commission statement fault, fix it, prove a statement sends | **done** (this commit) |
-| 4. Items 3 to 13 of the thirteen | in progress, starting at 3 (supplier commission) |
+| 4. Items 3 to 13 of the thirteen | in progress -- see below |
 | 5. Climber of the week's test, and the team tickbox | **done** `5497a6a` |
+
+**Item 4 in detail.**
+
+| of the thirteen | status |
+| --- | --- |
+| 3. Supplier commission (Q-05) | as far as it can go: amendments 3 and 4 **done** (`1d25b6a`), the Suppliers rename **done** (`37c8b13`). The paid-by switch, the supplier statement and the editor's shape are blocked on NM-A and NM-C. |
+| 4. Supplier detail page as tabs | scoping |
+| 5. Reporting under View as | scoping |
+| 6. Searchable scope picker | scoping |
+| 7. Exports and statement | scoping |
+| 8. Three agency levels in admin screens | scoping |
+| 9. "Referred by" on New application | scoping |
+| 10. HubSpot consequences report | in progress |
+| 11. The end-to-end walk on dev | todo |
+| 12. Handover and cutover checklist | todo, and last: it summarises the rest |
+| 13. The one final review round | todo, and after 12 |
 
 Item 5 was taken out of order because items 1 to 3 were blocked on a scoping
 run and it was fully independent. Both halves turned out to be built already;
