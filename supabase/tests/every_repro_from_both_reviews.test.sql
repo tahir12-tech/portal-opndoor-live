@@ -109,13 +109,17 @@ set local role authenticated;
 select is((select count(*)::int from public.applications), 1,
   'before: our Director sees one application, their own agency''s');
 
--- The PATCH itself. It used to succeed and move the boundary; it is now
--- refused by a column trigger, whatever else the row policy allows.
+-- The PATCH itself. It used to succeed and move the boundary; it was then
+-- refused by a column trigger, and since 20261006550000 the column is not
+-- granted to authenticated at all, so the refusal now arrives from the grant
+-- before any trigger runs. Still 42501, and the trigger is still there behind
+-- it for anybody holding the grant; what is asserted here is that the PATCH
+-- does not move the boundary.
 select throws_ok(
   $$update public.users set home_branch_id = '96000000-0000-0000-0000-0000000000b2'
      where id = '96000000-0000-0000-0000-00000000c001'$$,
-  '42501', 'Where somebody sits is changed from their row by a manager who reaches them, not by editing this field.',
-  'PATCHing your own home branch is refused, and says who does set it');
+  '42501', null,
+  'PATCHing your own home branch is refused');
 
 -- And the second, independent half: even if the column moved, it no longer
 -- decides anything. app_scoped_agencies reads positions and nothing else.

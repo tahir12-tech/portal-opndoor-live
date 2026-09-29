@@ -87,10 +87,16 @@ select lives_ok(
      where id = '93000000-0000-0000-0000-00000000e0a3'$$,
   'nor does changing their email address');
 
-select lives_ok(
+-- Moving somebody used to be a row-policy question and is now a GRANT one:
+-- 20261006550000 took UPDATE on home_branch_id away from authenticated
+-- altogether, because set_home_branch is the only door and nothing in the
+-- product writes the column. Refused earlier and harder, so the assertion
+-- moves with it.
+select throws_ok(
   $$update public.users set home_branch_id = '93000000-0000-0000-0000-0000000000b1'
      where id = '93000000-0000-0000-0000-00000000e0a3'$$,
-  'nor moving them to one of my own branches');
+  '42501', null,
+  'nor moving them to one of my own branches, which is no longer even a writable column');
 
 reset role;
 select is(

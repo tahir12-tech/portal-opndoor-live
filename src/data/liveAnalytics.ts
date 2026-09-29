@@ -520,7 +520,12 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
     if (app.sentAt && idx(app.sentAt) >= lo && idx(app.sentAt) <= hi) { const m = at(app.sentAt); if (m) m.refs += 1; }
     if (app.paidAt && idx(app.paidAt) >= lo && idx(app.paidAt) <= hi) {
       const m = at(app.paidAt);
-      if (m) { m.fees += feeBaseFor(app); if (!app.refunded && seesComm) m.comm += feeBaseFor(app) * app.partnerRate; }
+      /* isHousePartner, not agentRailApp. On a HOUSE partner partnerRate is
+         Opndoor's own cut and must never appear as the reader's commission;
+         a NAMED partner configured 'opndoor_referenced' is still owed real
+         commission, and zeroing by referencing mode would wipe a legitimate
+         supplier settlement. :220 already draws the line this way. */
+      if (m) { m.fees += feeBaseFor(app); if (!app.refunded && seesComm) m.comm += feeBaseFor(app) * (isHousePartner(app.partner) ? 0 : app.partnerRate); }
     }
     if (app.deedAt && idx(app.deedAt) >= lo && idx(app.deedAt) <= hi) { const m = at(app.deedAt); if (m) m.deeds += 1; }
   }
@@ -619,6 +624,17 @@ export function getCommissionSettlement(role: Role, scope: PartnerScope, window:
   for (const a of set) {
     if (!inRange(a.paidAt, bStart, bEnd)) continue;
     if (a.refunded) continue; // net of refunds: a refunded application earns no commission
+    /* OPNDOOR'S OWN MARGIN IS NOT THE AGENCY'S BUSINESS. Round 6. This was
+       the one commission accumulator in the file with no rail test -- compare
+       the three at :199, :412 and :664 -- so an agency Director's Reporting
+       page carried a line "Agency referral - £X" where X is 25% of their own
+       fees, which is Opndoor's house cut on their book, and added it to what
+       they were owed. A Director divides that line by the fees beside it and
+       reads our margin. Rule 3 makes commercial terms Director-level; it does
+       not make OUR terms theirs. The export path already refused this
+       (exportsService returns an empty export for an agency reader); the
+       screen did not. */
+    if (isHousePartner(a.partner)) continue;
     const commission = feeBaseFor(a) * a.partnerRate;
     let ps = byPartner.get(a.partner);
     if (!ps) { ps = { partner: a.partner, partnerName: partnerName(a.partner), commission: 0, apps: [] }; byPartner.set(a.partner, ps); }

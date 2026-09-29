@@ -24,6 +24,8 @@
  * back the unpositioned account that 20261006300000 exists to forbid.
  */
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   NEEDS_A_POSITION,
   resolveInvitePosition,
@@ -52,6 +54,37 @@ describe('re-inviting somebody who already holds a position', () => {
   it('is allowed for a negotiator too, who also sends no branch on a resend', () => {
     const out = resolveInvitePosition(resend({ role: 'referrer' }));
     expect(out.ok).toBe(true);
+  });
+});
+
+/* AND THE PATH, not only the decision.
+ *
+ * The first version of this file asserted resolveInvitePosition alone and
+ * passed while "Resend invite" was still refused -- because a SECOND
+ * requirement, the negotiator's home branch, sat forty lines ABOVE the
+ * `existing` lookup in invite-user and answered "Choose the branch this
+ * negotiator will work at" before the decision under test was ever reached.
+ * Round 6 found it. A unit test of an extracted rule says nothing about
+ * whether the caller reaches it, and the ordering is the thing that broke, so
+ * the ordering is what is asserted here.
+ */
+describe('invite-user reaches that decision', () => {
+  const src = readFileSync(
+    join(process.cwd(), 'supabase', 'functions', 'invite-user', 'index.ts'), 'utf8');
+  const at = (needle: string) => {
+    const i = src.indexOf(needle);
+    expect(i, `not found in invite-user: ${needle}`).toBeGreaterThan(-1);
+    return i;
+  };
+
+  it('knows whether this is a re-invite before it requires anything of them', () => {
+    const lookup = at('const { data: existing }');
+    expect(lookup).toBeLessThan(at('Choose the branch this negotiator will work at'));
+    expect(lookup).toBeLessThan(at('resolveInvitePosition({'));
+  });
+
+  it('asks a re-invite for no branch, because resendInvite sends none', () => {
+    expect(src).toMatch(/else if \(callerScoped && !existing\)/);
   });
 });
 

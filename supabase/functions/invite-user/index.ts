@@ -185,6 +185,23 @@ Deno.serve(async (req) => {
       .from("partners").select("referencing_mode").eq("id", inviteePartnerId).maybeSingle();
     const inviteeOnOurEstate = inviteePartner?.referencing_mode === "opndoor_referenced";
 
+    /* WHO THIS IS, BEFORE ANY REQUIREMENT IS PUT ON THEM. Round 6, H1. The
+       position requirement was moved below this lookup when round 5's H3 was
+       fixed; the BRANCH requirement below was not, so "Resend invite" on a
+       pending Negotiator still answered "Choose the branch this negotiator
+       will work at" for every caller holding a position -- which is every
+       agency Director and Manager. Same defect, one block higher up, and the
+       test written for H3 missed it because it exercised the extracted
+       decision rather than this path. */
+    const { data: existing } = await service
+      .from("users").select("id, role, partner_id, home_branch_id").ilike("email", email).maybeSingle();
+    let alreadyPositioned = false;
+    if (existing) {
+      const { count } = await service
+        .from("user_scopes").select("user_id", { count: "exact", head: true }).eq("user_id", existing.id);
+      alreadyPositioned = (count ?? 0) > 0;
+    }
+
     // Record the negotiator's home branch, so the scoped manager who invited them
     // sees them from day one (before any referral). branches_select is already
     // narrowed to the caller's position, so a row returned through the caller-scoped
@@ -199,7 +216,11 @@ Deno.serve(async (req) => {
           return json({ ok: false, error: "Choose a branch within your remit for this negotiator." }, 400);
         }
         homeBranchId = br.id;
-      } else if (callerScoped) {
+      } else if (callerScoped && !existing) {
+        // A RE-INVITE GRANTS NO BRANCH, for the same reason it grants no
+        // position: this path creates nobody, and where they sit was settled
+        // when they were invited. Asking again is a question with no control
+        // behind it, because resendInvite sends neither.
         return json({ ok: false, error: "Choose the branch this negotiator will work at." }, 400);
       }
     }
@@ -224,15 +245,6 @@ Deno.serve(async (req) => {
        lookup now happens first and the question is whether the requirement is
        already SATISFIED -- not whether this is a create, because somebody
        from before 20261006300000 can exist and hold nothing. */
-    const { data: existing } = await service
-      .from("users").select("id, role, partner_id").ilike("email", email).maybeSingle();
-    let alreadyPositioned = false;
-    if (existing) {
-      const { count } = await service
-        .from("user_scopes").select("user_id", { count: "exact", head: true }).eq("user_id", existing.id);
-      alreadyPositioned = (count ?? 0) > 0;
-    }
-
     const placed = resolveInvitePosition({
       inviteeOnOurEstate, scopeKind: scopeKind || null, scopeTarget: scopeTarget || null,
       role, homeBranchId, alreadyPositioned,

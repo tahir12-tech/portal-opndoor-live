@@ -1034,8 +1034,19 @@ export function Dashboard() {
           on two different screens.
 
           FinanceSurfaces refuses itself for a reader who may not see
-          commission, so the gate is not this line's to get right. */}
-      <FinanceSurfaces role={role} partnerScope={partnerScope} />
+          commission, and that was never the right gate: a Director passes it.
+          Round 6 found the consequence -- the whole "Supplier commission
+          settlement" section, headed "Commission payable to Agency referral",
+          with a per-application table of the agency's own book at Opndoor's
+          cut, rendered for every agency Director. It also double-rendered
+          SettlementBlocks, which is mounted above under its own RoleOnly, and
+          that duplicate was the visible tell.
+
+          This is an opndoor money-ops surface. The gate is the seat, not the
+          capability. */}
+      <RoleOnly roles={['superadmin']}>
+        <FinanceSurfaces role={role} partnerScope={partnerScope} />
+      </RoleOnly>
 
     </>
   );

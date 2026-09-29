@@ -130,12 +130,19 @@ select throws_ok(
   '42501', null,
   'a Director cannot create a person at a branch of an agency they do not hold');
 
-select lives_ok(
+-- AND SINCE 20261006550000 THE DOOR IS SHUT ENTIRELY. The containment above
+-- is still the policy's rule and still correct, but authenticated no longer
+-- holds INSERT on public.users at all: nothing in the product inserts that
+-- table directly, and the policy's own role allowlist admitted 'developer',
+-- which would have seated one on the house route. A person is made by
+-- create_invited_user, which the functional guard exercises.
+select throws_ok(
   $$insert into public.users (id, full_name, email, role, partner_id, status, sees_commission, home_branch_id)
     values ('98000000-0000-0000-0000-00000000c003','ZZZ Lows New','zzz.lows.new@l.test','referrer',
             (select id from public.partners where slug='opndoor-agents'),'active',false,
             '98000000-0000-0000-0000-0000000000b2')$$,
-  'and can create one at their own other office, so the containment is not a closure');
+  '42501', null,
+  'and cannot create one at their own office either: a person is made by create_invited_user, not by writing the table');
 
 -- ===========================================================================
 -- 5. A DEACTIVATED REFERRER IS NOT AN EXPIRY RECIPIENT

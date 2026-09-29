@@ -397,6 +397,47 @@ branch. **What Matt or Balal should check on the live project:** whether any
 `auth.users` row exists with no matching `public.users` row.
 
 ---
+### Round 6's findings (2026-09-29)
+
+Four fresh reviewers, on four dimensions: cross-company isolation, the level
+ladder, what leaves the building, and LOCKS. Two of them found defects in work
+committed earlier the same day, which is the point of a fresh reviewer.
+
+| # | Finding | Status |
+| --- | --- | --- |
+| H1 | `authenticated` held table-wide UPDATE on `public.users` and both gates read the PRE-image, so a Manager PATCHed their Negotiator to `developer` on the house route. Measured, rolled back. | **done** `20261006550000` |
+| H2 | `set_agency_group(agency, null)` let an agency manager detach their own agency from its group, removing it and all its people from the group Director's reach, irreversibly except by Opndoor. | **done** `20261006550000` + `20261006560000` |
+| H3 | `notification_recipients` and `notification_enabled` (mine, committed an hour earlier) were granted to `authenticated` with no authorisation of any kind: a Negotiator at aal1 read another agency's staff names and addresses. | **done** `20261006570000` |
+| H4 | LOCK: "Resend invite" still refused every positioned Director/Manager — the home-branch requirement sat above the `existing` lookup. Round 5's H3, one block higher, and my test missed it by exercising the extracted helper rather than the path. | **done** `invite-user/index.ts` |
+| H5 | LOCK: `dev_sandbox_application_document` was revoked from `authenticated` but called caller-scoped, so the sandbox signing link was a hard 42501 for developer and admin alike. | **done** `20261006570000` |
+| H6 | An agency Director's Reporting page stated Opndoor's own 25% house cut on their own book and added it to what they were owed. | **done** `liveAnalytics.ts` |
+| H7 | `FinanceSurfaces`, the Opndoor money-ops surface, was mounted for every Director, not just superadmin. | **done** `Dashboard.tsx` |
+| M1 | `create_invited_user` did not validate `p_role`, so any role outside management/referrer skipped the level assertion entirely — a second door to a developer on the house route. | **done** `20261006550000` |
+| M2 | `create_invited_user` never checked `p_home_branch`. | **done** `20261006550000` |
+| M3 | `agency_weekly_digest` pins `= 'Agent referral'`, so a supplier agency's digest is all zeros and the reader is dropped — while `staff_notification_scopes` has a supplier arm added for exactly that reason. | todo |
+| M4 | The tenancy-correction replay guard is per-token, and every deed send mints another, so the same destructive correction replays on a second link. | todo |
+| M5 | `commission_statement_lines` has no rail exclusion, so a matched direct-rail application becomes the matched agency's statement payee. Held off today only by `opndoor-direct`'s rate being 0. | todo |
+| M6 | `referencing-inbound`'s idempotency claim is keyed on `table_id` alone, so any inbound token can claim or burn another agency's hand-over. Not yet in use (zero rows). | todo |
+| M7 | The re-invite path never asks the ladder: a Manager can trigger a recovery link and an audit row against the Director above them. | todo |
+| M8 | Five `language sql` functions still answer a password-only session (`agreement_for_agency`, `commission_preview`, `commission_split_batch`, `org_deed_readiness`, `org_rate_tiers`). The two plpgsql ones are done. | todo |
+| M9 | Direct-rail rows counted into agency/branch counters in `hydrate.ts`; a group page's "What they earned" lists every payee on the rail; direct rows become an invented agency payee in `commissionSplit.ts`. | todo |
+| M10 | `set_receives_notifications` can never be used on a supplier colleague (its scope test requires the TARGET to hold a position, which only estate users do). | todo |
+| M11 | `opndoor_manager` sees the notifications tick on the agency People tab and every click raises 42501. | todo |
+| M12 | `set_home_branch` has no caller anywhere in the product: a home branch cannot be corrected after invite. | todo |
+| L | Several lows: unescaped ILIKE in the partner-API referrer lookup (a cross-partner existence oracle); `.neq("partner_id", …)` misses NULL; `send-password-reset` falls back to the caller's origin; `commission_statement_refs` has no may-see-commission policy; `partner_agency_relationships` has no AAL2 policy; `detach_user_from_agency` needs no group/agency position; `set_branch_deed_recipient` uses partner_id as "same organisation"; localStorage working copies survive sign-out. | todo |
+
+**Does round 6 reach production?** No. `main` carries 65 migrations, newest
+`20260705171000`. Every function and file named above is branch-only, except
+the `public.users` grant in H1 — and on `main` `users_mgmt_update` did not yet
+exist, so the PATCH had no policy to admit it.
+
+**A weakness in my own check, found by the reviewer and worth recording:**
+`definerAllowlistCoverage.test.ts` counts a function as covered if its name
+appears in any pgTAP file. It does not require that the test actually asserts a
+REFUSAL, so a definer function with no reach check can pass the ratchet. That
+is how H3 would have sailed through. Tightening it is a todo.
+
+---
 ## Q-01b. The deed goes to the referrer AND every ticked user in scope
 
 **Status: done.** `20261006450000`, plus the Team-side control and two test

@@ -233,17 +233,30 @@ select lives_ok(
    than a write that raises, and the assertion has to say which it is rather
    than expecting the old sentence. The trigger is still proved below, on the
    equal the policy does admit. */
-select lives_ok(
-  $$update public.users set status = 'deactivated' where id = '95000000-0000-0000-0000-0000000000d2'$$,
-  'a Manager deactivating her Director through the table now matches nothing at all');
+/* AND THEN REFUSED EARLIER AGAIN. 20261006550000 took UPDATE on role,
+   sees_commission and status away from authenticated altogether: nothing in
+   the product writes those columns, every change goes through an RPC, and
+   leaving the grant meant a Manager could PATCH a Negotiator to 'developer'
+   because both gates on that write read the PRE-image and never looked at the
+   level the row became.
 
-select lives_ok(
-  $$update public.users set role = 'referrer' where id = '95000000-0000-0000-0000-0000000000d2'$$,
-  'and so does demoting her, which is the escalation that was open');
+   So these three now ask the ladder through the doors the product actually
+   uses. That is the stronger test: it is the path a real Manager takes, and it
+   reaches assert_may_act_on_user rather than the trigger that was only ever
+   defending the direct write. */
+select throws_ok(
+  $$select public.admin_set_user_status('95000000-0000-0000-0000-0000000000d2','deactivated')$$,
+  '42501', null,
+  'a Manager cannot deactivate her Director');
 
 select throws_ok(
-  $$update public.users set status = 'deactivated' where id = '95000000-0000-0000-0000-0000000000d5'$$,
-  '42501', 'You can only change the level or access of someone below your own level.',
+  $$select public.set_agency_level('95000000-0000-0000-0000-0000000000d2','Negotiator')$$,
+  '42501', null,
+  'nor demote her, which is the escalation that was open');
+
+select throws_ok(
+  $$select public.admin_set_user_status('95000000-0000-0000-0000-0000000000d5','deactivated')$$,
+  '42501', null,
   'nor deactivate an equal');
 
 -- ...and the Director is untouched by either, which is what those two assertions
@@ -258,7 +271,7 @@ set local role authenticated;
 -- A LADDER, NOT A WALL. The trigger must leave the legitimate write alone, and must
 -- not fire on a column it does not govern.
 select lives_ok(
-  $$update public.users set status = 'deactivated' where id = '95000000-0000-0000-0000-0000000000da'$$,
+  $$select public.admin_set_user_status('95000000-0000-0000-0000-0000000000da','deactivated')$$,
   'but she may deactivate a Negotiator, who is below her');
 
 select lives_ok(

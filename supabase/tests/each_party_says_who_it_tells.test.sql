@@ -89,8 +89,17 @@ set local role authenticated;
 select lives_ok(
   $$select public.set_notification_setting(null, '99000000-0000-0000-0000-0000000000a1', 'lapse', 'ticked_users', false)$$,
   'a Director edits their own agency''s matrix');
+/* ASKED AS THE SERVER, because notification_enabled is a send-path helper and
+   20261006570000 revoked it from authenticated: it carries no reach test of
+   its own, deliberately, so the browser does not get to ask it. The Director
+   above did the WRITE; reading back what the send path will now do is the
+   server's question. */
+reset role;
 select ok(not public.notification_enabled('agency', null, '99000000-0000-0000-0000-0000000000a1', 'lapse', 'ticked_users'),
   'and the switch takes effect');
+select set_config('request.jwt.claims',
+  '{"sub":"99000000-0000-0000-0000-00000000c001","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
 
 -- THE OTHER AGENCY'S IS NOT THEIRS.
 select throws_ok(
