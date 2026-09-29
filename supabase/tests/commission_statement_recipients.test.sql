@@ -21,8 +21,16 @@ select plan(24);
 -- so a paid application produces TWO payees, which is the case a single-payee
 -- implementation gets wrong.
 -- ---------------------------------------------------------------------------
+/* NOT a house route. This said `is_house_route = true`, which is a shape that
+   does not exist: the only house routes are opndoor-direct and
+   referencing-partner, and application_channel puts any OTHER house route in
+   the 'Direct' bucket. 20261006580000 excludes direct-rail business from
+   commission_statement_lines -- a matched direct tenant was becoming the
+   matched agency's statement payee -- and this fixture was the only thing in
+   the suite claiming to be a house route while modelling ordinary agency
+   business. The flag was never what the test was about. */
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values ('96000000-0000-0000-0000-000000000001', 'zzz-stmt', 'Statement Rail', 'opndoor_referenced', 0.25, 0.10, true);
+values ('96000000-0000-0000-0000-000000000001', 'zzz-stmt', 'Statement Rail', 'opndoor_referenced', 0.25, 0.10, false);
 insert into public.agency_groups (id, partner_id, name, agent_rate)
 values ('96000000-0000-0000-0000-000000000002', '96000000-0000-0000-0000-000000000001', 'Statement Group', 0.02);
 insert into public.agencies (id, partner_id, name, group_id, finance_email)
