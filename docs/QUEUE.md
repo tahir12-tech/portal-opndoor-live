@@ -77,6 +77,50 @@ they are deferred past shipping.
 >
 > 15. Reporting scope picker: choosing an option does nothing (same fault as item 7 on Applications), no suppliers appear under Suppliers (Kestrel is missing), Northgate appears twice, and the page header still says "All partners". Matt finds the picker confusing as hell. What he wants is to see the reports for each customer: each supplier and each agency. Don't build a fix to the picker; write a short proposal under "Needs Matt" for how Matt gets a report per supplier and per agency (for example from each one's own page), and wait for his answer.
 
+### Batch 8 (verbatim)
+
+> Walk fixes, batch 8. Add to QUEUE.md verbatim under "Walk fixes, after shipping" and commit. Do not build yet.
+>
+> 16. Reporting, "Total guaranteed rent value" (£72k) is wrong. It should be the total rent under guarantee: 12 months' rent for each executed deed in force in the period, counting a joint tenancy once, not once per tenant. Show how the current figure is calculated alongside the fix.
+
+**Item 16: how the current figure is calculated, read off the code now** (this
+is the "show how" half of the item, done early because it is reading, not
+building). One line does it, `src/data/liveAnalytics.ts:229`:
+
+```
+if (inRange(app.deedAt, start, end)) { a.deed += 1; a.guaranteed += guaranteedAnnual(app); }
+```
+
+So today's figure is **12 months' rent for every application whose deed was
+ISSUED inside the period**. Comparing that against Matt's sentence, the two
+halves of his fix are in very different states:
+
+- **"counting a joint tenancy once" is ALREADY DONE.** `guaranteedAnnual(app)`
+  returns the application's SHARE, not the whole tenancy's rent, and the
+  comment above that line records the fix: a two-tenant tenancy at £2,000 was
+  contributing £48,000 to a figure where £24,000 was guaranteed. So this half
+  should be verified rather than rebuilt -- and if £72k is still wrong in that
+  direction, the share logic is not reaching this path and that is the bug.
+- **"in force in the period" is NOT done, and is the likely fault.** The code
+  asks when the deed was ISSUED. Matt asked what was IN FORCE. A guarantee
+  issued last year and still running contributes nothing today; one issued
+  inside the period but already expired contributes fully. Both are wrong, and
+  they push the number in opposite directions, which is why the total can look
+  plausible while being built from the wrong set.
+- **"executed" is not tested either.** The condition keys on `app.deedAt`
+  being present and in range, not on the deed actually being executed. An
+  issued-but-unsigned deed counts today.
+
+**Item 16 shares its two clauses with item 8** -- "in force during the period"
+and "counting a joint tenancy once" are the same two concepts the bordereau
+needs. They should share one helper and one set of tests, or they will drift
+apart and disagree, which for an underwriter-facing document and a headline
+reporting tile is worse than either being wrong alone.
+
+**And item 16 inherits item 8's dependency on R2**: "in force" has to exclude
+what was genuinely refunded, which is only meaningful once a partial refund
+stops being recorded as a total one.
+
 **The proposal item 15 asks for is written up as NM-F below.** Item 15 itself
 stays unbuilt and unranked until Matt answers it.
 
