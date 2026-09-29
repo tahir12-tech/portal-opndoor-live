@@ -155,7 +155,14 @@ Deno.serve(async (req) => {
     if (!authed) return json({ ok: false, error: "Not authorised." }, 401);
 
     // ---- HubSpot token ------------------------------------------------
-    let TOKEN = Deno.env.get("HUBSPOT_ACCESS_TOKEN") ?? req.headers.get("x-hubspot-token") ?? "";
+    /* THE TOKEN IS OURS, SO IT COMES FROM US. This used to fall back to
+       `req.headers.get("x-hubspot-token")` between the two real sources.
+       The cron secret gates the function, so it was never open to the
+       internet; what it meant is that anybody holding that one shared secret
+       could choose WHICH HubSpot account our partner data was written into,
+       by presenting their own token for us to authenticate with. A credential
+       supplied by the caller is the caller's. Round 5, M13. */
+    let TOKEN = Deno.env.get("HUBSPOT_ACCESS_TOKEN") ?? "";
     if (!TOKEN) {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "hubspot_access_token").maybeSingle();
       TOKEN = sec?.secret ?? "";

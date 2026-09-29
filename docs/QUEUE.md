@@ -267,17 +267,17 @@ four high, nine medium, twelve low. The critical and the deed gap are fixed
 | C1 | `agency_match_queue` operator precedence inverted its guard: a password-only session, including a tenant's, read the direct-rail queue. | **done** `20261006440000` |
 | C2 | **Found while asserting M9, not by the reviewer.** Every authorisation guard in the schema evaluates to NULL when any arm is NULL, and `if NULL then raise` does not fire. A Regent Negotiator read a direct application's journey, withdrew it, and minted a 90-day payment-page token for it. | **done** `20261006470000` + `20261006480000` |
 | H2 | `pricing_agreements` is readable by Managers and Negotiators and states `agent_rate`. The restrictive `may_see_commission()` policy was added to its three child tables and not to the parent. | **done** `20261006460000` |
-| H3 | LOCK: "Resend invite" can never succeed on the estate. `usersService` sends no scope, and invite-user's position requirement fires before the re-invite branch. | todo |
+| H3 | LOCK: "Resend invite" can never succeed on the estate. `usersService` sends no scope, and invite-user's position requirement fires before the re-invite branch. | **done** `_shared/invitePosition.ts`, commit f570ca2 |
 | H4 | `commission_statement_recipients` still has no level test. My `20261006410000` changed the comment and not the SQL. | **done** `20261006460000` |
 | H5 | `agreement_volume` counts direct-rail applications toward an agency's negotiated volume, and therefore its commission tier. | **done** `20261006460000` |
-| M6 | `referencing-inbound` reads livemode off the token and the creator hardcodes `true`, so a sandbox token mints a live application. | todo |
-| M7 | `referrerNotify` has no livemode test, so sandbox applications send real Opndoor email. | todo |
+| M6 | `referencing-inbound` reads livemode off the token and the creator hardcodes `true`, so a sandbox token mints a live application. | **done** `20261006490000` |
+| M7 | `referrerNotify` has no livemode test, so sandbox applications send real Opndoor email. | **done** `_shared/referrerNotify.ts` |
 | M8 | `admin_update_user_role` skips `assert_may_grant_level` and never touches `sees_commission`: a Manager can promote somebody to Director, one rank above themselves. | **done** `20261006460000` |
 | M9 | `application_journey`'s developer arm is bounded by `partner_id` alone; its four `dev_*` siblings were widened and it was missed. | **done** `20261006460000`; asserting it is what surfaced C2 |
 | M10 | LOCK: the Users screen cannot invite any management user onto the estate, and can never create a Director. | todo |
 | M11 | Agency onboarding invites its "Group director" as a Manager, so a new agency has nobody who may see commission and nobody who can create one. | todo |
 | M12 | LOCK: the position modal offers Remove (refused by the constraint for an active person) and Add position (which silently deletes the existing one). | todo |
-| M13 | `hubspot-sync` accepts its outbound bearer token from a request header. | todo |
+| M13 | `hubspot-sync` accepts its outbound bearer token from a request header. | **done** `hubspot-sync/index.ts` |
 | M14 | `set_receives_commission_statements` has no level test. | **done** `20261006460000` |
 | L | Twelve lows: `applications_*` policies lost `to authenticated`; `users_mgmt_insert` has no containment; `create-referral` writes caller-supplied shares; `fire_expiry_reminders` does not filter a deactivated referrer on the supplier rail; `application-document-url` signs any bucket; `staff_payment_page_token` and `agency_branches_for_match` lack the AAL2 step-up; `referrer_league` ranks leavers; ten functions still PUBLIC-executable; `tenant-portal` reads the wrong Stripe key; `may_act_on_user` is strictly-above where two siblings are at-or-below. | todo |
 

@@ -209,6 +209,12 @@ Deno.serve(async (req) => {
       p_tenant: String(body.tenant_id ?? "") || null,
       p_agency_number: agencyNumber,
       p_tenant_ref: String(body.tenant_reference_number ?? "") || null,
+      /* THE TOKEN SAYS WHETHER THIS IS REAL. It always did -- livemode is
+         selected above -- and it was never passed, so the create wrote the
+         literal `true` and a partner testing against their sandbox token
+         minted live applications on our estate. Round 5, M6. Never from the
+         payload: the sender does not get to say that their test is real. */
+      p_livemode: !!token.livemode,
     });
 
     if (createErr) {
