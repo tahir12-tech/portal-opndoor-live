@@ -40,7 +40,7 @@
 -- difference between a policy that filters and a guard that throws.
 
 begin;
-select plan(85);
+select plan(88);
 
 -- ===========================================================================
 -- THE FIXTURE
@@ -488,6 +488,55 @@ select lives_ok(
   'and a write to a supplier''s user raises nothing, because it matches nothing');
 select is((select full_name from public.users where id = '90000000-0000-0000-0000-00000000c006'), null,
   'because they cannot even see that row');
+
+/* ===========================================================================
+   AND THE STATEMENT REFERENCE, WHICH HAS JUST BEEN LOOSENED.
+   ===========================================================================
+   20261006740000 lets the monthly cron through commission_statement_ref,
+   because until then the gate refused the only caller that ever runs it and
+   no statement had ever been sent. A loosening is exactly where a hole gets
+   made, so the three refusals that have to survive it are asserted here
+   rather than left implied. All three held before that migration and hold
+   after; they are here to fail if the new arm is ever widened.
+
+   The arm added is `auth.uid() is null and the verified JWT role is
+   service_role`. Both halves matter: a signed-in caller always has a uid, so
+   no browser session can reach it however the key is spelled. */
+
+-- A DIRECTOR MAY NOT READ A PARTY THEY DO NOT HOLD. c001 holds the Alpha
+-- group; Beta is a different agency on the same house partner, which is
+-- precisely the case where partner_id is a route and not a boundary.
+select set_config('request.jwt.claims',
+  '{"sub":"90000000-0000-0000-0000-00000000c001","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+select throws_ok(
+  $$select public.commission_statement_ref('2026-11','opndoor-agents|agency:90000000-0000-0000-0000-0000000000a3')$$,
+  '42501', null,
+  'a Director still cannot mint a statement reference for another agency on the same partner');
+
+-- A MANAGER IS NOT A DIRECTOR. c002 holds Alpha North, the very agency in the
+-- key, and still may not: rule 3, commercial terms are Director-level, and
+-- the test is the capability rather than the role.
+reset role;
+select set_config('request.jwt.claims',
+  '{"sub":"90000000-0000-0000-0000-00000000c002","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+select throws_ok(
+  $$select public.commission_statement_ref('2026-11','opndoor-agents|agency:90000000-0000-0000-0000-0000000000a1')$$,
+  '42501', null,
+  'and a Manager without sees_commission cannot, even for their OWN agency');
+
+-- AND THE NEW ARM IS NOT REACHABLE BY CLAIMING TO BE THE CRON. A signed-in
+-- caller has a uid, so the `auth.uid() is null` half refuses them whatever
+-- the role claim says.
+reset role;
+select set_config('request.jwt.claims',
+  '{"sub":"90000000-0000-0000-0000-00000000c002","role":"service_role","aal":"aal2"}', true);
+set local role authenticated;
+select throws_ok(
+  $$select public.commission_statement_ref('2026-11','opndoor-agents|agency:90000000-0000-0000-0000-0000000000a3')$$,
+  '42501', null,
+  'and a signed-in caller cannot reach the cron arm by carrying a service_role claim');
 
 reset role;
 

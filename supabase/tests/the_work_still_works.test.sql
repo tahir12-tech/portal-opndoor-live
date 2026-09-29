@@ -26,7 +26,7 @@
 -- this is the list of things the product must be able to do.
 
 begin;
-select plan(15);
+select plan(20);
 
 -- ===========================================================================
 -- ONE AGENCY, ITS DIRECTOR, ITS MANAGER, ITS NEGOTIATOR
@@ -183,6 +183,62 @@ select throws_ok(
   $$select public.send_deed_to_agent('95000000-0000-0000-0000-00000000e0f1', null, false)$$,
   'P0001', null,
   'send_deed_to_agent is reachable and refuses on the STATE (deed not yet issued), not on permission');
+
+/* 13. THE MONTHLY STATEMENT CAN ACTUALLY BE SENT.
+ *
+ * This is the functional-guard case in its purest form: a permission gate so
+ * tight that the sanctioned caller is refused, and nobody noticed because
+ * nothing asserted that the sanctioned caller works.
+ *
+ * commission_statement_ref falls through only for is_admin() or
+ * app_role() = 'opndoor_manager'. The monthly run is two pg_cron jobs posting
+ * to the commission-statements function, which calls this RPC with the
+ * SERVICE key and no user JWT. Measured on dev: current_user service_role,
+ * auth.uid() null, is_admin() false, may_see_commission() false -- so the
+ * gate raised 'You can only read a statement for a party you hold.' for
+ * every payee, every month.
+ *
+ * commission_statement_sends held ZERO rows on dev. No statement has ever
+ * been sent, to anybody, on either rail. The three refs that do exist were
+ * minted by one seeding transaction from a browser on 2026-09-26, identical
+ * to the microsecond across three consecutive subtransaction ids.
+ *
+ * Not true of production: the whole subsystem is absent from the live 65
+ * migrations, so nothing is broken there today. It would have shipped broken
+ * at cutover instead. Fixed by 20261006740000.
+ */
+/* THE WHOLE CHAIN, not just the step that raised. The Edge Function makes
+   five database calls in order, each of which could have its own gate, and
+   fixing only the one that happened to raise first would move the failure
+   rather than remove it. Each is asserted as lives_ok rather than on its
+   result: the question here is whether the cron is REFUSED, not whether dev
+   happens to hold data for that month. */
+reset role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+set local role service_role;
+
+select lives_ok(
+  $$select count(*) from public.commission_statement_payees('2026-09-01')$$,
+  'the monthly run can list the month''s payees');
+
+select lives_ok(
+  $$select count(*) from public.commission_statement_lines('2026-09-01')$$,
+  'and read the commission lines behind them');
+
+select lives_ok(
+  $$select count(*) from public.commission_statement_recipients('agency', '95000000-0000-0000-0000-0000000000a1')$$,
+  'and resolve who each statement goes to');
+
+select lives_ok(
+  $$select public.commission_statement_ref('2026-11', 'opndoor-agents|agency:95000000-0000-0000-0000-0000000000a1')$$,
+  'and mint the statement reference, which is the step that refused it every month until now');
+
+select lives_ok(
+  $$insert into public.commission_statement_sends (statement_month, payee_key, recipients, total)
+    values ('2026-11', 'opndoor-agents|agency:95000000-0000-0000-0000-0000000000a1', 1, 123.45)$$,
+  'and record that it was sent, which is the row that had never once been written');
+
+reset role;
 
 select * from finish();
 rollback;

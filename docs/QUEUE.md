@@ -85,8 +85,8 @@ unambiguous.
 | --- | --- |
 | 1. The live hotfix for Balal | **done** `476d587` |
 | 2. Verify the Regent correction, fix the two documents | **done** (this commit) |
-| 3. Verify the monthly commission statement fault, fix it, prove a statement sends | in progress |
-| 4. Items 3 to 13 of the thirteen | todo |
+| 3. Verify the monthly commission statement fault, fix it, prove a statement sends | **done** (this commit) |
+| 4. Items 3 to 13 of the thirteen | in progress, starting at 3 (supplier commission) |
 | 5. Climber of the week's test, and the team tickbox | **done** `5497a6a` |
 
 Item 5 was taken out of order because items 1 to 3 were blocked on a scoping
