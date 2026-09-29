@@ -234,7 +234,7 @@ export function PartnerManagement() {
       <div className="page-head">
         <div>
           <div className="rec-eyebrow"><span className="opx">opndoor</span> · internal admin</div>
-          <h1 className="page-head__title" style={{ marginTop: 10 }}>Partners</h1>
+          <h1 className="page-head__title" style={{ marginTop: 10 }}>Suppliers</h1>
           <p className="page-head__sub">Every partner company on the portal. A partner sits at the top of the hierarchy, with its own users, agencies, branches and applications beneath it. Click a partner to open its page; <b>Manage</b> edits its settings.</p>
         </div>
         <div className="page-head__actions">
@@ -244,7 +244,7 @@ export function PartnerManagement() {
 
       <div className="card opbar">
         <Icon name="shield" />
-        <span>Visible to <b>opndoor admins</b> only. Partners never see each other; each partner only sees its own data.</span>
+        <span>Visible to <b>opndoor admins</b> only. Suppliers never see each other; each supplier only sees its own data.</span>
       </div>
 
       <Card>
@@ -257,7 +257,7 @@ export function PartnerManagement() {
           <table className="dt ptable">
             <thead>
               <tr>
-                <th>Partner</th>
+                <th>Supplier</th>
                 <th style={{ textAlign: 'right' }}>Users</th>
                 <th style={{ textAlign: 'right' }}>Agencies</th>
                 <th style={{ textAlign: 'right' }}>Branches</th>
@@ -305,7 +305,7 @@ export function PartnerManagement() {
         sub={editingId ? "Adjust this partner’s details and commission. Rate changes apply to new applications from now on." : 'Onboard a new partner company. Users, agencies and branches can be added under it afterwards.'}
         footer={<><Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button variant="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create partner'}</Button></>}
       >
-        <Field label="Partner company name" htmlFor="pm-name"><input id="pm-name" type="text" placeholder="e.g. Acme Property Group" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <Field label="Supplier company name" htmlFor="pm-name"><input id="pm-name" type="text" placeholder="e.g. Acme Property Group" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Live from" htmlFor="pm-since" hint="Optional"><input id="pm-since" type="month" value={since} onChange={(e) => setSince(e.target.value)} /></Field>
         <Field label="Status" htmlFor="pm-status">
           <select id="pm-status" value={status} onChange={(e) => setStatus(e.target.value as PartnerStatus)}>

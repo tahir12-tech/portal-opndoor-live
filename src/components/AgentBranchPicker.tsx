@@ -681,12 +681,12 @@ export function AgentBranchPicker({ onChange }: { onChange?: (value: AgentBranch
           <div className="form-grid">
             {isAdmin && (
               <div className="field span-2" style={fieldStyle}>
-                <label htmlFor="ag-partner">Partner <span className="req" aria-hidden="true">*</span></label>
+                <label htmlFor="ag-partner">Supplier <span className="req" aria-hidden="true">*</span></label>
                 <select id="ag-partner" value={adminPartner} onChange={(e) => setAdminPartner(e.target.value)}>
-                  <option value="">Select the partner this agent belongs to</option>
+                  <option value="">Select the supplier this agent belongs to</option>
                   {getPartners().map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
-                <span className="hint">The referral and its commission land under this partner.</span>
+                <span className="hint">The referral and its commission land under this supplier.</span>
               </div>
             )}
             <div className="field span-2" style={fieldStyle}>

@@ -46,12 +46,14 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     <>
       <div className="sb__brand">
         <span className="wordmark">opndoor</span>
-        {/* An agency of ours is not a partner and does not think of itself as
-            one. The word is ours, for the suppliers who push referrals through
-            the API; on a customer's own screen it reads as somebody else's
-            product. */}
+        {/* An agency of ours is not a supplier and does not think of itself
+            as one. The other word is for the companies who push referrals
+            through the API, and the product now calls those Suppliers
+            everywhere rather than Partners: "partner" remains the internal
+            name for a ROUTE, which is a different thing and is why the
+            Dashboard's "Partner comm" column keeps its name. */}
         <span className="sb__cobrand">
-          {isAgencyUser(role, partnerScope) ? <>Agency<br />portal</> : <>Partner<br />portal</>}
+          {isAgencyUser(role, partnerScope) ? <>Agency<br />portal</> : <>Supplier<br />portal</>}
         </span>
       </div>
       <div className="sb__product">
