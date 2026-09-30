@@ -116,6 +116,19 @@ export function levelRank(role: Role, seesCommission: boolean): number | null {
   return null;
 }
 
+/**
+ * Is this person Opndoor's own staff? The twin of public.is_opndoor_staff.
+ *
+ * WALK FIX 5. "Opndoor admins see everything by their role and must never be
+ * given an office or position." Written as a named predicate rather than
+ * `levelRank(...) === 0` at each site, because it is a different question
+ * from "where do they sit on the ladder" and reads as one: rank 0 means
+ * above all three agency levels, and this means not on the ladder at all.
+ */
+export function isOpndoorStaff(role: Role): boolean {
+  return role === 'superadmin' || role === 'opndoor_manager';
+}
+
 /** The pair a level is resolved from, plus the id, because self is never actionable. */
 export interface Actor { id?: string | null; role: Role; seesCommission: boolean }
 

@@ -253,7 +253,27 @@ describe('a raising guard cannot evaluate to NULL', () => {
        an unknown mode, so it is refused rather than waved past.
 
        It is in this list rather than the deny-unless one because it is the
-       `if <bad> then raise` polarity, not `if not <good> then raise`. */
-    expect(denyIf.length).toBe(64);
+       `if <bad> then raise` polarity, not `if not <good> then raise`.
+
+       64 -> 66 with 20261006940000 (walk fix 5). TWO, one each in
+       set_user_scope and set_home_branch:
+
+           if v_target.role in ('superadmin', 'opndoor_manager')
+
+       Audited, and it is the one shape in this file that is total for a
+       reason OUTSIDE the expression. `x in (...)` is NULL when x is NULL,
+       and for a deny guard NULL reads as "do not raise", so on its own this
+       would wave through a target whose role could not be read. It cannot
+       be: both functions do `select * into v_target ... if not found then
+       raise` two lines above, and `public.users.role` is NOT NULL. So
+       v_target.role is a read value from a NOT NULL column on a row that is
+       known to exist.
+
+       Left uncoalesced rather than written `coalesce(v_target.role,'')`,
+       because the coalesce would be dead code that implies the column is
+       nullable. The column constraint is the guarantee, and stating that
+       here is the point of this list. If `role` ever becomes nullable, this
+       is the note that says what else has to change. */
+    expect(denyIf.length).toBe(66);
   });
 });

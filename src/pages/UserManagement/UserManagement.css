@@ -262,6 +262,15 @@
 
 /* Positions. A list rather than a table: most people have none and the rest
    have one or two, so a table of one row is more chrome than content. */
+/* WALK FIX 6. The two labelled parts. Real space between them, because the
+   complaint was that the dialog "mixes two things": a heading with nothing
+   around it reads as a label on the control below rather than as a divider
+   between two questions. */
+.pos-sec { margin: 0 0 22px; }
+.pos-sec:last-child { margin-bottom: 0; }
+.pos-h { margin: 0 0 3px; font-size: 13px; font-weight: 650; letter-spacing: .01em; }
+.pos-sub { margin: 0 0 12px; font-size: 12.5px; color: var(--ink-mute); }
+
 .pos-empty { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px;
              border: 1px solid var(--line); border-radius: var(--r-md); background: var(--app-bg); margin-bottom: 16px; }
 /* SIZE THE ICON, or it fills the panel. <Icon> renders a bare <svg viewBox="0 0

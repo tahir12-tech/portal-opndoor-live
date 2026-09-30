@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { PositionModal, type ScopeTarget } from './PositionModal';
 import { PersonNotifications } from '@/components/people/PersonNotifications';
 import * as positionsService from '@/data/positionsService';
-import { AGENCY_LEVELS, getAgencies, getGroups, levelsGrantableBy, mayActOn, mayActOnOrEqual, type Actor, type AgencyLevel } from '@/data';
+import { AGENCY_LEVELS, getAgencies, getGroups, isOpndoorStaff, levelsGrantableBy, mayActOn, mayActOnOrEqual, type Actor, type AgencyLevel } from '@/data';
 import { isHousePartner } from '@/data/channel';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
@@ -222,6 +222,31 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     u.status !== 'pending'
     && mayActOnOrEqual(actor, { id: u.id, role: u.role, seesCommission: u.seesCommission === true });
 
+  /* WALK FIX 1: THE TWO THINGS YOU MAY DO TO YOUR OWN ACCOUNT.
+     "The three dots on your own row open an empty menu. Either hide them, or
+     show the actions you can take on your own account (rename, reset your own
+     MFA)." Every other item is gated on mayAct, canEditRole or canDeactivate,
+     and all three are false on your own row because they govern things done
+     TO somebody -- correctly, and that is what left the menu empty.
+
+     AND THE TWO DO NOT HAVE THE SAME RULE, which is why they are two
+     predicates. Walked on dev, as each kind of caller, before this was
+     written:
+
+       rename yourself            admin: allowed   supplier management: allowed
+       reset your own two-factor  admin: allowed   supplier management: REFUSED
+
+     `admin_update_user_name` skips the ladder when the target is the caller,
+     and `assert_may_act_on_user` names that as the documented exception in
+     its own comment. `admin_reset_user_mfa` always asks the ladder, whose
+     opndoor-staff early return comes BEFORE its self check -- and its own
+     authorisation arm is `is_admin()`, which is superadmin alone. So the
+     self exemption belongs to an Opndoor admin and to nobody else, and
+     drawing the control anywhere else would be a button that always throws. */
+  const canRename = (u: ManagedUser) => (isSelf(u) ? true : canEditRole(u));
+  const canResetOwnMfa = (u: ManagedUser) =>
+    isSelf(u) && u.status === 'active' && role === 'superadmin';
+
   // ---- role-aware framing ----
   let eyebrow = 'Administration · opndoor admin';
   /* WALK FIX 4. "Partner staff by partner ... view all partners at once"
@@ -306,6 +331,20 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
      so this only decides whether the button is drawn. */
   const canGrantPositions = positionsService.mayGrantPositions(role, ownPositions);
 
+  /* WALK FIX 5. "Opndoor admins see everything by their role and must never
+     be given an office or position. Remove this dialog for Opndoor team
+     members." It is not a permission question -- an admin may grant
+     positions all day -- it is a question about the TARGET, which is why it
+     is a second test beside canGrantPositions rather than folded into it.
+
+     set_user_scope and set_home_branch refuse an Opndoor-staff target in SQL
+     since 20261006940000, so this hides a dialog that could no longer write
+     anything. It was worse than dead before that: the dialog said "Own
+     referrals only" about somebody who sees every referral there is, asked
+     for an office, and offered agency and supplier branches to a person who
+     belongs to neither. */
+  const canPosition = (u: ManagedUser) => canGrantPositions && !isOpndoorStaff(u.role);
+
   /* What the caller can hand out. An admin sees every brand and branch; anybody
      else sees exactly what agencies_select and branches_select let them, so the
      options are already scoped by the same rule that will judge the write. */
@@ -382,6 +421,21 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
       });
       return;
     }
+    /* WALK FIX 1. The same call, a different sentence, because the
+       consequence lands on the person reading it: admin_reset_user_mfa
+       deletes the factors AND the sessions, so this signs YOU out. Telling
+       somebody about to sign themselves out that "they are signed out" is
+       the kind of copy that produces a support call. */
+    if (action === 'reset-own-2fa') {
+      setConfirm({
+        title: 'Reset your own two-factor?',
+        body: <>Your current authenticator stops working immediately and you are signed out. You set up a new one the next time you sign in, so have your phone with you.</>,
+        confirmLabel: 'Reset my two-factor',
+        success: 'Two-factor reset. Sign in again and set up your new authenticator.',
+        run: () => resetUserMfa(u.id),
+      });
+      return;
+    }
     if (action === 'deactivate') {
       setConfirm({
         title: `Deactivate ${u.name}?`,
@@ -426,7 +480,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     if (u.status === 'pending') {
       return (
         <>
-          {canGrantPositions && (
+          {canPosition(u) && (
             <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); setPositionUser(u); }}>
               <Icon name="org" />Set what they see
             </button>
@@ -450,7 +504,10 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     }
     return (
       <>
-        {canEditRole(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-name', u); }}><Icon name="edit" />Edit name</button>}
+        {/* WALK FIX 1. `canRename`, not `canEditRole`: renaming is the one
+            thing on this menu you may do to your own account, and gating it
+            with the level change left the whole menu empty on your own row. */}
+        {canRename(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-name', u); }}><Icon name="edit" />Edit name</button>}
         {/* CHANGE LEVEL ON THE ESTATE, EDIT ROLE OFF IT. On our own estate a
             person holds one of three LEVELS, and moving them is one RPC that
             writes role and sees_commission together. "Edit role" there could
@@ -467,6 +524,11 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
         {canNotify(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); setNotifUser(u); }}><Icon name="send" />Notifications</button>}
         {mayAct(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-password', u); }}><Icon name="lock" />Send password reset</button>}
         {mayAct(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-2fa', u); }}><Icon name="phone" />Reset two-factor</button>}
+        {/* WALK FIX 1, the second half. An Opndoor admin replacing the phone
+            their authenticator lives on. Their own row only, and theirs
+            alone: the server's self exemption for this is is_admin(). It
+            signs them out, so the confirmation says so. */}
+        {canResetOwnMfa(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-own-2fa', u); }}><Icon name="phone" />Reset two-factor</button>}
         {canDeactivate(u) && <>
           <div className="rowmenu__sep" />
           <button className="rowmenu__item rowmenu__item--danger" onClick={() => { setMenuOpenId(null); handleAction('deactivate', u); }}><Icon name="ban" />Remove access</button>
