@@ -59,6 +59,44 @@ with the inventory, so the list is not lost.
 
 ### Q7 is confirmed: the Merge button stays deleted
 
+### DONE, MERGED, APPLIED AND CHECKED ON DEV. Dev is ready to walk.
+
+| item | commit | checked on dev |
+| ---- | ------ | -------------- |
+| Q1, the whole-tenancy correction | `0f6c1f5` | `tenancy-correction` deployed (v11); the DEPLOYED bundle carries `tenancy_id`, `in("application_id", ids)` and `from("tenancies")` |
+| Q9, the two Reconciliation buttons | `0e176cd` | served by 5174 |
+| NM-O, supplier users have no branch | `fb98252` | served: `label="Supplier"`, the hint, and the estate-only Branch condition |
+| NM-P, a single-office agency | `c7ac4a1` | predicate served on all six client surfaces; SQL predicate live |
+
+**Four migrations applied to dev:** 20261006990000, 20261007000000,
+20261007010000, 20261007020000. `npm run drift` clean -- 354 migrations,
+331 functions. **pgTAP against dev: 69 files, 0 failing.** Client suite 150
+files / 1605 tests, typecheck clean, `deno check` 66 clean.
+
+**NM-P measured against dev's own agencies, which is the check that
+matters:** Regent's Lettings, Southbank Residential, Harbour Lets and
+Harborview Lettings each have exactly ONE office, so the rule fires for
+them; Kestrel and Northgate have two and keep their office names. The
+"Unattached" placeholders have zero and correctly still show, because zero
+is not one.
+
+### NM-P: three sites NOT done, and they are the outward-facing ones
+
+The deed/expiry email's Branch row, the expiry-cohort CSV column and the
+commission-statement email. Each is built from rows an RPC hands a Deno
+function, so each needs its feeding RPC to carry an office count -- a
+migration per RPC. **The SQL predicate they will use is already live**
+(`public.agency_names_its_offices`), so this is wiring rather than design.
+Recorded rather than claimed, because an email is the one surface where
+"mostly done" is indistinguishable from done until a customer reads one.
+
+### Walk fix 23b: the other 27 one-click admin actions, after shipping
+
+Matt's Q9 answer: "only the two Reconciliation buttons; the other 27 go on
+the after-shipping list." The two are done. The inventory of the remaining
+27 is in the mapping run and is not lost; `useConfirm()` exists for them.
+
+
 ---
 
 ## NM-P. A SINGLE-OFFICE AGENCY IS JUST THE AGENCY (instruction, 2026-09-30, verbatim). ACTIVE.
