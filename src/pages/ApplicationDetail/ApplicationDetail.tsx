@@ -341,15 +341,28 @@ export function ApplicationDetail() {
      agencyViewer is false for both. */
   const referrerShape = useMemo(() => viewerShape(role, partnerScope), [role, partnerScope, dataVersion]);
   const referrerCard = useMemo(() => {
+    /* NM-P, ON THIS CARD TOO. Matt, 2026-09-30: "for a single-office
+       agency, Referring agent shows just the agency and its own address,
+       no Branch line."
+
+       KEYED ON THE AGENCY, NOT ON THE READER, which is the whole of the
+       rule and the thing the existing logic could not express. The two
+       collapses below are about the READER's scope -- an agency reader
+       looking at their own single agency does not need to be told which
+       agency -- and they are right and stay. This one is about the
+       AGENCY: Regent Property has one office, so there is no branch to
+       name, and that is true whoever is looking, including an admin who
+       was shown a Branch row repeating the agency's own name. */
+    const offices = showsOffices(d.agency);
     if (!agencyViewer) {
-      return { show: true, agency: true, branch: true, address: true, deedRowMoves: false };
+      return { show: true, agency: true, branch: offices, address: true, deedRowMoves: false };
     }
     const agency = !referrerShape.oneAgency;
-    const branch = !referrerShape.oneBranch;
+    const branch = !referrerShape.oneBranch && offices;
     const address = agency || branch;
     const anything = agency || branch || (maySeeRoute && !!d.partnerName);
     return { show: anything, agency, branch, address, deedRowMoves: true };
-  }, [agencyViewer, referrerShape, maySeeRoute, d.partnerName]);
+  }, [agencyViewer, referrerShape, maySeeRoute, d.partnerName, d.agency]);
   const [notes, setNotes] = useState<AppNote[]>([]);
   const [noteBody, setNoteBody] = useState('');
   const [noteBusy, setNoteBusy] = useState(false);
@@ -1389,9 +1402,36 @@ export function ApplicationDetail() {
       )}
       {dlvState === 'delivered' && (
         <>
-          <div className="drow"><span className="drow__k">Sent to</span><span className="drow__v pay-mono">{delivery.attemptedTo ?? (dlvWouldGo || '-')}</span></div>
-          {(delivery.attemptedSource ?? delivery.source) && <div className="drow"><span className="drow__k">Address from</span><span className="drow__v">{rungLabel(delivery.attemptedSource ?? delivery.source)}</span></div>}
+          {/* THE RECORD, NEVER TODAY'S ANSWER. Matt, 2026-09-30: "the
+              Delivery panel must show where the deed was actually sent
+              and when, from the send record, never who it would go to
+              under today's rules."
+
+              This read `attemptedTo ?? (dlvWouldGo || '-')`. The fallback
+              is the defect: with nothing recorded it printed whoever the
+              ladder resolves to NOW, under the label "Sent to". The two
+              diverge the moment anybody changes a deed recipient, a
+              primary contact or a branch after a deed went out, and then
+              the panel confidently names somebody who never received it.
+              Twelve lines above, the comment already said the two are
+              different questions and the panel must not answer one with
+              the other; the code did it anyway.
+
+              Nothing recorded now says so. That is a worse-looking panel
+              and a truer one, and it is rare: every send since
+              20261005100000 writes the address down, and the three dev
+              rows that predated it were recovered from the activity log
+              by 20261007110000. */}
+          <div className="drow"><span className="drow__k">Sent to</span><span className="drow__v pay-mono">{delivery.attemptedTo ?? 'Not recorded'}</span></div>
+          {/* AND THE RUNG IS THE ATTEMPT'S, or nothing. `?? delivery.source`
+              was the same substitution one line down: it would explain
+              where today's address comes from beside an address from
+              months ago. */}
+          {delivery.attemptedSource && <div className="drow"><span className="drow__k">Address from</span><span className="drow__v">{rungLabel(delivery.attemptedSource)}</span></div>}
           <div className="drow"><span className="drow__k">Sent</span><span className="drow__v">{delivery.sentAt ? fmtStamp(new Date(delivery.sentAt)) : '-'}</span></div>
+          {!delivery.attemptedTo && (
+            <div className="pay-note">This deed was sent before we started recording the address, so we cannot say where from this screen. The activity feed below has it.</div>
+          )}
         </>
       )}
       {dlvState === 'not_attempted' && (
