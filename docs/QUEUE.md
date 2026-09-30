@@ -15,6 +15,46 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## Q4 ANSWERED: SUPPLIER MANAGEMENT MANAGES ITS OWN PEOPLE (instruction, 2026-09-30, verbatim). ACTIVE.
+
+> Q4: yes. A supplier's Management user can change the notification settings of anyone at the same supplier, the same way an agency Director can for their agency. Referrers can change only their own event choices. Monthly statements stay Management-only. Deploy to dev and check it there.
+
+### What this settles, in the three-setting table the ladder already uses
+
+The agency rail's rules were settled on 2026-09-30 and are unchanged. This
+adds the supplier rail's column, which was previously "nobody can, ever".
+
+| setting | agency | supplier (NEW) |
+| ------- | ------ | -------------- |
+| **Event choices** | the person, or a Director at or above them in their own agency, or an Opndoor admin | the person, or **any `management` at the same supplier**, or an Opndoor admin |
+| **Monthly statements** | Director-only, and only for somebody whose level may see commission | **Management-only** at the same supplier |
+| **Copied on colleagues' referrals** | Director-only | **Management-only** at the same supplier |
+
+"The same way an agency Director can for their agency" is the sentence that
+settles the third row: he did not name that setting, and the natural
+reading of "the notification settings of anyone" plus the explicit
+Director parallel is the whole set, not two of three.
+
+### Why it could not work before, and it is not an oversight in the UI
+
+`caller_may_set_for` tests the ladder through `user_within_caller_scope`,
+which requires the TARGET to hold a row in `user_scopes`. A supplier's
+staff never hold one, and deliberately:
+`user_must_hold_a_position` returns early off the estate and says why --
+"on the supplier rail partner_id IS the company boundary ... requiring a
+position there would be ceremony with no boundary behind it."
+
+So the guard was not refusing supplier management; it was failing to find
+anything to reason about, and answering no. Recorded as B3 and as round
+6's M10, both of which this closes.
+
+**On the supplier rail the boundary is `partner_id`**, which is rule 2, and
+that is what the new arm tests. It is the one rail where that column IS a
+company boundary, so this is not the fail-open shape CI rejects on the
+agency rail.
+
+---
+
 ## ANSWERS, AND THE LAST TWO BUILDS (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
 
 > Q1: a start-date correction on a joint tenancy moves every tenant's application and reissues every deed, never one. Q9: only the two Reconciliation buttons; the other 27 go on the after-shipping list. Q7: fine as done.
