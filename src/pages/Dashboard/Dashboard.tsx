@@ -36,8 +36,10 @@ import { originLabel, originOptions, selectionIsAgency } from '@/data/origin';
 import { recentScopes } from '@/data/scopeRecents';
 import { scopedSummaries } from '@/data/applicationsService';
 import type { Role } from '@/data';
-import { liveScopeShape } from '@/data/liveAnalytics';
+import { liveByCustomer, liveScopeShape } from '@/data/liveAnalytics';
 import { CommissionStatement } from '@/components/CommissionStatement';
+// Walk fixes 15 and 20: every customer, side by side.
+import { CustomersTable } from '@/components/CustomersTable';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -137,6 +139,19 @@ export function Dashboard() {
   // breakdown for the selected period. Live mode, non-referrers.
   const agentSettlement = useMemo(() => getAgentCommissionSettlement(role, partnerScope), [role, partnerScope]);
   const partnerBreakdown = useMemo(() => livePartnerBreakdown(role, partnerScope, period), [role, partnerScope, period]);
+  /* WALK FIXES 15 AND 20. Every customer, side by side. Opndoor staff only:
+     Matt's NM-F answer is "the per-customer Reporting tab is Opndoor-only;
+     agencies and suppliers keep their own Reporting page as it is", and a
+     customer has exactly one customer to look at anyway.
+
+     ALL_PARTNERS and not partnerScope, because the whole point is to see
+     every customer at once -- narrowing it to one would make it the table
+     the picker already gives. */
+  const isOpndoorStaff = role === 'superadmin' || role === 'opndoor_manager';
+  const customers = useMemo(
+    () => (isOpndoorStaff ? liveByCustomer(role, ALL_PARTNERS, period) : []),
+    [isOpndoorStaff, role, period],
+  );
   // Settlement is a money-reconciliation surface: show pence on every row and the
   // total so the rows always sum to the stated total (commission is rent x rate,
   // which is frequently a half-pound).
@@ -753,6 +768,17 @@ export function Dashboard() {
             four of its seven columns are commission, gross and net, on both sides
             of the split. `agencyFacing` already removed it from our own agencies;
             `commission` removes it from anyone else's Manager. */}
+        {/* EVERY CUSTOMER, above the commission split, because "how is each
+            customer doing" is the question the page is for and the split is
+            the follow-up.
+
+            NOT GATED ON `d.live`. It is gated on having customers, which
+            CustomersTable decides for itself by returning null for an empty
+            list -- and the synthetic book has none, because liveByCustomer
+            reads the hydrated set. One gate rather than two, and the one
+            that is actually about whether there is anything to show. */}
+        {isOpndoorStaff && <CustomersTable rows={customers} seesCommission={seesCommission} />}
+
         {d.live && partnerBreakdown.length > 0 && !agencyFacing && (
           <RoleOnly roles={['superadmin', 'management']} commission>
             <section className="card settle">
