@@ -70,12 +70,19 @@ const originNames = (v: View) =>
   [...new Set(originCells(v).map((td) => td?.querySelector('.dt__name')?.textContent ?? ''))];
 
 /** Open the picker and click the option with this exact label. */
+/** Open the picker and click the option with this exact label, TYPING
+    first if it is a named party rather than a quick choice. Matt,
+    2026-09-30: "individual agencies and suppliers appear only as search
+    results, so the list never grows endless." The quick choices are
+    still there on focus. */
 async function pick(v: View, label: string) {
   const box = v.container.querySelector<HTMLInputElement>('.scopepick input[role="combobox"]')!;
   expect(box, 'no Origin picker on the page').toBeTruthy();
   await act(async () => { fireEvent.focus(box); });
-  const opt = [...v.container.querySelectorAll('.typeahead__opt')]
+  const find = () => [...v.container.querySelectorAll('.typeahead__opt')]
     .find((o) => o.querySelector('.typeahead__opt-main')?.textContent?.trim() === label);
+  if (!find()) await act(async () => { fireEvent.change(box, { target: { value: label } }); });
+  const opt = find();
   expect(opt, `no option labelled "${label}"`).toBeTruthy();
   await act(async () => { fireEvent.mouseDown(opt!); fireEvent.click(opt!); });
 }
@@ -143,5 +150,103 @@ describe('choosing an origin', () => {
     await pick(v, 'Foxglove Residential');
     expect(rows(v).length).toBeGreaterThan(0);
     expect(originNames(v)).toEqual(['Foxglove Residential']);
+  });
+});
+
+/* =====================================================================
+   THE BOX SHOWS WHAT IS APPLIED, 2026-09-30.
+
+   Matt, verbatim: "Applications Origin filter: the box always shows what
+   is actually applied, and choosing an option (Everything, Suppliers,
+   Agencies, Direct, or a single agency, group or supplier) updates both
+   the box and the list, with the status tab counts matching. Add a clear
+   (x) to go back to Everything. Show only the quick choices and recent
+   selections until the user types; individual agencies and suppliers
+   appear only as search results, so the list never grows endless. No
+   duplicate entries."
+   ===================================================================== */
+const boxOf = (v: View) => v.container.querySelector<HTMLInputElement>('.scopepick input[role="combobox"]')!;
+const offered = (v: View) =>
+  [...v.container.querySelectorAll('.typeahead__opt-main')].map((o) => (o.textContent ?? '').trim());
+
+describe('the box and the list agree', () => {
+  it('the box names the quick choice that is applied', async () => {
+    const v = await openList();
+    await pick(v, 'Suppliers');
+    expect(boxOf(v).value).toBe('Suppliers');
+  });
+
+  it('and the counts move with the rows, not just the rows', async () => {
+    const v = await openList();
+    const [, beforeTotal] = showing(v);
+    await pick(v, 'Suppliers');
+    const [shownAfter, totalAfter] = showing(v);
+    // The denominator comes from countByStatus, which filters separately
+    // from the rows: a narrowing that moves one and not the other leaves
+    // the tabs contradicting the list under them.
+    expect(totalAfter).toBeLessThan(beforeTotal);
+    expect(shownAfter).toBeLessThanOrEqual(totalAfter);
+    expect(rows(v).length).toBe(shownAfter);
+  });
+});
+
+describe('the clear (x)', () => {
+  it('is absent when nothing is applied', async () => {
+    const v = await openList();
+    expect(v.container.querySelector('.scopepick__clear')).toBeNull();
+  });
+
+  it('appears once something is, and goes back to Everything', async () => {
+    const v = await openList();
+    await pick(v, 'Suppliers');
+    const x = v.container.querySelector<HTMLButtonElement>('.scopepick__clear');
+    expect(x, 'no clear button').toBeTruthy();
+    await act(async () => { fireEvent.click(x!); });
+    expect(boxOf(v).value).toBe('Everything');
+    expect(v.container.querySelector('.scopepick__clear')).toBeNull();
+  });
+
+  it('and the list comes back with it', async () => {
+    const v = await openList();
+    const before = rows(v).length;
+    await pick(v, 'Suppliers');
+    expect(rows(v).length).toBeLessThan(before);
+    await act(async () => { fireEvent.click(v.container.querySelector<HTMLButtonElement>('.scopepick__clear')!); });
+    expect(rows(v).length).toBe(before);
+  });
+});
+
+describe('the list never grows endless', () => {
+  it('offers only the quick choices before anybody types', async () => {
+    const v = await openList();
+    await act(async () => { fireEvent.focus(boxOf(v)); });
+    const labels = offered(v);
+    expect(labels).toContain('Everything');
+    expect(labels).toContain('Suppliers');
+    expect(labels).toContain('Agencies');
+    // Four quick choices at most on this book (Direct and Provider come
+    // from the rows). No parade of agencies under them.
+    expect(labels.length).toBeLessThanOrEqual(5);
+  });
+
+  it('and named parties only once something is typed', async () => {
+    const v = await openList();
+    await act(async () => { fireEvent.focus(boxOf(v)); });
+    const before = offered(v).length;
+    await act(async () => { fireEvent.change(boxOf(v), { target: { value: 'e' } }); });
+    expect(offered(v).length).toBeGreaterThan(before);
+  });
+
+  /* NO DUPLICATE ENTRIES. The one that actually occurred: a recent
+     selection that is also a quick choice appeared twice, once
+     unlabelled and once under "Recent", reading as two different
+     things. */
+  it('and never offers the same option twice', async () => {
+    const v = await openList();
+    await pick(v, 'Suppliers');
+    await pick(v, 'Agencies');
+    await act(async () => { fireEvent.focus(boxOf(v)); });
+    const labels = offered(v);
+    expect(labels.length).toBe(new Set(labels).size);
   });
 });

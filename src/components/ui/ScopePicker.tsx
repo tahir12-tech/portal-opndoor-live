@@ -28,7 +28,8 @@ import { useState } from 'react';
 import { TypeAhead, highlightMatch, type TypeAheadOption } from './TypeAhead';
 import { Icon } from './Icon';
 import {
-  ORIGIN_ALL, RAIL_AGENCY, RAIL_SUPPLIER, type OriginOption, type OriginScope,
+  ORIGIN_ALL, RAIL_AGENCY, RAIL_SUPPLIER, originLabelFor,
+  type OriginOption, type OriginScope,
 } from '@/data/origin';
 import './ScopePicker.css';
 
@@ -71,11 +72,26 @@ export function ScopePicker({
 
   const parties = options.filter((o) => o.group !== null && o.group !== 'Selected');
   const q = query.trim().toLowerCase();
-  const matches = q ? parties.filter((o) => o.label.toLowerCase().includes(q)) : parties;
+  /* PARTIES ARE SEARCH RESULTS, NOT A LIST. Matt, 2026-09-30: "Show only
+     the quick choices and recent selections until the user types;
+     individual agencies and suppliers appear only as search results, so
+     the list never grows endless."
 
+     It used to show every party in the book the moment the box was
+     focused. On a real estate that is hundreds of rows under three quick
+     choices, and the quick choices are the ones almost every use wants. */
+  const matches = q ? parties.filter((o) => o.label.toLowerCase().includes(q)) : [];
+
+  /* AND NO DUPLICATE ENTRIES. A recent that is already a quick choice
+     (Direct is both) would otherwise appear twice, once unlabelled and
+     once under "Recent", which reads as two different things. */
+  const quickValues = new Set(quick.map((o) => o.value));
   const recentOpts = q
     ? []
-    : recents.map((v) => byValue.get(v)).filter((o): o is OriginOption => !!o);
+    : recents
+      .filter((v) => !quickValues.has(v))
+      .map((v) => byValue.get(v) ?? { value: v, label: originLabelFor(v), group: null } as OriginOption)
+      .filter((o, i, a) => a.findIndex((x) => x.value === o.value) === i);
 
   const row = (o: OriginOption, section: string | null): TypeAheadOption => ({
     id: `${section ?? 'quick'}:${o.value}`,
@@ -95,9 +111,17 @@ export function ScopePicker({
     ...matches.map((o) => row(o, o.group)),
   ];
 
+  /* THE BOX ALWAYS SHOWS WHAT IS ACTUALLY APPLIED, which is the first
+     thing Matt asked for and the one the old fallback broke. A selection
+     the BOOK does not contain -- an agency with nothing in the chosen
+     period, a supplier whose rows are all refunded -- was not in
+     `options` and not in `quick`, so the box read "Everything" over a
+     narrowed list. `originLabelFor` can name any selection from the
+     value alone, so there is no case left where the control and the list
+     disagree. */
   const current = byValue.get(value)?.label
     ?? quick.find((o) => o.value === value)?.label
-    ?? 'Everything';
+    ?? originLabelFor(value);
 
   return (
     /* `fchip` as well as its own class: on Applications this sits in the
@@ -114,6 +138,22 @@ export function ScopePicker({
         emptyText="No party of that name in this book"
         onChange={(v) => { setQuery(v); setTyping(true); }}
       />
+      {/* CLEAR, BACK TO EVERYTHING. Matt: "Add a clear (x) to go back to
+          Everything." Only when something is applied: an x beside
+          "Everything" offers to undo nothing. It also drops whatever is
+          half-typed, because leaving a query in a cleared box is the same
+          disagreement between the control and the list in miniature. */}
+      {value !== ORIGIN_ALL && (
+        <button
+          type="button"
+          className="scopepick__clear"
+          aria-label="Clear the origin filter"
+          title="Show everything"
+          onClick={() => { onChange(ORIGIN_ALL); setQuery(''); setTyping(false); }}
+        >
+          <Icon name="x" size={13} />
+        </button>
+      )}
     </div>
   );
 }

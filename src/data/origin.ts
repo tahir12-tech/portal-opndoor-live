@@ -322,7 +322,25 @@ export function originOptions(rows: OriginRow[], current?: string): OriginOption
 
 /** A selection's own name, derived rather than looked up, for a value the book
     does not carry. */
-function originLabelFor(value: string): string {
+/* EXPORTED so the picker's box can name a selection the BOOK does not
+   contain. Filtering to an agency with nothing in the period is a real
+   thing to do, and a control that answers "Everything" while the list is
+   narrowed is the defect Matt reported: "the box always shows what is
+   actually applied". */
+export function originLabelFor(value: string): string {
+  /* THE TWO RAILS, WHICH THIS DID NOT KNOW. They are not parties, so
+     `originOptions` never produces them from the book and they were
+     never in this function either -- and both fall through to the
+     "Everything" at the bottom.
+
+     That is the box lying, exactly as Matt reported. `originOptions`
+     appends a synthetic entry for the CURRENT selection so the control
+     can name it, labelled through here, so choosing Suppliers narrowed
+     the list to suppliers and left the box reading "Everything". The
+     list was right and the control was wrong about it, which is the
+     worst way round. */
+  if (value === RAIL_SUPPLIER) return 'Suppliers';
+  if (value === RAIL_AGENCY) return 'Agencies';
   if (value === 'direct') return 'Direct';
   if (value === 'provider') return ROUTE_LABEL['Provider hand-over'];
   if (value.startsWith('partner:')) return partnerName(value.slice('partner:'.length));

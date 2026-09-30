@@ -224,11 +224,22 @@ const refs = (v: View) => [...v.container.querySelectorAll('table.dt tbody tr')]
 const originInput = (v: View) =>
   v.container.querySelector<HTMLInputElement>('.scopepick input[role="combobox"]')!;
 
+/* TYPES FIRST FOR A NAMED PARTY, which is how the control now works.
+   Matt, 2026-09-30: "Show only the quick choices and recent selections
+   until the user types; individual agencies and suppliers appear only as
+   search results, so the list never grows endless." The quick choices
+   (Everything, Suppliers, Agencies, Direct) are still there on focus, so
+   a caller naming one of those needs no query. */
 function chooseOrigin(v: View, label: string) {
   const input = originInput(v);
   fireEvent.focus(input);
-  const row = [...v.container.querySelectorAll('.typeahead__opt')]
+  const find = () => [...v.container.querySelectorAll('.typeahead__opt')]
     .find((o) => o.querySelector('.typeahead__opt-main')?.textContent === label);
+  let row = find();
+  if (!row) {
+    fireEvent.change(input, { target: { value: label } });
+    row = find();
+  }
   if (!row) {
     const seen = [...v.container.querySelectorAll('.typeahead__opt-main')].map((o) => o.textContent);
     throw new Error(`no origin option "${label}". Offered: ${seen.join(' | ')}`);
@@ -250,13 +261,26 @@ describe('the Origin filter', () => {
     expect(cellFor(A_DIRECT).textContent).not.toMatch(/Unattached|Opndoor/);
   });
 
+  /* CHANGED 2026-09-30, and what it protects is unchanged. It used to
+     focus the box and read every party off it, because the control
+     listed them all. It lists the QUICK choices on focus now and the
+     parties only as search results, so the search is what this drives.
+     The rule being pinned is still "each party in the book once, and
+     nothing the book has no rows from". */
   it('offers each party in the book once, and nothing the book has no rows from', async () => {
     seedMixedBook();
     const view = await openList('superadmin');
-    fireEvent.focus(originInput(view));
+    const input = originInput(view);
+    fireEvent.focus(input);
+    const onFocus = [...view.container.querySelectorAll('.typeahead__opt-main')].map((o) => o.textContent);
+    // The quick choices, and no list of parties under them.
+    expect(onFocus).toContain('Everything');
+    expect(onFocus).toContain('Direct');
+    expect(onFocus).not.toContain('Marylebone & Co');
+
+    // Typing a letter every party shares turns them into search results.
+    fireEvent.change(input, { target: { value: 'e' } });
     const labels = [...view.container.querySelectorAll('.typeahead__opt-main')].map((o) => o.textContent);
-    expect(labels).toContain('Everything');
-    expect(labels).toContain('Direct');
     expect(labels).toContain('Harbourside Homes');
     expect(labels).toContain('Foxglove Residential');
     expect(labels).toContain('Marylebone & Co');
