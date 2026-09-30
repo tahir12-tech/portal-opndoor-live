@@ -88,10 +88,23 @@ select is(
     where guarantee_ref = 'ZZZ-RAIL-AG'), 1,
   'while the agency''s own referral still is');
 
-select is(
-  (select count(*)::int from public.commission_statement_lines(date_trunc('month', now())::date)
-    where guarantee_ref = 'ZZZ-RAIL-SU'), 1,
-  'and so is the supplier''s, because only ONE rail is excluded');
+/* CHANGED BY SUPPLIER STATEMENTS, 2026-09-30, and it is a count going UP
+   rather than an assertion being relaxed. This asked for one line and got
+   one: the agency under the supplier, on its agent_rate. The supplier's
+   own partner_rate cut was not a statement line at all, anywhere, which
+   is the fact that made supplier statements a new DOCUMENT rather than a
+   new recipient. It is a line now, so the referral produces two: the
+   agency's and the supplier's.
+
+   Asserted as the PAIR of levels rather than as `count = 2`, because the
+   thing this file is about is which rails are excluded, and a bare count
+   would pass just as happily if the second line were a second agency
+   one. */
+select bag_eq(
+  $$select level from public.commission_statement_lines(date_trunc('month', now())::date)
+     where guarantee_ref = 'ZZZ-RAIL-SU'$$,
+  $$values ('agency'), ('partner')$$,
+  'and the supplier''s referral is not excluded either -- on two lines now, its agency''s cut and its own');
 
 -- ===========================================================================
 -- M3. THE DIGEST KEEPS THE SUPPLIER AND DROPS THE DIRECT TENANT

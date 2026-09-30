@@ -94,24 +94,35 @@ select lives_ok($$select public.set_notification_for('e4000000-0000-0000-0000-00
 select lives_ok($$select public.set_receives_notifications('e4000000-0000-0000-0000-00000000c002', true)$$,
   'and may copy a colleague in on referrals, which the agency rail calls Director-only');
 
-/* MONTHLY STATEMENTS: THE PERMISSION IS NOW THEIRS AND THE STATEMENT IS
-   STILL UNDELIVERABLE, and the distinction is the finding.
+/* MONTHLY STATEMENTS, AND BOTH HALVES OF THIS MOVED ON 2026-09-30.
+   It used to expect 22023, for a reason that no longer holds, and the
+   reason mattering more than the code is why the whole note is rewritten
+   rather than the errcode edited.
 
-   The gate admits a supplier's management -- that is Q4 and it works.
-   What refuses is the step BEFORE it:
-   `commission_statement_party(p_user)` returns nothing for anybody with
+   WHAT USED TO HAPPEN. The gate admitted a supplier's management -- that
+   is Q4 -- and the step BEFORE it refused:
+   `commission_statement_party(p_user)` answered nothing for anybody with
    no org attachment, and a supplier's staff have none, deliberately
-   (decision D11, "positions are an agency-estate thing and this rail has
-   none"). So the error is 22023 "not attached to a group, agency or
-   branch", not 42501.
+   (decision D11). So the error was 22023 "not attached to a group,
+   agency or branch", and the NM-O sweep recorded it as a gap: "a
+   supplier Director can never be put on a commission statement".
 
-   This is the pre-existing gap the NM-O sweep recorded -- "a supplier
-   Director can never be put on a commission statement" -- and it is
-   asserted here rather than worked around, because a test that bent to
-   make Q4 look finished would hide it. */
+   BOTH ENDS CHANGED, IN OPPOSITE DIRECTIONS. Supplier statements
+   (20261007040000) gave `commission_statement_party` a fourth arm, so a
+   supplier person now resolves to their SUPPLIER and the gap is closed.
+   And the same instruction narrowed who may switch the tick: "Only
+   Opndoor admin can switch statements on or off for a supplier's users;
+   supplier users cannot change it for themselves or colleagues."
+
+   So the refusal is now the PERMISSION refusal, 42501, which is a
+   stronger thing to assert than the old one: it says nobody at the
+   supplier may, rather than that nobody could be addressed at all. This
+   is the half of Q4 Matt reversed, and it is asserted from both sides --
+   here, and by the two throws_ok in
+   a_supplier_gets_its_own_statement.test.sql. */
 select throws_ok($$select public.set_receives_commission_statements('e4000000-0000-0000-0000-00000000c001', true)$$,
-  '22023', null,
-  'a supplier person still cannot be ADDRESSED a statement: they hold no org attachment, which is a gap Q4 does not close');
+  '42501', null,
+  'a supplier Management user may not switch a statement on, for themselves or anyone: Opndoor only, which reverses half of Q4');
 
 select throws_ok($$select public.set_notification_for('e4000000-0000-0000-0000-00000000c004','sent',false)$$,
   '42501', null, 'while another supplier''s person is refused');
@@ -179,12 +190,13 @@ set local role authenticated;
 select ok(not public.caller_may_set_for('e4000000-0000-0000-0000-00000000c001'),
   'an estate manager still cannot reach a supplier''s person');
 
-/* The estate manager is refused too. Same ordering: the target's
-   attachment is tested before the caller's permission, so this is 22023.
-   The permission refusal for this caller is asserted directly by the
-   `caller_may_set_for` check above it, which is the unambiguous half. */
+/* The estate manager is refused too, and for the plain reason now
+   rather than the incidental one. This was 22023 -- the target had no
+   attachment to resolve -- which meant the assertion passed without ever
+   reaching the permission check. Since 20261007040000 a supplier person
+   resolves to their supplier, so the refusal is the permission itself. */
 select throws_ok($$select public.set_receives_commission_statements('e4000000-0000-0000-0000-00000000c001', true)$$,
-  '22023', null, 'and cannot switch on a statement for one');
+  '42501', null, 'and cannot switch on a statement for one');
 
 /* AND THE HOUSE PARTNER IS NEVER "THE SAME SUPPLIER". This is the
    assertion the whole migration turns on. EVERY agency Opndoor onboards

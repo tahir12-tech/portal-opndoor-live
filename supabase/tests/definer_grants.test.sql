@@ -47,6 +47,12 @@ select plan(4);
 create temp table allowed(name text) on commit drop;
 insert into allowed(name) values
   ('add_application_note'),
+  /* The two admin doors onto a supplier's named statement addresses
+     (20261007040000). Browser-called from the admin screens, guarded
+     inside by is_aal2 + is_admin, so granted to `authenticated` and
+     therefore on the list. Covered by
+     a_supplier_gets_its_own_statement.test.sql. */
+  ('add_partner_statement_recipient'),
   ('admin_add_agency'),
   ('admin_add_branch'),
   ('admin_break_glass_revoke_key'),
@@ -154,6 +160,7 @@ insert into allowed(name) values
   ('origin_is_agent_estate'),
   ('origin_referencing_mode'),
   ('partner_active_key_count'),
+  ('partner_statement_recipient_list'),
   /* The whole panel in one round trip, including a flag PER SECTION saying
      whether the caller may change that section -- so the screen can only
      ever offer what the server will accept. Bounded by the same ladder as
@@ -163,6 +170,7 @@ insert into allowed(name) values
   ('reconciliation_queue'),
   ('referral_fee_preview'),
   ('referrer_league'),
+  ('remove_partner_statement_recipient'),
   ('resolve_agency_match'),
   ('send_deed_to_agent'),
   ('send_deed_to_landlord'),

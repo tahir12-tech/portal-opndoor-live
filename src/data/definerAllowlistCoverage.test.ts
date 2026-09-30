@@ -153,8 +153,17 @@ describe('the definer allowlist', () => {
      POLICY on user_notification_settings evaluates it, so it has to be
      executable by `authenticated` and therefore has to be on the
      allowlist. Q4. */
-  it('is 133 functions wide, and does not widen by accident', () => {
-    expect(allowlist.length).toBeLessThanOrEqual(133);
+  /* 133 -> 136, RAISED DELIBERATELY AND IN THE SAME COMMIT AS THE THREE
+     FUNCTIONS. `add_partner_statement_recipient`,
+     `remove_partner_statement_recipient` and
+     `partner_statement_recipient_list` are the admin doors onto a
+     supplier's named statement addresses: called from the browser, so
+     granted to `authenticated`, so on the allowlist. All three are
+     exercised by name in a_supplier_gets_its_own_statement.test.sql, so
+     none joins the uncovered list below. Supplier statements,
+     2026-09-30. */
+  it('is 136 functions wide, and does not widen by accident', () => {
+    expect(allowlist.length).toBeLessThanOrEqual(136);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

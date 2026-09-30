@@ -21,24 +21,40 @@ select plan(24);
 -- so a paid application produces TWO payees, which is the case a single-payee
 -- implementation gets wrong.
 -- ---------------------------------------------------------------------------
-/* NOT a house route. This said `is_house_route = true`, which is a shape that
-   does not exist: the only house routes are opndoor-direct and
-   referencing-partner, and application_channel puts any OTHER house route in
-   the 'Direct' bucket. 20261006580000 excludes direct-rail business from
-   commission_statement_lines -- a matched direct tenant was becoming the
-   matched agency's statement payee -- and this fixture was the only thing in
-   the suite claiming to be a house route while modelling ordinary agency
-   business. The flag was never what the test was about. */
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values ('96000000-0000-0000-0000-000000000001', 'zzz-stmt', 'Statement Rail', 'opndoor_referenced', 0.25, 0.10, false);
+/* THE HOUSE PARTNER, WHICH IS WHAT AN AGENCY-RAIL ESTATE SITS ON, and
+   getting here took two corrections.
+
+   It said `is_house_route = true` first, which is a shape that does not
+   exist: the only house routes are opndoor-direct and
+   referencing-partner, and application_channel puts any OTHER house route
+   in the 'Direct' bucket, so 20261006580000 would have excluded the whole
+   fixture. That was changed to a bespoke partner with the flag off.
+
+   WHICH WAS THE OTHER HALF OF THE SAME MISTAKE, and supplier statements
+   (2026-09-30) is what surfaced it. A named partner that is neither a
+   house route nor `opndoor-agents` IS a supplier under the three-rail
+   model -- so this fixture was a supplier with an agency estate hanging
+   off it and Directors holding POSITIONS in that estate, which the
+   product cannot create. Measured on dev: all 20 positioned users are on
+   opndoor-agents, and the two users on real suppliers hold no position
+   at all. The consequence was not cosmetic: every application here
+   started producing a supplier commission line beside the agency's, and
+   the narrowed set_receives_commission_statements -- Opndoor-only for a
+   SUPPLIER'S people -- refused the Director this file exists to prove
+   can set the tick.
+
+   So the estate moves to the house partner, which is what "Group
+   Director", "Agency Director" and "Branch Director" have always meant.
+   The partner was never what this file is about; it is about the
+   addressing ladder above an agency. */
 insert into public.agency_groups (id, partner_id, name, agent_rate)
-values ('96000000-0000-0000-0000-000000000002', '96000000-0000-0000-0000-000000000001', 'Statement Group', 0.02);
+values ('96000000-0000-0000-0000-000000000002', (select id from public.partners where slug='opndoor-agents'), 'Statement Group', 0.02);
 insert into public.agencies (id, partner_id, name, group_id, finance_email)
-values ('96000000-0000-0000-0000-000000000003', '96000000-0000-0000-0000-000000000001', 'Statement Agency',
+values ('96000000-0000-0000-0000-000000000003', (select id from public.partners where slug='opndoor-agents'), 'Statement Agency',
         '96000000-0000-0000-0000-000000000002', 'accounts@statement.test');
 insert into public.branches (id, agency_id, partner_id, name) values
-  ('96000000-0000-0000-0000-000000000004', '96000000-0000-0000-0000-000000000003', '96000000-0000-0000-0000-000000000001', 'Statement Branch'),
-  ('96000000-0000-0000-0000-000000000005', '96000000-0000-0000-0000-000000000003', '96000000-0000-0000-0000-000000000001', 'Other Branch');
+  ('96000000-0000-0000-0000-000000000004', '96000000-0000-0000-0000-000000000003', (select id from public.partners where slug='opndoor-agents'), 'Statement Branch'),
+  ('96000000-0000-0000-0000-000000000005', '96000000-0000-0000-0000-000000000003', (select id from public.partners where slug='opndoor-agents'), 'Other Branch');
 
 -- The people, before the applications: every application needs a referrer.
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at,
@@ -65,12 +81,12 @@ values
    This fixture predated that rule and made them all Managers, which is the
    one level that must NOT receive one. The names always said Director. */
 insert into public.users (id, full_name, email, role, partner_id, status, sees_commission) values
-  ('96000000-0000-0000-0000-0000000000e1','Group Director','director@statement.test','management','96000000-0000-0000-0000-000000000001','active',true),
-  ('96000000-0000-0000-0000-0000000000e2','Agency Director','manager@statement.test','management','96000000-0000-0000-0000-000000000001','active',true),
-  ('96000000-0000-0000-0000-0000000000e3','Branch Director','branch@statement.test','management','96000000-0000-0000-0000-000000000001','active',true),
-  ('96000000-0000-0000-0000-0000000000e4','Left The Firm','gone@statement.test','management','96000000-0000-0000-0000-000000000001','deactivated',true),
+  ('96000000-0000-0000-0000-0000000000e1','Group Director','director@statement.test','management',(select id from public.partners where slug='opndoor-agents'),'active',true),
+  ('96000000-0000-0000-0000-0000000000e2','Agency Director','manager@statement.test','management',(select id from public.partners where slug='opndoor-agents'),'active',true),
+  ('96000000-0000-0000-0000-0000000000e3','Branch Director','branch@statement.test','management',(select id from public.partners where slug='opndoor-agents'),'active',true),
+  ('96000000-0000-0000-0000-0000000000e4','Left The Firm','gone@statement.test','management',(select id from public.partners where slug='opndoor-agents'),'deactivated',true),
   -- A MANAGER at the same party, ticked, who must not be a recipient.
-  ('96000000-0000-0000-0000-0000000000e5','Agency Manager','mgr.nocomm@statement.test','management','96000000-0000-0000-0000-000000000001','active',false),
+  ('96000000-0000-0000-0000-0000000000e5','Agency Manager','mgr.nocomm@statement.test','management',(select id from public.partners where slug='opndoor-agents'),'active',false),
   ('96000000-0000-0000-0000-0000000000ff','Statement Admin','stmtadmin@statement.test','superadmin', null,'active',true);
 
 insert into public.user_scopes (user_id, kind, group_id, agency_id, branch_id) values
@@ -92,25 +108,25 @@ insert into public.applications (
 ) values
   ('96000000-0000-0000-0000-00000000000a', 'GR-STMT-A',
    '96000000-0000-0000-0000-000000000004', '96000000-0000-0000-0000-000000000003',
-   '96000000-0000-0000-0000-000000000001', '96000000-0000-0000-0000-0000000000e2',
+   (select id from public.partners where slug='opndoor-agents'), '96000000-0000-0000-0000-0000000000e2',
    'Ms', 'Ada', 'Paid', '1990-01-01', 'ada@statement.test', '07700 900001',
    '1 Test Road', 'London', 'NW1 8LH', 2000, 2000, date '2031-06-01', 'paid', true,
    'opndoor_referenced', 0.25, 0.12, timestamptz '2031-04-01 09:00:00+00', timestamptz '2031-05-10 12:00:00+00', 'paid'),
   ('96000000-0000-0000-0000-00000000000b', 'GR-STMT-B',
    '96000000-0000-0000-0000-000000000004', '96000000-0000-0000-0000-000000000003',
-   '96000000-0000-0000-0000-000000000001', '96000000-0000-0000-0000-0000000000e2',
+   (select id from public.partners where slug='opndoor-agents'), '96000000-0000-0000-0000-0000000000e2',
    'Mr', 'Bo', 'Refunded', '1990-01-01', 'bo@statement.test', '07700 900002',
    '2 Test Road', 'London', 'NW1 8LH', 2000, 2000, date '2031-06-01', 'paid', true,
    'opndoor_referenced', 0.25, 0.12, timestamptz '2031-04-01 09:00:00+00', timestamptz '2031-05-11 12:00:00+00', 'refunded'),
   ('96000000-0000-0000-0000-00000000000c', 'GR-STMT-C',
    '96000000-0000-0000-0000-000000000004', '96000000-0000-0000-0000-000000000003',
-   '96000000-0000-0000-0000-000000000001', '96000000-0000-0000-0000-0000000000e2',
+   (select id from public.partners where slug='opndoor-agents'), '96000000-0000-0000-0000-0000000000e2',
    'Ms', 'Cleo', 'Nextmonth', '1990-01-01', 'cleo@statement.test', '07700 900003',
    '3 Test Road', 'London', 'NW1 8LH', 2000, 2000, date '2031-07-01', 'paid', true,
    'opndoor_referenced', 0.25, 0.12, timestamptz '2031-04-01 09:00:00+00', timestamptz '2031-06-10 12:00:00+00', 'paid'),
   ('96000000-0000-0000-0000-00000000000d', 'GR-STMT-D',
    '96000000-0000-0000-0000-000000000004', '96000000-0000-0000-0000-000000000003',
-   '96000000-0000-0000-0000-000000000001', '96000000-0000-0000-0000-0000000000e2',
+   (select id from public.partners where slug='opndoor-agents'), '96000000-0000-0000-0000-0000000000e2',
    'Mr', 'Dev', 'Midnight', '1990-01-01', 'dev@statement.test', '07700 900004',
    '4 Test Road', 'London', 'NW1 8LH', 1000, 1000, date '2031-06-01', 'paid', true,
    'opndoor_referenced', 0.25, 0.12, timestamptz '2031-04-01 09:00:00+00', timestamptz '2031-04-30 23:30:00+00', 'paid'),
@@ -119,7 +135,7 @@ insert into public.applications (
   -- exactly the guard it exists to be, so the fixture has to say so up front.
   ('96000000-0000-0000-0000-00000000000e', 'GR-STMT-E',
    '96000000-0000-0000-0000-000000000004', '96000000-0000-0000-0000-000000000003',
-   '96000000-0000-0000-0000-000000000001', '96000000-0000-0000-0000-0000000000e2',
+   (select id from public.partners where slug='opndoor-agents'), '96000000-0000-0000-0000-0000000000e2',
    'Ms', 'Eve', 'Sandbox', '1990-01-01', 'eve@statement.test', '07700 900005',
    '5 Test Road', 'London', 'NW1 8LH', 2000, 2000, date '2031-06-01', 'paid', false,
    'opndoor_referenced', 0.25, 0.12, timestamptz '2031-04-01 09:00:00+00', timestamptz '2031-05-12 12:00:00+00', 'paid');
@@ -180,6 +196,11 @@ select ok(
 -- THE HISTORIC FALLBACK. A row frozen before the additive model has no lines,
 -- and the money it earned was always the referring agency's.
 delete from public.application_commission_lines where application_id = '96000000-0000-0000-0000-00000000000d';
+/* EXACTLY ONE LINE, and it stays exactly one now that the estate is on
+   the house partner: a house route's partner cut is Opndoor's own margin
+   and is owed to nobody, so no supplier line is produced here. On a real
+   supplier it would be two, which is asserted where it belongs, in
+   a_supplier_gets_its_own_statement.test.sql. */
 select is(
   (select count(*)::int from public.commission_statement_lines(date '2031-05-01')
     where guarantee_ref = 'GR-STMT-D'),
