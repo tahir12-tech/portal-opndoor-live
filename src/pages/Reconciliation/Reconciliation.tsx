@@ -8,8 +8,9 @@
    2-minute cron also runs the sync). Merge is not built yet (disabled).
    ===================================================================== */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { confirmReconEntity, loadReconciliationQueue, loadAgencyMatchQueue, triggerCrmSync, type ReconRow } from '@/data';
+import { confirmReconEntity, loadReconciliationQueue, loadAgencyMatchQueue, loadNotInNetworkAgencies, triggerCrmSync, type ReconRow } from '@/data';
 import { AgencyMatchQueue } from './AgencyMatchQueue';
+import { NotInNetwork } from './NotInNetwork';
 import { useSearchParams } from 'react-router-dom';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -19,7 +20,7 @@ import { useToast } from '@/components/ui/Toast';
 import '@/components/ui/opbar.css';
 import './Reconciliation.css';
 
-type Filter = 'all' | 'agency' | 'branch' | 'dupes' | 'matches';
+type Filter = 'all' | 'agency' | 'branch' | 'dupes' | 'matches' | 'notinnetwork';
 
 export function Reconciliation() {
   usePageMeta('reconcile', 'Reconciliation', ['Home', 'opndoor', 'Reconciliation']);
@@ -34,17 +35,29 @@ export function Reconciliation() {
      clicked and a list that does not contain it. */
   const [filter, setFilter] = useState<Filter>(() => {
     const t = params.get('tab');
-    return t === 'agency' || t === 'branch' || t === 'dupes' || t === 'matches' ? t : 'all';
+    /* A WHITELIST OF LITERALS, so a new tab has to be named here to be
+       deep-linkable. Miss it and the page opens on All: the reader arrives
+       at a number they just clicked and a list that does not contain it,
+       which is the exact defect the comment above records. */
+    return t === 'agency' || t === 'branch' || t === 'dupes' || t === 'matches' || t === 'notinnetwork' ? t : 'all';
   });
   const [matchCount, setMatchCount] = useState(0);
+  const [notInCount, setNotInCount] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   const reload = useCallback(async () => {
     try {
-      const [q, matches] = await Promise.all([loadReconciliationQueue(), loadAgencyMatchQueue()]);
+      /* THE COUNTS THE TAB STRIP SHOWS, loaded together. A loader added here
+         without a mock-mode branch rejects the whole Promise.all in test
+         mode and takes the other counts down with it, so the not-in-network
+         reader has one -- see reconciliationService. */
+      const [q, matches, notIn] = await Promise.all([
+        loadReconciliationQueue(), loadAgencyMatchQueue(), loadNotInNetworkAgencies(),
+      ]);
       setQueue(q);
       setMatchCount(matches.length);
+      setNotInCount(notIn.length);
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not load the reconciliation queue.', 'error');
     } finally {
@@ -65,6 +78,9 @@ export function Reconciliation() {
     { id: 'branch', label: 'Branches', count: branchCount },
     { id: 'dupes', label: 'Possible duplicates', count: dupes },
     { id: 'matches', label: 'Direct matches', count: matchCount },
+    /* NM-N. Last, because it is the only tab that is not WORK: nothing on
+       it can be actioned here, it is a list to retype into HubSpot. */
+    { id: 'notinnetwork', label: 'Not in network', count: notInCount },
   ];
 
   /* OPEN ON A TAB THAT HAS WORK. "All" counts the review queue only, so a page
@@ -150,6 +166,8 @@ export function Reconciliation() {
 
       {filter === 'matches' ? (
         <AgencyMatchQueue onChanged={reload} />
+      ) : filter === 'notinnetwork' ? (
+        <NotInNetwork />
       ) : (
       <div className="rq">
         {visible.map((item) => {
@@ -193,7 +211,11 @@ export function Reconciliation() {
         })}
       </div>
       )}
-      {filter !== 'matches' && (
+      {/* THE REVIEW QUEUE'S OWN EMPTY STATE, and it speaks for that queue
+          alone: "nothing left to reconcile" under a not-in-network list with
+          four agencies on it would be a flat contradiction. Each sibling
+          section carries its own. */}
+      {filter !== 'matches' && filter !== 'notinnetwork' && (
         <div className={`empty${!loading && queue.length === 0 ? ' is-shown' : ''}`}>Nothing left to reconcile. The hierarchy is clean.</div>
       )}
     </>

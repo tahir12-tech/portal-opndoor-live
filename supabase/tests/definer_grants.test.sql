@@ -140,6 +140,7 @@ insert into allowed(name) values
   ('my_org_shape'),
   ('my_partner_rates'),
   ('my_partner_summary'),
+  ('not_in_network_agencies'),
   ('notification_matrix'),
   ('ops_route_live_count'),
   ('ops_routing_matrix'),

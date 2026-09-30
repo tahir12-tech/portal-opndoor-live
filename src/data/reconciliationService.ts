@@ -213,6 +213,83 @@ export async function dismissAgencyMatch(applicationId: string, note?: string): 
   if (i >= 0) MOCK_AGENCY_MATCHES.splice(i, 1);
 }
 
+/* ---------------------------------------------------------------------------
+   NM-N. THE AGENCIES A DIRECT TENANT NAMED THAT WE DO NOT WORK WITH.
+
+   Matt, 2026-09-30: "list agencies a direct tenant named that we don't work
+   with on the Reconciliation page, with the agent contact given, for someone
+   to add to HubSpot by hand."
+
+   A READ AND NOTHING ELSE. The same instruction opens "don't create
+   companies in HubSpot automatically", so there is deliberately no write
+   here, no sync call, and no button that reaches the CRM. What a person does
+   with this list happens in HubSpot, by hand.
+
+   ONE ROW PER AGENCY, not per application: `not_in_network_agencies` groups
+   on the normalised typed name the matcher already keeps, so three tenants
+   who named the same agency are one company to create.
+
+   NOTHING OF THE TENANT'S IS IN THIS TYPE, and that is the whole shape of
+   item 24's last sentence. There is no guaranteeRef, no tenant name and no
+   property: the SQL does not return them, and this interface could not carry
+   them if it did.
+   --------------------------------------------------------------------------- */
+
+/** An agent contact a tenant gave. Every field is optional: the
+ *  delivery_contact_named constraint was re-added NOT VALID in
+ *  20260904120000, so an older row can be an agency name and nothing else. */
+export interface NotInNetworkContact {
+  agencyName: string | null;
+  title: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+export interface NotInNetworkAgency {
+  /** The normalised name, which is what makes two spellings one agency. */
+  nameKey: string;
+  /** The spelling the most recent tenant used, which is what to type in. */
+  typedName: string;
+  /** How many direct tenants named it. The difference between a prospect
+   *  worth the typing and a one-off. */
+  tenants: number;
+  lastNamedAt: string;
+  /** Empty when no tenant gave an AGENT contact. A private landlord is not
+   *  an agent and is deliberately not carried here. */
+  contacts: NotInNetworkContact[];
+}
+
+export async function loadNotInNetworkAgencies(): Promise<NotInNetworkAgency[]> {
+  if (SUPABASE_ENABLED) {
+    const { data, error } = await sb().rpc('not_in_network_agencies');
+    if (error) throw new Error(error.message);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((r: any) => ({
+      nameKey: r.name_key,
+      typedName: r.typed_name || r.name_key,
+      tenants: Number(r.tenants) || 0,
+      lastNamedAt: r.last_named_at ? fmtWhen(r.last_named_at) : '',
+      contacts: Array.isArray(r.contacts) ? r.contacts : [],
+    }));
+  }
+  return MOCK_NOT_IN_NETWORK.map((r) => ({ ...r, contacts: r.contacts.map((c) => ({ ...c })) }));
+}
+
+/* The mock book carries both shapes on purpose: one agency with an agent
+   contact, and one with none at all -- which on dev is the real case, because
+   the dismissed application there gave a private landlord. A fixture that
+   only has the happy shape is how the empty-contact rendering ships
+   untested. */
+const MOCK_NOT_IN_NETWORK: NotInNetworkAgency[] = [
+  { nameKey: 'foxton & hale', typedName: 'Foxton & Hale', tenants: 3, lastNamedAt: '28/09/2026 · 16:20',
+    contacts: [{ agencyName: 'Foxton & Hale', title: 'Ms', firstName: 'Ruth', lastName: 'Calder',
+      email: 'lettings@foxtonhale.test', phone: '020 7946 2200' }] },
+  { nameKey: 'quayside residential', typedName: 'Quayside Residential', tenants: 1, lastNamedAt: '21/09/2026 · 09:05',
+    contacts: [] },
+];
+
 const MOCK_AGENCY_MATCHES: AgencyMatchRow[] = [
   { applicationId: 'am1', guaranteeRef: 'GR-1000', tenantName: 'Sam Okafor', property: 'Leeds LS1 4DY',
     typedName: 'Meridian Lettings', autoAgencyId: 'ag-meridian', autoAgencyName: 'Meridian Lettings',

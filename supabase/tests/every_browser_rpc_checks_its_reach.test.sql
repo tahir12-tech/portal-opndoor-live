@@ -27,7 +27,7 @@
 -- definerAllowlistCoverage.test.ts rather than quietly omitted.
 
 begin;
-select plan(43);
+select plan(44);
 
 -- ===========================================================================
 -- OURS AND THEIRS, one house partner.
@@ -126,6 +126,12 @@ select is((select invited from public.agent_rail_funnel(null)), 0,
   'agent_rail_funnel counts nothing of theirs');
 select throws_ok($$select * from public.agency_match_queue()$$,
   '42501', null, 'and the agency match queue, which pairs typed names to real agencies, is admin-only');
+-- NM-N. The list of agencies a direct tenant named that we do not work with.
+-- Same two guards as the queue above it, so the same refusal for an agency
+-- Director: the typed names and agent contacts on it are Opndoor's prospect
+-- list across every direct signup, and none of it is theirs.
+select throws_ok($$select * from public.not_in_network_agencies()$$,
+  '42501', null, 'and the not-in-network prospect list, which is Opndoor''s own, is staff-only');
 
 -- ---- writes on somebody else's application --------------------------------
 select throws_ok($$select public.add_application_note('ZZZ-REACH-THEIRS','hello')$$,
