@@ -757,7 +757,7 @@ it is the single most repeated finding in this whole effort.
 | The PANEL reading per-person settings instead of the party matrix | **DONE** `d1bfcb6`, **checked on dev** |
 | Wiring the panel into the screens | **DONE** `d1bfcb6` -- FOUR, not three; see below |
 | REMOVING the two tickbox columns, both grids, the Team tickbox and the Internal notifications page | **DONE** `d1bfcb6` |
-| Applications Origin filter (item 7) | **next** |
+| Applications Origin filter (item 7) | **DONE** `2fffe58`, **checked against dev's own book** |
 
 **The client half is done and the old surfaces are gone.** Merged into
 `partner-api` (`e257e14` + `fix-the-seven`), so the dev server on 5174 serves
@@ -870,6 +870,59 @@ where a screen lists them: Team for the agency estate, and nothing for a
 supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
 answered: giving supplier staff a people screen is a new screen, not a
 wiring job.
+
+## Walk fix 7: the Origin picker narrows the list. DONE AND CHECKED ON DEV.
+
+`2fffe58`.
+
+**What was wrong, and it was true of the two choices at the top.** The picker
+offers Everything, Suppliers and Agencies as quick choices. The second and
+third are `rail:supplier` and `rail:agency` -- rails, not parties, so no row
+is one and `originOptions` never produces them; the picker adds them from its
+own QUICK list. The page narrowed by translating a selection through
+`originToFilter`, which has no rail arm and whose fallthrough is `return {}`,
+meaning no filter. So picking either left the whole book on screen.
+
+**The fix is one predicate, not a new one.** `originMatches` already had both
+rail arms and is what Reporting narrows by. `AppFilterOpts` now takes
+`origin` and applies it in `getApplications` AND in `countByStatus` -- two
+separate filters, and teaching only the first would have moved the rows while
+leaving "Showing 5 of 21" behind, which is the same complaint one line
+further down the page.
+
+`originToFilter` keeps its other job: narrowing `scopeOpts` to a partner so
+the Agency, Branch and Referrer chips list that party's own options. A rail
+names no single partner, and leaving those chips open across a rail is right.
+
+**Why nothing caught it.** The existing coverage loops
+`originOptions(book)` -- precisely the set of values that DO work.
+
+**Checked against dev's own book, not the fixture.** No browser driver is
+installed here, so the check is the real predicate run over dev's real 35
+applications (their partner slug and agency name, with dev's own partner
+records hydrated so the rail is read the way the page reads it):
+
+| selection | rows on dev |
+| --- | --- |
+| Everything | 35 |
+| Agencies | 24 |
+| Suppliers | 1 (Kestrel) |
+| Direct | 10 |
+| `partner:kestrel-lettings` | 1 |
+
+Disjoint, summing to 35. Before the fix, Agencies and Suppliers each returned
+all 35. Dev's book is a better test than the mock, which has no Direct rows
+at all. The merged branch is what 5174 serves.
+
+**Tests.** `src/data/origin.test.ts` +6 (37 from 31), five failing first. New
+`src/pages/Applications/originPicker.render.test.tsx`, 5 assertions, four
+failing first -- driven through the CONTROL rather than the service, because
+the data layer was never wrong and a service-level test would have passed on
+the day of the defect.
+
+**Matt's one-line alternative** is NM-K under Needs Matt, as item 7 asks.
+
+---
 
 ### NM-2b, flagged now the work is finished rather than left to notice
 
@@ -1688,6 +1741,35 @@ easy it is to fix.
 Matt's instruction of 2026-09-29: "Do not decide anything else on Matt's
 behalf." So everything below is open, and the build stops at the point that
 depends on it. Each says what it blocks, so nothing waits unnecessarily.
+
+### NM-K. The simpler Origin picker Matt asked to be offered. Item 7.
+
+Item 7, verbatim: *"Matt isn't sure the picker is helpful in this form; after
+fixing, note in QUEUE.md under 'Needs Matt' a one-line simpler alternative
+for him to consider, but don't redesign it."* The picker is fixed and works;
+this is the one line, not a build.
+
+**The one line:** replace the type-to-search picker with three plain chips
+that are already the shape of the rest of the filter bar -- Origin
+(Everything / Agencies / Suppliers / Direct), then a second chip listing the
+parties of whichever of those is chosen -- so choosing a rail and choosing a
+party are two visible steps instead of one box that has to be searched.
+
+**Why it is worth considering.** The whole fault in item 7 came from the two
+rails being choices the book cannot produce, wedged into a control built to
+search the book. Two chips put the rail where it belongs, which is a property
+of the estate, and leave the search to the parties.
+
+**Why it is NOT being built.** It is a redesign, item 7 says not to, and the
+same control is shared with Reporting, where item 15 and NM-F are still open.
+Changing it here would decide half of those.
+
+**One thing found while fixing item 7, for NM-F / item 15.** Item 15 says the
+Reporting picker has "the same fault as item 7". It does not have the same
+CAUSE: Reporting narrows through `paymentMetrics.scopeFull`, which already
+calls `originMatches` and already has both rail arms. So whatever is wrong
+there is something else, and fixing item 7 will not have fixed it. Parked
+with item 15, not investigated, because item 15 says to wait for an answer.
 
 ### NM-F. ANSWERED by Matt, 2026-09-30. Both halves, and the tab is Opndoor-only.
 
