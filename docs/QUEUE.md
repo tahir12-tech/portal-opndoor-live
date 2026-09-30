@@ -688,6 +688,35 @@ Not that the rows look right: that the outcome is unchanged.
 
 ---
 
+### Progress on the per-person change
+
+| part | state |
+| --- | --- |
+| `user_notification_settings` table, RLS, per-person gate, the chooser RPC | **DONE** `fd52f37`, **applied to dev and checked there** |
+| Migrating today's settings onto each person | **DONE** -- 198 person/event rows written on dev |
+| Proof nobody's emails change | **DONE on dev**: 198 person/event pairs compared before vs after, **0 changed** |
+| A real person choosing, on dev | **DONE** -- signed in as a Regent director, changed their own setting, read it back |
+| A refund is the whole fee (Matt's other ruling) | **DONE** `fd52f37`, applied to dev; stripe-webhook deployed |
+| The PANEL reading per-person settings instead of the party matrix | **not started** |
+| Wiring the panel into the three screens | **not started** |
+| REMOVING the two tickbox columns, the grid, and the Internal notifications page | **not started** |
+| Applications Origin filter (item 7) | **not started** |
+
+**Nothing is removed and no screen is rewired**, so the product is unchanged
+for a reader. The server is ahead of the client: per-person settings exist
+and are seeded, and the old party-level path still drives the send, so
+behaviour is identical either way. That is deliberate -- it means the client
+work can land without a flag day.
+
+### The one number worth keeping
+
+`198 person/event pairs compared, 0 changed`. That is the migration clause
+Matt singled out, measured on dev's real people rather than argued. It was
+run as a comparison of OUTCOMES -- what each person would be emailed about
+before versus after -- not as a check that the rows look plausible.
+
+---
+
 ## Items 9, 10 and 12: one per-person notifications panel. HALF BUILT.
 
 ### Where it stands, exactly
