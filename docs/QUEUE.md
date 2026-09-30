@@ -55,6 +55,64 @@ are withdrawn.
    already have a single `finance_email` column; Matt says "email
    addresses", plural, so a supplier needs a LIST an admin maintains.
 
+### STATUS 2026-09-30: DONE, ON DEV, COMMITTED
+
+Two migrations, because 20261007040000 was already applied and a
+correction to an applied migration is a NEW file:
+
+- `20261007040000_a_supplier_gets_its_own_statement.sql` -- the table
+  `partner_statement_recipients` (RLS on, no policy, AAL2 restrictive),
+  the add and remove RPCs, five regenerated functions. Verified
+  byte-identical to what dev holds before anything else was done.
+- `20261007050000_one_definition_of_a_real_supplier.sql` -- replaces the
+  hand-rolled `is_house_route = false and slug <> 'opndoor-agents'` with
+  `public.is_house_partner_id()` at all FIVE call sites (four in 040000
+  plus `caller_leads_their_party` from Q4), and adds
+  `partner_statement_recipient_list`, without which the admin screen has
+  nothing to read: the table is RLS-on with no policy.
+
+`supabase/tests/a_supplier_gets_its_own_statement.test.sql`, 22
+assertions, its own fixture because dev has no paid referral on a real
+supplier at all. Mutation-checked: ten mutants, each failing exactly the
+assertions that name its rule. The tenth found a real gap -- nothing
+asserted that a non-admin cannot REMOVE an address -- which is assertion
+16.
+
+The `partner` level through `commission-statements/index.ts` (the run
+loop needed no change; the type and the reader's word did -- it prints
+"supplier"). The admin card `src/components/StatementRecipients.tsx` on
+the supplier Commission tab, 7 render assertions, mutation-checked.
+
+Green: full pgTAP 71 files / 1028 assertions against dev, `npm run drift`
+clean, typecheck, `npm test` 151 files / 1612 tests, `deno check` 66.
+
+### THE FACT THAT SIZED THIS, measured on dev before a line was written
+
+`application_commission_lines` holds `agency` rows and nothing else, and
+every payee the monthly run has ever produced is agency-level. **A
+supplier's commission has never been on a statement.** This is a new
+DOCUMENT, not a new recipient for one that already existed.
+
+### THREE EXISTING TEST FILES CHANGED THEIR ANSWERS, each recorded in the file
+
+1. `one_rail_excluded_not_one_rail_included` -- a supplier's referral is
+   TWO statement lines now, its agency's cut and its own. Asserted as the
+   pair of levels rather than as a count, because what that file is about
+   is which rails are excluded.
+2. `a_supplier_manages_its_own_notifications` -- two assertions move from
+   22023 to 42501. `commission_statement_party` now resolves a supplier
+   person to their supplier, which **closes the gap NM-O recorded** ("a
+   supplier Director can never be put on a commission statement"), so the
+   refusal is the permission itself rather than an unaddressable target.
+3. `commission_statement_recipients` -- **the fixture was wrong and this
+   is what found it.** A named partner that is neither a house route nor
+   `opndoor-agents` IS a supplier under the three-rail model, so that
+   fixture was a supplier carrying an agency estate with Directors holding
+   POSITIONS in it -- a shape the product cannot create. Measured on dev:
+   all 20 positioned users are on `opndoor-agents`, and the two users on
+   real suppliers hold no position. Its estate moved to the house partner,
+   which is what "Group Director" always meant.
+
 ---
 
 ## SUPERSEDED: the first version of the supplier-statements instruction (sent minutes earlier, 2026-09-30, verbatim). ACTIVE. Top of the list.
