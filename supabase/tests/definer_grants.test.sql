@@ -86,6 +86,7 @@ insert into allowed(name) values
      never partner_id, because every agency shares the house partner.
      Covered by who_may_change_a_notification.test.sql. */
   ('caller_is_director'),
+  ('caller_leads_their_party'),
   ('caller_may_set_for'),
   ('clear_branch_deed_recipient'),
   ('commission_preview'),

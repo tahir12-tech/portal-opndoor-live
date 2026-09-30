@@ -147,8 +147,14 @@ describe('the definer allowlist', () => {
      point: the number is the size of the surface an authenticated session
      can reach, and it should not move by accident. Lower it when one goes;
      raise it deliberately, in the same commit as the function. */
-  it('is 132 functions wide, and does not widen by accident', () => {
-    expect(allowlist.length).toBeLessThanOrEqual(132);
+  /* 132 -> 133, RAISED DELIBERATELY AND IN THE SAME COMMIT AS THE
+     FUNCTION, which is exactly the friction this line exists to create.
+     `caller_leads_their_party` is browser-reachable because the write
+     POLICY on user_notification_settings evaluates it, so it has to be
+     executable by `authenticated` and therefore has to be on the
+     allowlist. Q4. */
+  it('is 133 functions wide, and does not widen by accident', () => {
+    expect(allowlist.length).toBeLessThanOrEqual(133);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {
