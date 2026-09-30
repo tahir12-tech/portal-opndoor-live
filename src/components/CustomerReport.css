@@ -1,0 +1,16 @@
+/* One customer's four measures. A row of tiles that wraps rather than a
+   grid with a fixed count, because the fourth is dropped for a reader who
+   may not see commission and three tiles in a four-column grid leaves a
+   hole where a number was. */
+.custrep { display: flex; flex-wrap: wrap; gap: 14px; }
+.custrep__tile {
+  flex: 1 1 150px; min-width: 150px;
+  padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--white-lilac, #fbfaff);
+}
+.custrep__l { font-size: 12px; color: var(--ink-mute); }
+.custrep__v {
+  margin-top: 4px; font-family: var(--display); font-weight: 800;
+  font-size: 22px; letter-spacing: -0.02em; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}

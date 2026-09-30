@@ -33,7 +33,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   getAgencies, getGroup, getGroups, getPartner,
-  getApplications, getUsers, maySeeCommission, ALL_PARTNERS,
+  getApplications, getPeriods, getUsers, maySeeCommission, ALL_PARTNERS,
   type Agency, type AgencyGroup, type ManagedUser, type Status,
 } from '@/data';
 import {
@@ -52,6 +52,9 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
 import { PersonNotifications } from '@/components/people/PersonNotifications';
+// Walk fix 15: this customer's report, on this customer's page.
+import { CustomerReport } from '@/components/CustomerReport';
+import { liveByCustomer } from '@/data/liveAnalytics';
 import { agencyLevelOf, AGENCY_LEVELS, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions } from '@/components/people/PersonActions';
@@ -320,7 +323,7 @@ export function AgencyHome() {
   /* ---- DRILL-DOWN. The page opens at the top node expanded ONE level; clicking
      an agency expands it and scopes the Referrals section to it, clicking a branch
      scopes to the branch. `sel` is the scope, and the breadcrumb walks back. */
-  type Tab = 'overview' | 'people' | 'commission' | 'referrals';
+  type Tab = 'overview' | 'people' | 'reporting' | 'commission' | 'referrals';
   const [tab, setTab] = useState<Tab>('overview');
 
   type Sel = { level: 'group' | 'agency' | 'branch'; id: string; name: string };
@@ -471,6 +474,24 @@ export function AgencyHome() {
   const [levelPick, setLevelPick] = useState<AgencyLevel | null>(null);
   const [posFor, setPosFor] = useState<{ id: string; name: string } | null>(null);
   const [notifFor, setNotifFor] = useState<{ id: string; name: string } | null>(null);
+  /* WALK FIX 15. This customer's own numbers, from the same function the
+     estate-wide table uses, so the two cannot disagree.
+
+     A GROUP PAGE IS SEVERAL CUSTOMERS, which is why this filters on a SET
+     of names rather than one: an agency page can be showing a group, and
+     then the honest answer is every agency in it, totalled by the tiles and
+     broken down by the table. */
+  const isOpndoorStaff = role === 'superadmin' || role === 'opndoor_manager';
+  const reportPeriods = getPeriods();
+  const [reportPeriod, setReportPeriod] = useState(
+    () => reportPeriods.find((p) => p.id === 'last12m') ?? reportPeriods[reportPeriods.length - 1],
+  );
+  const customerRows = useMemo(() => {
+    if (!isOpndoorStaff) return [];
+    const mine = new Set(agencies.map((a) => a.name));
+    return liveByCustomer(role, ALL_PARTNERS, reportPeriod).filter((r) => mine.has(r.name));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpndoorStaff, role, reportPeriod, agencies, dataVersion]);
 
   /* WHO MAY OPEN WHOSE NOTIFICATIONS. The client twin of the server's
      `caller_may_set_for`: at or below you, and yourself. An admin is above
@@ -1186,8 +1207,13 @@ export function AgencyHome() {
         ariaLabel="Agency sections"
         value={tab}
         onChange={setTab}
-        tabs={([['overview', 'Overview'], ['people', 'People'], ['commission', 'Commission'], ['referrals', 'Referrals']] as [Tab, string][])
-          .filter(([id]) => id !== 'commission' || canSeeCommission)}
+        /* WALK FIX 15 adds Reporting, and NM-F makes it Opndoor-only:
+           "the per-customer Reporting tab is Opndoor-only; agencies and
+           suppliers keep their own Reporting page as it is." Unlike the
+           supplier page, this route is reachable by an agency's own people,
+           so the gate is real here and not belt-and-braces. */
+        tabs={([['overview', 'Overview'], ['people', 'People'], ['reporting', 'Reporting'], ['commission', 'Commission'], ['referrals', 'Referrals']] as [Tab, string][])
+          .filter(([id]) => (id !== 'commission' || canSeeCommission) && (id !== 'reporting' || isOpndoorStaff))}
       />
 
       {/* OVERVIEW — the tree, or the one node opened out of it. */}
@@ -1364,6 +1390,17 @@ export function AgencyHome() {
           </div>
         </CardBody>
       </Card>
+      )}
+
+      {tab === 'reporting' && isOpndoorStaff && (
+        <CustomerReport
+          rows={customerRows}
+          seesCommission={canSeeCommission}
+          periodId={reportPeriod.id}
+          periods={reportPeriods.map((p) => ({ value: p.id, label: p.label }))}
+          onPeriod={(id) => setReportPeriod(reportPeriods.find((p) => p.id === id) ?? reportPeriod)}
+          emptyText="No referrals from this customer in this period."
+        />
       )}
 
       {tab === 'people' && PeopleTab()}
