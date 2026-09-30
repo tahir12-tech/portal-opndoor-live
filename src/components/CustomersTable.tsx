@@ -60,9 +60,18 @@ export function CustomersTable({ rows, seesCommission }: {
                   {/* STRAIGHT TO THEIR OWN PAGE, which is where item 15 puts
                       the rest of their report. A name in a table that
                       cannot be opened is a lookup exercise. */}
+                  {/* THE AGENCY'S ROUTE IS `id ?? name`, NOT THE NAME.
+                      /agencies/:key resolves against `x.id ?? x.name`, and
+                      every other agency link in the product goes through
+                      the exported `agencyKey` helper for exactly that. This
+                      one was written by hand with the name, so on dev --
+                      where every agency has a uuid -- it landed on "Agency
+                      not found" for every row. The mock book gives its
+                      agencies no id at all, so `id ?? name` IS the name
+                      there and the fixture agreed with the bug. */}
                   <Link to={r.kind === 'supplier'
                     ? `/partners/${encodeURIComponent(r.key.replace(/^partner:/, ''))}`
-                    : `/agencies/${encodeURIComponent(r.name)}`}>{r.name}</Link>
+                    : `/agencies/${encodeURIComponent(r.agencyId ?? r.name)}`}>{r.name}</Link>
                   {/* Which rail, under the name: two names tell a reader
                       nothing about which kind of company each is. */}
                   <div className="dt__sub">{r.kind === 'supplier' ? 'Supplier' : 'Agency'}</div>

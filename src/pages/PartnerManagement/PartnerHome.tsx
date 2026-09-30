@@ -68,6 +68,7 @@ import { Tag } from '@/components/ui/Tag';
 import { fmtRatePct } from '@/lib/format';
 import { agencyKey } from '@/pages/Agencies/AgencyHome';
 import { PersonNotifications } from '@/components/people/PersonNotifications';
+import { ViewAsButton } from '@/components/ViewAsButton';
 import './PartnerHome.css';
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
@@ -206,6 +207,9 @@ export function PartnerHome() {
           </p>
         </div>
         <div className="page-head__actions">
+          {/* NM-M. On the supplier rail the partner IS the boundary, so the
+              selection is the slug and needs no name lookup. */}
+          <ViewAsButton scope={`partner:${partner.id}`} />
           <Button variant="dark" size="sm" to={`/applications?partner=${encodeURIComponent(partner.id)}`}>
             <Icon name="apps" /> All applications
           </Button>

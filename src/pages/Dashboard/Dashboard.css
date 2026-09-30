@@ -490,3 +490,21 @@
 .settle__block-amt { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .settle__split { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
 .settle__split .settle__row { font-size: 13px; }
+
+/* NM-M. "VIEWING AS X", AND THE WAY OUT.
+   Quiet, one line, above the page: it is a statement about the page rather
+   than a control on it, and a loud banner on every admin visit to a
+   customer's report would wear out fast. The stop button is the only
+   affordance because it is the only thing there is to do here. */
+.viewas-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+  margin: 0 0 18px;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ink);
+  border-radius: 10px;
+  background: var(--paper, #fff);
+}
+.viewas-bar__t { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); }
+.viewas-bar__t b { color: var(--ink); }

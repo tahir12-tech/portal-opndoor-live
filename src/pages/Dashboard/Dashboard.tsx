@@ -31,9 +31,7 @@ import { formatLondonDate, gbpPence, possessive } from '@/lib/format';
 import { BASIS_META, type ExportBasis } from '@/data';
 import { getAgentRailFunnel, viewerRunsEligibilityJourney, type AgentRailFunnel } from '@/data/agentFunnel';
 import { isAgencyUser } from '@/data/capabilities';
-import { ScopePicker } from '@/components/ui/ScopePicker';
-import { originLabel, originOptions, selectionIsAgency } from '@/data/origin';
-import { recentScopes } from '@/data/scopeRecents';
+import { ORIGIN_ALL, originLabel, selectionIsAgency } from '@/data/origin';
 import { scopedSummaries } from '@/data/applicationsService';
 import type { Role } from '@/data';
 import { liveByCustomer, liveScopeShape } from '@/data/liveAnalytics';
@@ -100,7 +98,12 @@ function buildChartRows(key: ChartKey, rows: LeagueRow[], m: Measure): { bars: B
 
 export function Dashboard() {
   usePageMeta('dashboard', 'Reporting', ['Home', 'Reporting']);
-  const { role, partnerScope, viewingAs, scopeSel, setScopeSel, period, setPeriod } = useSession();
+  /* `setScopeSel` WITHOUT `scopeSel`, now that the picker is gone. This page
+     no longer reads the raw selection -- `viewingAs` is the derived answer
+     it actually wants, and it is null for everything and for both rails --
+     but it still needs the setter, because the banner's "Stop viewing as"
+     is the only remaining way to clear a selection that Applications shares. */
+  const { role, partnerScope, viewingAs, setScopeSel, period, setPeriod } = useSession();
 
   /* IS THIS ONE OF OUR OWN AGENCIES READING THEIR OWN SCREEN?
      The same question Reporting, League, Applications and the nav already ask,
@@ -410,21 +413,25 @@ export function Dashboard() {
           <p className="page-head__sub">{d.sub}</p>
         </div>
         <div className="page-head__actions">
-          <RoleOnly roles={['superadmin']}>
-            {/* THE SAME CONTROL AS APPLICATIONS, and after Matt's answer of
-                2026-09-29 the same VALUE: "Reporting and Applications share
-                one remembered scope choice." The old control could only
-                offer partners, and getPartners() strips house routes, so an
-                admin could not narrow to an agency at all -- which is most
-                of the estate. */}
-            <ScopePicker
-              ariaLabel="Scope"
-              value={scopeSel}
-              onChange={setScopeSel}
-              options={originOptions(scopeBook, scopeSel)}
-              recents={recentScopes()}
-            />
-          </RoleOnly>
+          {/* NM-M: THE SCOPE PICKER IS GONE FROM THIS PAGE. Matt,
+              2026-09-30: "delete the Reporting scope picker." The control
+              it replaces is the "View as" button on each agency and
+              supplier page, which asks the question from the party's own
+              page instead of from a list of every party.
+
+              APPLICATIONS KEEPS ITS OWN, and that is not an inconsistency:
+              there the control narrows a LIST, which is a filter, and walk
+              fix 7 is what made it work across both rails. Here it chose
+              whose report you were reading, which is a different act and
+              now has a different control. Both still write the one shared
+              `scopeSel`, so the two screens cannot disagree about who you
+              are looking at.
+
+              WHAT REPLACES IT AS THE WAY OUT is the banner below. The
+              picker was the only control that could set the selection back
+              to everything, and the selection is shared with Applications,
+              so deleting it without the banner would strand an admin
+              narrowed to one party on both screens with no way back. */}
           <PeriodSelect ariaLabel="Dashboard time period" value={period.id} onChange={setPeriod} options={periods.map((p) => ({ value: p.id, label: p.label }))} />
           {/* This was the only one of the four export controls with no RoleOnly.
               The document it builds carries commission for every role entitled to
@@ -455,6 +462,27 @@ export function Dashboard() {
               alongside commission settlement. opndoor admin runs it there. */}
         </div>
       </div>
+
+      {/* WHOSE PAGE THIS IS, AND HOW TO STOP READING IT.
+          NM-M deleted the picker, and the picker was the only control that
+          could clear the selection. That matters more than it sounds: the
+          selection is shared with Applications, so an admin who pressed
+          "View as" on Regent and could not undo it would find their
+          applications list narrowed to Regent on a screen that never
+          mentioned Regent.
+
+          It says nothing when there is nothing to say. `viewingAs` is null
+          for everything and for both rails -- an admin looking at all
+          suppliers is not viewing as anybody -- so this is furniture only
+          on the pages where it is the truth. */}
+      {viewingAs !== null && (
+        <div className="viewas-bar">
+          <span className="viewas-bar__t">
+            <Icon name="eye" size={14} /> Viewing as <b>{originLabel(viewingAs, scopeBook)}</b>. This is the page their management sees.
+          </span>
+          <Button variant="quiet" size="sm" onClick={() => setScopeSel(ORIGIN_ALL)}>Stop viewing as</Button>
+        </div>
+      )}
 
       {/* THE LEVELS, IN THE AGENCY'S OWN WORDS. This said "Management and
           super-admin users see the full portfolio across every agency and

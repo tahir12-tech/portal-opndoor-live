@@ -619,6 +619,15 @@ export interface CustomerRow {
   /** What Opndoor owes out on this customer's business. Zero for a reader
    *  who may not see commission, never absent: the column is a number. */
   payable: number;
+  /** THE AGENCY'S OWN ID, SO THE ROW CAN BE OPENED.
+   *  `key` is `agency:<name>` because Matt's ruling of 2026-08-17 is that
+   *  an agency exists once across partners and is identified by name. The
+   *  ROUTE is a different question: /agencies/:key resolves against
+   *  `id ?? name`, so a link built from the name alone lands nowhere for
+   *  any agency that has an id -- which on dev is all of them and in the
+   *  mock book is none, so the fixture hid it completely. Absent on a
+   *  supplier row, where the slug in `key` is already the route. */
+  agencyId?: string;
 }
 
 /**
@@ -663,7 +672,7 @@ export function liveByCustomer(role: Role, scope: PartnerScope, period: Period):
     if (o.kind !== 'agency' && o.kind !== 'supplier') continue;
     const key = originValue(app);
     let row = map.get(key);
-    if (!row) { row = { key, name: o.name, kind: o.kind, sent: 0, fees: 0, deeds: 0, payable: 0 }; map.set(key, row); }
+    if (!row) { row = { key, name: o.name, kind: o.kind, sent: 0, fees: 0, deeds: 0, payable: 0, agencyId: o.kind === 'agency' ? app.agencyId : undefined }; map.set(key, row); }
     if (inRange(app.sentAt, start, end)) row.sent += 1;
     if (inRange(app.deedAt, start, end)) row.deeds += 1;
     if (inRange(app.paidAt, start, end)) {

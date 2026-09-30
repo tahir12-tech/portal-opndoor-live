@@ -62,6 +62,7 @@ import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/Position
 import { AgencyGrow } from './AgencyGrow';
 import { AgreementEditor, agreementSummary } from './AgreementEditor';
 import { CommissionStatement } from '@/components/CommissionStatement';
+import { ViewAsButton } from '@/components/ViewAsButton';
 import './AgencyHome.css';
 
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
@@ -1198,6 +1199,13 @@ export function AgencyHome() {
               </button>
             </span>
           </p>
+        </div>
+        {/* NM-M. THE PICKER'S JOB, ON THE PAGE OF THE PARTY IT IS ABOUT.
+            A group page views as the group: `isOneParty` accepts `group:`
+            and `originMatches` resolves it to every agency under it, which
+            is exactly the party this page is already showing. */}
+        <div className="page-head__actions">
+          <ViewAsButton scope={org.kind === 'group' ? `group:${org.group.id ?? org.group.name}` : `agency:${org.agency.name}`} />
         </div>
       </div>
 
