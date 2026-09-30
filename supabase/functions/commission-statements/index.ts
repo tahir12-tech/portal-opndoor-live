@@ -299,6 +299,13 @@ function pct(rate: number): string {
     src/data/commissionSplit.ts, so the PDF and the screen use one vocabulary.
     A historic line recorded no source and prints EMPTY_CELL rather than being
     called standard, which is the whole point of storing it. */
+/** The reader's word for a payee's level. `partner` is the column; SUPPLIER
+    is what the product calls it, on every screen and in NM-O's instruction,
+    and a settlement email is not the place to start saying "partner". */
+function levelWord(level: string): string {
+  return level === "partner" ? "supplier" : level;
+}
+
 const SOURCE_LABEL: Record<string, string> = {
   standard: "Opndoor standard",
   agreement: "Agreement",
@@ -307,7 +314,13 @@ const SOURCE_LABEL: Record<string, string> = {
 
 interface PayeeRow {
   payee_key: string;
-  level: "group" | "agency" | "branch";
+  /* `partner` IS A SUPPLIER, and it is new (2026-09-30). Before it, every
+     payee the run had ever produced was agency-level: a supplier's own
+     commission had never been on a statement at all. Nothing else in this
+     file needed changing for it -- the loop asks
+     commission_statement_recipients who to write to and prints whatever
+     level it was handed -- except the word, below. */
+  level: "group" | "agency" | "branch" | "partner";
   org_id: string | null;
   org_name: string;
   partner_id: string | null;
@@ -594,7 +607,7 @@ function settlementPdf(payees: PayeeRow[], label: string, grand: number): Uint8A
       { header: "Applications", width: 80, align: "right" },
       { header: "Commission", width: 100, align: "right" },
     ], // 510
-    rows: payees.map((p) => [p.org_name, p.level, String(p.line_count), gbp(num(p.total))]),
+    rows: payees.map((p) => [p.org_name, levelWord(p.level), String(p.line_count), gbp(num(p.total))]),
     total: { label: "Total", value: gbp(grand) },
     footer: PAYMENT_TERMS_LINE,
   });
@@ -645,7 +658,7 @@ function settlementCsv(payees: PayeeRow[], label: string, grand: number): string
     [PAYMENT_TERMS_LINE],
     [],
     ["Payee", "Level", "Applications", "Commission"],
-    ...payees.map((p) => [p.org_name, p.level, p.line_count, gbp(num(p.total))]),
+    ...payees.map((p) => [p.org_name, levelWord(p.level), p.line_count, gbp(num(p.total))]),
     [],
     ["", "", "Total", gbp(grand)],
   ]);
@@ -715,7 +728,7 @@ function settlementMessage(opts: {
   ];
   if (top.length) {
     blocks.push({ h: "By payee" });
-    blocks.push({ rows: top.map((p) => [`${p.org_name} (${p.level})`, gbp(num(p.total))] as [string, string]) });
+    blocks.push({ rows: top.map((p) => [`${p.org_name} (${levelWord(p.level)})`, gbp(num(p.total))] as [string, string]) });
     if (opts.payees.length > top.length) {
       blocks.push({ small: `${opts.payees.length - top.length} more are in the attached file.` });
     }
