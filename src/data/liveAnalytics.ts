@@ -48,7 +48,7 @@ import { whereTheyWork, type WhereReader } from './whereTheyWork';
 import { inForceDuring } from './inForce';
 import { isDirectRail, isHousePartner } from './channel';
 // Walk fixes 15 and 20: the CUSTOMER is the origin, not the route partner.
-import { originOf, originValue } from './origin';
+import { ORIGIN_ALL, originOf, originValue, type OriginScope } from './origin';
 import type { CommissionSource } from './types';
 
 /**
@@ -773,11 +773,15 @@ function leagueKey(r: LeagueRow): string {
   return r.key ?? `${r.name}|${r.sub}|${r.partner ?? ''}`;
 }
 
-export function liveLeague(view: LeagueView, role: Role, scope: PartnerScope, partner: string, period: Period, branchIds?: string[]): LeagueRow[] {
+export function liveLeague(view: LeagueView, role: Role, scope: PartnerScope, partner: string, period: Period, branchIds?: string[], sel: OriginScope = ORIGIN_ALL): LeagueRow[] {
   const [start, end] = periodRange(period);
   // opndoor admin's in-page partner filter narrows an all-partners scope to one.
   const effScope: PartnerScope = scope === ALL_PARTNERS && partner ? partner : scope;
-  let set = scopeFull(allFull(), role, effScope);
+  /* THE SELECTION IS PASSED TO scopeFull, not applied after it, because
+     that function does isolation FIRST and the selection strictly
+     afterwards. Narrowing a set that was never isolated would be a
+     control that grants access. */
+  let set = scopeFull(allFull(), role, effScope, sel);
   // Position ladder ("my branch(es) / my brand"): narrow the league (and only the
   // league — scopeFull, which the dashboard shares, is left alone) to the viewer's
   // own branch set. An empty list means the caller holds a scope that covers no

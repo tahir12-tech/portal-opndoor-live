@@ -46,6 +46,13 @@ export interface LeagueOpts {
   /** Position-ladder narrowing: when set, the league is restricted to these branch
       ids (the viewer's "my brand / my branches"). Undefined = the whole company. */
   branchIds?: string[];
+  /** The shared Origin selection, so every board follows it. Matt,
+      2026-09-30: "Branches and Negotiators tabs follow the selection."
+      It is the same value Applications and Reporting hold, and it is
+      narrowing rather than permission: `scopeFull` applies isolation
+      first and this strictly afterwards. Live mode only, which is where
+      the League is computed from records. */
+  sel?: string;
 }
 
 function feesOf(rec: Agency | Branch): number {
@@ -57,7 +64,7 @@ export function getLeague(view: LeagueView, opts: LeagueOpts): LeagueRow[] {
   const { role, scope } = opts;
   const partner = opts.partner || '';
   // Live mode: every tab (incl. referrers) computed from live records, period-scoped.
-  if (liveAvailable() && opts.period) return liveLeague(view, role, scope, partner, opts.period, opts.branchIds);
+  if (liveAvailable() && opts.period) return liveLeague(view, role, scope, partner, opts.period, opts.branchIds, opts.sel);
   // A RATE IS ITSELF A COMMISSION FIGURE, so it is not even read for a reader who
   // may not see one: the percentages that turn fees into earnings never enter this
   // function's scope, let alone a row. (The zeros they would have produced are
@@ -79,6 +86,11 @@ export function getLeague(view: LeagueView, opts: LeagueOpts): LeagueRow[] {
 
   const rows: LeagueRow[] = [];
 
+  /* NO SUPPLIER BOARD IN MOCK MODE, deliberately. The synthetic book
+     models one agency estate and has no suppliers in it, so anything
+     returned here would be invented. The tab is Opndoor-only and the
+     demo is not that, and an empty board is the honest answer. */
+  if (view === 'supplier') return [];
   if (view === 'agency' || view === 'branch') {
     getAgencies(ALL_PARTNERS)
       .filter(inScope)

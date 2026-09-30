@@ -670,7 +670,12 @@ export interface UpcomingExpiry {
 }
 
 /* ---------- League tables ---------- */
-export type LeagueView = 'agency' | 'branch' | 'referrer';
+/* 'supplier' IS ADMIN-ONLY, and the type does not say so because a type
+   cannot: the tab is built only for Opndoor staff and `getLeague` is
+   reached only through that tab. Matt, 2026-09-30: "add a Suppliers tab
+   alongside Agencies, Branches and Negotiators, ranking each supplier on
+   the same measures. Admin only; agencies and suppliers never see it." */
+export type LeagueView = 'agency' | 'branch' | 'referrer' | 'supplier';
 export interface LeagueRow {
   name: string;
   sub: string;

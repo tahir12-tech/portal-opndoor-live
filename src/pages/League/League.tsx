@@ -25,11 +25,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  ALL_PARTNERS, buildLeagueDoc, exportBranded, fmtBig, getAgencies, getLeague, getPartners, getPeriods, partnerName,
-  getReferrerLeague, maySeeCommission,
+  ALL_PARTNERS, buildLeagueDoc, exportBranded, fmtBig, getAgencies, getLeague, getPeriods, partnerName,
+  getReferrerLeague, maySeeCommission, isOpndoorStaff,
   type LeagueRow, type LeagueScope, type LeagueView, type ReferrerBoard, type Period,
 } from '@/data';
+import { PeriodSelect, RankSelect } from '@/components/ui/Select';
 import { isAgencyUser } from '@/data/capabilities';
+import { ScopePicker } from '@/components/ui/ScopePicker';
+import { recentScopes } from '@/data/scopeRecents';
+import { originOptions } from '@/data/origin';
+import { scopedSummaries } from '@/data/applicationsService';
 import { getPositions, type Position } from '@/data/positionsService';
 import { liveScopeShape } from '@/data/liveAnalytics';
 import { useSession } from '@/session/SessionContext';
@@ -39,7 +44,6 @@ import { Icon } from '@/components/ui/Icon';
 import { Card, CardFoot } from '@/components/ui/Card';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { RoleOnly } from '@/components/ui/RoleOnly';
-import { PartnerSelect, PeriodSelect, RankSelect } from '@/components/ui/Select';
 import './League.css';
 
 const PAGE = 15;
@@ -55,6 +59,10 @@ const COLS: Record<LeagueView, Col[]> = {
      repeating its agency's earnings against every branch name. */
   branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees generated', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true], ['partnerComm', 'Partner comm.', true], ['agentComm', 'Own commission', true]],
   referrer: [['name', 'Negotiator', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true]],
+  /* THE SAME MEASURES AS THE OTHERS, which is what Matt asked for, and
+     the same two commission columns: a supplier IS a payee, so its own
+     cut is the figure the board is most often read for. */
+  supplier: [['name', 'Supplier', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Agent comm.', true]],
 };
 
 /* THE TWO COLUMNS A MANAGER MAY NOT HAVE, and why only these two.
@@ -81,6 +89,12 @@ const TABS: { id: LeagueView; label: string }[] = [
   { id: 'agency', label: 'Agencies' },
   { id: 'branch', label: 'Branches' },
   { id: 'referrer', label: 'Negotiators' },
+  /* SUPPLIERS, LAST AND OPNDOOR-ONLY. Matt, 2026-09-30: "Admin only;
+     agencies and suppliers never see it." A league of Opndoor's
+     customers ranked against each other is not a thing a customer may
+     read, so the tab does not EXIST for them rather than being empty:
+     an empty board still tells a supplier that the ranking is there. */
+  { id: 'supplier', label: 'Suppliers' },
 ];
 
 /* RANK BY, per board. Fees is the default everywhere. The fees column is named
@@ -103,7 +117,7 @@ function RANK_OPTIONS(view: LeagueView): { value: string; label: string }[] {
     in full." and three read "Every agency, branch and negotiator ranked in
     full." */
 export function introFor(tabs: { id: LeagueView; label: string }[]): string {
-  const words = tabs.map((t) => ({ agency: 'agency', branch: 'branch', referrer: 'negotiator' }[t.id] ?? t.label.toLowerCase()));
+  const words = tabs.map((t) => ({ agency: 'agency', branch: 'branch', referrer: 'negotiator', supplier: 'supplier' }[t.id] ?? t.label.toLowerCase()));
   if (!words.length) return 'Nothing to rank in this scope yet.';
   const list = words.length === 1
     ? words[0]
@@ -310,7 +324,7 @@ function ReferrerLeagueView() {
 // ---- Full view (management / opndoor admin): unchanged tables + the #79 setting. ----
 function FullLeagueView() {
   usePageMeta('league', 'League tables', ['Home', 'League tables']);
-  const { role, partnerScope, currentUserId } = useSession();
+  const { role, partnerScope, currentUserId, scopeSel, setScopeSel, dataVersion } = useSession();
   const [period, setPeriod] = useLeaguePeriod();
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -337,10 +351,14 @@ function FullLeagueView() {
   // moment the partner selector narrows them to one agency.
   const shape = useMemo(() => liveScopeShape(role, partnerScope), [role, partnerScope]);
   const agencyViewer = isAgencyUser(role, partnerScope);
+  const opndoorStaff = isOpndoorStaff(role);
   const tabs = useMemo(() => TABS.filter((t) =>
     t.id === 'referrer'
     || (t.id === 'agency' && shape.agencies > 1)
-    || (t.id === 'branch' && shape.branches > 1)), [shape]);
+    || (t.id === 'branch' && shape.branches > 1)
+    // Opndoor staff only, and never for a reader narrowed to one party:
+    // a ranking of one is not a ranking, the rule the other boards follow.
+    || (t.id === 'supplier' && opndoorStaff)), [shape, opndoorStaff]);
 
   const askedView = (params.get('view') as LeagueView) || 'agency';
   // Fall back to a tab that exists rather than rendering an empty board: a
@@ -383,7 +401,16 @@ function FullLeagueView() {
   // "My brand / branches" narrows every tab to the viewer's own branch set; "Whole
   // company" (or no position) leaves it partner-wide as before.
   const branchIds = myScope.hasToggle && scope === 'mine' ? myScope.branchIds : undefined;
-  const all = getLeague(view, { role, scope: ALL_PARTNERS, partner: activePartner, period, branchIds });
+  /* THE OPTIONS COME FROM THE BOOK BEFORE THE SELECTION, exactly as on
+     Applications: built from the filtered set the control would hold
+     only what is already chosen, with no way back to anything else. */
+  const leagueBook = useMemo(
+    () => scopedSummaries({ role, scope: ALL_PARTNERS }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [role, dataVersion],
+  );
+  const leagueOrigins = useMemo(() => originOptions(leagueBook, scopeSel), [leagueBook, scopeSel]);
+  const all = getLeague(view, { role, scope: ALL_PARTNERS, partner: activePartner, period, branchIds, sel: scopeSel });
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -511,14 +538,26 @@ function FullLeagueView() {
           <Icon name="search" />
           <input type="text" placeholder="Search by name" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
         </div>
+        {/* THE SAME CONTROL AS APPLICATIONS, and the same VALUE. Matt,
+            2026-09-30: "replace the 'All partners' dropdown with a
+            searchable filter that can narrow to any single agency (e.g.
+            Regent's Lettings), group or supplier, or to all agencies or
+            all suppliers. Branches and Negotiators tabs follow the
+            selection."
+
+            The dropdown it replaces could only ever name a PARTNER, so
+            an admin could not narrow the league to one agency at all --
+            every agency we onboard shares the house partner. A second
+            control that behaved almost like Applications' is how two
+            screens come to disagree, so this is that control, reading
+            the scope selection the session already holds. */}
         <RoleOnly roles={['superadmin']}>
-          <PartnerSelect
-            ariaLabel="Partner"
-            value={partnerScope === ALL_PARTNERS ? (partner || ALL_PARTNERS) : partnerScope}
-            onChange={(v) => { setPartner(v === ALL_PARTNERS ? '' : v); setPage(0); }}
-            disabled={partnerScope !== ALL_PARTNERS}
-            title={partnerScope !== ALL_PARTNERS ? 'This league view is already scoped by the selected partner.' : undefined}
-            options={[{ value: ALL_PARTNERS, label: 'All partners' }, ...getPartners().map((p) => ({ value: p.id, label: p.name }))]}
+          <ScopePicker
+            ariaLabel="Origin"
+            value={scopeSel}
+            options={leagueOrigins}
+            recents={recentScopes()}
+            onChange={(v: string) => { setScopeSel(v); setPage(0); }}
           />
         </RoleOnly>
         <span className="lt-count">Showing <b>{total ? `${start + 1}-${Math.min(start + PAGE, total)}` : '0'}</b> of <b>{total}</b></span>
