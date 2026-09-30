@@ -592,6 +592,66 @@ template that escapes its input. Whatever is doing that will be doing it to
 anything else built the same way, so the fix belongs at the builder rather
 than in the two lines Matt saw.
 
+## NOTIFICATIONS ARE GENUINELY PER PERSON (instruction, 2026-09-30, verbatim). ACTIVE.
+
+> Notifications: genuinely per person, for agency and supplier users as well as Opndoor staff. Each person chooses which events they are told about for the referrals they can see, on their own panel, and whether they get monthly statements if their level allows it. The locked items stay locked for everyone (every tenant email, and the executed deed reaching its recipient). Opndoor admin can see every person's choices from that person's row on the agency, supplier and Opndoor team pages. Replace the agency-wide event switches with this; migrate today's agency settings onto each existing person so nobody's emails change on the day it ships.
+>
+> Applications Origin filter: keep it and make it work.
+>
+> Carry on with docs/QUEUE.md. Work in the worktree, deploy to dev and check each item there before marking it done.
+
+### This REVERSES my judgement call, and that is the right outcome
+
+I recorded that making the agency side per-person was "a schema change that
+redefines what Q-03 built and tested, on the night before a cutover, to
+answer a question nobody has asked", and built the panel to show party-wide
+switches with a warning instead. Matt has now asked the question, so the
+schema change is the work rather than something to avoid. The warning-label
+compromise is withdrawn.
+
+**What survives from the half-built work:** the assembler, the panel
+component and the row action. They were built so the per-person case was
+already the shape for Opndoor; the agency and supplier sides now join it
+rather than needing a different panel.
+
+**What is thrown away:** the `partyWide` flag and the warning that goes with
+it, and the party-wide half of the assembler. Their tests go with them, and
+that is a deliberate deletion rather than a regression -- recorded here so
+the test count moving down is explained.
+
+### The clause that is easy to miss, and is the whole risk
+
+> **migrate today's agency settings onto each existing person so nobody's
+> emails change on the day it ships.**
+
+The settings are stored today per (party, event, recipient CLASS). They must
+become per (person, event). That is not a copy: it is a JOIN, because which
+class a person falls into depends on the person -- the referrer of a given
+referral, somebody ticked "receives notifications", or a supplier's agent
+contact. Getting it wrong means somebody silently stops being emailed, and
+nobody finds out until a deed does not arrive.
+
+So the migration needs a test that asserts, for every existing person, that
+the set of events they would be emailed about is IDENTICAL before and after.
+Not that the rows look right: that the outcome is unchanged.
+
+### Four other things in the instruction that each need their own assertion
+
+1. **"for the referrals they can see"** -- the scope is unchanged. A person's
+   position still decides WHICH referrals; the new setting only decides WHICH
+   EVENTS. The per-person setting must not become a way to widen reach.
+2. **"whether they get monthly statements if their level allows it"** -- the
+   statements toggle is offered only where `may_see_commission()` is true, so
+   a Manager does not get a control that the server will refuse.
+3. **"The locked items stay locked for everyone"** -- the executed deed to
+   its own recipient, and every tenant email. Locked must survive the move to
+   per-person, and must not become per-person-overridable.
+4. **"Opndoor admin can see every person's choices"** -- from the row, on all
+   three pages. A read for an admin, an edit for the person's own party
+   within the existing ladder.
+
+---
+
 ## Items 9, 10 and 12: one per-person notifications panel. HALF BUILT.
 
 ### Where it stands, exactly
