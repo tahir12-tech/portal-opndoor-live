@@ -563,7 +563,7 @@ const STATEMENT_COLUMNS: StatementColumn[] = [
   { header: "Commission", width: 60, align: "right" },
 ]; // 514
 
-function statementPdf(payee: PayeeRow, lines: LineRow[], label: string, reference: string): Uint8Array {
+export function statementPdf(payee: PayeeRow, lines: LineRow[], label: string, reference: string): Uint8Array {
   const shape = shapeOf(lines);
   // Typed as PdfColumn[] at the seam: StatementColumn is a PdfColumn plus the
   // dimension tag, and this is where the compiler proves it still is.
@@ -619,7 +619,7 @@ function settlementPdf(payees: PayeeRow[], label: string, grand: number): Uint8A
  * which matches the table on the Reporting page, so all three can be held side
  * by side.
  */
-function statementCsv(payee: PayeeRow, lines: LineRow[], label: string, reference: string): string {
+export function statementCsv(payee: PayeeRow, lines: LineRow[], label: string, reference: string): string {
   const shape = shapeOf(lines);
   const columns = keepColumns(STATEMENT_COLUMNS, shape);
   return toCSV([
