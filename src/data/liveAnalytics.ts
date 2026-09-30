@@ -46,7 +46,7 @@ import { deliveryStateOf } from './deliveryState';
 import { whereTheyWork, type WhereReader } from './whereTheyWork';
 // Walk fixes 8 and 16 share one rule for what is under guarantee, and when.
 import { inForceDuring } from './inForce';
-import { isHousePartner } from './channel';
+import { isDirectRail, isHousePartner } from './channel';
 // Walk fixes 15 and 20: the CUSTOMER is the origin, not the route partner.
 import { originOf, originValue } from './origin';
 import type { CommissionSource } from './types';
@@ -407,6 +407,32 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
      and a search tool that silently finds nothing is a trap. */
   const S = '\u0000';
   const pn = partnerName(app.partner);
+  /* Q3, ANSWERED. Matt, 2026-09-30: "Direct signups never appear in
+     Volume by branch, Volume by agency or any agency chart (no
+     'Unattached' row)."
+
+     A direct signup is matched to a real agency and branch by the
+     automatic matcher, so somebody can service it, and that is the whole
+     reason it reaches these two groupings at all: `app.agency` is set and
+     looks exactly like a referral that agency made. It did not make it,
+     and the rest of the estate already says so -- `commission_statement_lines`
+     excludes the direct rail, `agency_weekly_digest` excludes it, and
+     `agreement_volume` excludes it so a matched tenant cannot push an
+     agency into a better commission band. The charts were the surface
+     that did not.
+
+     AND THE UNMATCHED ONES ARE THE "Unattached" ROW. A direct signup with
+     no agency yet grouped under `(unknown agency)`, which is a row of
+     Opndoor's own business wearing an agency's clothes.
+
+     THE REFERRER ARM ALREADY DID THIS, three comments below, for the same
+     reason. This is the same rule on the two groupings that were missed.
+
+     BY SLUG, because keyOf runs before anything is hydrated that could
+     answer it any other way, and `isDirectRail` is the client's mirror of
+     `application_channel`'s first arm -- narrower than `isHousePartner`,
+     which would also exclude every real agency referral. */
+  if ((key === 'agency' || key === 'branch') && isDirectRail(app.partner)) return null;
   if (key === 'agency') return { id: `${app.partner}${S}${app.agency}`, name: app.agency || '(unknown agency)', sub: '', partner: pn };
   /* NM-P. A SINGLE-OFFICE AGENCY IS NAMED BY THE AGENCY, and its subtitle
      goes with it -- the sub is the agency, so leaving it would print the

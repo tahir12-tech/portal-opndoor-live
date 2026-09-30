@@ -90,13 +90,29 @@ describe('the picker that chooses which company an agent belongs to', () => {
   });
 });
 
-/* THE OTHER HALF OF THE RULE, asserted so that a later well-meaning sweep
-   cannot "finish the job" and break the meaning. These are routes and
-   commission sides, not companies, and they must keep the word. */
-describe('the word partner survives where it means a route', () => {
+/* THE OTHER HALF OF THE RULE, AND MATT HAS GIVEN IT A BETTER WORD.
+
+   This used to assert that the Dashboard keeps saying "partner", so that
+   a well-meaning sweep could not "finish the job" and call a ROUTE a
+   supplier -- which would be a lie, because the rows include the house
+   partner every agency shares.
+
+   The reasoning was right and the word was a compromise. Matt,
+   2026-09-30: "Rename 'Commission by partner' to 'Commission by route'
+   and replace 'Partner' wording in it with 'Supplier' or 'Route' as
+   appropriate." A route is what they are, so the table says route and the
+   money column says supplier, which is whose commission it is.
+
+   SO THE RULE IS UNCHANGED AND THE ASSERTION IS SHARPER: the table must
+   not call these things partners OR imply every row is a supplier
+   company. The first check is the new name; the second is that the old
+   one is gone, so this cannot pass on a half-done rename. */
+describe('a route is called a route, and never a supplier company', () => {
   it('on the Dashboard, which lists every route including the house one', () => {
     const s = code('src/pages/Dashboard/Dashboard.tsx');
-    expect(s).toMatch(/Commission by partner/);
-    expect(s).toMatch(/Partner comm/);
+    expect(s).toMatch(/Commission by route/);
+    expect(s).not.toMatch(/Commission by partner/);
+    // The money in that table is a supplier's cut, and says so.
+    expect(s).toMatch(/Supplier comm/);
   });
 });

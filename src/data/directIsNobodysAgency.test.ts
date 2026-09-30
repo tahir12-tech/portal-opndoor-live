@@ -33,7 +33,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { hydrateFull } from './applicationsService';
-import { liveVolume } from './liveAnalytics';
+import { liveAggregate, liveVolume } from './liveAnalytics';
 import { ALL_PARTNERS } from './types';
 import type { FullApp } from './applicationsService';
 import type { Period } from './types';
@@ -91,14 +91,34 @@ describe('item 18: a direct signup is not a referrer', () => {
     expect(referrerNames()).toEqual(['(unknown)']);
   });
 
-  /* AND THE ROW IS STILL REAL EVERYWHERE ELSE. The direct rail is Opndoor's
-     own business, not nobody's: dropping it from the referrer ranking must
-     not drop it from the book. */
-  it('and the direct application is still counted in the agency-less totals', () => {
+  /* INVERTED BY Q3, 2026-09-30, AND THE CONCERN BEHIND IT KEPT.
+
+     This used to assert the opposite -- that a direct application still
+     showed under agencies and branches, on the reasoning that "it is
+     somebody's business: it shows under its own party, not nobody's".
+     Matt has answered the question that was open when that was written:
+     "Direct signups never appear in Volume by branch, Volume by agency or
+     any agency chart (no 'Unattached' row)."
+
+     THE REASON IT SAID SO IS STILL RIGHT, and is now asserted where it
+     belongs. The worry was that dropping the direct rail from the
+     referrer ranking would drop it from the BOOK. It must not, and it
+     does not: the money surfaces count it, it has its own panel on Home,
+     and only the AGENCY-shaped charts refuse it. So the second assertion
+     below is the one that was really being protected all along, and the
+     first now says what the charts do. */
+  it('and a direct signup is on no agency chart, which is Q3', () => {
     hydrateFull([direct()]);
     const v = liveVolume('superadmin', ALL_PARTNERS, ALLTIME);
     expect(v.referrers).toEqual([]);
-    // It is somebody's business: it shows under its own party, not nobody's.
-    expect(v.agencies.length + v.branches.length).toBeGreaterThan(0);
+    expect(v.agencies).toEqual([]);
+    expect(v.branches).toEqual([]);
+  });
+
+  it('while still being in the book, which is what those charts are not', () => {
+    hydrateFull([direct()]);
+    const all = liveAggregate('superadmin', ALL_PARTNERS, ALLTIME);
+    // Whatever the charts do, Opndoor's own business is still counted.
+    expect(all.sent + all.paid).toBeGreaterThan(0);
   });
 });

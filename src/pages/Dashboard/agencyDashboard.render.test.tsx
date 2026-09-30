@@ -4,7 +4,7 @@
    every figure here was written for Opndoor looking across a book of suppliers,
    and then 'management' became the role an agency DIRECTOR wears too.
 
-   1. "Commission by partner" is Opndoor's table about Opndoor's business. Its
+   1. "Commission by route" is Opndoor's table about Opndoor's business. Its
       allowlist was the only gate, so it opened on a director's dashboard and
       split their money with a party they have never heard of.
    2. The commission tile carried a blended percentage. It reconciles with the
@@ -132,9 +132,9 @@ function commissionTile(v: View): HTMLElement {
 const feesTile = (v: View) => v.container.querySelector<HTMLElement>('.hero-kpi--dark')!;
 
 describe('the dashboard a director at one of our agencies reads', () => {
-  it('has no Commission by partner table anywhere on it', async () => {
+  it('has no Commission by route table anywhere on it', async () => {
     const view = await openDashboard('management');
-    expect(view.container.textContent).not.toMatch(/Commission by partner/i);
+    expect(view.container.textContent).not.toMatch(/Commission by route/i);
     // The caption said it five times; the whole section is what went.
     expect(view.container.querySelectorAll('.settle table')).toHaveLength(0);
   });
@@ -170,7 +170,7 @@ describe('the same agency, read by Opndoor', () => {
      assertion actually means that. */
   it('reads the agency\u2019s own page when narrowed to them, not Opndoor\u2019s', async () => {
     const view = await openDashboard('superadmin', AGENCY_PARTNER);
-    expect(view.container.textContent).not.toMatch(/Commission by partner/);
+    expect(view.container.textContent).not.toMatch(/Commission by route/);
     const tile = commissionTile(view);
     expect(tile.querySelector('.kpi__label')!.textContent).toBe('Commission (agreed terms)');
     // Still rate-free: an agency's tile states a total, not a blended rate.
@@ -183,7 +183,7 @@ describe('the same agency, read by Opndoor', () => {
        the house route's partner cut is opndoor's own margin and is owed to
        nobody. */
     const view = await openDashboard('superadmin');
-    expect(view.container.textContent).toMatch(/Commission by partner/);
+    expect(view.container.textContent).toMatch(/Commission by route/);
     expect(commissionTile(view).querySelector('.kpi__label')!.textContent).toBe('Commission payable');
   });
 });

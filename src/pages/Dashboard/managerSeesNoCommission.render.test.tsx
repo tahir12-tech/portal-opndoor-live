@@ -65,7 +65,7 @@ import { Dashboard } from './Dashboard';
 /* 'northwind' is opndoor_referenced in the mock partner seed and is the home
    partner in mock mode, which is what makes a 'management' user one of OUR
    agencies rather than a supplier's manager. 'harbourside' is a plain supplier:
-   the one surface below that only a supplier ever sees (Commission by partner)
+   the one surface below that only a supplier ever sees (Commission by route)
    needs a reader who is not agency-facing. */
 const AGENCY_PARTNER = 'northwind';
 const SUPPLIER_PARTNER = 'harbourside';
@@ -88,7 +88,7 @@ function deed(o: Partial<FullApp> & Pick<FullApp, 'ref'>): FullApp {
 }
 
 /* TWO MONTHS, BECAUSE THE PAGE ASKS TWO QUESTIONS. The hero tiles, the charts
-   and Commission by partner are the SELECTED PERIOD, which defaults to this
+   and Commission by route are the SELECTED PERIOD, which defaults to this
    calendar month; settlement is the PRIOR calendar month and ignores the filter.
    Dated from now rather than from fixed days so neither row falls out of its
    window as the calendar moves. */
@@ -275,7 +275,7 @@ describe('Reporting, read by a Manager', () => {
     const body = text(view);
     expect(body).not.toMatch(/Commission \(agreed terms\)/);
     expect(body).not.toMatch(/Commission earned/);
-    expect(body).not.toMatch(/Commission by partner/);
+    expect(body).not.toMatch(/Commission by route/);
     expect(body).not.toMatch(/Agent commission/);
     expect(body).not.toMatch(/Your commission/);
     expect(body).not.toMatch(/Commission payable/);
@@ -290,7 +290,7 @@ describe('Reporting, read by a Manager', () => {
 
 describe("Reporting, read by a supplier's Manager", () => {
   /* A supplier partner's staff are role 'management' too and they are not an
-     agency: Commission by partner is a table ABOUT them, so agencyFacing leaves
+     agency: Commission by route is a table ABOUT them, so agencyFacing leaves
      it on their screen and only the commission predicate can take it off. This
      is the one commission surface on the page an agency never sees, so it needs
      a reader who is not agency-facing to be asserted at all. */
@@ -300,10 +300,10 @@ describe("Reporting, read by a supplier's Manager", () => {
     stageOrg(["Regent's Lettings"]);
   });
 
-  it('loses Commission by partner, and their Director keeps it', async () => {
+  it('loses Commission by route, and their Director keeps it', async () => {
     beManager();
     const asManager = await openDashboard();
-    expect(text(asManager)).not.toMatch(/Commission by partner/);
+    expect(text(asManager)).not.toMatch(/Commission by route/);
     expect(asManager.container.querySelectorAll('.settle table')).toHaveLength(0);
     // Not at the cost of the rest of the page: the volumes are still theirs.
     expect(feesTile(asManager)!.textContent).toMatch(/Net fees/);
@@ -311,7 +311,7 @@ describe("Reporting, read by a supplier's Manager", () => {
 
     beDirector();
     const asDirector = await openDashboard();
-    expect(text(asDirector)).toMatch(/Commission by partner/);
+    expect(text(asDirector)).toMatch(/Commission by route/);
     expect(asDirector.container.querySelectorAll('.settle table').length).toBeGreaterThan(0);
   });
 });

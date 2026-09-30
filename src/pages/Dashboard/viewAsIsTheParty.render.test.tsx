@@ -103,7 +103,7 @@ describe('an Opndoor admin who is not viewing as anybody', () => {
     expect(v.container.querySelector('.fin-surfaces, [data-surface="finance"]') ?? text(v))
       .toBeTruthy();
     expect(text(v)).toMatch(/bordereau/i);
-    expect(text(v)).toMatch(/Commission by partner/);
+    expect(text(v)).toMatch(/Commission by route/);
   });
 });
 
@@ -115,7 +115,7 @@ describe('the same admin, viewing as one of our agencies', () => {
 
   it('nor the commission-by-partner split, which is Opndoor’s view of its book', async () => {
     const v = await openReporting('superadmin', AGENCY);
-    expect(text(v)).not.toMatch(/Commission by partner/);
+    expect(text(v)).not.toMatch(/Commission by route/);
   });
 
   /* THE HALF THAT WAS MISSING RATHER THAN LEAKING. The party's own settlement

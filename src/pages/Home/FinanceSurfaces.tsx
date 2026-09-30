@@ -229,9 +229,15 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
       {/* UNDERWRITER BORDEREAU (opndoor admin only) */}
       {isAdmin && (
         <section className="card">
+          {/* "IN FORCE DURING THE MONTH", which is what this has actually
+              listed since the inForce rule landed. The description still
+              said "by tenancy start date", which is the behaviour that was
+              FIXED: asking when cover was WRITTEN meant a guarantee still
+              running from an earlier month appeared on no bordereau at all.
+              The copy was describing the bug. Matt, 2026-09-30. */}
           <CardHead
             title={<>Underwriter bordereau</>}
-            sub={<>Monthly export (C&amp;C format) with full tenant details, for one calendar month by tenancy start date. Contains personal data, for the underwriter only.</>}
+            sub={<>Monthly export (C&amp;C format) with full tenant details: every guarantee in force during the month, whenever it started. Contains personal data, for the underwriter only.</>}
             actions={
             <Button variant="primary" size="sm" onClick={openBordereau} title="Monthly underwriter bordereau (C&C format) with full tenant details. opndoor admin only.">
             <Icon name="shield" /> Bordereau
@@ -248,13 +254,13 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
             <div className="bdx__head">
               <div>
                 <div className="bdx__title">Monthly bordereau</div>
-                <div className="bdx__sub">Underwriter export (C&amp;C format) with full tenant details, for one calendar month by tenancy start date. opndoor admin only.</div>
+                <div className="bdx__sub">Underwriter export (C&amp;C format) with full tenant details: every guarantee in force during the month, whenever it started. opndoor admin only.</div>
               </div>
               <button className="bdx__close" aria-label="Close" onClick={() => setBdxOpen(false)}><Icon name="x" /></button>
             </div>
             <div className="bdx__body">
               <div className="field">
-                <label htmlFor="bdx-month">Month (by tenancy start date)</label>
+                <label htmlFor="bdx-month">Month (cover in force)</label>
                 <input type="month" id="bdx-month" min="2024-09" max="2026-12" value={bdxMonth} onChange={(e) => setBdxMonth(e.target.value)} />
               </div>
               <div className="field">

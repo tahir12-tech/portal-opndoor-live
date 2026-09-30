@@ -328,9 +328,14 @@ export function Dashboard() {
   );
   const periods = getPeriods();
 
-  // The scope label shows only for opndoor admin; Management only ever sees its own partner.
-  const scopeName = partnerScope === ALL_PARTNERS ? 'All partners' : partnerName(partnerScope);
-  const eyebrowText = `${role === 'superadmin' ? `${scopeName} · ` : ''}Performance · ${period.label}`;
+  /* THE HEADER NAMES A NARROWING OR SAYS NOTHING. Matt, 2026-09-30:
+     "remove 'All partners' from the page header". It was there to say
+     what the figures covered, and "All partners" says only that nothing
+     is filtered, which the reader can see: an unnarrowed page needs no
+     label, and the label earns its place when it names the one party the
+     page has been narrowed to. */
+  const scopeName = partnerScope === ALL_PARTNERS ? '' : partnerName(partnerScope);
+  const eyebrowText = `${role === 'superadmin' && scopeName ? `${scopeName} · ` : ''}Performance · ${period.label}`;
 
   // ---- volume charts ----
   // A panel that ranks a population of one is not a ranking. An agency with a
@@ -825,15 +830,19 @@ export function Dashboard() {
           <RoleOnly roles={READS_THE_WHOLE_BOOK} commission>
             <section className="card settle">
               <CardHead
-                title={<>Commission by partner</>}
-                sub={<>Partner and agent commission for the <b>selected period</b>, gross and net of refunds. Net columns reconcile to the summary totals. Settlement (what is actually payable next) is calculated separately, for the <b>prior calendar month</b>. Active partners are listed even with no paid referrals in the period; paused or onboarding partners with no activity are not shown.</>}
+                /* COMMISSION BY ROUTE, not by partner. The rows are the
+                   three rails plus each supplier, which is what "route"
+                   means here, and calling them partners made the house
+                   route read as a customer. Matt, 2026-09-30. */
+                title={<>Commission by route</>}
+                sub={<>Supplier and agent commission for the <b>selected period</b>, gross and net of refunds. Net columns reconcile to the summary totals. Settlement (what is actually payable next) is calculated separately, for the <b>prior calendar month</b>. Active routes are listed even with no paid referrals in the period; paused or onboarding suppliers with no activity are not shown.</>}
               />
               <div className="settle__apps">
                 <table>
                   <thead>
                     <tr>
-                      <th>Partner</th><th className="num">Paid</th><th className="num">Fees (gross)</th>
-                      <th className="num">Partner comm (gross)</th><th className="num">Partner comm (net)</th>
+                      <th>Route</th><th className="num">Paid</th><th className="num">Fees (gross)</th>
+                      <th className="num">Supplier comm (gross)</th><th className="num">Supplier comm (net)</th>
                       <th className="num">Agent comm (gross)</th><th className="num">Agent comm (net)</th>
                     </tr>
                   </thead>
@@ -949,9 +958,20 @@ export function Dashboard() {
         {d.live && (
           <RoleOnly roles={READS_THE_WHOLE_BOOK} commission>
             {/* NAMED, not "Your". Under View as it is not the reader's
-                commission and saying so was the whole of Matt's third point. */}
+                commission and saying so was the whole of Matt's third point.
+
+                AND ON THE ADMIN VIEW IT IS NOT ANYBODY'S "YOURS" EITHER.
+                Matt, 2026-09-30: "On the admin view, retitle 'Your
+                commission' to 'Commission owed'." An admin reading this
+                is reading what Opndoor owes out, not what they are paid.
+                A Director still reads "Your commission" about their own,
+                because for them it is exactly that. */}
             <div className="section-label">
-              <Eyebrow>{viewingAs !== null ? `${possessive(originLabel(viewingAs, scopeBook))} commission` : 'Your commission'}</Eyebrow>
+              <Eyebrow>
+                {viewingAs !== null
+                  ? `${possessive(originLabel(viewingAs, scopeBook))} commission`
+                  : isOpndoorStaff(role) ? 'Commission owed' : 'Your commission'}
+              </Eyebrow>
             </div>
             <CommissionStatement role={role} scope={partnerScope} />
           </RoleOnly>
