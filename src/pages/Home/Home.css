@@ -60,6 +60,9 @@
 .home-stage--empty:hover { transform: none; box-shadow: none; }
 .home-stage__n { font-family: var(--display); font-size: 26px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
 .home-stage__l { font-size: 12px; color: var(--ink-mute); margin-top: 6px; }
+/* WALK FIX 25: what the number counts, under the name of the stage. Quieter
+   than the label, because it qualifies it rather than competing with it. */
+.home-stage__c { font-size: 11px; color: var(--ink-mute); opacity: .75; margin-top: 2px; }
 
 .home-table { width: 100%; }
 .home-table th { text-align: left; }
