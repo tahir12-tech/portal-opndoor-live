@@ -569,6 +569,29 @@ bug.
 
 ---
 
+### Batch 19 (verbatim). Item 34 is being built with the invite fix.
+
+> Walk fixes, batch 19. Add to QUEUE.md verbatim and commit. Build item 34 as part of the inviting fix you're already doing; the rest in queue order.
+>
+> 31. Invite email: the App Store and Google Play lines print raw code as text ('<a href="..." style="color:#5b3fd9;">') and show each link twice. Each should be one clean link.
+> 32. Invite email: the authenticator app is explained twice ("You will need an authenticator app" then "You need an authenticator app"). One short line.
+> 33. Invite email: it says "invited you to the portal for Opndoor Agents", naming the hidden house account. It must name the agency or supplier the person is joining (e.g. Regent's Lettings), and Opndoor staff invites should say Opndoor. Check every other email for the house account name.
+> 34. Invite email: the setup link redirects to localhost:5173 while the portal runs on 5174, so accepting an invite on dev may fail. Fix it on dev, and add the correct live portal address for invite and email links to HANDOVER-BALAL.md as a cutover step with a check.
+
+**Item 33 is the serious one of the four.** The other three are the email
+reading badly; 33 is the email telling a letting agent the name of an
+internal plumbing account. `opndoor-agents` is the house route every agency
+shares -- it is not a company, it is not the reader's employer, and it should
+never appear in front of a customer. Matt's "check every other email for the
+house account name" is the right instruction: the invite is where he saw it,
+not necessarily the only place it is.
+
+**Item 31 is an escaping bug, not a copy bug.** Raw `<a href=...>` printed as
+text means a link was built as a string and then escaped, or inserted into a
+template that escapes its input. Whatever is doing that will be doing it to
+anything else built the same way, so the fix belongs at the builder rather
+than in the two lines Matt saw.
+
 ### Status, updated as the night run proceeds
 
 | what | state |
