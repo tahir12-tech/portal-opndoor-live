@@ -42,13 +42,151 @@ walk fix 20: `paymentMetrics.scopeFull` has a positive role allowlist naming
 only `referrer`, `superadmin` and `management`, so that role is handed an empty
 set and every live figure reads zero.
 
-### Order
+### Order, and what happened
 
-| # | item | why this order |
-| - | ---- | -------------- |
-| 1 | **opndoor_manager's blank Reporting** | Smallest, and independent of the other two. Also the one most likely to have siblings elsewhere in the codebase, so it is worth doing first and sweeping properly. |
-| 2 | **NM-M: the View as button, then the picker's deletion** | The replacement goes in before the thing it replaces comes out, the same order the notifications panel and the Reporting tab used. |
-| 3 | **NM-N: the not-in-network list on Reconciliation** | Self-contained: a read-only list over data that already exists. |
+| # | item | status | commit |
+| - | ---- | ------ | ------ |
+| 1 | **opndoor_manager's blank Reporting** | **done**, on dev | `f2ccdb0` |
+| 2 | **NM-M: the View as button, then the picker's deletion** | **done**, on dev | `a5b93ae` |
+| 3 | **NM-N: the not-in-network list on Reconciliation** | **done**, on dev | `50c60b3` |
+
+Merged into `partner-api`. Migration `20261006980000` applied to dev;
+`npm run drift` clean. Suite 139 files / 1496 tests, typecheck clean. The
+11 unhandled errors in the vitest output are the baseline's and predate
+this work (measured at 135/1453/11 before it started).
+
+#### 1 was five allowlists, not one line
+
+The scopeFull fix recorded under walk fix 20 was necessary and nowhere near
+sufficient. Four more blank the page independently -- `partnerScope` (ops
+staff have no home partner, so they were pinned to the mock default
+'northwind' and scopeFull's FIRST filter emptied the book before the role
+allowlist was reached), the two `ownOnly` copies that drive the page's
+words, nine `RoleOnly` gates, and the export gate. All four went stale
+together when the role was added in 20260922090000. The hand-copied literal
+is now one name, `READS_THE_WHOLE_BOOK`, beside `maySeeCommission` in
+types.ts, because the whole defect is the difference between those two
+questions.
+
+**And a sixth that made any test of this role a lie.** `KNOWN_ROLES` in
+SessionContext never learned `opndoor_manager`, and `initialRole()` falls to
+the least privileged role for anything not on it. In Supabase mode that is a
+wrong-role flash until the profile lands; in mock and test mode there is no
+profile, so staging the role produced a Negotiator permanently. No render
+test of this role could say anything true, and one of mine was passing for
+exactly that reason until this was found. Worth remembering as a class: a
+green render test of a role the harness cannot stage is worse than no test.
+
+**A tenth thing the widening woke up, which is the reason a sweep is not
+just an apply.** `trendMeasuresFor` had named `opndoor_manager` since it was
+written and offered them "Commission payable". It never mattered, because
+the trend card sat behind a gate that omitted them. Drawing the card made it
+live -- and `liveMonths` computed `payable` with no commission guard at all,
+so the figures behind it were real. Both halves closed, both
+mutation-checked. 20261005170000 is explicit: may_see_commission is "never
+true for opndoor_manager".
+
+#### 2 came with a broken link of my own making
+
+`CustomersTable` (walk fix 20, mine, yesterday) linked an agency by NAME.
+`/agencies/:key` resolves against `id ?? name`, which is what the exported
+`agencyKey` helper returns and what every other agency link uses. The mock
+seed gives its agencies no id, so `id ?? name` IS the name there and the
+fixture agreed with the bug; on dev, where every agency has a uuid, every
+row landed on "Agency not found". That made the new View as button
+unreachable from the page it is reached from. The existing render test
+asserted the href starts with `/agencies/`, which stayed true throughout:
+starting with the right prefix and pointing at the right record are two
+claims and only the first was being made.
+
+#### What "checked on dev" means for each, plainly
+
+There is no browser automation here, so none of the three was clicked
+through in a browser. What was done instead:
+
+- **1.** The server's answer for the role was measured on dev inside a
+  rolled-back transaction: identical book to a superadmin (35 applications,
+  9 agencies, 11 branches, 7 partners), `app_partner()` **null** -- which is
+  the exact cause of the partnerScope defect -- and `may_see_commission()`
+  **false**, which is the line the client must hold. So the server was
+  serving the whole book and the client was discarding it, which is the
+  diagnosis. The client half was confirmed in the code the dev server is
+  serving. **Dev has no `opndoor_manager` account**, so a real login as one
+  was not possible; creating one is a persistent credential on dev and is
+  your call, not mine. Say the word and it is five minutes.
+- **2.** Confirmed in the served code: no ScopePicker on Reporting, the
+  banner and its stop control present, ViewAsButton on both pages,
+  Applications' own picker untouched, the customer link carrying the id.
+  Behaviour is covered by 12 render assertions.
+- **3.** The RPC was run against real dev data inside a rolled-back
+  transaction: two dismissed matches spelled "Knight Frank" and "Knight
+  Frank Ltd" collapsed to one row keyed `knight frank` with tenants = 2 and
+  their shared contact de-duplicated to a single object; the existing
+  dismissed row came back with an empty contacts array, correctly, because
+  the contact that tenant gave was a private landlord. Dev is unchanged
+  afterwards. `definer_grants` 4/4 and
+  `every_browser_rpc_checks_its_reach` 44/44 green against dev.
+
+### Found on the way, NOT fixed, needs your call
+
+None of these is in the instruction, and each is recorded rather than folded
+in.
+
+1. **`Help.tsx` hands Opndoor ops staff the commission guides.** The only
+   genuine over-grant found. `ROLE_RANK` ranks `opndoor_manager` **equal to
+   superadmin** (both 3), and `admin: role === 'superadmin' || role ===
+   'opndoor_manager'` short-circuits the `needsCommission` test in
+   `mayOpenResource`. So they can open every `minRole: 'superadmin'`
+   resource including the Opndoor admin guide, and the Management guide,
+   which states the commission in prose. Migration 20261005170000 says
+   may_see_commission is "never true for opndoor_manager, who is Opndoor
+   operations and has never seen commission." The client hands it to them in
+   a PDF. Small, but it is a real leak and it is one line each to close.
+
+2. **The same role is routed to a decision queue and given no decision
+   buttons.** `ApplicationDetail`'s Approve and Decline are gated on
+   `isAdmin = role === 'superadmin'`, while `nav.ts:138` gives
+   `opndoor_manager` the "Awaiting decision" queue **with a live badge**,
+   `App.tsx:130` admits them to the record, and the SQL admits them --
+   `set_application_status` and `decline_application` both swapped
+   `is_admin()` for `is_opndoor_staff()` in 20260922090000. The database
+   would accept the call. Same file: the activity feed hides internal rows
+   from them, and `maySeeDocuments` refuses them the bank statements the
+   guarantee decision is made on.
+
+3. **`canSeeSettlements` on Reporting still omits the role**, so the
+   agent-rail funnel and two needs-attention lines stay hidden for them.
+   Deliberately not widened: `get_agent_rail_funnel`
+   (20260904210000:25) refuses `opndoor_manager` outright, so widening the
+   client alone turns a hidden card into a thrown error on dev. Needs a
+   migration first, then the gate.
+
+4. **The Reconciliation sidebar badge disagrees with the ops Home tile** for
+   this role. `Sidebar.tsx:32` returns 0 for anybody who is not
+   `superadmin`, while `Home.tsx:45` counts matches for them under
+   `isOpndoorStaff`. The queue can back up silently, which is the exact
+   failure the badge exists to prevent.
+
+5. **`OrgManagement.tsx:888` scopes the Agencies list to `partnerScope`**
+   for anybody who is not superadmin. With today's partnerScope fix that is
+   now ALL_PARTNERS for ops staff and so is no longer wrong, but the line
+   still reads as though only an admin gets the estate. Worth a look when
+   somebody is next in that file.
+
+6. **View-as is still unaudited for agencies and groups.** `log_view_as`
+   exists and the Topbar partner switch writes to it, but `partnerFor`
+   leaves partnerScope at All for `agency:` and `group:`, so those never
+   reached it. True of the picker too, so NM-M does not change it -- but the
+   button makes view-as a deliberate, named, routine action, which is the
+   kind the audit table exists for. Closing it needs a migration:
+   `log_view_as` refuses any kind but 'partner' and 'agency', so a group
+   cannot be audited at all today.
+
+7. **`agency_match_queue` does not filter `livemode`**, unlike its siblings
+   in the same file. Sandbox applications reach the Direct matches queue.
+   The new `not_in_network_agencies` filters it; the sibling was left alone
+   because changing what an existing queue shows is a behaviour change
+   nobody asked for.
 
 **Step 4 of the night run is not finished and is NOT abandoned.** "Every defect
 recorded from last week's walks and reviews that is still open in QUEUE.md or
