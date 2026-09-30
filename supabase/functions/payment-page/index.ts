@@ -14,6 +14,7 @@
 // Stripe key mode must match the project: sk_test_ on a non-production project,
 // sk_live_ everywhere else. See _shared/stripeMode.ts.
 // =====================================================================
+import { namedParty } from "../_shared/namedParty.ts";
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { titleCaseAddress } from "../_shared/text.ts";
@@ -72,7 +73,7 @@ Deno.serve(async (req) => {
       // measured against. referencing_mode, agency_id, the agency's own name and
       // the partner's refers_own_stock are the four facts that decide whose
       // decision this page is describing: see the rail block below.
-      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, fee_amount, share_amount, tenancy_start, status, payment_state, livemode, referencing_mode, agency_id, agency:agencies(name), partner:partners(name, refers_own_stock), tenancy_id")
+      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, fee_amount, share_amount, tenancy_start, status, payment_state, livemode, referencing_mode, agency_id, agency:agencies(name), partner:partners(slug, name, refers_own_stock), tenancy_id")
       .eq("id", tok.application_id).maybeSingle();
     if (!app) return json({ ok: false, error: "This link is not valid." }, 404);
 
@@ -87,7 +88,25 @@ Deno.serve(async (req) => {
 
     // deno-lint-ignore no-explicit-any
     const partnerRow = (Array.isArray(app.partner) ? (app.partner as any)[0] : (app.partner as any)) ?? null;
-    const partnerName = partnerRow?.name ?? "your letting agent";
+    /* WALK FIX 33, found by its last sentence: "Check every other email for
+       the house account name." This read `partnerRow.name`, which on the
+       agency rail is the house partner "Opndoor Agents" -- shown to a
+       tenant on the screen where they hand over a card, naming a company
+       they have never dealt with. PayLanding's agency-arranged branch
+       already names the agency, which is why this survived: it is the
+       other branch.
+
+       Same rule as the invite, same helper. The fallback differs because
+       the reader does: a tenant reads "your letting agent", which is true
+       and names no plumbing. */
+    // The agency row is read again further down; this is the same shape.
+    // deno-lint-ignore no-explicit-any
+    const agencyForName = (Array.isArray(app.agency) ? (app.agency as any)[0] : (app.agency as any)) ?? null;
+    const partnerName = namedParty({
+      partnerSlug: partnerRow?.slug ?? null,
+      partnerName: partnerRow?.name ?? null,
+      agencyName: agencyForName?.name ?? null,
+    }) || "your letting agent";
     const rent = Number(app.monthly_rent ?? 0);
     // M1: charge the snapshotted fee. Identical to rent on every current row.
     const feeAmount = Number(app.fee_amount ?? app.monthly_rent ?? 0);

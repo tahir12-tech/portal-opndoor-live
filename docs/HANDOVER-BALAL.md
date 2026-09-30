@@ -723,6 +723,50 @@ live project:
 On dev the allow-list still carries `localhost:3000`, `:5173` and `:5174`,
 which is right for dev and must NOT be copied to production.
 
+**And Site URL is not cosmetic, which is the part worth knowing.** It is the
+FALLBACK GoTrue uses whenever a link is generated with no `redirect_to`, or
+with one the allow-list refuses. Measured on dev on 2026-09-30: Site URL was
+`http://localhost:3000`, a port nothing runs on, so any link that lost its
+`redirect_to` for any reason landed nowhere -- silently, because the link
+itself looks perfectly normal. Set to `http://localhost:5174` on dev the same
+day.
+
+So there are two ways an invitation can point at a dead address and only one
+of them is `APP_URL`. Check both.
+
+### The check for this half
+
+```bash
+curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  "https://api.supabase.com/v1/projects/<live-ref>/config/auth" \
+  | python3 -c "import json,sys;d=json.load(sys.stdin);print('site_url =',d['site_url']);print('allow    =',d['uri_allow_list'])"
+```
+
+`site_url` must be the live portal address and the allow list must contain
+it. Unlike the secrets endpoint this returns the real value, so you can read
+it directly.
+
+**Then prove it end to end, without sending anybody an email.** The admin
+`generate_link` endpoint returns a link without delivering it:
+
+```bash
+curl -s -X POST "https://<live-ref>.supabase.co/auth/v1/admin/generate_link?redirect_to=https%3A%2F%2F<host>%2Faccept-invite" \
+  -H "apikey: $SERVICE_ROLE" -H "Authorization: Bearer $SERVICE_ROLE" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"recovery","email":"<your own address>"}' \
+  | python3 -c "import json,sys,urllib.parse;l=json.load(sys.stdin)['action_link'];print(urllib.parse.parse_qs(urllib.parse.urlparse(l).query)['redirect_to'])"
+```
+
+It must print your live `/accept-invite` address. If it prints the Site URL
+instead, the allow-list does not contain what you asked for.
+
+**One trap, found doing exactly this on dev.** `redirect_to` must be a QUERY
+PARAMETER on that endpoint. Passed inside the JSON body as
+`options.redirect_to` it is accepted, ignored, and silently replaced with the
+Site URL -- which reads as "the allow-list is wrong" when nothing is wrong at
+all. The supabase-js client sends it correctly; a hand-written curl is where
+this bites.
+
 ---
 
 ## 8. Crons

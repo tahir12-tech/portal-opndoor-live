@@ -98,9 +98,23 @@ const ALLOWED_INLINE: Array<[RegExp, string]> = [
 function rich(s: string): string {
   let out = esc(String(s ?? ""));
   for (const [re, to] of ALLOWED_INLINE) out = out.replace(re, to);
-  // <a href="https://..."> with an optional simple style attribute.
+  /* <a href="https://..."> with an optional simple style attribute.
+
+     WALK FIX 31. This used to read `[^&quot;\s<>]+` for the href, which
+     looks like "anything that is not the escaped quote" and is not: it is a
+     CHARACTER CLASS, so it excluded the individual characters & q u o t and
+     ; along with whitespace and angle brackets. Nearly every real URL
+     contains at least one of those -- both store links contain o, u and t --
+     so the pattern never matched, and the escaped markup was printed to the
+     reader as words. That was reported as the invite email's store lines
+     showing raw code, and it was every anchor in every p, small or list
+     block in the product.
+
+     `(?:(?!&quot;)[^\s<>])+` is the rule that was meant: any character that
+     is not whitespace or an angle bracket and does not begin the escaped
+     quote that ends the attribute. */
   out = out.replace(
-    /&lt;a href=&quot;(https?:\/\/[^&quot;\s<>]+)&quot;(?: style=&quot;([a-zA-Z0-9:#;.,\- ]*)&quot;)?&gt;/g,
+    /&lt;a href=&quot;(https?:(?:(?!&quot;)[^\s<>])+)&quot;(?: style=&quot;([a-zA-Z0-9:#;.,\- ]*)&quot;)?&gt;/g,
     (_m, href: string, style?: string) =>
       `<a href="${href}"${style ? ` style="${style}"` : ""}>`,
   );
@@ -200,7 +214,16 @@ export function renderHtml(m: Message, r?: Recipients): string {
 
 /** The same message as text, derived from the same blocks so it cannot drift. */
 export function renderText(m: Message, r?: Recipients): string {
-  const strip = (s: string) => s.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").trim();
+  /* WALK FIX 31. An anchor keeps its ADDRESS in the plain-text part.
+     Stripping the tag left a text-only reader the words "App Store" and no
+     way to get there, which is why the templates had been writing the URL
+     out as the link text as well -- and that is what made the same address
+     appear twice in the HTML. The text part carries it now, so the HTML
+     does not have to. */
+  const strip = (s: string) => s
+    .replace(/<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g,
+      (_m, href: string, label: string) => (label.trim() && label.trim() !== href ? `${label.trim()}: ${href}` : href))
+    .replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").trim();
   const out: string[] = [];
   if (r?.redirected) {
     out.push("[REVIEW COPY] This was addressed to " + (r.intended.join(", ") || "an unknown recipient")

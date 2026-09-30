@@ -23,6 +23,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
 import { staffInviteEmail } from "../_shared/emailTemplates.ts";
 import { resolveInvitePosition } from "../_shared/invitePosition.ts";
+import { namedParty } from "../_shared/namedParty.ts";
 import { safeOrigin } from "../_shared/safeOrigin.ts";
 
 const cors = {
@@ -393,10 +394,43 @@ Deno.serve(async (req) => {
       if (grantErr) return json({ ok: false, error: `Could not grant the position: ${grantErr.message}` }, 400);
     }
 
-    // Branded invite email (redirected to the review address in test mode).
-    const partnerName = inviteePartnerId
-      ? (await service.from("partners").select("name").eq("id", inviteePartnerId).maybeSingle()).data?.name ?? ""
-      : "";
+    /* Branded invite email (redirected to the review address in test mode).
+
+       WALK FIX 33. This read `partners.name` and passed it straight to the
+       template, so every agency invite said "the portal for Opndoor
+       Agents" -- the house partner every agency is carried on, which is
+       plumbing and which channel.ts exists to keep off a screen. The party
+       somebody is joining is their AGENCY on that rail, the SUPPLIER on
+       theirs, and opndoor itself for our own staff. invitePartyName holds
+       that decision; this resolves the two names it needs. */
+    const partnerRow = inviteePartnerId
+      ? (await service.from("partners").select("slug, name").eq("id", inviteePartnerId).maybeSingle()).data
+      : null;
+    /* THE AGENCY, from wherever the invite actually says it. An agency or
+       group position names it directly; a branch position and a home branch
+       each name it one join away. Read with the SERVICE client because this
+       is a display name for an email and the invitee cannot read it yet. */
+    let agencyName: string | null = null;
+    if (effectiveScopeKind === "agency" && effectiveScopeTarget) {
+      agencyName = (await service.from("agencies").select("name").eq("id", effectiveScopeTarget).maybeSingle()).data?.name ?? null;
+    } else {
+      /* A branch position, or a home branch, names the agency one join
+         away. PostgREST types an embedded to-one as an ARRAY here, so it
+         is unwrapped the same way every other caller in this codebase
+         unwraps one. */
+      const branchId = effectiveScopeKind === "branch" ? effectiveScopeTarget : homeBranchId;
+      if (branchId) {
+        const { data: br } = await service.from("branches").select("agency:agencies(name)").eq("id", branchId).maybeSingle();
+        // deno-lint-ignore no-explicit-any
+        const ag = (Array.isArray(br?.agency) ? (br?.agency as any)[0] : (br?.agency as any)) ?? null;
+        agencyName = ag?.name ?? null;
+      }
+    }
+    const partnerName = namedParty({
+      partnerSlug: partnerRow?.slug ?? null,
+      partnerName: partnerRow?.name ?? null,
+      agencyName,
+    });
     // #69: never expose a contact email as a display name. A name-less user's
     // full_name falls back to their email (see fullName above), so if such a user
     // is the inviter, drop it and let the template say "Your team".
