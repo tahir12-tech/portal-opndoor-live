@@ -19,6 +19,32 @@ export function titleCaseAddress(s: string | null | undefined): string {
 }
 
 /**
+ * A name in the possessive. WALK FIX 19.
+ *
+ * "Northgate Lettings's commission" should read "Northgate Lettings'
+ * commission". It was formed by appending `${name}’s` at eight call sites, so
+ * it was eight bugs; it is one now, and this is the one place to be wrong.
+ *
+ * THE RULE IS EXACTLY THE ONE MATT NAMED, and no wider: a name ending in s
+ * takes the apostrophe alone. Names ending in x or z, or in a silent s, are
+ * argued over by style guides and nobody has asked. Inventing a rule for them
+ * here would be a second thing to be wrong about, so the omission is
+ * deliberate and this sentence is the record of it.
+ *
+ * U+2019, the typographic apostrophe, because that is what every call site
+ * that had it right already used.
+ */
+export function possessive(name: string | null | undefined): string {
+  const n = (name ?? '').trim();
+  // An empty name must not become a bare apostrophe hanging in front of the
+  // word it was meant to qualify.
+  if (!n) return '';
+  // Already possessive: a name stored as "Jones’" must not become "Jones’’s".
+  if (n.endsWith('’') || n.endsWith("'")) return n;
+  return /s$/i.test(n) ? `${n}’` : `${n}’s`;
+}
+
+/**
  * Format a commission rate (a fraction, 0–1) as a percentage to ONE decimal place.
  * NEVER rounds to a whole percent: a stored 9.5% (0.095) must render as "9.5%" and
  * can never be shown as — or mistaken for — 10% (0.10). 0.095 -> "9.5%",

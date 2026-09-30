@@ -20,7 +20,7 @@
    asks maySeeCommission itself rather than trusting the two callers to ask for
    it. See the gate on CommissionStatement below.
    ===================================================================== */
-import { gbpPence } from '@/lib/format';
+import { gbpPence, possessive } from '@/lib/format';
 import { useEffect, useMemo, useState } from 'react';
 import {
   buildAllStatementsCsv, buildCommissionStatementDoc, downloadCsv, exportBranded,
@@ -331,7 +331,7 @@ function StatementPanel({
                     payee's name, which changed when an agency was renamed. */}
                 <Button
                   variant="ghost" size="sm"
-                  title={`Download ${st.payeeName}'s ${st.monthLabel} statement. Foots to the total below.`}
+                  title={`Download ${possessive(st.payeeName)} ${st.monthLabel} statement. Foots to the total below.`}
                   onClick={() => void buildCommissionStatementDoc(role, scope, st.monthKey, st.payeeKey).then(exportBranded)}
                 >
                   <Icon name="download" /> Export

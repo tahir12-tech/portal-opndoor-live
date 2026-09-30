@@ -463,6 +463,9 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // #97 Prefer the snapshotted referrer name (survives deactivation / users-RLS);
     // fall back to the live join, then a stable placeholder that is never counted.
     referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? '(unknown)',
+    // Walk fix 18: is there a referring PERSON. The name above is a label and
+    // a direct signup has one ("Direct signup") without having a referrer.
+    referrerId: a.referrer_id ?? null,
     referrerRole: emb(a.referrer)?.role ?? null,
     // The other half of the referrer's LEVEL. Director and Manager are both
     // 'management' and differ only here, so role alone cannot name either.

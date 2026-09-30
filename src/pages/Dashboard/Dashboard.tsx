@@ -27,7 +27,7 @@ import {
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPeriods, getTrend, maySeeCommission, partnerName,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
-import { formatLondonDate, gbpPence } from '@/lib/format';
+import { formatLondonDate, gbpPence, possessive } from '@/lib/format';
 import { BASIS_META, type ExportBasis } from '@/data';
 import { getAgentRailFunnel, viewerRunsEligibilityJourney, type AgentRailFunnel } from '@/data/agentFunnel';
 import { isAgencyUser } from '@/data/capabilities';
@@ -869,7 +869,7 @@ export function Dashboard() {
             {/* NAMED, not "Your". Under View as it is not the reader's
                 commission and saying so was the whole of Matt's third point. */}
             <div className="section-label">
-              <Eyebrow>{viewingAs !== null ? `${originLabel(viewingAs, scopeBook)}’s commission` : 'Your commission'}</Eyebrow>
+              <Eyebrow>{viewingAs !== null ? `${possessive(originLabel(viewingAs, scopeBook))} commission` : 'Your commission'}</Eyebrow>
             </div>
             <CommissionStatement role={role} scope={partnerScope} />
           </RoleOnly>

@@ -143,6 +143,17 @@ describe('the same admin, viewing as a supplier', () => {
     const v = await openReporting('superadmin', SUPPLIER);
     expect(text(v)).not.toMatch(/bordereau/i);
   });
+
+  /* WALK FIX 19, at the exact place Matt reported it: "Northgate Lettings's
+     commission" should read "Northgate Lettings' commission". Harbourside
+     Homes is the fixture party whose name ends in s, so this is the same
+     shape. The rule itself is in src/lib/possessive.test.ts; this is the
+     one call site that puts a customer's name in front of the word. */
+  it('and a party whose name ends in s takes the apostrophe alone', async () => {
+    const v = await openReporting('superadmin', SUPPLIER);
+    expect(text(v)).toMatch(/Homes’ commission/);
+    expect(text(v)).not.toMatch(/Homes’s/);
+  });
 });
 
 describe('an agency reading their own Reporting', () => {

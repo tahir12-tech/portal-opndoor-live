@@ -23,6 +23,8 @@
    person stored in two columns, and anything that writes one without the
    other can make a Director who cannot see commission.
    ===================================================================== */
+// Walk fix 19: the possessive is formed in one place.
+import { possessive } from '@/lib/format';
 import { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -65,7 +67,7 @@ export function ChangeLevelModal({
     <Modal
       open
       width={460}
-      title={`Change ${person.name}'s level`}
+      title={`Change ${possessive(person.name)} level`}
       sub="This changes what they can see and do across the portal."
       onClose={onClose}
       footer={<>

@@ -48,6 +48,8 @@
    positions — and every write runs through the same guard-checked RPC the admin
    screens use. Hiding is a courtesy; SQL is the rule. See team-scope.test.sql.
    ===================================================================== */
+// Walk fix 19: the possessive is formed in one place.
+import { possessive } from '@/lib/format';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   cancelInvite, getAgencies, getGroups, inviteUser, resendInvite, setUserStatus,
@@ -663,7 +665,7 @@ export function Team() {
               onClick={() => setConfirm({
                 // Says what it keeps, because "remove" reads like deletion and this
                 // is not one: the person, their referrals and the history stay.
-                line: `Remove ${u.name}'s access? Their referrals and history are kept, and you can restore access later.`,
+                line: `Remove ${possessive(u.name)} access? Their referrals and history are kept, and you can restore access later.`,
                 cta: 'Remove access',
                 run: () => setUserStatus(u.id, 'deactivated'),
                 done: `${u.name} no longer has access.`,
@@ -899,7 +901,7 @@ export function Team() {
         <Modal
           open
           width={460}
-          title={`Change ${levelUser.name}'s level`}
+          title={`Change ${possessive(levelUser.name)} level`}
           sub="This changes what they can see and do across the portal."
           onClose={() => { setLevelUser(null); setLevelPick(null); }}
           footer={<>

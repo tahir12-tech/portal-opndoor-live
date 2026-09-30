@@ -25,6 +25,8 @@
    are re-offered as a confirmation carrying the administrator's decision back to
    SQL, which audits it. Every other refusal is final and is simply stated.
    ===================================================================== */
+// Walk fix 19: the possessive is formed in one place.
+import { possessive } from '@/lib/format';
 import { useMemo, useState } from 'react';
 import {
   agreementConfirmKind, createAgreement, endAgreement,
@@ -236,7 +238,7 @@ export function AgreementEditor({
         bands: bandInput, tiers: tierInput, note: note.trim() || null,
         confirmReplace, confirmBreach,
       });
-      toast(`${name}’s agreement saved. It prices the next referral; everything already sent is unchanged.`);
+      toast(`${possessive(name)} agreement saved. It prices the next referral; everything already sent is unchanged.`);
       onSaved();
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
