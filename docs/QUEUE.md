@@ -871,6 +871,81 @@ supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
 answered: giving supplier staff a people screen is a new screen, not a
 wiring job.
 
+## Walk fixes 17, 18, 19 and 21: Reporting. DONE AND CHECKED ON DEV.
+
+`d9accfd`, `6f78039`.
+
+### 18. Measured on dev, and the obvious fix is a trap
+
+`keyOf` already dropped an application nobody referred, and said so in its
+own comment. But dev's ten direct applications have `referrer_id` NULL and
+`referrer_name` = **'Direct signup'**, and hydrate reads
+`referrer_name ?? joined.full_name ?? '(unknown)'`. The guard was asked about
+a LABEL when the question is about a PERSON, so it never fired.
+
+**And `referrerRole` is not the answer either.** It comes from the embedded
+users row, and RLS can withhold that from a reader who can still see the
+application: dev has **17** agency applications with a real `referrer_id`
+whose `referrer_name` is NULL. Keying on the role would have dropped real
+referrals by real people while fixing the direct ones. `FullApp` carries
+`referrerId` now, and only an explicit null means "nobody referred this".
+
+**B1 and B2 are the same cause on two other surfaces and are NOT closed
+here.** They are separate recorded findings; this closes the referrer list,
+which is the one Matt walked.
+
+### 19. Fixed where the possessive is formed
+
+There was no helper: **eight** call sites each wrote `${name}’s` inline, so
+it was eight bugs. One now. The rule is exactly the one Matt named and no
+wider -- names ending in x or z, or in a silent s, are argued over by style
+guides and nobody has asked, so the omission is deliberate and the helper
+says so.
+
+### 21. The reader decides, not the person
+
+The same referrer's line differs by who has the page open. Opndoor staff get
+agency and branch; for everybody else it is the SHAPE of their book and not
+their permissions, so a Director and a Negotiator at the same agency read the
+same line. Counted off the scoped set BEFORE the period filter, because "an
+agency with more than one branch" is a fact about the agency and not about
+what it referred this month. Somebody who moved office is shown BOTH offices:
+printing one would state as a fact something half wrong. League and the
+by-referrer trend take the same rule, which is Matt's last sentence.
+
+### 17. The chart was offering a series that cannot apply to the reader
+
+`£0 every month` is not a blank series. The trend's "commission" is the
+supplier cut, and `liveMonths` zeroes that on a house route because a house
+route's cut is Opndoor's own margin owed to nobody -- correct, and asserted
+in `our_margin_is_not_theirs.test.sql`. So an admin on the house rail could
+only ever see twelve bars of zero beside a tile saying £3,232. **The money
+model was right and fixing the numbers would have been fixing the wrong
+thing.** The option SET is picked from who is reading.
+
+**"Whichever option is chosen, the trend must match the tiles" needed saying
+what it can mean.** The trend is a trailing twelve months by construction and
+the tiles follow the period picker, so they are not the same window and no
+assertion can make them one. What must hold is that each option measures the
+same QUANTITY as its tile: over one window, the series sums to the aggregate.
+Four assertions, one per measure.
+
+And one more that stops the whole thing passing on `0 === 0`: on the house
+rail the old series is zero where the new one is not. With a real supplier in
+the book the old series is NOT zero, which is why that option was not dead
+and still belongs to customers.
+
+### Tests
+
+Added: `possessive.test.ts` (8), `whereTheyWork.test.ts` (11),
+`directIsNobodysAgency.test.ts` (4), `opndoorPaysCommission.test.tsx` (17).
+One assertion added to `viewAsIsTheParty` at the exact place Matt reported
+the possessive. Every fix verified by mutation: reverting each rule fails
+exactly its own assertions and nothing else. 128 files / 1384 tests; four
+files and 40 assertions added, none removed or renamed.
+
+---
+
 ## Walk fixes 27, 28, 29 and 30: New application. DONE AND CHECKED ON DEV.
 
 `95f9bb6`. Four on one screen, built as one piece.
