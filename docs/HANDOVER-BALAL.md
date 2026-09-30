@@ -657,6 +657,74 @@ alarming.**
 
 ---
 
+## 7a. APP_URL: the address every emailed link is built on
+
+**Walk fix 34.** Get this wrong and every invitation, password reset and
+payment link in the product points somewhere the recipient cannot reach.
+
+`APP_URL` is an Edge Function secret, and `_shared/safeOrigin.ts` prefers it
+over anything the caller sends -- deliberately, so that whoever calls a
+function cannot choose where a genuine Opndoor-branded email points. That
+makes it the single place the live address is set, and the single place it
+can be wrong.
+
+**It was wrong on dev**, which is how this was found: `APP_URL` was
+`http://localhost:5173` while the dev portal runs on `5174`, so accepting an
+invitation went to a dead address. Fixed on dev on 2026-09-30.
+
+### The cutover step
+
+Set it to the live portal address, with no trailing slash:
+
+```
+APP_URL=https://<the live portal hostname>
+```
+
+Set it the same way as the other secrets in section 7. It is read at
+invocation, so **no redeploy is needed** after changing it -- but see the
+check below, because "no redeploy needed" is also why a wrong value goes
+unnoticed.
+
+### The check, before you hand back
+
+The Management API returns secrets as a SHA-256 digest of the value, never
+the value. That is enough to prove it exactly, without the value ever being
+printed:
+
+```bash
+# What is set:
+curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  "https://api.supabase.com/v1/projects/<live-ref>/secrets" \
+  | python3 -c "import json,sys;print([s['value'] for s in json.load(sys.stdin) if s['name']=='APP_URL'][0])"
+
+# What it SHOULD be:
+python3 -c "import hashlib;print(hashlib.sha256(b'https://<the live portal hostname>').hexdigest())"
+```
+
+The two must be identical. If they are not, the value is not what you think
+it is -- including a stray trailing slash or `http` where you meant `https`,
+both of which produce a completely different digest.
+
+### And then actually click one
+
+Invite yourself, open the email, and click the link. The digest proves the
+string; only clicking proves the address resolves, the certificate is valid,
+and `/accept-invite` is served. Two different questions.
+
+### The other half: Supabase Auth's own redirect allow-list
+
+`APP_URL` decides what the link says. Supabase Auth decides whether it will
+honour a redirect to it. In **Authentication -> URL Configuration** on the
+live project:
+
+- **Site URL** must be the live portal address.
+- **Redirect URLs** must include `https://<the live portal hostname>/**`.
+
+On dev the allow-list still carries `localhost:3000`, `:5173` and `:5174`,
+which is right for dev and must NOT be copied to production.
+
+---
+
 ## 8. Crons
 
 Sixteen jobs after this branch, thirteen of which already exist on production.
