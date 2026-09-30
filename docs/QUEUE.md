@@ -871,6 +871,66 @@ supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
 answered: giving supplier staff a people screen is a new screen, not a
 wiring job.
 
+## Walk fixes 27, 28, 29 and 30: New application. DONE AND CHECKED ON DEV.
+
+`95f9bb6`. Four on one screen, built as one piece.
+
+### 27. The numbers were literals, not a typo
+
+Referred by 1, Tenant `isAdminForm ? 2 : 1`, Property 2, Tenancy 3, the
+office section 4. So the admin form read **1, 2, 2, 3, 4**. Two of the five
+knew about `isAdminForm` and three did not. Counted in render order now;
+renumbering the literals would leave the next conditional section to break it
+again.
+
+### 28. Measured on dev, twice, because the cause is not what it looks like
+
+`my_org_shape` answers "what should I be asked about MY org", and an Opndoor
+admin has none:
+
+| call | returns |
+| --- | --- |
+| `my_org_shape(null)` | **no row at all** |
+| `my_org_shape(<kestrel>)` | **Kestrel's own shape**: `refers_own_stock` true, one agency and it is yours, "Kestrel Lettings" |
+
+So the admin was answered as somebody else in both directions: the
+placeholder's words while the call was out, and the supplier user's words
+once it landed. Matt's sentence exactly.
+
+**And the heading was only half of it.** While the shape is unresolved the
+PICKER returns that placeholder *and nothing else*, so there was no agency or
+branch control on the page at all.
+
+An admin's question is fixed and needs no round trip. It is `FULL_PICKER`,
+taken directly, so the section is never unresolved and never collapses one of
+somebody else's agencies away. The agencies offered are still the supplier's
+own, because they come from the scope Referred by set. The call, its four
+retries and the collapse it drives are skipped.
+
+### 29. The disappearance was the one-office collapse
+
+It hides the whole section once the org resolves to a single office. Right
+for somebody who works at one office and has nothing to choose; wrong for an
+admin choosing somebody else's agency and branch and needing to correct it.
+Never applied to an admin now.
+
+### 30. Matt's own wording, used as given
+
+"Rail" and "route" are internal vocabulary: a rail is which of the three
+kinds of referral this is, a route is the partner record carrying it.
+
+### Two assertions that are not render assertions, and why
+
+The hang **cannot be reproduced in mock mode**: `loadOrgShape` returns a
+resolved shape there without asking anything. So two of the seventeen assert
+the rule where it lives instead -- the copy against the shape that never
+resolves, and the ABSENCE of the server call, which is the substance of "does
+not wait". Both were checked against the unfixed picker and fail there.
+
+17 assertions, five failing first. 124 files / 1343 tests.
+
+---
+
 ## Walk fixes 8 and 16: the book in force. DONE AND CHECKED ON DEV.
 
 `7a4f578`. One rule for both (`src/data/inForce.ts`), because they are the
