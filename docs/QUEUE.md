@@ -1411,57 +1411,65 @@ anywhere and cannot be read back from their hashes. All three have been signed
 into recently, so Matt or Balal hold them. They are NOT being reset, because
 resetting mid-cutover would lock out whoever is using them.
 
-### NM-I. ANSWERED by Claude, 2026-09-30, at Matt's explicit request ("NM-I: [write your answer]").
+### NM-I. SUPERSEDED TWICE. Final ruling: Opndoor never gives partial refunds.
 
-**The answer: YES, pro-rate it. Commission is paid on what Opndoor actually
-keeps, so a partial refund reduces it in proportion.**
+**Matt, 2026-09-30, first answer (verbatim):** "NM-I answer: yes, a partial
+refund reduces the commission in proportion to the amount refunded. Also add
+the partial refund fix to Balal's live hotfix package if the problem exists
+on live, with a check before, the fix, a check after, and a rollback."
 
-**The decisive argument is not fairness, it is that the current rule can go
-negative.** Commission is a share of the fee. If the fee is partly refunded
-and the commission is not, Opndoor pays a share of money it no longer holds.
-Worked on the real measured figures -- a GBP 1,246.15 fee with the agency at
-25%:
+**Matt, 2026-09-30, correction (verbatim):** "Correction to NM-I: Opndoor
+never gives partial refunds. A refund is always the full fee. Make the refund
+action refuse any amount other than the full fee, on dev and in Balal's live
+hotfix package, instead of changing how partial refunds affect commission.
+Keep the check before, check after and rollback for the live part."
 
-| refunded | Opndoor keeps | commission today | commission pro-rated |
-| --- | --- | --- | --- |
-| GBP 0 | 1,246.15 | 311.54 | 311.54 |
-| GBP 623 (half) | 623.08 | 311.54 | 155.77 |
-| GBP 1,000 (80%) | 246.15 | **311.54** | 61.54 |
+So the pro-rating is NOT built. The rule is that a partial refund is an error,
+and the refund action refuses it.
 
-At the bottom row Opndoor pays out MORE than it kept. The fee goes
-net-negative: a refund costs Opndoor the refund and then costs it again in
-commission. That is not a judgement call about generosity, it is an
-arithmetic hole, and it is exactly the direction a goodwill refund would push
-somebody towards.
+#### THE THING MATT NEEDS TO KNOW BEFORE THIS SHIPS
 
-**The counter-argument, stated honestly:** the agency did the same work
-whatever was refunded afterwards. True. But a refund usually means the
-guarantee did not deliver what it promised, and the agency is a share of a
-service that was partly undone. Pro-rating keeps the relationship the
-percentage already describes -- 25% of the fee, whatever the fee turns out to
-have been -- rather than turning it into a fixed amount that survives the fee
-shrinking.
+**There is no refund action in the portal.** Nothing in `src/` and nothing in
+any edge function creates a Stripe refund. `apply_stripe_refund` has exactly
+one caller: `stripe-webhook`, and it is not performing a refund -- it is
+RECORDING one that has already happened inside Stripe, because somebody
+refunded there by hand.
 
-**Why pro-rate rather than cap:** capping commission at what Opndoor keeps
-would also stop it going negative, but it makes a 79% refund and an 80%
-refund pay the same commission, which is the kind of cliff that produces
-arguments. Proportional is the rule the percentage already implies.
+That matters, because you cannot refuse a fact. If the RPC simply raises on a
+partial:
 
-**The rule, precisely:** commission = rate x (fee_amount - refunded_amount).
-It cannot go negative, because R2 already caps refunded_amount at what was
-paid. A full refund gives zero, which is what happens today, so the existing
-behaviour is the endpoint of the new rule rather than an exception to it.
+1. Stripe has already moved the money.
+2. The RPC raises, the webhook returns 500, and Stripe retries -- for ever.
+3. The application is never marked refunded at all. It still reads as fully
+   paid: the commission is still paid out, the deed stays live, and the
+   bordereau still bills the underwriter for it.
 
-**Status: NOT YET BUILT.** It is on the worktree list. R2 deliberately left
-commission on the whole fee, which was the conservative status quo and is
-safe; this changes it. When built it wants a test asserting the middle row of
-that table, since both ends already behave correctly.
+That is **worse than the bug being fixed**. Today a partial over-corrects by
+wiping the whole commission; a bare refusal would under-correct to nothing,
+and jam the webhook.
 
-**One thing Matt should know rather than discover:** this changes figures on
-statements that may already have been sent for any month containing a partial
-refund. Whether it applies to past months or only from now is a second
-question, and it is NOT decided here -- the build will apply it going forward
-and leave the past alone unless Matt says otherwise.
+**So the rule is implemented in the only way that is both what Matt asked for
+and safe:**
+
+- `apply_stripe_refund` **refuses** any amount that is not the full fee, with
+  a clear message. That is Matt's rule, enforced at the database, and it is
+  what stops the portal ever recording a partial as though it were normal.
+- `stripe-webhook` recognises that specific refusal and, instead of looping,
+  raises a LOUD ops incident naming the guarantee and the amount, and returns
+  200 so Stripe stops retrying.
+
+The row then still says paid while Stripe says partly refunded -- a real
+divergence, deliberately left visible. That is the honest handling of
+something the business says never happens: somebody is told, immediately, and
+has to go and look. It is not silently mis-applied and it is not silently
+retried.
+
+**R2 is NOT reverted.** R2's `partially_refunded` state and its accumulation
+stay, because the refusal only prevents FUTURE partials and says nothing
+about history: if any application was already mis-marked by the old
+unconditional flip, R2's logic is what distinguishes it. The state simply
+becomes unreachable going forward, which is what "never happens" should look
+like in a schema.
 
 ### NM-A. Who pays the guarantee fee, and how they pay it
 
