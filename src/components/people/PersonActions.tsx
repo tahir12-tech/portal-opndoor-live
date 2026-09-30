@@ -27,6 +27,12 @@ interface PersonActionsProps {
    *  their row like permissions. Optional so a screen that has not been
    *  wired yet simply does not draw it, rather than drawing a dead control. */
   onNotifications?: (p: { id: string; name: string }) => void;
+  /** May THIS viewer open THIS person's notifications. The one action here
+   *  that is not Opndoor's alone, so it is the one that needs a per-row
+   *  answer. Hosts pass `mayActOnOrEqual(me, them)`, the client twin of the
+   *  server's `caller_may_set_for`. Defaults to true because every other
+   *  caller is already behind `isAdmin`, for whom it is always true. */
+  mayNotify?: boolean;
   /** 'Change level' on the agency estate; 'Change role' on the supplier
       rail, which has no levels. */
   changeLevelLabel?: string;
@@ -49,11 +55,27 @@ interface PersonActionsProps {
  */
 export function PersonActions({
   person: r, isAdmin, manyOffices, onAction, onCancelInvite, onChangeLevel, onPosition,
-  onNotifications,
+  onNotifications, mayNotify = true,
   changeLevelLabel = 'Change level',
 }: PersonActionsProps) {
-  if (!isAdmin) return null;
   const who = r.name || r.email;
+  const notifies = !!onNotifications && mayNotify && r.status !== 'pending';
+
+  /* EVERYTHING ELSE HERE IS SOMETHING OPNDOOR DOES TO SOMEBODY -- resend,
+     change level, position, password, two-factor, remove, restore -- so the
+     admin-only return below is right for all of it. Notifications is not one
+     of those: a Director may change their own people's, and everybody may
+     change their own event choices, so it has to survive the return or the
+     capability has no door in the product. */
+  if (!isAdmin) {
+    if (!notifies) return null;
+    return (
+      <div className="ah-rowacts">
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onNotifications!({ id: r.userId, name: who })}>Notifications</button>
+      </div>
+    );
+  }
+
   return (
     <div className="ah-rowacts">
       {r.status === 'pending' && <>
@@ -72,8 +94,8 @@ export function PersonActions({
       {/* Beside Position on purpose: both answer "what is this person's
           relationship to the work", and Matt's instruction is that
           notifications belong here "like permissions". */}
-      {onNotifications && r.status !== 'pending' && (
-        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onNotifications({ id: r.userId, name: who })}>Notifications</button>
+      {notifies && (
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onNotifications!({ id: r.userId, name: who })}>Notifications</button>
       )}
       {r.status !== 'pending' && <>
         <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('password', r.userId, who)}>Send password reset</button>

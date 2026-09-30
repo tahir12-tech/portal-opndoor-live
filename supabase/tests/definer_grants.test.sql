@@ -152,6 +152,12 @@ insert into allowed(name) values
   ('origin_is_agent_estate'),
   ('origin_referencing_mode'),
   ('partner_active_key_count'),
+  /* The whole panel in one round trip, including a flag PER SECTION saying
+     whether the caller may change that section -- so the screen can only
+     ever offer what the server will accept. Bounded by the same ladder as
+     the setters. Covered by
+     a_person_panel_says_what_you_may_change.test.sql. */
+  ('person_notification_panel'),
   ('reconciliation_queue'),
   ('referral_fee_preview'),
   ('referrer_league'),

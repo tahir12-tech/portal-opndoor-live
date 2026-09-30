@@ -1,129 +1,106 @@
 /* =====================================================================
-   ONE PERSON'S NOTIFICATIONS, ON ANY OF THE THREE PARTIES.
+   ONE PERSON'S NOTIFICATIONS.
 
-   Walk fixes 9, 10 and 12. Matt: "notifications move onto each person, like
-   permissions, reached from their row... Build items 10 and 12 as one shared
-   design so Opndoor team and agency people work the same way; suppliers too."
+   Walk fixes 9, 10 and 12, after Matt's ruling of 2026-09-30 that these are
+   "genuinely per person, for agency and supplier users as well as Opndoor
+   staff".
 
-   THE REASON THIS IS A FUNCTION AND NOT JUST A COMPONENT. The three parties
-   do not share a server model:
+   THE WHOLE PANEL COMES FROM THE SERVER, INCLUDING WHAT MAY BE CHANGED.
+   `person_notification_panel` returns the events, the two Director-only
+   toggles, and a flag PER SECTION saying whether this caller may change
+   that section.
 
-     Opndoor          ops_routing_matrix    alert x RECIPIENT       per person
-     agency/supplier  notification_matrix   event x recipient CLASS party-wide
+   The client does not re-derive any of it, and that is the point. The three
+   settings have three different rules -- events are self or a Director at
+   or above or an admin; statements and copied-on-referrals are
+   Director-only and explicitly NOT self -- and a screen that worked them
+   out for itself would eventually disagree with the server. That failure
+   presents as a control which looks live, accepts a click and throws.
 
-   So "which events is this person told about" is a fact about the PERSON on
-   one side and a fact about the WHOLE AGENCY on the other. One panel has to
-   present both without pretending they are the same thing, and that decision
-   belongs somewhere a test can hold it to account rather than buried in JSX.
-
-   WHAT THE PANEL WILL NOT DO. It will not show a party-wide switch as though
-   it were personal. `partyWide` is carried on every row precisely so the
-   screen must say "this affects everyone at the agency" where that is true.
-   Hiding it would mean a Director edits one person and silently changes what
-   every colleague receives -- the exact class of surprise the walk keeps
-   finding, introduced on purpose.
+   WHAT WENT AWAY. This file used to assemble the panel from two different
+   matrices and carried a `partyWide` flag, because the agency side was
+   stored per recipient CLASS and was shared by everybody at the agency. It
+   is per person now, so there is nothing to warn about and the flag is
+   gone with its warning.
    ===================================================================== */
-import { OPS_FLOOR_REASON, isLastCritical, type OpsRouteCell } from './opsRoutingService';
-import { LOCKED_REASON, type MatrixCell } from './notificationMatrixService';
+import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 
 export type PartyKind = 'opndoor' | 'agency' | 'supplier';
 
 export interface EventRow {
-  /** The notification or alert type key, for the write call. */
   type: string;
   label: string;
-  /** For the agency and supplier rails only: which recipient class this row
-   *  is. Null on Opndoor, where the row IS the person. */
-  recipient: string | null;
-  on: boolean;
+  enabled: boolean;
   /** The sentence to print beside a locked row, or null when it is simply
    *  off. Never a bare boolean: item 9's complaint was that boxes could not
-   *  be unticked and "nothing says why", so a lock without its reason is the
-   *  bug rather than the fix. */
-  locked: string | null;
-  /** True when changing this changes it for EVERYBODY at the party. */
-  partyWide: boolean;
+   *  be unticked and "nothing says why", so a lock arrives with its reason
+   *  or the panel could render one without it. */
+  lockReason: string | null;
 }
-
-export interface ToggleRow { on: boolean; locked: string | null }
 
 export interface PersonPanel {
-  /** Copied on referrals within their position. Null where the concept does
-   *  not apply to this party. */
-  copied: ToggleRow | null;
-  /** Monthly commission statements. Null where it does not apply. */
-  statements: ToggleRow | null;
-  events: EventRow[];
-  /** True when any event row is party-wide, so the screen can say it once
-   *  above the list rather than on every line. */
-  anyPartyWide: boolean;
-}
-
-export interface PanelInput {
-  party: PartyKind;
   userId: string;
-  /** `receives_notifications` for this person, or null if not applicable. */
-  copiedOnReferrals: boolean | null;
-  /** `receives_commission_statements`, or null if not applicable. */
-  getsStatements: boolean | null;
-  /** Opndoor only: the whole routing matrix; filtered to this person here. */
-  ops: OpsRouteCell[];
-  /** Agency and supplier: the party's matrix. */
-  matrix: MatrixCell[];
+  name: string;
+  partyKind: PartyKind;
+  events: EventRow[];
+  mayEditEvents: boolean;
+  /** Copied on colleagues' referrals within their position. Not an idea the
+   *  supplier rail has, because it has no positions (B3). */
+  copiedApplies: boolean;
+  copiedOn: boolean;
+  mayEditCopied: boolean;
+  /** Shown only where the person's LEVEL can receive a statement. Separate
+   *  from mayEdit: the level is what somebody IS, not a permission, so a
+   *  Negotiator sees no section rather than a disabled one. */
+  statementsApply: boolean;
+  statementsOn: boolean;
+  mayEditStatements: boolean;
 }
 
-/**
- * COPIED ON REFERRALS IS NOT OFFERED ON THE SUPPLIER RAIL.
- *
- * B3: `set_receives_notifications`'s scope test requires the TARGET to hold a
- * position, and positions exist only on the house estate. So the control can
- * never succeed for a supplier's colleague. Offering a switch that always
- * fails is worse than offering none, and this is the one place the shared
- * design is deliberately not identical across the three parties.
- */
-function copiedApplies(party: PartyKind): boolean {
-  return party === 'agency';
-}
+export const EMPTY_PANEL: PersonPanel = {
+  userId: '', name: '', partyKind: 'agency', events: [],
+  mayEditEvents: false,
+  copiedApplies: false, copiedOn: false, mayEditCopied: false,
+  statementsApply: false, statementsOn: false, mayEditStatements: false,
+};
 
-/** Opndoor staff are not paid commission, so there is no statement for them. */
-function statementsApply(party: PartyKind): boolean {
-  return party === 'agency' || party === 'supplier';
-}
-
-export function buildPersonPanel(input: PanelInput): PersonPanel {
-  const events: EventRow[] = input.party === 'opndoor'
-    ? input.ops
-        .filter((c) => c.recipientKind === 'person' && c.recipientId === input.userId)
-        .sort((a, b) => a.typeOrd - b.typeOrd)
-        .map((c) => ({
-          type: c.alertType,
-          label: c.label,
-          recipient: null,
-          on: c.enabled,
-          // The floor, shown rather than only enforced. The SQL refuses it
-          // anyway; this is the courtesy half.
-          locked: isLastCritical(c) ? OPS_FLOOR_REASON : null,
-          partyWide: false,
-        }))
-    : [...input.matrix]
-        .sort((a, b) => (a.typeOrd - b.typeOrd) || (a.recipientOrd - b.recipientOrd))
-        .map((c) => ({
-          type: c.notificationType,
-          label: c.typeLabel,
-          recipient: c.recipient,
-          on: c.enabled,
-          locked: c.locked ? LOCKED_REASON : null,
-          partyWide: true,
-        }));
-
+/** Shapes the RPC's jsonb. Exported so a test can drive it without a
+ *  database, which is the only reason it is separate from the fetch. */
+export function shapePanel(raw: Record<string, unknown>): PersonPanel {
+  const events = Array.isArray(raw.events) ? raw.events : [];
   return {
-    copied: copiedApplies(input.party) && input.copiedOnReferrals !== null
-      ? { on: input.copiedOnReferrals, locked: null }
-      : null,
-    statements: statementsApply(input.party) && input.getsStatements !== null
-      ? { on: input.getsStatements, locked: null }
-      : null,
-    events,
-    anyPartyWide: events.some((e) => e.partyWide),
+    userId: String(raw.user_id ?? ''),
+    name: String(raw.name ?? ''),
+    partyKind: (String(raw.party_kind ?? 'agency') as PartyKind),
+    events: events.map((e) => {
+      const r = e as Record<string, unknown>;
+      return {
+        type: String(r.type),
+        label: String(r.label),
+        enabled: r.enabled === true,
+        lockReason: r.locked === true ? String(r.lock_reason ?? '') || null : null,
+      };
+    }),
+    mayEditEvents: raw.may_edit_events === true,
+    copiedApplies: raw.copied_applies === true,
+    copiedOn: raw.copied_on === true,
+    mayEditCopied: raw.may_edit_copied === true,
+    statementsApply: raw.statements_apply === true,
+    statementsOn: raw.statements_on === true,
+    mayEditStatements: raw.may_edit_statements === true,
   };
+}
+
+export async function getPersonPanel(userId: string): Promise<PersonPanel> {
+  if (!SUPABASE_ENABLED) return { ...EMPTY_PANEL, userId };
+  const { data, error } = await sb().rpc('person_notification_panel', { p_user: userId });
+  if (error) throw new Error(error.message);
+  return shapePanel((data ?? {}) as Record<string, unknown>);
+}
+
+export async function setPersonEvent(userId: string, type: string, enabled: boolean): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  const { error } = await sb().rpc('set_notification_for',
+    { p_user: userId, p_type: type, p_enabled: enabled });
+  if (error) throw new Error(error.message);
 }

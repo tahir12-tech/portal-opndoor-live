@@ -138,9 +138,9 @@ export const NAV: NavGroup[] = [
       { id: 'decisions', label: 'Awaiting decision', to: '/applications?status=referencing', icon: 'clock', roles: ['superadmin', 'opndoor_manager'], badge: 'decisions' },
       { id: 'reconcile', label: 'Reconciliation', to: '/reconciliation', icon: 'reconcile', roles: ['superadmin', 'opndoor_manager'], badge: 'reconcile' },
       { id: 'health', label: 'Health', to: '/health', icon: 'shield', roles: ['superadmin'] },
-      // opndoor_manager can VIEW the routing (Q-04); only superadmin can edit,
-      // which set_ops_route enforces and the page reflects.
-      { id: 'internal-notifications', label: 'Internal notifications', to: '/internal-notifications', icon: 'bell', roles: ['superadmin', 'opndoor_manager'] },
+      // Internal notifications stood here. Walk fix 10: "Remove the separate
+      // Internal notifications page from the menu." Which internal alerts a
+      // person receives is on their own row on the opndoor team page now.
     ],
   },
 ];

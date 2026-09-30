@@ -1,56 +1,63 @@
 /* WALK FIXES 9, 10 AND 12, ON THE SCREEN.
  *
- * The assembler is tested in src/data/personNotifications.test.ts. This file
- * asserts the four things Matt actually complained about in item 9, each of
- * which is a property of the RENDERED panel and not of the data:
+ * Rewritten after Matt's ruling of 2026-09-30 made notifications genuinely
+ * per person. The previous version of this file asserted, in two places, that
+ * the panel printed a party-wide warning: "these are the agency's settings,
+ * not this person's. Changing one changes it for everyone here." That
+ * sentence was TRUE of the old storage and is FALSE now, so those two
+ * assertions are deleted rather than inverted, along with the third that
+ * counted the warning on the supplier rail. Three assertions removed, four
+ * added for the permissions the server now returns. That is why the count
+ * moved.
+ *
+ * The shaping of the server's reply is tested in
+ * src/data/personNotifications.test.ts. This file asserts what is true only
+ * once the panel is DRAWN, which is the rest of item 9:
  *
  *   "it isn't clear whose notifications you are changing"
  *        -> the panel names the person, in its title.
  *   "ticked boxes can't be unticked and nothing says why"
  *        -> a locked row prints its reason next to the box.
- *   "the description is repeated"
- *        -> the party-wide warning is said ONCE above the list, not per row.
  *   "headings run into their labels"
  *        -> each section has its own heading element, separate from its rows.
  *
- * And the one thing that is not a complaint but a correctness property: the
- * party-wide warning must appear for an agency and must NOT appear for an
- * Opndoor team member, because Opndoor's alerts really are per person.
+ * Plus the property that replaced the warning: a control the caller may not
+ * change is disabled AND says who may, and a section that does not apply to
+ * this person is absent rather than greyed.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { ToastProvider } from '@/components/ui/Toast';
-import * as ops from '@/data/opsRoutingService';
-import * as matrix from '@/data/notificationMatrixService';
-import * as positions from '@/data/positionsService';
+import * as data from '@/data/personNotifications';
+import { EMPTY_PANEL, type PersonPanel } from '@/data/personNotifications';
 import { PersonNotifications } from './PersonNotifications';
 
-const OPS_CELL = {
-  alertType: 'deed_chain_failed', label: 'Deed chain failure', group: 'Critical',
-  critical: true, typeOrd: 1, recipientKind: 'person' as const, recipientId: 'u-1',
-  recipientName: 'Ada', recipientEmail: 'ada@opndoor.co', enabled: true, liveCount: 1,
-};
-const MATRIX_CELL = {
-  notificationType: 'deed_issued', typeLabel: 'Deed issued', typeOrd: 1,
-  recipient: 'referrer', recipientLabel: 'The referrer', recipientOrd: 1,
-  enabled: true, isDefault: false, locked: true,
+const LOCKED_REASON =
+  'The executed deed always reaches the person it is addressed to. That cannot be switched off.';
+
+/** A Director looking at one of their Negotiators: everything open. */
+const DIRECTOR_VIEW: PersonPanel = {
+  ...EMPTY_PANEL,
+  userId: 'u-1', name: 'Tom Reeve', partyKind: 'agency',
+  events: [
+    { type: 'deed_issued', label: 'Deed issued', enabled: true, lockReason: LOCKED_REASON },
+    { type: 'paid', label: 'Payment received', enabled: false, lockReason: null },
+  ],
+  mayEditEvents: true,
+  copiedApplies: true, copiedOn: false, mayEditCopied: true,
+  statementsApply: true, statementsOn: true, mayEditStatements: true,
 };
 
-beforeEach(() => {
-  vi.spyOn(positions, 'getNotificationTicks').mockResolvedValue({ 'u-1': true });
-  vi.spyOn(positions, 'getCommissionStatementTicks').mockResolvedValue({ 'u-1': false });
-  vi.spyOn(matrix, 'mayEditNotificationMatrix').mockResolvedValue(true);
-});
+function panel(over: Partial<PersonPanel> = {}) {
+  vi.spyOn(data, 'getPersonPanel').mockResolvedValue({ ...DIRECTOR_VIEW, ...over });
+}
+
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-async function open(props: Partial<Parameters<typeof PersonNotifications>[0]> = {}) {
+async function open() {
   const view = render(
     <ToastProvider>
-      <PersonNotifications
-        party="agency" partyRef={{ agencyId: 'ag-1' }} userId="u-1"
-        personName="Tom Reeve" partyName="Regent's Lettings" canEdit
-        onClose={() => {}} {...props}
-      />
+      <PersonNotifications userId="u-1" personName="Tom Reeve" onClose={() => {}} />
     </ToastProvider>,
   );
   await waitFor(() => {
@@ -60,93 +67,99 @@ async function open(props: Partial<Parameters<typeof PersonNotifications>[0]> = 
   return view;
 }
 const body = () => document.body.textContent ?? '';
+const heads = () => [...document.body.querySelectorAll('.pn__h')].map((h) => h.textContent);
+const box = (label: string) =>
+  document.body.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
 
-describe('an agency person', () => {
-  beforeEach(() => {
-    vi.spyOn(ops, 'getOpsRoutingMatrix').mockResolvedValue([]);
-    vi.spyOn(matrix, 'getNotificationMatrix').mockResolvedValue([MATRIX_CELL]);
-  });
+describe('a Director looking at one of their people', () => {
+  beforeEach(() => { panel(); });
 
   it('names the person, so it is clear whose settings these are', async () => {
     await open();
     expect(body()).toMatch(/Notifications for Tom Reeve/);
   });
 
-  /* THE ONE THAT MATTERS. These switches belong to the agency, and a
-     Director must not change one person and silently change everyone. */
-  it('says plainly that the event switches belong to the whole agency', async () => {
-    await open();
-    expect(body()).toMatch(/Regent's Lettings'?s? settings, not\s+this person's/);
-    expect(body()).toMatch(/Changing one changes it for everyone here/);
-  });
-
   it('prints the reason beside a locked box rather than just disabling it', async () => {
-    const v = await open();
-    const box = document.body.querySelector<HTMLInputElement>('input[aria-label="Deed issued to referrer"]');
-    expect(box?.disabled).toBe(true);
+    await open();
+    expect(box('Deed issued')?.disabled).toBe(true);
     expect(body()).toMatch(/executed deed/i);
-    void v;
   });
 
   it('gives each section its own heading, so nothing runs into its labels', async () => {
     await open();
-    const heads = [...document.body.querySelectorAll('.pn__h')].map((h) => h.textContent);
-    expect(heads).toContain('Copied on referrals');
-    expect(heads).toContain('Monthly statements');
-    expect(heads).toContain('Events they are told about');
+    expect(heads()).toContain('Copied on colleagues’ referrals');
+    expect(heads()).toContain('Monthly statements');
+    expect(heads()).toContain('Events they are told about');
   });
 
-  it('and says the party-wide warning ONCE, not on every row', async () => {
+  it('and leaves open every box the server said they may change', async () => {
     await open();
-    expect(document.body.querySelectorAll('.pn__warn')).toHaveLength(1);
+    expect(box('Payment received')?.disabled).toBe(false);
+    expect(box('Receives notifications')?.disabled).toBe(false);
+    expect(box('Receives commission statements')?.disabled).toBe(false);
   });
 });
 
-describe('an Opndoor team member', () => {
+/* THE CASE THE WHOLE PER-SECTION SHAPE EXISTS FOR. One panel, three
+   different answers: a Negotiator may change their own events but neither
+   of the two Director-only settings. */
+describe('a Negotiator looking at their own panel', () => {
   beforeEach(() => {
-    vi.spyOn(ops, 'getOpsRoutingMatrix').mockResolvedValue([OPS_CELL]);
-    vi.spyOn(matrix, 'getNotificationMatrix').mockResolvedValue([]);
+    panel({
+      mayEditEvents: true,
+      copiedApplies: true, copiedOn: true, mayEditCopied: false,
+      statementsApply: false, statementsOn: false, mayEditStatements: false,
+    });
   });
 
-  /* Their alerts genuinely ARE per person, so the warning would be a lie. */
-  it('is NOT told the settings belong to anybody else', async () => {
-    await open({ party: 'opndoor', partyRef: undefined, partyName: undefined });
-    expect(document.body.querySelectorAll('.pn__warn')).toHaveLength(0);
+  it('may still change their own event choices', async () => {
+    await open();
+    expect(box('Payment received')?.disabled).toBe(false);
   });
 
-  it('and the last recipient of a critical alert is locked, with the reason', async () => {
-    await open({ party: 'opndoor', partyRef: undefined });
-    const box = document.body.querySelector<HTMLInputElement>('input[aria-label="Deed chain failure"]');
-    expect(box?.disabled).toBe(true);
-    expect(body()).toMatch(/last person or inbox receiving a critical alert/i);
+  /* A disabled box with no explanation is precisely what item 9 objected
+     to, so the reason has to be on the screen, not only in the tooltip. */
+  it('but cannot change whether they are copied in, and is told who can', async () => {
+    await open();
+    expect(box('Receives notifications')?.disabled).toBe(true);
+    expect(body()).toMatch(/A Director decides who is copied in/);
   });
 
-  it('and is offered neither statements nor copied-on-referrals', async () => {
-    await open({ party: 'opndoor', partyRef: undefined });
-    const heads = [...document.body.querySelectorAll('.pn__h')].map((h) => h.textContent);
-    expect(heads).not.toContain('Copied on referrals');
-    expect(heads).not.toContain('Monthly statements');
+  /* ABSENT, NOT GREYED. Their level cannot receive a statement at all, and
+     a disabled control would imply somebody could switch it on. */
+  it('and is not offered monthly statements at all, because their level cannot have one', async () => {
+    await open();
+    expect(heads()).not.toContain('Monthly statements');
+    expect(box('Receives commission statements')).toBeNull();
   });
 });
 
 describe('a supplier person', () => {
-  beforeEach(() => {
-    vi.spyOn(ops, 'getOpsRoutingMatrix').mockResolvedValue([]);
-    vi.spyOn(matrix, 'getNotificationMatrix').mockResolvedValue([
-      { ...MATRIX_CELL, recipient: 'agent_contact', recipientLabel: 'The agent contact', locked: false },
-    ]);
+  /* B3: the supplier rail has no positions, so there is nothing to be
+     copied in "within". The control could never succeed, so it is absent. */
+  it('is not offered "copied on colleagues’ referrals"', async () => {
+    panel({ partyKind: 'supplier', copiedApplies: false, mayEditCopied: false });
+    await open();
+    expect(heads()).not.toContain('Copied on colleagues’ referrals');
   });
+});
 
-  /* B3: the control could never succeed on that rail, so it is not drawn. */
-  it('is not offered "copied on referrals", because that rail has no positions', async () => {
-    await open({ party: 'supplier', partyRef: { partnerId: 'p-1' }, partyName: 'Kestrel Lettings' });
-    const heads = [...document.body.querySelectorAll('.pn__h')].map((h) => h.textContent);
-    expect(heads).not.toContain('Copied on referrals');
+describe('an Opndoor team member', () => {
+  it('gets the internal wording for the event list', async () => {
+    panel({ partyKind: 'opndoor', copiedApplies: false, statementsApply: false });
+    await open();
+    expect(heads()).toContain('Internal alerts they receive');
   });
+});
 
-  it('but is still told its events belong to the supplier', async () => {
-    await open({ party: 'supplier', partyRef: { partnerId: 'p-1' }, partyName: 'Kestrel Lettings' });
-    expect(body()).toMatch(/Kestrel Lettings/);
-    expect(document.body.querySelectorAll('.pn__warn')).toHaveLength(1);
+describe('when the server refuses the read', () => {
+  /* Matt's rule for agency users, walk fix 14: an error a person can act
+     on. A blank panel with no sentence reads as a broken screen. */
+  it('says so rather than drawing an empty panel', async () => {
+    vi.spyOn(data, 'getPersonPanel').mockRejectedValue(
+      new Error('You can only see this for yourself, or for people at or below you in your own agency.'));
+    await open();
+    expect(body()).toMatch(/only see this for yourself/);
+    expect(document.body.querySelectorAll('.pn__row')).toHaveLength(0);
   });
 });

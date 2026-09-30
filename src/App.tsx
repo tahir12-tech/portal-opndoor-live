@@ -35,7 +35,6 @@ import { UserManagement } from '@/pages/UserManagement/UserManagement';
 import { Team } from '@/pages/Team/Team';
 import { Reconciliation } from '@/pages/Reconciliation/Reconciliation';
 import { Health } from '@/pages/Health/Health';
-import { OpsNotifications } from '@/pages/OpsNotifications/OpsNotifications';
 import { Help } from '@/pages/Help/Help';
 import { DevCentre } from '@/pages/DevCentre/DevCentre';
 
@@ -186,10 +185,12 @@ export function App() {
           <Route path="/partners" element={<PartnerManagement />} />
           <Route path="/partners/:key" element={<PartnerHome />} />
           <Route path="/health" element={<Health />} />
-          {/* Where opndoor's own alerts go. opndoor_manager may view it; the
-              page renders values without controls for them, and set_ops_route
-              refuses them in SQL either way. */}
-          <Route path="/internal-notifications" element={<OpsNotifications />} />
+          {/* /internal-notifications is gone with walk fix 10. Nothing
+              replaces the ROUTE: an old link now falls through to the
+              catch-all below and lands on /home, which is right, because
+              there is no page to send it to any more. Who receives which
+              internal alert is on each person's row on the opndoor team
+              page. */}
         </Route>
       </Route>
       </Route>
