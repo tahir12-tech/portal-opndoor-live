@@ -871,6 +871,92 @@ supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
 answered: giving supplier staff a people screen is a new screen, not a
 wiring job.
 
+## The hotfix is retired: it ships with the cutover. DONE AND CHECKED ON DEV.
+
+`58de1c2`, `0a8ecaa`. Matt: *"there is no separate live hotfix. Everything in
+HOTFIX-LIVE-FOR-BALAL.md ships with the cutover instead. Make sure each is on
+the branch and covered by a test, then retire the hotfix document."*
+
+Each of the five checked against dev before anything was deleted:
+
+| item | state |
+| --- | --- |
+| payment column lock | `20261006720000`. Dev has no INSERT/UPDATE/DELETE/TRUNCATE grant to anon or authenticated on `applications`. |
+| NULL guard | `20261006470000`. `app_role()` coalesced on dev. |
+| full-refund-only rule | `20261006910000`. `apply_stripe_refund` raises 22023. |
+| log cleanup | **was absent.** Now `20261006960000`. |
+| Health index | **was absent, and cannot exist.** See below. |
+
+Both files deleted; HANDOVER 0a rewritten so nobody goes looking for them.
+
+### Two of the five are not what the instruction assumed, and it matters
+
+**The index cannot be created by anyone.** `create index on
+cron.job_run_details` is refused: *"must be owner of table
+job_run_details"*. pg_cron's tables belong to `supabase_admin`; neither a
+migration nor Balal running SQL as `postgres` can do it. Measured on dev.
+
+**And retention was never the cause.** Trimming in a rolled-back transaction
+and re-timing `cron_health()`:
+
+| rows | time |
+| ---: | ---: |
+| 58,868 (today) | 46,715 ms |
+| 41,107 (30 days, as asked) | 37,130 ms |
+| 15,357 (7 days) | 25,203 ms |
+
+Three times the 8 s cut-off even at a week.
+
+### What it actually was
+
+| | ms |
+| --- | ---: |
+| 16 job laterals (last run per job) | 237 |
+| 547 http responses attributed to a job | 10,939 |
+| **the same 547, computed a second time** | 10,863 |
+| the activity_log and ops_alerts counts | 1 |
+| `cron_health()` end to end | **46,715** |
+
+The `attributed` set was written out byte-identically in two statements, and
+each read seq-scanned 35 MB once per response. A time bound on the lateral
+changes nothing (11,163 ms against 11,094 ms) because without an index the
+rows are read and then discarded.
+
+There is one index we may rely on: the primary key on `runid`. It is
+monotonic, so `runid > max(runid) - 20000` is a range scan, and the time
+predicate makes it exact. Read once, as a `materialized` CTE.
+
+**46,715 ms -> 666 ms on dev, with the log still untrimmed.** The retention
+job ships as housekeeping, not as the fix.
+
+### The migration was built on the wrong definition twice
+
+Worth recording, because it is a trap this repo has now sprung twice.
+Generated first from `20261006140000` (the migration walk item 22b names) --
+wrong, because `20261006280000` redefines `cron_health` to add
+`hubspot_disabled`, so replaying the older body silently DELETED that key and
+the Health page would have begun alerting on an integration somebody had
+deliberately switched off. Caught by `health_tells_you_what_to_do` going red
+on the local clean-apply cluster.
+
+Rebuilt, and still wrong: `npm run drift` then found `20261006470000`
+redefines it a third time, which `grep -l` had missed because that file
+writes `CREATE OR REPLACE` in capitals.
+
+**The rule:** generate a `create or replace` from the LAST definition, not
+from the one whose comment describes the problem. `npm run drift` is the
+check that catches it; a case-sensitive grep is not.
+
+### Tests
+
+New `the_health_screen_is_quick.test.sql`, 7 assertions, six failing first.
+It asserts the SHAPE, not a timing: "under N milliseconds" passes on a fast
+machine and fails on a loaded one, and this suite runs on both. Local
+clean-apply cluster 67 files / 971 assertions / 0 failing; green on dev;
+drift clean.
+
+---
+
 ## Walk fixes 31, 32, 33 and 34: the invite email. DONE AND CHECKED ON DEV.
 
 `603b0c1`. Deployed to dev: `invite-user`, `payment-page`. `deno check`: 66
