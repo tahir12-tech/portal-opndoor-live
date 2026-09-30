@@ -79,6 +79,14 @@ insert into allowed(name) values
   ('assert_may_grant_position'),
   ('attach_user_to_agency'),
   ('authorise_password_reset'),
+  /* The two ladder questions the three notification setters share
+     (20261006920000). Both read only the CALLER and grant nothing on their
+     own: caller_is_director is the Director capability test, and
+     caller_may_set_for is at-or-below within the caller's own POSITION --
+     never partner_id, because every agency shares the house partner.
+     Covered by who_may_change_a_notification.test.sql. */
+  ('caller_is_director'),
+  ('caller_may_set_for'),
   ('clear_branch_deed_recipient'),
   ('commission_preview'),
   ('commission_split_batch'),
@@ -167,6 +175,7 @@ insert into allowed(name) values
      people adding to it cannot collide. */
   ('set_my_notification'),
   ('set_node_rate'),
+  ('set_notification_for'),
   ('set_notification_setting'),
   ('set_ops_route'),
   ('set_receives_commission_statements'),
