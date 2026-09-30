@@ -697,6 +697,30 @@ built "the person edits their own, an admin edits anyone's, a Director may
 see but not change" and said it was one predicate either way. It is now
 three predicates, because the three settings no longer share one rule.
 
+### DONE `1218473`, and checked on dev against real people
+
+| who | did | outcome |
+| --- | --- | --- |
+| Rosa (Regent Director) | change Tom's event choice | **allowed** |
+| Rosa (Regent Director) | copy Tom in on colleagues' referrals | **allowed** |
+| Tom (Negotiator) | change his OWN event choice | **allowed** |
+| Tom (Negotiator) | copy himself in | **refused** |
+| Tom (Negotiator) | give himself statements | **refused** |
+
+15 assertions across four roles, nine failing first. Applied to dev, drift
+clean, 64 pgTAP files / 0 failing there.
+
+**Three existing tests changed, all deliberately**, and one of them is worth
+knowing about: `commission_statement_recipients` had two assertions saying
+"an agency manager cannot set it" about a fixture that has always been an
+Agency DIRECTOR. Under the ruling she can, so they flipped -- and the
+mismatch between the old wording and the data it described is part of why
+the change reads as surprising.
+
+**The one capability REMOVED:** `set_receives_notifications` previously
+allowed `p_user = auth.uid()` outright, so anybody could copy themselves in
+on their colleagues' referrals. Withdrawn.
+
 ### The three settings, and they are now genuinely different
 
 | setting | who may change it |
