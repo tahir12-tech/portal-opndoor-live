@@ -88,9 +88,15 @@ async function openTab(v: View, name: string) {
 }
 
 describe('the supplier detail page', () => {
-  it('has the five tabs the agency page has', async () => {
+  /* SIX NOW, not five. Walk fix 15 adds Reporting: "the per-customer
+     Reporting tab is Opndoor-only", and this whole route is
+     superadmin-only. The assertion is widened rather than loosened to a
+     `toContain`, because the ORDER is part of what it protects -- Reporting
+     sits with the other read-only views and before Commission, which is
+     the money. */
+  it('has the six tabs, in order', async () => {
     const v = await open();
-    expect(tabNames(v)).toEqual(['Overview', 'People', 'Commission', 'Referrals', 'Integration']);
+    expect(tabNames(v)).toEqual(['Overview', 'People', 'Reporting', 'Commission', 'Referrals', 'Integration']);
   });
 
   it('opens on Overview, and does not show the commission rates until asked', async () => {

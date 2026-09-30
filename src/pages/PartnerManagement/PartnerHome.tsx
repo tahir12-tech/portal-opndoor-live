@@ -20,9 +20,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  getPartner, getRatesFor, getAgencies, getUsers, partnerActiveKeyCount,
-  REFERENCING_MODES, type Agency, type ManagedUser, type ReferencingMode,
+  ALL_PARTNERS, getPartner, getPeriods, getRatesFor, getAgencies, getUsers, maySeeCommission,
+  partnerActiveKeyCount, REFERENCING_MODES, type Agency, type ManagedUser, type ReferencingMode,
 } from '@/data';
+// Walk fix 15: this customer's report, on this customer's page.
+import { liveByCustomer } from '@/data/liveAnalytics';
+import { CustomerReport } from '@/components/CustomerReport';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { getApplications } from '@/data/applicationsService';
@@ -106,6 +109,21 @@ export function PartnerHome() {
   const [keyCount, setKeyCount] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [notifFor, setNotifFor] = useState<{ id: string; name: string } | null>(null);
+  /* WALK FIX 15. This supplier's own numbers, from the same function the
+     estate-wide table uses, so the two cannot disagree about them. Its own
+     period state: the report is read here and the choice belongs to this
+     page, not to Reporting's remembered one. */
+  const reportPeriods = getPeriods();
+  const [reportPeriod, setReportPeriod] = useState(
+    () => reportPeriods.find((p) => p.id === 'last12m') ?? reportPeriods[reportPeriods.length - 1],
+  );
+  const customerRows = useMemo(
+    () => (partner
+      ? liveByCustomer(role, ALL_PARTNERS, reportPeriod).filter((r) => r.key === `partner:${partner.id}`)
+      : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [role, reportPeriod, partner, dataVersion],
+  );
   const toast = useToast();
   const isAdmin = role === 'superadmin';
 
@@ -131,7 +149,7 @@ export function PartnerHome() {
      detail page mirrors the agency page ... Regent's agency page is the
      template." The page was four flat cards in document order, so a reader
      scrolled past the commission rates to reach the people. */
-  type Tab = 'overview' | 'people' | 'commission' | 'referrals' | 'integration';
+  type Tab = 'overview' | 'people' | 'reporting' | 'commission' | 'referrals' | 'integration';
   const [tab, setTab] = useState<Tab>('overview');
   useEffect(() => {
     if (!partner || !partner.apiAccessEnabled) { setKeyCount(null); return; }
@@ -208,10 +226,26 @@ export function PartnerHome() {
         value={tab}
         onChange={setTab}
         tabs={[
-          ['overview', 'Overview'], ['people', 'People'], ['commission', 'Commission'],
+          ['overview', 'Overview'], ['people', 'People'],
+          /* WALK FIX 15: the report for this customer, on this customer's
+             own page. This whole route is superadmin-only, so there is no
+             role gate to add here. */
+          ['reporting', 'Reporting'],
+          ['commission', 'Commission'],
           ['referrals', 'Referrals'], ['integration', 'Integration'],
         ]}
       />
+
+      {tab === 'reporting' && (
+        <CustomerReport
+          rows={customerRows}
+          seesCommission={maySeeCommission(role)}
+          periodId={reportPeriod.id}
+          periods={reportPeriods.map((p) => ({ value: p.id, label: p.label }))}
+          onPeriod={(id) => setReportPeriod(reportPeriods.find((p) => p.id === id) ?? reportPeriod)}
+          emptyText={`No referrals from ${partner?.name ?? 'this supplier'} in this period.`}
+        />
+      )}
 
       {tab === 'commission' && (
       <div className="ph-grid">
