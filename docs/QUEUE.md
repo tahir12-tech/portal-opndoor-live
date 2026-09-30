@@ -592,10 +592,46 @@ template that escapes its input. Whatever is doing that will be doing it to
 anything else built the same way, so the fix belongs at the builder rather
 than in the two lines Matt saw.
 
-## Items 9, 10 and 12: one per-person notifications panel. IN PROGRESS.
+## Items 9, 10 and 12: one per-person notifications panel. HALF BUILT.
 
-Matt: "Build items 10 and 12 as one shared design so Opndoor team and agency
-people work the same way; suppliers too."
+### Where it stands, exactly
+
+| part | state |
+| --- | --- |
+| The assembler, `src/data/personNotifications.ts` | **done** `0e24aed`, 13 assertions written first |
+| The panel, `src/components/people/PersonNotifications.tsx` | **done** `e36070a`, 10 render assertions written first |
+| The row action on `PersonActions` | **done**, optional so an unwired screen draws nothing |
+| Wiring into Team (Opndoor) | **not started** |
+| Wiring into the agency People tab | **not started** |
+| Wiring into the supplier People tab | **not started** |
+| REMOVING the two tickbox columns and the "Who is told what" grid | **not started** |
+| REMOVING the Internal notifications page from the menu | **not started** |
+
+**Nothing has been removed and nothing is rewired, so the product is
+unchanged for a reader.** This is a safe place to have stopped: the new
+component exists and is tested, and the old screens still work exactly as
+they did. The remaining work is surgery on four large files (`AgencyHome`,
+`PartnerHome`, `Team`, `App`) and should be done in one pass rather than
+started and abandoned.
+
+### What the next session should NOT re-derive
+
+- The panel takes `party`, `partyRef`, `userId`, `personName`, `partyName`,
+  `canEdit`, `onClose`. Mount it from the row action; it loads its own data.
+- `PersonActions` already has `onNotifications`; pass it and the button
+  appears, beside Position.
+- On Opndoor, pass `party="opndoor"` and NO `partyRef`.
+- The agency People tab's two columns and the `<NotificationMatrix>` below it
+  are what item 12 says to delete. `PartnerHome.tsx:423` and
+  `AgencyHome.tsx:1474` are the two grid mount points.
+- `OpsNotifications.tsx` and its route in `App.tsx` are what item 10 says to
+  remove from the menu.
+
+### One thing to flag when it is finished, not now
+
+NM-2b: four of the alert types Q-04 names do not exist. The per-person panel
+will therefore list fewer alerts than the old page implied, which is correct
+and is the honest state, but Matt should be told rather than left to notice.
 
 ### The one judgement call, made explicitly rather than silently
 
