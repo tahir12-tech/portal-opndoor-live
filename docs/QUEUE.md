@@ -15,6 +15,41 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## SUPPLIER STATEMENT LINES AND WHO OPNDOOR PAYS (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+
+> Supplier commission statements always show the agency and branch on every line, even when they're all the same. Keep "Source" off supplier statements. NM-C 5: for a supplier like Rightmove, Opndoor pays only the supplier; the supplier pays its own agents, so no agency commission line is created under a supplier referral unless the supplier's agreement says Opndoor pays agents directly. Show that setting on the supplier's Commission tab, off by default.
+
+Sent minutes after reading the dry-run PDF and CSV, and it corrects them.
+Three things, and the third is much larger than the first two.
+
+1. **Agency and branch on every supplier line, always.** The shared
+   column rule drops a dimension when every line agrees; a supplier
+   statement must not. And the rule lives character-for-character in TWO
+   files (`src/data/statementColumns.ts` and the Edge Function), locked
+   by `statementColumns.test.ts`, so both copies change or neither does.
+2. **Source off supplier statements**, whatever the rule would say.
+3. **NM-C 5. Opndoor pays only the supplier.** No agency commission line
+   under a supplier referral unless that supplier's agreement says
+   Opndoor pays agents directly. A per-supplier setting, off by default,
+   shown on the supplier's Commission tab.
+
+### WHAT TO GET RIGHT, BEFORE BUILDING ANY OF IT
+
+- **`commission_statement_lines` does not return an agency name.** It
+  returns `branch_name` and nothing above it. So item 1 needs a RETURN
+  TYPE CHANGE, which needs a DROP before the CREATE OR REPLACE, which
+  `schema-final-state` checks for by name.
+- **Item 3 inverts an assertion shipped this morning.** Assertion 5 of
+  `a_supplier_gets_its_own_statement.test.sql` says "the agency line on
+  the same referral is untouched by the supplier gaining one". Under
+  NM-C 5 that line should not exist at all unless the flag is on. The
+  assertion does not get quietly deleted: it gets both arms, flag off and
+  flag on.
+- **"Created" is the word he used.** The frozen split is written at
+  creation into `application_commission_lines`, so the rule belongs where
+  lines are created as well as where the statement reads them. Rows
+  already frozen are a separate question.
+
 ## SUPPLIER MONTHLY STATEMENTS, REVISED (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
 
 > Supplier monthly commission statements: sent to the supplier's Management users who have statements switched on, addressed to the supplier. Only Opndoor admin can switch statements on or off for a supplier's users; supplier users cannot change it for themselves or colleagues. Opndoor admin can also add named email addresses that aren't portal users (e.g. a finance inbox) to receive a supplier's statement. Deploy to dev and check it there.
