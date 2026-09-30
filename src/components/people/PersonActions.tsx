@@ -23,6 +23,10 @@ interface PersonActionsProps {
   onCancelInvite: (userId: string, who: string) => void;
   onChangeLevel: (p: { userId: string; name: string; current: string }) => void;
   onPosition: (p: { id: string; name: string }) => void;
+  /** Walk fixes 10 and 12: notifications move onto the person, reached from
+   *  their row like permissions. Optional so a screen that has not been
+   *  wired yet simply does not draw it, rather than drawing a dead control. */
+  onNotifications?: (p: { id: string; name: string }) => void;
   /** 'Change level' on the agency estate; 'Change role' on the supplier
       rail, which has no levels. */
   changeLevelLabel?: string;
@@ -45,6 +49,7 @@ interface PersonActionsProps {
  */
 export function PersonActions({
   person: r, isAdmin, manyOffices, onAction, onCancelInvite, onChangeLevel, onPosition,
+  onNotifications,
   changeLevelLabel = 'Change level',
 }: PersonActionsProps) {
   if (!isAdmin) return null;
@@ -63,6 +68,12 @@ export function PersonActions({
           same people. */}
       {manyOffices && r.status !== 'pending' && (
         <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onPosition({ id: r.userId, name: who })}>Position</button>
+      )}
+      {/* Beside Position on purpose: both answer "what is this person's
+          relationship to the work", and Matt's instruction is that
+          notifications belong here "like permissions". */}
+      {onNotifications && r.status !== 'pending' && (
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onNotifications({ id: r.userId, name: who })}>Notifications</button>
       )}
       {r.status !== 'pending' && <>
         <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('password', r.userId, who)}>Send password reset</button>
