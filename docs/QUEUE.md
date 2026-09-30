@@ -46,6 +46,40 @@ address, no Branch line. `agencyOffices()` / `officeLabel()` are already
 built and applied at six client surfaces; this is a seventh. It is the
 cheap half of this instruction.
 
+## LEAGUE TABLES: A SUPPLIERS TAB, AND THE ORIGIN FILTER (two instructions, 2026-09-30, verbatim). ACTIVE.
+
+> League tables: add a Suppliers tab alongside Agencies, Branches and Negotiators, ranking each supplier on the same measures. Admin only; agencies and suppliers never see it. Also remove the "Unattached / Direct" row from the Agencies table (direct signups aren't an agency), and replace the "All partners" dropdown wording with plain labels. Deploy to dev and check there.
+
+> League tables, admin: replace the "All partners" dropdown with the same Origin filter as Applications, so you can narrow to any agency (e.g. Regent's Lettings), group or supplier, or to all agencies or all suppliers, with search. Branches and Negotiators tabs follow the selection. Deploy to dev and check there.
+
+Sent within a minute of each other and the second SUPERSEDES the last
+clause of the first: the "All partners" dropdown is not reworded, it is
+replaced by the Applications Origin filter. Everything else in the first
+stands.
+
+### SO THE LIST IS
+
+1. **A Suppliers tab**, ranked on the same measures as the others.
+2. **Admin only.** "agencies and suppliers never see it" -- a league of
+   Opndoor's customers against each other is not a thing a customer may
+   read, and the tab must not exist for them rather than being empty.
+3. **No "Unattached / Direct" row in Agencies.** Same ruling as Q3 on
+   Reporting: a direct signup is not an agency's.
+4. **The Origin filter from Applications**, with search, reaching any
+   agency, group or supplier, or all agencies or all suppliers.
+5. **Branches and Negotiators follow the selection.** That is the half
+   that makes it a filter rather than a fourth tab, and it is the half
+   that the Reporting "View as" stopgap proved easy to get wrong: the
+   banner claimed a party the figures did not reflect.
+
+### WATCH THE ONE ALREADY-KNOWN TRAP
+
+The proper View-as fix (every Reporting figure following the selection,
+19 call sites) is still on the after-shipping list. This instruction asks
+for the SAME behaviour on League. Build it so League's tabs read the
+selection from one place, or there will be two half-built versions of one
+idea.
+
 ## A LINK WITH A FILTER IN IT ARRIVES FILTERED (instruction, 2026-09-30, verbatim). ACTIVE.
 
 > Home's Direct signups links (View all Direct, and each stage number) must open Applications already filtered: Origin set to Direct, and the status set where the link names one, with the filter controls showing that selection. Currently ?route=Direct is ignored and all applications show. Check every other link into Applications with a filter in it works the same way. Deploy to dev and check there.
