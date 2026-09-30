@@ -592,6 +592,60 @@ template that escapes its input. Whatever is doing that will be doing it to
 anything else built the same way, so the fix belongs at the builder rather
 than in the two lines Matt saw.
 
+## Items 9, 10 and 12: one per-person notifications panel. IN PROGRESS.
+
+Matt: "Build items 10 and 12 as one shared design so Opndoor team and agency
+people work the same way; suppliers too."
+
+### The one judgement call, made explicitly rather than silently
+
+There are TWO server models underneath, and they do not have the same shape:
+
+| | keyed by | per person? |
+| --- | --- | --- |
+| `ops_routing_matrix` (Opndoor's own alerts) | alert type x **recipient** (`person` or `inbox`) | **yes** |
+| `notification_matrix` (agency and supplier) | event x **recipient CLASS** (`referrer`, `ticked_users`, `agent_contact`) | **no -- party-wide** |
+
+So item 10 fits the server model exactly, and item 12 does not. "Which events
+they're told about" is a per-person fact on the Opndoor side and a
+per-AGENCY fact on the customer side.
+
+**What was NOT done, and why.** Making the agency side genuinely per-person
+means a new dimension on the notification settings -- a schema change that
+redefines what Q-03 built and tested, on the night before a cutover, to
+answer a question nobody has asked. That is a new feature, and the standing
+instruction is "no new features, nothing not in the queue".
+
+**What was done instead.** One panel, three sections, the same on all three
+parties:
+
+1. **Copied on referrals** -- per person, editable. (`receives_notifications`)
+2. **Which events they are told about** -- for Opndoor, per person and
+   editable. For an agency or supplier, the events THIS person would receive,
+   worked out from their position and the party's settings, with any switch
+   that is party-wide **labelled as affecting everyone**.
+3. **Monthly statements** -- per person, editable.
+   (`receives_commission_statements`)
+
+The alternative was to show party-wide switches inside a person's panel with
+no warning, so that editing one person quietly changed everyone. That is
+precisely the class of surprise the walk keeps finding, and it would have
+been introduced deliberately.
+
+**Matt should know** this is the one place the shared design is not identical
+across the three parties, and it is because the data is not. If he wants
+per-person events for agencies, that is a schema change and its own piece of
+work.
+
+### Statements are a THIRD mechanism, confirmed
+
+The queue note said to check rather than assume. Checked:
+`receives_commission_statements` is its own column with its own RPC and its
+own trigger, unrelated to both matrices. So the panel joins three sources,
+not two.
+
+---
+
 ## NOTHING IS DONE UNTIL IT IS DEPLOYED TO DEV AND CHECKED THERE
 
 **Matt's instruction, 2026-09-30, verbatim:**
