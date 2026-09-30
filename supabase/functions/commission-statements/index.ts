@@ -563,6 +563,224 @@ const STATEMENT_COLUMNS: StatementColumn[] = [
   { header: "Commission", width: 60, align: "right" },
 ]; // 514
 
+/* =====================================================================
+   THE SUPPLIER'S TWO DOCUMENTS.
+
+   Matt, 2026-09-30: "Supplier commission statements always show the
+   agency and branch on every line, even when they're all the same. Keep
+   'Source' off supplier statements." And: "The supplier statement shows,
+   per referral: agency, branch, fee, agent's share, supplier's share,
+   total. The per-agency statements show each agency's referrals and its
+   share."
+
+   THEIR OWN COLUMN SET, NOT THE SHARED ONE WITH EXCEPTIONS. STATEMENT_COLUMNS
+   and keepColumns are the agency statement's, they are duplicated
+   character-for-character in src/data/statementColumns.ts under a lock,
+   and they are what the Reporting screen renders a week before Regent
+   goes live. Bending them with a per-level exception would put the
+   supplier rail's rules inside the agency rail's rendering path for no
+   gain: "always show agency and branch" and "no Source" are not a
+   collapse rule with two flags, they are a different document.
+
+   So there is no `dim` tag on any column below. Nothing collapses,
+   because nothing is meant to.
+   ===================================================================== */
+
+/** One row of supplier_statement_lines, which is a different shape from a
+    LineRow: it carries the agency and the three money columns, and it does
+    not carry a frozen rate source, because a supplier statement does not
+    show one. */
+interface SupplierLineRow {
+  application_id: string;
+  guarantee_ref: string;
+  agency_id: string | null;
+  agency_name: string;
+  branch_name: string;
+  tenant_name: string;
+  paid_on: string;
+  fee: number | string;
+  total_rate: number | string;
+  agent_rate: number | string;
+  total_amount: number | string;
+  agent_amount: number | string;
+  supplier_amount: number | string;
+}
+
+interface SupplierScheduleRow {
+  agency_id: string | null;
+  agency_name: string;
+  referrals: number;
+  fees: number | string;
+  agent_amount: number | string;
+}
+
+/* The widths sum to 515, the printable width of A4 inside the margins,
+   the same budget STATEMENT_COLUMNS spends. Agency and Branch are the two
+   widest non-money columns because they are the two Matt asked to always
+   be there, and a name that truncates to an ellipsis on every line would
+   satisfy the instruction and not the reason for it. */
+const SUPPLIER_STATEMENT_COLUMNS: PdfColumn[] = [
+  /* WIDENED AFTER READING THE FIRST ONE. The first draft gave Reference
+     46pt and Branch 70pt, and the rehearsal came out with "ZZZ-STM..."
+     and "Harborview Dock...". A truncated BRANCH is a shame; a truncated
+     GUARANTEE REFERENCE makes the document useless for the one thing it
+     is for, which is reconciling a payment against the referrals that
+     earned it. The points came off the money columns, which were sized
+     for "£2,572.50" and had room to spare. */
+  { header: "Agency", width: 84 },
+  { header: "Branch", width: 80 },
+  { header: "Reference", width: 52 },
+  { header: "Tenant", width: 62 },
+  /* 44, NOT 40. Taking four points off this to pay for Reference turned
+     every date into "19/05/2..." -- dd/mm/yyyy needs 44 and the second
+     rehearsal is what said so. A date that cannot be read is the same
+     defect as a reference that cannot be, on the same document. */
+  { header: "Paid", width: 44 },
+  { header: "Fee charged", width: 48, align: "right" },
+  { header: "Agents' share", width: 50, align: "right" },
+  { header: "Your share", width: 46, align: "right" },
+  { header: "Total", width: 49, align: "right" },
+]; // 515
+
+/* The schedule is the supplier's working for paying ONE agency, so it
+   drops the agency column it would repeat on every line and keeps the
+   branch, which is the thing that varies. It shows the agents' share and
+   NOT the supplier's own, which is Opndoor's commercial term with the
+   supplier and is no business of the agency whose schedule this is --
+   even though these go to the supplier. A document that gets forwarded
+   should not be the leak. */
+const SUPPLIER_SCHEDULE_COLUMNS: PdfColumn[] = [
+  { header: "Branch", width: 96 },
+  { header: "Reference", width: 62 },
+  { header: "Tenant", width: 96 },
+  { header: "Paid", width: 58 },
+  { header: "Fee charged", width: 68, align: "right" },
+  { header: "Agents' share", width: 68, align: "right" },
+]; // 448
+
+function supplierRow(l: SupplierLineRow): string[] {
+  return [
+    l.agency_name, l.branch_name || EMPTY_CELL, l.guarantee_ref, l.tenant_name,
+    dmy(l.paid_on), gbp(num(l.fee)),
+    gbp(num(l.agent_amount)), gbp(num(l.supplier_amount)), gbp(num(l.total_amount)),
+  ];
+}
+
+/** The supplier's own statement: every referral, decomposed. */
+export function supplierStatementPdf(
+  payee: PayeeRow, lines: SupplierLineRow[], label: string, reference: string,
+): Uint8Array {
+  const total = lines.reduce((s, l) => s + num(l.total_amount), 0);
+  const agents = lines.reduce((s, l) => s + num(l.agent_amount), 0);
+  return renderTablePdf({
+    title: "opndoor commission statement",
+    meta: [
+      ["Payee", payee.org_name],
+      ["Month", label],
+      ["Statement reference", reference],
+      ["Basis", "Commission on fees paid in the month, refunds excluded"],
+      ["Applications", String(lines.length)],
+      /* THE THREE NUMBERS IN THE HEADER, because the decomposition is the
+         point of the document and a reader should not have to add a
+         column up to find what they owe their own agents. */
+      ["Total commission", gbp(total)],
+      ["Of which agents' share", gbp(agents)],
+      ["Your share", gbp(total - agents)],
+    ],
+    columns: SUPPLIER_STATEMENT_COLUMNS,
+    rows: lines.map(supplierRow),
+    total: { label: "Total", value: gbp(total) },
+    footer: PAYMENT_TERMS_LINE,
+  });
+}
+
+export function supplierStatementCsv(
+  payee: PayeeRow, lines: SupplierLineRow[], label: string, reference: string,
+): string {
+  const total = lines.reduce((s, l) => s + num(l.total_amount), 0);
+  const agents = lines.reduce((s, l) => s + num(l.agent_amount), 0);
+  return toCSV([
+    ["opndoor commission statement"],
+    ["Payee", payee.org_name],
+    ["Month", label],
+    ["Statement reference", reference],
+    ["Basis", "Commission on fees paid in the month, refunds excluded"],
+    ["Applications", lines.length],
+    ["Total commission", gbp(total)],
+    ["Of which agents' share", gbp(agents)],
+    ["Your share", gbp(total - agents)],
+    [PAYMENT_TERMS_LINE],
+    [],
+    SUPPLIER_STATEMENT_COLUMNS.map((c) => c.header),
+    ...lines.map(supplierRow),
+    [],
+    ["", "", "", "", "", "", gbp(agents), gbp(total - agents), gbp(total)],
+  ]);
+}
+
+/** One agency's schedule: what this supplier owes that agency's agents.
+
+    ADDRESSED TO NOBODY. It carries the supplier's name in the header and
+    the agency's as the subject of the document, because it is the
+    SUPPLIER's working. An agency under a supplier is not Opndoor's payee
+    and is never posted one; the recipients of everything here come from
+    the supplier's party. */
+export function supplierSchedulePdf(
+  supplierName: string, agencyName: string, lines: SupplierLineRow[], label: string,
+): Uint8Array {
+  const agents = lines.reduce((s, l) => s + num(l.agent_amount), 0);
+  return renderTablePdf({
+    title: "agent commission schedule",
+    meta: [
+      ["Agency", agencyName],
+      ["Under", supplierName],
+      ["Month", label],
+      ["Basis", "Commission on fees paid in the month, refunds excluded"],
+      ["Referrals", String(lines.length)],
+      ["Agents' share", gbp(agents)],
+    ],
+    columns: SUPPLIER_SCHEDULE_COLUMNS,
+    rows: lines.map((l) => [
+      l.branch_name || EMPTY_CELL, l.guarantee_ref, l.tenant_name,
+      dmy(l.paid_on), gbp(num(l.fee)), gbp(num(l.agent_amount)),
+    ]),
+    total: { label: "Total", value: gbp(agents) },
+    footer: `Paid by ${supplierName}, not by opndoor.`,
+  });
+}
+
+export function supplierScheduleCsv(
+  supplierName: string, agencyName: string, lines: SupplierLineRow[], label: string,
+): string {
+  const agents = lines.reduce((s, l) => s + num(l.agent_amount), 0);
+  return toCSV([
+    ["agent commission schedule"],
+    ["Agency", agencyName],
+    ["Under", supplierName],
+    ["Month", label],
+    ["Referrals", lines.length],
+    ["Agents' share", gbp(agents)],
+    [`Paid by ${supplierName}, not by opndoor.`],
+    [],
+    SUPPLIER_SCHEDULE_COLUMNS.map((c) => c.header),
+    ...lines.map((l) => [
+      l.branch_name, l.guarantee_ref, l.tenant_name, dmy(l.paid_on),
+      gbp(num(l.fee)), gbp(num(l.agent_amount)),
+    ]),
+    [],
+    ["", "", "", "", "Total", gbp(agents)],
+  ]);
+}
+
+/** A filename per agency, and it has to be stable and distinct. Two
+    agencies called "Central Lettings" under one supplier would otherwise
+    both be `agent-commission-central-lettings-2026-05.csv` and the second
+    would replace the first in most mail clients. */
+export function scheduleSlug(name: string, fallback: string): string {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+  return slug || fallback;
+}
+
 export function statementPdf(payee: PayeeRow, lines: LineRow[], label: string, reference: string): Uint8Array {
   const shape = shapeOf(lines);
   // Typed as PdfColumn[] at the seam: StatementColumn is a PdfColumn plus the
@@ -665,7 +883,7 @@ function settlementCsv(payees: PayeeRow[], label: string, grand: number): string
 }
 
 /** One payee's email. Total in the subject and in the body, per the ruling. */
-function statementMessage(opts: {
+export function statementMessage(opts: {
   payeeName: string; label: string; total: number; applications: number; reference: string; appUrl: string;
 }): Message {
   const blocks: Block[] = [
@@ -856,6 +1074,58 @@ Deno.serve(async (req) => {
       attachments: { filename: string; mediaType: string; bytes: number }[];
     }> = [];
 
+    /* THE SUPPLIER'S ATTACHMENTS. A `partner` payee is a supplier, and it
+       gets its own statement -- agency and branch on every line, no
+       Source, and the money split three ways -- plus ONE SCHEDULE PER
+       AGENCY under it with business in the month.
+
+       THE SCHEDULES ARE THE SUPPLIER'S, NOT THE AGENCIES'. Matt,
+       2026-09-30: "These go to the supplier's statement recipients, not
+       to the agencies, since the supplier pays its own agents." So they
+       are built here, as attachments on the supplier's own email, and
+       nothing in this function ever resolves an agency recipient for
+       them. The one risk in this whole instruction is an agency under a
+       supplier receiving something that looks like an Opndoor statement
+       for money Opndoor does not owe it.
+
+       PDF FIRST, THEN CSV, THEN THE SCHEDULES, because a mail client
+       shows the first attachment as the document and the order is the
+       only signal of which is the statement and which is the working. */
+    async function supplierAttachments(p: PayeeRow, reference: string) {
+      const { data, error } = await service.rpc("supplier_statement_lines", {
+        p_partner: p.org_id, p_month: monthStart,
+      });
+      if (error) return null;
+      const sl = (data ?? []) as SupplierLineRow[];
+      if (!sl.length) return null;
+      const out = [
+        { filename: `opndoor-commission-${monthKey}.pdf`,
+          content: bytesToBase64(supplierStatementPdf(p, sl, label, reference)) },
+        { filename: `opndoor-commission-${monthKey}.csv`,
+          content: textToBase64(supplierStatementCsv(p, sl, label, reference)) },
+      ];
+      /* GROUPED HERE RATHER THAN ASKED FOR PER AGENCY. supplier_agency_schedules
+         answers which agencies qualify; the LINES are already in hand, so
+         a round trip per agency would ask the database the same question
+         again for every one of them. The qualifying set is the authority
+         on WHICH, and these rows are the authority on WHAT. */
+      const { data: schedData } = await service.rpc("supplier_agency_schedules", {
+        p_partner: p.org_id, p_month: monthStart,
+      });
+      for (const ag of ((schedData ?? []) as SupplierScheduleRow[])) {
+        const mine = sl.filter((l) => l.agency_id === ag.agency_id);
+        if (!mine.length) continue;
+        const slug = scheduleSlug(ag.agency_name, String(ag.agency_id ?? "agency"));
+        out.push(
+          { filename: `agent-commission-${slug}-${monthKey}.pdf`,
+            content: bytesToBase64(supplierSchedulePdf(p.org_name, ag.agency_name, mine, label)) },
+          { filename: `agent-commission-${slug}-${monthKey}.csv`,
+            content: textToBase64(supplierScheduleCsv(p.org_name, ag.agency_name, mine, label)) },
+        );
+      }
+      return out;
+    }
+
     for (const p of payees) {
       if (alreadyPosted.has(p.payee_key)) { alreadySent += 1; continue; }
       const lines = linesByPayee.get(p.payee_key) ?? [];
@@ -898,6 +1168,12 @@ Deno.serve(async (req) => {
         // generator is the new part: a malformed one would first be noticed by
         // an agency on the 1st. Building it costs a few milliseconds and turns
         // a crash in the writer into a failed rehearsal instead.
+        /* THE SUPPLIER'S SET IS BUILT IN A REHEARSAL TOO, which is the
+           whole reason the dry run builds attachments it throws away: a
+           crash in a writer nobody has exercised would otherwise first be
+           noticed by a supplier on the 1st. There are more of them to go
+           wrong now, one per agency. */
+        const supplierSet = p.level === "partner" ? await supplierAttachments(p, reference) : null;
         const pdf = statementPdf(p, lines, label, reference);
         const csv = statementCsv(p, lines, label, reference);
         would.push({
@@ -907,10 +1183,18 @@ Deno.serve(async (req) => {
           // opening the PDF, and the PDF is the one thing a rehearsal cannot
           // show you.
           columns: keepColumns(STATEMENT_COLUMNS, shapeOf(lines)).map((c) => c.header),
-          attachments: [
-            { filename: `opndoor-commission-${monthKey}.pdf`, mediaType: ATTACHMENT_MEDIA_TYPE, bytes: pdf.length },
-            { filename: `opndoor-commission-${monthKey}.csv`, mediaType: CSV_MEDIA_TYPE, bytes: new TextEncoder().encode(csv).length },
-          ],
+          attachments: supplierSet
+            ? supplierSet.map((a) => ({
+                filename: a.filename,
+                mediaType: a.filename.endsWith(".pdf") ? ATTACHMENT_MEDIA_TYPE : CSV_MEDIA_TYPE,
+                // The base64 length back to bytes, so a rehearsal reports the
+                // size of the file and not of its encoding.
+                bytes: Math.floor(a.content.length * 3 / 4),
+              }))
+            : [
+              { filename: `opndoor-commission-${monthKey}.pdf`, mediaType: ATTACHMENT_MEDIA_TYPE, bytes: pdf.length },
+              { filename: `opndoor-commission-${monthKey}.csv`, mediaType: CSV_MEDIA_TYPE, bytes: new TextEncoder().encode(csv).length },
+            ],
         });
         continue;
       }
@@ -921,7 +1205,7 @@ Deno.serve(async (req) => {
         // PDF FIRST. A mail client shows the first attachment as the document,
         // so the order is the only signal of which is the statement and which
         // is the working.
-        attachments: [{
+        attachments: (p.level === "partner" ? await supplierAttachments(p, reference) : null) ?? [{
           filename: `opndoor-commission-${monthKey}.pdf`,
           // Bytes, so the chunked encoder, never the text path's
           // btoa(unescape(encodeURIComponent(...))), which corrupts binary.
