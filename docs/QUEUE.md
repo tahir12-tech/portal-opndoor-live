@@ -569,6 +569,187 @@ bug.
 
 ---
 
+### Batch 19 (verbatim). Item 34 is being built with the invite fix.
+
+> Walk fixes, batch 19. Add to QUEUE.md verbatim and commit. Build item 34 as part of the inviting fix you're already doing; the rest in queue order.
+>
+> 31. Invite email: the App Store and Google Play lines print raw code as text ('<a href="..." style="color:#5b3fd9;">') and show each link twice. Each should be one clean link.
+> 32. Invite email: the authenticator app is explained twice ("You will need an authenticator app" then "You need an authenticator app"). One short line.
+> 33. Invite email: it says "invited you to the portal for Opndoor Agents", naming the hidden house account. It must name the agency or supplier the person is joining (e.g. Regent's Lettings), and Opndoor staff invites should say Opndoor. Check every other email for the house account name.
+> 34. Invite email: the setup link redirects to localhost:5173 while the portal runs on 5174, so accepting an invite on dev may fail. Fix it on dev, and add the correct live portal address for invite and email links to HANDOVER-BALAL.md as a cutover step with a check.
+
+**Item 33 is the serious one of the four.** The other three are the email
+reading badly; 33 is the email telling a letting agent the name of an
+internal plumbing account. `opndoor-agents` is the house route every agency
+shares -- it is not a company, it is not the reader's employer, and it should
+never appear in front of a customer. Matt's "check every other email for the
+house account name" is the right instruction: the invite is where he saw it,
+not necessarily the only place it is.
+
+**Item 31 is an escaping bug, not a copy bug.** Raw `<a href=...>` printed as
+text means a link was built as a string and then escaped, or inserted into a
+template that escapes its input. Whatever is doing that will be doing it to
+anything else built the same way, so the fix belongs at the builder rather
+than in the two lines Matt saw.
+
+## Items 9, 10 and 12: one per-person notifications panel. IN PROGRESS.
+
+Matt: "Build items 10 and 12 as one shared design so Opndoor team and agency
+people work the same way; suppliers too."
+
+### The one judgement call, made explicitly rather than silently
+
+There are TWO server models underneath, and they do not have the same shape:
+
+| | keyed by | per person? |
+| --- | --- | --- |
+| `ops_routing_matrix` (Opndoor's own alerts) | alert type x **recipient** (`person` or `inbox`) | **yes** |
+| `notification_matrix` (agency and supplier) | event x **recipient CLASS** (`referrer`, `ticked_users`, `agent_contact`) | **no -- party-wide** |
+
+So item 10 fits the server model exactly, and item 12 does not. "Which events
+they're told about" is a per-person fact on the Opndoor side and a
+per-AGENCY fact on the customer side.
+
+**What was NOT done, and why.** Making the agency side genuinely per-person
+means a new dimension on the notification settings -- a schema change that
+redefines what Q-03 built and tested, on the night before a cutover, to
+answer a question nobody has asked. That is a new feature, and the standing
+instruction is "no new features, nothing not in the queue".
+
+**What was done instead.** One panel, three sections, the same on all three
+parties:
+
+1. **Copied on referrals** -- per person, editable. (`receives_notifications`)
+2. **Which events they are told about** -- for Opndoor, per person and
+   editable. For an agency or supplier, the events THIS person would receive,
+   worked out from their position and the party's settings, with any switch
+   that is party-wide **labelled as affecting everyone**.
+3. **Monthly statements** -- per person, editable.
+   (`receives_commission_statements`)
+
+The alternative was to show party-wide switches inside a person's panel with
+no warning, so that editing one person quietly changed everyone. That is
+precisely the class of surprise the walk keeps finding, and it would have
+been introduced deliberately.
+
+**Matt should know** this is the one place the shared design is not identical
+across the three parties, and it is because the data is not. If he wants
+per-person events for agencies, that is a schema change and its own piece of
+work.
+
+### Statements are a THIRD mechanism, confirmed
+
+The queue note said to check rather than assume. Checked:
+`receives_commission_statements` is its own column with its own RPC and its
+own trigger, unrelated to both matrices. So the panel joins three sources,
+not two.
+
+---
+
+## NOTHING IS DONE UNTIL IT IS DEPLOYED TO DEV AND CHECKED THERE
+
+**Matt's instruction, 2026-09-30, verbatim:**
+
+> Walk fixes 13 and 14 are not working on dev. Inviting a Negotiator to Regent's Lettings as Opndoor admin, the form now says "They are invited to Regent's Park", but Send invite still fails with the old message: "Everybody on our estate holds a position... jane@jane.com has none". So the page is new and whatever runs on the server is old.
+>
+> Find out why: whether the invite function was never deployed to dev, a migration wasn't applied, or the admin path doesn't pass the office. You may change dev to fix this. Prove it by actually inviting through the same path the browser uses on dev, for each level, from Opndoor admin and from a Regent director, not only by the test suite.
+>
+> Then check every item you reported done this morning (the seven fixes and walk fixes 2, 3, 4, 11, 13, 14) against what is actually running on dev, including server functions, and list which are live and which aren't. From now on nothing is marked done until it is deployed to dev and checked there. Report, then carry on with the queue.
+
+### The cause, and it is worse than the one item he hit
+
+**No Edge Function had been deployed to dev since 28 September at 10:21.**
+Not by me and not by anyone. I had no way to deploy one: the Supabase CLI was
+not installed on this machine, and I never noticed that this made "done" mean
+something different for a function than for a migration.
+
+Matt's three candidate causes were: the function was never deployed, a
+migration was not applied, or the admin path does not pass the office. It was
+the first. Proven by fetching the deployed bundle from the Management API:
+it contained the old message and did NOT contain `resolveInvitePosition`,
+which was introduced in `f570ca2`. The deployed code predated even that.
+
+**It was 32 function files, not one.** Everything any Edge Function did on
+dev was up to two days old. So Matt's walk was not testing this branch: the
+database was current and the server code was not.
+
+### What was done about it
+
+| | |
+| --- | --- |
+| Deno installed | 2.9.7, and `deno check` run over the functions for the first time ever. It found **two real defects** immediately -- see below. |
+| Supabase CLI installed | 2.118.0, standalone binary, no Homebrew or Docker needed. |
+| All 34 functions deployed | 30 in the bulk run, 4 retried individually after 500s from the deploy API. Verified: 34 of 34 now stamped today. |
+| `APP_URL` corrected | walk fix 34: it was `http://localhost:5173`, proven by matching the Management API's SHA-256 digest against candidate strings. Now `:5174`, confirmed the same way. |
+| `npm run check:functions` added | so the type check is one command and cannot be forgotten again. |
+
+### The two defects `deno check` found on its first run
+
+Both had been invisible because the only tool that could see them was not
+installed.
+
+1. **`expiry-reminders` crashed the whole nightly job.** It called
+   `.catch()` directly on a Supabase query builder. A builder is a THENABLE:
+   it implements `then` and not `catch`, so that line threw a TypeError
+   before the RPC was awaited. It runs when a reminder is PARKED -- a
+   guarantee about to expire with nobody to send to -- so one guarantee with
+   a missing contact silenced the reminders for every other guarantee that
+   night. Fixed, with a lint so it cannot come back.
+2. **`create-referral` could drop a failed-email flag.** `emailError` is
+   declared `string | null` and was being handed `string | undefined`. Across
+   JSON an `undefined` property DISAPPEARS rather than arriving as null, so a
+   caller testing for the key would read a failed send as a successful one.
+
+### Proof through the real path, not the test suite
+
+Matt asked for this specifically, and it is a fair demand: the suite passed
+throughout while the product was broken.
+
+Two probe accounts were created on dev, an Opndoor admin and a Regent
+director, and each invited all three levels by **signing in with a password,
+enrolling and verifying a real TOTP second factor, and calling the
+`invite-user` function over HTTPS with that session** -- exactly what the
+browser does. Six of six succeeded, and the invitees were then checked in the
+database: Negotiator at the branch, Manager at the agency without commission,
+Director at the agency with it.
+
+**One thing that fell out of it:** the hand-made accounts could not sign in at
+all at first -- `Database error querying schema`. Four token columns on
+`auth.users` were NULL where GoTrue expects empty strings. **The Kestrel login
+handed to Matt earlier had the same fault and would not have worked.** Fixed
+for all three.
+
+### The audit Matt asked for
+
+Every database fix was already live, because migrations had been applied all
+along. The gap was entirely the server functions.
+
+| item | on dev? |
+| --- | --- |
+| R1 (three parts: predicate, trigger, deed fallback) | **live** |
+| R2 refund state | **live** |
+| R3 preview reads the agreement | **live** |
+| R4 rates redacted (helper + callers) | **live** |
+| R5 amend covers the whole tenancy | **live** |
+| R6 rates and bands not writable from a browser | **live** |
+| R7 API prices like the portal, and refuses a non-tenant payer | **live** |
+| Walk 14 server messages | **live** |
+| Walk 2, 3, 4, 11 (client only) | **live** -- served by Vite from this branch |
+| Walk 13 form | **live** -- client |
+| Walk 13/14 invite FUNCTION | **was NOT live. Now deployed and proven.** |
+
+61 pgTAP files / 0 failing against dev. 34 of 34 functions current.
+
+### The rule, from now on
+
+A change is not done when it is committed, and not done when its test passes.
+It is done when the thing that runs it has been updated and the behaviour has
+been observed there. For a migration that means applied to dev; for an Edge
+Function it means **deployed**; for either it means checked afterwards
+against dev rather than against a local database.
+
+---
+
 ### Status, updated as the night run proceeds
 
 | what | state |
@@ -1275,68 +1456,40 @@ Matt's instruction of 2026-09-29: "Do not decide anything else on Matt's
 behalf." So everything below is open, and the build stops at the point that
 depends on it. Each says what it blocks, so nothing waits unnecessarily.
 
-### NM-F. A report per supplier and per agency. Proposal, asked for by walk-fix item 15.
+### NM-F. ANSWERED by Matt, 2026-09-30. Both halves, and the tab is Opndoor-only.
 
-Matt: *"What he wants is to see the reports for each customer: each supplier
-and each agency... write a short proposal for how Matt gets a report per
-supplier and per agency (for example from each one's own page), and wait for
-his answer."*
+Matt, verbatim: *"NM-F: yes to both halves. The per-customer Reporting tab is
+Opndoor-only; agencies and suppliers keep their own Reporting page as it is."*
 
-**The proposal, in one line: delete the scope picker, and put the report on
-each customer's own page as a Reporting tab.**
+**So the build is:**
 
-Why that and not a better picker:
+1. **One estate-wide Reporting page with NO picker**, whose centre is a table
+   with one row per customer -- every supplier and every agency together --
+   and Opndoor's four measures as the columns (referrals sent, fees
+   collected, deeds issued, commission payable). That is walk-fix item 20.
+2. **A Reporting tab on each agency and each supplier page, for Opndoor
+   only.** Walk-fix item 15.
+3. **The scope picker is deleted.**
+4. **Agency and supplier users keep their existing Reporting page unchanged.**
+   This is the half that stops the work spreading: no customer-facing screen
+   changes, so rule 3 (only a Director sees commission) is not re-litigated
+   and nothing a customer sees today moves.
 
-- **The pages already exist and are already the right shape.** The agency page
-  and the supplier page both carry tabs today (Overview, People, Commission,
-  Referrals, Integration). A Reporting tab is a sixth, in a place that already
-  answers "which customer am I looking at" by being that customer's page. No
-  picker can answer that as clearly, because a picker's answer is a line of
-  text somewhere else on the screen.
-- **It removes the class of bug, not an instance.** All four faults item 15
-  lists -- the dead control, the missing suppliers, the doubled Northgate, the
-  stale "All partners" header -- exist because one screen has to name every
-  customer in a list and stay in sync with the estate. A per-customer page
-  never builds that list.
-- **Reporting is already scope-aware server-side.** The reporting figures are
-  computed per party by the same isolation filters the rest of the product
-  uses, so a per-customer page asks a question the server already answers.
-  This is a move, not a rebuild.
+**This decides walk-fix item 7 as well.** Item 7 is "the Applications Origin
+picker does nothing -- fix it". The Reporting picker is being deleted, and
+item 15 records that the two pickers share one fault and one control. Matt
+also said of item 7: *"Matt isn't sure the picker is helpful in this form."*
 
-**REVISED after walk-fix item 20.** The first draft of this proposal said the
-per-customer page would lose side-by-side comparison, and asked Matt whether
-that mattered. Item 20 answers it: *"every supplier and every agency, side by
-side (referrals sent, fees collected, deeds issued, commission payable)."* So
-comparison matters, and the proposal is now **both halves, not one**:
+**I am not deleting the Applications picker on the strength of that**, because
+item 7 says fix it and item 15's deletion was only ever about Reporting. But
+fixing a control on Applications that is being deleted from Reporting means
+the two screens stop sharing one component, so item 7 is now a smaller,
+self-contained fix to Applications alone. Recorded here rather than decided:
+if Matt wants the Origin picker gone from Applications too, say so and item 7
+disappears entirely.
 
-1. **One estate-wide Reporting page, with no picker**, whose centre is a
-   **table with one row per customer** -- every supplier and every agency
-   together -- and Opndoor's four measures as the columns. That is item 20,
-   and it is also the answer to "I want to see the reports for each
-   customer", because a table of all of them IS the per-customer view when
-   what you want is to compare.
-2. **A Reporting tab on each agency and each supplier page**, for the times
-   the question is about one customer in depth rather than all of them at a
-   glance. Same figures, same definitions, reached from the page that already
-   names the customer.
-
-The picker is deleted either way. It exists to answer "which customer", and
-both halves answer that without asking: half 1 shows all of them at once,
-half 2 is on the customer's own page.
-
-What is still open, and the only thing I need before building:
-
-- **Does the agency-side reader get the Reporting tab too**, or is it
-  opndoor-only? An agency Director seeing their own agency's report is a
-  different feature from an opndoor admin seeing everyone's, and it has a
-  commercial-terms question inside it (rule 3: only a Director sees
-  commission). Half 1 is opndoor-only whatever the answer, because it names
-  every customer.
-
-**Blocks:** walk-fix items 15 and 20, and the "simpler alternative" one-liner
-item 7 asks for -- because if the picker is deleted, item 7's fix is throwaway
-work. Item 7's own fault, the dead control, is shared with this screen, so
-answering this decides whether item 7 is worth fixing at all.
+**Unblocks:** walk-fix items 15 and 20. **Item 7 is no longer blocked** and is
+a standalone fix.
 
 ### NM-G. What period should Home's Direct signups cover? Asked for by walk-fix item 25.
 
@@ -1411,57 +1564,66 @@ anywhere and cannot be read back from their hashes. All three have been signed
 into recently, so Matt or Balal hold them. They are NOT being reset, because
 resetting mid-cutover would lock out whoever is using them.
 
-### NM-I. ANSWERED by Claude, 2026-09-30, at Matt's explicit request ("NM-I: [write your answer]").
+### NM-I. ANSWERED by Matt, 2026-09-30. OPNDOOR NEVER GIVES PARTIAL REFUNDS.
 
-**The answer: YES, pro-rate it. Commission is paid on what Opndoor actually
-keeps, so a partial refund reduces it in proportion.**
+**The rule: a refund is always the full fee. The refund action refuses any
+other amount. Pro-rating is NOT built.**
 
-**The decisive argument is not fairness, it is that the current rule can go
-negative.** Commission is a share of the fee. If the fee is partly refunded
-and the commission is not, Opndoor pays a share of money it no longer holds.
-Worked on the real measured figures -- a GBP 1,246.15 fee with the agency at
-25%:
+Matt, verbatim: *"Opndoor never gives partial refunds. A refund is always the
+full fee. Make the refund action refuse any amount other than the full fee,
+on dev and in Balal's live hotfix package, instead of changing how partial
+refunds affect commission."* And again: *"Do not build pro-rating. Correct
+NM-I to say so."*
 
-| refunded | Opndoor keeps | commission today | commission pro-rated |
-| --- | --- | --- | --- |
-| GBP 0 | 1,246.15 | 311.54 | 311.54 |
-| GBP 623 (half) | 623.08 | 311.54 | 155.77 |
-| GBP 1,000 (80%) | 246.15 | **311.54** | 61.54 |
+**A superseded answer of mine was recorded here and was wrong.** When Matt
+asked me to write the answer I proposed pro-rating the commission. He then
+told me partial refunds do not happen at all, which makes the question moot
+rather than differently answered. The pro-rating proposal is gone; it is
+mentioned only so nobody finds a stale version of this file and builds it.
 
-At the bottom row Opndoor pays out MORE than it kept. The fee goes
-net-negative: a refund costs Opndoor the refund and then costs it again in
-commission. That is not a judgement call about generosity, it is an
-arithmetic hole, and it is exactly the direction a goodwill refund would push
-somebody towards.
+#### The thing Matt needs to know before this ships
 
-**The counter-argument, stated honestly:** the agency did the same work
-whatever was refunded afterwards. True. But a refund usually means the
-guarantee did not deliver what it promised, and the agency is a share of a
-service that was partly undone. Pro-rating keeps the relationship the
-percentage already describes -- 25% of the fee, whatever the fee turns out to
-have been -- rather than turning it into a fixed amount that survives the fee
-shrinking.
+**There is no refund action in the portal.** Nothing in `src/` and nothing in
+any edge function creates a Stripe refund. `apply_stripe_refund` has exactly
+one caller, `stripe-webhook`, and it is not performing a refund -- it is
+RECORDING one that has already happened inside Stripe, because somebody
+refunded there by hand.
 
-**Why pro-rate rather than cap:** capping commission at what Opndoor keeps
-would also stop it going negative, but it makes a 79% refund and an 80%
-refund pay the same commission, which is the kind of cliff that produces
-arguments. Proportional is the rule the percentage already implies.
+You cannot refuse a fact. If the RPC simply raises on a partial:
 
-**The rule, precisely:** commission = rate x (fee_amount - refunded_amount).
-It cannot go negative, because R2 already caps refunded_amount at what was
-paid. A full refund gives zero, which is what happens today, so the existing
-behaviour is the endpoint of the new rule rather than an exception to it.
+1. Stripe has already moved the money.
+2. The RPC raises, the webhook returns 500, and Stripe retries -- for ever.
+3. The application is never marked refunded at all. It still reads as fully
+   paid: commission still paid out, deed still live, underwriter still billed.
 
-**Status: NOT YET BUILT.** It is on the worktree list. R2 deliberately left
-commission on the whole fee, which was the conservative status quo and is
-safe; this changes it. When built it wants a test asserting the middle row of
-that table, since both ends already behave correctly.
+That is **worse than the bug being replaced**. Today a partial over-corrects
+by wiping the whole commission; a bare refusal would under-correct to nothing
+and jam the webhook.
 
-**One thing Matt should know rather than discover:** this changes figures on
-statements that may already have been sent for any month containing a partial
-refund. Whether it applies to past months or only from now is a second
-question, and it is NOT decided here -- the build will apply it going forward
-and leave the past alone unless Matt says otherwise.
+**So the rule is implemented in the only way that is both what Matt asked for
+and safe:**
+
+- `apply_stripe_refund` **refuses** any amount that is not the full fee, with
+  a clear message naming both figures. That is Matt's rule, enforced at the
+  database.
+- `stripe-webhook` recognises that specific refusal and, instead of looping,
+  raises a LOUD ops incident naming the guarantee and the amount, and returns
+  200 so Stripe stops retrying.
+
+The row then still says paid while Stripe says partly refunded -- a real
+divergence, left deliberately visible. That is the honest handling of
+something the business says never happens: somebody is told immediately and
+has to go and look. It is not silently mis-applied and it is not silently
+retried.
+
+**R2 is NOT reverted.** Its `partially_refunded` state stays, because the
+refusal only prevents FUTURE partials and says nothing about history: if any
+application was already mis-marked by the old unconditional flip, R2's logic
+is what distinguishes it. The state simply becomes unreachable going forward,
+which is what "never happens" should look like in a schema.
+
+**Status: test written (`a_refund_is_the_whole_fee.test.sql`, 9 assertions),
+implementation next.**
 
 ### NM-A. Who pays the guarantee fee, and how they pay it
 
