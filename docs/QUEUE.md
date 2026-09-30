@@ -871,6 +871,32 @@ supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
 answered: giving supplier staff a people screen is a new screen, not a
 wiring job.
 
+## Walk fix 25: Home says what its numbers count. DONE AND CHECKED ON DEV.
+
+`4d33d9f`. The four queue tiles say "waiting now".
+
+**The Direct stages needed more than one label**, which is the part worth
+knowing. Confirmed from the code as the item asks: `countByStatus` is called
+with no periodRange, so it is ALL TIME, and it counts CURRENT STATUS rather
+than events in a window. So three of the four are a snapshot and the fourth
+is a lifetime total, and one period label over all four would have been wrong
+about three of them or about the fourth.
+
+The period choice Matt asked to be offered is **NM-L**, with what the three
+honest options actually are.
+
+Test: 6 assertions, five failing first. It hydrates a direct book, because
+the mock is 16 agency and 5 supplier with no direct rows and the card only
+draws when the rail has some -- without it three assertions would have passed
+over an absent card.
+
+### Walk fixes 22a and 23 stay parked
+
+Both say "After shipping." in Matt's own text. 22b was the read-only check
+and is done, above.
+
+---
+
 ## Walk fixes 17, 18, 19 and 21: Reporting. DONE AND CHECKED ON DEV.
 
 `d9accfd`, `6f78039`.
@@ -2026,6 +2052,42 @@ easy it is to fix.
 Matt's instruction of 2026-09-29: "Do not decide anything else on Matt's
 behalf." So everything below is open, and the build stops at the point that
 depends on it. Each says what it blocks, so nothing waits unnecessarily.
+
+### NM-L. What period should Home's Direct signups cover? Item 25.
+
+Item 25 asks for this: "Confirm from the code what period Direct signups
+currently uses and write it under 'Needs Matt' with the option of a period
+choice (today, this week, this month, all time) for Matt to decide."
+
+**What it uses today, read off the code.** `countByStatus({ ...scopeOpts,
+channel: 'Direct' })` with **no periodRange**, so `inPeriod` waves everything
+through: it is **all time**. And `countByStatus` counts **current status**,
+not events in a window -- a row is under `sent` because it is sitting at Sent
+now, not because it was sent recently.
+
+**Which makes three of the four numbers a different kind of thing from the
+fourth.** Awaiting decision, Sent and Paid are states a referral waits in and
+leaves, so those three are already "waiting now" whatever period were
+applied. Deed issued is terminal: nothing leaves it, so that number is every
+direct deed ever issued and grows for ever.
+
+They are labelled accordingly for now, which is item 25's own instruction.
+
+**The decision.** A period choice (today / this week / this month / all time)
+would change the fourth number and would change nothing about the first
+three, because a queue does not have a period. So the honest options are:
+
+1. **Leave it.** Three queues and one running total, each labelled. No
+   control, nothing to get wrong.
+2. **A period on Deed issued alone.** The only number a period changes.
+   Slightly odd to have one control over one of four tiles.
+3. **A period over the whole panel**, which would turn the first three into
+   "how many ENTERED this state in the period" -- a different question from
+   the one they answer now, and a different query.
+
+Option 3 is the only one that makes all four consistent, and it is a rebuild
+of the panel rather than a control added to it. Not started; nothing is
+blocked by it.
 
 ### NM-K. The simpler Origin picker Matt asked to be offered. Item 7.
 
