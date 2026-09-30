@@ -871,6 +871,44 @@ supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
 answered: giving supplier staff a people screen is a new screen, not a
 wiring job.
 
+## Walk fixes 15 and 20: reporting per customer. BUILT; ONE DECISION LEFT.
+
+`91369f8` (item 20), `b80f696` (item 15's tab). Both on dev.
+
+### Why Kestrel appeared nowhere, which is the fault under the fault
+
+The only breakdown groups by `app.partner`, and on the agency rail every
+agency of ours is carried by one house partner. So it had ONE row for the
+whole agency estate -- named after a company that does not exist outside our
+schema -- plus one per supplier. "Per partner" was never "per customer": on
+the agency rail the partner is a ROUTE. It is also why "Northgate appears
+twice" on the same screen.
+
+The customer is the ORIGIN, which is what origin.ts exists to name. Verified
+against dev's real book: Northgate 14 sent, Regent 7, Southbank 3, **Kestrel
+1**, and the 10 direct rows excluded because the direct rail is Opndoor's
+own business and not a customer.
+
+`Commission by partner` is KEPT: it answers a different question and is
+right about it.
+
+### One thing found and NOT fixed, because it is not in the queue
+
+`paymentMetrics.scopeFull` has a positive allowlist naming only `referrer`,
+`superadmin` and `management`. An **`opndoor_manager` is handed an empty
+set**, so every live figure on their Reporting page is blank. The role was
+added in `20260922090000` and that allowlist was never widened. No walk item
+reports it; recorded here rather than fixed.
+
+### What is left: NM-M
+
+"The scope picker is deleted" is the one line of NM-F not done, because
+deleting it also deletes **"view as"** from Reporting -- the same mechanism,
+and more than the picker. Three options, written up as NM-M. Nothing else is
+blocked.
+
+---
+
 ## Walk fix 26: a supplier may refer a joint tenancy. DONE AND CHECKED ON DEV.
 
 `66f4d3e`. **It reverses Q-06 item H**, which said "single tenant (no Add
@@ -2267,6 +2305,58 @@ easy it is to fix.
 Matt's instruction of 2026-09-29: "Do not decide anything else on Matt's
 behalf." So everything below is open, and the build stops at the point that
 depends on it. Each says what it blocks, so nothing waits unnecessarily.
+
+### NM-M. Deleting the Reporting scope picker also deletes "view as". Item 15.
+
+**This is the one thing in items 15 and 20 I have not done, and it is a
+decision rather than an ordering problem.**
+
+Both halves of NM-F are built and on dev: the estate-wide per-customer table
+(`91369f8`) and the Reporting tab on each customer's own page (`b80f696`).
+NM-F's third line says "The scope picker is deleted." I have not deleted it.
+
+**Because the picker is not only a picker.** It sets `scopeSel`, and
+`SessionContext` derives `viewingAs` from it, and Reporting reads `viewingAs`
+in four places:
+
+| | what it does |
+| --- | --- |
+| `agencyFacing` | drops Opndoor's own money-ops blocks when viewing as an agency |
+| `drawAs` | renders the page as that party's own management sees it |
+| the commission eyebrow | "Regent's Lettings' commission" rather than "Your commission" |
+| one block gated on `viewingAs === null` | Opndoor-only content, hidden while viewing as somebody |
+
+So an admin can currently open Reporting **as an agency sees it** -- their
+own tiles, their own settlement, without Opndoor's internals. Nine
+assertions in `viewAsIsTheParty.render.test.tsx` protect that, and one of
+them is an isolation property worth keeping: an admin viewing as an agency
+is not shown Opndoor's own commission-by-partner split.
+
+**The new tab is not the same thing.** It is the four measures for that
+customer. It is not their Reporting page.
+
+**And the picker cannot simply be left, either.** `scopeSel` is shared with
+Applications (your 2026-09-29 answer). With no picker on Reporting, an admin
+who narrows on Applications would find Reporting silently narrowed too, with
+no control to widen it back. That is worse than today.
+
+**So, three ways, and it is your call:**
+
+1. **Delete the picker and "view as" with it.** Reporting becomes
+   estate-wide, full stop. The per-customer tab is the answer to "how is
+   this customer doing". The nine assertions go, and the isolation one moves
+   to wherever view-as still exists -- nowhere, so it is simply deleted.
+   Simplest, and loses a capability you asked for two days ago.
+2. **Delete the picker, keep "view as" by moving it to the customer's own
+   page.** The Reporting tab grows from four measures into that customer's
+   full Reporting page. Most work, loses nothing, and is the most faithful
+   reading of "see the reports for each customer".
+3. **Keep the picker on Reporting.** Items 15 and 20 are otherwise done, the
+   per-customer table and tab both exist, and the picker stays as the way to
+   view as a party. Least work, and leaves the control you called confusing.
+
+Nothing else is blocked by this; everything else in items 15 and 20 is
+shipped and checked on dev.
 
 ### NM-L. What period should Home's Direct signups cover? Item 25.
 
