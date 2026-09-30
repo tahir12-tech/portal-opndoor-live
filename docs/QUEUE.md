@@ -46,6 +46,30 @@ address, no Branch line. `agencyOffices()` / `officeLabel()` are already
 built and applied at six client surfaces; this is a seventh. It is the
 cheap half of this instruction.
 
+## A LINK WITH A FILTER IN IT ARRIVES FILTERED (instruction, 2026-09-30, verbatim). ACTIVE.
+
+> Home's Direct signups links (View all Direct, and each stage number) must open Applications already filtered: Origin set to Direct, and the status set where the link names one, with the filter controls showing that selection. Currently ?route=Direct is ignored and all applications show. Check every other link into Applications with a filter in it works the same way. Deploy to dev and check there.
+
+### A LINK THAT SILENTLY IGNORES ITS FILTER IS WORSE THAN ONE THAT DOES NOT EXIST
+
+`?route=Direct` is ignored and the reader gets every application, which
+looks like an answer. Somebody clicking "3" under Direct signups and
+landing on 35 rows either notices and distrusts the number, or does not
+notice and reads the wrong list as the right one.
+
+**The controls must SHOW the selection**, not merely apply it. A list
+filtered by a parameter the controls do not reflect cannot be widened or
+cleared by the person reading it, and they cannot tell what they are
+looking at.
+
+### AND THE SWEEP IS THE INSTRUCTION, not an extra
+
+"Check every other link into Applications with a filter in it works the
+same way." So this is: find every link into Applications carrying a
+query, and prove each one arrives filtered. The ones that already work
+need an assertion too, or the next one to break goes unnoticed the same
+way.
+
 ## TOTAL GUARANTEED RENT VALUE, AND THE NET FEES DESCRIPTION (instruction, 2026-09-30, verbatim). ACTIVE, with the other Reporting work.
 
 > Reporting, Total guaranteed rent value: for any period it counts every executed deed whose 12-month cover overlaps the period, including cover that starts after today; for all time that is every executed deed. Each is 12 months' rent (a joint tenancy counted once). Add a test that, for the same set of deeds, guaranteed rent is never less than fees collected. Also fix the Net fees description: it currently says fees were collected "across 5 issued deeds" when they came from all paid referrals. Deploy to dev and check there.
