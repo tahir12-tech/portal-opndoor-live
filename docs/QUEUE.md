@@ -619,6 +619,42 @@ it, and the party-wide half of the assembler. Their tests go with them, and
 that is a deliberate deletion rather than a regression -- recorded here so
 the test count moving down is explained.
 
+### One part of "replace the agency-wide switches" cannot be per person, and here is why
+
+**The supplier rail's `agent_contact` is not a person.** It is resolved by
+`effective_primary_contact_route` from `agent_contacts` -- a contact record
+with a name and an email, no login, and no row in `public.users`. So it
+cannot have a panel, because there is nobody to open one.
+
+| party | classes today | can become per person? |
+| --- | --- | --- |
+| agency | `referrer`, `ticked_users` | **yes, both are users** |
+| supplier | `referrer`, `agent_contact` | referrer yes; **agent_contact no** |
+| Opndoor | already per recipient | already yes |
+
+So the build is: every class that is a USER becomes per person, and the
+supplier's agent-contact routing stays a party setting, because there is no
+third option. It will be shown on the supplier's own page rather than in a
+person's panel, and labelled as what it is: where the executed deed goes when
+the supplier has no human on the referral.
+
+**Flagged rather than decided.** If Matt wants the agent contact gone as a
+concept, that is a different and much larger change -- it is the only
+recipient on the supplier rail when a referral arrives through an API key
+with no human attached, which is the case Q-02 exists for.
+
+### A second thing the instruction does not settle, so it is being read literally
+
+"Each person chooses" and "Opndoor admin can see every person's choices" name
+two capabilities: the person CHOOSES, the admin SEES. It does not say whether
+an agency Director may change their own staff's choices.
+
+Read literally, they may not -- and that is a real change, because today a
+Director can edit their agency's matrix for everybody. **Built as: the person
+edits their own, an opndoor admin edits anyone's, and a Director can SEE
+their team's but not change them.** Say if that is wrong; it is one predicate
+either way.
+
 ### The clause that is easy to miss, and is the whole risk
 
 > **migrate today's agency settings onto each existing person so nobody's
@@ -652,93 +688,906 @@ Not that the rows look right: that the outcome is unchanged.
 
 ---
 
-## Items 9, 10 and 12: one per-person notifications panel. HALF BUILT.
+### WHO MAY CHANGE WHAT (instruction, 2026-09-30, verbatim). ACTIVE.
 
-### Where it stands, exactly
+> Change to notifications: a Director can change the notification settings of anyone at or below them in their own agency, not just see them. Each person can still change their own event choices. Two settings are Director-only: turning monthly commission statements on or off (and only for people who can see commission), and whether someone is copied on colleagues' referrals within their position. Opndoor admin can change anyone's. Enforce all of this server-side, with tests for each role, then carry on with docs/QUEUE.md without stopping.
+
+**This supersedes the read-literally choice I flagged an hour ago.** I had
+built "the person edits their own, an admin edits anyone's, a Director may
+see but not change" and said it was one predicate either way. It is now
+three predicates, because the three settings no longer share one rule.
+
+### DONE `1218473`, and checked on dev against real people
+
+| who | did | outcome |
+| --- | --- | --- |
+| Rosa (Regent Director) | change Tom's event choice | **allowed** |
+| Rosa (Regent Director) | copy Tom in on colleagues' referrals | **allowed** |
+| Tom (Negotiator) | change his OWN event choice | **allowed** |
+| Tom (Negotiator) | copy himself in | **refused** |
+| Tom (Negotiator) | give himself statements | **refused** |
+
+15 assertions across four roles, nine failing first. Applied to dev, drift
+clean, 64 pgTAP files / 0 failing there.
+
+**Three existing tests changed, all deliberately**, and one of them is worth
+knowing about: `commission_statement_recipients` had two assertions saying
+"an agency manager cannot set it" about a fixture that has always been an
+Agency DIRECTOR. Under the ruling she can, so they flipped -- and the
+mismatch between the old wording and the data it described is part of why
+the change reads as surprising.
+
+**The one capability REMOVED:** `set_receives_notifications` previously
+allowed `p_user = auth.uid()` outright, so anybody could copy themselves in
+on their colleagues' referrals. Withdrawn.
+
+### The three settings, and they are now genuinely different
+
+| setting | who may change it |
+| --- | --- |
+| **Event choices** (`user_notification_settings`) | the person themselves, **or** a Director at or above them in their own agency, **or** an opndoor admin |
+| **Monthly statements** (`receives_commission_statements`) | **Director-only** -- NOT the person themselves -- and only for somebody whose level lets them see commission. Plus an opndoor admin. |
+| **Copied on colleagues' referrals** (`receives_notifications`) | **Director-only** -- NOT the person themselves. Plus an opndoor admin. |
+
+**The half that is easy to get wrong is the negative one.** "Director-only"
+means a Negotiator may not switch their OWN statements on, and a Manager may
+not either. That is a capability being REMOVED from self-service, not just
+one being granted to Directors, and it needs its own assertion per role
+rather than being assumed to fall out of the positive rule.
+
+**And "only for people who can see commission"** is a second gate on the
+same setting: even a Director may not switch statements on for a Manager,
+because a Manager may not see commission at all. Rule 3.
+
+**"At or below them in their own agency"** is the reach test, and it is
+`user_within_caller_scope` / the position ladder, not `partner_id` -- on the
+agency rail every agency shares the house partner, so a partner test would
+let a Director at one agency change somebody at another. That is rule 2, and
+it is the single most repeated finding in this whole effort.
+
+### Progress on the per-person change
 
 | part | state |
 | --- | --- |
-| The assembler, `src/data/personNotifications.ts` | **done** `0e24aed`, 13 assertions written first |
-| The panel, `src/components/people/PersonNotifications.tsx` | **done** `e36070a`, 10 render assertions written first |
-| The row action on `PersonActions` | **done**, optional so an unwired screen draws nothing |
-| Wiring into Team (Opndoor) | **not started** |
-| Wiring into the agency People tab | **not started** |
-| Wiring into the supplier People tab | **not started** |
-| REMOVING the two tickbox columns and the "Who is told what" grid | **not started** |
-| REMOVING the Internal notifications page from the menu | **not started** |
+| `user_notification_settings` table, RLS, per-person gate, the chooser RPC | **DONE** `fd52f37`, **applied to dev and checked there** |
+| Migrating today's settings onto each person | **DONE** -- 198 person/event rows written on dev |
+| Proof nobody's emails change | **DONE on dev**: 198 person/event pairs compared before vs after, **0 changed** |
+| A real person choosing, on dev | **DONE** -- signed in as a Regent director, changed their own setting, read it back |
+| A refund is the whole fee (Matt's other ruling) | **DONE** `fd52f37`, applied to dev; stripe-webhook deployed |
+| The PANEL reading per-person settings instead of the party matrix | **DONE** `d1bfcb6`, **checked on dev** |
+| Wiring the panel into the screens | **DONE** `d1bfcb6` -- FOUR, not three; see below |
+| REMOVING the two tickbox columns, both grids, the Team tickbox and the Internal notifications page | **DONE** `d1bfcb6` |
+| Applications Origin filter (item 7) | **DONE** `2fffe58`, **checked against dev's own book** |
 
-**Nothing has been removed and nothing is rewired, so the product is
-unchanged for a reader.** This is a safe place to have stopped: the new
-component exists and is tested, and the old screens still work exactly as
-they did. The remaining work is surgery on four large files (`AgencyHome`,
-`PartnerHome`, `Team`, `App`) and should be done in one pass rather than
-started and abandoned.
+**The client half is done and the old surfaces are gone.** Merged into
+`partner-api` (`e257e14` + `fix-the-seven`), so the dev server on 5174 serves
+it.
 
-### What the next session should NOT re-derive
+### The one number worth keeping
 
-- The panel takes `party`, `partyRef`, `userId`, `personName`, `partyName`,
-  `canEdit`, `onClose`. Mount it from the row action; it loads its own data.
-- `PersonActions` already has `onNotifications`; pass it and the button
-  appears, beside Position.
-- On Opndoor, pass `party="opndoor"` and NO `partyRef`.
-- The agency People tab's two columns and the `<NotificationMatrix>` below it
-  are what item 12 says to delete. `PartnerHome.tsx:423` and
-  `AgencyHome.tsx:1474` are the two grid mount points.
-- `OpsNotifications.tsx` and its route in `App.tsx` are what item 10 says to
-  remove from the menu.
+`198 person/event pairs compared, 0 changed`. That is the migration clause
+Matt singled out, measured on dev's real people rather than argued. It was
+run as a comparison of OUTCOMES -- what each person would be emailed about
+before versus after -- not as a check that the rows look plausible.
 
-### One thing to flag when it is finished, not now
+---
 
-NM-2b: four of the alert types Q-04 names do not exist. The per-person panel
-will therefore list fewer alerts than the old page implied, which is correct
-and is the honest state, but Matt should be told rather than left to notice.
+## Items 9, 10 and 12: one per-person notifications panel. DONE AND CHECKED ON DEV.
 
-### The one judgement call, made explicitly rather than silently
+`d1bfcb6`. This section replaces the "HALF BUILT" note that stood here; that
+note also recorded a judgement call (that the agency side would stay
+party-wide) which Matt's ruling of 2026-09-30 overturned, so keeping it would
+have left a wrong answer in the file Matt reads.
 
-There are TWO server models underneath, and they do not have the same shape:
+### What is on the screen now
 
-| | keyed by | per person? |
+| part | state |
+| --- | --- |
+| `person_notification_panel(p_user)`, the whole panel in one round trip | **done**, migration `20261006930000`, applied to dev |
+| `src/data/personNotifications.ts` reading it | **done** |
+| `PersonNotifications.tsx` drawing it | **done** |
+| The opndoor team page and Users, from the three dots menu | **done** |
+| The agency People tab, from the row | **done** |
+| The supplier People tab, from the row | **done** |
+| Team -- an agency Director's own screen | **done**, and see the gap below |
+| The two tickbox columns on the agency People tab | **removed** |
+| Both "Who is told what" grids | **removed** |
+| The loose tickbox column on Team | **removed** |
+| The Internal notifications page, its route and its menu entry | **removed** |
+| `NotificationMatrix`, `notificationMatrixService`, `opsRoutingService` | **removed** -- nothing imported them once the grids had gone |
+
+### The server decides what may be changed, per section
+
+There is deliberately no single "may edit" boolean. For a Negotiator reading
+their own panel the honest answer is three different answers: yes to events,
+no to the two Director-only settings. A client that re-derived the rules
+would eventually disagree with the server, and that failure presents as a
+control which looks live, accepts a click and throws.
+
+`statements_apply` is also separate from `may_edit_statements`. A
+Negotiator's LEVEL cannot receive a statement, so the section is absent
+rather than disabled: a greyed control implies somebody could switch it on.
+
+### The gap this work found, and closed
+
+`PersonActions` opened with `if (!isAdmin) return null`. That is right for
+everything else it draws -- resend, change level, position, password,
+two-factor, remove, restore are all things Opndoor does TO somebody. So an
+agency Director on the People tab was drawn no row action at all, and the
+capability Matt had asked for the hour before existed in SQL with no door in
+the product. Notifications now survives that return, gated per row on
+`mayNotify` = `mayActOnOrEqual(me, them)`, the client twin of
+`caller_may_set_for`. Two assertions failed first.
+
+### One thing the old screens said that was not true
+
+Both grids, and the Team column, told you a Negotiator had nothing to widen
+and drew a sentence instead of a control. The deed resolver in
+`20261006160000` copies anybody ticked whose scope covers the referral and
+does **not** filter on role, so a ticked Negotiator IS copied. The panel
+offers them the section, which matches the server. Not a change of
+behaviour: the resolver is untouched, only the screen that described it
+wrongly.
+
+### What was walked on dev, as each role, through the RPCs the screen calls
+
+| | |
+| --- | --- |
+| Negotiator, own panel | events yes / copied no / statements no; statements not offered at all |
+| Negotiator changes an own event | `sent` true -> false, read back false |
+| Negotiator reads the Manager's panel | refused, "You can only see this for yourself, or for people at or below you in your own agency." |
+| Negotiator copies themselves in | refused, "You can only change this for people at or below your own position, in your own agency." |
+| Manager, on their Negotiator | may READ, may change nothing |
+| Manager, own panel | may change their own events |
+| Director, on their Negotiator | all three |
+| Director copies the Negotiator in | false -> true, read back true |
+| Director sets a statement for a Negotiator | refused, "Only a Director receives a commission statement. Change their level first." |
+| Director reads a supplier person's panel | refused |
+| Admin, on the Kestrel director | kind `supplier`, copied-on not offered (no positions on that rail, B3) |
+| A locked event | carries its sentence, not a bare flag |
+
+And over the wire, not only through SQL: signed in as the Regent negotiator
+with a real password grant and called `person_notification_panel`,
+`set_notification_for`, `set_receives_notifications` and
+`set_receives_commission_statements` through PostgREST. All four answered
+`42501 MFA required` from INSIDE the function body, which is the proof that
+PostgREST found each one and was allowed to execute it. A missing grant
+fails differently.
+
+**One measurement artefact worth recording, because the first pass reported a
+false negative.** `person_notification_panel` is STABLE, so reading it in the
+SAME statement as the write sees the pre-write snapshot. The first walk said
+a Director's change had not landed when it had. Each write is its own
+statement now.
+
+### Still open on this rail
+
+A supplier's **agent contact** is a contact record with no user row, so it
+has no per-person settings to hold. Its deliveries are unchanged. B3.
+
+A supplier's own staff, and an agency Negotiator, reach their panel only
+where a screen lists them: Team for the agency estate, and nothing for a
+supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
+answered: giving supplier staff a people screen is a new screen, not a
+wiring job.
+
+## The end-to-end walk on dev. DONE, 2026-09-30.
+
+Step 5 of the night run: "walk it end to end on dev yourself". Every fix
+from this session asked of dev as a real signed-in reader, through the RPCs
+the screens call, with RLS on and never as service_role. Rolled back.
+
+| | checked | got |
+| - | --- | --- |
+| 1 | a Director may change their Negotiator's event choices | true |
+| 2 | a locked event carries its sentence, not a bare flag | yes |
+| 3 | an admin cannot be given a position | refused |
+| 4 | `cron_health()` answers | **649 ms** (was 46,715) |
+| 5 | the scheduled-job log has a trim job | yes |
+| 6 | a partial refund is refused | yes |
+| 7 | a supplier may refer a joint tenancy, priced once | 2 applications, fees £2,000.00 |
+
+And the client half, fetched from the dev server on 5174 rather than read
+off disk, because the question is what a browser loads:
+
+| file | |
+| --- | --- |
+| `PersonNotifications.tsx` | served |
+| `Applications.tsx` (the origin filter) | served |
+| `UserManagement.tsx` (your own row) | served |
+| `PositionModal.tsx` (Office and responsibilities) | served |
+| `inForce.ts`, `jointAllowed.ts`, `whereTheyWork.ts`, `format.ts` | served |
+| `CustomersTable.tsx`, `CustomerReport.tsx`, `Home.tsx` | served |
+| `OpsNotifications.tsx` | **gone** -- the URL falls through to index.html |
+
+**One thing the walk caught about itself rather than the product.** The first
+pass grepped the served bundle for a COMMENT string and reported the
+Applications fix missing. Vite strips comments; the code was there. Checked
+on the code afterwards. Worth recording because "grep the bundle for the
+marker I wrote" is a check that looks conclusive and is not.
+
+### The state of the tree at the end
+
+```
+typecheck          clean
+vitest             134 files / 1444 tests / 0 failing
+pgTAP (local,      68 files / 980 assertions / 0 failing
+  clean apply)
+npm run drift      clean -- dev matches a clean apply of the files
+deno check         66 clean / 0 failing
+```
+
+---
+
+## The handover and the defect list. DONE.
+
+`2359795`, `82a557f`.
+
+### HANDOVER-BALAL.md: only what Balal must do
+
+- The counts were stale (333 / 266, "refreshed Monday"). Now 349 / 65, with
+  the two commands that produce them written down so a later reader counts
+  rather than trusts a number.
+- "What has to be true by Monday 28 September" named a date that has passed.
+- Two sections were status reports about ME rather than instructions to him:
+  "the walk is half done" and "things I could not finish". Both reframed as
+  his list, with the content kept.
+- One bullet deleted as simply wrong: `commission-statements` IS deployed
+  (dev, 2026-09-30 10:09, with the other 33), and section 6b already covers
+  deploying every function at cutover.
+- One added: an `opndoor_manager` sees a blank Reporting page, so somebody
+  reporting it does not have it diagnosed from scratch.
+
+### DEFECTS.md, and one entry that contradicted itself
+
+Every claim of "fixed" was re-checked against the branch and dev rather than
+re-read. **Defect 13's index line said "Fixed here, component and all 35 call
+sites" while its own body said "This is not fixed ... every one of the 34
+error paths still renders green."** Both in the same file. That is worse than
+either being wrong alone, because a reader believes whichever they reach
+first, and the likely outcome was somebody redoing a sweep already done.
+
+Measured: 99 toast calls pass an explicit tone and **every `catch` that
+raises a toast passes `'error'`**. The index was right. The body is corrected
+and now carries the commands to re-check it, with the distinction that
+matters: a call with no tone is not a defect, a FAILURE rendering as a
+success is.
+
+Three others verified rather than assumed:
+
+| # | |
+| - | - |
+| 19 | `partner_rate` and `agent_rate` are not in `authenticated`'s SELECT grant on `partners`. |
+| 4 | Redirection is on only when `EMAIL_REVIEW_ADDRESS` is set, so it fails safe in the right direction. The danger is the reverse and HANDOVER section 7 already warns of it. |
+| 2 | Fixed by a later migration. The July files still contain the old project literal and must not be edited: read the final state, not the tree. |
+
+The three left for Balal are unchanged and cannot be done from here: rotating
+the committed cron secret, and the two scheduling items.
+
+---
+
+## Walk fixes 15 and 20: reporting per customer. BUILT; ONE DECISION LEFT.
+
+`91369f8` (item 20), `b80f696` (item 15's tab). Both on dev.
+
+### Why Kestrel appeared nowhere, which is the fault under the fault
+
+The only breakdown groups by `app.partner`, and on the agency rail every
+agency of ours is carried by one house partner. So it had ONE row for the
+whole agency estate -- named after a company that does not exist outside our
+schema -- plus one per supplier. "Per partner" was never "per customer": on
+the agency rail the partner is a ROUTE. It is also why "Northgate appears
+twice" on the same screen.
+
+The customer is the ORIGIN, which is what origin.ts exists to name. Verified
+against dev's real book: Northgate 14 sent, Regent 7, Southbank 3, **Kestrel
+1**, and the 10 direct rows excluded because the direct rail is Opndoor's
+own business and not a customer.
+
+`Commission by partner` is KEPT: it answers a different question and is
+right about it.
+
+### One thing found and NOT fixed, because it is not in the queue
+
+`paymentMetrics.scopeFull` has a positive allowlist naming only `referrer`,
+`superadmin` and `management`. An **`opndoor_manager` is handed an empty
+set**, so every live figure on their Reporting page is blank. The role was
+added in `20260922090000` and that allowlist was never widened. No walk item
+reports it; recorded here rather than fixed.
+
+### What is left: NM-M
+
+"The scope picker is deleted" is the one line of NM-F not done, because
+deleting it also deletes **"view as"** from Reporting -- the same mechanism,
+and more than the picker. Three options, written up as NM-M. Nothing else is
+blocked.
+
+---
+
+## Walk fix 26: a supplier may refer a joint tenancy. DONE AND CHECKED ON DEV.
+
+`66f4d3e`. **It reverses Q-06 item H**, which said "single tenant (no Add
+another tenant)" of the supplier path. Batch 16 is newer and governs. Three
+existing assertions enforced the old rule; all three are **inverted with the
+reason in place, not deleted**, so a reader who finds Q-06's wording can see
+which one is live.
+
+### Most of it already worked
+
+Measured on dev before anything was written, guard lifted in a rolled-back
+transaction, real Kestrel joint referral:
+
+| | |
+| --- | --- |
+| applications / tenancies | 2 / 1 |
+| fees | £2,000.00 -- exactly one month of a £2,000 rent |
+| share amounts | £2,000.00 -- exactly the rent |
+| rates | 0.2500 / 0.1000 on both, Kestrel's own |
+
+`resolve_fee` already prices per TENANCY on that rail (£2,000 for one tenant
+and for two, measured directly) and `apportion` already splits to the penny.
+One guard was the whole of it.
+
+### Narrowed, not removed
+
+Matt named suppliers. He did not name the DIRECT rail, and a direct signup is
+one tenant applying for themselves with no staff referrer to create a joint
+one. `opndoor-direct` and `referencing-partner` still refuse.
+
+### It waited for R3 and R5, as the earlier note said it should
+
+Both are done, so this was safe to build now and was not a week ago.
+
+### The one that nearly went wrong, and the honest ending
+
+The form DROPS tenants already typed when the origin "cannot carry them",
+and that test read `estate` -- false for a supplier. Changing only the button
+would have left the two disagreeing, so the moment the rail probe settled it
+would have silently wiped the tenants an admin had just added, on the one
+path this opens.
+
+I wrote a render assertion for it, **checked it by mutation, found it did
+NOT bite** -- reaching the wipe needs the probe to settle and the supplier
+path's never does without a branch chosen -- and replaced it.
+`mayAddAnotherTenant` is one predicate in its own file now, asked by both
+places, so they cannot disagree. The render test says plainly what it does
+not cover rather than looking like it does.
+
+### Tests
+
+New `a_supplier_may_refer_a_joint_tenancy.test.sql`, 9 assertions, all
+failing first: the money, the direct rail still refusing, and the two
+validations that guard the money on the new rail (shares totalling 100,
+duplicate emails) -- because adding a rail is where a validation gets
+skipped. New `jointAllowed.test.ts` (9). Local clean-apply cluster 68 files
+/ 980 assertions / 0 failing; green on dev; drift clean. Client 131 files /
+1418 tests.
+
+---
+
+## The hotfix is retired: it ships with the cutover. DONE AND CHECKED ON DEV.
+
+`58de1c2`, `0a8ecaa`. Matt: *"there is no separate live hotfix. Everything in
+HOTFIX-LIVE-FOR-BALAL.md ships with the cutover instead. Make sure each is on
+the branch and covered by a test, then retire the hotfix document."*
+
+Each of the five checked against dev before anything was deleted:
+
+| item | state |
+| --- | --- |
+| payment column lock | `20261006720000`. Dev has no INSERT/UPDATE/DELETE/TRUNCATE grant to anon or authenticated on `applications`. |
+| NULL guard | `20261006470000`. `app_role()` coalesced on dev. |
+| full-refund-only rule | `20261006910000`. `apply_stripe_refund` raises 22023. |
+| log cleanup | **was absent.** Now `20261006960000`. |
+| Health index | **was absent, and cannot exist.** See below. |
+
+Both files deleted; HANDOVER 0a rewritten so nobody goes looking for them.
+
+### Two of the five are not what the instruction assumed, and it matters
+
+**The index cannot be created by anyone.** `create index on
+cron.job_run_details` is refused: *"must be owner of table
+job_run_details"*. pg_cron's tables belong to `supabase_admin`; neither a
+migration nor Balal running SQL as `postgres` can do it. Measured on dev.
+
+**And retention was never the cause.** Trimming in a rolled-back transaction
+and re-timing `cron_health()`:
+
+| rows | time |
+| ---: | ---: |
+| 58,868 (today) | 46,715 ms |
+| 41,107 (30 days, as asked) | 37,130 ms |
+| 15,357 (7 days) | 25,203 ms |
+
+Three times the 8 s cut-off even at a week.
+
+### What it actually was
+
+| | ms |
+| --- | ---: |
+| 16 job laterals (last run per job) | 237 |
+| 547 http responses attributed to a job | 10,939 |
+| **the same 547, computed a second time** | 10,863 |
+| the activity_log and ops_alerts counts | 1 |
+| `cron_health()` end to end | **46,715** |
+
+The `attributed` set was written out byte-identically in two statements, and
+each read seq-scanned 35 MB once per response. A time bound on the lateral
+changes nothing (11,163 ms against 11,094 ms) because without an index the
+rows are read and then discarded.
+
+There is one index we may rely on: the primary key on `runid`. It is
+monotonic, so `runid > max(runid) - 20000` is a range scan, and the time
+predicate makes it exact. Read once, as a `materialized` CTE.
+
+**46,715 ms -> 666 ms on dev, with the log still untrimmed.** The retention
+job ships as housekeeping, not as the fix.
+
+### The migration was built on the wrong definition twice
+
+Worth recording, because it is a trap this repo has now sprung twice.
+Generated first from `20261006140000` (the migration walk item 22b names) --
+wrong, because `20261006280000` redefines `cron_health` to add
+`hubspot_disabled`, so replaying the older body silently DELETED that key and
+the Health page would have begun alerting on an integration somebody had
+deliberately switched off. Caught by `health_tells_you_what_to_do` going red
+on the local clean-apply cluster.
+
+Rebuilt, and still wrong: `npm run drift` then found `20261006470000`
+redefines it a third time, which `grep -l` had missed because that file
+writes `CREATE OR REPLACE` in capitals.
+
+**The rule:** generate a `create or replace` from the LAST definition, not
+from the one whose comment describes the problem. `npm run drift` is the
+check that catches it; a case-sensitive grep is not.
+
+### Tests
+
+New `the_health_screen_is_quick.test.sql`, 7 assertions, six failing first.
+It asserts the SHAPE, not a timing: "under N milliseconds" passes on a fast
+machine and fails on a loaded one, and this suite runs on both. Local
+clean-apply cluster 67 files / 971 assertions / 0 failing; green on dev;
+drift clean.
+
+---
+
+## Walk fixes 31, 32, 33 and 34: the invite email. DONE AND CHECKED ON DEV.
+
+`603b0c1`. Deployed to dev: `invite-user`, `payment-page`. `deno check`: 66
+clean, 0 failing.
+
+### 31 is not a template bug, and it is wider than this email
+
+`rich()` in emailLayout matched an href with `[^&quot;\s<>]+`. That looks
+like "anything that is not the escaped quote" and is not: it is a CHARACTER
+CLASS, so it excluded the individual characters `&` `q` `u` `o` `t` `;`
+along with whitespace and angle brackets. **Nearly every real URL contains
+one of those** -- both store links contain o, u and t -- so the pattern
+never matched and the escaped markup was printed to the reader as words.
+That is both halves of the report: the raw code, and the address twice,
+because the URL was also the link text.
+
+Every anchor in every `p`, `small` or `list` block in the product was
+affected, not only this email.
+
+`renderText` prints "label: address" for an anchor now instead of dropping
+it, which is what lets the store lines be one clean link each without the
+plain-text reader losing the URL -- the only reason the URL was the link
+text in the first place.
+
+### 33's leak is in the callers, and there were two
+
+`invite-user` read `partners.name` and passed it through. On the agency rail
+that is the house partner "Opndoor Agents". Which party to name is one
+decision now, in `_shared/namedParty.ts`.
+
+And Matt's last sentence -- "Check every other email for the house account
+name" -- found the second, and it is not an email. **The tenant's payment
+page** read `partnerRow?.name ?? "your letting agent"`, so on an agency-rail
+referral that was not agency-arranged, the screen where a tenant hands over
+a card named a company they have never dealt with. PayLanding's
+agency-arranged branch already names the agency, which is why it survived:
+it is the other branch.
+
+### 34: APP_URL was already right. Site URL was not.
+
+`APP_URL` on dev is `http://localhost:5174` and the deployed invite-user
+builds on it, so the link is right. Measuring it found the other half:
+GoTrue's **Site URL was `http://localhost:3000`**, a port nothing runs on,
+and Site URL is the fallback whenever a link is generated with no
+`redirect_to` or with one the allow-list refuses. Set to
+`http://localhost:5174` on dev and proved: a link generated with no
+`redirect_to` now lands on the portal.
+
+HANDOVER 7a gains that half, with two checks, plus the trap that cost time
+here: on the admin `generate_link` endpoint `redirect_to` must be a QUERY
+parameter. In the body as `options.redirect_to` it is accepted, ignored and
+silently replaced with the Site URL -- which reads as a broken allow-list
+when nothing is broken.
+
+### Tests
+
+New `inviteEmailReadsAsEnglish.test.ts`, 17 assertions, five failing first,
+in `src/` because Deno is not installed here and a test that cannot be run
+is not a guard. Two assertions in `authenticatorCopy` were rewritten rather
+than deleted: one quoted the duplicated sentence word for word, and one
+required the URL to BE the link text -- true when renderText dropped
+anchors, and the cause of the address appearing twice. The requirement is
+now the opposite and the file says so.
+
+130 files / 1408 tests; one file and 17 assertions added, none removed.
+
+---
+
+## Walk fix 25: Home says what its numbers count. DONE AND CHECKED ON DEV.
+
+`4d33d9f`. The four queue tiles say "waiting now".
+
+**The Direct stages needed more than one label**, which is the part worth
+knowing. Confirmed from the code as the item asks: `countByStatus` is called
+with no periodRange, so it is ALL TIME, and it counts CURRENT STATUS rather
+than events in a window. So three of the four are a snapshot and the fourth
+is a lifetime total, and one period label over all four would have been wrong
+about three of them or about the fourth.
+
+The period choice Matt asked to be offered is **NM-L**, with what the three
+honest options actually are.
+
+Test: 6 assertions, five failing first. It hydrates a direct book, because
+the mock is 16 agency and 5 supplier with no direct rows and the card only
+draws when the rail has some -- without it three assertions would have passed
+over an absent card.
+
+### Walk fixes 22a and 23 stay parked
+
+Both say "After shipping." in Matt's own text. 22b was the read-only check
+and is done, above.
+
+---
+
+## Walk fixes 17, 18, 19 and 21: Reporting. DONE AND CHECKED ON DEV.
+
+`d9accfd`, `6f78039`.
+
+### 18. Measured on dev, and the obvious fix is a trap
+
+`keyOf` already dropped an application nobody referred, and said so in its
+own comment. But dev's ten direct applications have `referrer_id` NULL and
+`referrer_name` = **'Direct signup'**, and hydrate reads
+`referrer_name ?? joined.full_name ?? '(unknown)'`. The guard was asked about
+a LABEL when the question is about a PERSON, so it never fired.
+
+**And `referrerRole` is not the answer either.** It comes from the embedded
+users row, and RLS can withhold that from a reader who can still see the
+application: dev has **17** agency applications with a real `referrer_id`
+whose `referrer_name` is NULL. Keying on the role would have dropped real
+referrals by real people while fixing the direct ones. `FullApp` carries
+`referrerId` now, and only an explicit null means "nobody referred this".
+
+**B1 and B2 are the same cause on two other surfaces and are NOT closed
+here.** They are separate recorded findings; this closes the referrer list,
+which is the one Matt walked.
+
+### 19. Fixed where the possessive is formed
+
+There was no helper: **eight** call sites each wrote `${name}’s` inline, so
+it was eight bugs. One now. The rule is exactly the one Matt named and no
+wider -- names ending in x or z, or in a silent s, are argued over by style
+guides and nobody has asked, so the omission is deliberate and the helper
+says so.
+
+### 21. The reader decides, not the person
+
+The same referrer's line differs by who has the page open. Opndoor staff get
+agency and branch; for everybody else it is the SHAPE of their book and not
+their permissions, so a Director and a Negotiator at the same agency read the
+same line. Counted off the scoped set BEFORE the period filter, because "an
+agency with more than one branch" is a fact about the agency and not about
+what it referred this month. Somebody who moved office is shown BOTH offices:
+printing one would state as a fact something half wrong. League and the
+by-referrer trend take the same rule, which is Matt's last sentence.
+
+### 17. The chart was offering a series that cannot apply to the reader
+
+`£0 every month` is not a blank series. The trend's "commission" is the
+supplier cut, and `liveMonths` zeroes that on a house route because a house
+route's cut is Opndoor's own margin owed to nobody -- correct, and asserted
+in `our_margin_is_not_theirs.test.sql`. So an admin on the house rail could
+only ever see twelve bars of zero beside a tile saying £3,232. **The money
+model was right and fixing the numbers would have been fixing the wrong
+thing.** The option SET is picked from who is reading.
+
+**"Whichever option is chosen, the trend must match the tiles" needed saying
+what it can mean.** The trend is a trailing twelve months by construction and
+the tiles follow the period picker, so they are not the same window and no
+assertion can make them one. What must hold is that each option measures the
+same QUANTITY as its tile: over one window, the series sums to the aggregate.
+Four assertions, one per measure.
+
+And one more that stops the whole thing passing on `0 === 0`: on the house
+rail the old series is zero where the new one is not. With a real supplier in
+the book the old series is NOT zero, which is why that option was not dead
+and still belongs to customers.
+
+### Tests
+
+Added: `possessive.test.ts` (8), `whereTheyWork.test.ts` (11),
+`directIsNobodysAgency.test.ts` (4), `opndoorPaysCommission.test.tsx` (17).
+One assertion added to `viewAsIsTheParty` at the exact place Matt reported
+the possessive. Every fix verified by mutation: reverting each rule fails
+exactly its own assertions and nothing else. 128 files / 1384 tests; four
+files and 40 assertions added, none removed or renamed.
+
+---
+
+## Walk fixes 27, 28, 29 and 30: New application. DONE AND CHECKED ON DEV.
+
+`95f9bb6`. Four on one screen, built as one piece.
+
+### 27. The numbers were literals, not a typo
+
+Referred by 1, Tenant `isAdminForm ? 2 : 1`, Property 2, Tenancy 3, the
+office section 4. So the admin form read **1, 2, 2, 3, 4**. Two of the five
+knew about `isAdminForm` and three did not. Counted in render order now;
+renumbering the literals would leave the next conditional section to break it
+again.
+
+### 28. Measured on dev, twice, because the cause is not what it looks like
+
+`my_org_shape` answers "what should I be asked about MY org", and an Opndoor
+admin has none:
+
+| call | returns |
+| --- | --- |
+| `my_org_shape(null)` | **no row at all** |
+| `my_org_shape(<kestrel>)` | **Kestrel's own shape**: `refers_own_stock` true, one agency and it is yours, "Kestrel Lettings" |
+
+So the admin was answered as somebody else in both directions: the
+placeholder's words while the call was out, and the supplier user's words
+once it landed. Matt's sentence exactly.
+
+**And the heading was only half of it.** While the shape is unresolved the
+PICKER returns that placeholder *and nothing else*, so there was no agency or
+branch control on the page at all.
+
+An admin's question is fixed and needs no round trip. It is `FULL_PICKER`,
+taken directly, so the section is never unresolved and never collapses one of
+somebody else's agencies away. The agencies offered are still the supplier's
+own, because they come from the scope Referred by set. The call, its four
+retries and the collapse it drives are skipped.
+
+### 29. The disappearance was the one-office collapse
+
+It hides the whole section once the org resolves to a single office. Right
+for somebody who works at one office and has nothing to choose; wrong for an
+admin choosing somebody else's agency and branch and needing to correct it.
+Never applied to an admin now.
+
+### 30. Matt's own wording, used as given
+
+"Rail" and "route" are internal vocabulary: a rail is which of the three
+kinds of referral this is, a route is the partner record carrying it.
+
+### Two assertions that are not render assertions, and why
+
+The hang **cannot be reproduced in mock mode**: `loadOrgShape` returns a
+resolved shape there without asking anything. So two of the seventeen assert
+the rule where it lives instead -- the copy against the shape that never
+resolves, and the ABSENCE of the server call, which is the substance of "does
+not wait". Both were checked against the unfixed picker and fail there.
+
+17 assertions, five failing first. 124 files / 1343 tests.
+
+---
+
+## Walk fixes 8 and 16: the book in force. DONE AND CHECKED ON DEV.
+
+`7a4f578`. One rule for both (`src/data/inForce.ts`), because they are the
+same three clauses said twice and an underwriter's document disagreeing with
+our own headline figure is worse than either being wrong alone.
+
+### Item 16's "show how the current figure is calculated", answered with dev's own numbers
+
+The old line was `if (inRange(app.deedAt, start, end)) a.guaranteed +=
+guaranteedAnnual(app)`: twelve months of rent for every deed **issued**
+inside the period. Dev's five executed deeds were all issued in September, so
+every period containing September totals £72,000 whatever is on cover.
+
+| period | old (deed issued) | new (executed, in force) |
+| --- | ---: | ---: |
+| all time | £72,000 | £12,000 |
+| September 2026 | £72,000 | £12,000 |
+| October 2026 | £0 | £48,000 |
+| December 2026 | £0 | £72,000 |
+
+**£72,000 is the right number for December**, when all five are on cover.
+Shown in September, when one guarantee had started, it was six times the
+truth. And the old rule reports **zero** for October and December, when
+£48,000 and £72,000 are under guarantee. The two errors move the total in
+opposite directions, which is exactly how a wrong figure looks plausible.
+
+### The four clauses were in three different states
+
+| clause | before |
+| --- | --- |
+| counting a joint tenancy once | **already true.** `guaranteedAnnual` returns the SHARE and the shares sum to the rent, so no dedupe is needed and none was added. Asserted so the fix cannot undo it. |
+| executed | **not true, in either place.** `status === 'deed'` and `deedAt` present are the deed ISSUED. Dev has two applications whose deed is out for the tenant's signature, and the bordereau was reporting them to the insurer as cover. |
+| in force in the period | **not true, in either place**, and this is the fault. Both asked when the cover was WRITTEN. |
+| refunded / withdrawn | the bordereau excluded refunds. The tile excluded neither. |
+
+### Half a tenancy is half the money
+
+Where one tenant of a pair has signed and the other has not -- dev's
+GR-20762 and GR-20763 -- the guaranteed value is the signed share. Not the
+whole tenancy, which nobody has promised, and not nothing, which would
+ignore a signed deed. Asserted both ways.
+
+### One thing worth knowing about what this changes
+
+The bordereau's MEANING moved. It was new business in the month; it is now
+the book on cover during the month, which is what Matt's sentence says. A
+guarantee written in September and running to next September now appears on
+every month's bordereau until it expires, where before it appeared on
+September's alone.
+
+### Tests
+
+Added: `inForce.test.ts` (18), `bordereauIsTheBookInForce.test.ts` (12, five
+failing first), `guaranteedValueIsInForce.test.ts` (11, five failing first).
+
+Rewritten in place rather than re-baselined, each with the reason in the
+file: `settlement-bordereau`'s two bordereau assertions, which named a rule
+that no longer exists ("commencing in the month"); `liveAnalytics`'s
+guaranteed assertion, whose fixture had no tenancy dates at all and was
+asserting £12,000 from a row that never said when its cover ran;
+`bordereauBasis`'s fixture gains `deedState` with no assertion moved.
+
+123 files / 1326 tests; three files and 41 assertions added, none removed.
+
+---
+
+## Walk fixes 1, 5 and 6. DONE AND CHECKED ON DEV.
+
+`00a3644`, `7ee274b`.
+
+### Item 1: your own row
+
+The three dots opened an empty menu because every item is gated on `mayAct`,
+`canEditRole` or `canDeactivate`, and all three are false on your own row --
+correctly, since they govern things done TO somebody.
+
+Matt offered either; the two actions are shown, because both exist. **They do
+not share a rule**, which is the whole of the care here. Walked on dev first,
+in a rolled-back transaction because an MFA reset deletes factors and
+sessions:
+
+| | Opndoor admin | supplier management |
 | --- | --- | --- |
-| `ops_routing_matrix` (Opndoor's own alerts) | alert type x **recipient** (`person` or `inbox`) | **yes** |
-| `notification_matrix` (agency and supplier) | event x **recipient CLASS** (`referrer`, `ticked_users`, `agent_contact`) | **no -- party-wide** |
+| rename yourself | allowed | allowed |
+| reset your own two-factor | allowed | **refused** |
+| deactivate yourself | refused | refused |
 
-So item 10 fits the server model exactly, and item 12 does not. "Which events
-they're told about" is a per-person fact on the Opndoor side and a
-per-AGENCY fact on the customer side.
+`admin_update_user_name` skips the ladder when the target is the caller, and
+`assert_may_act_on_user` names that as the documented exception in its own
+comment. `admin_reset_user_mfa` always asks the ladder, whose opndoor-staff
+early return comes BEFORE its self check, and its own authorisation arm is
+`is_admin()`, which is superadmin alone. Its confirmation is its own copy,
+not the existing one reworded: this signs YOU out.
 
-**What was NOT done, and why.** Making the agency side genuinely per-person
-means a new dimension on the notification settings -- a schema change that
-redefines what Q-03 built and tested, on the night before a cutover, to
-answer a question nobody has asked. That is a new feature, and the standing
-instruction is "no new features, nothing not in the queue".
+### Item 5: two halves, and only one was broken
 
-**What was done instead.** One panel, three sections, the same on all three
-parties:
+**Measured on dev before changing anything.** A branch position written
+straight onto an admin, then their reads counted:
 
-1. **Copied on referrals** -- per person, editable. (`receives_notifications`)
-2. **Which events they are told about** -- for Opndoor, per person and
-   editable. For an agency or supplier, the events THIS person would receive,
-   worked out from their position and the party's settings, with any switch
-   that is party-wide **labelled as affecting everyone**.
-3. **Monthly statements** -- per person, editable.
-   (`receives_commission_statements`)
+| | before | after |
+| --- | --- | --- |
+| applications | 35 | 35 |
+| agencies | 9 | 9 |
+| branches | 11 | 11 |
+| users | 25 | 25 |
 
-The alternative was to show party-wide switches inside a person's panel with
-no warning, so that editing one person quietly changed everyone. That is
-precisely the class of surprise the walk keeps finding, and it would have
-been introduced deliberately.
+So "a position can never narrow what an Opndoor admin sees, even if one was
+set" already held: every read policy ORs its admin arm ahead of the scope
+test. Now asserted, rather than left as a consequence of how a dozen policies
+happen to be written.
 
-**Matt should know** this is the one place the shared design is not identical
-across the three parties, and it is because the data is not. If he wants
-per-person events for agencies, that is a schema change and its own piece of
-work.
+**The other half did not hold.** `set_user_scope` and `set_home_branch`
+authorise on `is_admin()` and then ask the ladder, and
+`assert_may_act_on_user` returns early for opndoor staff, before its own self
+check. So an admin could position another admin, an opndoor manager, or
+themselves -- which is the case the walk found, because the dialog opened on
+your own row. Both refuse an Opndoor-staff target now (`20261006940000`), and
+"Set what they see" is not drawn on their row.
 
-### Statements are a THIRD mechanism, confirmed
+**One ordering decision worth recording.** The new guard sits AFTER the
+authorisation test, not before it. Before it was the first instinct and wrong
+twice: an unauthorised caller should learn "not permitted" and nothing about
+the target, and `a_null_guard_refuses` measures, on `set_home_branch`, that a
+caller with no `users` row is refused by the ROLE check rather than a later
+one -- and it has to use an opndoor_manager as its target, because
+`users_partner_by_role` allows a NULL partner_id for nobody else. A guard in
+front would have answered with the new message, and that property would have
+gone untested while its test still passed.
 
-The queue note said to check rather than assume. Checked:
-`receives_commission_statements` is its own column with its own RPC and its
-own trigger, unrelated to both matrices. So the panel joins three sources,
-not two.
+### Item 6: the dialog is two labelled parts
+
+"Office and responsibilities". **Works at** first, because for most people it
+is the only one that applies, then **Oversees**. Each says what it decides,
+which is what makes the split useful rather than cosmetic.
+
+### Tests
+
+pgTAP: new `an_opndoor_admin_has_no_office.test.sql`, 7 assertions, four
+failing first; the other three are the measurement above, which passed before
+the migration and is the point of it. Local clean-apply cluster: 66 files,
+964 assertions, 0 failing. Green on dev. `npm run drift` clean.
+
+Client: new `yourOwnRow.render.test.tsx` (6, two failing first) and
+`officeAndResponsibilities.render.test.tsx` (7, five failing first).
+`guardsAreNullSafe`'s deny-if count 64 -> 66 with the audit note that file
+requires. 120 files / 1285 tests; two files and thirteen assertions added,
+none removed or renamed.
+
+---
+
+## Walk fix 7: the Origin picker narrows the list. DONE AND CHECKED ON DEV.
+
+`2fffe58`.
+
+**What was wrong, and it was true of the two choices at the top.** The picker
+offers Everything, Suppliers and Agencies as quick choices. The second and
+third are `rail:supplier` and `rail:agency` -- rails, not parties, so no row
+is one and `originOptions` never produces them; the picker adds them from its
+own QUICK list. The page narrowed by translating a selection through
+`originToFilter`, which has no rail arm and whose fallthrough is `return {}`,
+meaning no filter. So picking either left the whole book on screen.
+
+**The fix is one predicate, not a new one.** `originMatches` already had both
+rail arms and is what Reporting narrows by. `AppFilterOpts` now takes
+`origin` and applies it in `getApplications` AND in `countByStatus` -- two
+separate filters, and teaching only the first would have moved the rows while
+leaving "Showing 5 of 21" behind, which is the same complaint one line
+further down the page.
+
+`originToFilter` keeps its other job: narrowing `scopeOpts` to a partner so
+the Agency, Branch and Referrer chips list that party's own options. A rail
+names no single partner, and leaving those chips open across a rail is right.
+
+**Why nothing caught it.** The existing coverage loops
+`originOptions(book)` -- precisely the set of values that DO work.
+
+**Checked against dev's own book, not the fixture.** No browser driver is
+installed here, so the check is the real predicate run over dev's real 35
+applications (their partner slug and agency name, with dev's own partner
+records hydrated so the rail is read the way the page reads it):
+
+| selection | rows on dev |
+| --- | --- |
+| Everything | 35 |
+| Agencies | 24 |
+| Suppliers | 1 (Kestrel) |
+| Direct | 10 |
+| `partner:kestrel-lettings` | 1 |
+
+Disjoint, summing to 35. Before the fix, Agencies and Suppliers each returned
+all 35. Dev's book is a better test than the mock, which has no Direct rows
+at all. The merged branch is what 5174 serves.
+
+**Tests.** `src/data/origin.test.ts` +6 (37 from 31), five failing first. New
+`src/pages/Applications/originPicker.render.test.tsx`, 5 assertions, four
+failing first -- driven through the CONTROL rather than the service, because
+the data layer was never wrong and a service-level test would have passed on
+the day of the defect.
+
+**Matt's one-line alternative** is NM-K under Needs Matt, as item 7 asks.
+
+---
+
+### NM-2b, flagged now the work is finished rather than left to notice
+
+Four of the alert types Q-04 names do not exist. The per-person panel
+therefore lists fewer alerts than the old page implied. That is the honest
+state, not a loss.
 
 ---
 
@@ -1551,6 +2400,184 @@ easy it is to fix.
 Matt's instruction of 2026-09-29: "Do not decide anything else on Matt's
 behalf." So everything below is open, and the build stops at the point that
 depends on it. Each says what it blocks, so nothing waits unnecessarily.
+
+### NM-N. Item 24's dedupe rule, which the HubSpot report says we cannot have yet.
+
+Item 24 says: *"when a direct tenant names a letting agent Opndoor doesn't
+work with, that agency should go to HubSpot as a new company (a prospect),
+with the agent contact details the tenant gave, marked as having come from a
+direct tenant. If the company already exists in HubSpot, add to it rather
+than duplicating. Only the agency and agent contact go across, never the
+tenant's details. **Check this against the HubSpot consequences report before
+building.**"*
+
+Checked. Here is what the check says.
+
+**The data exists.** `application_delivery_contacts` already holds
+`agency_name, title, first_name, last_name, email, phone` per application --
+exactly the agent contact the tenant gave, and nothing of the tenant's. Dev
+has 5 rows, and the one dismissed match has a contact against it. No capture
+step needs building.
+
+**The write is mechanical.** `hubspot-sync` already upserts companies via
+`POST /crm/v3/objects/companies/batch/upsert` on the unique property
+`crm_company_key`, and already searches HubSpot on that same property. A
+prospect is that call with a different key and a "came from a direct tenant"
+property.
+
+**The dedupe is not, and it is the sentence "if the company already exists in
+HubSpot, add to it rather than duplicating".** HubSpot's upsert matches ONLY
+on the unique property. A prospect keyed on something of ours dedupes against
+our own previous writes and **will happily create a second company next to
+one a salesperson typed in by hand** -- which is precisely what item 24
+forbids.
+
+Matching it instead needs a search by NAME or DOMAIN and a rule for what
+counts as the same company. "Foo Lettings" against "Foo Lettings Ltd" against
+"Foo Lettings (Chelsea)" is a judgement, and getting it wrong attaches a
+prospect's contact to the wrong company in your CRM.
+
+**And this is the report's own open question.** HUBSPOT-CONSEQUENCES.md ends:
+*"If only one thing comes back: may the portal store, and own, the identity
+of the HubSpot records it writes?"* Today it stores none -- HubSpot returns
+its record id on every write and the code throws it away -- so the portal
+cannot tell whether a company it is about to create is one it already made,
+let alone one somebody else did.
+
+**Three ways, and it is your call:**
+
+1. **Match on name, exactly, case- and punctuation-insensitive; create if no
+   exact match.** Simple, predictable, and will still create a duplicate of
+   "Foo Lettings Ltd" when the tenant typed "Foo Lettings". Safe in the
+   direction that matters -- it never merges the wrong two -- and leaves you
+   tidying duplicates.
+2. **Match on the agent's email DOMAIN first, then name.** Much better hit
+   rate; risks attaching to the wrong company where an agent uses a personal
+   or shared domain (gmail, a franchise's head-office domain).
+3. **Answer the report's question first** -- let the portal store the HubSpot
+   company id it is given -- and then this becomes exact for everything the
+   portal has ever written, with name matching only for the rest.
+
+**Not built.** Creating companies in your CRM is outward-facing and hard to
+undo, and every option above duplicates or mis-merges without your answer.
+Everything up to the write is ready.
+
+### NM-M. Deleting the Reporting scope picker also deletes "view as". Item 15.
+
+**This is the one thing in items 15 and 20 I have not done, and it is a
+decision rather than an ordering problem.**
+
+Both halves of NM-F are built and on dev: the estate-wide per-customer table
+(`91369f8`) and the Reporting tab on each customer's own page (`b80f696`).
+NM-F's third line says "The scope picker is deleted." I have not deleted it.
+
+**Because the picker is not only a picker.** It sets `scopeSel`, and
+`SessionContext` derives `viewingAs` from it, and Reporting reads `viewingAs`
+in four places:
+
+| | what it does |
+| --- | --- |
+| `agencyFacing` | drops Opndoor's own money-ops blocks when viewing as an agency |
+| `drawAs` | renders the page as that party's own management sees it |
+| the commission eyebrow | "Regent's Lettings' commission" rather than "Your commission" |
+| one block gated on `viewingAs === null` | Opndoor-only content, hidden while viewing as somebody |
+
+So an admin can currently open Reporting **as an agency sees it** -- their
+own tiles, their own settlement, without Opndoor's internals. Nine
+assertions in `viewAsIsTheParty.render.test.tsx` protect that, and one of
+them is an isolation property worth keeping: an admin viewing as an agency
+is not shown Opndoor's own commission-by-partner split.
+
+**The new tab is not the same thing.** It is the four measures for that
+customer. It is not their Reporting page.
+
+**And the picker cannot simply be left, either.** `scopeSel` is shared with
+Applications (your 2026-09-29 answer). With no picker on Reporting, an admin
+who narrows on Applications would find Reporting silently narrowed too, with
+no control to widen it back. That is worse than today.
+
+**So, three ways, and it is your call:**
+
+1. **Delete the picker and "view as" with it.** Reporting becomes
+   estate-wide, full stop. The per-customer tab is the answer to "how is
+   this customer doing". The nine assertions go, and the isolation one moves
+   to wherever view-as still exists -- nowhere, so it is simply deleted.
+   Simplest, and loses a capability you asked for two days ago.
+2. **Delete the picker, keep "view as" by moving it to the customer's own
+   page.** The Reporting tab grows from four measures into that customer's
+   full Reporting page. Most work, loses nothing, and is the most faithful
+   reading of "see the reports for each customer".
+3. **Keep the picker on Reporting.** Items 15 and 20 are otherwise done, the
+   per-customer table and tab both exist, and the picker stays as the way to
+   view as a party. Least work, and leaves the control you called confusing.
+
+Nothing else is blocked by this; everything else in items 15 and 20 is
+shipped and checked on dev.
+
+### NM-L. What period should Home's Direct signups cover? Item 25.
+
+Item 25 asks for this: "Confirm from the code what period Direct signups
+currently uses and write it under 'Needs Matt' with the option of a period
+choice (today, this week, this month, all time) for Matt to decide."
+
+**What it uses today, read off the code.** `countByStatus({ ...scopeOpts,
+channel: 'Direct' })` with **no periodRange**, so `inPeriod` waves everything
+through: it is **all time**. And `countByStatus` counts **current status**,
+not events in a window -- a row is under `sent` because it is sitting at Sent
+now, not because it was sent recently.
+
+**Which makes three of the four numbers a different kind of thing from the
+fourth.** Awaiting decision, Sent and Paid are states a referral waits in and
+leaves, so those three are already "waiting now" whatever period were
+applied. Deed issued is terminal: nothing leaves it, so that number is every
+direct deed ever issued and grows for ever.
+
+They are labelled accordingly for now, which is item 25's own instruction.
+
+**The decision.** A period choice (today / this week / this month / all time)
+would change the fourth number and would change nothing about the first
+three, because a queue does not have a period. So the honest options are:
+
+1. **Leave it.** Three queues and one running total, each labelled. No
+   control, nothing to get wrong.
+2. **A period on Deed issued alone.** The only number a period changes.
+   Slightly odd to have one control over one of four tiles.
+3. **A period over the whole panel**, which would turn the first three into
+   "how many ENTERED this state in the period" -- a different question from
+   the one they answer now, and a different query.
+
+Option 3 is the only one that makes all four consistent, and it is a rebuild
+of the panel rather than a control added to it. Not started; nothing is
+blocked by it.
+
+### NM-K. The simpler Origin picker Matt asked to be offered. Item 7.
+
+Item 7, verbatim: *"Matt isn't sure the picker is helpful in this form; after
+fixing, note in QUEUE.md under 'Needs Matt' a one-line simpler alternative
+for him to consider, but don't redesign it."* The picker is fixed and works;
+this is the one line, not a build.
+
+**The one line:** replace the type-to-search picker with three plain chips
+that are already the shape of the rest of the filter bar -- Origin
+(Everything / Agencies / Suppliers / Direct), then a second chip listing the
+parties of whichever of those is chosen -- so choosing a rail and choosing a
+party are two visible steps instead of one box that has to be searched.
+
+**Why it is worth considering.** The whole fault in item 7 came from the two
+rails being choices the book cannot produce, wedged into a control built to
+search the book. Two chips put the rail where it belongs, which is a property
+of the estate, and leave the search to the parties.
+
+**Why it is NOT being built.** It is a redesign, item 7 says not to, and the
+same control is shared with Reporting, where item 15 and NM-F are still open.
+Changing it here would decide half of those.
+
+**One thing found while fixing item 7, for NM-F / item 15.** Item 15 says the
+Reporting picker has "the same fault as item 7". It does not have the same
+CAUSE: Reporting narrows through `paymentMetrics.scopeFull`, which already
+calls `originMatches` and already has both rail arms. So whatever is wrong
+there is something else, and fixing item 7 will not have fixed it. Parked
+with item 15, not investigated, because item 15 says to wait for an answer.
 
 ### NM-F. ANSWERED by Matt, 2026-09-30. Both halves, and the tab is Opndoor-only.
 
