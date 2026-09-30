@@ -52,10 +52,17 @@ export function NotInNetwork() {
     return () => { live = false; };
   }, [toast]);
 
-  if (loading) return <div className="empty">Loading.</div>;
+  /* `empty is-shown`, NOT `empty`. The shared rule is `.empty { display:
+     none }` with `.empty.is-shown { display: block }`, so the class alone
+     renders an element that is in the DOM, carries the right words, and
+     shows the reader nothing. Both of these were bare until an audit found
+     them. jsdom does not load the stylesheet, so no render test can see
+     this; src/data/anEmptyStateIsVisible.test.ts reads the CSS and the JSX
+     together and is what catches it now. */
+  if (loading) return <div className="empty is-shown">Loading.</div>;
   if (rows.length === 0) {
     return (
-      <div className="empty">
+      <div className="empty is-shown">
         No direct tenant has named an agency we do not work with. Agencies land here when a
         match is dismissed as not in network.
       </div>

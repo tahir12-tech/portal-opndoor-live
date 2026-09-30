@@ -15,7 +15,7 @@
    export format is identical regardless of source.
    ===================================================================== */
 import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
-import { ALL_PARTNERS, maySeeCommission, readsTheWholeBook } from './types';
+import { ALL_PARTNERS, isOpndoorStaff, maySeeCommission, readsTheWholeBook } from './types';
 import {
   ANNUAL, APP_BRANCHES, APP_RENTS, APP_REFERRERS, AVG_RENT,
   BX_FIRST, BX_FLATS, BX_LAST, BX_STREETS, BX_TITLES, TREND_MONTHS,
@@ -1962,9 +1962,17 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
   rows.push(['opndoor Guarantee Referral Portal - guarantees expiring']);
   rows.push(['Generated', new Date().toLocaleString('en-GB')]);
   rows.push(['Month', `${MONTH_NAMES[m0]} ${year} (by guarantee expiry date, soonest first)`]);
-  // "Your partner" told an agency manager that their own book belongs to a party
-  // they have never heard of. Their name, from the same book the rows came from.
-  rows.push(['Scope', role === 'superadmin' ? 'All partners (opndoor whole book)' : agencyFacing(role) ? agencyScopeLabel(role) : 'Your partner']);
+  /* "Your partner" told an agency manager that their own book belongs to a
+     party they have never heard of. Their name, from the same book the rows
+     came from.
+
+     AND IT TOLD OPNDOOR'S OPS STAFF THE SAME THING, for the opposite
+     reason: they have no partner at all and the file contains every one of
+     them, so the document misdescribed its own contents. The first arm
+     asks `isOpndoorStaff` rather than naming superadmin, which is the same
+     predicate the modal above it now uses -- the modal and the file build
+     this sentence separately, so fixing one leaves the other. */
+  rows.push(['Scope', isOpndoorStaff(role) ? 'All partners (opndoor whole book)' : agencyFacing(role) ? agencyScopeLabel(role) : 'Your partner']);
   rows.push(['Guarantees expiring', String(dataRows.length)]);
   rows.push(['Currency', 'GBP']);
   rows.push([]);
