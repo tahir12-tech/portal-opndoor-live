@@ -72,7 +72,7 @@ select ok(
  * TRUNCATE in place -- measured TRUE on dev, for anon as well as
  * authenticated, until 20261006720000.
  *
- * It matters because docs/HOTFIX-LIVE-FOR-BALAL.sql revokes all four on
+ * It matters because the retired docs/HOTFIX-LIVE-FOR-BALAL.sql revoked all four on
  * production before cutover. Anything the hotfix closes and this branch
  * leaves open would be re-opened by the upgrade itself.
  *

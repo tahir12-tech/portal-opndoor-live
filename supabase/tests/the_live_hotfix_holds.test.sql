@@ -1,9 +1,23 @@
 -- THE HOTFIX FOR THE LIVE SYSTEM, PROVED BEFORE ANYBODY TOUCHES IT.
 --
--- docs/HOTFIX-LIVE-FOR-BALAL.md is applied BY HAND to production, by somebody
--- who is not a developer, during a customer go-live. There is no staging copy
--- of production and no way to try it there first, so the only honest way to
--- hand it over is to rebuild the live schema here and run it.
+-- RETIRED AS A DOCUMENT, KEPT AS A TEST. 2026-09-30: Matt's decision is that
+-- "there is no separate live hotfix. Everything in HOTFIX-LIVE-FOR-BALAL.md
+-- ships with the cutover instead", so both files are deleted and nobody
+-- applies anything by hand any more.
+--
+-- This file stays, and stays exactly as it is, because what it proves did
+-- not change: the two statements are now migrations rather than a script,
+-- and they still have to do to PRODUCTION's schema what they were written
+-- to do. The replica below is production's shape, which the branch's own
+-- tests cannot exercise because dev is 348 migrations past it.
+--
+-- What it used to say, and why the replica exists at all:
+--
+-- docs/HOTFIX-LIVE-FOR-BALAL.md was applied BY HAND to production, by
+-- somebody who is not a developer, during a customer go-live. There is no
+-- staging copy of production and no way to try it there first, so the only
+-- honest way to hand it over was to rebuild the live schema here and run
+-- it.
 --
 -- WHY A REPLICA SCHEMA RATHER THAN public. Dev is the partner-api branch: 323
 -- migrations against production's 65. Dev's applications table already has the
@@ -314,7 +328,7 @@ select is((select status from hfx.applications where guarantee_ref = 'ZZZ-HFX-2'
   'withdrawn'::text, 'BEFORE: the withdrawal really happened, it was not merely permitted');
 
 -- ===========================================================================
--- THE HOTFIX. These two statements are docs/HOTFIX-LIVE-FOR-BALAL.sql, with
+-- THE HOTFIX. These two statements were docs/HOTFIX-LIVE-FOR-BALAL.sql, with
 -- `public.` read as `hfx.`. Nothing else is changed.
 -- ===========================================================================
 revoke insert, update, delete, truncate on hfx.applications from anon, authenticated;

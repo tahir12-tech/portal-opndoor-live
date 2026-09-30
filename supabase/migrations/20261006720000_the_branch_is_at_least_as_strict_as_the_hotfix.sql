@@ -1,5 +1,14 @@
 -- THE BRANCH MUST BE AT LEAST AS STRICT AS THE HOTFIX IT REPLACES.
 --
+-- RETIRED 2026-09-30. docs/HOTFIX-LIVE-FOR-BALAL.sql no longer exists: Matt's
+-- decision is that everything in it ships with the cutover instead. This
+-- migration is unchanged and still does its job; the `comment on function`
+-- below still names the old path, and is LEFT THAT WAY deliberately, because
+-- editing an applied migration's comment would make a clean apply disagree
+-- with dev over a string. The history is in docs/QUEUE.md.
+--
+-- What it said when it was written:
+--
 -- docs/HOTFIX-LIVE-FOR-BALAL.sql is applied to PRODUCTION by hand, before
 -- cutover. At cutover this branch's migrations are applied on top. Anything
 -- the hotfix closes and this branch leaves open is therefore RE-OPENED by the

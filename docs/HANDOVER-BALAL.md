@@ -59,22 +59,43 @@ keying. The other five can follow that week.
 Four things changed after this document was written, and the first one comes
 BEFORE the cutover rather than as part of it.
 
-### There is a hotfix to apply to production now
+### There is no longer a separate hotfix. It is part of the cutover.
 
-`docs/HOTFIX-LIVE-FOR-BALAL.md`, and the `.sql` beside it. Two statements, a
-few seconds, no data changed. It closes two things that are open on the live
-system today:
+**Superseded, 2026-09-30.** There WAS a `docs/HOTFIX-LIVE-FOR-BALAL.md` to
+apply to production before the cutover. Matt's decision: *"there is no
+separate live hotfix. Everything in HOTFIX-LIVE-FOR-BALAL.md ships with the
+cutover instead."* The document is retired and both files are deleted; there
+is nothing for you to run by hand and nothing to do before the cutover.
 
-- a manager can mark an application paid without paying, by sending one
-  request straight to the database — no screen does it, but the permission is
-  sitting there unused
-- a sign-in with no user profile is treated as **allowed** rather than
-  refused by twelve functions, one of which lets such an account promote any
-  negotiator, at any company, to manager
+Everything it contained is a migration on this branch, each with a test:
 
-That document is written to be worked through on its own and has its own
-before-and-after checks. It does not depend on anything else here, and it
-does not have to wait for the cutover.
+| what it closed | where it is now |
+| --- | --- |
+| a manager could mark an application paid without paying, by sending one request straight to the database | `20261006720000`, with `the_live_hotfix_holds.test.sql` and `the_browser_does_not_write_an_application.test.sql` |
+| a sign-in with no user profile was treated as **allowed** rather than refused, by twelve functions -- one of which let such an account promote any negotiator, at any company, to manager | `20261006470000`, with `a_null_guard_refuses.test.sql` |
+| a refund of anything other than the whole fee | `20261006910000`, with `a_refund_is_the_whole_fee.test.sql` |
+| the scheduled-job log growing for ever | `20261006960000` |
+| the Health screen timing out | `20261006950000`, with `the_health_screen_is_quick.test.sql` |
+
+**The last two are not what the hotfix said they were**, and the difference
+matters to you because one of them was an instruction you would not have
+been able to carry out.
+
+- The hotfix asked for an index on `cron.job_run_details`. **It cannot be
+  created.** `create index` on that table is refused with "must be owner of
+  table job_run_details": pg_cron's tables belong to `supabase_admin`, and
+  neither a migration nor you running SQL as `postgres` can do it. Measured
+  on dev.
+- It also asked for 30-day retention, on the understanding that the log's
+  SIZE was the problem. Measured: trimming to 30 days took the Health screen
+  from 46.7 s to 37.1 s, against an 8 s cut-off; even 7 days only reached
+  25.2 s. The size was never the cause.
+
+  The cause was the query: one expensive set computed twice, each read
+  seq-scanning 35 MB once per HTTP response. `20261006950000` reads it once,
+  through the primary key. **46.7 s to 0.67 s on dev**, with the log still
+  untrimmed. The retention job ships too, as housekeeping, and you should
+  expect the first run to delete a few weeks' backlog in one go.
 
 ### Your local `main` is NOT what production runs
 
