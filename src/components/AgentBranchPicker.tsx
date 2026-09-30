@@ -60,7 +60,7 @@
    create_referral_target).
    ===================================================================== */
 import { useEffect, useRef, useState } from 'react';
-import { ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFly, findAgency, getPartners, loadOrgShape, mayInventAgency, mayInventBranch, orgNotSetUp, ownStockViewer, searchAgencies, searchBranches, UNRESOLVED, type OrgShape } from '@/data';
+import { ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFly, findAgency, getPartners, loadOrgShape, mayInventAgency, mayInventBranch, orgNotSetUp, ownStockViewer, searchAgencies, searchBranches, FULL_PICKER, UNRESOLVED, type OrgShape } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { Icon } from '@/components/ui/Icon';
 import { TypeAhead, highlightMatch, type TypeAheadOption } from '@/components/ui/TypeAhead';
@@ -115,7 +115,28 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
      every agency user saw an agency search box and an add-a-new-one option for
      as long as the call was in flight, and for ever if it failed. An unresolved
      shape offers nothing and claims nothing. See orgShapeService. */
-  const [shape, setShape] = useState<OrgShape>(UNRESOLVED);
+  const [loadedShape, setShape] = useState<OrgShape>(UNRESOLVED);
+  /* WALK FIX 28. AN ADMIN'S SHAPE IS NOT A SHAPE THE SERVER CAN REPORT.
+     `my_org_shape` answers "what should I be asked about MY org", and an
+     Opndoor admin has none: called with no partner it returns no row at all,
+     and called WITH the chosen supplier it returns that supplier's own
+     shape -- refers_own_stock true, one agency and it is yours, called
+     "Kestrel Lettings". Measured on dev, both cases.
+
+     So the section spoke to an admin in a supplier user's words -- "Your
+     office", "This referral is against Kestrel Lettings" -- and, whenever
+     the call had not landed, in the placeholder's: "Working out which office
+     this referral is against", with nothing to choose and nothing to wait
+     for. Matt: "That's the supplier user's own wording and behaviour."
+
+     An admin's question is fixed and needs no server round trip to settle:
+     which of the chosen supplier's agencies is letting this property, and
+     which branch, with the option to add either. That is FULL_PICKER
+     exactly, and taking it here means the section is never unresolved for
+     an admin and never collapses one of somebody else's agencies away. The
+     AGENCIES are still the supplier's own: they come from partnerScope,
+     which is the supplier chosen in Referred by. */
+  const shape = isAdmin ? FULL_PICKER : loadedShape;
   const collapsedOnce = useRef(false);
   // Releasing the once-guard when the admin changes partner: the shape is a
   // different partner's now, so re-collapsing is correct rather than a repeat.
@@ -191,6 +212,9 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
      left looking at an agency search box on our own estate. A failure now leaves
      the shape unresolved and asks again. */
   useEffect(() => {
+    // Nothing to ask for an admin: their shape is FULL_PICKER above, so the
+    // call, its four retries and the collapse it drives are all skipped.
+    if (isAdmin) return;
     let live = true;
     // An admin viewing one partner gets THAT partner's form. Referring on behalf
     // of a single-office agent should not ask an opndoor admin to name the

@@ -156,6 +156,41 @@ export function mayInventBranch(shape: OrgShape): boolean {
   return shape.resolved && !shape.refersOwnStock;
 }
 
+/**
+ * What the New application section is called, for the person reading it.
+ *
+ * WALK FIX 28. An Opndoor admin is not asking any of the questions below,
+ * and `my_org_shape()` returns NO ROW for them at all -- measured on dev:
+ * calling it as the probe admin produced an empty set where a Regent
+ * director produced a full shape. An admin belongs to no org, so there is no
+ * shape to report. The section therefore sat on `!shape.resolved`'s
+ * placeholder, "Your office / Working out which office this referral is
+ * against", for ever: a supplier user's words, and a spinner that could
+ * never stop.
+ *
+ * The fix is not to make the query answer. An admin's question is fixed and
+ * does not depend on an org they do not have: which of the chosen supplier's
+ * agencies is letting this property, and which branch. That is the same
+ * question a supplier user asks, which is why the copy is the same, and it
+ * is reached by role rather than by waiting for a shape.
+ *
+ * SEPARATE FROM orgSectionCopy, and not a branch inside it, because that
+ * function answers from the SHAPE alone and is called from places that have
+ * no reader in hand. Passing a role into it would make every caller decide
+ * something most of them cannot see.
+ */
+export function newApplicationSectionCopy(
+  isOpndoorAdmin: boolean, shape: OrgShape,
+): { title: string; sub: string } {
+  if (isOpndoorAdmin) {
+    return {
+      title: 'Agency and branch',
+      sub: 'Which agency is letting this property, and which branch. You can add either on the fly.',
+    };
+  }
+  return orgSectionCopy(shape);
+}
+
 /** What the section is called, for the person reading it.
 
     A supplier is telling us whose property this is. An agent is telling us
