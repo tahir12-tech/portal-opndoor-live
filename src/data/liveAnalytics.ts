@@ -46,6 +46,8 @@ import { whereTheyWork, type WhereReader } from './whereTheyWork';
 // Walk fixes 8 and 16 share one rule for what is under guarantee, and when.
 import { inForceDuring } from './inForce';
 import { isHousePartner } from './channel';
+// Walk fixes 15 and 20: the CUSTOMER is the origin, not the route partner.
+import { originOf, originValue } from './origin';
 import type { CommissionSource } from './types';
 
 /**
@@ -588,6 +590,83 @@ function readerFor(role: Role, set: FullApp[]): WhereReader {
   if (role === 'superadmin' || role === 'opndoor_manager') return 'opndoor';
   const branches = new Set(set.map((a) => (a.branch ?? '').trim()).filter(Boolean));
   return branches.size > 1 ? 'multi-branch' : 'one-branch';
+}
+
+/** One customer's line on the estate-wide Reporting table. Walk fixes 15
+ *  and 20. */
+export interface CustomerRow {
+  /** The origin selection this row is, so a click can narrow to it. */
+  key: string;
+  name: string;
+  kind: 'agency' | 'supplier';
+  sent: number;
+  fees: number;
+  deeds: number;
+  /** What Opndoor owes out on this customer's business. Zero for a reader
+   *  who may not see commission, never absent: the column is a number. */
+  payable: number;
+}
+
+/**
+ * ONE ROW PER CUSTOMER: every supplier and every agency, side by side.
+ * Walk fix 20, and the table at the centre of walk fix 15's answer (NM-F).
+ *
+ * WHY THIS IS NOT livePartnerBreakdown. That groups by `app.partner`, and on
+ * the AGENCY rail every agency of ours is carried by one house partner,
+ * `opndoor-agents`. So it has one row for the whole agency estate, named
+ * after a company that does not exist outside our own schema, and one row
+ * per supplier -- which is why Matt reported "Kestrel appears nowhere" and
+ * "Northgate appears twice" of the same screen. "Per partner" was never
+ * "per customer": on the agency rail the partner is a ROUTE.
+ *
+ * THE CUSTOMER IS THE ORIGIN, which is what origin.ts exists to name. Same
+ * derivation the Applications list column and the scope narrowing use, so
+ * the table cannot disagree with either about who exists or what they are
+ * called.
+ *
+ * AND THE DIRECT RAIL IS NOT A CUSTOMER. It is Opndoor's own business with
+ * no agency or supplier behind it; a row for it would be Opndoor appearing
+ * in its own customer list.
+ *
+ * THE MEASURES ARE OPNDOOR'S FOUR, the same four as walk fix 17's trend, and
+ * on the same event dates as liveAggregate so the table foots to the tiles
+ * above it: sent by sent date, fees and commission by PAYMENT date, deeds by
+ * deed date.
+ */
+export function liveByCustomer(role: Role, scope: PartnerScope, period: Period): CustomerRow[] {
+  const [start, end] = periodRange(period);
+  const set = scopeFull(allFull(), role, scope);
+  /* Commission payable is a commission figure, so the rule that governs
+     every other one governs this: a reader the predicate refuses gets a
+     zero that was never computed rather than a figure to hide. */
+  const seesComm = maySeeCommission(role);
+  const map = new Map<string, CustomerRow>();
+  for (const app of set) {
+    // #2/#13 Withdrawn and Expired are terminal and out of every volume
+    // figure, matching liveAggregate and groupRows.
+    if (app.withdrawn || app.expired) continue;
+    const o = originOf(app);
+    if (o.kind !== 'agency' && o.kind !== 'supplier') continue;
+    const key = originValue(app);
+    let row = map.get(key);
+    if (!row) { row = { key, name: o.name, kind: o.kind, sent: 0, fees: 0, deeds: 0, payable: 0 }; map.set(key, row); }
+    if (inRange(app.sentAt, start, end)) row.sent += 1;
+    if (inRange(app.deedAt, start, end)) row.deeds += 1;
+    if (inRange(app.paidAt, start, end)) {
+      row.fees += feeBaseFor(app);
+      /* What leaves the business, and only on a fee that stayed. The
+         agency's cut always; a real supplier's too, never a house route's,
+         which is Opndoor's own margin. The same two terms as the trend's
+         `payable` and as the tile's headline. */
+      if (!app.refunded && seesComm) {
+        row.payable += feeBaseFor(app) * totalRate(app);
+        if (!isHousePartner(app.partner)) row.payable += feeBaseFor(app) * app.partnerRate;
+      }
+    }
+  }
+  // Biggest first: fees, then referrals, then name. The same order the
+  // league uses, so two tables of the same customers agree about who is top.
+  return [...map.values()].sort((a, b) => b.fees - a.fees || b.sent - a.sent || a.name.localeCompare(b.name));
 }
 
 /** Live volume rows for the three dashboard charts (full lists; callers take top-N). */

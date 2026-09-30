@@ -1,0 +1,9 @@
+/* Every customer, side by side. Deliberately plain: the table IS the
+   information, and the numbers have to line up to be compared, which is
+   what tabular-nums is for. */
+.custtab { overflow-x: auto; }
+.custtab table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.custtab th, .custtab td { padding: 10px 14px; border-bottom: 1px solid var(--line); text-align: left; }
+.custtab th { font-size: 12px; font-weight: 650; color: var(--ink-mute); white-space: nowrap; }
+.custtab .num { text-align: right; font-variant-numeric: tabular-nums; }
+.custtab tbody tr:last-child td { border-bottom: 0; }
