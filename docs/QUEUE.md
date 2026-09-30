@@ -15,6 +15,50 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## NM-M AND NM-N ANSWERED, PLUS ONE MORE (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+
+> NM-M: keep View as, moved to a "View as" button on each agency and supplier page; delete the Reporting scope picker. NM-N: don't create companies in HubSpot automatically; list agencies a direct tenant named that we don't work with on the Reconciliation page, with the agent contact given, for someone to add to HubSpot by hand. Also fix the blank Reporting page for opndoor_manager. Deploy to dev and check each there, then stop and report.
+
+### What this settles, and what it changes
+
+**NM-M is answered as option 2, the one that loses nothing.** View as survives;
+what goes is the picker. The button moves the control to the page that already
+names the party, which is also where item 15's Reporting tab now lives.
+
+**One thing that follows and is not in the sentence.** The picker was the only
+way to STOP viewing as. A button that starts it needs something that ends it, or
+an admin who views as Regent has no way back to the estate view -- and
+`scopeSel` is shared with Applications, so they would find that list narrowed
+too, with no control on either screen. So Reporting gains a "viewing as X ·
+stop" banner. Recorded here as a consequence of the instruction rather than an
+addition to it.
+
+**NM-N is answered as none of my three options**, and the answer is better than
+all of them: nothing is written to HubSpot at all, so the dedupe problem that
+blocked it does not arise. The portal lists what it knows and a person decides.
+
+**The opndoor_manager fix is new** and was not in any item. It came out of
+walk fix 20: `paymentMetrics.scopeFull` has a positive role allowlist naming
+only `referrer`, `superadmin` and `management`, so that role is handed an empty
+set and every live figure reads zero.
+
+### Order
+
+| # | item | why this order |
+| - | ---- | -------------- |
+| 1 | **opndoor_manager's blank Reporting** | Smallest, and independent of the other two. Also the one most likely to have siblings elsewhere in the codebase, so it is worth doing first and sweeping properly. |
+| 2 | **NM-M: the View as button, then the picker's deletion** | The replacement goes in before the thing it replaces comes out, the same order the notifications panel and the Reporting tab used. |
+| 3 | **NM-N: the not-in-network list on Reconciliation** | Self-contained: a read-only list over data that already exists. |
+
+**Step 4 of the night run is not finished and is NOT abandoned.** "Every defect
+recorded from last week's walks and reviews that is still open in QUEUE.md or
+DEFECTS.md" -- DEFECTS.md is done; QUEUE.md still carries round 6's **M4, M9,
+M10 and the eight lows**, plus the allowlist-ratchet tightening. This
+instruction ends with "then stop and report", so those wait for the report
+rather than being folded in.
+
+---
+
 ## THE NIGHT RUN (instruction, 2026-09-29, verbatim). ACTIVE. Top of the list.
 
 > I'm stopping for the night and not walking again until morning, so you may merge the worktree and apply to dev when ready.
@@ -1697,15 +1741,34 @@ against dev rather than against a local database.
 
 ### Status, updated as the night run proceeds
 
+**This table was stale and is rewritten. It said NOT STARTED about work
+finished hours earlier, which is the same fault found in DEFECTS.md: a status
+line contradicting the document under it. The order below it is kept as the
+record of the sequence, with every row now marked.**
+
 | what | state |
 | --- | --- |
 | R1-R7, all seven | **DONE**, each with a test that failed first, all applied to dev |
-| Walk fix 13 (invite asks where they sit) | **DONE** `bdf260c` -- Matt ranked it first |
-| Walk fix 14 (plain-English errors) | **DONE** `bdf260c` |
 | Walk fixes 2, 3, 4, 11 (Opndoor team page) | **DONE** `806a300` |
-| Walk fixes 1, 5-10, 12, 15-30 | **NOT STARTED** -- see the order below |
-| DEFECTS.md | not started |
-| The end-to-end walk | not started |
+| Walk fixes 13, 14 (inviting, plain-English errors) | **DONE** `bdf260c` |
+| Walk fixes 9, 10, 12 (notifications per person) | **DONE** `d1bfcb6` |
+| Walk fix 7 (Applications Origin filter) | **DONE** `2fffe58` |
+| Walk fix 1 (your own row) | **DONE** `00a3644` |
+| Walk fixes 5, 6 (Office and responsibilities) | **DONE** `7ee274b` |
+| Walk fixes 8, 16 (the book in force) | **DONE** `7a4f578` |
+| Walk fixes 27, 28, 29, 30 (New application) | **DONE** `95f9bb6` |
+| Walk fixes 17, 18, 19, 21 (Reporting) | **DONE** `d9accfd`, `6f78039` |
+| Walk fix 25 (Home says what it counts) | **DONE** `4d33d9f` |
+| Walk fixes 31, 32, 33, 34 (the invite email) | **DONE** `603b0c1` |
+| Walk fix 26 (supplier joint tenancies) | **DONE** `66f4d3e` |
+| Walk fixes 15, 20 (reporting per customer) | **DONE** `91369f8`, `b80f696` |
+| Walk fixes 22a, 23 | **PARKED** -- Matt's own text says "After shipping" |
+| Walk fix 24 (HubSpot) | **ANSWERED 2026-09-30**: no automatic HubSpot write. See the instruction at the top. |
+| The hotfix, retired into the cutover | **DONE** `58de1c2`, `0a8ecaa` |
+| HANDOVER-BALAL.md trimmed | **DONE** `2359795` |
+| DEFECTS.md | **DONE** `82a557f` -- and one entry contradicted itself |
+| The end-to-end walk | **DONE** `afd4625` |
+| Round 6's M4, M9, M10 and the eight lows | **OPEN.** Step 4 of the night run covers "still open in QUEUE.md" and these are it. |
 
 ### RESUME HERE. The order the rest should be done in.
 
