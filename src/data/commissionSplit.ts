@@ -18,6 +18,7 @@
 import type { CommissionLine, CommissionSource } from './types';
 import type { FullApp } from './applicationsService';
 import { getPartner } from './partnersService';
+import { isDirectRail } from './channel';
 
 /**
  * Is this application on the AGENT RAIL — one of our agencies, who earn the
@@ -89,10 +90,28 @@ export function payeeKey(level: CommissionLine['level'], orgId: string | null, o
  * The commission lines an application actually pays.
  *
  * Returns the frozen split when there is one, else a single agency line
- * reconstructed from the scalar. Never returns an empty array for an application
- * that earned anything, so no caller has to special-case "no lines".
+ * reconstructed from the scalar. Never returns an empty array for an
+ * application that earned anything -- and the direct rail earns nobody
+ * anything, which is the exception below and the reason that promise now
+ * needs the qualifier.
+ *
+ * ROUND 6, M9. The fallback arm INVENTED A PAYEE out of a direct-rail
+ * application. Direct signups never go through create_referral, so
+ * `application_commission_lines` holds nothing for them and every direct
+ * row took that arm: `app.agency` is whatever agency the matcher attached
+ * so a person could service it (or "Unattached"), and `app.agentRate` is
+ * opndoor-direct's own rate. The result was a commission payee named after
+ * a real agency, for business that agency never referred -- the client
+ * twin of round 6's M5, and the literal row quoted in 20261006580000's
+ * header.
+ *
+ * EXCLUDED FOR THE WHOLE FUNCTION, not just the fallback arm, because that
+ * is how the server does it: 20261006580000 excludes the rail at the
+ * `paid` CTE, above both split arms. So a direct row that somehow acquired
+ * a frozen line is still nobody's.
  */
 export function linesFor(app: FullApp): CommissionLine[] {
+  if (isDirectRail(app.partner)) return [];
   const frozen = app.commissionLines;
   if (frozen && frozen.length) return frozen;
   return [{ level: 'agency', orgId: null, orgName: app.agency || '(unknown agency)', rate: app.agentRate ?? 0 }];
