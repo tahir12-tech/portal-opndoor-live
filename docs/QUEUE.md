@@ -15,6 +15,30 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## ADMIN REPORTING FIXES (instruction, 2026-09-30, verbatim). ACTIVE, after the supplier statement.
+
+> Admin Reporting fixes: remove "All partners" from the page header. Direct signups never appear in Volume by branch, Volume by agency or any agency chart (no "Unattached" row); this answers Q3. Rename "Commission by partner" to "Commission by route" and replace "Partner" wording in it with "Supplier" or "Route" as appropriate. On the admin view, retitle "Your commission" to "Commission owed". Update the bordereau description to say it lists guarantees in force during the month. Deploy to dev and check there.
+
+Five discrete fixes, independent of the supplier statement, so they are
+queued behind it rather than interleaved with it.
+
+**IT ANSWERS Q3**, which has been open since the walk: whether a direct
+signup belongs on the agency volume charts. It does not, anywhere, and
+there is no "Unattached" row.
+
+### WHAT TO WATCH
+
+- **Q3 is the only one with teeth.** The other four are copy. The direct
+  rail is already excluded from the money surfaces
+  (`commission_statement_lines`, `agency_weekly_digest`,
+  `agreement_volume`) and the question is whether the VOLUME charts on
+  Reporting do the same, which is a client-side question in
+  `liveAnalytics`. `isDirectRail` exists for exactly this.
+- **"Commission owed" is the ADMIN view only.** A Director still reads
+  "Your commission" about their own, and retitling both would tell an
+  agency that Opndoor owes them a number they are already owed.
+- **No em dashes in any of the new copy.**
+
 ## ONE TOTAL SUPPLIER RATE, WITH THE AGENT'S SHARE CARVED OUT (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
 
 > Supplier commission is one total rate, set per supplier on its Commission tab (nothing hardcoded; Rightmove's happens to be 35%), and that total includes the agents' share. The agent's share is carved out of it and can be volume-tiered per supplier using the existing tiers (e.g. x% on an agency's first N paid referrals in the month, y% after). The supplier's own share is the total minus the agent's share, never more in total. Opndoor pays the whole total to the supplier, who pays its agents, unless the supplier's setting says Opndoor pays agents directly. The supplier statement shows, per referral: agency, branch, fee, agent's share, supplier's share, total. The per-agency statements show each agency's referrals and its share.
