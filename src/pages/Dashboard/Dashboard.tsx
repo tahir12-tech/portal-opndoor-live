@@ -688,11 +688,22 @@ export function Dashboard() {
                 {/* The basis is stated as it actually was, never asserted as a
                     month: Regent's single-tenant fee is three weeks and their
                     joint fee is five. Empty in a period with no fees at all. */}
-                {/* The noun agrees with the count, off deedsIssued (the number)
-                    rather than deedcount (the display string): a first deed read
-                    "across 1 issued deeds". Same idiom as the needs-attention
-                    lines below, which have always agreed. */}
-                Guarantor fees collected across {d.deedcount} issued deed{d.deedsIssued === 1 ? '' : 's'}{d.feeBasisCopy ? `, ${d.feeBasisCopy}` : ''}, net of any refunds.
+                {/* THE DENOMINATOR DID NOT PRODUCE THE NUMERATOR. Matt,
+                    2026-09-30: "fix the Net fees description: it currently
+                    says fees were collected 'across 5 issued deeds' when
+                    they came from all paid referrals."
+
+                    A referral pays BEFORE its deed is issued, and some paid
+                    referrals never get one, so issued deeds is a smaller and
+                    different set from the one that produced the money. A
+                    reader dividing the figure by the count got a fee per
+                    referral that is not one.
+
+                    The noun still agrees with the count, off paidCount (the
+                    number) rather than paid (the display string): a first
+                    referral read "across 1 paid referrals" under the old
+                    idiom, which is the bug this one was written to avoid. */}
+                Guarantor fees collected across {d.paid} paid referral{d.paidCount === 1 ? '' : 's'}{d.feeBasisCopy ? `, ${d.feeBasisCopy}` : ''}, net of any refunds.
               </p>
               {d.live && (
                 <div className="hero-kpi__split">

@@ -29,7 +29,26 @@ export function periodRange(period: Period): [Date, Date] {
     case 'last30': return [s(y, m, d - 29), e(y, m, d)];
     case 'last90': return [s(y, m, d - 89), e(y, m, d)];
     case 'last12m': return [s(y - 1, m, d), e(y, m, d)];
-    default: return [s(2024, 8, 1), e(y, m, d)]; // all time, from 2024-09
+    /* ALL TIME ENDS IN THE FUTURE, NOT TODAY. Matt, 2026-09-30: "for any
+       period it counts every executed deed whose 12-month cover overlaps
+       the period, including cover that starts after today; for all time
+       that is every executed deed."
+
+       Clamped to today, "all time" silently excluded every guarantee whose
+       cover has not started yet, because `inForceDuring` asks
+       `tenancyStart <= end`. Measured on dev: FOUR of the five executed
+       deeds start after today, so the headline Total guaranteed rent value
+       was showing one of five.
+
+       SAFE FOR EVERY OTHER MEASURE ON THIS RANGE, because the rest are
+       event-based -- sent, paid, deed issued -- and an event cannot happen
+       after today. Only a tenancy START is legitimately in the future, and
+       admitting it is the whole point.
+
+       THE TRAILING WINDOWS ARE NOT TOUCHED. Last 7 / 30 / 90 days and the
+       last 12 months end today deliberately: cover starting next month does
+       not overlap them, and saying it does would be a different error. */
+    default: return [s(2024, 8, 1), e(y + 25, 11, 31)]; // all time, from 2024-09
   }
 }
 

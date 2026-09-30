@@ -181,3 +181,64 @@ describe('the money: twelve months, and a joint tenancy once', () => {
     expect(guaranteedInForce([row({ withdrawn: true }), row({ refunded: true })], ...OCT)).toBe(0);
   });
 });
+
+/* =====================================================================
+   THE INVARIANT MATT ASKED FOR, 2026-09-30.
+
+   Verbatim: "Add a test that, for the same set of deeds, guaranteed rent
+   is never less than fees collected."
+
+   IT LOOKS TRIVIAL AND IS NOT. Twelve months' rent against a fee of one
+   month, or three weeks, or five for a joint let, so the ratio is
+   enormous and no plausible arithmetic error makes guaranteed rent
+   SMALLER than fees by a little. It goes wrong by a lot or not at all,
+   which is exactly what makes it a good invariant: the failures it
+   catches are whole-set failures.
+
+   WHAT IT ACTUALLY CATCHES is a period filter that admits fees from
+   deeds the rent measure excluded. That is not hypothetical here -- it
+   is the bug this instruction came with. "All time" ended TODAY, and
+   `inForceDuring` asks `tenancyStart <= end`, so every guarantee whose
+   cover starts next month was dropped from the rent while its fee stayed
+   in the fees. Measured on dev at the time: four of five executed deeds
+   start in the future, so the headline was showing one of five.
+   ===================================================================== */
+describe('guaranteed rent is never less than the fees from the same deeds', () => {
+  /* A WINDOW WIDE ENOUGH TO BE "ALL TIME", so the property is about the
+     measure and not about a window chosen to make it pass. */
+  const EVER: [Date, Date] = [new Date(2000, 0, 1), new Date(2099, 11, 31)];
+
+  /** The fee is one month's rent by default, and at its very largest a
+      joint let's five weeks. Either way it is a fraction of twelve
+      months, and the check does not care which. */
+  const feesOf = (rows: InForceRow[]) =>
+    rows.reduce((sum, r) => sum + (r.shareAmount ?? r.rent), 0);
+
+  it('on a single let', () => {
+    const book = [row({ rent: 1800 })];
+    expect(guaranteedInForce(book, ...EVER)).toBeGreaterThanOrEqual(feesOf(book));
+  });
+
+  it('on a joint tenancy, where the shares sum to the rent exactly once', () => {
+    const book = [row({ rent: 2000, shareAmount: 1200 }), row({ rent: 2000, shareAmount: 800 })];
+    expect(guaranteedInForce(book, ...EVER)).toBeGreaterThanOrEqual(feesOf(book));
+  });
+
+  /* THE ONE THAT WOULD HAVE CAUGHT THE BUG. Cover that has not started
+     yet is still cover: its fee is collected and its rent is guaranteed,
+     so a measure that keeps the fee and drops the rent breaks this. */
+  it('and on cover that starts after today, which is what the bug dropped', () => {
+    const future = new Date();
+    future.setFullYear(future.getFullYear() + 1);
+    const book = [row({ rent: 1500, tenancyStart: future, expiry: null })];
+    expect(guaranteedInForce(book, ...EVER)).toBeGreaterThanOrEqual(feesOf(book));
+    expect(guaranteedInForce(book, ...EVER)).toBeGreaterThan(0);
+  });
+
+  /* AND THE OTHER DIRECTION HOLDS TOO: a deed that is excluded contributes
+     NEITHER, so the invariant is not satisfied by quietly counting
+     everything. A withdrawn guarantee is not cover and earns no fee here. */
+  it('while an excluded deed contributes nothing to either side', () => {
+    expect(guaranteedInForce([row({ withdrawn: true })], ...EVER)).toBe(0);
+  });
+});

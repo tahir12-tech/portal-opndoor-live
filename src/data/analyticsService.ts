@@ -82,6 +82,10 @@ export interface DashboardModel {
       ("1,284"), and copy that has to agree with its noun cannot be written
       against a formatted string: "across 1 issued deeds" was the result. */
   deedsIssued: number;
+  /** Paid referrals as a NUMBER, for the same reason deedsIssued exists
+      beside deedcount: copy whose noun has to agree with a count cannot be
+      written against a formatted string. */
+  paidCount: number;
   fees: string;
   /** The commission tile's own label. It lived in the page as a d.live ternary,
       which is where it could not see WHO was reading: an agency reads a figure
@@ -348,6 +352,7 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     funnelScope: ownOnly ? 'Sent to Paid to Deed Issued · your referrals' : 'Sent to Paid to Deed Issued · all branches',
     sent: a.sent.toLocaleString('en-GB'),
     paid: a.paid.toLocaleString('en-GB'),
+    paidCount: a.paid,
     deed: a.deed.toLocaleString('en-GB'),
     sp: pct(a.paid, a.sent),
     /* APPLICANT GRAIN ON BOTH SIDES, AGAIN.
@@ -482,6 +487,7 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
     funnelScope: ownOnly ? 'Sent to Paid to Deed Issued · your referrals' : 'Sent to Paid to Deed Issued · all branches',
     sent: sent.toLocaleString('en-GB'),
     paid: paid.toLocaleString('en-GB'),
+    paidCount: paid,
     deed: deed.toLocaleString('en-GB'),
     sp: pct(paid, sent),
     pd: pct(deed, paid),

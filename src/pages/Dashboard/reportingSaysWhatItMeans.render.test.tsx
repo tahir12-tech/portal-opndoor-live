@@ -113,6 +113,23 @@ describe('the commission statement heading', () => {
   });
 });
 
+describe('the Net fees description', () => {
+  /* THE DENOMINATOR DID NOT PRODUCE THE NUMERATOR. Matt, 2026-09-30: "it
+     currently says fees were collected 'across 5 issued deeds' when they
+     came from all paid referrals." A referral pays BEFORE its deed is
+     issued, and some paid referrals never get one, so a reader dividing
+     the figure by that count got a fee per referral that is not one. */
+  it('counts paid referrals, which is where the money came from', async () => {
+    const v = await open('superadmin');
+    expect(text(v)).toMatch(/paid referral/);
+  });
+
+  it('and no longer counts issued deeds, which is a different and smaller set', async () => {
+    const v = await open('superadmin');
+    expect(text(v)).not.toMatch(/fees collected across .{0,12} issued deed/);
+  });
+});
+
 describe('the bordereau', () => {
   /* The description said "by tenancy start date", which is the behaviour
      that was FIXED: asking when cover was WRITTEN meant a guarantee still
