@@ -210,6 +210,36 @@ describe('a raising guard cannot evaluate to NULL', () => {
        would read as "do not raise" and the cross-company write would be
        back. That is why it was audited rather than waved through.
 
+       62 -> 64 with 20261006900000 and 20261006910000. Both audited:
+
+       (a) set_my_notification's
+             if public.notification_locked(v_kind, p_type, 'referrer')
+                and not p_enabled
+           `notification_locked` returns a plain boolean for every input --
+           it is a lookup over a fixed catalogue, not a row read that can
+           miss -- and `p_enabled` is compared with `not`, which is NULL only
+           if p_enabled is NULL. A NULL there would mean "neither on nor
+           off", which the caller cannot express: the client sends a
+           checkbox. Worth stating which way it would fail: NULL would skip
+           the raise, so somebody could clear a LOCKED notification by
+           sending null instead of false. The insert below would then write
+           NULL into a NOT NULL column and the whole statement would abort,
+           so the guard is belt and the column is braces. Left uncoalesced
+           because coalescing would turn an incoherent request into a silent
+           success rather than an error.
+
+       (b) apply_stripe_refund's
+             if p_amount is not null and p_amount <> v_total_basis
+           `p_amount is not null` is total by construction, and it guards the
+           comparison that follows, so the `and` short-circuits before
+           `<>` can see a NULL. v_total_basis is `coalesce(sum(...), 0)` and
+           cannot be NULL even with no rows. This is the same shape as
+           create_referral's `p_route is not null` guard already audited at
+           59 -> 60: a NULL means "no amount stated", which is precisely the
+           case that must NOT raise, because a refund with no amount is a
+           full refund. Coalescing it would refuse every full refund in the
+           product.
+
        61 -> 62 with 20261006880000 (R7). The new one is assert_tenant_pays's
 
            if coalesce(p_mode, '') not in ('pre_referenced_open',
@@ -224,6 +254,6 @@ describe('a raising guard cannot evaluate to NULL', () => {
 
        It is in this list rather than the deny-unless one because it is the
        `if <bad> then raise` polarity, not `if not <good> then raise`. */
-    expect(denyIf.length).toBe(62);
+    expect(denyIf.length).toBe(64);
   });
 });

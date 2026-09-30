@@ -159,6 +159,13 @@ insert into allowed(name) values
   ('set_branch_deed_recipient'),
   ('set_group_rates'),
   ('set_home_branch'),
+  /* Notifications became per person (20261006900000). set_my_notification
+     writes only auth.uid()'s own row and refuses a locked type by name;
+     user_notification_enabled is the read the send path makes. Both are
+     covered by notifications_are_per_person.test.sql. Placed in sort order
+     rather than appended, because the list is asserted sorted so that two
+     people adding to it cannot collide. */
+  ('set_my_notification'),
   ('set_node_rate'),
   ('set_notification_setting'),
   ('set_ops_route'),
@@ -169,6 +176,7 @@ insert into allowed(name) values
   ('staff_payment_page_token'),
   ('trigger_crm_sync'),
   ('update_partner_settings'),
+  ('user_notification_enabled'),
   ('user_within_caller_scope'),
   ('viewer_runs_eligibility_journey');
 
