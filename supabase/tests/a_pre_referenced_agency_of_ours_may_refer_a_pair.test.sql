@@ -203,15 +203,27 @@ select is(
   'the two fees sum to the five-week fee exactly, with no penny lost to rounding twice');
 
 -- ===========================================================================
--- THE CONTROL. Same deal, same rent, same pair -- a partner who is NOT one of
--- our agencies. This is the refusal the old documents described, and it is
--- still correct for the shape they were describing.
+-- THE CONTROL, AND IT IS NOW THE OPPOSITE CONTROL.
+--
+-- This asserted that a supplier is REFUSED a joint tenancy, which was right:
+-- Q-06 item H said "single tenant (no Add another tenant)" of that path.
+-- Walk fix 26, batch 16, reverses it -- "Suppliers may refer joint
+-- tenancies, the same way agencies can" -- and batch 16 is newer.
+--
+-- Inverted rather than deleted, because the SHAPE of the assertion is still
+-- the useful one: the same deal, the same rent, the same pair, on a rail
+-- that is not ours. What changed is the expected answer, and a reader
+-- finding Q-06's rule needs to be able to see which one is live.
+--
+-- The money is asserted in full in
+-- supabase/tests/a_supplier_may_refer_a_joint_tenancy.test.sql, including
+-- that the direct rail still refuses.
 -- ===========================================================================
 select set_config('request.jwt.claims',
   '{"sub":"97000000-0000-0000-0000-00000000c002","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
 
-select throws_ok(
+select lives_ok(
   $$select public.create_joint_referral(
       '97000000-0000-0000-0000-0000000000b2',
       '[{"title":"Mx","first":"Sam","last":"Supplier","dob":"1992-04-01",
@@ -219,8 +231,7 @@ select throws_ok(
         {"title":"Mx","first":"Sky","last":"Supplier","dob":"1993-05-02",
          "email":"zzz.sky@r.test","phone":"07700900304","share_percent":50}]'::jsonb,
       '2 Supplier Street', null, 'London', null, 'W1B 3AA', 2400, current_date + 30)$$,
-  '22023', null,
-  'while a supplier who sends us one tenant at a time is still refused, on the ESTATE question');
+  'while a supplier may now refer one too, which Q-06 item H forbade and batch 16 allows');
 
 reset role;
 select * from finish();
