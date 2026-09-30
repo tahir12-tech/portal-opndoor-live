@@ -287,9 +287,77 @@ narrow, so the agency path had never been measured by anything.
    bottom of this section, and carried to the final report as one plain
    sentence with its options.
 
-### Open questions for Matt (filled in as they arise)
+### Progress
 
-_None yet._
+| item | state |
+| ---- | ----- |
+| Home wording | **done** `065b72d` (checked on dev before the freeze) |
+| View as stopgap | **done** `66c8d5e` |
+| The three small ones | **done** `9b68c48` |
+| M4 | **already fixed** by `dee9079`. The `todo` row below is stale. Only an ADJACENT defect is open, and it needs a decision (Q1). |
+| M9 | **two of three done** `9427d43`. M9-b and a fourth site need decisions (Q2, Q3). |
+| M10 | **not real as recorded.** A different, real defect sits next to it and needs a decision (Q4). |
+| The eight lows | **four already done** (verified, not taken on trust); **three done** `320eb4c`; one open and needing decisions (Q5). |
+| The allowlist ratchet | mapped, not built. Needs a decision about what the goal is (Q6). |
+| Walk fix 22a | mapped, not built. The timeout half is **not real**. Two decisions (Q7, Q8). |
+| Walk fix 23 | mapped, not built. The two buttons Matt named need no decision; the rest is 29 actions and needs one (Q9). |
+
+**Everything since the freeze is in the `fix-the-seven` worktree, unmerged
+and undeployed.** No migration has touched dev. Verification is the local
+clean-apply cluster: 352 migrations apply cleanly, 69 pgTAP files / 990
+assertions / 0 failing, and 143 vitest files / 1528 tests / typecheck clean.
+
+### Open questions for Matt
+
+Collected rather than guessed, per his instruction. One sentence each.
+
+**Q1. The agent's correction link on a joint tenancy.** R5 made a tenancy
+have one start date, but the agent's unauthenticated 7-day link bypasses
+that RPC and moves one application, leaving the co-tenant's executed deed
+on the old date: should that link refuse joint tenancies and fall back to
+a report Opndoor applies through the audited staff path, or should it move
+the whole tenancy and reissue every sibling deed with no sign-in behind it?
+
+**Q2. What "What they earned" means on a group page.** The group's own cut
+only, or the group plus every agency and branch under it?
+
+**Q3. A direct signup on the agency volume chart.** A direct row matched to
+Regent currently appears under Regent's NAME on an admin's agency
+breakdown (namespaced by partner, so not merged with Regent's own row, but
+named the same): should it show as "Direct" instead, or be dropped from
+the agency breakdown entirely?
+
+**Q4. Supplier colleagues and notification settings.** `caller_may_set_for`
+blocks a supplier's own management from reading or changing their
+colleagues' notification settings, because it requires a position and the
+supplier rail has none: should a supplier's management manage their
+colleagues' notifications at all, and if so is it any `role='management'`
+in that partner?
+
+**Q5. localStorage after sign-out.** Working copies survive sign-out and
+can carry another agency's contact details; three calls: does the help
+cache (which can hold uploaded PDFs as data URLs) get cleared, should
+sign-out clear everything or only party data, and does a shared-device
+warning belong on the login screen?
+
+**Q6. The ratchet: the number or the guarantee?** A day's work takes the
+uncovered list from 35 to about 14 by writing cheap MFA-only assertions,
+but the 14 dev-centre reads are the only ones that would prove anything
+about the supplier boundary -- so is the goal the count coming down, or
+the boundary being proven?
+
+**Q7. The "Merge into..." button on Reconciliation** has been permanently
+disabled with "coming in a later release": remove it now, or leave it?
+
+**Q8. A 100% name match with exactly one branch.** An exact EMAIL match
+already links itself with no click; should an exact NAME match on an
+agency that has only one branch do the same, or must a person always press
+the button?
+
+**Q9. The size of walk fix 23.** "Any other admin action that changes
+records in one click" is **29 actions across the product**, not the two on
+Reconciliation: confirm all 29 (roughly a week), or only the 19 that
+cannot be undone or that send something outward (roughly three days)?
 
 ---
 
