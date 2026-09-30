@@ -151,6 +151,41 @@ referral pays before its deed is issued, and some paid referrals never
 get one. The sentence names a denominator that did not produce the
 numerator.
 
+## COMMISSION IS EDITED ON THE COMMISSION TAB, AND ONLY THERE (instruction, 2026-09-30, verbatim). ACTIVE, with the supplier statement.
+
+> Supplier commission is edited only on the supplier's Commission tab, under the new model: the supplier's total rate, the agents' share within it with volume tiers, and whether Opndoor pays agents directly. Remove the two flat commission boxes from Manage. Existing suppliers' current rates carry over so nothing changes for them on the day. On the Suppliers page and Manage, replace "partner" with "supplier" throughout (Add partner, All partners, partner companies). Deploy to dev and check there.
+
+This is the EDITOR for the model landed in 20261007060000, and it closes
+NM-C 3 and 4 ("the editor's shape is NM-C questions 3 and 4 and is not
+mine to decide" -- supplierPageTabs.render.test.tsx). It is now decided.
+
+### "EXISTING SUPPLIERS' CURRENT RATES CARRY OVER SO NOTHING CHANGES FOR THEM ON THE DAY"
+
+That sentence is the one to be careful about, because under the new model
+the same two columns mean something different. Today `partner_rate` is
+the supplier's own cut and `agent_rate` is separate; from 060000
+`partner_rate` is the TOTAL and `agent_rate` is carved out of it.
+
+So "nothing changes" is true of what is STORED and not automatically
+true of what is PAID. Measured before 060000 shipped: no real supplier
+on dev has a single paid referral, so nothing has ever been paid under
+either reading and there is nothing to carry over in the money. What
+carries over is the numbers in the boxes.
+
+**A supplier whose agent_rate exceeds its partner_rate would, under the
+new reading, have an agents' share larger than the total.**
+`supplier_agent_rate()` already caps it at the total so the invariant
+holds, but a supplier in that state is misconfigured and the editor
+should say so rather than silently flooring their share to zero.
+
+### AND ONE EDITOR, NOT TWO
+
+"Remove the two flat commission boxes from Manage." Two screens editing
+one number is how they come to disagree, and the Manage modal is also
+the only way to CREATE a supplier -- so removing the boxes must not
+remove the Add path, which is the trap already recorded against the
+Suppliers list.
+
 ## ADMIN REPORTING, EVERY CUSTOMER AND VOLUME BY SUPPLIER (instruction, 2026-09-30, verbatim). ACTIVE, with the Reporting fixes below.
 
 > Admin Reporting: the "Every customer" table shows the top 10 by fees collected, with a search box and a "Show all" option, and a switch between Agencies and Suppliers. Add a "Volume by supplier" card alongside Volume by agency, same style. Deploy to dev and check there.
