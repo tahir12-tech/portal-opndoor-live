@@ -15,6 +15,43 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## CLEAR THE QUEUE (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+
+> Clear the whole queue now, without stopping: the Home wording change ("Awaiting decision, Sent and Paid show who is there now. Deed issued is all time."), round 6's M4, M9, M10, the eight lows, the allowlist ratchet, and walk fixes 22a and 23. Keep the audit to the three items you just built; no new review rounds. Deploy each to dev and check it there before marking it done.
+>
+> Anything that needs my decision, don't guess and don't stop: build everything around it, then give me all the open questions together at the end, one plain sentence each with the options.
+
+### What this covers, resolved to the items in this file
+
+| # | item | where it is recorded |
+| - | ---- | -------------------- |
+| 1 | Home wording: "Awaiting decision, Sent and Paid show who is there now. Deed issued is all time." | new, from this instruction |
+| 2 | Round 6 **M4** -- tenancy-correction replay guard is per-token | line ~3616 |
+| 3 | Round 6 **M9** -- direct-rail rows counted as agency business in the client | line ~3622 |
+| 4 | Round 6 **M10** -- `set_receives_notifications` cannot reach a supplier colleague | line ~3623 |
+| 5 | The **eight lows** | line ~3626 |
+| 6 | The **definer allowlist ratchet** | `definerAllowlistCoverage.test.ts` |
+| 7 | **Walk fix 22a** | walk batch, parked "after shipping" |
+| 8 | **Walk fix 23** | walk batch, parked "after shipping" |
+
+### The three standing rules for this run
+
+1. **No new review rounds.** The audit already running covers NM-M, NM-N and
+   the opndoor_manager fix and nothing else. The security review loop stays
+   closed.
+2. **Each item is deployed to dev and checked there before it is marked
+   done.** Not at the end, per item.
+3. **Decisions are not guessed and do not stop the run.** Anything needing
+   Matt is built around, recorded under "Open questions for Matt" at the
+   bottom of this section, and carried to the final report as one plain
+   sentence with its options.
+
+### Open questions for Matt (filled in as they arise)
+
+_None yet._
+
+---
+
 ## NM-M AND NM-N ANSWERED, PLUS ONE MORE (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
 
 > NM-M: keep View as, moved to a "View as" button on each agency and supplier page; delete the Reporting scope picker. NM-N: don't create companies in HubSpot automatically; list agencies a direct tenant named that we don't work with on the Reconciliation page, with the agent contact given, for someone to add to HubSpot by hand. Also fix the blank Reporting page for opndoor_manager. Deploy to dev and check each there, then stop and report.
