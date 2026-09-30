@@ -62,11 +62,16 @@ export function Home() {
   // invited-manager decision); everyone else lands on their book (Reporting).
   if (!isOpndoorStaff) return <ManagerLanding />;
 
+  /* WALK FIX 25. "Label every number with what it counts: the four queue
+     tiles as 'waiting now'." Every one of these is a snapshot of what is
+     sitting in a queue at this moment, and nothing on the page said so, so
+     a reader had no way to tell them from a total for some period. Matt's
+     own words, on the meta line each tile already has. */
   const tiles = [
-    { label: 'Awaiting decision', n: awaiting, meta: 'need an eligibility decision', to: '/applications?status=referencing', tone: 'warn' as const },
-    { label: 'Agency matches', n: matches, meta: 'direct tenants, unmatched agent', to: '/reconciliation?tab=matches', tone: 'accent' as const },
-    { label: 'Reconciliation', n: recon, meta: 'agencies/branches to review', to: '/reconciliation', tone: 'accent' as const },
-    { label: 'Delivery failed', n: deliveryFailed, meta: 'deed not delivered', to: '/applications?deed=delivery-failed', tone: 'danger' as const },
+    { label: 'Awaiting decision', n: awaiting, meta: 'waiting now for an eligibility decision', to: '/applications?status=referencing', tone: 'warn' as const },
+    { label: 'Agency matches', n: matches, meta: 'waiting now: direct tenants, unmatched agent', to: '/reconciliation?tab=matches', tone: 'accent' as const },
+    { label: 'Reconciliation', n: recon, meta: 'waiting now: agencies and branches to review', to: '/reconciliation', tone: 'accent' as const },
+    { label: 'Delivery failed', n: deliveryFailed, meta: 'waiting now: deed not delivered', to: '/applications?deed=delivery-failed', tone: 'danger' as const },
   ];
 
   // Direct signups — tenants who came to Opndoor directly (route 'Direct', no
@@ -78,11 +83,24 @@ export function Home() {
      all, and the card was the largest thing on a page whose job is to say what
      needs doing. */
   const directTotal = direct.referencing + direct.sent + direct.paid + direct.deed;
+  /* WALK FIX 25, and the label is not one label. `countByStatus` above is
+     called with no periodRange, so it is ALL TIME, and it counts CURRENT
+     STATUS rather than events in a window: a row is under `sent` because it
+     is sitting at Sent now, not because it was sent recently.
+
+     Which makes three of these four a snapshot and the fourth a lifetime
+     total. Awaiting decision, Sent and Paid are states a referral waits in
+     and leaves; Deed issued is terminal, so nothing leaves it and that
+     number grows for ever. One period label over all four would be wrong
+     about three of them or about the fourth, so each says what it is.
+
+     Whether the panel should offer a period at all is Matt's, recorded as
+     NM-L. This labels what is there. */
   const directStages = [
-    { label: 'Awaiting decision', n: direct.referencing, to: '/applications?route=Direct&status=referencing' },
-    { label: 'Sent', n: direct.sent, to: '/applications?route=Direct&status=sent' },
-    { label: 'Paid', n: direct.paid, to: '/applications?route=Direct&status=paid' },
-    { label: 'Deed issued', n: direct.deed, to: '/applications?route=Direct&status=deed' },
+    { label: 'Awaiting decision', n: direct.referencing, counts: 'waiting now', to: '/applications?route=Direct&status=referencing' },
+    { label: 'Sent', n: direct.sent, counts: 'waiting now', to: '/applications?route=Direct&status=sent' },
+    { label: 'Paid', n: direct.paid, counts: 'waiting now', to: '/applications?route=Direct&status=paid' },
+    { label: 'Deed issued', n: direct.deed, counts: 'all time', to: '/applications?route=Direct&status=deed' },
   ];
 
   return (
@@ -127,7 +145,7 @@ export function Home() {
       <Card>
         <CardHead
           title="Direct signups"
-          sub="Tenants who came to Opndoor directly, with no agency or supplier, by stage."
+          sub="Tenants who came to Opndoor directly, with no agency or supplier, by stage. Three of these are how many are sitting there now; Deed issued is every direct deed ever issued."
           actions={<Link className="home-viewall" to="/applications?route=Direct">View all Direct <Icon name="arrowRight" size={13} /></Link>}
         />
         <CardBody>
@@ -136,6 +154,7 @@ export function Home() {
               <Link key={s.label} to={s.to} className={`home-stage${s.n > 0 ? '' : ' home-stage--empty'}`}>
                 <div className="home-stage__n">{s.n}</div>
                 <div className="home-stage__l">{s.label}</div>
+                <div className="home-stage__c">{s.counts}</div>
               </Link>
             ))}
           </div>
