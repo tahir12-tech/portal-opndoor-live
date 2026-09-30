@@ -149,10 +149,20 @@ describe('the dashboard a director at one of our agencies reads', () => {
     expect(tile.querySelector('.comm-headline')!.textContent).toMatch(/^£[\d,]+$/);
   });
 
-  it('agrees with its own count at one deed', async () => {
+  /* THE NOUN STILL AGREES AT ONE, and the noun has changed. Matt,
+     2026-09-30: the description counted issued deeds when the fees came
+     from all PAID REFERRALS, which is a larger and different set -- a
+     referral pays before its deed is issued and some never get one.
+
+     What this case protects is unchanged and is the reason it exists: at
+     a count of one the sentence must not read "1 paid referrals". That
+     was the original bug ("across 1 issued deeds"), and writing the copy
+     against the formatted string rather than the number is how it
+     happened, so the count here is deliberately one. */
+  it('agrees with its own count at one paid referral', async () => {
     const view = await openDashboard('management');
-    expect(feesTile(view).textContent).toMatch(/across 1 issued deed,/);
-    expect(feesTile(view).textContent).not.toMatch(/issued deeds/);
+    expect(feesTile(view).textContent).toMatch(/across 1 paid referral,/);
+    expect(feesTile(view).textContent).not.toMatch(/paid referrals/);
   });
 });
 
