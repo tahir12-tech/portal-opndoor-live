@@ -15,6 +15,37 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## DELIVERY PANEL SHOWS WHAT HAPPENED (instruction, 2026-09-30, verbatim). ACTIVE, after the Reporting fixes.
+
+> Application detail: the Delivery panel must show where the deed was actually sent and when, from the send record, never who it would go to under today's rules. If it hasn't been sent, say who it will go to. On GR-20845 it should show manager@regent.dev.test. Also, for a single-office agency, Referring agent shows just the agency and its own address, no Branch line. Deploy to dev and check there.
+
+Two things, and the first is a real defect rather than copy.
+
+### THE DEFECT: A PANEL THAT ANSWERS THE WRONG QUESTION
+
+"Where was this sent" and "where would this go" are different questions,
+and the panel has been answering the second while looking like the first.
+They diverge the moment anybody changes a deed recipient, a primary
+contact or a branch after a deed went out, and then the panel confidently
+names somebody who never received it. A concrete check comes with it:
+**GR-20845 should read manager@regent.dev.test.**
+
+- **The send record is the source.** Find what actually stores it before
+  deciding anything: there is a deed recipient concept
+  (`branch_deed_recipient`), a deed lifecycle on the application, and
+  `the_deed_goes_to_the_referrer.test.sql` / `the_ticked_user_gets_the_deed.test.sql`
+  already pin who SHOULD get one. None of those is a record of who DID.
+- **Unsent is the other half and must stay predictive**: "say who it will
+  go to". So the panel has two modes and the test needs both, or the fix
+  turns an unsent application's panel blank.
+
+### AND NM-P AGAIN, ON ONE MORE SURFACE
+
+Single-office agency: Referring agent shows the agency and its own
+address, no Branch line. `agencyOffices()` / `officeLabel()` are already
+built and applied at six client surfaces; this is a seventh. It is the
+cheap half of this instruction.
+
 ## ADMIN REPORTING FIXES (instruction, 2026-09-30, verbatim). ACTIVE, after the supplier statement.
 
 > Admin Reporting fixes: remove "All partners" from the page header. Direct signups never appear in Volume by branch, Volume by agency or any agency chart (no "Unattached" row); this answers Q3. Rename "Commission by partner" to "Commission by route" and replace "Partner" wording in it with "Supplier" or "Route" as appropriate. On the admin view, retitle "Your commission" to "Commission owed". Update the bordereau description to say it lists guarantees in force during the month. Deploy to dev and check there.
