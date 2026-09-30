@@ -46,6 +46,43 @@ address, no Branch line. `agencyOffices()` / `officeLabel()` are already
 built and applied at six client surfaces; this is a seventh. It is the
 cheap half of this instruction.
 
+## TOTAL GUARANTEED RENT VALUE, AND THE NET FEES DESCRIPTION (instruction, 2026-09-30, verbatim). ACTIVE, with the other Reporting work.
+
+> Reporting, Total guaranteed rent value: for any period it counts every executed deed whose 12-month cover overlaps the period, including cover that starts after today; for all time that is every executed deed. Each is 12 months' rent (a joint tenancy counted once). Add a test that, for the same set of deeds, guaranteed rent is never less than fees collected. Also fix the Net fees description: it currently says fees were collected "across 5 issued deeds" when they came from all paid referrals. Deploy to dev and check there.
+
+### THE MEASURE IS DEFINED BY OVERLAP, NOT BY A DATE INSIDE THE PERIOD
+
+"every executed deed whose 12-month cover overlaps the period, including
+cover that starts after today". That is a different question from the one
+every other Reporting measure asks, which is "did the event fall in the
+period". Two consequences worth writing down before building:
+
+- **A deed executed today for a tenancy starting in March counts in
+  March's period, and in every period its 12 months touch.** Future
+  cover is deliberately in scope.
+- **So one deed appears in up to 13 monthly periods.** It is a stock
+  measure, not a flow, and it must never be summed across periods.
+
+**A joint tenancy is counted once.** The tenancy is the unit, not the
+application, and joint tenancies are the case that makes a naive sum
+double or treble a let.
+
+### THE INVARIANT HE ASKED FOR, and it is the useful half
+
+"for the same set of deeds, guaranteed rent is never less than fees
+collected". Twelve months' rent against one month's fee, so the ratio is
+enormous and the test is really a shape check: it catches a period filter
+that picks up fees from deeds the rent measure excluded, which is exactly
+the bug class the current description points at.
+
+### AND THE DESCRIPTION IS A REAL WRONGNESS, not a wording preference
+
+Net fees says fees were collected "across 5 issued deeds". They came from
+all paid referrals, which is a larger set than the issued deeds: a
+referral pays before its deed is issued, and some paid referrals never
+get one. The sentence names a denominator that did not produce the
+numerator.
+
 ## ADMIN REPORTING, EVERY CUSTOMER AND VOLUME BY SUPPLIER (instruction, 2026-09-30, verbatim). ACTIVE, with the Reporting fixes below.
 
 > Admin Reporting: the "Every customer" table shows the top 10 by fees collected, with a search box and a "Show all" option, and a switch between Agencies and Suppliers. Add a "Volume by supplier" card alongside Volume by agency, same style. Deploy to dev and check there.
