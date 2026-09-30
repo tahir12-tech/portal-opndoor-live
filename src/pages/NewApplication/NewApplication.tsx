@@ -26,6 +26,7 @@
 import { gbpPence } from '@/lib/format';
 import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { mayAddAnotherTenant } from './jointAllowed';
 import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, rebalanceShares, shareSumError } from './shareMath';
 import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, originReferencingMode, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, UNRESOLVED, newApplicationSectionCopy, type OrgShape } from '@/data';
 import { Modal } from '@/components/ui/Modal';
@@ -207,7 +208,17 @@ export function NewApplication() {
      probe, because the probe answers about the BRANCH and the admin has just
      told us the route, and those are the two things that can disagree for an
      agency a supplier introduced. */
-  const jointAllowed = railState === 'ready' && estate && referredBy !== 'supplier';
+  /* WALK FIX 26 REVERSED THIS. It read `estate && referredBy !== 'supplier'`,
+     which was Q-06 item H's rule: "single tenant (no Add another tenant)" on
+     the supplier path. Batch 16 says the opposite and is newer.
+
+     ONE PREDICATE, IN ITS OWN FILE, because the same question is asked by
+     the effect below that DROPS tenants already typed -- and that one still
+     read `estate`. Changing only the button would have left the two
+     disagreeing, so the moment the rail probe settled it would have wiped
+     the tenants an admin had just added on the one path this opens. See
+     jointAllowed.ts. */
+  const jointAllowed = mayAddAnotherTenant({ referredBy, routeSupplier, railState, estate });
   const rentNum = Number(values.rent);
   const pctNums = percents.map((p) => Number(p));
 
@@ -323,16 +334,28 @@ export function NewApplication() {
      selection on every keystroke, so keying on "not allowed" threw away
      everything the moment somebody touched that field to correct a typo. The
      tenants survive an incomplete or in-flight origin and are removed only when
-     the rail has actually come back as something that cannot carry them. */
+     the rail has actually come back as something that cannot carry them.
+
+     WALK FIX 26 CHANGED WHAT "CANNOT CARRY THEM" MEANS, and this is where
+     the reversal would have done real damage if it had been missed: the
+     test was `estate`, which is false for a supplier, so the moment the
+     rail probe came back it would have silently WIPED the tenants an admin
+     had just added on the supplier route -- the one path the fix exists to
+     open. It asks `jointAllowed` now, which is the same question the button
+     asks, so the two cannot disagree about whether a second tenant is
+     allowed to exist.
+
+     Still only on a settled answer: `jointAllowed` is false while the
+     agency path's probe is in flight, so the guard above it stays. */
   useEffect(() => {
     if (railState !== 'ready') return;
-    if (estate) { setRailNote(''); return; }
+    if (jointAllowed) { setRailNote(''); return; }
     if (extra.length === 0) return;
     setExtra([]);
     setPercents([String(DEFAULT_SHARE_PERCENT)]);
-    setRailNote('This supplier\u2019s referrals cover one tenant each, so the additional tenants were removed.');
+    setRailNote('This referral covers one tenant, so the additional tenants were removed.');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [railState, estate]);
+  }, [railState, jointAllowed]);
 
   const pctKey = percents.join(',');
   useEffect(() => {
@@ -666,12 +689,14 @@ export function NewApplication() {
                     <Icon name="plus" /> Add another tenant
                   </button>
                   <p className="tn-gate__why" id="tn-gate-why">
+                    {/* WALK FIX 26: the supplier line is gone with the rule
+                        it explained. "This partner sends them one tenant at a
+                        time" beside a button that now works would teach a
+                        rule the product no longer has. What is left is the
+                        agency path, where the answer really does depend on a
+                        branch nobody has chosen yet. */}
                     {referredBy === 'supplier'
-                      /* KNOWN FROM THE ROUTE, not from the branch. Once an
-                         admin has said the referral came through a supplier,
-                         the answer is settled and there is no reason to tell
-                         them to choose a branch to find out. */
-                      ? 'A supplier sends us referrals one tenant at a time. Refer each tenant separately.'
+                      ? 'Choose the supplier first.'
                       : railState === 'none'
                       ? 'Choose the agent and branch first: whether a referral can cover more than one tenant depends on who it is for.'
                       : railState === 'loading'

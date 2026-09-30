@@ -181,20 +181,31 @@ select throws_ok(
   'moving an all-in agency under a group that already charges is refused too');
 
 -- ---------------------------------------------------------------------------
--- A JOINT TENANCY IS AGENT-RAIL ONLY.
+-- A JOINT TENANCY IS NO LONGER AGENT-RAIL ONLY.
+--
+-- This block asserted that the RPC refuses one on a pre-referenced rail,
+-- which was right: Q-06 item H's rule was "single tenant (no Add another
+-- tenant)" on the supplier path. Walk fix 26, batch 16, reverses it and is
+-- newer.
+--
+-- The first assertion is untouched and still earns its place: the form has
+-- to be able to ASK which rail an origin runs on, whatever it then does
+-- with the answer. The second is inverted, not deleted, so that a reader
+-- who finds Q-06's rule can see which one is live. The money and the
+-- direct-rail refusal are asserted in
+-- supabase/tests/a_supplier_may_refer_a_joint_tenancy.test.sql.
 -- ---------------------------------------------------------------------------
 select is(
   public.origin_referencing_mode('Supplier Agency', 'Supplier Branch', 'zzz-guard-supplier'),
   'pre_referenced_open',
   'the form can ask which rail an origin runs on before it offers a second tenant');
 
-select throws_ok(
+select lives_ok(
   $$select public.create_joint_referral('93000000-0000-0000-0000-000000000008',
       '[{"title":"Ms","first":"A","last":"One","dob":"1990-01-01","email":"a@example.test","phone":"07700 900001","share_percent":50},
         {"title":"Mr","first":"B","last":"Two","dob":"1991-01-01","email":"b@example.test","phone":"07700 900002","share_percent":50}]'::jsonb,
       '1 Test Road', null, 'London', null, 'NW1 8LH', 2000, current_date + 30)$$,
-  '22023', null,
-  'and the RPC refuses a joint tenancy on a pre-referenced rail whatever the form offered');
+  'and the RPC now accepts one on a pre-referenced rail, which batch 16 asked for');
 
 select * from finish();
 rollback;
