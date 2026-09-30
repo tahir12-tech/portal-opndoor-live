@@ -19,8 +19,9 @@ import {
 } from '@/data';
 import { isAgencyUser } from '@/data/capabilities';
 import { KEYS, loadString, saveString } from '@/data/storage';
-import { ORIGIN_ALL, isOneParty, partnerFor, type OriginScope } from '@/data/origin';
+import { ORIGIN_ALL, figuresFollow, partnerFor, type OriginScope } from '@/data/origin';
 import { clearScopeRecents, rememberScope } from '@/data/scopeRecents';
+import { forgetTheSignedOutUser } from '@/data/forgetTheSignedOutUser';
 import { ROLES, type RoleIdentity } from '@/constants/roles';
 import { SUPABASE_ENABLED, supabase } from '@/lib/supabase';
 import { hydrateFromSupabase } from '@/lib/hydrate';
@@ -281,6 +282,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           saveString(KEYS.scopeSel, ORIGIN_ALL);
           setScopeSelState(ORIGIN_ALL);
           clearScopeRecents();
+          /* AND NOT THE PREVIOUS SEAT'S BOOK EITHER. This branch already
+             reset the PREFERENCES a new seat must not inherit and left
+             the DATA standing: the org working copy carries agent
+             contacts for every agency the last user could reach. The
+             hydrate below will overwrite it, but not until it returns,
+             and it is only started when the user actually changes. */
+          forgetTheSignedOutUser();
         }
         // Start hydration exactly once per user; concurrent resolves reuse and
         // await the same promise. Critically, 'ready' is only set AFTER this
@@ -343,6 +351,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       saveString(KEYS.scopeSel, ORIGIN_ALL);
       setScopeSelState(ORIGIN_ALL);
       clearScopeRecents();
+      /* ROUND 6's LAST LOW. The four lines above reset the preferences a
+         next seat must not inherit; none of them touched the DATA.
+         `grp_org_v3` holds every agency and branch this user could reach
+         WITH their agent contacts on them, and `grp_partners_v2` holds
+         every partner's commission rates, and both survived a sign-out
+         on whatever machine that was. */
+      forgetTheSignedOutUser();
       await authService.signOut();
       setProfile(null);
       setStatus('signedOut');
@@ -379,7 +394,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const partnerScope = role === 'superadmin' ? selectedPartner
     : role === 'opndoor_manager' ? ALL_PARTNERS
       : homePartner();
-  const viewingAs = role === 'superadmin' && isOneParty(scopeSel) ? scopeSel : null;
+  /* VIEWING AS A PARTY MEANS THE PAGE IS THAT PARTY'S PAGE, so it may only
+     be true where the figures are actually theirs. `figuresFollow` is that
+     test and today it admits `partner:<slug>` alone: see its note in
+     origin.ts for why an `agency:` or `group:` selection currently changes
+     the wording and the gates without moving a single number.
+
+     Matt's stopgap, 2026-09-30: "make sure no banner can claim a party the
+     figures don't reflect." Narrowed HERE rather than on the button,
+     because the button is only one of the doors: Applications' own Origin
+     picker writes the same shared `scopeSel`, and the value is restored
+     from localStorage on every load.
+
+     `isOneParty` has no caller left after this change. It is kept, and kept
+     exported, because it is the question this line SHOULD be asking and
+     will ask again the moment the figures follow the selection. Deleting it
+     and re-deriving it later is how the distinction gets lost. */
+  const viewingAs = role === 'superadmin' && figuresFollow(scopeSel) ? scopeSel : null;
 
   /* THE LABEL UNDER THE NAME, in the words the agency uses for itself.
 

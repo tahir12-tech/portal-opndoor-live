@@ -17,6 +17,37 @@
  * something that ends it, and `scopeSel` is shared with Applications, so an
  * admin who views as Regent and cannot stop would find that list narrowed
  * too, with no control on either screen. Hence the banner.
+ *
+ * ---------------------------------------------------------------------
+ * REWRITTEN 2026-09-30, AFTER AN AUDIT FOUND THE SHIPPED CONTROL BROKEN.
+ *
+ * What the twelve assertions below originally proved: that pressing the
+ * button wrote the right string to localStorage and that a banner appeared
+ * with the right words in it. Every one passed. None of them looked at a
+ * NUMBER, and the number was the thing that was wrong.
+ *
+ * `partnerFor` turns a selection into the partner scope every figure on
+ * Reporting is keyed on, and it can only do that when the selection names a
+ * partner. On the agency rail the partner is a ROUTE shared by every
+ * agency, so `agency:` and `group:` both leave the scope at ALL_PARTNERS;
+ * the narrowing was supposed to happen afterwards in `scopeFull`'s fourth
+ * argument, which no production call site passes. So "View as Regent's
+ * Lettings" put "This is the page their management sees" over Opndoor's
+ * whole estate.
+ *
+ * The older test that looked like it covered this -- viewAsIsTheParty,
+ * describe block "the same admin, viewing as one of our agencies" --
+ * actually stages `partner:northwind`, the supplier-shaped arm that DOES
+ * narrow. So the agency path had never been measured by anything.
+ *
+ * MATT'S STOPGAP, verbatim: "hide View as on agency and group pages, keep
+ * it on supplier pages where it works, and make sure no banner can claim a
+ * party the figures don't reflect."
+ *
+ * So this file now asserts the stopgap, and it asserts it by MEASURING A
+ * FIGURE, not by reading a caption. The proper fix is recorded in QUEUE.md
+ * as the first item after shipping; when it lands, the group and agency
+ * blocks below come back and this header goes.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
@@ -27,22 +58,57 @@ import { PageMetaProvider } from '@/components/layout/pageMeta';
 import { Dashboard } from './Dashboard';
 import { AgencyHome } from '@/pages/Agencies/AgencyHome';
 import { PartnerHome } from '@/pages/PartnerManagement/PartnerHome';
+import { Applications } from '@/pages/Applications/Applications';
 import { KEYS } from '@/data/storage';
-import { hydrateCommissionVisibility, getAgencies, getPartners, hydrateGroups, hydrateOrg, ALL_PARTNERS } from '@/data';
+import { hydrateCommissionVisibility, getAgencies, getPartners, hydrateGroups, hydrateOrg, partnerName, ALL_PARTNERS } from '@/data';
+import { hydrateFull, type FullApp } from '@/data/applicationsService';
 import { ORG_SEED } from '@/data/mock/org';
 import type { Agency } from '@/data';
 
 const AGENCY = getAgencies(ALL_PARTNERS).filter((a) => !a.isPlaceholder)[0];
 const SUPPLIER = getPartners()[0];
 
-beforeEach(() => { localStorage.clear(); hydrateCommissionVisibility(true); });
+/* A BOOK WITH EXACTLY TWO CUSTOMERS IN IT: one of our agencies, carried on
+   the house partner, and one real supplier. Two is the smallest book in
+   which "did the page narrow" is a question with a visible answer, and the
+   per-customer table on Reporting names both, so the answer can be read off
+   the screen instead of computed. This fixture is the thing the original
+   twelve assertions did without, which is why they could all pass while
+   every figure on the page was wrong. */
+const D = (y: number, m: number, d: number) => new Date(y, m, d);
+const app = (over: Partial<FullApp>): FullApp => ({
+  ref: 'GR-VA-1', partner: 'opndoor-agents', agency: AGENCY.name,
+  branch: 'Chelsea', agencyId: AGENCY.id, branchId: 'br-1',
+  referrer: 'Tom Reeve', referrerId: 'u-tom', referrerRole: 'referrer',
+  referrerSeesCommission: false, owner: 1,
+  rent: 2000, fee: 2000, agentRate: 0.25, partnerRate: 0.25,
+  status: 'deed', deedState: 'executed',
+  sentAt: D(2026, 3, 10), paidAt: D(2026, 3, 20), deedAt: D(2026, 4, 1),
+  tenancyStart: D(2026, 4, 2), expiry: D(2027, 4, 1),
+  refunded: false, partiallyRefunded: false, withdrawn: false, expired: false,
+  refundedAt: null, refundedAmount: null, refundAfterStart: false,
+  deedSentAt: null, deedViewedAt: null,
+  ...over,
+} as unknown as FullApp);
+
+const BOOK = [
+  app({ ref: 'GR-AGENCY' }),
+  app({ ref: 'GR-SUPPLIER', partner: SUPPLIER.id, agency: partnerName(SUPPLIER.id) }),
+];
+
+/** Both customers, which is what the page shows when it has not narrowed. */
+const estateWide = [AGENCY.name, partnerName(SUPPLIER.id)].sort();
+
+beforeEach(() => { localStorage.clear(); hydrateFull(BOOK); hydrateCommissionVisibility(true); });
 afterEach(() => {
   cleanup();
+  hydrateFull([]);
   hydrateCommissionVisibility(true);
   // The selection is remembered and shared with Applications, so it outlives
   // the component and would hand the next test a narrowed book.
   localStorage.removeItem(KEYS.scopeSel);
   localStorage.removeItem(KEYS.scopeRecents);
+  localStorage.removeItem(KEYS.partner);
 });
 
 async function open(role: string, path: string) {
@@ -52,6 +118,7 @@ async function open(role: string, path: string) {
       <ToastProvider><SessionProvider><PageMetaProvider>
         <Routes>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/applications" element={<Applications />} />
           <Route path="/agencies/:key" element={<AgencyHome />} />
           <Route path="/partners/:key" element={<PartnerHome />} />
         </Routes>
@@ -61,6 +128,26 @@ async function open(role: string, path: string) {
   await waitFor(() => { if (!view.container.querySelector('.page-head')) throw new Error('not ready'); });
   await act(async () => {});
   return view;
+}
+
+/**
+ * STAGE A SELECTION THE WAY THE APP MAKES ONE.
+ *
+ * Writing `scopeSel` alone is NOT what happens when a user chooses a party,
+ * and a test that does it measures a state the product cannot produce. The
+ * single writer is `SessionContext.setScopeSel`, and it does two things:
+ * persists the selection, and calls `setSelectedPartner(partnerFor(v))`.
+ * `partnerFor` yields a real slug for `partner:<slug>` and ALL_PARTNERS for
+ * everything else -- which is the whole reason an agency selection narrows
+ * nothing, so a test that skipped this step could never see it.
+ *
+ * Found by this file's own first run: staging `partner:<slug>` without the
+ * partner key left the supplier case looking as broken as the agency one,
+ * which would have been a false accusation against the one arm that works.
+ */
+function stageSelection(sel: string) {
+  localStorage.setItem(KEYS.scopeSel, sel);
+  localStorage.setItem(KEYS.partner, sel.startsWith('partner:') ? sel.slice('partner:'.length) : ALL_PARTNERS);
 }
 
 type View = Awaited<ReturnType<typeof open>>;
@@ -77,128 +164,74 @@ describe('the Reporting scope picker', () => {
 
   /* AND IS STILL ON APPLICATIONS, which is a different job on a different
      screen: narrowing a list, not choosing whose report to read. Walk fix 7
-     fixed it there and NM-F's deletion was only ever about Reporting. That
-     is asserted in originPicker.render.test.tsx; named here so the two
-     cannot be confused by somebody deleting "the picker". */
-  it('while Applications keeps its own, which item 7 fixed', () => {
-    // Asserted in src/pages/Applications/originPicker.render.test.tsx.
-    expect(true).toBe(true);
+     fixed it there and NM-F's deletion was only ever about Reporting.
+
+     THIS USED TO BE `expect(true).toBe(true)` with a comment pointing at
+     another file, which an audit called out and was right to. A test named
+     for a behaviour that exercises no code is worse than no test: it counts
+     in the total, it goes green when the behaviour is deleted, and it reads
+     as coverage. If the claim is worth a name here it is worth a render
+     here, and the two-line render below is what it costs.
+
+     It also matters more than it did this morning. With `viewingAs`
+     narrowed to `partner:` selections, this picker is the ONLY control in
+     the product that can write an `agency:` or `group:` value -- which is
+     precisely how one still reaches Reporting and why the stopgap had to
+     go in SessionContext rather than on the button. */
+  it('while Applications keeps its own, which item 7 fixed', async () => {
+    const v = await open('superadmin', '/applications');
+    expect(v.container.querySelector('.scopepick'), 'no Origin picker on Applications').toBeTruthy();
   });
 });
 
-describe('the View as button on an agency page', () => {
-  it('is offered to Opndoor staff', async () => {
+describe('the View as button is NOT on an agency page', () => {
+  /* MATT'S STOPGAP. It was there for half a day and it lied about every
+     number on the page it led to. */
+  it('is not offered, even to an Opndoor admin', async () => {
     const v = await open('superadmin', `/agencies/${encodeURIComponent(AGENCY.name)}`);
-    expect(buttons(v)).toContain('View as');
+    expect(buttons(v)).not.toContain('View as');
   });
 
-  /* NOT TO THE AGENCY'S OWN PEOPLE. Viewing as yourself is the page you are
-     already on, and the control writes a shared selection that would then
-     narrow their Applications list to the agency it is already narrowed to. */
-  it('and not to the agency’s own people', async () => {
+  it('nor to the agency’s own people', async () => {
     const v = await open('management', `/agencies/${encodeURIComponent(AGENCY.name)}`);
     expect(buttons(v)).not.toContain('View as');
   });
-
-  /* NOR TO OPNDOOR'S OWN OPS STAFF, and this one is a judgement rather than
-     a rule, so it is written down. `isOpndoorStaff` -- superadmin OR
-     opndoor_manager -- is what gates the Reporting tab three lines away on
-     this same page, and matching it here would look consistent. It would be
-     a dead control: `viewingAs` derives in SessionContext for `superadmin`
-     only, so an opndoor_manager pressing this would narrow their shared
-     Applications list and find Reporting unchanged and unexplained. They
-     already have the better surface for the same question, which is the
-     per-customer Reporting tab on this page. Widening means changing
-     SessionContext first and the gate second. */
-  it('nor to Opndoor’s ops staff, for whom it would do nothing', async () => {
-    const v = await open('opndoor_manager', `/agencies/${encodeURIComponent(AGENCY.name)}`);
-    expect(buttons(v)).not.toContain('View as');
-  });
-
-  it('and pressing it remembers that party as the selection', async () => {
-    const v = await open('superadmin', `/agencies/${encodeURIComponent(AGENCY.name)}`);
-    await act(async () => { viewAsButton(v)!.click(); });
-    expect(localStorage.getItem(KEYS.scopeSel)).toBe(`agency:${AGENCY.name}`);
-  });
-
-  /* AND TAKES YOU TO THE REPORT. Setting a selection and leaving the reader
-     where they were is a preference control, which is the thing Matt found
-     confusing about the picker. The Dashboard route is mounted in this
-     test's router, so arriving is observable. */
-  it('and takes the reader to that party’s Reporting page', async () => {
-    const v = await open('superadmin', `/agencies/${encodeURIComponent(AGENCY.name)}`);
-    await act(async () => { viewAsButton(v)!.click(); });
-    expect(v.container.textContent).toMatch(/Viewing as/);
-  });
 });
 
-/* A GROUP PAGE IS A PARTY TOO, AND IT HAD NO COVERAGE AT ALL.
- *
- * `/agencies/:key` resolves a GROUP before it resolves an agency, and an
- * agency that belongs to one renders its parent's page instead of its own.
- * So on a group page the button must emit `group:<id>`, not `agency:<name>`
- * -- a different shape, resolved by a different arm of `originMatches`, and
- * named by a different arm of `originLabel`.
- *
- * NONE OF THAT WAS EXERCISED BY ANYTHING. The mock book has no group: the
- * working copy starts `GROUPS = []` and the seed sets no `groupId` on any
- * agency, so every existing test takes the agency arm and the group arm has
- * never run, here or anywhere else in the suite. A branch that cannot be
- * reached by the fixture is a branch nobody has read the output of, and on
- * dev every agency of Matt's that sits under a group takes it.
- *
- * So this block builds the one thing the mock book will not give us. It is
- * the same trick, and the same reason, as staging an agency WITH an id in
- * customerLinksOpen.test.tsx.
- */
-describe('the View as button on a group page', () => {
+describe('the View as button is NOT on a group page either', () => {
   const GROUP = { id: 'grp-abc', partner: 'northwind', name: 'ABC group' };
 
   beforeEach(() => {
     hydrateGroups([GROUP]);
-    /* Two of the seed's agencies placed under the group, and the rest left
-       alone, so "narrowed to the group" is a real claim: there is something
-       outside it to exclude. */
     const seeded: Agency[] = ORG_SEED.map((a, i) => (i < 2 ? { ...a, groupId: GROUP.id } : { ...a }));
     hydrateOrg(seeded);
   });
   afterEach(() => { hydrateGroups([]); hydrateOrg(ORG_SEED.map((a) => ({ ...a }))); });
 
-  it('opens the group’s own page, not the agency’s', async () => {
+  /* THE GROUP FIXTURE STAYS even though the button is gone, because it is
+     the only group anything in this suite has ever had and the proper fix
+     will need it back. Deleting it would mean re-deriving it later, which
+     is how the group arm ended up untested the first time. */
+  it('opens the group’s own page', async () => {
     const v = await open('superadmin', `/agencies/${encodeURIComponent(GROUP.id)}`);
     expect(v.container.querySelector('.page-head__title')?.textContent).toBe(GROUP.name);
   });
 
-  it('and offers View as there', async () => {
+  it('and offers no View as there', async () => {
     const v = await open('superadmin', `/agencies/${encodeURIComponent(GROUP.id)}`);
-    expect(buttons(v)).toContain('View as');
+    expect(buttons(v)).not.toContain('View as');
   });
 
-  /* THE SHAPE MATTERS. `agency:<name>` here would view as one of the
-     group's members and silently drop the others. */
-  it('and selects the GROUP, by id, not one of its agencies', async () => {
-    const v = await open('superadmin', `/agencies/${encodeURIComponent(GROUP.id)}`);
-    await act(async () => { viewAsButton(v)!.click(); });
-    expect(localStorage.getItem(KEYS.scopeSel)).toBe(`group:${GROUP.id}`);
-  });
-
-  /* AND REPORTING CAN NAME IT. `originLabel` resolves a group through
-     getGroup(id), which matches on the id alone and has no name fallback --
-     so a selection carrying anything but the real id produces a banner that
-     cannot say who you are looking at. */
-  it('and the banner names the group', async () => {
-    localStorage.setItem(KEYS.scopeSel, `group:${GROUP.id}`);
+  /* AND THE BANNER CANNOT BE REACHED BY THE BACK DOOR. Hiding the button is
+     not the whole stopgap: `scopeSel` is one selection shared with
+     Applications, whose Origin picker still writes `group:` values, and it
+     is restored from localStorage on every load. So the test that matters
+     stages the selection directly, as arriving from Applications would. */
+  it('and a group selection arriving from Applications raises no banner', async () => {
+    stageSelection(`group:${GROUP.id}`);
     const v = await open('superadmin', '/dashboard');
-    expect(v.container.textContent).toMatch(new RegExp(`Viewing as ${GROUP.name}`));
-  });
-
-  it('and stopping works from there like anywhere else', async () => {
-    localStorage.setItem(KEYS.scopeSel, `group:${GROUP.id}`);
-    const v = await open('superadmin', '/dashboard');
-    const stop = [...v.container.querySelectorAll<HTMLElement>('button')]
-      .find((b) => (b.textContent ?? '').trim() === 'Stop viewing as')!;
-    await act(async () => { stop.click(); });
-    expect(localStorage.getItem(KEYS.scopeSel) ?? '').toBe('');
+    expect(v.container.textContent).not.toMatch(/Viewing as/);
+    expect(buttons(v)).not.toContain('Stop viewing as');
   });
 });
 
@@ -211,25 +244,77 @@ describe('the View as button on a supplier page', () => {
   });
 });
 
-describe('and Reporting says whose page it is showing, and how to stop', () => {
-  /* THE CONSEQUENCE THAT IS NOT IN THE INSTRUCTION. Without this an admin
-     who views as a party has no way back: the picker was the only control
-     that cleared the selection, and the selection is shared with
-     Applications. */
-  it('names the party while viewing as one', async () => {
-    localStorage.setItem(KEYS.scopeSel, `agency:${AGENCY.name}`);
+describe('and Reporting only names a party whose figures it is actually showing', () => {
+  /* THE ASSERTION THAT WOULD HAVE CAUGHT THIS, AND DID NOT EXIST.
+     It reads a NUMBER off the page. Which number matters: the per-customer
+     table is deliberately estate-wide whatever the selection (Dashboard.tsx
+     says so: "every customer at once -- narrowing it to one would make it
+     the table the picker already gives"), so measuring that would prove
+     nothing either way. The funnel's first stage is keyed on `partnerScope`
+     like every other figure here, so it moves when the page narrows.
+
+     Measured rather than hardcoded. On today's mock book the three values
+     are 129 estate-wide, 86 for a supplier and 129 for an agency, but
+     pinning those would make this a fixture test instead of a behaviour
+     one. */
+  const funnelSent = (v: View) =>
+    Number((v.container.querySelector('.fstage .fstage__count')?.textContent ?? '').replace(/[^0-9]/g, ''));
+
+  async function sentUnder(sel: string | null): Promise<number> {
+    cleanup();
+    localStorage.clear();
+    hydrateFull(BOOK);
+    if (sel) stageSelection(sel);
     const v = await open('superadmin', '/dashboard');
-    expect(v.container.textContent).toMatch(new RegExp(`Viewing as ${AGENCY.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+    const n = funnelSent(v);
+    expect(n, 'no funnel on the page, so this measures nothing').toBeGreaterThan(0);
+    return n;
+  }
+
+  it('a supplier selection really does narrow the figures, which is why that one stays', async () => {
+    const estate = await sentUnder(null);
+    const supplier = await sentUnder(`partner:${SUPPLIER.id}`);
+    expect(supplier).toBeLessThan(estate);
   });
 
-  it('and offers a way to stop', async () => {
-    localStorage.setItem(KEYS.scopeSel, `agency:${AGENCY.name}`);
+  it('and names that supplier while it does', async () => {
+    stageSelection(`partner:${SUPPLIER.id}`);
     const v = await open('superadmin', '/dashboard');
+    expect(v.container.textContent).toMatch(/Viewing as/);
     expect(buttons(v)).toContain('Stop viewing as');
   });
 
+  /* THE STOPGAP, AND BOTH HALVES TOGETHER ON PURPOSE.
+     An agency selection narrows nothing, so nothing on the page may claim
+     it has. Asserting the silence alone would also pass if somebody
+     silenced the banner AND fixed the figures, which would be a
+     regression; asserting the estate total alone would pass on a page with
+     the banner still lying. The pair says: while these numbers are the
+     estate's, no party is named. */
+  it('an agency selection narrows nothing, and so the page names nobody', async () => {
+    const estate = await sentUnder(null);
+    const underAgency = await sentUnder(`agency:${AGENCY.name}`);
+    expect(underAgency, 'the figures narrowed, so the banner should come back')
+      .toBe(estate);
+
+    stageSelection(`agency:${AGENCY.name}`);
+    const v = await open('superadmin', '/dashboard');
+    expect(v.container.textContent).not.toMatch(/Viewing as/);
+    expect(buttons(v)).not.toContain('Stop viewing as');
+  });
+
+  /* THE COMMISSION EYEBROW WAS THE SECOND PLACE THAT NAMED A PARTY, off the
+     same `viewingAs`. Narrowing the derivation fixes both; this says so
+     rather than leaving it to be rediscovered. */
+  it('and the commission heading does not put the estate under an agency’s name', async () => {
+    stageSelection(`agency:${AGENCY.name}`);
+    const v = await open('superadmin', '/dashboard');
+    const esc = AGENCY.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    expect(v.container.textContent ?? '').not.toMatch(new RegExp(`${esc}[\u2019']s commission`));
+  });
+
   it('and stopping clears the selection, so both screens widen again', async () => {
-    localStorage.setItem(KEYS.scopeSel, `agency:${AGENCY.name}`);
+    stageSelection(`partner:${SUPPLIER.id}`);
     const v = await open('superadmin', '/dashboard');
     const stop = [...v.container.querySelectorAll<HTMLElement>('button')]
       .find((b) => (b.textContent ?? '').trim() === 'Stop viewing as')!;
@@ -237,8 +322,6 @@ describe('and Reporting says whose page it is showing, and how to stop', () => {
     expect(localStorage.getItem(KEYS.scopeSel) ?? '').toBe('');
   });
 
-  /* AND SAYS NOTHING WHEN THERE IS NOTHING TO SAY. A banner on the
-     estate-wide view would be furniture on every page load. */
   it('and says nothing when not viewing as anybody', async () => {
     const v = await open('superadmin', '/dashboard');
     expect(v.container.textContent).not.toMatch(/Viewing as/);

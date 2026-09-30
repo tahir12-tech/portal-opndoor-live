@@ -23,7 +23,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ALL_PARTNERS, READS_THE_WHOLE_BOOK, buildApplicationDoc, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
+  ALL_PARTNERS, READS_THE_WHOLE_BOOK, isOpndoorStaff, readsTheWholeBook, buildApplicationDoc, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPeriods, getTrend, maySeeCommission, partnerName,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
@@ -150,10 +150,17 @@ export function Dashboard() {
      ALL_PARTNERS and not partnerScope, because the whole point is to see
      every customer at once -- narrowing it to one would make it the table
      the picker already gives. */
-  const isOpndoorStaff = role === 'superadmin' || role === 'opndoor_manager';
+  /* THE NAMED PREDICATE, NOT A LOCAL COPY OF IT. `isOpndoorStaff` already
+     exists in types.ts as "the twin of public.is_opndoor_staff", and this
+     file had its own boolean of the same name -- which shadowed the import
+     the moment one was added, and would have gone stale on its own the day
+     a third Opndoor role appeared, exactly as the four Reporting
+     allowlists did. Fifteen other sites still hand-roll this; noted in
+     QUEUE.md rather than swept here. */
+  const opndoorStaff = isOpndoorStaff(role);
   const customers = useMemo(
-    () => (isOpndoorStaff ? liveByCustomer(role, ALL_PARTNERS, period) : []),
-    [isOpndoorStaff, role, period],
+    () => (opndoorStaff ? liveByCustomer(role, ALL_PARTNERS, period) : []),
+    [opndoorStaff, role, period],
   );
   // Settlement is a money-reconciliation surface: show pence on every row and the
   // total so the rows always sum to the stated total (commission is rent x rate,
@@ -443,7 +450,14 @@ export function Dashboard() {
               the commission lines and columns for a Manager. The rest of each
               document (referrals, fees, conversion, expiring guarantees) is theirs.
               Gating the buttons would take the whole document to remove a block. */}
-          <RoleOnly roles={['superadmin', 'management', 'referrer']}>
+          {/* NOT `READS_THE_WHOLE_BOOK`, and the difference is the point.
+              'referrer' belongs on this one: the builder drops what a
+              Negotiator may not see rather than withholding the document,
+              which is what the paragraph above says. So this is that
+              allowlist PLUS the Negotiator, and swapping it for the
+              constant would quietly take the export from every Negotiator
+              in the estate. opndoor_manager was simply never added. */}
+          <RoleOnly roles={[...READS_THE_WHOLE_BOOK, 'referrer']}>
             <Button variant="dark" size="sm" onClick={exportSummary} title="Downloads a structured CSV of the dashboard analytics for the selected time period">
               <Icon name="download" /> Export summary
             </Button>
@@ -805,7 +819,7 @@ export function Dashboard() {
             list -- and the synthetic book has none, because liveByCustomer
             reads the hydrated set. One gate rather than two, and the one
             that is actually about whether there is anything to show. */}
-        {isOpndoorStaff && <CustomersTable rows={customers} seesCommission={seesCommission} />}
+        {opndoorStaff && <CustomersTable rows={customers} seesCommission={seesCommission} />}
 
         {d.live && partnerBreakdown.length > 0 && !agencyFacing && (
           <RoleOnly roles={READS_THE_WHOLE_BOOK} commission>
@@ -1085,14 +1099,22 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* #86 EXPIRIES MODAL (management + opndoor admin) */}
-      {expOpen && (role === 'superadmin' || role === 'management') && (
+      {/* #86 EXPIRIES MODAL (management + opndoor staff).
+
+          THE SAME ALLOWLIST AS THE BUTTON THAT OPENS IT, and it is named
+          rather than written out because these two drifted apart the
+          moment one of them was widened: f2ccdb0 added opndoor_manager to
+          the button and left this literal alone, so Opndoor's ops staff
+          got a control that rendered and opened nothing. A dead control is
+          worse than an absent one -- the reader cannot tell it from a
+          broken page. */}
+      {expOpen && readsTheWholeBook(role) && (
         <div className="bdx-scrim is-open" onMouseDown={(e) => e.target === e.currentTarget && setExpOpen(false)}>
           <div className="bdx" role="dialog" aria-modal="true">
             <div className="bdx__head">
               <div>
                 <div className="bdx__title">Expiring guarantees</div>
-                <div className="bdx__sub">Every in-force guarantee expiring in the chosen month, soonest first. {role === 'superadmin' ? 'All partners.' : 'Your partner only.'} Already-expired guarantees are never shown.</div>
+                <div className="bdx__sub">Every in-force guarantee expiring in the chosen month, soonest first. {isOpndoorStaff(role) ? 'All partners.' : 'Your partner only.'} Already-expired guarantees are never shown.</div>
               </div>
               <button className="bdx__close" aria-label="Close" onClick={() => setExpOpen(false)}><Icon name="x" /></button>
             </div>

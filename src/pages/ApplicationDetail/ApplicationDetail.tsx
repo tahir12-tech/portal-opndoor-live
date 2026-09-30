@@ -32,6 +32,7 @@
    time, not afterwards.
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { showsOffices } from '@/data/agencyOffices';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedCardState, deedDownloadUrl, deedIsOverdue, mayGenerateDeed, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
@@ -1455,7 +1456,12 @@ export function ApplicationDetail() {
               <Pill variant={pillVariant}>{statusLabel}</Pill>
               {d.channel && <Pill variant={ROUTE_PILL[d.channel]}>{ROUTE_LABEL[d.channel]}</Pill>}
               <span>·</span><span>Reference {d.ref}</span>
-              <span>·</span><span>{d.branch} · {d.agency}</span>
+              {/* NM-P. For a single-office agency this read "Bermondsey ·
+                  Riverside Homes", naming an office the rest of the product
+                  no longer mentions. Asked of THIS RECORD's agency, not of
+                  the reader's book: the reader may hold several agencies of
+                  both shapes at once. */}
+              <span>·</span><span>{showsOffices(d.agency) ? `${d.branch} · ${d.agency}` : d.agency}</span>
               {/* The supplier's own name, when there is one; hidden for house routes,
                   where partnerName is already the route label the badge shows. */}
               {maySeeRoute && d.partnerName && (!d.channel || d.partnerName !== ROUTE_LABEL[d.channel]) && <><span>·</span><span>{d.partnerName}</span></>}

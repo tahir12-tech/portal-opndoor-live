@@ -62,7 +62,7 @@ import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/Position
 import { AgencyGrow } from './AgencyGrow';
 import { AgreementEditor, agreementSummary } from './AgreementEditor';
 import { CommissionStatement } from '@/components/CommissionStatement';
-import { ViewAsButton } from '@/components/ViewAsButton';
+import { showsOffices } from '@/data/agencyOffices';
 import './AgencyHome.css';
 
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
@@ -1186,10 +1186,19 @@ export function AgencyHome() {
                   <span className="ah-fig-sep">·</span>
                 </>
               )}
-              <button className="ah-fig" onClick={() => setTab('overview')}>
-                <b>{branchCount}</b> {branchCount === 1 ? 'branch' : 'branches'}
-              </button>
-              <span className="ah-fig-sep">·</span>
+              {/* NM-P. "No '1 branch'", in Matt's own words. The figure and
+                  its separator go together: leaving the separator prints a
+                  stray dot between People and Referrals. A group keeps the
+                  figure, because a group of single-office agencies still
+                  has several offices and the count is about the group. */}
+              {showsOffices(title) && (
+                <>
+                  <button className="ah-fig" onClick={() => setTab('overview')}>
+                    <b>{branchCount}</b> {branchCount === 1 ? 'branch' : 'branches'}
+                  </button>
+                  <span className="ah-fig-sep">·</span>
+                </>
+              )}
               <button className="ah-fig" onClick={() => setTab('people')}>
                 <b>{people.total}</b> {people.total === 1 ? 'person' : 'people'}
               </button>
@@ -1200,23 +1209,30 @@ export function AgencyHome() {
             </span>
           </p>
         </div>
-        {/* NM-M. THE PICKER'S JOB, ON THE PAGE OF THE PARTY IT IS ABOUT.
-            A group page views as the group: `isOneParty` accepts `group:`
-            and `originMatches` resolves it to every agency under it, which
-            is exactly the party this page is already showing.
+        {/* NO "View as" HERE, AND IT IS A STOPGAP, NOT A DECISION.
 
-            THE GROUP'S ID AND NOTHING ELSE. `originMatches` resolves a
-            group by `a.groupId === id` and `originLabel` by `getGroup(id)`,
-            and neither has a name fallback -- so a selection carrying a
-            name would narrow to nothing and produce a banner that cannot
-            say who you are looking at, which is worse than failing loudly.
-            AgencyGroup.id is a non-optional string, so there is nothing to
-            fall back FROM. An agency keeps its name, because Matt's ruling
-            of 2026-08-17 is that an agency exists once across partners and
-            is identified by name. */}
-        <div className="page-head__actions">
-          <ViewAsButton scope={org.kind === 'group' ? `group:${org.group.id}` : `agency:${org.agency.name}`} />
-        </div>
+            Matt, 2026-09-30: "hide View as on agency and group pages, keep
+            it on supplier pages where it works."
+
+            IT DID NOT WORK HERE. Every figure on Reporting is keyed on
+            `partnerScope`, and `partnerFor` can only turn a selection into
+            a partner scope when it names a partner -- on the agency rail
+            the partner is a ROUTE shared by every agency, so `agency:` and
+            `group:` both leave it at ALL_PARTNERS. The narrowing was meant
+            to happen afterwards in `scopeFull`'s fourth argument, which no
+            production call site passes. So this button changed the page's
+            wording and its gates and not one of its numbers: it put
+            "Viewing as Regent's Lettings. This is the page their management
+            sees." over Opndoor's entire estate.
+
+            The supplier page keeps its button because `partner:<slug>` is
+            the one shape the figures do follow.
+
+            THE PROPER FIX is every Reporting figure following the
+            selection, which is what walk item 15 reported and NM-F's
+            acceptance line specifies. It is recorded in QUEUE.md as the
+            first item after shipping. When it lands, this button comes
+            back and `figuresFollow` in origin.ts goes away. */}
       </div>
 
       {/* Creation lives on the NODES it creates into, never floating up here where

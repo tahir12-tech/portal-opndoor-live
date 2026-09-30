@@ -111,7 +111,15 @@ describe('Agencies list: collapse and scale', () => {
     fireEvent.click(btn('Expand all'));
     expect(shows(container, 'Northgate Lettings')).toBe(true);
     expect(shows(container, 'Northgate Central')).toBe(true);
-    expect(shows(container, 'Brighton Marina')).toBe(true);
+    /* NM-P, 2026-09-30. Brighton Marina is Harborview's ONLY office, and a
+       single-office agency now shows as the agency alone: "No '1 branch',
+       no branch row, no branch name." So expanding no longer reveals it,
+       and that is the rule working rather than the expander breaking.
+
+       Northgate Central above is the control and is deliberately left
+       asserting TRUE: its agency has two offices, so it still names them.
+       The pair is what shows this test is still about expanding. */
+    expect(shows(container, 'Brighton Marina')).toBe(false);
 
     fireEvent.click(btn('Collapse all'));
     expect(shows(container, 'Northgate Lettings')).toBe(false);

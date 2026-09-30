@@ -43,6 +43,39 @@ export function isHousePartner(slug: string | null | undefined): boolean {
   return !!slug && HOUSE_PARTNER_SLUGS.includes(slug);
 }
 
+/**
+ * IS THIS THE DIRECT RAIL? The client's mirror of application_channel's
+ * first arm.
+ *
+ * NARROWER THAN `isHousePartner`, and the difference is load-bearing. All
+ * three slugs above are plumbing, but only this one carries business that
+ * belongs to nobody: `opndoor-agents` carries every real agency referral
+ * Opndoor onboards, so excluding it would empty the agency estate, and
+ * `referencing-partner` is a genuine hand-over.
+ *
+ * WHAT IT IS FOR. `resolve_agency_match` and the email matcher rewrite a
+ * direct application's `agency_id` and `branch_id` to a REAL agency so a
+ * person can service it, while pinning `partner_id` to `opndoor-direct`.
+ * So the row looks like that agency's business by every field except the
+ * one that decides. Anything grouping by agency or branch has to ask this
+ * first, which is Matt's ruling of round 6: "direct-rail applications
+ * never count as the matched agency's business."
+ *
+ * ONE RAIL OUT, NOT ONE RAIL IN. Callers must exclude on this rather than
+ * include on `channelOf(...) === 'Agent referral'`. An inclusion test also
+ * drops the supplier rail and the provider hand-over, which is precisely
+ * the bug 20261006590000 was written to undo after `agreement_volume`
+ * zeroed every supplier agency's negotiated volume.
+ *
+ * SLUG-ONLY, DELIBERATELY. It takes no partner record and consults no
+ * service, because `hydrate.ts` needs it while building the org indexes --
+ * before `hydratePartners()` has run, when `partnersService` is empty or
+ * stale. A version that resolved a partner would answer wrong there.
+ */
+export function isDirectRail(slug: string | null | undefined): boolean {
+  return slug === DIRECT;
+}
+
 /** The route label shown in place of a house partner's name, so a row still
     reads truthfully (its route) without ever naming the plumbing partner. */
 export function houseRouteLabel(slug: string | null | undefined): string {

@@ -27,7 +27,7 @@
 -- definerAllowlistCoverage.test.ts rather than quietly omitted.
 
 begin;
-select plan(44);
+select plan(45);
 
 -- ===========================================================================
 -- OURS AND THEIRS, one house partner.
@@ -109,6 +109,17 @@ select ok(not public.may_act_on_user('97000000-0000-0000-0000-00000000c002'),
 select ok(public.may_act_on_user('97000000-0000-0000-0000-00000000c003') = false,
   'and no to their Negotiator, who is in another agency whatever their level');
 select ok(not public.is_admin(), 'and an agency Director is not an admin, which the rest of this file assumes');
+/* AND NOT OPNDOOR STAFF EITHER, which is a different question: is_admin is
+   superadmin alone, is_opndoor_staff is superadmin OR opndoor_manager. Four
+   RPCs on this page gate on the second, so the file assumes both.
+
+   ADDED BECAUSE THE COVERAGE RATCHET WAS COUNTING A COMMENT. is_opndoor_staff
+   appeared in the suite only inside prose -- a `--` line in
+   every_repro_from_both_reviews and a note in the_level_ladder -- and the
+   coverage regex counts any name followed by a paren, comments included. So
+   the predicate four guards depend on was recorded as exercised and was not
+   exercised at all. This is the assertion that makes that record true. */
+select ok(not public.is_opndoor_staff(), 'nor Opndoor staff, which is the wider of the two and what four RPCs here gate on');
 
 -- ---- reads on somebody else's application ---------------------------------
 -- These three REFUSE rather than returning nothing, which is the stronger

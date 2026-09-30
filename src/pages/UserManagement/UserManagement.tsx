@@ -66,13 +66,13 @@ interface RoleOption {
 const ROLE_OPTIONS: RoleOption[] = [
   { id: 'superadmin', name: 'opndoor admin (Super-admin)', desc: "opndoor's internal admin. Full control of the portal: manages agencies, branches and users, keeps opndoor's own records in step, edits help resources, and sees every referral." },
   { id: 'opndoor_manager', name: 'opndoor manager', desc: "opndoor operations staff. Sees every referral across all partners and works the day-to-day queues: the eligibility decision, reconciliation and direct-agency matches. Cannot change partner settings or commission, create partners, or manage the opndoor team." },
-  { id: 'management', name: 'Management', desc: "Partner management. The same screens and tools as a referrer, but across the whole partner with full visibility of all tracking and analytics. Manages the partner's own agencies, branches and team, with edits applying straight away. Cannot change portal settings." },
+  { id: 'management', name: 'Management', desc: "Supplier management. The same screens and tools as a referrer, but across the whole supplier with full visibility of all tracking and analytics. Manages the supplier's own agencies, branches and team, with edits applying straight away. Cannot change portal settings." },
   { id: 'referrer', name: 'Referrer', desc: 'Sees and tracks only their own referrals. Can add agencies and branches on the fly while referring.' },
   // "Sees the Dev Centre only" read as seeing nothing, which made the role look
   // useless and led to it being handed out as management instead. It says what a
   // developer CAN do first, and is specific about the line: the whole partner's
   // book read-only, never the money.
-  { id: 'developer', name: 'Developer', desc: "Partner-side integrator, for whoever builds against the API. Sees the applications list and detail, the dashboard and the league for the whole partner, read-only, plus the Dev Centre: their own API keys and webhook endpoints, request logs, delivery history with replay, and a full sandbox to rehearse in. They cannot create a referral or change an application, and they never see commission, settlement, exports or the bordereau." },
+  { id: 'developer', name: 'Developer', desc: "The supplier's own integrator, for whoever builds against the API. Sees the applications list and detail, the dashboard and the league for the whole supplier, read-only, plus the Dev Centre: their own API keys and webhook endpoints, request logs, delivery history with replay, and a full sandbox to rehearse in. They cannot create a referral or change an application, and they never see commission, settlement, exports or the bordereau." },
 ];
 
 const initials = (n: string) => n.split(' ').map((p) => p[0]).slice(0, 2).join('');
@@ -561,8 +561,15 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     const chosen = addOnEstate ? grantableLevels.find((l) => l.level === addLevel) : null;
     if (addOnEstate && !chosen) { toast('You can only invite someone at or below your own level.'); return; }
     const effRole: Role = chosen ? chosen.role : addRole;
-    if (effRole === 'referrer' && role === 'management' && branchTargets.length > 0 && !addBranch) {
-      toast('Choose the branch this negotiator will work at.'); return;
+    /* NM-O. `addOnEstate` ADDED, and it is the half that would have
+       stranded somebody. This refused a Manager's Referrer invite until a
+       branch was picked -- and the server never asked for one: invite-user's
+       equivalent is gated on `callerScoped`, true only for a caller holding
+       user_scopes rows, which a supplier's staff never do. So with the field
+       gone, a supplier's Manager would have been blocked by a toast naming a
+       control that is no longer on the screen. */
+    if (addOnEstate && effRole === 'referrer' && role === 'management' && branchTargets.length > 0 && !addBranch) {
+      toast('Choose which office this person works at.'); return;
     }
     /* A Director or a Manager on our estate holds a position, and invite-user
        refuses the invite without one. Asking here means a sentence in the
@@ -581,7 +588,9 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
         // drift apart.
         role: effRole, seesCommission: chosen?.seesCommission === true,
         partner: addPartnerId,
-        branch: effRole === 'referrer' ? addBranch : '',
+        // NM-O: off the estate there is no branch to send, and the field
+        // that used to collect one is gone.
+        branch: addOnEstate && effRole === 'referrer' ? addBranch : '',
         scopeKind: scope?.kind, scopeTarget: scope?.id,
       });
       await refreshData();
@@ -778,7 +787,11 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
           <Field label="Last name"><input type="text" placeholder="Okafor" value={addLast} onChange={(e) => setAddLast(e.target.value)} /></Field>
           <Field label="Work email" span2><input type="email" placeholder="james@brackenhouse.co.uk" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} /></Field>
           {addRole !== 'superadmin' && addRole !== 'opndoor_manager' && (
-            <Field label="Partner company" span2 hint="The partner company this user belongs to.">
+            <Field label="Supplier" span2 hint="The supplier this person works for.">
+              {/* NM-O: "Supplier", not "Partner company". The select below
+                  is fed by getPartners(), which strips every house partner
+                  and returns supplier companies only, so the old label was
+                  already wrong about its own contents. */}
               <select value={addPartnerId} onChange={(e) => setAddPartnerId(e.target.value)}>
                 {getPartners().map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
@@ -817,7 +830,24 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
             </select>
           </Field>
         )}
-        {(addOnEstate ? addLevel === 'Negotiator' : addRole === 'referrer') && branchTargets.length > 0 && (
+        {/* NM-O. THE BRANCH IS AN ESTATE QUESTION, AND ONLY AN ESTATE ONE.
+            Matt, 2026-09-30: "suppliers' own staff do the referring, so a
+            supplier user has no branch. Remove the Branch field from
+            inviting or editing a supplier user entirely, for every role;
+            the agency and branch are chosen on each referral instead."
+
+            The model already agreed with him: user_must_hold_a_position
+            returns early when the partner is not opndoor_referenced and
+            says why -- "on the supplier rail partner_id IS the company
+            boundary ... requiring a position there would be ceremony with
+            no boundary behind it." So this field was collecting a value
+            no boundary reads.
+
+            `addOnEstate` and not a role test, because "for every role" is
+            his own qualifier: the old condition drew it for a supplier's
+            Referrer and not for their Management, so a role-shaped fix
+            would have left one arm to come back. */}
+        {addOnEstate && addLevel === 'Negotiator' && branchTargets.length > 0 && (
           <Field label="Branch" hint="Where this negotiator works. They show in your team from the moment you invite them.">
             <select value={addBranch} onChange={(e) => setAddBranch(e.target.value)}>
               <option value="">Select a branch</option>

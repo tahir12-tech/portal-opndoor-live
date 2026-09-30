@@ -13,6 +13,7 @@ import {
   type AgencyMatchRow, type MatchBranch,
 } from '@/data';
 import { Button } from '@/components/ui/Button';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 
@@ -39,7 +40,7 @@ export function AgencyMatchQueue({ onChanged }: { onChanged?: () => void }) {
           : <MatchItem key={row.applicationId} row={row} onDone={after} />
       ))}
       <div className={`empty${!loading && rows.length === 0 ? ' is-shown' : ''}`}>
-        No direct applications waiting on an agency. The queue is clear.
+        No tenant is waiting to be linked to their letting agent.
       </div>
     </div>
   );
@@ -60,11 +61,17 @@ function AutoMatchItem({ row }: { row: AgencyMatchRow }) {
         <div className="rqitem__meta">
           {row.guaranteeRef} · {row.tenantName}{row.property ? ` · ${row.property}` : ''} · {row.when}
         </div>
+        {/* TWO DIFFERENT MATCHES, TWO DIFFERENT LABELS. This block is an
+            email match, already linked; the one further down is a name
+            match awaiting a person. Both said "Matched", which told a
+            reader nothing about why one needed them and the other did
+            not. */}
         <div className="match">
-          <span className="match__lbl">Matched</span>
+          <span className="match__lbl">Email matches</span>
           <span className="match__txt">
-            Contact email matched <b>{row.autoAgencyName}</b>
-            {row.resolvedBranchName ? <> · <b>{row.resolvedBranchName}</b></> : null}. Auto-accepted; no review needed.
+            The agent&rsquo;s email address matches <b>{row.autoAgencyName}</b>
+            {row.resolvedBranchName ? <> · <b>{row.resolvedBranchName}</b></> : null}, so this was linked
+            automatically and needs nothing from you.
           </span>
         </div>
       </div>
@@ -79,6 +86,7 @@ function MatchItem({ row, onDone }: { row: AgencyMatchRow; onDone: () => Promise
   const [agencyId, setAgencyId] = useState<string | null>(row.autoAgencyId);
   const [branches, setBranches] = useState<MatchBranch[]>([]);
   const [branchId, setBranchId] = useState<string>('');
+  const { ask, confirmEl } = useConfirm();
 
   const chosenAgencyName =
     agencyId === row.autoAgencyId ? row.autoAgencyName
@@ -96,8 +104,18 @@ function MatchItem({ row, onDone }: { row: AgencyMatchRow; onDone: () => Promise
     return () => { live = false; };
   }, [agencyId, toast]);
 
-  async function confirm() {
-    if (!branchId || busy) return;
+  /* WALK FIX 23. BOTH OF THESE USED TO RUN ON THE CLICK.
+     Matt: "'Set branch' and 'Not in network' act immediately. Both need a
+     confirmation box first, saying in plain English what will happen."
+
+     Both are one-way from this screen: on success the row leaves the
+     queue, so there is no undo and no second chance to read what
+     happened. The sentences are built from the row rather than written as
+     constants, because a confirmation that does not name the record is
+     the same click with a step in front of it. */
+  const chosenBranchName = branches.find((b) => b.id === branchId)?.name ?? '';
+
+  async function doResolve() {
     setBusy(true);
     try {
       await resolveAgencyMatch(row.applicationId, branchId);
@@ -106,30 +124,65 @@ function MatchItem({ row, onDone }: { row: AgencyMatchRow; onDone: () => Promise
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not set the branch.', 'error');
       setBusy(false);
+      throw e;
     }
   }
 
-  async function dismiss() {
-    if (busy) return;
+  async function doDismiss() {
     setBusy(true);
     try {
       await dismissAgencyMatch(row.applicationId);
-      toast(`${row.guaranteeRef} left on the direct house branch.`, 'ok');
+      toast(`${row.guaranteeRef} stays with Opndoor direct. ${row.typedName} is on the Not in network list.`, 'ok');
       await onDone();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not dismiss.', 'error');
       setBusy(false);
+      throw e;
     }
+  }
+
+  function askResolve() {
+    if (!branchId || busy) return;
+    ask({
+      title: <>Link this tenant&rsquo;s agent to {chosenAgencyName}, {chosenBranchName}?</>,
+      body: (
+        <>
+          The tenant typed &ldquo;{row.typedName}&rdquo;. This application will be recorded
+          against the <b>{chosenBranchName}</b> office of <b>{chosenAgencyName}</b>. It stays an
+          Opndoor direct referral and the commission does not move.
+        </>
+      ),
+      confirmLabel: 'Link to this office',
+      run: doResolve,
+    });
+  }
+
+  function askDismiss() {
+    if (busy) return;
+    ask({
+      title: <>We do not work with {row.typedName}?</>,
+      body: (
+        <>
+          This tenant stays with Opndoor direct. <b>{row.typedName}</b> goes on the
+          Not in network list, with the agent contact the tenant gave, for someone to add to
+          HubSpot by hand.
+        </>
+      ),
+      confirmLabel: 'We do not work with them',
+      danger: true,
+      run: doDismiss,
+    });
   }
 
   return (
     <div className="rqitem" style={busy ? { opacity: 0.5 } : undefined}>
+      {confirmEl}
       <span className="rqitem__ic rqitem__ic--agency"><Icon name="building" /></span>
       <div className="rqitem__main">
         <div className="rqitem__top">
           <span className="rqitem__name">Tenant typed “{row.typedName}”</span>
           {row.autoAgencyId
-            ? <span className="tag tag--admin">Exact match</span>
+            ? <span className="tag tag--admin">Name matches</span>
             : <span className="tag">No exact match</span>}
         </div>
         <div className="rqitem__meta">
@@ -138,8 +191,11 @@ function MatchItem({ row, onDone }: { row: AgencyMatchRow; onDone: () => Promise
 
         {row.autoAgencyId ? (
           <div className="match">
-            <span className="match__lbl">Matched</span>
-            <span className="match__txt">Exact name match to <b>{row.autoAgencyName}</b>. Pick the branch.</span>
+            {/* The BADGE above already says "Name matches". This label says
+                what the reader has to DO about it, so the row does not
+                print the same two words twice. */}
+            <span className="match__lbl">Choose an office</span>
+            <span className="match__txt">The name the tenant typed matches <b>{row.autoAgencyName}</b> exactly. Choose which of their offices to record it against.</span>
           </div>
         ) : row.candidates.length ? (
           <div className="match match--none">
@@ -181,10 +237,10 @@ function MatchItem({ row, onDone }: { row: AgencyMatchRow; onDone: () => Promise
       </div>
 
       <div className="rqitem__actions">
-        <Button variant="ghost" size="sm" disabled={busy} onClick={() => void dismiss()}>
+        <Button variant="ghost" size="sm" disabled={busy} onClick={askDismiss}>
           Not in network
         </Button>
-        <Button variant="primary" size="sm" disabled={busy || !branchId} onClick={() => void confirm()}>
+        <Button variant="primary" size="sm" disabled={busy || !branchId} onClick={askResolve}>
           <Icon name="check" strokeWidth={2.2} /> Set branch
         </Button>
       </div>

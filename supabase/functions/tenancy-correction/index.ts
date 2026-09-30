@@ -71,11 +71,50 @@ Deno.serve(async (req) => {
 
       // Full deed state for the lifecycle decision. Read with the service role:
       // the token is the authorisation here, there is no signed-in user.
+      const COLS = "id, guarantee_ref, status, deed_state, pandadoc_document_id, executed_pdf_path, tenancy_start, livemode, withdrawn_at, tenancy_id";
       const { data: full } = await service.from("applications")
-        .select("id, guarantee_ref, status, deed_state, pandadoc_document_id, executed_pdf_path, tenancy_start, livemode, withdrawn_at")
+        .select(COLS)
         .eq("id", tok.application_id).maybeSingle();
       if (!full) return json({ ok: false, error: "This link is not valid." }, 200);
-      if (full.withdrawn_at) return json({ ok: false, error: "This guarantee has been withdrawn, so its date cannot be changed here. Reply to the deed email if you need help." }, 200);
+
+      /* Q1. A CORRECTION MOVES THE WHOLE TENANCY, OR IT MOVES NOTHING.
+         Matt, 2026-09-30: "a start-date correction on a joint tenancy moves
+         every tenant's application and reissues every deed, never one."
+
+         R5 (20261006860000) made the STAFF path do this and said why: one
+         corrected application of a joint let leaves "two executed
+         instruments stating different start dates for the same let", and
+         `expiry_date` is GENERATED from `tenancy_start`, so the
+         discrepancy reaches the underwriter on the bordereau. This path
+         never went through that RPC -- it cannot, the RPC needs AAL2 and a
+         caller and the agent has neither -- so it moved one row by id.
+
+         `tenancy_id` is nullable and most applications have none. A solo
+         application is a set of one, which keeps every step below
+         identical for both cases rather than forking them. */
+      const siblings = full.tenancy_id
+        ? ((await service.from("applications").select(COLS)
+              .eq("tenancy_id", full.tenancy_id)).data ?? [full])
+        : [full];
+      const ids = siblings.map((a: { id: string }) => a.id);
+
+      /* EVERY SIBLING IS TESTED BEFORE ANYTHING IS WRITTEN, which is the
+         other half of R5's rule and the half that is easy to drop. The RPC
+         tests permission and eligibility for the whole tenancy and aborts
+         the lot on a single refusal. This path tested `withdrawn_at` on the
+         clicked application alone, so without the same pre-check a
+         correction would move a withdrawn sibling's date and tear down a
+         deed that should never have been touched. */
+      const withdrawn = siblings.filter((a: { withdrawn_at: string | null }) => a.withdrawn_at);
+      if (withdrawn.length) {
+        const mine = withdrawn.some((a: { id: string }) => a.id === full.id);
+        return json({
+          ok: false,
+          error: mine
+            ? "This guarantee has been withdrawn, so its date cannot be changed here. Reply to the deed email if you need help."
+            : "The other tenant on this tenancy has been withdrawn, so the date cannot be changed here. Reply to the deed email and we will sort it out.",
+        }, 200);
+      }
 
       const dateChange = `from ${dmy(full.tenancy_start)} to ${dmy(proposed)}`;
 
@@ -107,7 +146,7 @@ Deno.serve(async (req) => {
       const nowIso = new Date().toISOString();
       const { data: claimedRows } = await service.from("tenancy_correction_tokens")
         .update({ proposed_start: proposed, note, submitted_at: nowIso, resolved_at: nowIso, resolved_by: null })
-        .eq("application_id", tok.application_id)
+        .in("application_id", ids)
         .is("submitted_at", null)
         .select("token");
       // The presented token must be one of the ones just claimed. If it is not,
@@ -121,55 +160,98 @@ Deno.serve(async (req) => {
         }, 200);
       }
 
-      // 2) Apply the corrected date (expiry_date is a generated column and follows).
-      await service.from("applications").update({ tenancy_start: proposed }).eq("id", full.id);
+      // 2) Apply the corrected date to EVERY application in the tenancy
+      //    (expiry_date is a generated column and follows), and to the
+      //    tenancy row itself, which is what R5 added it for. Leaving the
+      //    tenancy behind means the applications agree with each other and
+      //    disagree with the let they belong to.
+      await service.from("applications").update({ tenancy_start: proposed }).in("id", ids);
+      if (full.tenancy_id) {
+        await service.from("tenancies").update({ tenancy_start: proposed }).eq("id", full.tenancy_id);
+      }
 
       // 3) Deed lifecycle, keyed on the state at correction time. Mirrors
       //    amend-tenancy-start (its executed / awaiting_tenant branches); the
       //    dangerous primitives (void, regenerate + state reset) are shared in
       //    pandadoc.ts, so only the branch choice lives in both places.
+      /* Q1. THE LIFECYCLE RUNS FOR EVERY SIBLING, and this is the half
+         that is easiest to leave behind: move the DATE for everybody and
+         reissue the DEED for one, and you have the same divergence in a
+         different column -- three applications agreeing on the start date,
+         one corrected deed and two still stating the old one.
+
+         Sequential, not Promise.all. Each iteration voids or archives a
+         real document at PandaDoc and regenerates it, and the
+         one-live-deed invariant below depends on the clear-then-void
+         order holding per application. Two tenants is the realistic
+         maximum, so nothing is gained by racing them and a partial
+         failure is easier to read in order. */
       let reissued = false;
       let archived = false;
-      if (full.deed_state === "executed" || full.status === "deed") {
-        // Destructive: archive the signed PDF, reopen to Paid, reissue for signing.
-        archived = !!full.executed_pdf_path;
-        if (archived) {
-          const archivePath = `${full.id}/archive/${full.guarantee_ref}-superseded-${full.pandadoc_document_id ?? "deed"}.pdf`;
-          await service.storage.from("deeds").copy(full.executed_pdf_path, archivePath);
-          await service.from("activity_log").insert({ application_id: full.id, kind: "deed_archived", message: `Signed deed archived before an agent correction of the tenancy start ${dateChange}.`, actor: "Agent", visibility: "business" });
-        }
-        await service.from("applications").update({
-          status: "paid", deed_state: null, deed_issued_at: null, deed_executed_at: null,
-          issue_date: null, executed_pdf_path: null, pandadoc_document_id: null, deed_viewed_at: null,
-        }).eq("id", full.id);
-        const gen = await generateDeed(service, full.id, true);
-        reissued = gen.ok;
-      } else if (full.deed_state === "awaiting_tenant" && full.pandadoc_document_id) {
-        // One-live-deed invariant: clear the id first (a late webhook for the old
-        // document is then inert), void best-effort, regenerate regardless.
-        const oldDocId = full.pandadoc_document_id;
-        await service.from("applications").update({ pandadoc_document_id: null, deed_state: null, deed_viewed_at: null }).eq("id", full.id);
-        const voided = await voidDocument(oldDocId, full.livemode === true);
-        await service.from("activity_log").insert({ application_id: full.id, kind: "deed_voided", message: voided.ok ? `Outstanding deed voided for an agent correction of the tenancy start ${dateChange}.` : `Outstanding deed could not be voided for an agent correction ${dateChange}; it is superseded by the reissued deed. Detail: ${voided.error}`, actor: "Agent", visibility: "internal" });
-        const gen = await generateDeed(service, full.id, true);
-        reissued = gen.ok;
-      }
-      // else: Sent, or Paid with no live deed (error / declined / voided / none):
-      // the date change alone, no reissue.
+      const reissuedRefs: string[] = [];
+      const failedRefs: string[] = [];
 
-      // 4) Log it as an agent correction: the single business entry.
-      const hadLiveDeed = full.deed_state === "executed" || full.status === "deed" || full.deed_state === "awaiting_tenant";
-      const suffix = reissued
-        ? (archived ? " The signed deed was archived and a corrected deed reissued to the tenant to sign." : " A corrected deed was reissued to the tenant to sign.")
-        : (hadLiveDeed ? " The corrected deed could not be reissued automatically; opndoor has been notified." : "");
-      await service.from("activity_log").insert({
-        application_id: full.id,
-        kind: "tenancy_correction_applied",
-        message: `${full.guarantee_ref}: tenancy start corrected ${dateChange} by the agent.${suffix}${note ? ` Note: ${note}` : ""}`,
-        actor: "Agent",
-        visibility: "business",
-      });
-      return json({ ok: true, newStart: dmy(proposed), reissued });
+      for (const app of siblings) {
+        let appReissued = false;
+        let appArchived = false;
+        if (app.deed_state === "executed" || app.status === "deed") {
+          // Destructive: archive the signed PDF, reopen to Paid, reissue for signing.
+          appArchived = !!app.executed_pdf_path;
+          if (appArchived) {
+            const archivePath = `${app.id}/archive/${app.guarantee_ref}-superseded-${app.pandadoc_document_id ?? "deed"}.pdf`;
+            await service.storage.from("deeds").copy(app.executed_pdf_path, archivePath);
+            await service.from("activity_log").insert({ application_id: app.id, kind: "deed_archived", message: `Signed deed archived before an agent correction of the tenancy start ${dateChange}.`, actor: "Agent", visibility: "business" });
+          }
+          await service.from("applications").update({
+            status: "paid", deed_state: null, deed_issued_at: null, deed_executed_at: null,
+            issue_date: null, executed_pdf_path: null, pandadoc_document_id: null, deed_viewed_at: null,
+          }).eq("id", app.id);
+          const gen = await generateDeed(service, app.id, true);
+          appReissued = gen.ok;
+        } else if (app.deed_state === "awaiting_tenant" && app.pandadoc_document_id) {
+          // One-live-deed invariant: clear the id first (a late webhook for the old
+          // document is then inert), void best-effort, regenerate regardless.
+          const oldDocId = app.pandadoc_document_id;
+          await service.from("applications").update({ pandadoc_document_id: null, deed_state: null, deed_viewed_at: null }).eq("id", app.id);
+          const voided = await voidDocument(oldDocId, app.livemode === true);
+          await service.from("activity_log").insert({ application_id: app.id, kind: "deed_voided", message: voided.ok ? `Outstanding deed voided for an agent correction of the tenancy start ${dateChange}.` : `Outstanding deed could not be voided for an agent correction ${dateChange}; it is superseded by the reissued deed. Detail: ${voided.error}`, actor: "Agent", visibility: "internal" });
+          const gen = await generateDeed(service, app.id, true);
+          appReissued = gen.ok;
+        } else {
+          // Sent, or Paid with no live deed (error / declined / voided / none):
+          // the date change alone, no reissue.
+          continue;
+        }
+        archived = archived || appArchived;
+        if (appReissued) { reissued = true; reissuedRefs.push(app.guarantee_ref); }
+        else failedRefs.push(app.guarantee_ref);
+      }
+
+      /* 4) Log it, ON EVERY APPLICATION IN THE TENANCY. One entry on the
+            clicked application would leave the co-tenant's own record
+            silent about a change to their start date and their deed --
+            and the co-tenant's record is the one their agent reads. Each
+            entry names the whole tenancy so neither reader has to work
+            out why their deed was reissued by somebody else's link. */
+      const joint = siblings.length > 1;
+      const suffix = failedRefs.length
+        ? ` The corrected deed could not be reissued automatically for ${failedRefs.join(", ")}; opndoor has been notified.`
+        : reissued
+          ? (archived
+              ? ` The signed deed was archived and a corrected deed reissued to the tenant to sign${joint ? ` for ${reissuedRefs.join(" and ")}` : ""}.`
+              : ` A corrected deed was reissued to the tenant to sign${joint ? ` for ${reissuedRefs.join(" and ")}` : ""}.`)
+          : "";
+      const scope = joint ? ` This tenancy has ${siblings.length} tenants and all of them were corrected together.` : "";
+      for (const app of siblings) {
+        await service.from("activity_log").insert({
+          application_id: app.id,
+          kind: "tenancy_correction_applied",
+          message: `${app.guarantee_ref}: tenancy start corrected ${dateChange} by the agent.${suffix}${scope}${note ? ` Note: ${note}` : ""}`,
+          actor: "Agent",
+          visibility: "business",
+        });
+      }
+      return json({ ok: true, newStart: dmy(proposed), reissued, tenants: siblings.length });
     }
 
     return json({ ok: false, error: "Unknown action." }, 400);

@@ -173,6 +173,50 @@ export function isOneParty(sel: OriginScope): boolean {
   return sel.startsWith('partner:') || sel.startsWith('agency:') || sel.startsWith('group:');
 }
 
+/* NO PRODUCTION CALLER, ON PURPOSE AND TEMPORARILY. `viewingAs` asked this
+   until 2026-09-30 and now asks `figuresFollow` below, which is narrower.
+   This is still the correct question and gets its caller back when every
+   Reporting figure follows the selection. Kept rather than deleted so that
+   fix restores a definition instead of re-deriving one. */
+
+/**
+ * DO THE FIGURES ACTUALLY FOLLOW THIS SELECTION?
+ *
+ * A NARROWER QUESTION THAN `isOneParty`, and the two must not be confused.
+ * `isOneParty` asks what the selection MEANS. This asks what the product
+ * currently DOES about it, which today is less.
+ *
+ * WHY IT EXISTS. Every figure on Reporting is keyed on `partnerScope`, and
+ * `partnerFor` turns a selection into a partner scope: a real slug for
+ * `partner:<slug>`, and ALL_PARTNERS for `agency:` and `group:`, because on
+ * the agency rail the partner is a ROUTE and not a company and a partner
+ * scope is the wrong shape to carry an agency. The narrowing for those two
+ * is supposed to happen afterwards, in `scopeFull`'s fourth `sel` argument
+ * -- and no production call site passes it. Nineteen of them stop at three
+ * arguments. So an `agency:` or `group:` selection changes the page's
+ * wording and its gates and not one of its numbers.
+ *
+ * MATT'S STOPGAP, 2026-09-30: "make sure no banner can claim a party the
+ * figures don't reflect." This is that test. A banner, an eyebrow or a gate
+ * that names a party may only be drawn where this answers true, so the
+ * screen cannot assert something the figures contradict.
+ *
+ * HIDING THE BUTTON WOULD NOT HAVE BEEN ENOUGH, which is why the test lives
+ * here rather than on the button. `scopeSel` is ONE selection shared with
+ * Applications, whose own Origin picker still writes `agency:` and `group:`
+ * values; it is restored from localStorage on every page load; and the
+ * recents list offers it back. The selection arrives by several doors and
+ * only one of them was the button.
+ *
+ * WHEN THE PROPER FIX LANDS -- every Reporting figure following the
+ * selection, recorded in QUEUE.md as the first item after shipping -- this
+ * function becomes `isOneParty` and should be deleted, not quietly widened.
+ * Two names for one question is how the distinction gets lost again.
+ */
+export function figuresFollow(sel: OriginScope): boolean {
+  return sel.startsWith('partner:');
+}
+
 /**
  * IS THE PARTY IN THIS SELECTION ONE OF OUR AGENCIES?
  *

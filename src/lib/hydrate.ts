@@ -16,7 +16,7 @@ import { LEAST_PRIVILEGED_ROLE,
 } from '@/data';
 import type { AppRecord } from '@/data/mock/applications';
 import type { UpcomingGuaranteeSeed } from '@/data/mock/guarantees';
-import { isHousePartner } from '@/data/channel';
+import { isDirectRail, isHousePartner } from '@/data/channel';
 
 const DAY = 86400000;
 
@@ -286,6 +286,32 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   const appsByBranch: Record<string, any[]> = {};
   const appsByAgency: Record<string, any[]> = {};
   apps.forEach((a) => {
+    /* ROUND 6, M9. DIRECT-RAIL BUSINESS IS NEVER THE MATCHED AGENCY'S.
+       Matt's ruling: "direct-rail applications never count as the matched
+       agency's business: exclude them from agency digests, cohort CSVs and
+       every other agency-facing surface." The server was swept
+       (20261006410000, 20261006580000, 20261006590000); these two indexes
+       were not.
+
+       The trap is that a direct row LOOKS like the agency's by every field
+       except the one that decides. resolve_agency_match and the email
+       matcher rewrite a direct application's agency_id and branch_id to a
+       real agency so somebody can service it, while pinning partner_id to
+       opndoor-direct. So it lands in appsByAgency[<Regent's id>] and
+       inflates four counters off it.
+
+       `referrers` was worse than one too high: a direct row's referrer_id
+       is NULL, so null joined the Set and a branch whose only traffic was
+       direct reported one referrer who does not exist.
+
+       SLUG-ONLY, and it has to be: hydratePartners() does not run until
+       later in this function, so partnersService is empty or stale here
+       and anything resolving a partner record would answer wrong.
+
+       NOT appsByPartner above, which is untouched: a direct row genuinely
+       DOES belong to opndoor-direct, and that index is what makes the
+       direct rail's own figures work. */
+    if (isDirectRail(slugOfApp(a))) return;
     (appsByBranch[a.branch_id] ??= []).push(a);
     (appsByAgency[a.agency_id] ??= []).push(a);
   });

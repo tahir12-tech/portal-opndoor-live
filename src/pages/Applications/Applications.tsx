@@ -18,6 +18,7 @@
    one Origin filter, over the four kinds of party in origin.ts.
    ===================================================================== */
 import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { officeLabel, showsOffices } from '@/data/agencyOffices';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications,
@@ -611,12 +612,20 @@ export function Applications() {
                     <td>{g ? <span className="soft">{r.prop}</span> : r.prop}</td>
                     {showOrgCol && (
                       <td>
-                        {showBranch ? r.branch : r.agency}
-                        {/* Not when the Origin column has just said it. On the
-                            agency rail the origin IS the agency, and printing it
-                            again under the branch is the repetition this page
-                            takes whole columns off to avoid. */}
-                        {showBranch && showAgency && r.agency !== o.name && <div className="dt__sub">{r.agency}</div>}
+                        {/* NM-P, PER ROW AND NOT PER PAGE. `showBranch` is a
+                            COLUMN rule about the reader's whole book; this is
+                            about THIS row's agency, and the two can disagree
+                            on the same page -- a mixed list where Foxglove
+                            has three offices and Riverside has one must name
+                            the office on one row and the agency on the other.
+                            `officeLabel` answers exactly that and never
+                            returns an empty string. */}
+                        {showBranch ? officeLabel(r.agency, r.branch) : r.agency}
+                        {/* Not when the Origin column has just said it, and not
+                            when the line above has already been promoted to the
+                            agency's own name for a single-office agency -- that
+                            would print the same words twice. */}
+                        {showBranch && showAgency && showsOffices(r.agency) && r.agency !== o.name && <div className="dt__sub">{r.agency}</div>}
                       </td>
                     )}
                     {/* The rent is the PROPERTY's and is the same on every sibling,

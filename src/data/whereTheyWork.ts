@@ -17,6 +17,7 @@
    build their rows separately, and a rule copied into three of them is
    three rules.
    ===================================================================== */
+import { showsOffices } from './agencyOffices';
 
 /** Who is reading, as far as this line is concerned.
  *
@@ -53,7 +54,16 @@ export function whereTheyWork({ reader, agencies, branches }: WhereTheyWork): st
   // level off.
   if (reader === 'one-branch') return '';
   if (reader === 'multi-branch') return br.join(', ');
-  // An admin's list spans agencies, so the agency is the half that
-  // disambiguates and is never dropped.
-  return [...clean(agencies), ...br].join(', ');
+  /* An admin's list spans agencies, so the agency is the half that
+     disambiguates and is never dropped.
+
+     NM-P. THE OFFICE HALF IS DROPPED FOR A SINGLE-OFFICE AGENCY, which
+     for an admin means the line becomes the agency's name alone. Note
+     what is NOT done here: no fourth WhereReader value is added. The
+     READER has not changed -- an admin is still an admin -- the AGENCY
+     has, and that is a different subject. A reader value would have made
+     the two questions one, and neither would be answerable afterwards. */
+  const ag = clean(agencies);
+  const offices = ag.length === 1 && !showsOffices(ag[0]) ? [] : br;
+  return [...ag, ...offices].join(', ');
 }

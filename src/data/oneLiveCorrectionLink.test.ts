@@ -98,10 +98,25 @@ describe('the referencing hand-over ledger', () => {
 describe('claiming the correction', () => {
   const src = fn('tenancy-correction/index.ts');
 
-  /* THE DEFECT. */
-  it('claims every unsubmitted token for the APPLICATION, not just the one presented', () => {
+  /* THE DEFECT, AND THE SCOPE HAS WIDENED ONCE SINCE.
+     M4 moved the claim from the presented TOKEN to the APPLICATION,
+     because deedEmail mints one on every deed send and the others stayed
+     live. Matt's Q1 answer of 2026-09-30 moved it again, to the TENANCY:
+     "a start-date correction on a joint tenancy moves every tenant's
+     application and reissues every deed, never one."
+
+     THAT IS THE SAME DEFECT ONE LEVEL UP, which is why the assertion
+     widens rather than being replaced. Each tenant of a joint let has
+     their OWN live seven-day link, so a correction that moved the whole
+     tenancy while claiming only the clicked application left the
+     co-tenant's link live to re-run the entire teardown.
+
+     M4's property is UNCHANGED and still asserted: the claim is still
+     wider than the presented token, and the clicked application is
+     always in `ids`, so every token for it is still burned. */
+  it('claims every unsubmitted token for the TENANCY, not just the one presented', () => {
     const claim = src.slice(src.indexOf('const { data: claimedRows }'));
-    expect(claim.slice(0, 500)).toMatch(/\.eq\("application_id", tok\.application_id\)/);
+    expect(claim.slice(0, 500)).toMatch(/\.in\("application_id", ids\)/);
     expect(claim.slice(0, 500)).not.toMatch(/\.eq\("token", token\)/);
   });
 
