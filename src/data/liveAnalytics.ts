@@ -522,6 +522,54 @@ function monthOrder(label: string): number {
   return Number(yr) * 12 + MONTH_ABBR.indexOf(abbr);
 }
 
+/** What the monthly-volume trend can be measured in. Walk fix 17 added the
+ *  two that are Opndoor's own view of its book. */
+export type TrendMeasure = 'commission' | 'payable' | 'value' | 'count' | 'deeds';
+
+/**
+ * WHICH MEASURES THIS READER IS OFFERED, and in which order. Walk fix 17.
+ *
+ * "Opndoor doesn't earn commission, it pays it. For admin, the trend's
+ * options should be Opndoor's view: fees collected, commission payable,
+ * referrals sent, deeds issued, defaulting to fees collected. 'Commission
+ * earned' stays for agency and supplier users, where it's their money."
+ *
+ * THE OLD SERIES WAS NOT MERELY UNHELPFUL, IT WAS STRUCTURALLY ZERO. The
+ * trend's "commission" is the supplier cut, and `liveMonths` zeroes that on
+ * a house route because a house route's cut is Opndoor's own margin owed to
+ * nobody -- which is right, and is asserted in
+ * our_margin_is_not_theirs.test.sql. So an admin on the house rail could
+ * only ever see twelve bars of zero beside a tile saying GBP 3,232. The
+ * money model was correct and the CHART was offering a reader a series that
+ * cannot apply to them.
+ *
+ * FIRST IS THE DEFAULT, which is why the order is Matt's and not
+ * alphabetical, and why this returns a list rather than a set.
+ *
+ * AND A CUSTOMER IS NEVER OFFERED "payable". It is Opndoor's view of what
+ * leaves the business; an agency reading it would be reading its own income
+ * as an expense.
+ */
+export function trendMeasuresFor(
+  role: Role, seesCommission: boolean,
+): { value: TrendMeasure; label: string }[] {
+  if (role === 'superadmin' || role === 'opndoor_manager') {
+    return [
+      { value: 'value', label: 'Fees collected' },
+      { value: 'payable', label: 'Commission payable' },
+      { value: 'count', label: 'Referrals sent' },
+      { value: 'deeds', label: 'Deeds issued' },
+    ];
+  }
+  return [
+    // The measure itself is the commission surface here, so the OPTION is
+    // what gets gated, not the chart it draws.
+    ...(seesCommission ? [{ value: 'commission' as TrendMeasure, label: 'Commission earned' }] : []),
+    { value: 'value' as TrendMeasure, label: 'Fees collected' },
+    { value: 'count' as TrendMeasure, label: 'Referral count' },
+  ];
+}
+
 /**
  * WHO IS READING, as far as the line under a referrer's name is concerned.
  * Walk fix 21.
@@ -600,7 +648,20 @@ export function liveLeague(view: LeagueView, role: Role, scope: PartnerScope, pa
   });
 }
 
-export interface MonthRow { label: string; refs: number; fees: number; deeds: number; comm: number; }
+export interface MonthRow {
+  label: string; refs: number; fees: number; deeds: number;
+  /** Commission EARNED by the reader: the supplier cut, zero on a house
+      route because a house route's cut is Opndoor's own margin. */
+  comm: number;
+  /* WALK FIX 17. COMMISSION PAYABLE, which is the other side of the same
+     money and is what an Opndoor admin's page is about. `comm` above is
+     structurally zero for an admin looking at the house rail -- correctly,
+     and that is why the trend showed GBP 0 every month while the tile said
+     GBP 3,232. This is what leaves the business: the agency's cut plus a
+     real supplier's, net of refunds, matching the tile's own
+     `agentCommNet + supplierCommNet`. */
+  payable: number;
+}
 
 /** Trailing-12-month buckets: referrals sent, gross fees paid, deeds issued, and
     net partner commission (per-application rates, refunded apps excluded) per
@@ -617,7 +678,7 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
   const months: (MonthRow & { key: number })[] = [];
   for (let i = 0; i < 12; i++) {
     const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
-    months.push({ label: `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`, key: d.getFullYear() * 12 + d.getMonth(), refs: 0, fees: 0, deeds: 0, comm: 0 });
+    months.push({ label: `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`, key: d.getFullYear() * 12 + d.getMonth(), refs: 0, fees: 0, deeds: 0, comm: 0, payable: 0 });
   }
   const lo = months[0].key, hi = months[11].key;
   const idx = (d: Date) => d.getFullYear() * 12 + d.getMonth();
@@ -632,7 +693,18 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
          a NAMED partner configured 'opndoor_referenced' is still owed real
          commission, and zeroing by referencing mode would wipe a legitimate
          supplier settlement. :220 already draws the line this way. */
-      if (m) { m.fees += feeBaseFor(app); if (!app.refunded && seesComm) m.comm += feeBaseFor(app) * (isHousePartner(app.partner) ? 0 : app.partnerRate); }
+      if (m) {
+        m.fees += feeBaseFor(app);
+        if (!app.refunded && seesComm) m.comm += feeBaseFor(app) * (isHousePartner(app.partner) ? 0 : app.partnerRate);
+        /* WALK FIX 17. What Opndoor owes out on this fee: the agency's cut
+           (totalRate, always) plus a real supplier's (never a house route's,
+           which is Opndoor's own margin). The same two terms the tile's
+           headline adds, and the same refund rule. */
+        if (!app.refunded) {
+          m.payable += feeBaseFor(app) * totalRate(app);
+          if (!isHousePartner(app.partner)) m.payable += feeBaseFor(app) * app.partnerRate;
+        }
+      }
     }
     if (app.deedAt && idx(app.deedAt) >= lo && idx(app.deedAt) <= hi) { const m = at(app.deedAt); if (m) m.deeds += 1; }
   }
@@ -647,7 +719,7 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
      that for every caller it will ever have, including the ones that do not
      exist yet. The export carried a re-summing workaround for exactly one
      release; it is gone with this line. */
-  return months.map((m) => ({ label: m.label, refs: m.refs, fees: m.fees, deeds: m.deeds, comm: m.comm }));
+  return months.map((m) => ({ label: m.label, refs: m.refs, fees: m.fees, deeds: m.deeds, comm: m.comm, payable: m.payable }));
 }
 
 /* ---------- Tenant initials (privacy-preserving) ----------
@@ -1022,17 +1094,31 @@ export function getCommissionStatements(role: Role, scope: PartnerScope, monthKe
     .sort((x, y) => y.total - x.total);
 }
 
-export interface TrendRow { label: string; count: number; fees: number; comm: number; sub?: string; }
+export interface TrendRow {
+  label: string; count: number; fees: number; comm: number;
+  /** Walk fix 17: Opndoor's own two measures. */
+  deeds: number; payable: number;
+  sub?: string;
+}
 
 /** Live 12-month trend: by-month or an entity breakdown, carrying real net
     partner commission (per-application rates) so it reconciles with the KPIs. */
 export function liveTrend(view: 'month' | 'branch' | 'agency' | 'referrer', role: Role, scope: PartnerScope): TrendRow[] {
   // Both paths carry a zero `comm` for a reader the predicate refuses: liveMonths
   // never adds it, and groupRows never applies a rate.
-  if (view === 'month') return liveMonths(role, scope).map((m) => ({ label: m.label, count: m.refs, fees: m.fees, comm: m.comm }));
+  if (view === 'month') return liveMonths(role, scope).map((m) => ({ label: m.label, count: m.refs, fees: m.fees, comm: m.comm, deeds: m.deeds, payable: m.payable }));
   const set = scopeFull(allFull(), role, scope);
   const end = nowRef();
   const start = new Date(end.getFullYear(), end.getMonth() - 11, 1);
   // Unrounded, for the same reason as liveMonths above.
-  return groupRows(set, view, start, end, maySeeCommission(role), readerFor(role, set)).map((r) => ({ label: r.name, count: r.refs, fees: r.fees, comm: r.partnerComm, sub: r.sub || undefined }));
+  return groupRows(set, view, start, end, maySeeCommission(role), readerFor(role, set))
+    .map((r) => ({
+      label: r.name, count: r.refs, fees: r.fees, comm: r.partnerComm,
+      deeds: r.deed,
+      // Walk fix 17: both halves of what leaves the business. LeagueRow's
+      // partnerComm is already zero on a house route, so adding it here is
+      // the supplier cut and nothing else.
+      payable: r.agentComm + r.partnerComm,
+      sub: r.sub || undefined,
+    }));
 }

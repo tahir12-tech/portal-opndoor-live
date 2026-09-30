@@ -56,13 +56,15 @@ import './Dashboard.css';
 
 type ChartKey = 'branch' | 'agency' | 'referrer';
 type Measure = 'value' | 'count' | 'conv';
-type TrendMeasure = 'commission' | 'value' | 'count';
+/* WALK FIX 17: the type lives with the option list in liveAnalytics, so the
+   measures on offer and the measures the data carries cannot drift. */
+import { trendMeasuresFor, type TrendMeasure } from '@/data/liveAnalytics';
 type TrendView = 'month' | 'branch' | 'agency' | 'referrer';
 
 const TOP_N = 10;
 
 function measureLabel(m: string): string {
-  return m === 'commission' ? 'Commission earned' : m === 'conv' ? 'Conversion, Sent to Deed' : m === 'value' ? 'Fees collected' : 'Referrals sent';
+  return m === 'commission' ? 'Commission earned' : m === 'payable' ? 'Commission payable' : m === 'deeds' ? 'Deeds issued' : m === 'conv' ? 'Conversion, Sent to Deed' : m === 'value' ? 'Fees collected' : 'Referrals sent';
 }
 
 /**
@@ -268,7 +270,12 @@ export function Dashboard() {
      page was twelve bars of agency earnings with the latest month highlighted.
      So the option goes for them and the card opens on fees collected instead,
      which is what the title says it measures anyway. */
-  const [trendMeasure, setTrendMeasure] = useState<TrendMeasure>(seesCommission ? 'commission' : 'value');
+  /* WALK FIX 17. The options are the reader's, and the FIRST is the default:
+     for an admin that is fees collected, because "Opndoor doesn't earn
+     commission, it pays it" and the old default was a series that is
+     structurally zero for them. */
+  const trendMeasures = useMemo(() => trendMeasuresFor(role, seesCommission), [role, seesCommission]);
+  const [trendMeasure, setTrendMeasure] = useState<TrendMeasure>(() => trendMeasuresFor(role, seesCommission)[0].value);
   /* Resolved on every read rather than trusted because the option was missing
      when it was set. The initialiser above is correct on a normal sign-in
      (hydrateCommissionVisibility runs before the first Reporting paint), but it
@@ -276,7 +283,13 @@ export function Dashboard() {
      resolving inside the same runtime is a case the session already handles
      explicitly (#100 in SessionContext), and 'commission' left in this state
      would survive it. */
-  const shownMeasure: TrendMeasure = trendMeasure === 'commission' && !seesCommission ? 'value' : trendMeasure;
+  /* Resolved on every read rather than trusted, because the option may not
+     be on offer any more. Widened with walk fix 17: the reader can change
+     inside one runtime (#100), and an admin left holding 'commission' would
+     see the zero series this item is about. Anything not offered falls back
+     to the reader's own first option. */
+  const shownMeasure: TrendMeasure = trendMeasures.some((o) => o.value === trendMeasure)
+    ? trendMeasure : trendMeasures[0].value;
 
   /* THE BOOK THE PICKER DERIVES ITS CHOICES FROM, same source as Applications
      so the two controls cannot offer different parties. Scoped by the
@@ -310,13 +323,20 @@ export function Dashboard() {
   // ---- monthly trend ----
   // Every read of the measure below goes through shownMeasure, so r.comm is
   // unreachable for a reader the predicate refuses even if the state says otherwise.
-  const trendVal = (r: TrendRow): number => (shownMeasure === 'count' ? r.count : shownMeasure === 'commission' ? r.comm : r.fees);
+  const trendVal = (r: TrendRow): number => (
+    shownMeasure === 'count' ? r.count
+      : shownMeasure === 'deeds' ? r.deeds
+      : shownMeasure === 'commission' ? r.comm
+      : shownMeasure === 'payable' ? r.payable
+      : r.fees);
+  /** The two counting measures print as counts; the two money ones as money. */
+  const trendIsCount = shownMeasure === 'count' || shownMeasure === 'deeds';
   const rawTrend = getTrend(trendView, role, partnerScope);
   const trendRows: BarRow[] = useMemo(() => {
     const rows = rawTrend.slice();
     // "By month" keeps chronological order (latest highlighted); breakdowns sort by value.
     if (trendView !== 'month') rows.sort((a, b) => trendVal(b) - trendVal(a));
-    return rows.map((r) => ({ label: r.label, sub: r.sub, value: trendVal(r), display: shownMeasure === 'count' ? String(r.count) : fmtBig(trendVal(r)) }));
+    return rows.map((r) => ({ label: r.label, sub: r.sub, value: trendVal(r), display: trendIsCount ? String(trendVal(r)) : fmtBig(trendVal(r)) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawTrend, trendView, shownMeasure]);
   const trendTopIndex = trendView === 'month' ? trendRows.length - 1 : 0;
@@ -839,13 +859,7 @@ export function Dashboard() {
                     ariaLabel="Measure for the trend"
                     value={shownMeasure}
                     onChange={(v) => setTrendMeasure(v as TrendMeasure)}
-                    options={[
-                      // The measure itself is the commission surface here, so the
-                      // option is what gets gated, not the chart it draws.
-                      ...(seesCommission ? [{ value: 'commission', label: 'Commission earned' }] : []),
-                      { value: 'value', label: 'Fees collected' },
-                      { value: 'count', label: 'Referral count' },
-                    ]}
+                    options={trendMeasures}
                   />
                 </div>
               }
