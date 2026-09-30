@@ -15,6 +15,44 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## SUPPLIER MONTHLY STATEMENTS (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+
+> Supplier monthly commission statements: a supplier's Management users who have statements switched on receive their supplier's monthly commission statement, addressed to the supplier. Deploy to dev and check it there.
+
+### This closes the gap Q4 surfaced an hour earlier
+
+Q4 gave a supplier's Management the PERMISSION to switch statements on and
+left the statement itself undeliverable, which the pgTAP file records as a
+22023: `commission_statement_party(p_user)` returns nothing for anybody
+holding no org attachment, and a supplier's staff hold none by design
+(decision D11, "positions are an agency-estate thing and this rail has
+none").
+
+So the party lookup, not the permission, is what has to change.
+
+### What "addressed to the supplier" settles
+
+The payee is the SUPPLIER COMPANY, not the person and not an agency
+underneath it. That matters because a supplier carries agencies, and a
+statement addressed to one of those would be the agency's money, not the
+supplier's. On the supplier rail `partner_id` IS the company, so the party
+is the partner row -- the one rail where that is the right answer, which is
+rule 2 and the same distinction Q4 turned on.
+
+### Three things to get right, each of which is a way to get it wrong
+
+1. **The agency rail must not move.** `commission_statement_party` is asked
+   for every recipient of every statement, so a new arm has to be additive
+   and must not shadow the group / agency / branch ladder above it.
+2. **A supplier's REFERRER must not receive one.** Matt says Management,
+   and the existing level gate (`role = 'management'` plus the commission
+   bit) already says so -- but it has to keep firing on the new arm rather
+   than being bypassed by it.
+3. **A supplier person with statements OFF must not receive one.** The tick
+   is the whole instruction: "who have statements switched on".
+
+---
+
 ## Q4 ANSWERED: SUPPLIER MANAGEMENT MANAGES ITS OWN PEOPLE (instruction, 2026-09-30, verbatim). ACTIVE.
 
 > Q4: yes. A supplier's Management user can change the notification settings of anyone at the same supplier, the same way an agency Director can for their agency. Referrers can change only their own event choices. Monthly statements stay Management-only. Deploy to dev and check it there.
