@@ -19,19 +19,21 @@ You will also create a third, throwaway **clone**, and that is where you start.
 
 ## 0. What this actually is
 
-`partner-api` is 268 migrations ahead of `origin/main`.
+`partner-api` is 284 migrations ahead of `origin/main`.
 
 ```
-migrations on this branch      333
+migrations on this branch      349
 migrations on origin/main       65
-new                            268
+new                            284
 
 edge function directories       34   (plus _shared)
-on origin/main                  22
+on origin/main                  21
 ```
 
-*Counts refreshed 2026-09-29. They were 266 / 201 when this was written on
-Monday; everything since is listed in section 0a.*
+*Counts refreshed 2026-09-30, and they are counted rather than remembered:
+`ls supabase/migrations/*.sql | wc -l` against
+`git ls-tree -r --name-only origin/main -- supabase/migrations/`. If you read
+this on a later day, count them again rather than trusting the number.*
 
 Production is running `origin/main`, whose schema has not changed since 5 July.
 The branch is not a feature on top of it; it is most of a year of work, and the
@@ -49,8 +51,8 @@ changes nothing a user can see until its function is deployed, its cron is
 scheduled or its screen is shipped. **After the push, production behaves
 exactly as it did before**, and that is the property that makes this safe.
 
-**What has to be true by Monday 28 September** is only bite 1 plus Regent's
-keying. The other five can follow that week.
+**Only bite 1 plus Regent's keying has to be true on the day.** The other
+five can follow that week.
 
 ---
 
@@ -129,17 +131,19 @@ meet by surprise.
 | 9 | `20261006800000_an_admin_chooses_the_route` | admin New application can state which supplier a referral came through; the server refuses one the branch does not sit under |
 | 10 | `20261006810000_one_create_referral_not_two` | drops the older `create_referral` overload the one above created |
 
-### The walk is half done, and the half that is missing is the half you can do
+### The part of the walk only you can do
 
 `docs/THE-WALK.md`. Every rail was created on dev and every resolver asked
 what it produced and **who it would tell** — the fees, the rates, the
-recipients. What could not be walked here is payment, deed generation and the
-emails: Deno is not installed on this machine, so those edge functions cannot
-run at all and no inbox can be read.
+recipients.
 
-The browser steps are listed at the end of that document. They are worth
-doing before Regent goes live, and the one to watch is step 7: **who is on
-the executed-deed email**. That has been wrong before.
+What could not be walked from here is payment, deed generation and the
+emails: no card can be charged and no inbox can be read from a terminal. The
+browser steps are listed at the end of that document.
+
+**The one to watch is step 7: who is on the executed-deed email.** That has
+been wrong before, and it is the step where being wrong costs a customer
+their deed.
 
 ---
 
@@ -1242,14 +1246,14 @@ Stop at any step that does not match and tell Matt before continuing.
 
 ---
 
-## 12. Things I could not finish, and things to watch
+## 12. What is not done, and what to watch after you go live
+
+This section is yours, not a status report: everything in it is either
+something you will have to do or something that will look like a fault and
+is not.
 
 **Not done:**
 
-- **The `commission-statements` function has not been deployed to any project.**
-  The code, the migration, the cron and the recipients flag are all in place and
-  proved on dev; the function itself needs `npx supabase functions deploy
-  commission-statements`. Nothing depends on it before 1 November.
 - **UK bank holidays are a static table** in the function, covering 2026 to 2030.
   It must be extended before it runs out. There is a guard that treats an unknown
   year as all-working-days rather than failing silently, but that is a fallback,
@@ -1260,6 +1264,14 @@ Stop at any step that does not match and tell Matt before continuing.
 
 **Watch:**
 
+- **An `opndoor_manager` sees a blank Reporting page.** Found 2026-09-30 and
+  deliberately not fixed: `paymentMetrics.scopeFull` has a positive allowlist
+  naming only `referrer`, `superadmin` and `management`, so that role is
+  handed an empty set and every live figure comes out zero. The role was
+  added later and the list was never widened. It is not a leak -- it shows
+  too little, not too much -- and it is not in the queue, so it is here
+  rather than fixed. An opndoor_manager who says "Reporting is empty" is
+  seeing this, not a data problem.
 - **`partner_weekly_climbers`** still ranks referrers by summed `monthly_rent`
   and feeds the "Climber of the week" line of the digest. Same defect as the two
   aggregates fixed in bite 4, not fixed.
