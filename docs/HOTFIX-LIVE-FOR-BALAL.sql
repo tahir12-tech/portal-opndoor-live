@@ -80,3 +80,58 @@ language sql stable security definer set search_path = ''
 as $$
   select coalesce((select role from public.users where id = auth.uid()), '')
 $$;
+
+
+-- ===========================================================================
+-- STATEMENT 3 OF 4. STOP THE SCHEDULED-JOB LOG GROWING FOREVER.
+--
+-- WHAT IS WRONG. pg_cron writes one row to cron.job_run_details every time a
+-- job runs, and nothing ever deletes them. Two of the jobs run every minute
+-- and every two minutes, so the table grows by roughly 2,160 rows a day, for
+-- ever. On dev it had reached 57,240 rows and 34 MB.
+--
+-- WHAT IT BREAKS. The Health screen reads that table to tell you whether the
+-- scheduled jobs are working. Measured on dev, that one query now takes
+-- TWENTY SECONDS against an eight-second limit, so the screen simply stops
+-- loading. It is the only screen that tells you the automatic jobs have
+-- stopped, so it is the worst one to lose quietly.
+--
+-- Nothing else reads history older than a day. Thirty days is kept so there
+-- is a fortnight of margin for looking back at a problem.
+--
+-- SAFE TO RUN AT ANY TIME. It deletes log rows only. It touches no
+-- application, no payment, no deed and no schedule: the jobs themselves live
+-- in cron.job, which is a different table and is not touched here.
+-- ---------------------------------------------------------------------------
+
+delete from cron.job_run_details where end_time < now() - interval '30 days';
+
+select cron.schedule(
+  'job-log-cleanup',
+  '20 3 * * *',
+  $$delete from cron.job_run_details where end_time < now() - interval '30 days'$$
+);
+
+
+-- ===========================================================================
+-- STATEMENT 4 OF 4. THE INDEX THE HEALTH SCREEN NEEDS.
+--
+-- WHAT IS WRONG. cron.job_run_details has exactly one index, on its own row
+-- id, which nothing searches by. The Health screen looks up "the last run of
+-- this job" and "the runs around this time", so every lookup reads the whole
+-- table from beginning to end. That is why it got slower every single day.
+--
+-- WHAT THIS DOES. Adds the index those two lookups actually want. Together
+-- with statement 3 the Health screen goes back to being instant.
+--
+-- CONCURRENTLY means the table stays readable and writable while the index is
+-- built, so the scheduled jobs keep running normally throughout.
+--
+-- IMPORTANT: CREATE INDEX CONCURRENTLY CANNOT RUN INSIDE A TRANSACTION. If
+-- you are pasting the whole file into the SQL editor in one go, run this last
+-- statement ON ITS OWN afterwards. If it errors with "cannot run inside a
+-- transaction block", that is all this is -- nothing has gone wrong.
+-- ---------------------------------------------------------------------------
+
+create index concurrently if not exists job_run_details_jobid_start
+  on cron.job_run_details (jobid, start_time desc);

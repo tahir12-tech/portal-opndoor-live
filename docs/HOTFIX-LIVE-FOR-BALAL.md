@@ -12,7 +12,8 @@ enough to be worth guessing about.
 
 ## The short version
 
-Two things are open on the live system today.
+Three things are open on the live system today. The first two are security;
+the third is a screen that is quietly dying and will be dead before long.
 
 1. **Anyone logged in as a manager can mark an application paid without paying
    for it.** They cannot do it through any screen. They can do it by sending
@@ -31,8 +32,26 @@ Two things are open on the live system today.
    until you deleted them this morning. The fault is still there; only those
    two accounts are gone.
 
-Neither is being exploited as far as anyone can tell. Both are the kind of
-thing that only needs to happen once.
+3. **The Health screen is getting slower every day and will soon stop
+   working altogether.** It is the screen that tells you whether the
+   automatic overnight jobs are running, so losing it is how you stop finding
+   out that something has stopped.
+
+   The cause is a log. Every time a scheduled job runs, the database writes a
+   line to a log table, and nothing has ever deleted them. Two of the jobs
+   run every minute and every two minutes, so it grows by roughly 2,000 lines
+   a day, for ever. The Health screen reads that whole log to work out
+   whether each job is healthy.
+
+   Measured on the test system, that had already reached 57,000 lines and the
+   Health screen's query was taking **twenty seconds** against an
+   eight-second cut-off. Production has been running longer than the test
+   system, so it is further along the same curve.
+
+Neither of the first two is being exploited as far as anyone can tell. Both
+are the kind of thing that only needs to happen once. The third is not a
+security problem at all -- it is housekeeping that was never set up, and it
+is included here because it is two lines and you are already going in.
 
 ---
 
@@ -102,8 +121,31 @@ Stop and ask.
 
 ## Run it
 
-Open `HOTFIX-LIVE-FOR-BALAL.sql`, paste the whole file into the SQL editor, and
-run it. Both statements together.
+Open `HOTFIX-LIVE-FOR-BALAL.sql` and paste it into the SQL editor.
+
+**Statements 1 to 3 can go in together.** Statement 4, the very last one, has
+to be run **on its own afterwards**. It builds an index using a mode that
+keeps the table usable while it works, and that mode is not allowed to run
+alongside other statements. If you paste everything at once you will get
+
+> cannot run inside a transaction block
+
+against that last statement and nothing else. That is not a failure and
+nothing is half-done: just run that one statement again on its own.
+
+**What statements 3 and 4 do, in plain words.** Statement 3 deletes log lines
+older than thirty days and sets up a nightly job to keep doing it, at 3:20am.
+Statement 4 adds the index the Health screen's lookup actually needs -- there
+was only one index on that table and it was on a column nothing searches by,
+which is why every lookup read the entire log from one end to the other.
+
+Thirty days is kept so there is a fortnight of margin for looking back at a
+problem. Nothing reads that log beyond a day in normal use.
+
+**Neither touches anything that matters.** They delete log lines and add an
+index. No application, no payment, no deed, no email, and not the schedule
+itself -- the jobs live in a different table that is not touched. Both are
+safe to run at any time of day, with people using the system.
 
 ---
 
@@ -169,6 +211,39 @@ pasted slightly wrong, it could return empty for *everybody*. An opndoor admin
 would not notice, because admin access is checked a different way — but every
 manager and negotiator in the product would quietly lose access to everything.
 The first query is what catches that, so please do run it.
+
+---
+
+## And the check for statements 3 and 4
+
+Also read-only.
+
+```sql
+select
+  (select count(*) from cron.job_run_details
+     where end_time < now() - interval '30 days')            as old_lines_left,
+  (select count(*) from cron.job where jobname = 'job-log-cleanup')
+                                                             as nightly_cleanup_set_up,
+  (select count(*) from pg_indexes
+     where schemaname = 'cron' and tablename = 'job_run_details'
+       and indexname = 'job_run_details_jobid_start')        as health_index_there,
+  (select count(*) from cron.job_run_details)                as lines_now;
+```
+
+| answer | must be |
+| --- | --- |
+| `old_lines_left` | **0** |
+| `nightly_cleanup_set_up` | **1** |
+| `health_index_there` | **1** |
+| `lines_now` | any number -- it is just how much log is left, and it will be a lot smaller than before |
+
+Then **open the Health screen**. It should load immediately. That is the
+whole point of statements 3 and 4, and it is the only check that proves it
+from the outside.
+
+If `health_index_there` comes back **0**, statement 4 did not run. That is
+the one that has to go in on its own; see "Run it" above. Everything else
+will still have worked.
 
 ---
 

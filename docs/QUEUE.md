@@ -1411,54 +1411,57 @@ anywhere and cannot be read back from their hashes. All three have been signed
 into recently, so Matt or Balal hold them. They are NOT being reset, because
 resetting mid-cutover would lock out whoever is using them.
 
-### NM-I. Should a partial refund reduce the commission? Raised by R2.
+### NM-I. ANSWERED by Claude, 2026-09-30, at Matt's explicit request ("NM-I: [write your answer]").
 
-R2 stopped a partial refund wiping the agency's whole commission line. It did
-NOT decide what the commission should then be, because that is a commercial
-question and nobody has answered it.
+**The answer: YES, pro-rate it. Commission is paid on what Opndoor actually
+keeps, so a partial refund reduces it in proportion.**
 
-**Today, after the fix:** commission stays on the WHOLE fee. That is the
-status quo for any application that was not refunded, and it is the
-conservative choice -- it changes nothing except stopping the wipe.
+**The decisive argument is not fairness, it is that the current rule can go
+negative.** Commission is a share of the fee. If the fee is partly refunded
+and the commission is not, Opndoor pays a share of money it no longer holds.
+Worked on the real measured figures -- a GBP 1,246.15 fee with the agency at
+25%:
 
-**The alternative:** pro-rate it. Refund 10% of the fee, pay 10% less
-commission.
+| refunded | Opndoor keeps | commission today | commission pro-rated |
+| --- | --- | --- | --- |
+| GBP 0 | 1,246.15 | 311.54 | 311.54 |
+| GBP 623 (half) | 623.08 | 311.54 | 155.77 |
+| GBP 1,000 (80%) | 246.15 | **311.54** | 61.54 |
 
-Worth knowing before choosing: a partial refund is usually a goodwill
-gesture or a correction, and the agency did the same work either way. But
-Opndoor keeps less and pays the same. On the measured case the difference is
-GBP 311.54 either way against a GBP 10 refund, so it is small per case and
-only matters if partial refunds become common.
+At the bottom row Opndoor pays out MORE than it kept. The fee goes
+net-negative: a refund costs Opndoor the refund and then costs it again in
+commission. That is not a judgement call about generosity, it is an
+arithmetic hole, and it is exactly the direction a goodwill refund would push
+somebody towards.
 
-**Blocks nothing.** The fix is complete and safe without an answer; this only
-decides whether a later migration adjusts the figure.
+**The counter-argument, stated honestly:** the agency did the same work
+whatever was refunded afterwards. True. But a refund usually means the
+guarantee did not deliver what it promised, and the agency is a share of a
+service that was partly undone. Pro-rating keeps the relationship the
+percentage already describes -- 25% of the fee, whatever the fee turns out to
+have been -- rather than turning it into a fixed amount that survives the fee
+shrinking.
 
-### NM-J. Should a supplier-rail band move the agent rate, or only the fee basis? Raised by R7.
+**Why pro-rate rather than cap:** capping commission at what Opndoor keeps
+would also stop it going negative, but it makes a 79% refund and an 80%
+refund pay the same commission, which is the kind of cliff that produces
+arguments. Proportional is the rule the percentage already implies.
 
-Found while making the partner API price like the portal, and deliberately
-NOT changed, because it is money.
+**The rule, precisely:** commission = rate x (fee_amount - refunded_amount).
+It cannot go negative, because R2 already caps refunded_amount at what was
+paid. A full refund gives zero, which is what happens today, so the existing
+behaviour is the endpoint of the new rule rather than an exception to it.
 
-**What happens today.** A pricing agreement's band carries both a
-`fee_basis_weeks` and an `agent_rate`. On the **agency estate** both are
-used: `commission_total` applies the band's rate. On the **supplier rail**
-only the basis is used, and the agent rate stays the partner's flat rate.
+**Status: NOT YET BUILT.** It is on the worktree list. R2 deliberately left
+commission on the whole fee, which was the conservative status quo and is
+safe; this changes it. When built it wants a test asserting the middle row of
+that table, since both ends already behave correctly.
 
-Measured on a clean apply: a band of 3 weeks at 20% against a partner whose
-flat rate is 10% produced a three-week fee basis and a **10%** agent rate.
-
-**Why it was left alone.** The PORTAL does exactly the same thing -- R7's
-assertion 4 proves the two paths agree figure for figure -- so changing it
-inside the API fix would have made the API disagree with the portal, which is
-the opposite of what Matt asked for. And it is a commercial question, not a
-defect: it decides what a supplier's agent is actually paid.
-
-**The question:** when a supplier-rail agreement names an agent rate in a
-band, should that rate be paid, or is the band's rate only ever meaningful on
-the agency estate? If the former, is it a change to existing agreements or
-only to new ones?
-
-**Blocks nothing.** R7 is complete and the two paths agree. This only decides
-whether a later migration changes what the supplier rail pays.
+**One thing Matt should know rather than discover:** this changes figures on
+statements that may already have been sent for any month containing a partial
+refund. Whether it applies to past months or only from now is a second
+question, and it is NOT decided here -- the build will apply it going forward
+and leave the past alone unless Matt says otherwise.
 
 ### NM-A. Who pays the guarantee fee, and how they pay it
 
