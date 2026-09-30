@@ -15,6 +15,43 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## NM-O. SUPPLIER USERS HAVE NO BRANCH (instruction, 2026-09-30, verbatim). RECORD NOW, BUILD AFTER THE WALK.
+
+> Supplier Add user form: suppliers' own staff do the referring, so a supplier user has no branch. Remove the Branch field from inviting or editing a supplier user entirely, for every role; the agency and branch are chosen on each referral instead. Replace "Partner company" and "partner" with "Supplier" throughout, including the role descriptions. Check nothing else (league, statements, notifications) assumes a supplier user has a home branch. Record in QUEUE.md; build after I say the walk is done.
+
+**Not started.** Matt's own words: "build after I say the walk is done."
+
+### The three parts, as I read them
+
+1. **Remove the Branch field** from inviting AND editing a supplier user,
+   for EVERY role. Not hidden for some roles: removed.
+2. **Rename "Partner company" and "partner" to "Supplier" throughout**,
+   including the role descriptions. Note this is the user-facing vocabulary
+   only. `partner_id`, `app_partner()`, `partnerScope` and the whole
+   isolation model keep their names: on the supplier rail the partner IS the
+   company boundary and renaming the boundary in code would be a much larger
+   and riskier change than the one being asked for.
+3. **Check nothing else assumes a supplier user has a home branch** --
+   he names league, statements and notifications. This is the part that
+   decides whether the item is small or not, because a home branch that
+   other code relies on cannot simply stop being collected.
+
+### Why this is more than a form change, and where the risk is
+
+The constraint trigger that refuses an unpositioned user on our own estate,
+and `set_home_branch`, both exist because an AGENCY user's position is how
+the agency rail derives its boundary. A supplier user's boundary is
+`partner_id`, which is why they need no position at all. So removing the
+field should be consistent with the model rather than fighting it -- but
+anything that reads a home branch and does not first ask which rail the
+user is on will start reading null.
+
+A read-only investigation of every home-branch consumer was run while the
+walk was on, so the build can start immediately when Matt says go. Its
+findings go here.
+
+---
+
 ## DEV IS FROZEN WHILE MATT WALKS (instruction, 2026-09-30, verbatim). OVERRIDES THE DEPLOY RULE BELOW.
 
 > Pause changes to dev while I walk the Regent and Kestrel paths. Carry on in the worktree and don't merge or deploy until I say the walk is done.
