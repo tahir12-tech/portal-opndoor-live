@@ -88,9 +88,87 @@ field should be consistent with the model rather than fighting it -- but
 anything that reads a home branch and does not first ask which rail the
 user is on will start reading null.
 
-A read-only investigation of every home-branch consumer was run while the
-walk was on, so the build can start immediately when Matt says go. Its
-findings go here.
+### The read-only check is DONE. Answer: the model already agrees with Matt
+
+Run while the walk was on, against the migration files and the client. No
+file changed, no database touched.
+
+**Nothing in league, statements or notifications assumes a supplier user has
+a home branch.** Exactly FOUR functions in the whole final schema still
+mention `users.home_branch_id`: `create_invited_user` (writes it; null skips
+its reach test), `set_home_branch` (the only writer),
+`users_home_branch_guard` (refuses any other write) and
+`list_managed_users` (selects it for display). Every boundary that used to
+read it was rewritten to positions by 20261006310000 and 20261006320000.
+
+- **League.** `agency_weekly_climber` carries the comment "Positions only:
+  home_branch_id is not a boundary anywhere any more." Client side is
+  positions-only too.
+- **Statements.** `commission_statement_party`'s home-branch arm was
+  DELETED by 20261006320000; recipients join `user_scopes` only.
+- **Notifications.** The supplier arm resolves from
+  `effective_primary_contact_route(a.branch_id, a.partner_id)` -- the
+  APPLICATION's branch, chosen per referral, which is exactly what Matt
+  says should happen.
+
+And the position requirement is already estate-only by design:
+`user_must_hold_a_position` returns early when the partner is not
+`opndoor_referenced`, and says why -- "on the supplier rail partner_id IS
+the company boundary ... requiring a position there would be ceremony with
+no boundary behind it."
+
+There is even a green test proving it: `a_suppliers_volume_is_its_own.test.sql`
+creates a supplier referrer with `home_branch_id` NULL and no `user_scopes`
+row.
+
+**So this is a form-and-copy change, not a data change.** Good news for its
+size.
+
+### Three things the sweep found that the instruction does not name
+
+1. **The Branch field is offered in THREE places, not one.** The /users Add
+   user dialog; the row menu's "Set what they see", which opens
+   PositionModal and writes `home_branch_id` through `set_home_branch` --
+   this is the "or editing" half and is easy to miss because nothing on it
+   says "Branch"; and AgencyHome's InviteToLevel, reachable for an admin
+   from PartnerHome's Structure tree, which sends BOTH a home branch and a
+   position into a supplier partner.
+
+2. **The client is STRICTER than the server and will block on a control
+   that is no longer there.** `UserManagement.tsx:564` refuses to let a
+   supplier's Manager invite a Referrer until they pick a branch. The
+   server never asks: `invite-user`'s equivalent is gated on `callerScoped`,
+   true only for users holding `user_scopes` rows, which a supplier's staff
+   never do. Remove the field without removing this guard and a supplier
+   Manager is blocked by a toast about a field that is not on screen.
+
+3. **PartnerHome already does it right and is the precedent to copy**:
+   `manyOffices={false}`, `onPosition` a no-op, with a comment recording it
+   as decision D11, "positions are an agency-estate thing and this rail has
+   none."
+
+### And two pre-existing gaps it surfaced, which are POSITION-shaped, not branch-shaped
+
+Neither is caused by the Branch field and both survive this change:
+
+- A supplier **Director can never be put on a commission statement** --
+  `commission_statement_party` returns nothing for them.
+- The /users **"Sees" column reads "Own referrals" for every supplier
+  user**, including their management.
+
+### The rename: what moves and what must not
+
+Moves: `UserManagement.tsx` label "Partner company" and its hint (the select
+under it is fed by `getPartners()`, which strips every house partner, so the
+label is already wrong about its own contents); the Management and Developer
+role descriptions; the Partner column and chip; the re-invite sentence.
+
+**Must not move:** `partner_id`, `app_partner`, `partnerScope`,
+`addPartnerId`, `getPartners`, the `partner` key in the inviteUser payload,
+and Dashboard's "Commission by partner" / DevCentre / exportsService copy --
+those mean the ROUTE, and `suppliersAreCalledSuppliers.test.ts` exists
+specifically to stop a sweep renaming them. That test should be extended to
+cover the invite surface when the build happens.
 
 ---
 
