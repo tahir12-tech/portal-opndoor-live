@@ -185,13 +185,24 @@ export function Applications() {
     [origin, effectiveScope, dataVersion],
   );
   const scopeOpts = { role, scope: effectiveScope, partner: originQuery.partner };
+  /* WALK FIX 7. The rows narrow by the SELECTION, asked as itself, rather
+     than by originToFilter's translation of it into partner / agencies /
+     channel. That translation has no arm for the two rails at the top of the
+     picker (`rail:supplier`, `rail:agency`) and falls through to no filter,
+     so choosing either left the whole book on screen: "choosing an option
+     does nothing, the list doesn't change."
+
+     `originToFilter` still earns its place just above, narrowing `scopeOpts`
+     to a partner so the Agency, Branch and Referrer chips list that party's
+     own options. That is a different job from filtering the rows, and it is
+     the one it can do: a rail names no single partner, and leaving those
+     chips open across the rail is right. */
   const filterOpts = {
     ...scopeOpts,
     agency: agency || undefined,
-    agencies: originQuery.agencies,
     branch: branch || undefined,
     referrer: referrer || undefined,
-    channel: originQuery.channel,
+    origin,
     periodRange: range,
   };
   // #owner Chips recount within the selected period and the current filter state.

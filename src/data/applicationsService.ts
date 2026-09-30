@@ -17,6 +17,10 @@ import { ALL_PARTNERS } from './types';
 import { AGENT_ADDR, APPLICATION_RECORDS as RECORDS_SEED, APPLICATIONS_LIST as LIST_SEED, type AppRecord } from './mock/applications';
 import { getPartner, partnerName } from './partnersService';
 import { channelOf, type Channel } from './channel';
+// One predicate for "is this row in the selected party", shared with the
+// reporting rail. See `origin` on AppFilterOpts. origin.ts does not import
+// this file, so there is no cycle.
+import { originMatches, type OriginScope } from './origin';
 import { reachableAgencyNames } from './orgService';
 import { deliveryStateOf } from './deliveryState';
 
@@ -178,6 +182,22 @@ export interface AppFilterOpts extends AppScopeOpts {
   /** Route filter: one of the four channels (Direct / Agent / Partner / Provider),
       derived per row from partner slug + rail. Visible to every role. */
   channel?: Channel;
+  /** THE ORIGIN SELECTION, ASKED AS ITSELF. Walk fix 7.
+   *
+   *  The list used to narrow by translating a selection into the three
+   *  options above (`partner`, `agencies`, `channel`) through
+   *  `originToFilter`. That translation has no arm for the two RAILS --
+   *  `rail:supplier` and `rail:agency`, which are the second and third
+   *  choices in the picker -- and its fallthrough is "no filter", so
+   *  choosing either left the whole book on screen.
+   *
+   *  `originMatches` already had both arms and is what Reporting narrows by,
+   *  so this asks it rather than adding a third expression of one rule. That
+   *  is what the header of origin.ts is about.
+   *
+   *  NARROWS, NEVER WIDENS. It runs after scopedSet, so it can only ever
+   *  reduce what the reader was already allowed. Never a scope test. */
+  origin?: OriginScope;
   q?: string;
   sort?: string;
 }
@@ -226,6 +246,8 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
     if (opts.agencies && !opts.agencies.includes(r.agency)) return false;
     if (opts.referrer && r.referrer !== opts.referrer) return false;
     if (opts.channel && channelOfRow(r) !== opts.channel) return false;
+    // Walk fix 7. AFTER the scope filters, never instead of them.
+    if (opts.origin && !originMatches(r, opts.origin)) return false;
     return inPeriod(r, opts.periodRange);
   });
   // 'refunded' and 'awaiting' overlap 'paid' (both keep status Paid by design), so
@@ -324,6 +346,8 @@ export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
     // #owner Referrer filter (management + opndoor admin) and period (sent-date).
     if (opts.referrer && r.referrer !== opts.referrer) return false;
     if (opts.channel && channelOfRow(r) !== opts.channel) return false;
+    // Walk fix 7. AFTER the scope filters, never instead of them.
+    if (opts.origin && !originMatches(r, opts.origin)) return false;
     if (!inPeriod(r, opts.periodRange)) return false;
     if (opts.q) {
       const hay = `${r.tenant} ${r.prop} ${r.ref} ${r.ben} ${r.branch}`.toLowerCase();
