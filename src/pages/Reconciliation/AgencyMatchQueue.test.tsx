@@ -28,8 +28,22 @@ describe('direct agency matches', () => {
     fireEvent.change(select, { target: { value: 'br-m-city' } });
     expect(setBtn.disabled).toBe(false);
 
-    // Setting it clears the row from the queue.
+    /* AND THEN IT ASKS. Walk fix 23 put a confirmation in front of this
+       button, so the click no longer sets the branch: it raises a dialog
+       naming the agency and the office, and the affirmative there does
+       the work. The row clearing the queue is still the outcome, which is
+       what this test was always about -- one step further along.
+
+       The dialog is rendered in a portal, so it is found on `document`
+       rather than through `screen` bound to the container. */
     fireEvent.click(setBtn);
+    const link = await waitFor(() => {
+      const b = [...document.querySelectorAll<HTMLElement>('[role="dialog"] button')]
+        .find((x) => (x.textContent ?? '').trim() === 'Link to this office');
+      if (!b) throw new Error('no confirmation');
+      return b;
+    });
+    fireEvent.click(link);
     await waitFor(() => expect(screen.queryByText(/Tenant typed .*Meridian Lettings/)).toBeNull());
   });
 
@@ -59,7 +73,15 @@ describe('direct agency matches', () => {
     render(<AgencyMatchQueue />);
     await waitFor(() => expect(screen.getByText(/Tenant typed .*barnad & co/)).toBeTruthy());
     const row = screen.getByText(/Tenant typed .*barnad & co/).closest('.rqitem') as HTMLElement;
+    // Walk fix 23: the button asks first. See the note on the test above.
     fireEvent.click(within(row).getByRole('button', { name: /not in network/i }));
+    const go = await waitFor(() => {
+      const b = [...document.querySelectorAll<HTMLElement>('[role="dialog"] button')]
+        .find((x) => (x.textContent ?? '').trim() === 'We do not work with them');
+      if (!b) throw new Error('no confirmation');
+      return b;
+    });
+    fireEvent.click(go);
     await waitFor(() => expect(screen.queryByText(/Tenant typed .*barnad & co/)).toBeNull());
   });
 });
