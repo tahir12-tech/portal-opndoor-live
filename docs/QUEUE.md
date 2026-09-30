@@ -15,6 +15,46 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## PER-AGENCY SCHEDULES UNDER A SUPPLIER (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+
+> Add to the supplier statement: alongside the supplier's own statement, a separate commission statement for each agency under that supplier for the month, showing that agency's referrals (branch, tenant reference, fee) and the agent commission at the agent rate recorded for that supplier. These go to the supplier's statement recipients, not to the agencies, since the supplier pays its own agents. Include them in the test email.
+
+**This is the two-part supplier statement** that has sat in Q-05 / NM-C
+as "a summary document plus separate per-agency schedules" since the
+supplier-commission list was written. It is no longer blocked.
+
+### IT RESOLVES THE TENSION IN THE INSTRUCTION BEFORE IT, rather than contradicting it
+
+NM-C 5 says no agency commission line is CREATED under a supplier
+referral, because Opndoor pays only the supplier. This says each agency
+under that supplier gets a schedule showing agent commission anyway. Both
+are true and they are about different money:
+
+- **What Opndoor owes** is one number, to the supplier. That is the
+  supplier's own statement, and NM-C 5 is why no agency line sits in it.
+- **What the SUPPLIER owes its own agents** is the schedule. It is the
+  supplier's working, which is exactly why he says these go to the
+  supplier's recipients and not to the agencies. An agency under a
+  supplier is not Opndoor's payee and must never be posted one.
+
+So the agent rate is read from the SUPPLIER's recorded agent rate, and
+the schedules are attachments on the supplier's own email, never a
+separate send.
+
+### WHAT TO GET RIGHT
+
+- **Never addressed to the agency.** The whole risk here is an agency
+  under a supplier receiving something that looks like an Opndoor
+  statement for money Opndoor does not owe it. Recipients come from the
+  supplier's party and nowhere else, and that needs an assertion of its
+  own.
+- **The columns he named**: branch, tenant reference, fee, and the agent
+  commission. Not the supplier's own rate, which is Opndoor's commercial
+  term with the supplier and is not an agency's business.
+- **One attachment per agency WITH business in the month.** An agency
+  with nothing paid gets no schedule, on the same "at least one line"
+  rule the statement itself uses.
+
 ## SUPPLIER STATEMENT LINES AND WHO OPNDOOR PAYS (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
 
 > Supplier commission statements always show the agency and branch on every line, even when they're all the same. Keep "Source" off supplier statements. NM-C 5: for a supplier like Rightmove, Opndoor pays only the supplier; the supplier pays its own agents, so no agency commission line is created under a supplier referral unless the supplier's agreement says Opndoor pays agents directly. Show that setting on the supplier's Commission tab, off by default.
