@@ -54,7 +54,7 @@ import { FinanceSurfaces } from '@/pages/Home/FinanceSurfaces';
 import { SettlementBlocks } from '@/components/SettlementBlocks';
 import './Dashboard.css';
 
-type ChartKey = 'branch' | 'agency' | 'referrer';
+type ChartKey = 'branch' | 'agency' | 'referrer' | 'supplier';
 type Measure = 'value' | 'count' | 'conv';
 /* WALK FIX 17: the type lives with the option list in liveAnalytics, so the
    measures on offer and the measures the data carries cannot drift. */
@@ -285,7 +285,7 @@ export function Dashboard() {
     </div>
   );
 
-  const [measure, setMeasure] = useState<Record<ChartKey, Measure>>({ branch: 'value', agency: 'value', referrer: 'value' });
+  const [measure, setMeasure] = useState<Record<ChartKey, Measure>>({ branch: 'value', agency: 'value', referrer: 'value', supplier: 'value' });
   const [trendView, setTrendView] = useState<TrendView>('month');
   /* THE CARD IS VOLUME, THE DEFAULT MEASURE WAS NOT. "Monthly volume trend" is a
      Manager's screen by every part of the line (referral counts, fees collected,
@@ -346,6 +346,12 @@ export function Dashboard() {
   const shape = liveScopeShape(role, partnerScope);
   const chartMeta: { key: ChartKey; rows: LeagueRow[]; scope: string }[] = [
     ...(shape.branches > 1 ? [{ key: 'branch' as ChartKey, rows: d.branches, scope: d.branchScope }] : []),
+    /* VOLUME BY SUPPLIER, alongside Volume by agency and in the same
+       style. Matt, 2026-09-30. Drawn only when there is more than one
+       supplier with business in the period, which is the same rule the
+       branch and agency cards already follow: a ranking of one is not a
+       ranking. */
+    ...((d.suppliers?.length ?? 0) > 1 ? [{ key: 'supplier' as ChartKey, rows: d.suppliers, scope: 'every supplier' }] : []),
     ...(shape.agencies > 1 ? [{ key: 'agency' as ChartKey, rows: d.agencies, scope: d.agencyScope }] : []),
     { key: 'referrer', rows: d.referrers, scope: d.referrerScope },
   ];
@@ -880,7 +886,9 @@ export function Dashboard() {
             const chart = (
               <Card key={key}>
                 <CardHead
-                  title={key === 'referrer' ? d.referrerTitle : key === 'branch' ? 'Volume by branch' : 'Volume by agency'}
+                  title={key === 'referrer' ? d.referrerTitle
+                    : key === 'branch' ? 'Volume by branch'
+                      : key === 'supplier' ? 'Volume by supplier' : 'Volume by agency'}
                   sub={`${measureLabel(measure[key])} · ${scope} · within the selected period`}
                   actions={
                     <MeasureSelect

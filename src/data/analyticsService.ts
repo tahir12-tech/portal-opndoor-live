@@ -114,6 +114,9 @@ export interface DashboardModel {
   branches: LeagueRow[];
   agencies: LeagueRow[];
   referrers: LeagueRow[];
+  /** Volume by supplier, for the card alongside Volume by agency. Empty in
+      mock mode, where liveVolume is not the source. */
+  suppliers: LeagueRow[];
   /** True when computed from live records (drives the folded gross/refunds/net presentation). */
   live: boolean;
   /** Live payment breakdown, folded into the KPI cards (meaningful only when live). */
@@ -375,6 +378,7 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     branches: vol.branches,
     agencies: vol.agencies,
     referrers: vol.referrers,
+    suppliers: vol.suppliers,
     live: true,
     feesGross: fmtMoney(a.feesGross),
     refunds: signedNeg(a.refundValue),
@@ -499,6 +503,13 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
     referrerScope: ownOnly ? 'recent months' : 'top performers',
     branches: synthEntity('branch', scaleRows(shape.branches, kc, kf), rates.partner, rates.agent),
     agencies: synthEntity('agency', scaleRows(shape.agencies, kc, kf), rates.partner, rates.agent),
+    /* EMPTY IN MOCK MODE, DELIBERATELY. The synthetic book has no
+       suppliers to rank -- it models one agency estate -- so inventing
+       bars here would put a chart on the demo that means nothing and
+       would be the only card whose numbers came from nowhere. The
+       Dashboard draws the card only when there is more than one, so an
+       empty list simply omits it. */
+    suppliers: [],
     referrers: synthEntity('referrer', scaleRows(shape.referrers, kc, kf), rates.partner, rates.agent),
     live: false,
     feesGross: fmtMoney(feesNum),

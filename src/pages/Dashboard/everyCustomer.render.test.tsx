@@ -17,7 +17,7 @@
  * carried by one house partner.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { act, cleanup, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -150,5 +150,116 @@ describe('commission payable is a commission figure', () => {
     const v = render(<MemoryRouter><CustomersTable rows={rows} seesCommission /></MemoryRouter>);
     expect([...v.container.querySelectorAll('thead th')].map((x) => x.textContent ?? ''))
       .toContain('Commission payable');
+  });
+});
+
+/* =====================================================================
+   TOP TEN, A SEARCH AND A SWITCH, 2026-09-30.
+
+   Matt, verbatim: "the 'Every customer' table shows the top 10 by fees
+   collected, with a search box and a 'Show all' option, and a switch
+   between Agencies and Suppliers."
+
+   TESTED ON THE COMPONENT, not the page, for the reason two describes
+   above already record: the page cannot hand this table fourteen
+   customers without a fixture that is mostly scaffolding, and the rules
+   here are about the table's own behaviour.
+
+   TEN IS A DEFAULT AND NOT A LIMIT, which is the property worth pinning.
+   A table that silently stops at ten is one a reader cannot trust for
+   "is X in here", so the count is always stated and a search reaches
+   past the ten.
+   ===================================================================== */
+const many = (n: number, kind: 'agency' | 'supplier', prefix: string) =>
+  Array.from({ length: n }, (_, i) => ({
+    key: `${kind}:${prefix}${i}`,
+    name: `${prefix} ${String(i).padStart(2, '0')}`,
+    kind,
+    sent: n - i,
+    // Descending, because liveByCustomer hands this table rows already
+    // sorted by fees and the component must not re-sort them.
+    fees: (n - i) * 1000,
+    deeds: 1,
+    payable: 100,
+  }));
+
+const draw = (rows: ReturnType<typeof many>) =>
+  render(<MemoryRouter><CustomersTable rows={rows} seesCommission /></MemoryRouter>);
+const names = (v: ReturnType<typeof draw>) =>
+  [...v.container.querySelectorAll('tbody tr td:first-child a')].map((a) => a.textContent ?? '');
+
+describe('Every customer shows the top ten by fees', () => {
+  afterEach(() => cleanup());
+
+  it('draws ten of fourteen, biggest first', () => {
+    const v = draw(many(14, 'agency', 'Agency'));
+    expect(names(v)).toHaveLength(10);
+    expect(names(v)[0]).toBe('Agency 00');
+  });
+
+  /* THE COUNT IS ALWAYS STATED. Without it the table is indistinguishable
+     from one that has only ten customers in it. */
+  it('and says how many more there are', () => {
+    const v = draw(many(14, 'agency', 'Agency'));
+    expect(v.container.textContent).toMatch(/4 more customers/);
+  });
+
+  it('and Show all opens the rest', () => {
+    const v = draw(many(14, 'agency', 'Agency'));
+    const btn = [...v.container.querySelectorAll('button')].find((b) => (b.textContent ?? '').trim() === 'Show all');
+    expect(btn, 'no Show all').toBeTruthy();
+    fireEvent.click(btn!);
+    expect(names(v)).toHaveLength(14);
+  });
+
+  it('and does not truncate when there are ten or fewer', () => {
+    const v = draw(many(6, 'agency', 'Agency'));
+    expect(names(v)).toHaveLength(6);
+    expect(v.container.textContent).not.toMatch(/more customer/);
+  });
+});
+
+describe('the search reaches past the top ten', () => {
+  afterEach(() => cleanup());
+
+  /* THE WHOLE POINT OF THE SEARCH. Customer 13 is not in the ten, and
+     typing their name must find them rather than searching the ten. */
+  it('finds a customer who is not in the ten', () => {
+    const v = draw(many(14, 'agency', 'Agency'));
+    expect(names(v)).not.toContain('Agency 13');
+    fireEvent.change(v.container.querySelector('#custtab-search')!, { target: { value: 'Agency 13' } });
+    expect(names(v)).toEqual(['Agency 13']);
+  });
+
+  it('and says so when nothing matches, rather than showing an empty table', () => {
+    const v = draw(many(14, 'agency', 'Agency'));
+    fireEvent.change(v.container.querySelector('#custtab-search')!, { target: { value: 'nobody' } });
+    expect(names(v)).toEqual([]);
+    expect(v.container.textContent).toMatch(/No customer matches that/);
+  });
+});
+
+describe('the Agencies / Suppliers switch', () => {
+  afterEach(() => cleanup());
+
+  const mixed = [...many(3, 'agency', 'Agency'), ...many(2, 'supplier', 'Supplier')];
+
+  it('shows both by default', () => {
+    const v = draw(mixed);
+    expect(names(v)).toHaveLength(5);
+  });
+
+  it('narrows to suppliers', () => {
+    const v = draw(mixed);
+    fireEvent.click([...v.container.querySelectorAll('button')].find((b) => b.textContent === 'Suppliers')!);
+    expect(names(v).every((n) => n.startsWith('Supplier'))).toBe(true);
+    expect(names(v)).toHaveLength(2);
+  });
+
+  it('and to agencies', () => {
+    const v = draw(mixed);
+    fireEvent.click([...v.container.querySelectorAll('button')].find((b) => b.textContent === 'Agencies')!);
+    expect(names(v).every((n) => n.startsWith('Agency'))).toBe(true);
+    expect(names(v)).toHaveLength(3);
   });
 });

@@ -395,7 +395,7 @@ function emit(g: Group): LeagueRow {
   };
 }
 
-type GroupKey = 'agency' | 'branch' | 'referrer' | 'month';
+type GroupKey = 'agency' | 'branch' | 'referrer' | 'month' | 'supplier';
 
 /** A stable identity for the group (so distinct entities that share a display
     name — e.g. a "High Street" branch under two agencies — are never merged). */
@@ -433,6 +433,19 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
      `application_channel`'s first arm -- narrower than `isHousePartner`,
      which would also exclude every real agency referral. */
   if ((key === 'agency' || key === 'branch') && isDirectRail(app.partner)) return null;
+  /* VOLUME BY SUPPLIER. Matt, 2026-09-30: "Add a 'Volume by supplier'
+     card alongside Volume by agency, same style."
+
+     A REAL SUPPLIER ONLY, which is `isHousePartner` and not
+     `isDirectRail`: the house partner every agency shares is not a
+     supplier, and a chart with one enormous bar called "Agency referral"
+     beside the real suppliers would be the same mistake the Every
+     customer table exists to avoid. The referencing hand-over and the
+     direct rail go with it. */
+  if (key === 'supplier') {
+    if (isHousePartner(app.partner)) return null;
+    return { id: app.partner, name: pn, sub: '', partner: pn };
+  }
   if (key === 'agency') return { id: `${app.partner}${S}${app.agency}`, name: app.agency || '(unknown agency)', sub: '', partner: pn };
   /* NM-P. A SINGLE-OFFICE AGENCY IS NAMED BY THE AGENCY, and its subtitle
      goes with it -- the sub is the agency, so leaving it would print the
@@ -736,7 +749,7 @@ export function liveByCustomer(role: Role, scope: PartnerScope, period: Period):
 }
 
 /** Live volume rows for the three dashboard charts (full lists; callers take top-N). */
-export function liveVolume(role: Role, scope: PartnerScope, period: Period): { branches: LeagueRow[]; agencies: LeagueRow[]; referrers: LeagueRow[] } {
+export function liveVolume(role: Role, scope: PartnerScope, period: Period): { branches: LeagueRow[]; agencies: LeagueRow[]; referrers: LeagueRow[]; suppliers: LeagueRow[] } {
   const [start, end] = periodRange(period);
   const set = scopeFull(allFull(), role, scope);
   const isRef = role === 'referrer';
@@ -744,6 +757,9 @@ export function liveVolume(role: Role, scope: PartnerScope, period: Period): { b
   return {
     branches: groupRows(set, 'branch', start, end, seesComm),
     agencies: groupRows(set, 'agency', start, end, seesComm),
+    /* A FOURTH LIST FROM THE SAME FUNCTION, not a new one, so the two
+       cards cannot disagree about a period or a measure. */
+    suppliers: groupRows(set, 'supplier', start, end, seesComm),
     // A referrer's own third chart is their monthly volume; everyone else's is by referrer.
     referrers: groupRows(set, isRef ? 'month' : 'referrer', start, end, seesComm, readerFor(role, set)),
   };
