@@ -25,7 +25,8 @@
    ===================================================================== */
 import { useCallback, useEffect, useState } from 'react';
 import {
-  EMPTY_PANEL, getPersonPanel, setPersonEvent, type PersonPanel,
+  EMPTY_PANEL, getPersonPanel, setPersonEvent, setPersonInternal,
+  type InternalRow, type PersonPanel,
 } from '@/data/personNotifications';
 import {
   COMMISSION_STATEMENT_LABEL, COMMISSION_STATEMENT_NOTE, NOTIFY_LABEL, NOTIFY_NOTE,
@@ -126,10 +127,58 @@ export function PersonNotifications({ userId, personName, onClose }: PersonNotif
             </section>
           )}
 
+          {/* OPNDOOR'S OWN ALERTS, in the four groups the old Internal
+              notifications page had. Matt, 2026-09-30: "for an Opndoor
+              staff member it shows only Opndoor's internal alerts (the
+              ones the old Internal notifications page listed), grouped
+              Critical, Operations, Commercial, Information, each
+              switchable per person".
+
+              THE GROUPS COME FROM THE SERVER, in catalogue order, and are
+              not a list written here: `ops_notification_types()` owns
+              which alert sits in which group, and a second copy would
+              eventually disagree with the one the alerts are actually
+              routed by. */}
+          {panel.partyKind === 'opndoor' && groupsOf(panel.internal).map(([group, rows]) => (
+            <section className="pn__sec" key={group}>
+              <h4 className="pn__h">{group}</h4>
+              {group === 'Critical' && (
+                <p className="pn__note">
+                  A critical alert can never be left with nobody. The last person receiving one cannot switch it off.
+                </p>
+              )}
+              <ul className="pn__list">
+                {rows.map((a) => (
+                  <li key={a.type} className="pn__row pn__row--ev">
+                    <input
+                      type="checkbox"
+                      aria-label={a.label}
+                      checked={a.enabled}
+                      disabled={!!a.lockReason || !panel.mayEditInternal || busy}
+                      onChange={(ev) => void run(() => setPersonInternal(userId, a.type, ev.target.checked))}
+                    />
+                    <span className="pn__lbl">{a.label}</span>
+                    {/* THE REASON, BESIDE THE BOX. Item 9's complaint,
+                        and Matt's again: "explained beside any box that
+                        can't be unticked". */}
+                    {a.lockReason && <span className="pn__locked">{a.lockReason}</span>}
+                    {!a.lockReason && !panel.mayEditInternal && (
+                      <span className="pn__locked">Only Opndoor admin changes internal alert routing.</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+
+          {/* THE AGENCY SECTIONS ARE NOT DRAWN FOR OPNDOOR AT ALL. "It
+              must not show the agency sections". The server returns no
+              events for an Opndoor person, so this is the belt to that
+              brace and, more usefully, the place a reader finds out
+              why. */}
+          {panel.partyKind !== 'opndoor' && (
           <section className="pn__sec">
-            <h4 className="pn__h">
-              {panel.partyKind === 'opndoor' ? 'Internal alerts they receive' : 'Events they are told about'}
-            </h4>
+            <h4 className="pn__h">Events they are told about</h4>
             {panel.events.length === 0 && <p className="soft">Nothing to show.</p>}
             <ul className="pn__list">
               {panel.events.map((e) => (
@@ -149,8 +198,23 @@ export function PersonNotifications({ userId, personName, onClose }: PersonNotif
               ))}
             </ul>
           </section>
+          )}
         </div>
       )}
     </Modal>
   );
+}
+
+/** The alerts in catalogue order, split into their groups, first seen
+    first. Not sorted here: `ops_notification_types()` returns them in the
+    order the page should read, and re-sorting would be a second opinion
+    about it. */
+function groupsOf(rows: InternalRow[]): [string, InternalRow[]][] {
+  const out: [string, InternalRow[]][] = [];
+  for (const r of rows) {
+    const found = out.find(([g]) => g === r.group);
+    if (found) found[1].push(r);
+    else out.push([r.group, [r]]);
+  }
+  return out;
 }

@@ -55,6 +55,26 @@ export interface PersonPanel {
   statementsApply: boolean;
   statementsOn: boolean;
   mayEditStatements: boolean;
+  /** OPNDOOR'S OWN ALERTS, and empty for everybody else. Matt,
+   *  2026-09-30: "for an Opndoor staff member it shows only Opndoor's
+   *  internal alerts ... grouped Critical, Operations, Commercial,
+   *  Information". Grouped by the server, which owns the catalogue. */
+  internal: InternalRow[];
+  mayEditInternal: boolean;
+}
+
+/** One internal alert, for one Opndoor person. */
+export interface InternalRow {
+  type: string;
+  label: string;
+  /** Critical | Operations | Commercial | Information, from the catalogue. */
+  group: string;
+  critical: boolean;
+  enabled: boolean;
+  /** Set when this box cannot be unticked, and says WHY. The floor rule:
+   *  a critical alert can never be left with nobody, so the last
+   *  recipient is locked and told so. */
+  lockReason: string | null;
 }
 
 export const EMPTY_PANEL: PersonPanel = {
@@ -62,6 +82,7 @@ export const EMPTY_PANEL: PersonPanel = {
   mayEditEvents: false,
   copiedApplies: false, copiedOn: false, mayEditCopied: false,
   statementsApply: false, statementsOn: false, mayEditStatements: false,
+  internal: [], mayEditInternal: false,
 };
 
 /** Shapes the RPC's jsonb. Exported so a test can drive it without a
@@ -88,6 +109,18 @@ export function shapePanel(raw: Record<string, unknown>): PersonPanel {
     statementsApply: raw.statements_apply === true,
     statementsOn: raw.statements_on === true,
     mayEditStatements: raw.may_edit_statements === true,
+    internal: (Array.isArray(raw.internal) ? raw.internal : []).map((e) => {
+      const r = e as Record<string, unknown>;
+      return {
+        type: String(r.type),
+        label: String(r.label),
+        group: String(r.group ?? ''),
+        critical: r.critical === true,
+        enabled: r.enabled === true,
+        lockReason: r.locked === true ? String(r.lock_reason ?? '') || null : null,
+      };
+    }),
+    mayEditInternal: raw.may_edit_internal === true,
   };
 }
 
@@ -96,6 +129,17 @@ export async function getPersonPanel(userId: string): Promise<PersonPanel> {
   const { data, error } = await sb().rpc('person_notification_panel', { p_user: userId });
   if (error) throw new Error(error.message);
   return shapePanel((data ?? {}) as Record<string, unknown>);
+}
+
+/* ONE INTERNAL ALERT, FOR ONE PERSON. `set_ops_route` is admin-only and
+   enforces that itself; the floor trigger refuses to leave a critical
+   alert with nobody, and its message is already plain English, so a
+   refusal here surfaces as the caller's toast unchanged. */
+export async function setPersonInternal(userId: string, type: string, enabled: boolean): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  const { error } = await sb().rpc('set_ops_route',
+    { p_type: type, p_kind: 'user', p_recipient: userId, p_enabled: enabled });
+  if (error) throw new Error(error.message);
 }
 
 export async function setPersonEvent(userId: string, type: string, enabled: boolean): Promise<void> {

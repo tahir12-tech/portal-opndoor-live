@@ -144,11 +144,88 @@ describe('a supplier person', () => {
   });
 });
 
+/* =====================================================================
+   AN OPNDOOR TEAM MEMBER READS OPNDOOR'S ALERTS, 2026-09-30.
+
+   Matt, verbatim: "for an Opndoor staff member it shows only Opndoor's
+   internal alerts (the ones the old Internal notifications page
+   listed), grouped Critical, Operations, Commercial, Information, each
+   switchable per person, with the rule that a critical alert can never
+   be left with nobody explained beside any box that can't be unticked.
+   It must not show the agency sections ("Copied on colleagues'
+   referrals", referral events)."
+
+   THIS BLOCK USED TO ASSERT A RENAMED HEADING, and that is the whole
+   reason the instruction exists. The panel gave an Opndoor person the
+   AGENCY event list under the words "Internal alerts they receive": the
+   heading was Opndoor's and the rows underneath were referral events of
+   an estate that is not theirs. An assertion on the heading passed
+   happily over it.
+   ===================================================================== */
+const OPNDOOR_VIEW: Partial<PersonPanel> = {
+  partyKind: 'opndoor',
+  // The server returns none for an Opndoor person: referral events are
+  // not theirs. Kept non-empty here on purpose, so the test proves the
+  // panel DOES NOT DRAW them rather than proving the fixture is empty.
+  events: [{ type: 'paid', label: 'Payment received', enabled: true, lockReason: null }],
+  copiedApplies: false, statementsApply: false,
+  mayEditInternal: true,
+  internal: [
+    { type: 'deed_claim_failed', label: 'Deed could not be claimed after payment', group: 'Critical', critical: true, enabled: true, lockReason: 'This is the only place this critical alert goes. Add another recipient before switching it off here.' },
+    { type: 'deed_void_failed', label: 'Deed could not be voided after a refund', group: 'Critical', critical: true, enabled: true, lockReason: null },
+    { type: 'cron_error', label: 'A scheduled job threw', group: 'Operations', critical: false, enabled: false, lockReason: null },
+    { type: 'lapse', label: 'A guarantee lapsed', group: 'Commercial', critical: false, enabled: true, lockReason: null },
+    { type: 'hubspot_map_drift', label: 'CRM mapping has drifted', group: 'Information', critical: false, enabled: false, lockReason: null },
+  ],
+};
+
 describe('an Opndoor team member', () => {
-  it('gets the internal wording for the event list', async () => {
-    panel({ partyKind: 'opndoor', copiedApplies: false, statementsApply: false });
+  it('gets the four groups the old Internal notifications page had', async () => {
+    panel(OPNDOOR_VIEW);
     await open();
-    expect(heads()).toContain('Internal alerts they receive');
+    expect(heads()).toContain('Critical');
+    expect(heads()).toContain('Operations');
+    expect(heads()).toContain('Commercial');
+    expect(heads()).toContain('Information');
+  });
+
+  /* THE HALF THE OLD ASSERTION MISSED. */
+  it('and none of the agency sections', async () => {
+    panel(OPNDOOR_VIEW);
+    await open();
+    expect(heads()).not.toContain('Copied on colleagues’ referrals');
+    expect(heads()).not.toContain('Events they are told about');
+    // The referral event in the fixture must not be drawn.
+    expect(body()).not.toMatch(/Payment received/);
+  });
+
+  it('and the alerts themselves, switchable', async () => {
+    panel(OPNDOOR_VIEW);
+    await open();
+    expect(body()).toMatch(/A scheduled job threw/);
+    /* THROUGH document.body, NOT the render container: Modal draws into a
+       portal, so the container is empty and every assertion against it
+       passes for the wrong reason. The helpers above already knew this
+       and my first draft did not use them. */
+    expect(document.body.querySelectorAll('.pn__row--ev input').length).toBe(5);
+    const cron = box('A scheduled job threw')!;
+    expect(cron.disabled).toBe(false);
+    expect(cron.checked).toBe(false);
+  });
+
+  /* THE RULE, EXPLAINED BESIDE THE BOX. Matt's words, and item 9's
+     original complaint: a dead control with no sentence reads as a bug. */
+  it('and the last recipient of a critical alert is locked, with the reason', async () => {
+    panel(OPNDOOR_VIEW);
+    await open();
+    expect(box('Deed could not be claimed after payment')!.disabled).toBe(true);
+    expect(body()).toMatch(/only place this critical alert goes/);
+  });
+
+  it('while a critical alert with somebody else on it can still be switched off', async () => {
+    panel(OPNDOOR_VIEW);
+    await open();
+    expect(box('Deed could not be voided after a refund')!.disabled).toBe(false);
   });
 });
 
