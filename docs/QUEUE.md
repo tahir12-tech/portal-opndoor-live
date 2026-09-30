@@ -15,6 +15,39 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## DEV IS FROZEN WHILE MATT WALKS (instruction, 2026-09-30, verbatim). OVERRIDES THE DEPLOY RULE BELOW.
+
+> Pause changes to dev while I walk the Regent and Kestrel paths. Carry on in the worktree and don't merge or deploy until I say the walk is done.
+
+### What this changes, precisely
+
+| | before | while the walk is on |
+| - | ------ | -------------------- |
+| Where code is written | main tree | **the `fix-the-seven` worktree** |
+| Merging to `partner-api` | after each item | **not until Matt says the walk is done** |
+| Migrations applied to dev | yes, per item | **none** |
+| Any write to the dev project | allowed | **none, including rolled-back probes** |
+| "check it there before marking it done" | on dev | **cannot be satisfied.** Items are built and tested locally and marked `awaiting dev check`, not `done` |
+| The 5174 server | kept running | **kept running and kept on the pre-walk code**, because it is what Matt is walking |
+
+**Why nothing is merged, not just "not deployed".** The 5174 dev server is
+served out of the MAIN tree. A merge into `partner-api` changes what Matt is
+looking at mid-walk, so the freeze has to be on the merge, not only on a
+deploy step.
+
+**QUEUE.md is the one exception and stays in the main tree**, per CLAUDE.md:
+it is the copy Matt reads, and it is documentation, so editing it cannot
+change the running app.
+
+**The local pgTAP cluster replaces dev for database work.**
+`scripts/pgtap-local.sh` applies every migration in filename order to a
+throwaway local Postgres and runs the suite against it. That is a STRONGER
+check than dev for a new migration -- it proves a clean apply, which dev
+cannot -- and it touches nothing of Matt's. What it cannot do is prove dev
+agrees with the files; `npm run drift` is that check and it waits.
+
+---
+
 ## VIEW AS: STOPGAP (instruction, 2026-09-30, verbatim). ACTIVE. Ahead of the queue-clearing run.
 
 > Stopgap now: hide View as on agency and group pages, keep it on supplier pages where it works, and make sure no banner can claim a party the figures don't reflect. Also fix the three small ones: the Expiries button for opndoor_manager, the invisible Not in network empty state, and last_named_at. Record the proper fix (every Reporting figure following the selection) as the first item after shipping, and don't start it now. Then carry on clearing the rest of the queue, deploy each to dev and check it there.
