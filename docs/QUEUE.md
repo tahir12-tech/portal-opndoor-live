@@ -15,6 +15,52 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## ANSWERS, AND THE LAST TWO BUILDS (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+
+> Q1: a start-date correction on a joint tenancy moves every tenant's application and reissues every deed, never one. Q9: only the two Reconciliation buttons; the other 27 go on the after-shipping list. Q7: fine as done.
+>
+> Also build the two I asked for today: the supplier Add user form (no branch for any supplier role, "Supplier" not "partner"), and single-office agencies shown as just the agency with no branch level, with Add branch still available.
+>
+> Then merge, apply the migrations and deploy everything to dev, check each item there, and tell me when dev is ready for me to walk.
+
+**The walk freeze is lifted by this instruction.** Merging, applying and
+deploying are exactly what it asks for, so the "DEV IS FROZEN" section below
+is spent.
+
+### Q1 is answered, and the answer has two traps the answer does not mention
+
+Matt's words: "moves every tenant's application and reissues every deed,
+never one." That is option B, and it is the faithful mirror of what
+`amend_tenancy_start` already does for the STAFF path. Two things have to
+come with it or it ships a worse bug than the one it fixes, both found by
+the adversarial check before any of it was built:
+
+1. **THE CLAIM IS PER APPLICATION AND THE CORRECTION IS NOW PER TENANCY.**
+   `deedEmail` mints and reuses a token per applicant, so each tenant of a
+   joint let has their OWN live 7-day link. Correct the whole tenancy
+   through tenant 1's link and tenant 2's link is still unused and still
+   live -- and clicking it would re-run the entire teardown across every
+   sibling. That is round 6's M4 one level up. The claim has to move to the
+   tenancy.
+
+2. **R5 TESTS EVERY SIBLING BEFORE IT WRITES ANYTHING, AND THE AGENT PATH
+   TESTS ONE.** `amend_tenancy_start` checks permission AND eligibility for
+   every application in the tenancy and aborts the lot on a single refusal;
+   the edge function's only check is `withdrawn_at` on the clicked
+   application. Without the same pre-check, a correction would move a
+   withdrawn sibling's date and tear down a deed that should not have been
+   touched.
+
+### Q9 is answered: the two, and the rest go after shipping
+
+Only the two Reconciliation buttons, which are built. **The other 27 one-click
+admin actions are recorded under "Walk fixes, after shipping"** as item 23b,
+with the inventory, so the list is not lost.
+
+### Q7 is confirmed: the Merge button stays deleted
+
+---
+
 ## NM-P. A SINGLE-OFFICE AGENCY IS JUST THE AGENCY (instruction, 2026-09-30, verbatim). ACTIVE.
 
 > A single-office agency shows only as the agency, e.g. "Regent Property", everywhere: agencies list, agency page, applications, reporting, statements, emails, deeds and the referral form. No "1 branch", no branch row, no branch name. Where the system needs an office behind the scenes, it uses the agency's own name and address and is never shown separately. "Add branch" stays available on the agency (its menu or page), and as soon as a second office is added, both appear as branches.
@@ -376,162 +422,6 @@ agency with only one office do the same, or must a person always press?
 records in one click" is **29 actions**, not the two on Reconciliation:
 all 29 (about a week), or only the 19 that cannot be undone or that send
 something outward (about three days)?
-
----
-
-## VIEW AS: STOPGAP (instruction, 2026-09-30, verbatim). ACTIVE. Ahead of the queue-clearing run.
-
-> Stopgap now: hide View as on agency and group pages, keep it on supplier pages where it works, and make sure no banner can claim a party the figures don't reflect. Also fix the three small ones: the Expiries button for opndoor_manager, the invisible Not in network empty state, and last_named_at. Record the proper fix (every Reporting figure following the selection) as the first item after shipping, and don't start it now. Then carry on clearing the rest of the queue, deploy each to dev and check it there.
-
-### Why the stopgap is two changes and not one
-
-Hiding the button is NOT sufficient for "no banner can claim a party the
-figures don't reflect", and this is the part worth writing down. `scopeSel`
-is ONE shared selection: Applications still has its own Origin picker
-(`Applications.tsx`, walk fix 7), and it writes the same value. So an admin
-can choose "Regent's Lettings" on Applications, open Reporting, and get the
-false banner with no View as button involved at all. The selection also
-survives a browser restart from localStorage, and the recents list offers it
-back.
-
-So the second half of the stopgap is in `SessionContext`: `viewingAs` derives
-ONLY from a selection the figures actually follow, which today is
-`partner:<slug>` alone. `partnerFor` yields a real partner slug for that and
-ALL_PARTNERS for everything else, and every figure on Reporting is keyed on
-`partnerScope`. Narrowing the derivation is what makes the banner honest
-whatever route the selection arrived by.
-
-### AFTER SHIPPING, FIRST ITEM: every Reporting figure follows the selection
-
-**This is the proper fix and Matt has said not to start it now.**
-
-`scopeFull(apps, role, scope, sel)` already takes the selection as its fourth
-argument and applies `originMatches` AFTER isolation, which is the correct
-order and the whole design. **No production call site passes it** -- 19 of
-them, across `liveAnalytics.ts`, `exportsService.ts`, `viewerShape.ts` and
-`paymentMetrics.ts`, all stop at three arguments. So an `agency:` or
-`group:` selection narrows nothing anywhere.
-
-This is the same defect walk item 15 reported about the picker ("choosing an
-option does nothing") and NM-F's acceptance line is the specification for
-fixing it: *"Every tile, chart, export and statement on the page follows the
-selection."*
-
-The work is to thread the selection through the Reporting entry points --
-`getDashboardData`, `getTrend`, `getCommissionSettlement`,
-`getAgentCommissionSettlement`, `livePartnerBreakdown`, `liveScopeShape`,
-`liveByCustomer`, `liveAggregate`, `liveVolume`, `liveTrend` -- and the
-export builders, then restore View as on agency and group pages and widen
-`viewingAs` back. The test that must fail first measures a FIGURE, not a
-caption: the twelve assertions shipped with NM-M all checked the localStorage
-string and the banner text, and the older test named "viewing as one of our
-agencies" actually stages `partner:northwind`, the supplier arm that does
-narrow, so the agency path had never been measured by anything.
-
----
-
-## CLEAR THE QUEUE (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
-
-> Clear the whole queue now, without stopping: the Home wording change ("Awaiting decision, Sent and Paid show who is there now. Deed issued is all time."), round 6's M4, M9, M10, the eight lows, the allowlist ratchet, and walk fixes 22a and 23. Keep the audit to the three items you just built; no new review rounds. Deploy each to dev and check it there before marking it done.
->
-> Anything that needs my decision, don't guess and don't stop: build everything around it, then give me all the open questions together at the end, one plain sentence each with the options.
-
-### What this covers, resolved to the items in this file
-
-| # | item | where it is recorded |
-| - | ---- | -------------------- |
-| 1 | Home wording: "Awaiting decision, Sent and Paid show who is there now. Deed issued is all time." | new, from this instruction |
-| 2 | Round 6 **M4** -- tenancy-correction replay guard is per-token | line ~3616 |
-| 3 | Round 6 **M9** -- direct-rail rows counted as agency business in the client | line ~3622 |
-| 4 | Round 6 **M10** -- `set_receives_notifications` cannot reach a supplier colleague | line ~3623 |
-| 5 | The **eight lows** | line ~3626 |
-| 6 | The **definer allowlist ratchet** | `definerAllowlistCoverage.test.ts` |
-| 7 | **Walk fix 22a** | walk batch, parked "after shipping" |
-| 8 | **Walk fix 23** | walk batch, parked "after shipping" |
-
-### The three standing rules for this run
-
-1. **No new review rounds.** The audit already running covers NM-M, NM-N and
-   the opndoor_manager fix and nothing else. The security review loop stays
-   closed.
-2. **Each item is deployed to dev and checked there before it is marked
-   done.** Not at the end, per item.
-3. **Decisions are not guessed and do not stop the run.** Anything needing
-   Matt is built around, recorded under "Open questions for Matt" at the
-   bottom of this section, and carried to the final report as one plain
-   sentence with its options.
-
-### Progress
-
-| item | state |
-| ---- | ----- |
-| Home wording | **done** `065b72d` (checked on dev before the freeze) |
-| View as stopgap | **done** `66c8d5e` |
-| The three small ones | **done** `9b68c48` |
-| M4 | **already fixed** by `dee9079`. The `todo` row below is stale. Only an ADJACENT defect is open, and it needs a decision (Q1). |
-| M9 | **two of three done** `9427d43`. M9-b and a fourth site need decisions (Q2, Q3). |
-| M10 | **not real as recorded.** A different, real defect sits next to it and needs a decision (Q4). |
-| The eight lows | **four already done** (verified, not taken on trust); **three done** `320eb4c`; one open and needing decisions (Q5). |
-| The allowlist ratchet | mapped, not built. Needs a decision about what the goal is (Q6). |
-| Walk fix 22a | mapped, not built. The timeout half is **not real**. Two decisions (Q7, Q8). |
-| Walk fix 23 | mapped, not built. The two buttons Matt named need no decision; the rest is 29 actions and needs one (Q9). |
-
-**Everything since the freeze is in the `fix-the-seven` worktree, unmerged
-and undeployed.** No migration has touched dev. Verification is the local
-clean-apply cluster: 352 migrations apply cleanly, 69 pgTAP files / 990
-assertions / 0 failing, and 143 vitest files / 1528 tests / typecheck clean.
-
-### Open questions for Matt
-
-Collected rather than guessed, per his instruction. One sentence each.
-
-**Q1. The agent's correction link on a joint tenancy.** R5 made a tenancy
-have one start date, but the agent's unauthenticated 7-day link bypasses
-that RPC and moves one application, leaving the co-tenant's executed deed
-on the old date: should that link refuse joint tenancies and fall back to
-a report Opndoor applies through the audited staff path, or should it move
-the whole tenancy and reissue every sibling deed with no sign-in behind it?
-
-**Q2. What "What they earned" means on a group page.** The group's own cut
-only, or the group plus every agency and branch under it?
-
-**Q3. A direct signup on the agency volume chart.** A direct row matched to
-Regent currently appears under Regent's NAME on an admin's agency
-breakdown (namespaced by partner, so not merged with Regent's own row, but
-named the same): should it show as "Direct" instead, or be dropped from
-the agency breakdown entirely?
-
-**Q4. Supplier colleagues and notification settings.** `caller_may_set_for`
-blocks a supplier's own management from reading or changing their
-colleagues' notification settings, because it requires a position and the
-supplier rail has none: should a supplier's management manage their
-colleagues' notifications at all, and if so is it any `role='management'`
-in that partner?
-
-**Q5. localStorage after sign-out.** Working copies survive sign-out and
-can carry another agency's contact details; three calls: does the help
-cache (which can hold uploaded PDFs as data URLs) get cleared, should
-sign-out clear everything or only party data, and does a shared-device
-warning belong on the login screen?
-
-**Q6. The ratchet: the number or the guarantee?** A day's work takes the
-uncovered list from 35 to about 14 by writing cheap MFA-only assertions,
-but the 14 dev-centre reads are the only ones that would prove anything
-about the supplier boundary -- so is the goal the count coming down, or
-the boundary being proven?
-
-**Q7. The "Merge into..." button on Reconciliation** has been permanently
-disabled with "coming in a later release": remove it now, or leave it?
-
-**Q8. A 100% name match with exactly one branch.** An exact EMAIL match
-already links itself with no click; should an exact NAME match on an
-agency that has only one branch do the same, or must a person always press
-the button?
-
-**Q9. The size of walk fix 23.** "Any other admin action that changes
-records in one click" is **29 actions across the product**, not the two on
-Reconciliation: confirm all 29 (roughly a week), or only the 19 that
-cannot be undone or that send something outward (roughly three days)?
 
 ---
 
