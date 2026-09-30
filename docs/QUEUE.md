@@ -754,16 +754,14 @@ it is the single most repeated finding in this whole effort.
 | Proof nobody's emails change | **DONE on dev**: 198 person/event pairs compared before vs after, **0 changed** |
 | A real person choosing, on dev | **DONE** -- signed in as a Regent director, changed their own setting, read it back |
 | A refund is the whole fee (Matt's other ruling) | **DONE** `fd52f37`, applied to dev; stripe-webhook deployed |
-| The PANEL reading per-person settings instead of the party matrix | **not started** |
-| Wiring the panel into the three screens | **not started** |
-| REMOVING the two tickbox columns, the grid, and the Internal notifications page | **not started** |
-| Applications Origin filter (item 7) | **not started** |
+| The PANEL reading per-person settings instead of the party matrix | **DONE** `d1bfcb6`, **checked on dev** |
+| Wiring the panel into the screens | **DONE** `d1bfcb6` -- FOUR, not three; see below |
+| REMOVING the two tickbox columns, both grids, the Team tickbox and the Internal notifications page | **DONE** `d1bfcb6` |
+| Applications Origin filter (item 7) | **next** |
 
-**Nothing is removed and no screen is rewired**, so the product is unchanged
-for a reader. The server is ahead of the client: per-person settings exist
-and are seeded, and the old party-level path still drives the send, so
-behaviour is identical either way. That is deliberate -- it means the client
-work can land without a flag day.
+**The client half is done and the old surfaces are gone.** Merged into
+`partner-api` (`e257e14` + `fix-the-seven`), so the dev server on 5174 serves
+it.
 
 ### The one number worth keeping
 
@@ -774,93 +772,110 @@ before versus after -- not as a check that the rows look plausible.
 
 ---
 
-## Items 9, 10 and 12: one per-person notifications panel. HALF BUILT.
+## Items 9, 10 and 12: one per-person notifications panel. DONE AND CHECKED ON DEV.
 
-### Where it stands, exactly
+`d1bfcb6`. This section replaces the "HALF BUILT" note that stood here; that
+note also recorded a judgement call (that the agency side would stay
+party-wide) which Matt's ruling of 2026-09-30 overturned, so keeping it would
+have left a wrong answer in the file Matt reads.
+
+### What is on the screen now
 
 | part | state |
 | --- | --- |
-| The assembler, `src/data/personNotifications.ts` | **done** `0e24aed`, 13 assertions written first |
-| The panel, `src/components/people/PersonNotifications.tsx` | **done** `e36070a`, 10 render assertions written first |
-| The row action on `PersonActions` | **done**, optional so an unwired screen draws nothing |
-| Wiring into Team (Opndoor) | **not started** |
-| Wiring into the agency People tab | **not started** |
-| Wiring into the supplier People tab | **not started** |
-| REMOVING the two tickbox columns and the "Who is told what" grid | **not started** |
-| REMOVING the Internal notifications page from the menu | **not started** |
+| `person_notification_panel(p_user)`, the whole panel in one round trip | **done**, migration `20261006930000`, applied to dev |
+| `src/data/personNotifications.ts` reading it | **done** |
+| `PersonNotifications.tsx` drawing it | **done** |
+| The opndoor team page and Users, from the three dots menu | **done** |
+| The agency People tab, from the row | **done** |
+| The supplier People tab, from the row | **done** |
+| Team -- an agency Director's own screen | **done**, and see the gap below |
+| The two tickbox columns on the agency People tab | **removed** |
+| Both "Who is told what" grids | **removed** |
+| The loose tickbox column on Team | **removed** |
+| The Internal notifications page, its route and its menu entry | **removed** |
+| `NotificationMatrix`, `notificationMatrixService`, `opsRoutingService` | **removed** -- nothing imported them once the grids had gone |
 
-**Nothing has been removed and nothing is rewired, so the product is
-unchanged for a reader.** This is a safe place to have stopped: the new
-component exists and is tested, and the old screens still work exactly as
-they did. The remaining work is surgery on four large files (`AgencyHome`,
-`PartnerHome`, `Team`, `App`) and should be done in one pass rather than
-started and abandoned.
+### The server decides what may be changed, per section
 
-### What the next session should NOT re-derive
+There is deliberately no single "may edit" boolean. For a Negotiator reading
+their own panel the honest answer is three different answers: yes to events,
+no to the two Director-only settings. A client that re-derived the rules
+would eventually disagree with the server, and that failure presents as a
+control which looks live, accepts a click and throws.
 
-- The panel takes `party`, `partyRef`, `userId`, `personName`, `partyName`,
-  `canEdit`, `onClose`. Mount it from the row action; it loads its own data.
-- `PersonActions` already has `onNotifications`; pass it and the button
-  appears, beside Position.
-- On Opndoor, pass `party="opndoor"` and NO `partyRef`.
-- The agency People tab's two columns and the `<NotificationMatrix>` below it
-  are what item 12 says to delete. `PartnerHome.tsx:423` and
-  `AgencyHome.tsx:1474` are the two grid mount points.
-- `OpsNotifications.tsx` and its route in `App.tsx` are what item 10 says to
-  remove from the menu.
+`statements_apply` is also separate from `may_edit_statements`. A
+Negotiator's LEVEL cannot receive a statement, so the section is absent
+rather than disabled: a greyed control implies somebody could switch it on.
 
-### One thing to flag when it is finished, not now
+### The gap this work found, and closed
 
-NM-2b: four of the alert types Q-04 names do not exist. The per-person panel
-will therefore list fewer alerts than the old page implied, which is correct
-and is the honest state, but Matt should be told rather than left to notice.
+`PersonActions` opened with `if (!isAdmin) return null`. That is right for
+everything else it draws -- resend, change level, position, password,
+two-factor, remove, restore are all things Opndoor does TO somebody. So an
+agency Director on the People tab was drawn no row action at all, and the
+capability Matt had asked for the hour before existed in SQL with no door in
+the product. Notifications now survives that return, gated per row on
+`mayNotify` = `mayActOnOrEqual(me, them)`, the client twin of
+`caller_may_set_for`. Two assertions failed first.
 
-### The one judgement call, made explicitly rather than silently
+### One thing the old screens said that was not true
 
-There are TWO server models underneath, and they do not have the same shape:
+Both grids, and the Team column, told you a Negotiator had nothing to widen
+and drew a sentence instead of a control. The deed resolver in
+`20261006160000` copies anybody ticked whose scope covers the referral and
+does **not** filter on role, so a ticked Negotiator IS copied. The panel
+offers them the section, which matches the server. Not a change of
+behaviour: the resolver is untouched, only the screen that described it
+wrongly.
 
-| | keyed by | per person? |
-| --- | --- | --- |
-| `ops_routing_matrix` (Opndoor's own alerts) | alert type x **recipient** (`person` or `inbox`) | **yes** |
-| `notification_matrix` (agency and supplier) | event x **recipient CLASS** (`referrer`, `ticked_users`, `agent_contact`) | **no -- party-wide** |
+### What was walked on dev, as each role, through the RPCs the screen calls
 
-So item 10 fits the server model exactly, and item 12 does not. "Which events
-they're told about" is a per-person fact on the Opndoor side and a
-per-AGENCY fact on the customer side.
+| | |
+| --- | --- |
+| Negotiator, own panel | events yes / copied no / statements no; statements not offered at all |
+| Negotiator changes an own event | `sent` true -> false, read back false |
+| Negotiator reads the Manager's panel | refused, "You can only see this for yourself, or for people at or below you in your own agency." |
+| Negotiator copies themselves in | refused, "You can only change this for people at or below your own position, in your own agency." |
+| Manager, on their Negotiator | may READ, may change nothing |
+| Manager, own panel | may change their own events |
+| Director, on their Negotiator | all three |
+| Director copies the Negotiator in | false -> true, read back true |
+| Director sets a statement for a Negotiator | refused, "Only a Director receives a commission statement. Change their level first." |
+| Director reads a supplier person's panel | refused |
+| Admin, on the Kestrel director | kind `supplier`, copied-on not offered (no positions on that rail, B3) |
+| A locked event | carries its sentence, not a bare flag |
 
-**What was NOT done, and why.** Making the agency side genuinely per-person
-means a new dimension on the notification settings -- a schema change that
-redefines what Q-03 built and tested, on the night before a cutover, to
-answer a question nobody has asked. That is a new feature, and the standing
-instruction is "no new features, nothing not in the queue".
+And over the wire, not only through SQL: signed in as the Regent negotiator
+with a real password grant and called `person_notification_panel`,
+`set_notification_for`, `set_receives_notifications` and
+`set_receives_commission_statements` through PostgREST. All four answered
+`42501 MFA required` from INSIDE the function body, which is the proof that
+PostgREST found each one and was allowed to execute it. A missing grant
+fails differently.
 
-**What was done instead.** One panel, three sections, the same on all three
-parties:
+**One measurement artefact worth recording, because the first pass reported a
+false negative.** `person_notification_panel` is STABLE, so reading it in the
+SAME statement as the write sees the pre-write snapshot. The first walk said
+a Director's change had not landed when it had. Each write is its own
+statement now.
 
-1. **Copied on referrals** -- per person, editable. (`receives_notifications`)
-2. **Which events they are told about** -- for Opndoor, per person and
-   editable. For an agency or supplier, the events THIS person would receive,
-   worked out from their position and the party's settings, with any switch
-   that is party-wide **labelled as affecting everyone**.
-3. **Monthly statements** -- per person, editable.
-   (`receives_commission_statements`)
+### Still open on this rail
 
-The alternative was to show party-wide switches inside a person's panel with
-no warning, so that editing one person quietly changed everyone. That is
-precisely the class of surprise the walk keeps finding, and it would have
-been introduced deliberately.
+A supplier's **agent contact** is a contact record with no user row, so it
+has no per-person settings to hold. Its deliveries are unchanged. B3.
 
-**Matt should know** this is the one place the shared design is not identical
-across the three parties, and it is because the data is not. If he wants
-per-person events for agencies, that is a schema change and its own piece of
-work.
+A supplier's own staff, and an agency Negotiator, reach their panel only
+where a screen lists them: Team for the agency estate, and nothing for a
+supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
+answered: giving supplier staff a people screen is a new screen, not a
+wiring job.
 
-### Statements are a THIRD mechanism, confirmed
+### NM-2b, flagged now the work is finished rather than left to notice
 
-The queue note said to check rather than assume. Checked:
-`receives_commission_statements` is its own column with its own RPC and its
-own trigger, unrelated to both matrices. So the panel joins three sources,
-not two.
+Four of the alert types Q-04 names do not exist. The per-person panel
+therefore lists fewer alerts than the old page implied. That is the honest
+state, not a loss.
 
 ---
 
