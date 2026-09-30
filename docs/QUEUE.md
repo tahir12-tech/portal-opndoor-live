@@ -871,6 +871,90 @@ supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
 answered: giving supplier staff a people screen is a new screen, not a
 wiring job.
 
+## Walk fixes 1, 5 and 6. DONE AND CHECKED ON DEV.
+
+`00a3644`, `7ee274b`.
+
+### Item 1: your own row
+
+The three dots opened an empty menu because every item is gated on `mayAct`,
+`canEditRole` or `canDeactivate`, and all three are false on your own row --
+correctly, since they govern things done TO somebody.
+
+Matt offered either; the two actions are shown, because both exist. **They do
+not share a rule**, which is the whole of the care here. Walked on dev first,
+in a rolled-back transaction because an MFA reset deletes factors and
+sessions:
+
+| | Opndoor admin | supplier management |
+| --- | --- | --- |
+| rename yourself | allowed | allowed |
+| reset your own two-factor | allowed | **refused** |
+| deactivate yourself | refused | refused |
+
+`admin_update_user_name` skips the ladder when the target is the caller, and
+`assert_may_act_on_user` names that as the documented exception in its own
+comment. `admin_reset_user_mfa` always asks the ladder, whose opndoor-staff
+early return comes BEFORE its self check, and its own authorisation arm is
+`is_admin()`, which is superadmin alone. Its confirmation is its own copy,
+not the existing one reworded: this signs YOU out.
+
+### Item 5: two halves, and only one was broken
+
+**Measured on dev before changing anything.** A branch position written
+straight onto an admin, then their reads counted:
+
+| | before | after |
+| --- | --- | --- |
+| applications | 35 | 35 |
+| agencies | 9 | 9 |
+| branches | 11 | 11 |
+| users | 25 | 25 |
+
+So "a position can never narrow what an Opndoor admin sees, even if one was
+set" already held: every read policy ORs its admin arm ahead of the scope
+test. Now asserted, rather than left as a consequence of how a dozen policies
+happen to be written.
+
+**The other half did not hold.** `set_user_scope` and `set_home_branch`
+authorise on `is_admin()` and then ask the ladder, and
+`assert_may_act_on_user` returns early for opndoor staff, before its own self
+check. So an admin could position another admin, an opndoor manager, or
+themselves -- which is the case the walk found, because the dialog opened on
+your own row. Both refuse an Opndoor-staff target now (`20261006940000`), and
+"Set what they see" is not drawn on their row.
+
+**One ordering decision worth recording.** The new guard sits AFTER the
+authorisation test, not before it. Before it was the first instinct and wrong
+twice: an unauthorised caller should learn "not permitted" and nothing about
+the target, and `a_null_guard_refuses` measures, on `set_home_branch`, that a
+caller with no `users` row is refused by the ROLE check rather than a later
+one -- and it has to use an opndoor_manager as its target, because
+`users_partner_by_role` allows a NULL partner_id for nobody else. A guard in
+front would have answered with the new message, and that property would have
+gone untested while its test still passed.
+
+### Item 6: the dialog is two labelled parts
+
+"Office and responsibilities". **Works at** first, because for most people it
+is the only one that applies, then **Oversees**. Each says what it decides,
+which is what makes the split useful rather than cosmetic.
+
+### Tests
+
+pgTAP: new `an_opndoor_admin_has_no_office.test.sql`, 7 assertions, four
+failing first; the other three are the measurement above, which passed before
+the migration and is the point of it. Local clean-apply cluster: 66 files,
+964 assertions, 0 failing. Green on dev. `npm run drift` clean.
+
+Client: new `yourOwnRow.render.test.tsx` (6, two failing first) and
+`officeAndResponsibilities.render.test.tsx` (7, five failing first).
+`guardsAreNullSafe`'s deny-if count 64 -> 66 with the audit note that file
+requires. 120 files / 1285 tests; two files and thirteen assertions added,
+none removed or renamed.
+
+---
+
 ## Walk fix 7: the Origin picker narrows the list. DONE AND CHECKED ON DEV.
 
 `2fffe58`.
