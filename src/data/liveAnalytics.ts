@@ -41,6 +41,8 @@ import { getPartner, getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
 import { payeesFor, orgRate, totalRate, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
 import { deliveryStateOf } from './deliveryState';
+// Walk fixes 8 and 16 share one rule for what is under guarantee, and when.
+import { inForceDuring } from './inForce';
 import { isHousePartner } from './channel';
 import type { CommissionSource } from './types';
 
@@ -246,7 +248,27 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
        figure labelled "total guaranteed rent value" when £24,000 was guaranteed.
        Every tile, chart and export total that reads this was overstated by the
        joint share of the book. */
-    if (inRange(app.deedAt, start, end)) { a.deed += 1; a.guaranteed += guaranteedAnnual(app); }
+    if (inRange(app.deedAt, start, end)) a.deed += 1;
+    /* WALK FIX 16. "12 months' rent for each executed deed IN FORCE in the
+       period, counting a joint tenancy once, not once per tenant."
+
+       WAS: summed alongside the deed count above, on the same test -- the
+       deed ISSUED inside the period. That is the right question for "how
+       many deeds did we issue" and the wrong one for "how much rent is
+       under guarantee", and the two had been sharing a line. A guarantee
+       written last year and still running contributed nothing; one written
+       inside the period and already over contributed fully. The two errors
+       move the total in opposite directions, which is how the figure could
+       look plausible while being built from the wrong set.
+
+       The count stays on deeds ISSUED, because that is what it counts.
+
+       inForceDuring is shared with the bordereau (item 8): the same three
+       clauses, so an underwriter's document and this tile cannot disagree
+       about which guarantees exist. "Counting a joint tenancy once" needs
+       no dedupe and never did -- guaranteedAnnual returns the SHARE and the
+       shares sum to the rent. */
+    if (inForceDuring(app, start, end)) a.guaranteed += guaranteedAnnual(app);
     // Current-state operational metrics (not period-filtered).
     if (app.status === 'sent') a.stuckSent += 1;
     if (app.status === 'paid' && !app.deedAt && !app.refunded) a.stuckPaid += 1;
