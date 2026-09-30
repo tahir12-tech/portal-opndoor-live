@@ -871,6 +871,74 @@ supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
 answered: giving supplier staff a people screen is a new screen, not a
 wiring job.
 
+## Walk fixes 31, 32, 33 and 34: the invite email. DONE AND CHECKED ON DEV.
+
+`603b0c1`. Deployed to dev: `invite-user`, `payment-page`. `deno check`: 66
+clean, 0 failing.
+
+### 31 is not a template bug, and it is wider than this email
+
+`rich()` in emailLayout matched an href with `[^&quot;\s<>]+`. That looks
+like "anything that is not the escaped quote" and is not: it is a CHARACTER
+CLASS, so it excluded the individual characters `&` `q` `u` `o` `t` `;`
+along with whitespace and angle brackets. **Nearly every real URL contains
+one of those** -- both store links contain o, u and t -- so the pattern
+never matched and the escaped markup was printed to the reader as words.
+That is both halves of the report: the raw code, and the address twice,
+because the URL was also the link text.
+
+Every anchor in every `p`, `small` or `list` block in the product was
+affected, not only this email.
+
+`renderText` prints "label: address" for an anchor now instead of dropping
+it, which is what lets the store lines be one clean link each without the
+plain-text reader losing the URL -- the only reason the URL was the link
+text in the first place.
+
+### 33's leak is in the callers, and there were two
+
+`invite-user` read `partners.name` and passed it through. On the agency rail
+that is the house partner "Opndoor Agents". Which party to name is one
+decision now, in `_shared/namedParty.ts`.
+
+And Matt's last sentence -- "Check every other email for the house account
+name" -- found the second, and it is not an email. **The tenant's payment
+page** read `partnerRow?.name ?? "your letting agent"`, so on an agency-rail
+referral that was not agency-arranged, the screen where a tenant hands over
+a card named a company they have never dealt with. PayLanding's
+agency-arranged branch already names the agency, which is why it survived:
+it is the other branch.
+
+### 34: APP_URL was already right. Site URL was not.
+
+`APP_URL` on dev is `http://localhost:5174` and the deployed invite-user
+builds on it, so the link is right. Measuring it found the other half:
+GoTrue's **Site URL was `http://localhost:3000`**, a port nothing runs on,
+and Site URL is the fallback whenever a link is generated with no
+`redirect_to` or with one the allow-list refuses. Set to
+`http://localhost:5174` on dev and proved: a link generated with no
+`redirect_to` now lands on the portal.
+
+HANDOVER 7a gains that half, with two checks, plus the trap that cost time
+here: on the admin `generate_link` endpoint `redirect_to` must be a QUERY
+parameter. In the body as `options.redirect_to` it is accepted, ignored and
+silently replaced with the Site URL -- which reads as a broken allow-list
+when nothing is broken.
+
+### Tests
+
+New `inviteEmailReadsAsEnglish.test.ts`, 17 assertions, five failing first,
+in `src/` because Deno is not installed here and a test that cannot be run
+is not a guard. Two assertions in `authenticatorCopy` were rewritten rather
+than deleted: one quoted the duplicated sentence word for word, and one
+required the URL to BE the link text -- true when renderText dropped
+anchors, and the cause of the address appearing twice. The requirement is
+now the opposite and the file says so.
+
+130 files / 1408 tests; one file and 17 assertions added, none removed.
+
+---
+
 ## Walk fix 25: Home says what its numbers count. DONE AND CHECKED ON DEV.
 
 `4d33d9f`. The four queue tiles say "waiting now".
