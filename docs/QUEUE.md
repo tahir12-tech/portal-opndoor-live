@@ -688,6 +688,39 @@ Not that the rows look right: that the outcome is unchanged.
 
 ---
 
+### WHO MAY CHANGE WHAT (instruction, 2026-09-30, verbatim). ACTIVE.
+
+> Change to notifications: a Director can change the notification settings of anyone at or below them in their own agency, not just see them. Each person can still change their own event choices. Two settings are Director-only: turning monthly commission statements on or off (and only for people who can see commission), and whether someone is copied on colleagues' referrals within their position. Opndoor admin can change anyone's. Enforce all of this server-side, with tests for each role, then carry on with docs/QUEUE.md without stopping.
+
+**This supersedes the read-literally choice I flagged an hour ago.** I had
+built "the person edits their own, an admin edits anyone's, a Director may
+see but not change" and said it was one predicate either way. It is now
+three predicates, because the three settings no longer share one rule.
+
+### The three settings, and they are now genuinely different
+
+| setting | who may change it |
+| --- | --- |
+| **Event choices** (`user_notification_settings`) | the person themselves, **or** a Director at or above them in their own agency, **or** an opndoor admin |
+| **Monthly statements** (`receives_commission_statements`) | **Director-only** -- NOT the person themselves -- and only for somebody whose level lets them see commission. Plus an opndoor admin. |
+| **Copied on colleagues' referrals** (`receives_notifications`) | **Director-only** -- NOT the person themselves. Plus an opndoor admin. |
+
+**The half that is easy to get wrong is the negative one.** "Director-only"
+means a Negotiator may not switch their OWN statements on, and a Manager may
+not either. That is a capability being REMOVED from self-service, not just
+one being granted to Directors, and it needs its own assertion per role
+rather than being assumed to fall out of the positive rule.
+
+**And "only for people who can see commission"** is a second gate on the
+same setting: even a Director may not switch statements on for a Manager,
+because a Manager may not see commission at all. Rule 3.
+
+**"At or below them in their own agency"** is the reach test, and it is
+`user_within_caller_scope` / the position ladder, not `partner_id` -- on the
+agency rail every agency shares the house partner, so a partner test would
+let a Director at one agency change somebody at another. That is rule 2, and
+it is the single most repeated finding in this whole effort.
+
 ### Progress on the per-person change
 
 | part | state |
