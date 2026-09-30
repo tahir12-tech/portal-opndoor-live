@@ -27,7 +27,12 @@ run, which is what `npm run drift` is for.
 import json, os, re, subprocess, sys
 
 REF = "nfufwcpgrhfgwtphegca"          # dev. never the live ref.
-REPO = "/Users/nicholasdwyer/Downloads/portal-opndoor-liveCode"
+# The repo this run belongs to. Was hardcoded to the main checkout, which
+# silently read the WRONG tree once work moved into a git worktree: the
+# runner reported a missing file for a test that existed, because it was
+# looking in the other checkout. Taken from the environment, else the
+# directory this script lives in.
+REPO = os.environ.get("REPO") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 TAP_FNS = (
     "plan|finish|is|isnt|ok|nok|is_empty|isnt_empty|throws_ok|lives_ok|"
