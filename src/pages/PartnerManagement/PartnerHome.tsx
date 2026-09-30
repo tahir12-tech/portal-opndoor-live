@@ -65,10 +65,10 @@ import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
-import { fmtRatePct } from '@/lib/format';
 import { agencyKey } from '@/pages/Agencies/AgencyHome';
 import { PersonNotifications } from '@/components/people/PersonNotifications';
 import { StatementRecipients } from '@/components/StatementRecipients';
+import { SupplierCommission } from '@/components/SupplierCommission';
 import { ViewAsButton } from '@/components/ViewAsButton';
 import './PartnerHome.css';
 
@@ -87,7 +87,7 @@ const modeLabel = (m: ReferencingMode | undefined) => REFERENCING_MODES.find((x)
 
 export function PartnerHome() {
   const { key } = useParams<{ key: string }>();
-  const { role, dataVersion } = useSession();
+  const { role, dataVersion, refresh } = useSession();
   usePageMeta('partner-home', 'Supplier', ['Home', 'Relationships', 'Suppliers', 'Supplier']);
 
   const decoded = decodeURIComponent(key ?? '');
@@ -254,23 +254,21 @@ export function PartnerHome() {
 
       {tab === 'commission' && (
       <div className="ph-grid">
-        {/* COMMISSION */}
-        <Card>
-          <CardHead title="Commission" sub="Per-partner rates, snapshotted onto each referral at creation." />
-          <CardBody>
-            <div className="ph-rates">
-              <div className="ph-rate">
-                <div className="ph-rate__v">{fmtRatePct(rates.partner)}</div>
-                <div className="ph-rate__l">Supplier commission</div>
-              </div>
-              <div className="ph-rate">
-                <div className="ph-rate__v">{fmtRatePct(rates.agent)}</div>
-                <div className="ph-rate__l">Agent rate</div>
-              </div>
-            </div>
-            <p className="ph-note muted">Edit rates and settings from <b>Manage</b> on the <Link to="/partners">Suppliers</Link> list.</p>
-          </CardBody>
-        </Card>
+        {/* THE ONE PLACE COMMISSION IS SET. The two read-only figures and
+            the pointer at Manage that used to sit here were the other half
+            of the "two screens editing one number" this replaces: Manage
+            owned the boxes and this tab described them. Matt, 2026-09-30:
+            "Supplier commission is edited only on the supplier's Commission
+            tab." */}
+        <SupplierCommission
+          slug={partner.id}
+          supplierName={partner.name}
+          total={rates.partner}
+          agentShare={rates.agent}
+          opndoorPaysAgents={partner.opndoorPaysAgents === true}
+          canEdit={isAdmin}
+          onSaved={refresh}
+        />
 
         {/* WHO THE MONTHLY STATEMENT GOES TO. On the Commission tab because
             the statement IS the commission, and this is the only screen in

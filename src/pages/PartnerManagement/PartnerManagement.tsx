@@ -1,8 +1,14 @@
 /* =====================================================================
-   Partners — the top of the hierarchy (opndoor admin only, enforced by the
-   route guard). Lists every partner with users/agencies/branches/apps and
-   status, drills into a partner's users, and onboards / amends partners
-   (including their per-partner commission rates) via the add/manage modal.
+   Suppliers — the top of the hierarchy (opndoor admin only, enforced by the
+   route guard). Lists every supplier with users/agencies/branches/apps and
+   status, drills into a supplier's users, and onboards / amends suppliers
+   via the add/manage modal.
+
+   COMMISSION IS NOT EDITED HERE ANY MORE. Matt, 2026-09-30: "Supplier
+   commission is edited only on the supplier's Commission tab ... Remove
+   the two flat commission boxes from Manage." The word "partner" is the
+   database's and survives in column names, RPC arguments and types; the
+   screen says supplier.
    ===================================================================== */
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -31,7 +37,7 @@ const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 
 const asPct = (frac: number | undefined, fallback: number) => Number(((frac != null ? frac : fallback) * 100).toFixed(1));
 
 const AUDIT_LABEL: Record<string, string> = {
-  partner_rate: 'Supplier commission', agent_rate: 'Agent commission',
+  partner_rate: 'Total commission', agent_rate: "Agents' share",
   status: 'Status', live_from: 'Live from', name: 'Name',
   referrer_leaderboard: 'Referrer leaderboard',
 };
@@ -154,12 +160,12 @@ export function PartnerManagement() {
     try {
       await updatePartnerSettings(id, input);
       await refreshData(); // live mode: re-read the partner (and its new live rate)
-      toast(`Updated ${input.name}. New applications will use ${fmtRatePct(input.partnerRate)} supplier / ${fmtRatePct(input.agentRate)} agent; existing applications keep the rate recorded when they were created.`);
+      toast(`Updated ${input.name}.`);
       setConfirm(null);
       setOpen(false);
       refresh();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not save the partner.', 'error');
+      toast(e instanceof Error ? e.message : 'Could not save the supplier.', 'error');
     } finally {
       setSaving(false);
     }
@@ -172,15 +178,19 @@ export function PartnerManagement() {
     if (editingId) {
       const cur = getPartner(editingId);
       if (!cur) return;
+      /* THE STORED RATES, UNCHANGED. update_partner_settings still takes
+         both -- narrowing a nine-argument RPC is a migration of its own
+         and is listed for the morning -- so this screen passes back
+         exactly what is there rather than a value from a box it no
+         longer has. Without this, saving a name change on Manage would
+         write whatever the (now absent) rate state happened to hold and
+         silently undo the Commission tab. */
       const input: PartnerSettingsInput = {
-        name: name.trim(), status, since, partnerRate: pr, agentRate: ar,
+        name: name.trim(), status, since,
+        partnerRate: cur.partnerRate ?? 0.25, agentRate: cur.agentRate ?? 0.1,
         referencingMode: refMode, portalReferralsEnabled: portalOn, apiAccessEnabled: apiOn,
       };
-      // A rate change needs explicit confirmation (current -> new), since it sets
-      // the rate for new applications going forward.
       const changes: RateChange[] = [];
-      if (cur.partnerRate !== pr) changes.push({ label: 'Supplier commission', from: fmtRatePct(cur.partnerRate ?? 0.25), to: fmtRatePct(pr) });
-      if (cur.agentRate !== ar) changes.push({ label: 'Agent commission', from: fmtRatePct(cur.agentRate ?? 0.1), to: fmtRatePct(ar) });
       if ((cur.referencingMode ?? 'pre_referenced_screened') !== refMode) {
         changes.push({
           label: 'Referencing mode',
@@ -220,11 +230,14 @@ export function PartnerManagement() {
       })
         .then(async (rec) => {
           await refreshData();
-          toast(`Partner "${rec.name}" created at ${Math.round(pr * 100)}% supplier / ${Math.round(ar * 100)}% agent. Add users, agencies and branches under it next.`);
+          /* NAMES THE NEXT STEP, because commission is no longer set
+             here and a supplier created silently on a default rate is a
+             money default nobody chose. */
+          toast(`Supplier "${rec.name}" created. Set its commission on the Commission tab, then add users, agencies and branches.`);
           setOpen(false);
           refresh();
         })
-        .catch((e) => toast(e instanceof Error ? e.message : 'Could not create the partner.', 'error'))
+        .catch((e) => toast(e instanceof Error ? e.message : 'Could not create the supplier.', 'error'))
         .finally(() => setSaving(false));
     }
   }
@@ -235,10 +248,10 @@ export function PartnerManagement() {
         <div>
           <div className="rec-eyebrow"><span className="opx">opndoor</span> · internal admin</div>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>Suppliers</h1>
-          <p className="page-head__sub">Every partner company on the portal. A partner sits at the top of the hierarchy, with its own users, agencies, branches and applications beneath it. Click a partner to open its page; <b>Manage</b> edits its settings.</p>
+          <p className="page-head__sub">Every supplier on the portal. A supplier sits at the top of the hierarchy, with its own users, agencies, branches and applications beneath it. Click a supplier to open its page; <b>Manage</b> edits its settings.</p>
         </div>
         <div className="page-head__actions">
-          <Button variant="primary" size="sm" onClick={openAdd}><Icon name="plus" /> Add partner</Button>
+          <Button variant="primary" size="sm" onClick={openAdd}><Icon name="plus" /> Add supplier</Button>
         </div>
       </div>
 
@@ -249,9 +262,9 @@ export function PartnerManagement() {
 
       <Card>
         <CardHead
-          title="All partners"
-          sub={`${partners.length} partner ${partners.length === 1 ? 'company' : 'companies'}`}
-          actions={<Button variant="quiet" size="sm" to="/users" arrow>All users · all partners</Button>}
+          title="All suppliers"
+          sub={`${partners.length} ${partners.length === 1 ? 'supplier' : 'suppliers'}`}
+          actions={<Button variant="quiet" size="sm" to="/users" arrow>All users · all suppliers</Button>}
         />
         <div className="table-wrap">
           <table className="dt ptable">
@@ -277,7 +290,11 @@ export function PartnerManagement() {
                         <span className="pco__logo">{initials(p.name)}</span>
                         <div>
                           <div className="pco__name"><Link className="pco__namelink" to={`/partners/${encodeURIComponent(p.id)}`} title={`Open ${p.name}`}>{p.name}</Link>{p.primary && <> <Tag variant="primary">Primary</Tag></>}</div>
-                          <div className="pco__since">Live from {p.since || '-'} · Supplier {fmtRatePct(p.partnerRate ?? 0.25)} / Agent {fmtRatePct(p.agentRate ?? 0.1)}</div>
+                          {/* THE TOTAL, AND WHAT IS CARVED OUT OF IT, rather than two rates
+                              read as adding up. Same two columns, different sentence,
+                              because the model changed and the old wording said the
+                              wrong thing about the same numbers. */}
+                          <div className="pco__since">Live from {p.since || '-'} · Total {fmtRatePct(p.partnerRate ?? 0.25)}, agents' share {fmtRatePct(p.agentRate ?? 0.1)}</div>
                         </div>
                       </div>
                     </td>
@@ -302,8 +319,8 @@ export function PartnerManagement() {
         open={open}
         onClose={() => setOpen(false)}
         title={editingId ? `Manage ${getPartner(editingId)?.name ?? ''}` : 'Add partner'}
-        sub={editingId ? "Adjust this partner’s details and commission. Rate changes apply to new applications from now on." : 'Onboard a new partner company. Users, agencies and branches can be added under it afterwards.'}
-        footer={<><Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button variant="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create partner'}</Button></>}
+        sub={editingId ? "Adjust this supplier’s details. Commission is set on its Commission tab." : 'Onboard a new supplier. Users, agencies and branches can be added under it afterwards.'}
+        footer={<><Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button variant="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create supplier'}</Button></>}
       >
         <Field label="Supplier company name" htmlFor="pm-name"><input id="pm-name" type="text" placeholder="e.g. Acme Property Group" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Live from" htmlFor="pm-since" hint="Optional"><input id="pm-since" type="month" value={since} onChange={(e) => setSince(e.target.value)} /></Field>
@@ -333,8 +350,8 @@ export function PartnerManagement() {
         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 16 }}>
           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Capabilities</div>
           <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginBottom: 12 }}>
-            What this partner can do. Two independent settings rather than one partner type: an agency is
-            portal only, a CRM is API only, and some partners are both.
+            What this supplier can do. Two independent settings rather than one supplier type: an agency is
+            portal only, a CRM is API only, and some suppliers are both.
           </div>
 
           <label className="pmcap">
@@ -343,7 +360,7 @@ export function PartnerManagement() {
               <div className="pmcap__name">Portal referrals</div>
               <div className="pmcap__desc">
                 Their staff can create referrals in the portal. Turning this off refuses new referrals for
-                this partner, including ones an opndoor admin makes on their behalf. Existing applications
+                this supplier, including ones an opndoor admin makes on their behalf. Existing applications
                 are untouched.
               </div>
             </div>
@@ -369,23 +386,33 @@ export function PartnerManagement() {
           </label>
         </div>
 
-        <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 16 }}>
-          <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Commission</div>
-          <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginBottom: 12 }}>
-            Each a share of the guarantor fee (one month's rent). These are the rates for <b>new applications from now on</b>. Applications already created keep the rate recorded when they were created, so past settlements and reports never change.
+        {/* THE TWO FLAT COMMISSION BOXES ARE GONE. Matt, 2026-09-30:
+            "Supplier commission is edited only on the supplier's
+            Commission tab, under the new model ... Remove the two flat
+            commission boxes from Manage."
+
+            They were flat because the model was: one rate for the
+            supplier and a separate one for agents, added together. It is
+            one TOTAL now with the agents' share carved out of it and
+            volume tiers inside that, which is more than two boxes can
+            say, and two screens editing one number is how they come to
+            disagree. */}
+        {editingId && (
+          <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 16 }}>
+            <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Commission</div>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-mute)' }}>
+              Set on this supplier's <Link to={`/partners/${editingId}`}>Commission tab</Link>: the total rate, the agents'
+              share within it, and whether Opndoor pays the agents directly.
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label="Supplier commission %" htmlFor="pm-partner-rate"><input id="pm-partner-rate" type="number" step="0.5" min="0" max="100" placeholder="25" value={partnerRate} onChange={(e) => setPartnerRate(e.target.value)} /></Field>
-            <Field label="Agent commission %" htmlFor="pm-agent-rate"><input id="pm-agent-rate" type="number" step="0.5" min="0" max="100" placeholder="10" value={agentRate} onChange={(e) => setAgentRate(e.target.value)} /></Field>
-          </div>
-        </div>
+        )}
 
         {/* #88 Referrer leaderboard visibility (per-partner policy, saves immediately). */}
         {editingId && (
           <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 16 }}>
             <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Referrer leaderboard</div>
             <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginBottom: 12 }}>
-              What referrers at this partner see on the League Referrers tab. Commission is never shown to referrers.
+              What referrers at this supplier see on the League Referrers tab. Commission is never shown to referrers.
             </div>
             <Field label="Visibility" htmlFor="pm-lb-mode">
               <select id="pm-lb-mode" value={lbMode} onChange={(e) => setLbConfirm(e.target.value as LeaderboardMode)}>

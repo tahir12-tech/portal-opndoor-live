@@ -101,3 +101,25 @@
 .sr-row__name { color: var(--ink-mute); font-size: 12px; }
 .sr-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .sr-add input { flex: 1 1 180px; min-width: 0; }
+
+/* Supplier commission. Two boxes, the subtraction they imply said out loud,
+   the switch that decides who Opndoor pays, and the tiers read-only. */
+.sc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.sc-sum {
+  margin: 14px 0 0; padding: 10px 12px; border-radius: 8px;
+  background: var(--app-bg); color: var(--ink-soft); font-size: 13px; line-height: 1.55;
+  display: flex; gap: 8px; align-items: flex-start;
+}
+.sc-sum--bad { background: var(--danger-bg); color: var(--danger); }
+.sc-switch { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 0; cursor: pointer; }
+.sc-switch input { margin-top: 3px; flex: none; }
+.sc-switch__note { display: block; margin-top: 3px; color: var(--ink-mute); font-size: 12.5px; line-height: 1.55; }
+.sc-tiers { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.sc-tiers__head { font-family: var(--display); font-weight: 700; font-size: 13.5px; margin-bottom: 8px; }
+.sc-tierlist { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.sc-tierlist li {
+  display: flex; justify-content: space-between; gap: 12px; font-size: 13px;
+  padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--app-bg);
+}
+.sc-actions { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+@media (max-width: 560px) { .sc-grid { grid-template-columns: 1fr; } }

@@ -425,3 +425,58 @@ export async function removeStatementRecipient(partnerKey: string, id: string): 
   }
   MOCK_STATEMENT_RECIPIENTS[partnerKey] = (MOCK_STATEMENT_RECIPIENTS[partnerKey] ?? []).filter((r) => r.id !== id);
 }
+
+/* =====================================================================
+   THE SUPPLIER'S COMMISSION, UNDER THE CARVE-OUT MODEL.
+
+   Matt, 2026-09-30: "Supplier commission is one total rate, set per
+   supplier on its Commission tab ... and that total includes the agents'
+   share. The agent's share is carved out of it and can be volume-tiered
+   per supplier using the existing tiers ... The supplier's own share is
+   the total minus the agent's share, never more in total."
+
+   ONE CALL, because the three settings are one decision: a total, what
+   comes out of it, and who pays that out. Saving them separately would
+   let an admin leave the share above the total between two requests,
+   which is the state the database refuses.
+   ===================================================================== */
+
+/** A volume tier carving the agents' share out of a supplier's total. */
+export interface SupplierTier {
+  fromCount: number;
+  toCount: number | null;
+  agentRate: number;
+  period: string;
+  countingScope: string;
+}
+
+export async function setSupplierCommission(
+  slug: string, total: number, agentShare: number, opndoorPaysAgents: boolean,
+): Promise<void> {
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('set_supplier_commission', {
+      p_slug: slug, p_total: total, p_agent_share: agentShare, p_pays_agents: opndoorPaysAgents,
+    });
+    if (error) throw new Error(error.message);
+    return;
+  }
+  // Mock mode mirrors the database's one refusal, so the screen behaves the
+  // same way without Supabase and the message is written once.
+  if (agentShare > total) {
+    throw new Error('The agents’ share comes out of the total, so it cannot be more than it. Raise the total or lower the share.');
+  }
+  updatePartner(slug, { partnerRate: total, agentRate: agentShare, opndoorPaysAgents });
+}
+
+export async function getSupplierTiers(slug: string): Promise<SupplierTier[]> {
+  if (!SUPABASE_ENABLED) return [];
+  const { data, error } = await sb().rpc('supplier_commission_tiers', { p_slug: slug });
+  if (error) return [];
+  return ((data ?? []) as {
+    from_count: number; to_count: number | null; agent_rate: number;
+    period: string; counting_scope: string;
+  }[]).map((t) => ({
+    fromCount: t.from_count, toCount: t.to_count, agentRate: t.agent_rate,
+    period: t.period, countingScope: t.counting_scope,
+  }));
+}

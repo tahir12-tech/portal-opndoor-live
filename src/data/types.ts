@@ -248,9 +248,26 @@ export interface Partner {
   isHouse?: boolean;
   users: number;
   apps: number;
-  /** Per-partner commission rates (fractions of one month's rent). Never hard-coded. */
+  /** Per-partner commission rates (fractions of one month's rent). Never hard-coded.
+
+      ON A SUPPLIER THESE ARE ONE NUMBER AND A SLICE OF IT, not two that add
+      up. Matt, 2026-09-30: "Supplier commission is one total rate ... and
+      that total includes the agents' share. The agent's share is carved out
+      of it". So `partnerRate` is the TOTAL Opndoor pays on a supplier
+      referral, and `agentRate` is the part of it the agents get, which the
+      volume tiers can override per referral.
+
+      ON THE AGENCY RAIL THEY ARE UNCHANGED and still separate things:
+      `partnerRate` on the house partner is Opndoor's own margin, which is
+      owed to nobody and never appears on a statement, and `agentRate` is
+      the agency's cut. The two rails read the same two columns differently,
+      which is why `isHousePartner` guards every place they are spent. */
   partnerRate: number;
   agentRate: number;
+  /** Opndoor pays this supplier's agents directly, instead of paying the
+      whole total to the supplier for it to settle with its own. Off by
+      default. NM-C 5. */
+  opndoorPaysAgents?: boolean;
   /** #79 What a referrer sees on the League Referrers tab for this partner.
       full = peers ranked with fees + counts; rankings = counts only; private =
       own performance only. Commission is never shown to referrers. Default full. */

@@ -95,7 +95,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // Same list for every role now. There is nothing left to narrow, which is
     // the point: a select that cannot leak does not need a conditional.
     client.from('partners').select(
-      'id, slug, name, status, live_from, is_primary, referrer_leaderboard_mode, referencing_mode, portal_referrals_enabled, api_access_enabled',
+      'id, slug, name, status, live_from, is_primary, referrer_leaderboard_mode, referencing_mode, portal_referrals_enabled, api_access_enabled, opndoor_pays_agents',
     ),
     // The partner rates, for the roles entitled to them. Called unconditionally
     // and refused in the function rather than skipped here, because a client
@@ -273,6 +273,10 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     apps: appsByPartner[p.slug] || 0,
     partnerRate: num(p.partner_rate),
     agentRate: num(p.agent_rate),
+    /* NM-C 5. Not a rate, so it is not behind my_partner_rates: it says
+       WHO Opndoor pays rather than how much, and the Commission tab
+       needs it to render a switch. */
+    opndoorPaysAgents: p.opndoor_pays_agents === true,
     referrerLeaderboard: (p.referrer_leaderboard_mode ?? 'full') as Partner['referrerLeaderboard'],
     referencingMode: (p.referencing_mode ?? 'pre_referenced_screened') as Partner['referencingMode'],
     // === true, not a coalesce to true. A missing column or an unresolved select
