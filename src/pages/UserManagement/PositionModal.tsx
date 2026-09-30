@@ -130,8 +130,8 @@ export function PositionModal({
   return (
     <Modal
       open
-      title={`What ${user.name} can see`}
-      sub="A role says what somebody may do. A position says over what."
+      title="Office and responsibilities"
+      sub={`Two different things about ${user.name}: where they work, and what they oversee.`}
       onClose={onClose}
       width={620}
       footer={
@@ -145,101 +145,123 @@ export function PositionModal({
     >
       {loading ? (
         <p className="soft">Loading…</p>
-      ) : held.length === 0 ? (
-        <div className="pos-empty">
-          <Icon name="users" />
-          <div>
-            <strong>Own referrals only.</strong>
-            <div className="soft">
-              That is the right answer for a negotiator, and it needs nothing set.
-              Add a position below only if they oversee other people’s work.
-            </div>
-          </div>
-        </div>
       ) : (
         <>
-        <p className="soft pos-note">
-          Everybody holds one position. Choosing another below moves {user.name} to it;
-          it is not added alongside.
-        </p>
-        <ul className="pos-list">
-          {held.map((p) => (
-            <li key={p.id} className="pos-item">
-              <Icon name={p.kind === 'group' ? 'building' : p.kind === 'agency' ? 'org' : 'home'} />
-              <div className="pos-item__txt">
-                <div className="pos-item__name">{p.targetName}</div>
+        {/* WALK FIX 6. WHERE THEY WORK, FIRST AND SEPARATELY. "Split it into
+            two clearly labelled parts: 'Works at' (their home office, which
+            decides their team, league and commission statement) and
+            'Oversees' (the branches, brand or agency they manage, which
+            decides what they can see)."
+
+            The two were interleaved: an office picker sat between a list of
+            positions and the control that changes them, with nothing saying
+            they answered different questions. Works at comes first because
+            for most people it is the only one of the two that applies -- a
+            Negotiator has an office and oversees nobody. */}
+        <section className="pos-sec">
+          <h4 className="pos-h">Works at</h4>
+          <p className="pos-sub">
+            Their office. It decides their team, their place in the league, and
+            which commission statement they are on.
+          </p>
+          {branches.length > 0 ? (
+            <Field label="Office">
+              <select
+                aria-label="Where they work"
+                value={home}
+                disabled={homeBusy || busy}
+                onChange={(e) => void moveHome(e.target.value)}
+              >
+                <option value="">No office</option>
+                {branches.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </Field>
+          ) : (
+            /* set_home_branch refuses a branch the caller does not reach, and
+               `targets` is already narrowed to their reach, so an empty list
+               means there is nothing they could legitimately choose. Saying so
+               beats an empty select. */
+            <p className="soft">No office here that you can place somebody at.</p>
+          )}
+        </section>
+
+        <section className="pos-sec">
+          <h4 className="pos-h">Oversees</h4>
+          <p className="pos-sub">
+            The branches, brand or agency they are responsible for. It decides
+            what they can see.
+          </p>
+          {held.length === 0 ? (
+            <div className="pos-empty">
+              <Icon name="users" />
+              <div>
+                <strong>Own referrals only.</strong>
                 <div className="soft">
-                  {p.kind === 'group' ? 'Every agency and branch in this group'
-                    : p.kind === 'agency' ? 'Every branch of this agency'
-                    : 'This branch'}
+                  That is the right answer for a negotiator, and it needs nothing set.
+                  Give them something to oversee below only if they manage other
+                  people’s work.
                 </div>
               </div>
-              {/* Offered, but only pressable where it can succeed. Hiding it
-                  entirely would leave no answer to "how do I take this away";
-                  disabling it with the reason says what to do instead. */}
-              <Button
-                variant="quiet" size="sm"
-                disabled={busy || !canRemove}
-                title={canRemove ? undefined : REMOVE_HINT}
-                onClick={() => void remove(p)}
-              >Remove</Button>
-            </li>
-          ))}
-        </ul>
-        {!canRemove && <p className="soft pos-note">{REMOVE_HINT}</p>}
+            </div>
+          ) : (
+            <>
+            <p className="soft pos-note">
+              Everybody holds one position. Choosing another below moves {user.name} to it;
+              it is not added alongside.
+            </p>
+            <ul className="pos-list">
+              {held.map((p) => (
+                <li key={p.id} className="pos-item">
+                  <Icon name={p.kind === 'group' ? 'building' : p.kind === 'agency' ? 'org' : 'home'} />
+                  <div className="pos-item__txt">
+                    <div className="pos-item__name">{p.targetName}</div>
+                    <div className="soft">
+                      {p.kind === 'group' ? 'Every agency and branch in this group'
+                        : p.kind === 'agency' ? 'Every branch of this agency'
+                        : 'This branch'}
+                    </div>
+                  </div>
+                  {/* Offered, but only pressable where it can succeed. Hiding it
+                      entirely would leave no answer to "how do I take this away";
+                      disabling it with the reason says what to do instead. */}
+                  <Button
+                    variant="quiet" size="sm"
+                    disabled={busy || !canRemove}
+                    title={canRemove ? undefined : REMOVE_HINT}
+                    onClick={() => void remove(p)}
+                  >Remove</Button>
+                </li>
+              ))}
+            </ul>
+            {!canRemove && <p className="soft pos-note">{REMOVE_HINT}</p>}
+            </>
+          )}
+
+          <div className="pos-add">
+            <Field label="Responsible for">
+              <PeriodSelect
+                ariaLabel="Scope kind" value={kind}
+                onChange={(v) => { setKind(v as positions.ScopeKind); setTargetId(''); }}
+                options={[
+                  { value: 'branch', label: 'A branch' },
+                  { value: 'agency', label: 'A whole agency' },
+                  { value: 'group', label: 'A whole group' },
+                ]}
+              />
+            </Field>
+            <Field label="Which">
+              <PeriodSelect
+                ariaLabel="Target" value={targetId} onChange={setTargetId}
+                options={[
+                  { value: '', label: options.length ? 'Please choose' : 'Nothing available at this level' },
+                  ...options.map((o) => ({ value: o.id, label: o.name })),
+                ]}
+              />
+            </Field>
+          </div>
+        </section>
         </>
       )}
-
-      {/* WHERE THEY WORK, above the position list's own control because for
-          most people it is the only one of the two that applies. Offered only
-          where the caller has a branch to offer: set_home_branch refuses a
-          branch the caller does not reach, and `targets` is already narrowed
-          to the caller's own reach, so an empty list means there is nothing
-          they could legitimately choose. */}
-      {branches.length > 0 && (
-        <Field label="Where they work"
-               hint="Their office. It is what puts them on their manager's team from day one, and it is read by the league, the climber and the commission statement.">
-          <select
-            aria-label="Where they work"
-            value={home}
-            disabled={homeBusy || busy}
-            onChange={(e) => void moveHome(e.target.value)}
-          >
-            <option value="">No office</option>
-            {branches.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-        </Field>
-      )}
-
-      <div className="pos-add">
-        <Field label="Add">
-          <PeriodSelect
-            ariaLabel="Scope kind" value={kind}
-            onChange={(v) => { setKind(v as positions.ScopeKind); setTargetId(''); }}
-            options={[
-              { value: 'branch', label: 'A branch' },
-              { value: 'agency', label: 'A whole agency' },
-              { value: 'group', label: 'A whole group' },
-            ]}
-          />
-        </Field>
-        <Field label="Which">
-          <PeriodSelect
-            ariaLabel="Target" value={targetId} onChange={setTargetId}
-            options={[
-              { value: '', label: options.length ? 'Please choose' : 'Nothing available at this level' },
-              ...options.map((o) => ({ value: o.id, label: o.name })),
-            ]}
-          />
-        </Field>
-      </div>
-
-      {/* Several rows of one kind is how "a branch manager over three branches"
-          is said, so adding does not replace. */}
-      <p className="soft">
-        Add more than one to cover several. Someone covering two branches has two positions.
-      </p>
-
     </Modal>
   );
 }

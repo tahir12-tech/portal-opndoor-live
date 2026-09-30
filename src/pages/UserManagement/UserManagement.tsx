@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { PositionModal, type ScopeTarget } from './PositionModal';
 import { PersonNotifications } from '@/components/people/PersonNotifications';
 import * as positionsService from '@/data/positionsService';
-import { AGENCY_LEVELS, getAgencies, getGroups, levelsGrantableBy, mayActOn, mayActOnOrEqual, type Actor, type AgencyLevel } from '@/data';
+import { AGENCY_LEVELS, getAgencies, getGroups, isOpndoorStaff, levelsGrantableBy, mayActOn, mayActOnOrEqual, type Actor, type AgencyLevel } from '@/data';
 import { isHousePartner } from '@/data/channel';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
@@ -331,6 +331,20 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
      so this only decides whether the button is drawn. */
   const canGrantPositions = positionsService.mayGrantPositions(role, ownPositions);
 
+  /* WALK FIX 5. "Opndoor admins see everything by their role and must never
+     be given an office or position. Remove this dialog for Opndoor team
+     members." It is not a permission question -- an admin may grant
+     positions all day -- it is a question about the TARGET, which is why it
+     is a second test beside canGrantPositions rather than folded into it.
+
+     set_user_scope and set_home_branch refuse an Opndoor-staff target in SQL
+     since 20261006940000, so this hides a dialog that could no longer write
+     anything. It was worse than dead before that: the dialog said "Own
+     referrals only" about somebody who sees every referral there is, asked
+     for an office, and offered agency and supplier branches to a person who
+     belongs to neither. */
+  const canPosition = (u: ManagedUser) => canGrantPositions && !isOpndoorStaff(u.role);
+
   /* What the caller can hand out. An admin sees every brand and branch; anybody
      else sees exactly what agencies_select and branches_select let them, so the
      options are already scoped by the same rule that will judge the write. */
@@ -466,7 +480,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     if (u.status === 'pending') {
       return (
         <>
-          {canGrantPositions && (
+          {canPosition(u) && (
             <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); setPositionUser(u); }}>
               <Icon name="org" />Set what they see
             </button>
