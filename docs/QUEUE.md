@@ -592,10 +592,106 @@ template that escapes its input. Whatever is doing that will be doing it to
 anything else built the same way, so the fix belongs at the builder rather
 than in the two lines Matt saw.
 
-## Items 9, 10 and 12: one per-person notifications panel. IN PROGRESS.
+## NOTIFICATIONS ARE GENUINELY PER PERSON (instruction, 2026-09-30, verbatim). ACTIVE.
 
-Matt: "Build items 10 and 12 as one shared design so Opndoor team and agency
-people work the same way; suppliers too."
+> Notifications: genuinely per person, for agency and supplier users as well as Opndoor staff. Each person chooses which events they are told about for the referrals they can see, on their own panel, and whether they get monthly statements if their level allows it. The locked items stay locked for everyone (every tenant email, and the executed deed reaching its recipient). Opndoor admin can see every person's choices from that person's row on the agency, supplier and Opndoor team pages. Replace the agency-wide event switches with this; migrate today's agency settings onto each existing person so nobody's emails change on the day it ships.
+>
+> Applications Origin filter: keep it and make it work.
+>
+> Carry on with docs/QUEUE.md. Work in the worktree, deploy to dev and check each item there before marking it done.
+
+### This REVERSES my judgement call, and that is the right outcome
+
+I recorded that making the agency side per-person was "a schema change that
+redefines what Q-03 built and tested, on the night before a cutover, to
+answer a question nobody has asked", and built the panel to show party-wide
+switches with a warning instead. Matt has now asked the question, so the
+schema change is the work rather than something to avoid. The warning-label
+compromise is withdrawn.
+
+**What survives from the half-built work:** the assembler, the panel
+component and the row action. They were built so the per-person case was
+already the shape for Opndoor; the agency and supplier sides now join it
+rather than needing a different panel.
+
+**What is thrown away:** the `partyWide` flag and the warning that goes with
+it, and the party-wide half of the assembler. Their tests go with them, and
+that is a deliberate deletion rather than a regression -- recorded here so
+the test count moving down is explained.
+
+### The clause that is easy to miss, and is the whole risk
+
+> **migrate today's agency settings onto each existing person so nobody's
+> emails change on the day it ships.**
+
+The settings are stored today per (party, event, recipient CLASS). They must
+become per (person, event). That is not a copy: it is a JOIN, because which
+class a person falls into depends on the person -- the referrer of a given
+referral, somebody ticked "receives notifications", or a supplier's agent
+contact. Getting it wrong means somebody silently stops being emailed, and
+nobody finds out until a deed does not arrive.
+
+So the migration needs a test that asserts, for every existing person, that
+the set of events they would be emailed about is IDENTICAL before and after.
+Not that the rows look right: that the outcome is unchanged.
+
+### Four other things in the instruction that each need their own assertion
+
+1. **"for the referrals they can see"** -- the scope is unchanged. A person's
+   position still decides WHICH referrals; the new setting only decides WHICH
+   EVENTS. The per-person setting must not become a way to widen reach.
+2. **"whether they get monthly statements if their level allows it"** -- the
+   statements toggle is offered only where `may_see_commission()` is true, so
+   a Manager does not get a control that the server will refuse.
+3. **"The locked items stay locked for everyone"** -- the executed deed to
+   its own recipient, and every tenant email. Locked must survive the move to
+   per-person, and must not become per-person-overridable.
+4. **"Opndoor admin can see every person's choices"** -- from the row, on all
+   three pages. A read for an admin, an edit for the person's own party
+   within the existing ladder.
+
+---
+
+## Items 9, 10 and 12: one per-person notifications panel. HALF BUILT.
+
+### Where it stands, exactly
+
+| part | state |
+| --- | --- |
+| The assembler, `src/data/personNotifications.ts` | **done** `0e24aed`, 13 assertions written first |
+| The panel, `src/components/people/PersonNotifications.tsx` | **done** `e36070a`, 10 render assertions written first |
+| The row action on `PersonActions` | **done**, optional so an unwired screen draws nothing |
+| Wiring into Team (Opndoor) | **not started** |
+| Wiring into the agency People tab | **not started** |
+| Wiring into the supplier People tab | **not started** |
+| REMOVING the two tickbox columns and the "Who is told what" grid | **not started** |
+| REMOVING the Internal notifications page from the menu | **not started** |
+
+**Nothing has been removed and nothing is rewired, so the product is
+unchanged for a reader.** This is a safe place to have stopped: the new
+component exists and is tested, and the old screens still work exactly as
+they did. The remaining work is surgery on four large files (`AgencyHome`,
+`PartnerHome`, `Team`, `App`) and should be done in one pass rather than
+started and abandoned.
+
+### What the next session should NOT re-derive
+
+- The panel takes `party`, `partyRef`, `userId`, `personName`, `partyName`,
+  `canEdit`, `onClose`. Mount it from the row action; it loads its own data.
+- `PersonActions` already has `onNotifications`; pass it and the button
+  appears, beside Position.
+- On Opndoor, pass `party="opndoor"` and NO `partyRef`.
+- The agency People tab's two columns and the `<NotificationMatrix>` below it
+  are what item 12 says to delete. `PartnerHome.tsx:423` and
+  `AgencyHome.tsx:1474` are the two grid mount points.
+- `OpsNotifications.tsx` and its route in `App.tsx` are what item 10 says to
+  remove from the menu.
+
+### One thing to flag when it is finished, not now
+
+NM-2b: four of the alert types Q-04 names do not exist. The per-person panel
+will therefore list fewer alerts than the old page implied, which is correct
+and is the honest state, but Matt should be told rather than left to notice.
 
 ### The one judgement call, made explicitly rather than silently
 
@@ -1456,68 +1552,40 @@ Matt's instruction of 2026-09-29: "Do not decide anything else on Matt's
 behalf." So everything below is open, and the build stops at the point that
 depends on it. Each says what it blocks, so nothing waits unnecessarily.
 
-### NM-F. A report per supplier and per agency. Proposal, asked for by walk-fix item 15.
+### NM-F. ANSWERED by Matt, 2026-09-30. Both halves, and the tab is Opndoor-only.
 
-Matt: *"What he wants is to see the reports for each customer: each supplier
-and each agency... write a short proposal for how Matt gets a report per
-supplier and per agency (for example from each one's own page), and wait for
-his answer."*
+Matt, verbatim: *"NM-F: yes to both halves. The per-customer Reporting tab is
+Opndoor-only; agencies and suppliers keep their own Reporting page as it is."*
 
-**The proposal, in one line: delete the scope picker, and put the report on
-each customer's own page as a Reporting tab.**
+**So the build is:**
 
-Why that and not a better picker:
+1. **One estate-wide Reporting page with NO picker**, whose centre is a table
+   with one row per customer -- every supplier and every agency together --
+   and Opndoor's four measures as the columns (referrals sent, fees
+   collected, deeds issued, commission payable). That is walk-fix item 20.
+2. **A Reporting tab on each agency and each supplier page, for Opndoor
+   only.** Walk-fix item 15.
+3. **The scope picker is deleted.**
+4. **Agency and supplier users keep their existing Reporting page unchanged.**
+   This is the half that stops the work spreading: no customer-facing screen
+   changes, so rule 3 (only a Director sees commission) is not re-litigated
+   and nothing a customer sees today moves.
 
-- **The pages already exist and are already the right shape.** The agency page
-  and the supplier page both carry tabs today (Overview, People, Commission,
-  Referrals, Integration). A Reporting tab is a sixth, in a place that already
-  answers "which customer am I looking at" by being that customer's page. No
-  picker can answer that as clearly, because a picker's answer is a line of
-  text somewhere else on the screen.
-- **It removes the class of bug, not an instance.** All four faults item 15
-  lists -- the dead control, the missing suppliers, the doubled Northgate, the
-  stale "All partners" header -- exist because one screen has to name every
-  customer in a list and stay in sync with the estate. A per-customer page
-  never builds that list.
-- **Reporting is already scope-aware server-side.** The reporting figures are
-  computed per party by the same isolation filters the rest of the product
-  uses, so a per-customer page asks a question the server already answers.
-  This is a move, not a rebuild.
+**This decides walk-fix item 7 as well.** Item 7 is "the Applications Origin
+picker does nothing -- fix it". The Reporting picker is being deleted, and
+item 15 records that the two pickers share one fault and one control. Matt
+also said of item 7: *"Matt isn't sure the picker is helpful in this form."*
 
-**REVISED after walk-fix item 20.** The first draft of this proposal said the
-per-customer page would lose side-by-side comparison, and asked Matt whether
-that mattered. Item 20 answers it: *"every supplier and every agency, side by
-side (referrals sent, fees collected, deeds issued, commission payable)."* So
-comparison matters, and the proposal is now **both halves, not one**:
+**I am not deleting the Applications picker on the strength of that**, because
+item 7 says fix it and item 15's deletion was only ever about Reporting. But
+fixing a control on Applications that is being deleted from Reporting means
+the two screens stop sharing one component, so item 7 is now a smaller,
+self-contained fix to Applications alone. Recorded here rather than decided:
+if Matt wants the Origin picker gone from Applications too, say so and item 7
+disappears entirely.
 
-1. **One estate-wide Reporting page, with no picker**, whose centre is a
-   **table with one row per customer** -- every supplier and every agency
-   together -- and Opndoor's four measures as the columns. That is item 20,
-   and it is also the answer to "I want to see the reports for each
-   customer", because a table of all of them IS the per-customer view when
-   what you want is to compare.
-2. **A Reporting tab on each agency and each supplier page**, for the times
-   the question is about one customer in depth rather than all of them at a
-   glance. Same figures, same definitions, reached from the page that already
-   names the customer.
-
-The picker is deleted either way. It exists to answer "which customer", and
-both halves answer that without asking: half 1 shows all of them at once,
-half 2 is on the customer's own page.
-
-What is still open, and the only thing I need before building:
-
-- **Does the agency-side reader get the Reporting tab too**, or is it
-  opndoor-only? An agency Director seeing their own agency's report is a
-  different feature from an opndoor admin seeing everyone's, and it has a
-  commercial-terms question inside it (rule 3: only a Director sees
-  commission). Half 1 is opndoor-only whatever the answer, because it names
-  every customer.
-
-**Blocks:** walk-fix items 15 and 20, and the "simpler alternative" one-liner
-item 7 asks for -- because if the picker is deleted, item 7's fix is throwaway
-work. Item 7's own fault, the dead control, is shared with this screen, so
-answering this decides whether item 7 is worth fixing at all.
+**Unblocks:** walk-fix items 15 and 20. **Item 7 is no longer blocked** and is
+a standalone fix.
 
 ### NM-G. What period should Home's Direct signups cover? Asked for by walk-fix item 25.
 
@@ -1592,65 +1660,66 @@ anywhere and cannot be read back from their hashes. All three have been signed
 into recently, so Matt or Balal hold them. They are NOT being reset, because
 resetting mid-cutover would lock out whoever is using them.
 
-### NM-I. SUPERSEDED TWICE. Final ruling: Opndoor never gives partial refunds.
+### NM-I. ANSWERED by Matt, 2026-09-30. OPNDOOR NEVER GIVES PARTIAL REFUNDS.
 
-**Matt, 2026-09-30, first answer (verbatim):** "NM-I answer: yes, a partial
-refund reduces the commission in proportion to the amount refunded. Also add
-the partial refund fix to Balal's live hotfix package if the problem exists
-on live, with a check before, the fix, a check after, and a rollback."
+**The rule: a refund is always the full fee. The refund action refuses any
+other amount. Pro-rating is NOT built.**
 
-**Matt, 2026-09-30, correction (verbatim):** "Correction to NM-I: Opndoor
-never gives partial refunds. A refund is always the full fee. Make the refund
-action refuse any amount other than the full fee, on dev and in Balal's live
-hotfix package, instead of changing how partial refunds affect commission.
-Keep the check before, check after and rollback for the live part."
+Matt, verbatim: *"Opndoor never gives partial refunds. A refund is always the
+full fee. Make the refund action refuse any amount other than the full fee,
+on dev and in Balal's live hotfix package, instead of changing how partial
+refunds affect commission."* And again: *"Do not build pro-rating. Correct
+NM-I to say so."*
 
-So the pro-rating is NOT built. The rule is that a partial refund is an error,
-and the refund action refuses it.
+**A superseded answer of mine was recorded here and was wrong.** When Matt
+asked me to write the answer I proposed pro-rating the commission. He then
+told me partial refunds do not happen at all, which makes the question moot
+rather than differently answered. The pro-rating proposal is gone; it is
+mentioned only so nobody finds a stale version of this file and builds it.
 
-#### THE THING MATT NEEDS TO KNOW BEFORE THIS SHIPS
+#### The thing Matt needs to know before this ships
 
 **There is no refund action in the portal.** Nothing in `src/` and nothing in
 any edge function creates a Stripe refund. `apply_stripe_refund` has exactly
-one caller: `stripe-webhook`, and it is not performing a refund -- it is
+one caller, `stripe-webhook`, and it is not performing a refund -- it is
 RECORDING one that has already happened inside Stripe, because somebody
 refunded there by hand.
 
-That matters, because you cannot refuse a fact. If the RPC simply raises on a
-partial:
+You cannot refuse a fact. If the RPC simply raises on a partial:
 
 1. Stripe has already moved the money.
 2. The RPC raises, the webhook returns 500, and Stripe retries -- for ever.
 3. The application is never marked refunded at all. It still reads as fully
-   paid: the commission is still paid out, the deed stays live, and the
-   bordereau still bills the underwriter for it.
+   paid: commission still paid out, deed still live, underwriter still billed.
 
-That is **worse than the bug being fixed**. Today a partial over-corrects by
-wiping the whole commission; a bare refusal would under-correct to nothing,
+That is **worse than the bug being replaced**. Today a partial over-corrects
+by wiping the whole commission; a bare refusal would under-correct to nothing
 and jam the webhook.
 
 **So the rule is implemented in the only way that is both what Matt asked for
 and safe:**
 
 - `apply_stripe_refund` **refuses** any amount that is not the full fee, with
-  a clear message. That is Matt's rule, enforced at the database, and it is
-  what stops the portal ever recording a partial as though it were normal.
+  a clear message naming both figures. That is Matt's rule, enforced at the
+  database.
 - `stripe-webhook` recognises that specific refusal and, instead of looping,
   raises a LOUD ops incident naming the guarantee and the amount, and returns
   200 so Stripe stops retrying.
 
 The row then still says paid while Stripe says partly refunded -- a real
-divergence, deliberately left visible. That is the honest handling of
-something the business says never happens: somebody is told, immediately, and
+divergence, left deliberately visible. That is the honest handling of
+something the business says never happens: somebody is told immediately and
 has to go and look. It is not silently mis-applied and it is not silently
 retried.
 
-**R2 is NOT reverted.** R2's `partially_refunded` state and its accumulation
-stay, because the refusal only prevents FUTURE partials and says nothing
-about history: if any application was already mis-marked by the old
-unconditional flip, R2's logic is what distinguishes it. The state simply
-becomes unreachable going forward, which is what "never happens" should look
-like in a schema.
+**R2 is NOT reverted.** Its `partially_refunded` state stays, because the
+refusal only prevents FUTURE partials and says nothing about history: if any
+application was already mis-marked by the old unconditional flip, R2's logic
+is what distinguishes it. The state simply becomes unreachable going forward,
+which is what "never happens" should look like in a schema.
+
+**Status: test written (`a_refund_is_the_whole_fee.test.sql`, 9 assertions),
+implementation next.**
 
 ### NM-A. Who pays the guarantee fee, and how they pay it
 
