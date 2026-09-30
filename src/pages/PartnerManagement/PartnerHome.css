@@ -87,3 +87,17 @@
 .ph-contact { font-size: 12px; color: var(--ink-mute); display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; }
 .ph-contact--none { color: #b54708; font-weight: 700; }
 .ph-contact__inh { font-size: 11px; background: var(--app-bg-2); border-radius: 999px; padding: 1px 6px; margin-left: 4px; }
+
+/* Monthly statement addresses. A list of addresses and one row to add another;
+   the same borders and spacing as the rate cards beside it, so the Commission
+   tab reads as one thing. */
+.sr-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sr-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--app-bg);
+}
+.sr-row__who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sr-row__who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-row__name { color: var(--ink-mute); font-size: 12px; }
+.sr-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sr-add input { flex: 1 1 180px; min-width: 0; }

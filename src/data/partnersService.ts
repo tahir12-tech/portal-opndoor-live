@@ -360,3 +360,68 @@ export function weightFor(scope: PartnerScope): number {
   const p = getPartner(scope);
   return p ? p.weight : 1;
 }
+
+/* =====================================================================
+   THE NAMED ADDRESSES ON A SUPPLIER'S MONTHLY COMMISSION STATEMENT.
+
+   Matt, 2026-09-30, verbatim: "Opndoor admin can also add named email
+   addresses that aren't portal users (e.g. a finance inbox) to receive a
+   supplier's statement."
+
+   OPNDOOR ONLY, AND ENFORCED IN THE DATABASE, not here. All three RPCs
+   are granted to `authenticated` with is_admin + is_aal2 inside them: the
+   two writers raise 42501 and the reader answers an empty list, so a
+   supplier who reached the screen would see nothing and change nothing.
+   The screen being admin-routed is convenience, not the boundary.
+
+   KEYED ON THE DATABASE UUID, which is what `dbId` is for. A partner's
+   client-side `id` is its SLUG, and the table's foreign key is not that.
+   ===================================================================== */
+
+/** One address the monthly statement is posted to that is not a portal user. */
+export interface StatementRecipient {
+  id: string;
+  email: string;
+  /** Who it is, when the admin said. A bare finance inbox often has no name. */
+  fullName: string | null;
+}
+
+// Mock-mode store, so the screen is usable without Supabase like every other
+// list in this service. Keyed by the partner's dbId (or slug, in mock mode,
+// where there is no dbId to key on).
+const MOCK_STATEMENT_RECIPIENTS: Record<string, StatementRecipient[]> = {};
+let mockRecipientSeq = 0;
+
+export async function getStatementRecipients(partnerKey: string): Promise<StatementRecipient[]> {
+  if (!SUPABASE_ENABLED) return clone(MOCK_STATEMENT_RECIPIENTS[partnerKey] ?? []);
+  const { data, error } = await sb().rpc('partner_statement_recipient_list', { p_partner: partnerKey });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as { id: string; email: string; full_name: string | null }[])
+    .map((r) => ({ id: r.id, email: r.email, fullName: r.full_name }));
+}
+
+export async function addStatementRecipient(partnerKey: string, email: string, name?: string): Promise<void> {
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('add_partner_statement_recipient', {
+      p_partner: partnerKey, p_email: email, p_name: name?.trim() || null,
+    });
+    if (error) throw new Error(error.message);
+    return;
+  }
+  const clean = email.trim().toLowerCase();
+  const list = MOCK_STATEMENT_RECIPIENTS[partnerKey] ?? [];
+  if (list.some((r) => r.email === clean)) return;
+  mockRecipientSeq += 1;
+  MOCK_STATEMENT_RECIPIENTS[partnerKey] = [...list, {
+    id: `mock-stmt-rec-${mockRecipientSeq}`, email: clean, fullName: name?.trim() || null,
+  }].sort((a, b) => a.email.localeCompare(b.email));
+}
+
+export async function removeStatementRecipient(partnerKey: string, id: string): Promise<void> {
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('remove_partner_statement_recipient', { p_id: id });
+    if (error) throw new Error(error.message);
+    return;
+  }
+  MOCK_STATEMENT_RECIPIENTS[partnerKey] = (MOCK_STATEMENT_RECIPIENTS[partnerKey] ?? []).filter((r) => r.id !== id);
+}

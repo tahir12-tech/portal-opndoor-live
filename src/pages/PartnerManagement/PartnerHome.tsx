@@ -68,6 +68,7 @@ import { Tag } from '@/components/ui/Tag';
 import { fmtRatePct } from '@/lib/format';
 import { agencyKey } from '@/pages/Agencies/AgencyHome';
 import { PersonNotifications } from '@/components/people/PersonNotifications';
+import { StatementRecipients } from '@/components/StatementRecipients';
 import { ViewAsButton } from '@/components/ViewAsButton';
 import './PartnerHome.css';
 
@@ -270,6 +271,12 @@ export function PartnerHome() {
             <p className="ph-note muted">Edit rates and settings from <b>Manage</b> on the <Link to="/partners">Suppliers</Link> list.</p>
           </CardBody>
         </Card>
+
+        {/* WHO THE MONTHLY STATEMENT GOES TO. On the Commission tab because
+            the statement IS the commission, and this is the only screen in
+            the product where a supplier's named addresses can be set. Admin
+            only here; the RPCs behind it are guarded regardless. */}
+        {isAdmin && <StatementRecipients partnerKey={partner.dbId ?? partner.id} supplierName={partner.name} />}
 
       </div>
       )}
