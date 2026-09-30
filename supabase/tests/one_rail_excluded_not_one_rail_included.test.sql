@@ -88,23 +88,32 @@ select is(
     where guarantee_ref = 'ZZZ-RAIL-AG'), 1,
   'while the agency''s own referral still is');
 
-/* CHANGED BY SUPPLIER STATEMENTS, 2026-09-30, and it is a count going UP
-   rather than an assertion being relaxed. This asked for one line and got
-   one: the agency under the supplier, on its agent_rate. The supplier's
-   own partner_rate cut was not a statement line at all, anywhere, which
-   is the fact that made supplier statements a new DOCUMENT rather than a
-   new recipient. It is a line now, so the referral produces two: the
-   agency's and the supplier's.
+/* CHANGED TWICE IN ONE DAY, 2026-09-30, and the second change undid the
+   first. Worth recording both, because the line count moved for opposite
+   reasons and a reader finding only the end state would think it had
+   always been this.
 
-   Asserted as the PAIR of levels rather than as `count = 2`, because the
-   thing this file is about is which rails are excluded, and a bare count
-   would pass just as happily if the second line were a second agency
-   one. */
+   IT ASKED FOR ONE AND MEANT THE AGENCY'S. The supplier's own cut was not
+   a statement line anywhere, which is what made supplier statements a new
+   document rather than a new recipient. Supplier statements added the
+   supplier's line, so it briefly asserted two.
+
+   THEN NM-C 5 TOOK THE AGENCY'S AWAY. Matt: "for a supplier like
+   Rightmove, Opndoor pays only the supplier; the supplier pays its own
+   agents, so no agency commission line is created under a supplier
+   referral unless the supplier's agreement says Opndoor pays agents
+   directly." So it is one line again, and it is the other one.
+
+   STILL A LEVEL AND NOT A COUNT, because what this file is about is
+   which rails are excluded, and `count = 1` would pass just as happily
+   if the surviving line were the agency's. The agency arm under the
+   setting is asserted in a_supplier_gets_its_own_statement, which owns
+   its own supplier. */
 select bag_eq(
   $$select level from public.commission_statement_lines(date_trunc('month', now())::date)
      where guarantee_ref = 'ZZZ-RAIL-SU'$$,
-  $$values ('agency'), ('partner')$$,
-  'and the supplier''s referral is not excluded either -- on two lines now, its agency''s cut and its own');
+  $$values ('partner')$$,
+  'and the supplier''s referral is not excluded either -- one line, the supplier''s own, because Opndoor pays only the supplier');
 
 -- ===========================================================================
 -- M3. THE DIGEST KEEPS THE SUPPLIER AND DROPS THE DIRECT TENANT

@@ -32,10 +32,15 @@
 -- against all three house slugs. One definition, already pinned.
 
 begin;
-select plan(22);
+select plan(31);
 
 insert into public.partners (id, slug, name, status, is_house_route, partner_rate, agent_rate)
-values ('e5000000-0000-0000-0000-0000000000f1','zzz-stmt-sup','ZZZ Statement Supplier','active',false,0.10,0.20)
+/* ONE TOTAL OF 0.35 WITH 0.15 CARVED OUT FOR THE AGENTS, which is the
+   shape of Matt's instruction and not its numbers: "nothing hardcoded;
+   Rightmove's happens to be 35%". 0.35 and 0.15 are this fixture's
+   figures and every expectation below is derived from the fee and these
+   two columns rather than written as a constant. */
+values ('e5000000-0000-0000-0000-0000000000f1','zzz-stmt-sup','ZZZ Statement Supplier','active',false,0.35,0.15)
 on conflict (id) do nothing;
 
 /* AN AGENCY AND A BRANCH UNDER THE SUPPLIER. Every application hangs off a
@@ -99,7 +104,7 @@ values
    'Ms','Ada','Tester','1990-01-01','ada@zzz.test','07700900000',
    '1 ZZZ Street','London','SW1A 1AA',
    2000, 2000, '2026-06-01', 'pre_referenced_open',
-   0.10, 0.20, 'paid', '2026-05-10T10:00:00Z', '2026-05-15T10:00:00Z', true, 'paid');
+   0.35, 0.15, 'paid', '2026-05-10T10:00:00Z', '2026-05-15T10:00:00Z', true, 'paid');
 
 -- ===========================================================================
 -- 1. THE TRAP FIRST. The house agency partner must never become a supplier.
@@ -127,21 +132,125 @@ select is(
     where level = 'partner'),
   'ZZZ Statement Supplier', 'and it is addressed to the SUPPLIER, not a person and not an agency under it');
 
--- THE MONEY IS THE SNAPSHOTTED RATE, not the partner's current one: the
--- model freezes the rate at creation and a statement that re-derived it
--- would restate a month already paid. 2000 * 0.10 = 200.00.
+/* WHAT OPNDOOR OWES IS THE WHOLE TOTAL. Matt, 2026-09-30: "Opndoor pays
+   the whole total to the supplier, who pays its agents, unless the
+   supplier's setting says Opndoor pays agents directly." The setting is
+   off, so this is the fee times the supplier's TOTAL rate, agents'
+   share included.
+
+   READ FROM THE PARTNER, not written as 700.00. A test that hardcodes
+   the number passes when somebody changes the rate and the arithmetic
+   at the same time, which is the one case worth catching. */
 select is(
   (select total from public.commission_statement_payees('2026-05-01'::date)
     where level = 'partner'),
-  200.00::numeric, 'and the total is the snapshotted partner rate of the fee');
+  (select round(2000 * p.partner_rate, 2) from public.partners p
+    where p.id = 'e5000000-0000-0000-0000-0000000000f1'),
+  'Opndoor owes the supplier its whole total rate of the fee, agents'' share included');
 
-/* AND THE AGENCY UNDER IT IS UNCHANGED. 2000 * 0.20 = 400.00 on its own
-   agent_rate. Adding the supplier must not move, split or absorb the
-   agency-level money that was already being paid out. */
+/* AND NO AGENCY LINE AT ALL, WHICH IS AN INVERSION. This assertion used
+   to read "the agency line on the same referral is untouched by the
+   supplier gaining one" and expected 400.00, because the two rates were
+   additive and Opndoor paid out both. NM-C 5 reverses it: "for a
+   supplier like Rightmove, Opndoor pays only the supplier; the supplier
+   pays its own agents, so no agency commission line is created under a
+   supplier referral."
+
+   It is not deleted, it is turned over, and the arm that was true before
+   is now asserted under the SETTING, further down. */
+select is_empty(
+  $$select 1 from public.commission_statement_payees('2026-05-01'::date) where level = 'agency'$$,
+  'and Opndoor creates NO agency payee under a supplier referral, because the supplier pays its own agents');
+
+-- ===========================================================================
+-- 2b. THE CARVE-OUT, PER REFERRAL
+-- ===========================================================================
+/* THE INVARIANT, and it is the sentence "never more in total" written as
+   arithmetic. Asserted per referral rather than on the month's sum,
+   because rounding breaks it one row at a time: round(a) + round(b) is
+   not round(a + b), which is why the supplier's share is computed as a
+   subtraction rather than at its own rate. */
+select is_empty(
+  $$select l.guarantee_ref from public.supplier_statement_lines(
+      'e5000000-0000-0000-0000-0000000000f1','2026-05-01'::date) l
+     where l.agent_amount + l.supplier_amount <> l.total_amount$$,
+  'the agents'' share and the supplier''s share add to the total exactly, on every referral');
+
+select is(
+  (select l.agent_amount from public.supplier_statement_lines(
+     'e5000000-0000-0000-0000-0000000000f1','2026-05-01'::date) l
+    where l.guarantee_ref = 'ZZZ-STMT-1'),
+  (select round(2000 * p.agent_rate, 2) from public.partners p
+    where p.id = 'e5000000-0000-0000-0000-0000000000f1'),
+  'the agents'' share is the supplier''s agent rate of the fee, carved out of the total');
+
+select is(
+  (select l.supplier_amount from public.supplier_statement_lines(
+     'e5000000-0000-0000-0000-0000000000f1','2026-05-01'::date) l
+    where l.guarantee_ref = 'ZZZ-STMT-1'),
+  (select round(2000 * (p.partner_rate - p.agent_rate), 2) from public.partners p
+    where p.id = 'e5000000-0000-0000-0000-0000000000f1'),
+  'and the supplier''s own share is what is left of the total, not a rate of its own');
+
+/* AND IT CARRIES THE AGENCY AND THE BRANCH ON EVERY LINE. Matt:
+   "Supplier commission statements always show the agency and branch on
+   every line, even when they're all the same." The shared collapse rule
+   would drop both here -- one agency, one office -- so the supplier
+   documents do not use it, and this is what says the columns are
+   populated rather than merely declared. */
+select is_empty(
+  $$select l.guarantee_ref from public.supplier_statement_lines(
+      'e5000000-0000-0000-0000-0000000000f1','2026-05-01'::date) l
+     where coalesce(btrim(l.agency_name),'') = '' or coalesce(btrim(l.branch_name),'') = ''$$,
+  'and every line names its agency and its branch, though all of them are the same one');
+
+-- ===========================================================================
+-- 2c. THE PER-AGENCY SCHEDULES
+-- ===========================================================================
+select is(
+  (select count(*)::int from public.supplier_agency_schedules(
+     'e5000000-0000-0000-0000-0000000000f1','2026-05-01'::date)),
+  1, 'one schedule per agency under the supplier with paid business in the month');
+
+select is(
+  (select s.agent_amount from public.supplier_agency_schedules(
+     'e5000000-0000-0000-0000-0000000000f1','2026-05-01'::date) s),
+  (select sum(l.agent_amount) from public.supplier_statement_lines(
+     'e5000000-0000-0000-0000-0000000000f1','2026-05-01'::date) l),
+  'and it foots to the agents'' share on the supplier''s own statement, so the two documents cannot disagree');
+
+-- ===========================================================================
+-- 2d. AND WITH THE SETTING ON, WHICH IS THE OTHER HALF OF NM-C 5
+-- ===========================================================================
+update public.partners set opndoor_pays_agents = true
+ where id = 'e5000000-0000-0000-0000-0000000000f1';
+
 select is(
   (select total from public.commission_statement_payees('2026-05-01'::date)
     where level = 'agency'),
-  400.00::numeric, 'and the agency line on the same referral is untouched by the supplier gaining one');
+  (select round(2000 * p.agent_rate, 2) from public.partners p
+    where p.id = 'e5000000-0000-0000-0000-0000000000f1'),
+  'with Opndoor paying agents directly the agency IS a payee, for the carved-out share');
+
+select is(
+  (select total from public.commission_statement_payees('2026-05-01'::date)
+    where level = 'partner'),
+  (select round(2000 * (p.partner_rate - p.agent_rate), 2) from public.partners p
+    where p.id = 'e5000000-0000-0000-0000-0000000000f1'),
+  'and the supplier is paid the rest, not the whole total as well');
+
+/* THE SUM IS THE SAME EITHER WAY, which is the point of a carve-out and
+   the thing that would break first if somebody made the arms independent.
+   Opndoor pays the total; the setting only decides who receives it. */
+select is(
+  (select sum(total) from public.commission_statement_payees('2026-05-01'::date)
+    where level in ('agency','partner')),
+  (select round(2000 * p.partner_rate, 2) from public.partners p
+    where p.id = 'e5000000-0000-0000-0000-0000000000f1'),
+  'and switching it changes who is paid, never how much Opndoor pays in total');
+
+update public.partners set opndoor_pays_agents = false
+ where id = 'e5000000-0000-0000-0000-0000000000f1';
 
 -- ===========================================================================
 -- 3. WHO RECEIVES IT
