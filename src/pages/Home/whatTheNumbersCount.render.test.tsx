@@ -132,4 +132,32 @@ describe('the Direct signups stages', () => {
       expect(s!.textContent ?? '', label).toMatch(/waiting now/i);
     }
   });
+
+  /* MATT'S OWN WORDING, 2026-09-30, given in quotes and used verbatim:
+     "Awaiting decision, Sent and Paid show who is there now. Deed issued is
+     all time."
+
+     WHAT IT REPLACES AND WHY HIS IS BETTER. The card said "Three of these
+     are how many are sitting there now; Deed issued is every direct deed
+     ever issued." A reader then has to work out WHICH three, against four
+     tiles, and "three of these" is the kind of sentence that stops being
+     true the moment a fifth stage is added. His names them.
+
+     ASSERTED AS AN EXACT STRING, not a loose match. It is a wording change:
+     a regex that passes on a paraphrase would not be testing the thing that
+     was asked for. */
+  it('and the card says, in Matt’s words, which are which', async () => {
+    const v = await openHome();
+    expect(text(v)).toContain(
+      'Awaiting decision, Sent and Paid show who is there now. Deed issued is all time.',
+    );
+  });
+
+  /* AND THE SENTENCE IT REPLACES IS GONE, so the card does not say the same
+     thing twice in two different vocabularies. */
+  it('and no longer says it the old, vaguer way', async () => {
+    const v = await openHome();
+    expect(text(v)).not.toMatch(/Three of these/);
+    expect(text(v)).not.toMatch(/every direct deed ever issued/);
+  });
 });

@@ -145,7 +145,12 @@ export function Home() {
       <Card>
         <CardHead
           title="Direct signups"
-          sub="Tenants who came to Opndoor directly, with no agency or supplier, by stage. Three of these are how many are sitting there now; Deed issued is every direct deed ever issued."
+          /* MATT'S WORDING, 2026-09-30, verbatim. It replaces "Three of
+             these are how many are sitting there now; Deed issued is every
+             direct deed ever issued", which made the reader work out WHICH
+             three against four tiles, and would have quietly stopped being
+             true the day a fifth stage was added. His names them. */
+          sub="Tenants who came to Opndoor directly, with no agency or supplier, by stage. Awaiting decision, Sent and Paid show who is there now. Deed issued is all time."
           actions={<Link className="home-viewall" to="/applications?route=Direct">View all Direct <Icon name="arrowRight" size={13} /></Link>}
         />
         <CardBody>
