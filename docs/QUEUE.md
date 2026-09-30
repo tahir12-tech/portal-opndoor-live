@@ -46,6 +46,26 @@ address, no Branch line. `agencyOffices()` / `officeLabel()` are already
 built and applied at six client surfaces; this is a seventh. It is the
 cheap half of this instruction.
 
+## ADMIN REPORTING, EVERY CUSTOMER AND VOLUME BY SUPPLIER (instruction, 2026-09-30, verbatim). ACTIVE, with the Reporting fixes below.
+
+> Admin Reporting: the "Every customer" table shows the top 10 by fees collected, with a search box and a "Show all" option, and a switch between Agencies and Suppliers. Add a "Volume by supplier" card alongside Volume by agency, same style. Deploy to dev and check there.
+
+Same screen as the fixes below, so they are built together rather than in
+two passes over one file.
+
+### WHAT TO GET RIGHT
+
+- **Top 10 by FEES COLLECTED**, which is the order `liveByCustomer`
+  already sorts by (fees, then referrals, then name). Do not re-sort.
+- **The Agencies / Suppliers switch is a switch, not two tables.** The
+  customer rows already carry a `key` of the form `agency:<id>` or
+  `partner:<slug>`, which is what the switch filters on.
+- **"Volume by supplier", same style as Volume by agency.** `liveVolume`
+  returns branches, agencies and referrers and no suppliers, so this
+  needs a fourth list from the same function rather than a new one, or
+  the two cards will disagree about a period.
+- **Direct signups stay out of all of it**, per Q3 in the item below.
+
 ## ADMIN REPORTING FIXES (instruction, 2026-09-30, verbatim). ACTIVE, after the supplier statement.
 
 > Admin Reporting fixes: remove "All partners" from the page header. Direct signups never appear in Volume by branch, Volume by agency or any agency chart (no "Unattached" row); this answers Q3. Rename "Commission by partner" to "Commission by route" and replace "Partner" wording in it with "Supplier" or "Route" as appropriate. On the admin view, retitle "Your commission" to "Commission owed". Update the bordereau description to say it lists guarantees in force during the month. Deploy to dev and check there.
