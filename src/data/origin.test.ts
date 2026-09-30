@@ -12,8 +12,9 @@
    rows they always did. */
 import { describe, expect, it } from 'vitest';
 import {
-  ALL_PARTNERS, getApplications, scopedSummaries,
-  ORIGIN_KIND_LABEL, originFromParams, originLabel, originOf, originOptions, originToFilter, originValue,
+  ALL_PARTNERS, countByStatus, getApplications, scopedSummaries,
+  ORIGIN_KIND_LABEL, RAIL_AGENCY, RAIL_SUPPLIER,
+  originFromParams, originLabel, originOf, originOptions, originToFilter, originValue,
 } from '@/data';
 
 const ADMIN = { role: 'superadmin' as const, scope: ALL_PARTNERS };
@@ -187,6 +188,112 @@ describe('a selection filters the list', () => {
     expect(a.length).toBeGreaterThan(0);
     expect(b.length).toBeGreaterThan(0);
     expect(both.length).toBe(a.length + b.length);
+  });
+});
+
+/* =====================================================================
+   WALK FIX 7. "Applications, Origin picker: choosing an option does nothing,
+   the list doesn't change."
+
+   THE TWO CHOICES IT IS TRUE OF, and they are the two at the top. The picker
+   offers Everything, Suppliers and Agencies as quick choices; the second and
+   third are `rail:supplier` and `rail:agency`, values `originOptions` never
+   produces, because no single row is "every agency". The list narrowed
+   through `originToFilter`, whose arms are direct / provider / partner: /
+   agency: / group: and whose fallthrough is `return {}` -- no filter at all.
+   So picking either rail left the whole book on screen.
+
+   WHY NO TEST CAUGHT IT. The loop above walks `originOptions(rows)`, which is
+   exactly the set of values that DO work. A rail is not in the book, so it
+   was never in the loop.
+
+   AND THERE WAS ALREADY A PREDICATE THAT KNEW. `originMatches` has both rail
+   arms and is what Reporting narrows by. Two expressions of one rule and only
+   one of them complete: the failure the header of origin.ts warns about, in
+   the file it warns in. So the list asks `originMatches` too, rather than
+   gaining a third.
+   ===================================================================== */
+describe('the two quick choices at the top of the picker', () => {
+  const kinds = (rows: { partner?: string | null; agency?: string | null }[]) =>
+    [...new Set(rows.map((r) => originOf(r).kind))].sort();
+
+  it('are not in the book, so the loop above can never have covered them', () => {
+    const values = originOptions(book()).map((o) => o.value);
+    expect(values).not.toContain(RAIL_AGENCY);
+    expect(values).not.toContain(RAIL_SUPPLIER);
+  });
+
+  /* THE DEFECT, STATED. Not "returns the wrong rows": returns EVERY row,
+     which is what "choosing an option does nothing" looks like. */
+  it('Suppliers narrows the list to suppliers, rather than leaving the whole book', () => {
+    const all = getApplications({ ...ADMIN, status: 'all' });
+    const got = getApplications({ ...ADMIN, status: 'all', origin: RAIL_SUPPLIER });
+    expect(got.length).toBeGreaterThan(0);
+    expect(got.length).toBeLessThan(all.length);
+    expect(kinds(got)).toEqual(['supplier']);
+  });
+
+  it('Agencies narrows the list to agencies, likewise', () => {
+    const all = getApplications({ ...ADMIN, status: 'all' });
+    const got = getApplications({ ...ADMIN, status: 'all', origin: RAIL_AGENCY });
+    expect(got.length).toBeGreaterThan(0);
+    expect(got.length).toBeLessThan(all.length);
+    expect(kinds(got)).toEqual(['agency']);
+  });
+
+  /* THE TWO RAILS ARE DISJOINT. No row can be counted under both, which is
+     the property; the `kinds` assertions above already rule out the rails
+     being wired to each other's arm.
+
+     NOT ASSERTED, AND SAID SO RATHER THAN QUIETLY DROPPED: that the two do
+     not cover the whole book. In this fixture they do -- 16 agency rows and
+     5 supplier, no Direct and no Provider -- so the only way to assert it
+     would be to add fixture rows in order to have something to assert, which
+     proves the fixture and not the code. */
+  it('and the two do not overlap', () => {
+    const ag = getApplications({ ...ADMIN, status: 'all', origin: RAIL_AGENCY });
+    const su = getApplications({ ...ADMIN, status: 'all', origin: RAIL_SUPPLIER });
+    const refs = new Set(ag.map((r) => r.ref));
+    expect(su.length).toBeGreaterThan(0);
+    expect(su.some((r) => refs.has(r.ref))).toBe(false);
+  });
+
+  /* AND A KIND THE BOOK HAS NONE OF SELECTS NOTHING, not everything. This is
+     the fallthrough that caused the defect, asserted directly: `direct` has
+     always had an arm, so if it starts returning 21 rows something has
+     turned the predicate off rather than changed one branch of it. */
+  it('and a kind with no rows selects none, rather than the whole book', () => {
+    expect(getApplications({ ...ADMIN, status: 'all', origin: 'direct' })).toEqual([]);
+  });
+
+  /* THE CHIPS FOLLOW THE ROWS. "Showing X of Y" and every status count read
+     countByStatus, which filters separately. A fix that taught only
+     getApplications would leave the tabs claiming rows the list is not
+     showing: the same complaint, one screen further on. */
+  it('and the status counts narrow with them, not only the rows', () => {
+    const all = countByStatus({ ...ADMIN });
+    const su = countByStatus({ ...ADMIN, origin: RAIL_SUPPLIER });
+    expect(su.all).toBeLessThan(all.all);
+    expect(su.all).toBe(getApplications({ ...ADMIN, status: 'all', origin: RAIL_SUPPLIER }).length);
+  });
+
+  /* EVERY SELECTION GOES THROUGH ONE PREDICATE NOW, so the arms that already
+     worked must still work through it. Re-walks the book's own options
+     against `origin` rather than against originToFilter. */
+  it('and every selection the book offers still selects exactly its own rows', () => {
+    for (const opt of originOptions(book())) {
+      if (!opt.value || opt.value.startsWith('group:')) continue;
+      const got = getApplications({ ...ADMIN, status: 'all', origin: opt.value });
+      expect(got.length, `no rows for ${opt.value}`).toBeGreaterThan(0);
+      for (const r of got) expect(originValue(r)).toBe(opt.value);
+    }
+  });
+
+  /* A GROUP STILL MATCHES NOTHING WHEN IT HOLDS NOTHING. The one selection
+     whose empty case must not fall through as "no filter": that failure is
+     the whole book under one brand's name. */
+  it('and an empty group still selects nothing rather than everything', () => {
+    expect(getApplications({ ...ADMIN, status: 'all', origin: 'group:does-not-exist' })).toEqual([]);
   });
 });
 
