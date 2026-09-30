@@ -871,6 +871,54 @@ supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
 answered: giving supplier staff a people screen is a new screen, not a
 wiring job.
 
+## The end-to-end walk on dev. DONE, 2026-09-30.
+
+Step 5 of the night run: "walk it end to end on dev yourself". Every fix
+from this session asked of dev as a real signed-in reader, through the RPCs
+the screens call, with RLS on and never as service_role. Rolled back.
+
+| | checked | got |
+| - | --- | --- |
+| 1 | a Director may change their Negotiator's event choices | true |
+| 2 | a locked event carries its sentence, not a bare flag | yes |
+| 3 | an admin cannot be given a position | refused |
+| 4 | `cron_health()` answers | **649 ms** (was 46,715) |
+| 5 | the scheduled-job log has a trim job | yes |
+| 6 | a partial refund is refused | yes |
+| 7 | a supplier may refer a joint tenancy, priced once | 2 applications, fees £2,000.00 |
+
+And the client half, fetched from the dev server on 5174 rather than read
+off disk, because the question is what a browser loads:
+
+| file | |
+| --- | --- |
+| `PersonNotifications.tsx` | served |
+| `Applications.tsx` (the origin filter) | served |
+| `UserManagement.tsx` (your own row) | served |
+| `PositionModal.tsx` (Office and responsibilities) | served |
+| `inForce.ts`, `jointAllowed.ts`, `whereTheyWork.ts`, `format.ts` | served |
+| `CustomersTable.tsx`, `CustomerReport.tsx`, `Home.tsx` | served |
+| `OpsNotifications.tsx` | **gone** -- the URL falls through to index.html |
+
+**One thing the walk caught about itself rather than the product.** The first
+pass grepped the served bundle for a COMMENT string and reported the
+Applications fix missing. Vite strips comments; the code was there. Checked
+on the code afterwards. Worth recording because "grep the bundle for the
+marker I wrote" is a check that looks conclusive and is not.
+
+### The state of the tree at the end
+
+```
+typecheck          clean
+vitest             134 files / 1444 tests / 0 failing
+pgTAP (local,      68 files / 980 assertions / 0 failing
+  clean apply)
+npm run drift      clean -- dev matches a clean apply of the files
+deno check         66 clean / 0 failing
+```
+
+---
+
 ## The handover and the defect list. DONE.
 
 `2359795`, `82a557f`.
