@@ -871,6 +871,53 @@ supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
 answered: giving supplier staff a people screen is a new screen, not a
 wiring job.
 
+## The handover and the defect list. DONE.
+
+`2359795`, `82a557f`.
+
+### HANDOVER-BALAL.md: only what Balal must do
+
+- The counts were stale (333 / 266, "refreshed Monday"). Now 349 / 65, with
+  the two commands that produce them written down so a later reader counts
+  rather than trusts a number.
+- "What has to be true by Monday 28 September" named a date that has passed.
+- Two sections were status reports about ME rather than instructions to him:
+  "the walk is half done" and "things I could not finish". Both reframed as
+  his list, with the content kept.
+- One bullet deleted as simply wrong: `commission-statements` IS deployed
+  (dev, 2026-09-30 10:09, with the other 33), and section 6b already covers
+  deploying every function at cutover.
+- One added: an `opndoor_manager` sees a blank Reporting page, so somebody
+  reporting it does not have it diagnosed from scratch.
+
+### DEFECTS.md, and one entry that contradicted itself
+
+Every claim of "fixed" was re-checked against the branch and dev rather than
+re-read. **Defect 13's index line said "Fixed here, component and all 35 call
+sites" while its own body said "This is not fixed ... every one of the 34
+error paths still renders green."** Both in the same file. That is worse than
+either being wrong alone, because a reader believes whichever they reach
+first, and the likely outcome was somebody redoing a sweep already done.
+
+Measured: 99 toast calls pass an explicit tone and **every `catch` that
+raises a toast passes `'error'`**. The index was right. The body is corrected
+and now carries the commands to re-check it, with the distinction that
+matters: a call with no tone is not a defect, a FAILURE rendering as a
+success is.
+
+Three others verified rather than assumed:
+
+| # | |
+| - | - |
+| 19 | `partner_rate` and `agent_rate` are not in `authenticated`'s SELECT grant on `partners`. |
+| 4 | Redirection is on only when `EMAIL_REVIEW_ADDRESS` is set, so it fails safe in the right direction. The danger is the reverse and HANDOVER section 7 already warns of it. |
+| 2 | Fixed by a later migration. The July files still contain the old project literal and must not be edited: read the final state, not the tree. |
+
+The three left for Balal are unchanged and cannot be done from here: rotating
+the committed cron secret, and the two scheduling items.
+
+---
+
 ## Walk fixes 15 and 20: reporting per customer. BUILT; ONE DECISION LEFT.
 
 `91369f8` (item 20), `b80f696` (item 15's tab). Both on dev.
