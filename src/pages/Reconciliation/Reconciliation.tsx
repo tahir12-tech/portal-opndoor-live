@@ -76,8 +76,11 @@ export function Reconciliation() {
     { id: 'all', label: 'All', count: queue.length },
     { id: 'agency', label: 'Agencies', count: agencyCount },
     { id: 'branch', label: 'Branches', count: branchCount },
-    { id: 'dupes', label: 'Possible duplicates', count: dupes },
-    { id: 'matches', label: 'Direct matches', count: matchCount },
+    { id: 'dupes', label: 'Might already exist', count: dupes },
+    /* The LABEL changes and the id does NOT. Home links here with
+       ?tab=matches and the whitelist keys on that literal, so renaming
+       the id would break a link from another page. */
+    { id: 'matches', label: 'Agents named by tenants', count: matchCount },
     /* NM-N. Last, because it is the only tab that is not WORK: nothing on
        it can be actioned here, it is a list to retype into HubSpot. */
     { id: 'notinnetwork', label: 'Not in network', count: notInCount },
@@ -110,7 +113,7 @@ export function Reconciliation() {
       // org appears in HubSpot within seconds; the 2-minute cron remains the backstop.
       void triggerCrmSync().catch(() => {});
       await refreshData(); // re-hydrate so the sidebar pending badge decrements
-      toast(`Confirmed "${item.name}" as a new canonical ${item.type}. Syncing now…`);
+      toast(`"${item.name}" is now a confirmed ${item.type}. Sending it to HubSpot.`);
       await reload();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not confirm the record.', 'error');
@@ -138,10 +141,15 @@ export function Reconciliation() {
         <div>
           <div className="rec-eyebrow"><span className="opx">opndoor</span> · internal admin</div>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>Reconciliation</h1>
-          <p className="page-head__sub">Agencies and branches created on the fly by referrers, awaiting review. Confirm new canonical records. Confirmed agencies and branches sync to the CRM automatically every couple of minutes (or use Sync CRM to run it now). Merging likely duplicates is coming in a later release.</p>
+          {/* WALK FIX 22a. This said "created on the fly by referrers", "new
+              canonical records" and ended with a sentence about a later
+              release. Between them they described our schema, our plumbing
+              and our roadmap, and never once said what a person is looking
+              at or why. */}
+          <p className="page-head__sub">Direct tenants tell us who their letting agent is, and referrers can add an agency or branch as they go. Both land here so someone checks them before they become a record we work from. Confirmed agencies and branches go to HubSpot within a couple of minutes, or press Sync now.</p>
         </div>
         <div className="page-head__actions">
-          <Button variant="ghost" size="sm" disabled={syncing} onClick={syncNow} title="Push confirmed records to the CRM now (also runs automatically every 2 minutes)."><Icon name="refresh" /> {syncing ? 'Syncing…' : 'Sync CRM'}</Button>
+          <Button variant="ghost" size="sm" disabled={syncing} onClick={syncNow} title="Send confirmed agencies and branches to HubSpot now. This also runs by itself every couple of minutes."><Icon name="refresh" /> {syncing ? 'Sending…' : 'Sync now'}</Button>
         </div>
       </div>
 
@@ -153,7 +161,7 @@ export function Reconciliation() {
       <div className="qstat">
         <div className="qstat__card"><div className="qstat__n">{queue.length}</div><div className="qstat__l">Awaiting review</div></div>
         <div className="qstat__card"><div className="qstat__n" style={{ color: 'var(--warn)' }}>{dupes}</div><div className="qstat__l">Possible duplicates</div></div>
-        <div className="qstat__card"><div className="qstat__n" style={{ color: 'var(--heliotrope-deep)' }}>{newOnes}</div><div className="qstat__l">New, no match found</div></div>
+        <div className="qstat__card"><div className="qstat__n" style={{ color: 'var(--heliotrope-deep)' }}>{newOnes}</div><div className="qstat__l">Nothing similar found</div></div>
       </div>
 
       <div className="rtabs">
@@ -189,19 +197,25 @@ export function Reconciliation() {
 
                 {item.match ? (
                   <div className="match">
-                    <span className="match__lbl">{item.matchExact ? 'Same name exists' : 'Possible duplicate'}</span>
-                    <span className="match__txt">Looks like existing <b>{item.match}</b>{item.matchExact ? ' (exact name match)' : ' (similar name)'}</span>
+                    <span className="match__lbl">{item.matchExact ? 'Same name already exists' : 'Might be the same'}</span>
+                    <span className="match__txt">There is already a <b>{item.match}</b>{item.matchExact ? ', spelled exactly the same' : ', spelled similarly'}</span>
                   </div>
                 ) : (
                   <div className="match match--none">
-                    <span className="match__lbl">No match found</span>
-                    <span className="match__txt">No similar confirmed record. Likely a genuinely new {item.type}.</span>
+                    <span className="match__lbl">Nothing similar found</span>
+                    <span className="match__txt">Nothing similar is on file. Probably genuinely new.</span>
                   </div>
                 )}
               </div>
 
               <div className="rqitem__actions">
-                <Button variant="ghost" size="sm" disabled title="Merge is coming in a later release."><Icon name="merge" /> Merge into…</Button>
+                {/* THE "Merge into..." BUTTON IS GONE. It had been permanently
+                    disabled with "coming in a later release", which is the
+                    same promise Matt quoted from the page text, in another
+                    form. A control that can never be pressed is not a
+                    feature; it is a roadmap item taking up space on a
+                    screen somebody is trying to work. It comes back when
+                    merging does. */}
                 <Button variant="primary" size="sm" disabled={busyId === item.id} onClick={() => confirm(item)}>
                   <Icon name="check" strokeWidth={2.2} /> Confirm as new
                 </Button>
@@ -216,7 +230,7 @@ export function Reconciliation() {
           four agencies on it would be a flat contradiction. Each sibling
           section carries its own. */}
       {filter !== 'matches' && filter !== 'notinnetwork' && (
-        <div className={`empty${!loading && queue.length === 0 ? ' is-shown' : ''}`}>Nothing left to reconcile. The hierarchy is clean.</div>
+        <div className={`empty${!loading && queue.length === 0 ? ' is-shown' : ''}`}>Nothing to check. Every agency and branch on file has been confirmed.</div>
       )}
     </>
   );

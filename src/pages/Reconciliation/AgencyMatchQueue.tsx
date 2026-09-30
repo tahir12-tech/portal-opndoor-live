@@ -40,7 +40,7 @@ export function AgencyMatchQueue({ onChanged }: { onChanged?: () => void }) {
           : <MatchItem key={row.applicationId} row={row} onDone={after} />
       ))}
       <div className={`empty${!loading && rows.length === 0 ? ' is-shown' : ''}`}>
-        No direct applications waiting on an agency. The queue is clear.
+        No tenant is waiting to be linked to their letting agent.
       </div>
     </div>
   );
@@ -61,11 +61,17 @@ function AutoMatchItem({ row }: { row: AgencyMatchRow }) {
         <div className="rqitem__meta">
           {row.guaranteeRef} · {row.tenantName}{row.property ? ` · ${row.property}` : ''} · {row.when}
         </div>
+        {/* TWO DIFFERENT MATCHES, TWO DIFFERENT LABELS. This block is an
+            email match, already linked; the one further down is a name
+            match awaiting a person. Both said "Matched", which told a
+            reader nothing about why one needed them and the other did
+            not. */}
         <div className="match">
-          <span className="match__lbl">Matched</span>
+          <span className="match__lbl">Email matches</span>
           <span className="match__txt">
-            Contact email matched <b>{row.autoAgencyName}</b>
-            {row.resolvedBranchName ? <> · <b>{row.resolvedBranchName}</b></> : null}. Auto-accepted; no review needed.
+            The agent&rsquo;s email address matches <b>{row.autoAgencyName}</b>
+            {row.resolvedBranchName ? <> · <b>{row.resolvedBranchName}</b></> : null}, so this was linked
+            automatically and needs nothing from you.
           </span>
         </div>
       </div>
@@ -126,7 +132,7 @@ function MatchItem({ row, onDone }: { row: AgencyMatchRow; onDone: () => Promise
     setBusy(true);
     try {
       await dismissAgencyMatch(row.applicationId);
-      toast(`${row.guaranteeRef} left with Opndoor direct.`, 'ok');
+      toast(`${row.guaranteeRef} stays with Opndoor direct. ${row.typedName} is on the Not in network list.`, 'ok');
       await onDone();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not dismiss.', 'error');
@@ -176,7 +182,7 @@ function MatchItem({ row, onDone }: { row: AgencyMatchRow; onDone: () => Promise
         <div className="rqitem__top">
           <span className="rqitem__name">Tenant typed “{row.typedName}”</span>
           {row.autoAgencyId
-            ? <span className="tag tag--admin">Exact match</span>
+            ? <span className="tag tag--admin">Name matches</span>
             : <span className="tag">No exact match</span>}
         </div>
         <div className="rqitem__meta">
@@ -185,8 +191,11 @@ function MatchItem({ row, onDone }: { row: AgencyMatchRow; onDone: () => Promise
 
         {row.autoAgencyId ? (
           <div className="match">
-            <span className="match__lbl">Matched</span>
-            <span className="match__txt">Exact name match to <b>{row.autoAgencyName}</b>. Pick the branch.</span>
+            {/* The BADGE above already says "Name matches". This label says
+                what the reader has to DO about it, so the row does not
+                print the same two words twice. */}
+            <span className="match__lbl">Choose an office</span>
+            <span className="match__txt">The name the tenant typed matches <b>{row.autoAgencyName}</b> exactly. Choose which of their offices to record it against.</span>
           </div>
         ) : row.candidates.length ? (
           <div className="match match--none">

@@ -71,7 +71,9 @@ describe('which tab the page lands on', () => {
     const view = renderAt('/reconciliation');
     await waitFor(() => { if (!view.container.querySelector('.qstat')) throw new Error('not ready'); });
     await settle();
-    expect(currentTab(view)).toContain('Direct matches');
+    /* The LABEL, renamed by walk fix 22a. The ?tab= id is still
+       'matches' and must stay so: Home links here with it. */
+    expect(currentTab(view)).toContain('Agents named by tenants');
   });
 
   it('stays on All when All has work', async () => {
@@ -98,7 +100,7 @@ describe('which tab the page lands on', () => {
     const view = renderAt('/reconciliation?tab=matches');
     await waitFor(() => { if (!view.container.querySelector('.qstat')) throw new Error('not ready'); });
     await settle();
-    expect(currentTab(view)).toContain('Direct matches');
+    expect(currentTab(view)).toContain('Agents named by tenants');
   });
 
   it('ignores a ?tab= that is not a tab', async () => {

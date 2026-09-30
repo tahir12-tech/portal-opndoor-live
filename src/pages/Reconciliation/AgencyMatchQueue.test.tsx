@@ -15,8 +15,10 @@ describe('direct agency matches', () => {
     render(<AgencyMatchQueue />);
     await waitFor(() => expect(screen.getByText(/Tenant typed .*Meridian Lettings/)).toBeTruthy());
 
-    // The exact-match row is tagged and names the agency.
-    expect(screen.getByText('Exact match')).toBeTruthy();
+    /* The row is tagged and names the agency. Walk fix 22a renamed the
+       tag from "Exact match", which stated our matcher's verdict, to
+       "Name matches", which states what a reader can check. */
+    expect(screen.getByText('Name matches')).toBeTruthy();
 
     // Its branches load, and "Set branch" is disabled until one is chosen:
     // the branch is never auto-accepted, whatever the agency outcome.
@@ -62,7 +64,12 @@ describe('direct agency matches', () => {
     const row = screen.getByText(/Tenant typed .*Harbour Lettings/).closest('.rqitem') as HTMLElement;
     // Tagged as an email match; names the agency and the branch it set itself.
     expect(within(row).getByText('Email match')).toBeTruthy();
-    expect(within(row).getByText(/Contact email matched/)).toBeTruthy();
+    /* Walk fix 22a reworded this. It said "Contact email matched X ...
+       Auto-accepted; no review needed", which stated the matcher's
+       verdict; it now says the agent's email matches and that the row
+       needs nothing from the reader, which is the part they act on. */
+    expect(within(row).getByText(/email address matches/)).toBeTruthy();
+    expect(within(row).getByText(/needs nothing from you/)).toBeTruthy();
     expect(within(row).getByText('Riverside')).toBeTruthy();
     // Auto-accepted, so it is read-only: no resolve or dismiss on this row.
     expect(within(row).queryByRole('button', { name: /set branch/i })).toBeNull();
