@@ -15,6 +15,48 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## NM-P. A SINGLE-OFFICE AGENCY IS JUST THE AGENCY (instruction, 2026-09-30, verbatim). ACTIVE.
+
+> A single-office agency shows only as the agency, e.g. "Regent Property", everywhere: agencies list, agency page, applications, reporting, statements, emails, deeds and the referral form. No "1 branch", no branch row, no branch name. Where the system needs an office behind the scenes, it uses the agency's own name and address and is never shown separately. "Add branch" stays available on the agency (its menu or page), and as soon as a second office is added, both appear as branches.
+
+### What this is, and why it is bigger than a display rule
+
+It is a **display** rule with a **data** rule behind it, and the second
+sentence is the one that decides the size: "Where the system needs an office
+behind the scenes, it uses the agency's own name and address and is never
+shown separately."
+
+So the branch row does not stop existing. Every referral still hangs off a
+branch, `branch_id` is still how the agency rail resolves a position, and
+deeds, statements and notifications all still route through one. What
+changes is that when an agency has exactly ONE office, no surface says the
+word "branch", shows its name, or counts it.
+
+**The rule is conditional on a count, which means it can flip.** "As soon as
+a second office is added, both appear as branches." So this cannot be
+implemented by deleting the branch layer or by renaming the office after the
+agency: it has to be one predicate, asked in every one of the nine places he
+lists, and the answer has to change the moment a second branch exists.
+
+### The nine surfaces he names
+
+agencies list; agency page; applications; reporting; statements; emails;
+deeds; the referral form; and "no '1 branch'" wherever a count is printed.
+
+### Known related work already in the tree
+
+The collapse-when-there-is-only-one idea already exists for COLUMNS, in
+`viewerShape` / `dimensionCollapsed` / `statementColumns`, with the
+"empty book answers one of everything" convention. That is the same shape of
+question and may be the right predicate to extend rather than a new one --
+but note it answers about the READER's book, not about one agency, so it is
+a starting point and not the answer.
+
+**Status: not started.** Recorded before work, per the rule at the top of
+this file.
+
+---
+
 ## NM-O. SUPPLIER USERS HAVE NO BRANCH (instruction, 2026-09-30, verbatim). RECORD NOW, BUILD AFTER THE WALK.
 
 > Supplier Add user form: suppliers' own staff do the referring, so a supplier user has no branch. Remove the Branch field from inviting or editing a supplier user entirely, for every role; the agency and branch are chosen on each referral instead. Replace "Partner company" and "partner" with "Supplier" throughout, including the role descriptions. Check nothing else (league, statements, notifications) assumes a supplier user has a home branch. Record in QUEUE.md; build after I say the walk is done.
