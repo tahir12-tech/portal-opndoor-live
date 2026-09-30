@@ -871,6 +871,72 @@ supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
 answered: giving supplier staff a people screen is a new screen, not a
 wiring job.
 
+## Walk fixes 8 and 16: the book in force. DONE AND CHECKED ON DEV.
+
+`7a4f578`. One rule for both (`src/data/inForce.ts`), because they are the
+same three clauses said twice and an underwriter's document disagreeing with
+our own headline figure is worse than either being wrong alone.
+
+### Item 16's "show how the current figure is calculated", answered with dev's own numbers
+
+The old line was `if (inRange(app.deedAt, start, end)) a.guaranteed +=
+guaranteedAnnual(app)`: twelve months of rent for every deed **issued**
+inside the period. Dev's five executed deeds were all issued in September, so
+every period containing September totals £72,000 whatever is on cover.
+
+| period | old (deed issued) | new (executed, in force) |
+| --- | ---: | ---: |
+| all time | £72,000 | £12,000 |
+| September 2026 | £72,000 | £12,000 |
+| October 2026 | £0 | £48,000 |
+| December 2026 | £0 | £72,000 |
+
+**£72,000 is the right number for December**, when all five are on cover.
+Shown in September, when one guarantee had started, it was six times the
+truth. And the old rule reports **zero** for October and December, when
+£48,000 and £72,000 are under guarantee. The two errors move the total in
+opposite directions, which is exactly how a wrong figure looks plausible.
+
+### The four clauses were in three different states
+
+| clause | before |
+| --- | --- |
+| counting a joint tenancy once | **already true.** `guaranteedAnnual` returns the SHARE and the shares sum to the rent, so no dedupe is needed and none was added. Asserted so the fix cannot undo it. |
+| executed | **not true, in either place.** `status === 'deed'` and `deedAt` present are the deed ISSUED. Dev has two applications whose deed is out for the tenant's signature, and the bordereau was reporting them to the insurer as cover. |
+| in force in the period | **not true, in either place**, and this is the fault. Both asked when the cover was WRITTEN. |
+| refunded / withdrawn | the bordereau excluded refunds. The tile excluded neither. |
+
+### Half a tenancy is half the money
+
+Where one tenant of a pair has signed and the other has not -- dev's
+GR-20762 and GR-20763 -- the guaranteed value is the signed share. Not the
+whole tenancy, which nobody has promised, and not nothing, which would
+ignore a signed deed. Asserted both ways.
+
+### One thing worth knowing about what this changes
+
+The bordereau's MEANING moved. It was new business in the month; it is now
+the book on cover during the month, which is what Matt's sentence says. A
+guarantee written in September and running to next September now appears on
+every month's bordereau until it expires, where before it appeared on
+September's alone.
+
+### Tests
+
+Added: `inForce.test.ts` (18), `bordereauIsTheBookInForce.test.ts` (12, five
+failing first), `guaranteedValueIsInForce.test.ts` (11, five failing first).
+
+Rewritten in place rather than re-baselined, each with the reason in the
+file: `settlement-bordereau`'s two bordereau assertions, which named a rule
+that no longer exists ("commencing in the month"); `liveAnalytics`'s
+guaranteed assertion, whose fixture had no tenancy dates at all and was
+asserting £12,000 from a row that never said when its cover ran;
+`bordereauBasis`'s fixture gains `deedState` with no assertion moved.
+
+123 files / 1326 tests; three files and 41 assertions added, none removed.
+
+---
+
 ## Walk fixes 1, 5 and 6. DONE AND CHECKED ON DEV.
 
 `00a3644`, `7ee274b`.
