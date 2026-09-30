@@ -103,9 +103,22 @@ describe('the authenticator copy on the enrolment screen', () => {
 describe('the same copy in the invite email', () => {
   const copy = copyOnly(EMAIL);
 
+  /* WALK FIX 32 merged two sentences into one. This asserted the second of
+     them word for word -- "You need an authenticator app. Google
+     Authenticator is free:" -- which followed "You will need an
+     authenticator app" four lines above it and was the duplication Matt
+     reported. The PROPERTY is that the email tells somebody they need one
+     and names a free one, which is what it asserts now; the exact sentence
+     was never the point. */
   it('says the same thing, because the invite arrives before the screen does', () => {
-    expect(copy).toContain('You need an authenticator app. Google Authenticator is free:');
+    expect(copy).toMatch(/need an authenticator app/i);
+    expect(copy).toContain('Google Authenticator is free:');
     expect(copy).toMatch(/On an iPhone, the built-in Passwords app works too\./);
+  });
+
+  /* AND SAYS IT ONCE. The merge is the fix, so the count is the assertion. */
+  it('and says it once rather than twice', () => {
+    expect((copy.match(/authenticator app/gi) ?? []).length).toBe(1);
   });
 
   it('carries both store links', () => {
@@ -113,14 +126,27 @@ describe('the same copy in the invite email', () => {
     expect(copy).toContain(GOOGLE_PLAY);
   });
 
-  /* renderText strips tags to build the plain-text half of every email and
-     substitutes nothing, so an anchor reading "App Store" would leave a text-only
-     reader the words and not the address. The URL has to be the link text. */
-  it('puts the URL in the link text, so the plain-text email keeps it', () => {
-    // The anchor text is the SAME constant as the href, so stripping the tag
-    // leaves the address rather than the words "App Store".
-    expect(copy).toContain('${APP_STORE_GA}</a>');
-    expect(copy).toContain('${GOOGLE_PLAY_GA}</a>');
+  /* WALK FIX 31 REVERSED THE REASONING HERE, so the assertion is inverted
+     rather than deleted.
+
+     It used to require the URL to BE the link text: renderText stripped
+     tags and substituted nothing, so an anchor reading "App Store" would
+     have left a text-only reader the words and not the address. True at the
+     time, and it produced the two things Matt reported -- the address
+     printed twice in the HTML, and (because rich()'s href pattern could not
+     match a URL containing o, u or t) the whole tag arriving as escaped
+     text.
+
+     renderText prints "label: address" for an anchor now, so the plain-text
+     reader keeps the URL and the HTML reader gets one clean link. The
+     requirement is therefore the opposite: the link text must be the STORE
+     NAME, not the address. Asserted in behaviour, not in source text, by
+     inviteEmailReadsAsEnglish.test.ts. */
+  it('uses the store name as the link text, not the address', () => {
+    expect(copy).toContain('>App Store</a>');
+    expect(copy).toContain('>Google Play</a>');
+    expect(copy).not.toContain('${APP_STORE_GA}</a>');
+    expect(copy).not.toContain('${GOOGLE_PLAY_GA}</a>');
   });
 
   it('names no paid app', () => {

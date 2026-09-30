@@ -647,8 +647,18 @@ export function staffInviteEmail(p: { inviterName: string; partnerName: string; 
     subject: "You have been invited to the opndoor portal",
     heading: "Set up your portal account",
     blocks: [
-      { p: `${p.inviterName} has invited you to the opndoor Guarantee Referral Portal for ${p.partnerName}. Choose a password and set up two-factor authentication to get started.` },
-      { small: "Two-factor authentication is required on every sign in. You will need an authenticator app." },
+      /* WALK FIX 33. THE CLAUSE IS DROPPED WHEN THERE IS NO PARTY TO NAME.
+         Somebody joining the Opndoor team is joining opndoor, which the
+         sentence already says, and "the opndoor Portal for opndoor" is not
+         a sentence. An empty name used to print "for ." here.
+
+         WHAT GOES IN IT is decided by invitePartyName, not by the caller
+         reading `partners.name`: on the agency rail that name is the house
+         partner "Opndoor Agents", which is the leak Matt reported. */
+      { p: `${p.inviterName} has invited you to the opndoor Guarantee Referral Portal${p.partnerName ? ` for ${p.partnerName}` : ""}. Choose a password and set up two-factor authentication to get started.` },
+      /* WALK FIX 32. This said "You will need an authenticator app" and then,
+         four lines down, "You need an authenticator app". One short line. */
+      { small: "Two-factor authentication is required on every sign in, so you will need an authenticator app. Google Authenticator is free:" },
       /* WHERE TO GET ONE, in the invite rather than only on the screen, so the
          invitee can install it before they start rather than stopping halfway
          through enrolment to go to a store.
@@ -658,18 +668,23 @@ export function staffInviteEmail(p: { inviterName: string; partnerName: string; 
          software. Google Authenticator is free on both stores and an iPhone has
          one built in, so nobody has to spend anything.
 
-         THE URL IS THE LINK TEXT ON PURPOSE. renderText strips tags to build the
-         plain-text part of every email, substituting nothing, so an anchor reading
-         "App Store" would leave a text-only reader the words and not the address.
-         A list block gives each one its own line in both parts.
+         WALK FIX 31: ONE CLEAN LINK EACH. The URL used to be the link text as
+         well as the href, because renderText stripped tags and an anchor
+         reading "App Store" would have left a text-only reader the words and
+         not the address. Two things were wrong with that. The address appeared
+         twice in the HTML, which Matt reported; and it did not even work,
+         because rich()'s href pattern could not match a URL containing o, u or
+         t, so the whole tag arrived as escaped text. Both are fixed in
+         emailLayout: the pattern is right, and renderText now prints
+         "label: address" for an anchor, so the plain-text reader keeps the URL
+         without the HTML reader seeing it twice.
 
          The same copy is on the enrolment screen in src/pages/Login/Login.tsx,
          which cannot be imported here (this runs on Deno). If one changes, change
          both. */
-      { small: "You need an authenticator app. Google Authenticator is free:" },
       { list: [
-        `App Store: <a href="${APP_STORE_GA}" style="color:#5b3fd9;">${APP_STORE_GA}</a>`,
-        `Google Play: <a href="${GOOGLE_PLAY_GA}" style="color:#5b3fd9;">${GOOGLE_PLAY_GA}</a>`,
+        `<a href="${APP_STORE_GA}" style="color:#5b3fd9;">App Store</a>`,
+        `<a href="${GOOGLE_PLAY_GA}" style="color:#5b3fd9;">Google Play</a>`,
       ] },
       { small: "On an iPhone, the built-in Passwords app works too." },
     ],
