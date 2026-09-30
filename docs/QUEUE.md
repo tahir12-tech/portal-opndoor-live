@@ -287,6 +287,180 @@ narrow, so the agency path had never been measured by anything.
    bottom of this section, and carried to the final report as one plain
    sentence with its options.
 
+### Progress. EVERYTHING BUILDABLE WITHOUT A DECISION IS DONE.
+
+Eight commits on the `fix-the-seven` worktree, unmerged and undeployed
+because dev is frozen for the walk.
+
+| item | state | commit |
+| ---- | ----- | ------ |
+| Home wording | **done**, checked on dev before the freeze | `065b72d` |
+| View as stopgap | **done** | `66c8d5e` |
+| The three small ones | **done** | `9b68c48` |
+| M4 | **already fixed** by `dee9079`; the `todo` row below is stale. An adjacent defect is open on Q1. |  |
+| M9 | **two of three done**; M9-b and a fourth site are Q2 and Q3 | `9427d43` |
+| M10 | **not real as recorded**; the real one beside it is Q4 |  |
+| The eight lows | **four already done** (verified), **four now done** | `320eb4c`, `ff47377` |
+| The allowlist ratchet | **done** | `1972efc` |
+| Walk fix 22a | **done** | `461027f` |
+| Walk fix 23 | **the two Matt named, done**; the other 27 are Q9 | `0e176cd` |
+
+**Verification, in place of the dev check Matt's rule asks for.** A clean
+filename-order apply of all 353 migrations to a local Postgres: 69 pgTAP
+files / 991 assertions / 0 failing. 146 vitest files / 1560 tests,
+typecheck clean. The 11 unhandled vitest errors are the baseline's.
+
+**NOTHING HERE IS "DONE" BY MATT'S OWN RULE YET.** Each item still needs
+its dev deploy and check. That is roughly an hour once the walk finishes,
+and it covers three new migrations -- 20261006990000, 20261007000000,
+20261007010000 -- plus all the client work.
+
+### Three things the mapping found that were worth more than the fixes
+
+1. **Half the queue was already done.** M4, four of the eight lows and
+   22a's timeout are all fixed or not real, and the rows here said `todo`.
+   Verified individually rather than taken on trust.
+2. **The coverage ratchet was counting comments.** "Exercised by a test"
+   meant the name appeared followed by a paren anywhere in the suite,
+   including inside SQL comments and inside grant assertions. Two
+   functions were recorded as proven and were not, one of them
+   `is_opndoor_staff` -- the predicate four RPCs gate on.
+3. **Walk fix 23 is 29 actions, not two.** That is Q9 and it is the one
+   answer that changes the size of what is left.
+
+### Open questions for Matt
+
+Collected rather than guessed, per his instruction. One sentence each.
+
+**Q1. The agent's correction link on a joint tenancy.** R5 made a tenancy
+have one start date, but the agent's unauthenticated 7-day link bypasses
+that RPC and moves one application, leaving the co-tenant's executed deed
+on the old date: should that link refuse joint tenancies and fall back to
+a report Opndoor applies through the audited staff path, or move the whole
+tenancy and reissue every sibling deed with no sign-in behind it?
+
+**Q2. What "What they earned" means on a group page.** The group's own cut
+only, or the group plus every agency and branch under it?
+
+**Q3. A direct signup on the agency volume chart.** A direct row matched to
+Regent appears under Regent's NAME on an admin's agency breakdown: should
+it read "Direct" instead, or be dropped from that breakdown entirely?
+
+**Q4. Supplier colleagues and notification settings.** `caller_may_set_for`
+blocks a supplier's own management from changing their colleagues'
+notification settings because it requires a position and the supplier rail
+has none: should they manage them at all, and if so is it any
+`role='management'` in that partner?
+
+**Q5. The help cache on sign-out.** Everything else a sign-out left behind
+is now cleared; `grp_help_v9` is admin-authored shared content, so
+clearing it costs a re-download and protects nothing, except that it can
+hold uploaded PDFs as data URLs: clear it too, or leave it?
+
+**Q6. The ratchet: the number, or the guarantee?** A further day takes the
+uncovered list from 36 to about 14 by writing cheap MFA-only assertions,
+but the 14 dev-centre reads are the only ones that would prove anything
+about the supplier boundary.
+
+**Q7. ANSWERED BY ME, flagged rather than asked.** The permanently
+disabled "Merge into..." button is gone. Matt quoted the roadmap sentence
+beside it as jargon to remove, and a greyed button saying "coming in a
+later release" is the same promise in another form. Say if you wanted it
+left.
+
+**Q8. A 100% name match with exactly one branch.** An exact EMAIL match
+already links itself with no click; should an exact NAME match on an
+agency with only one office do the same, or must a person always press?
+
+**Q9. The size of walk fix 23.** "Any other admin action that changes
+records in one click" is **29 actions**, not the two on Reconciliation:
+all 29 (about a week), or only the 19 that cannot be undone or that send
+something outward (about three days)?
+
+---
+
+## VIEW AS: STOPGAP (instruction, 2026-09-30, verbatim). ACTIVE. Ahead of the queue-clearing run.
+
+> Stopgap now: hide View as on agency and group pages, keep it on supplier pages where it works, and make sure no banner can claim a party the figures don't reflect. Also fix the three small ones: the Expiries button for opndoor_manager, the invisible Not in network empty state, and last_named_at. Record the proper fix (every Reporting figure following the selection) as the first item after shipping, and don't start it now. Then carry on clearing the rest of the queue, deploy each to dev and check it there.
+
+### Why the stopgap is two changes and not one
+
+Hiding the button is NOT sufficient for "no banner can claim a party the
+figures don't reflect", and this is the part worth writing down. `scopeSel`
+is ONE shared selection: Applications still has its own Origin picker
+(`Applications.tsx`, walk fix 7), and it writes the same value. So an admin
+can choose "Regent's Lettings" on Applications, open Reporting, and get the
+false banner with no View as button involved at all. The selection also
+survives a browser restart from localStorage, and the recents list offers it
+back.
+
+So the second half of the stopgap is in `SessionContext`: `viewingAs` derives
+ONLY from a selection the figures actually follow, which today is
+`partner:<slug>` alone. `partnerFor` yields a real partner slug for that and
+ALL_PARTNERS for everything else, and every figure on Reporting is keyed on
+`partnerScope`. Narrowing the derivation is what makes the banner honest
+whatever route the selection arrived by.
+
+### AFTER SHIPPING, FIRST ITEM: every Reporting figure follows the selection
+
+**This is the proper fix and Matt has said not to start it now.**
+
+`scopeFull(apps, role, scope, sel)` already takes the selection as its fourth
+argument and applies `originMatches` AFTER isolation, which is the correct
+order and the whole design. **No production call site passes it** -- 19 of
+them, across `liveAnalytics.ts`, `exportsService.ts`, `viewerShape.ts` and
+`paymentMetrics.ts`, all stop at three arguments. So an `agency:` or
+`group:` selection narrows nothing anywhere.
+
+This is the same defect walk item 15 reported about the picker ("choosing an
+option does nothing") and NM-F's acceptance line is the specification for
+fixing it: *"Every tile, chart, export and statement on the page follows the
+selection."*
+
+The work is to thread the selection through the Reporting entry points --
+`getDashboardData`, `getTrend`, `getCommissionSettlement`,
+`getAgentCommissionSettlement`, `livePartnerBreakdown`, `liveScopeShape`,
+`liveByCustomer`, `liveAggregate`, `liveVolume`, `liveTrend` -- and the
+export builders, then restore View as on agency and group pages and widen
+`viewingAs` back. The test that must fail first measures a FIGURE, not a
+caption: the twelve assertions shipped with NM-M all checked the localStorage
+string and the banner text, and the older test named "viewing as one of our
+agencies" actually stages `partner:northwind`, the supplier arm that does
+narrow, so the agency path had never been measured by anything.
+
+---
+
+## CLEAR THE QUEUE (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+
+> Clear the whole queue now, without stopping: the Home wording change ("Awaiting decision, Sent and Paid show who is there now. Deed issued is all time."), round 6's M4, M9, M10, the eight lows, the allowlist ratchet, and walk fixes 22a and 23. Keep the audit to the three items you just built; no new review rounds. Deploy each to dev and check it there before marking it done.
+>
+> Anything that needs my decision, don't guess and don't stop: build everything around it, then give me all the open questions together at the end, one plain sentence each with the options.
+
+### What this covers, resolved to the items in this file
+
+| # | item | where it is recorded |
+| - | ---- | -------------------- |
+| 1 | Home wording: "Awaiting decision, Sent and Paid show who is there now. Deed issued is all time." | new, from this instruction |
+| 2 | Round 6 **M4** -- tenancy-correction replay guard is per-token | line ~3616 |
+| 3 | Round 6 **M9** -- direct-rail rows counted as agency business in the client | line ~3622 |
+| 4 | Round 6 **M10** -- `set_receives_notifications` cannot reach a supplier colleague | line ~3623 |
+| 5 | The **eight lows** | line ~3626 |
+| 6 | The **definer allowlist ratchet** | `definerAllowlistCoverage.test.ts` |
+| 7 | **Walk fix 22a** | walk batch, parked "after shipping" |
+| 8 | **Walk fix 23** | walk batch, parked "after shipping" |
+
+### The three standing rules for this run
+
+1. **No new review rounds.** The audit already running covers NM-M, NM-N and
+   the opndoor_manager fix and nothing else. The security review loop stays
+   closed.
+2. **Each item is deployed to dev and checked there before it is marked
+   done.** Not at the end, per item.
+3. **Decisions are not guessed and do not stop the run.** Anything needing
+   Matt is built around, recorded under "Open questions for Matt" at the
+   bottom of this section, and carried to the final report as one plain
+   sentence with its options.
+
 ### Progress
 
 | item | state |
