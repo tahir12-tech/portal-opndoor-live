@@ -120,6 +120,41 @@ for the SAME behaviour on League. Build it so League's tabs read the
 selection from one place, or there will be two half-built versions of one
 idea.
 
+## THE APPLICATIONS ORIGIN FILTER SHOWS WHAT IS APPLIED (instruction, 2026-09-30, verbatim). ACTIVE.
+
+> Applications Origin filter: the box always shows what is actually applied, and choosing an option (Everything, Suppliers, Agencies, Direct, or a single agency, group or supplier) updates both the box and the list, with the status tab counts matching. Add a clear (x) to go back to Everything. Show only the quick choices and recent selections until the user types; individual agencies and suppliers appear only as search results, so the list never grows endless. No duplicate entries. Test it with the Home "View all Direct" link and with the sidebar "Awaiting decision" link. Deploy to dev and check there.
+
+**This is the same control the League instructions ask for**, so it is
+built once here and League reuses it. Building League's first would mean
+building it twice.
+
+- **"the box always shows what is actually applied"** is the same defect
+  as the filtered-link item below: a control that does not reflect state.
+  Both are one fix.
+- **The status tab counts must match.** A filter that narrows the list
+  and not the counts is worse than none: the tabs then contradict the
+  rows under them.
+- **Only quick choices and recents until the user types.** An estate with
+  hundreds of agencies cannot render them all, and "no duplicate
+  entries" says the recents and the search results must not both show
+  the same one.
+- **Two named checks**: Home "View all Direct" and the sidebar "Awaiting
+  decision".
+
+## RECONCILIATION, NOT IN NETWORK: TWO ACTIONS (instruction, 2026-09-30, verbatim). ACTIVE.
+
+> Reconciliation, Not in network: give each agency two actions, each with a confirmation box: "Added to HubSpot" (marks it done, records who and when, and removes it from the list) and "Ignore" (removes it, recorded). If the same agency is named again later by another tenant, it reappears. Deploy to dev and check there.
+
+**"If the same agency is named again later by another tenant, it
+reappears"** is the whole design. So this is not a "dismissed" flag on
+the agency name: it is a record of a DECISION at a point in time, and
+the list shows any agency named since the last decision about it. Store
+the decision with its timestamp and compare against the naming, or
+"reappears" cannot work.
+
+Both actions need a confirmation box, which is walk fix 23 and now has a
+component: `useConfirm()`.
+
 ## A LINK WITH A FILTER IN IT ARRIVES FILTERED (instruction, 2026-09-30, verbatim). ACTIVE.
 
 > Home's Direct signups links (View all Direct, and each stage number) must open Applications already filtered: Origin set to Direct, and the status set where the link names one, with the filter controls showing that selection. Currently ?route=Direct is ignored and all applications show. Check every other link into Applications with a filter in it works the same way. Deploy to dev and check there.
