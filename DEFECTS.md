@@ -46,6 +46,24 @@ Worst first. Severity is stated per defect so it can be re-prioritised.
 | 18 | ~~Postgres error text was returned to partners on the create path~~ **Fixed here** | — |
 | 19 | Commission rates were readable by any signed-in user through PostgREST, whatever their role | Medium |
 
+## Checked again against dev, 2026-09-30
+
+Before the cutover, every claim this document makes about being fixed was
+re-checked against the branch and against dev rather than re-read. Four
+worth recording:
+
+| # | what the check found |
+| - | -------------------- |
+| 13 | **The index and the body contradicted each other.** The index said "Fixed here, component and all 35 call sites"; the body said "This is not fixed ... every one of the 34 error paths still renders green". The index was right and the body was stale. Measured: 99 calls pass an explicit tone and **every `catch` that raises a toast passes `'error'`**. Corrected, with the commands to re-check it. |
+| 19 | **Fixed, verified on dev.** `authenticated` has SELECT on `partners` for thirteen columns and `partner_rate` / `agent_rate` are not among them. |
+| 4 | **Fixed, and fail-safe in the right direction.** Redirection is on whenever `EMAIL_REVIEW_ADDRESS` is set, so a deployment that forgets to set it delivers for real rather than silently swallowing mail. The danger is the reverse -- leaving it SET on production, where no tenant would ever be told to pay -- and section 7 of HANDOVER-BALAL.md already says so. |
+| 2 | **Fixed by a later migration, and the old ones still contain the literal.** `20260811210000_ops_functions_read_base_url` replaces the hardcoded project with a lookup. Grepping the migration tree still finds the old project ref in four files from July; those are history and must not be edited. Read the final state, not the tree. |
+
+A note on how to read the rest of this document: where a per-defect section
+and the index disagree, **trust neither and check**. That is what found 13.
+
+---
+
 ## What is fixed here, and what is not
 
 **Fifteen of the nineteen are fixed in this tree**, with one commit each so any
@@ -1308,11 +1326,17 @@ cherry-pick. See HANDOVER.md section 11.4.
 > wrong is everything around the words, which is what people actually go on when
 > a toast appears for three seconds.
 
-> **This is not fixed. Read "What is and is not fixed here" before deciding
-> priority.** The component change carried in this tree is a prerequisite and
-> **changes nothing users see on its own**: every one of the 34 error paths still
-> renders green until its call site passes the tone. The work is the call sites,
-> not the component.
+> **CLOSED, 2026-09-30, and this block used to say the opposite.** It read
+> "this is not fixed ... every one of the 34 error paths still renders green",
+> which was true when it was written and has not been true for some time. The
+> index line above said "Fixed here, component and all 35 call sites" and the
+> two contradicted each other -- which is worse than either being wrong,
+> because a reader believes whichever they happen to read.
+>
+> Measured rather than asserted: 99 `toast(...)` calls now pass an explicit
+> tone, and **every `catch` block that raises a toast passes `'error'`**. The
+> one call in a catch that does not is a clipboard-copy success message. The
+> sweep the section below asks for has been done.
 
 ### What it is
 
@@ -1394,35 +1418,31 @@ const toast = useCallback((message: string, tone: ToastTone = 'ok') => { ... });
 
 Errors also get a red background and a 6 second dismiss rather than 3.2.
 
-### What is and is not fixed here, precisely
+### What is fixed here, precisely
 
-**The mechanism is fixed. None of the behaviour outside the Dev Centre is.**
+**Both parts.** This was always a two-part fix -- the component, then the call
+sites -- and the section below used to say only the first was done.
 
-Be blunt about what that means: if you take the `Toast.tsx` change and stop
-there, **no user sees any difference at all**. The component gains the ability to
-render an error; nothing asks it to. Every one of the 34 error paths still passes
-a message and no tone, still defaults to success, and still shows a green tick.
-The component change is maybe a tenth of the job and the visible nine tenths is
-the sweep.
+- `Toast.tsx` and `Toast.css` carry the mechanism, and it is backward
+  compatible: `toast(message)` still renders a success.
+- **The sweep is done.** Every failure path passes `'error'`.
 
-- `Toast.tsx` and `Toast.css` carry the fix, and it is backward compatible.
-- Every call site **in the Dev Centre** passes `'error'` on failure paths.
-- The **33 error-carrying calls elsewhere in the portal still pass no tone, so
-  they still render green.** They are unchanged on purpose: they are live code
-  that predates this work, and the standing rule here was not to edit live files
-  beyond what the task required.
-
-So this is a two-part fix and only the first part is done. Carrying the
-`Toast.tsx` change across gets you the capability; the defect is not closed until
-the call sites pass the tone. Finding them is mechanical:
+Check it yourself, the way it was checked:
 
 ```sh
-grep -rn "toast(" src --include=*.tsx | grep -iE "err|fail|could not|cannot"
+# Calls that state a tone (99 at the time of writing):
+grep -rn "toast(" src --include=*.tsx --include=*.ts \
+  | grep -v '\.test\.' | grep -c "'error')\|'ok')\|'warn')"
+
+# The one that matters -- a catch that raises a toast WITHOUT 'error'.
+# The only hit is a clipboard-copy success message in the Dev Centre.
+grep -rn -A 3 "} catch" src --include=*.tsx --include=*.ts \
+  | grep -v '\.test\.' | grep "toast(" | grep -v "'error')"
 ```
 
-Do not reapply the component change from scratch. Take it, then sweep the call
-sites. **The defect is closed when the sweep is done, not when the component
-lands.**
+A call with no tone is not by itself a defect: most of them are genuine
+successes. The test is whether a FAILURE renders as one, which is the second
+command.
 
 ---
 
