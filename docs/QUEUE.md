@@ -871,6 +871,67 @@ supplier user, since `/partners/:key` is superadmin-only. Flagged rather than
 answered: giving supplier staff a people screen is a new screen, not a
 wiring job.
 
+## Walk fix 26: a supplier may refer a joint tenancy. DONE AND CHECKED ON DEV.
+
+`66f4d3e`. **It reverses Q-06 item H**, which said "single tenant (no Add
+another tenant)" of the supplier path. Batch 16 is newer and governs. Three
+existing assertions enforced the old rule; all three are **inverted with the
+reason in place, not deleted**, so a reader who finds Q-06's wording can see
+which one is live.
+
+### Most of it already worked
+
+Measured on dev before anything was written, guard lifted in a rolled-back
+transaction, real Kestrel joint referral:
+
+| | |
+| --- | --- |
+| applications / tenancies | 2 / 1 |
+| fees | £2,000.00 -- exactly one month of a £2,000 rent |
+| share amounts | £2,000.00 -- exactly the rent |
+| rates | 0.2500 / 0.1000 on both, Kestrel's own |
+
+`resolve_fee` already prices per TENANCY on that rail (£2,000 for one tenant
+and for two, measured directly) and `apportion` already splits to the penny.
+One guard was the whole of it.
+
+### Narrowed, not removed
+
+Matt named suppliers. He did not name the DIRECT rail, and a direct signup is
+one tenant applying for themselves with no staff referrer to create a joint
+one. `opndoor-direct` and `referencing-partner` still refuse.
+
+### It waited for R3 and R5, as the earlier note said it should
+
+Both are done, so this was safe to build now and was not a week ago.
+
+### The one that nearly went wrong, and the honest ending
+
+The form DROPS tenants already typed when the origin "cannot carry them",
+and that test read `estate` -- false for a supplier. Changing only the button
+would have left the two disagreeing, so the moment the rail probe settled it
+would have silently wiped the tenants an admin had just added, on the one
+path this opens.
+
+I wrote a render assertion for it, **checked it by mutation, found it did
+NOT bite** -- reaching the wipe needs the probe to settle and the supplier
+path's never does without a branch chosen -- and replaced it.
+`mayAddAnotherTenant` is one predicate in its own file now, asked by both
+places, so they cannot disagree. The render test says plainly what it does
+not cover rather than looking like it does.
+
+### Tests
+
+New `a_supplier_may_refer_a_joint_tenancy.test.sql`, 9 assertions, all
+failing first: the money, the direct rail still refusing, and the two
+validations that guard the money on the new rail (shares totalling 100,
+duplicate emails) -- because adding a rail is where a validation gets
+skipped. New `jointAllowed.test.ts` (9). Local clean-apply cluster 68 files
+/ 980 assertions / 0 failing; green on dev; drift clean. Client 131 files /
+1418 tests.
+
+---
+
 ## The hotfix is retired: it ships with the cutover. DONE AND CHECKED ON DEV.
 
 `58de1c2`, `0a8ecaa`. Matt: *"there is no separate live hotfix. Everything in
