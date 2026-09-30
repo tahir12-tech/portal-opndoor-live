@@ -15,6 +15,57 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## ONE TOTAL SUPPLIER RATE, WITH THE AGENT'S SHARE CARVED OUT (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+
+> Supplier commission is one total rate, set per supplier on its Commission tab (nothing hardcoded; Rightmove's happens to be 35%), and that total includes the agents' share. The agent's share is carved out of it and can be volume-tiered per supplier using the existing tiers (e.g. x% on an agency's first N paid referrals in the month, y% after). The supplier's own share is the total minus the agent's share, never more in total. Opndoor pays the whole total to the supplier, who pays its agents, unless the supplier's setting says Opndoor pays agents directly. The supplier statement shows, per referral: agency, branch, fee, agent's share, supplier's share, total. The per-agency statements show each agency's referrals and its share.
+
+**The third revision in an hour, and it supersedes the arithmetic of the
+two above rather than adding to them.** All three stand; this one decides
+the money.
+
+### WHAT CHANGES ABOUT MONEY THAT ALREADY WORKS
+
+Today the two rates are ADDITIVE. Measured in this morning's dry run: a
+supplier referral at `partner_rate` 0.10 and `agent_rate` 0.20 produced
+two lines and Opndoor paid out 30% of the fee.
+
+Under this instruction they are ONE rate with the agent's share carved
+OUT of it: total 35%, agent's share some part of that, supplier's share
+the remainder, and Opndoor pays 35% and never 35% plus anything. The sum
+is the invariant and it is the thing to assert: **agent share + supplier
+share = total, exactly, per referral.**
+
+### THE FOUR INSTRUCTIONS RECONCILED, because they read as if they fight
+
+- **One total rate** is what Opndoor owes, per referral, on the supplier
+  rail. Nothing is additive to it.
+- **NM-C 5** is about who Opndoor PAYS: the whole total goes to the
+  supplier, who settles with its own agents, unless the supplier's
+  setting says Opndoor pays agents directly.
+- **The per-agency schedules** are the supplier's working for doing that
+  settling, which is why they go to the supplier's recipients.
+- **Agency and branch on every line** is what makes both documents
+  readable, and Source comes off.
+
+### WHAT TO GET RIGHT
+
+- **Nothing hardcoded.** 35% is Rightmove's number, not the model's.
+  Read from the supplier, and a test that writes 0.35 as a constant is
+  testing the fixture.
+- **The EXISTING tiers**, not a new tier table. `pricing_agreements`
+  with its coverage / period / counting-scope columns is the machinery,
+  and `all_in_ancestor_guard.test.sql` and `one_rate_per_party.test.sql`
+  already pin how it behaves. Read them before writing.
+- **Counting is per AGENCY per month**: "an agency's first N paid
+  referrals in the month".
+- **Marginal, on the face of his example**: x% on the first N, y% after,
+  not y% applied back over the lot. To be confirmed against how the
+  existing tiers already count, because the existing behaviour wins over
+  my reading of one sentence.
+- **Rates are frozen at creation** and the model never recomputes them,
+  so what happens to referrals already frozen under the additive rule is
+  a real question and not one to answer silently.
+
 ## PER-AGENCY SCHEDULES UNDER A SUPPLIER (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
 
 > Add to the supplier statement: alongside the supplier's own statement, a separate commission statement for each agency under that supplier for the month, showing that agency's referrals (branch, tenant reference, fee) and the agent commission at the agent rate recorded for that supplier. These go to the supplier's statement recipients, not to the agencies, since the supplier pays its own agents. Include them in the test email.
