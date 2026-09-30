@@ -19,7 +19,7 @@ import {
 } from '@/data';
 import { isAgencyUser } from '@/data/capabilities';
 import { KEYS, loadString, saveString } from '@/data/storage';
-import { ORIGIN_ALL, isOneParty, partnerFor, type OriginScope } from '@/data/origin';
+import { ORIGIN_ALL, figuresFollow, partnerFor, type OriginScope } from '@/data/origin';
 import { clearScopeRecents, rememberScope } from '@/data/scopeRecents';
 import { ROLES, type RoleIdentity } from '@/constants/roles';
 import { SUPABASE_ENABLED, supabase } from '@/lib/supabase';
@@ -379,7 +379,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const partnerScope = role === 'superadmin' ? selectedPartner
     : role === 'opndoor_manager' ? ALL_PARTNERS
       : homePartner();
-  const viewingAs = role === 'superadmin' && isOneParty(scopeSel) ? scopeSel : null;
+  /* VIEWING AS A PARTY MEANS THE PAGE IS THAT PARTY'S PAGE, so it may only
+     be true where the figures are actually theirs. `figuresFollow` is that
+     test and today it admits `partner:<slug>` alone: see its note in
+     origin.ts for why an `agency:` or `group:` selection currently changes
+     the wording and the gates without moving a single number.
+
+     Matt's stopgap, 2026-09-30: "make sure no banner can claim a party the
+     figures don't reflect." Narrowed HERE rather than on the button,
+     because the button is only one of the doors: Applications' own Origin
+     picker writes the same shared `scopeSel`, and the value is restored
+     from localStorage on every load.
+
+     `isOneParty` has no caller left after this change. It is kept, and kept
+     exported, because it is the question this line SHOULD be asking and
+     will ask again the moment the figures follow the selection. Deleting it
+     and re-deriving it later is how the distinction gets lost. */
+  const viewingAs = role === 'superadmin' && figuresFollow(scopeSel) ? scopeSel : null;
 
   /* THE LABEL UNDER THE NAME, in the words the agency uses for itself.
 
