@@ -335,9 +335,23 @@ export function setSelectedPartner(id: PartnerScope): void {
   saveString(KEYS.partner, id);
 }
 
-/** Central partner-isolation rule: admin follows the selector; others are pinned home. */
+/**
+ * Central partner-isolation rule: admin follows the selector; others are
+ * pinned home.
+ *
+ * EXCEPT OPNDOOR'S OPS STAFF, who have no home to be pinned to. The
+ * users_partner_by_role constraint (20260922090000) requires partner_id to
+ * be NULL for `opndoor_manager`, so HOME for them is whatever the module
+ * default happens to be, which in mock is one arbitrary supplier. Every
+ * export builder resolves its scope through this function, so leaving it
+ * meant every document they could build was scoped to a partner they have
+ * nothing to do with. Kept in step with SessionContext's `partnerScope`,
+ * which answers the same question for the screens.
+ */
 export function scopeFor(role: Role): PartnerScope {
-  return role === 'superadmin' ? getSelectedPartner() : HOME;
+  if (role === 'superadmin') return getSelectedPartner();
+  if (role === 'opndoor_manager') return ALL_PARTNERS;
+  return HOME;
 }
 
 /** Demo analytics weight for a scope ("all" sums every partner's weight). */

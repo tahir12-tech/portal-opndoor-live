@@ -39,6 +39,37 @@ export function maySeeCommission(role: Role): boolean {
   return SEES_COMMISSION;
 }
 
+/**
+ * MAY THIS ROLE READ A BOOK WIDER THAN THEIR OWN REFERRALS?
+ *
+ * The second question, and it is not the one above. Reading the book and
+ * seeing what it earns are two permissions: `opndoor_manager` holds the
+ * first and never the second, and an agency Manager holds the first for
+ * their own agency and not the second.
+ *
+ * WHY THIS EXISTS AS A NAME instead of the literal it replaces. The same
+ * allowlist -- 'superadmin' and 'management', written out by hand -- stood
+ * in four places that all have to agree: `scopeFull`, which decides the
+ * rows; `liveDashboard` and `dashboardData`, which decide the words over
+ * them; and the RoleOnly gates on Reporting, which decide whether the
+ * section is drawn at all. When `opndoor_manager` was added in
+ * 20260922090000, all four went stale together and Opndoor's ops staff got
+ * a blank Reporting page. A positive allowlist is right, and the note at
+ * the top of this file says why; a positive allowlist copied four times is
+ * four things to forget. One name, so the next role is added once.
+ *
+ * READ IT AS A SEAT, NOT A CAPABILITY. It answers "does this person work
+ * across parties". It does not name 'referrer', whose own referrals are a
+ * separate arm in scopeFull, and it does not name 'developer', the sandbox
+ * seat that is given nothing here on purpose.
+ */
+export const READS_THE_WHOLE_BOOK: Role[] = ['superadmin', 'opndoor_manager', 'management'];
+
+/** The predicate form of READS_THE_WHOLE_BOOK, for callers outside JSX. */
+export function readsTheWholeBook(role: Role): boolean {
+  return READS_THE_WHOLE_BOOK.includes(role);
+}
+
 /* THE DIRECTOR / MANAGER SPLIT, and why one boolean is enough.
    An agency has three levels. Negotiator is the referrer role it always was.
    Director and Manager are BOTH management scope: same screens, same reach,

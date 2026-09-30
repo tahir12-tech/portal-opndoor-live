@@ -20,7 +20,7 @@
    ===================================================================== */
 import type { LeagueRow, Period, PartnerScope, Role } from './types';
 import { fmtRatePct } from '@/lib/format';
-import { maySeeCommission } from './types';
+import { maySeeCommission, readsTheWholeBook } from './types';
 import { KEYS, loadString, saveString } from './storage';
 import {
   ANNUAL, AVG_RENT, BASE_PAID_FULL, BASE_PAID_REF, BASE_SENT_FULL, BASE_SENT_REF,
@@ -204,10 +204,14 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
      contradicted the figures under them.
 
      So: ownOnly is whether this reader sees only their own, read off the same
-     allowlist scopeFull uses (superadmin and management get the book, everybody
-     else their own or nothing), so the copy can never disagree with the rows again.
-     seesComm is the predicate, and it decides money and nothing else. */
-  const ownOnly = role !== 'superadmin' && role !== 'management';
+     allowlist scopeFull uses, so the copy can never disagree with the rows
+     again. That allowlist is now a NAME rather than a literal written out
+     here and in three other places: it went stale in all four at once when
+     opndoor_manager was added, and this copy then said "your referrals" over
+     Opndoor's whole estate -- the very defect the paragraph above records,
+     one role later. seesComm is the other predicate, and it decides money and
+     nothing else. */
+  const ownOnly = !readsTheWholeBook(role);
   const seesComm = maySeeCommission(role);
   const a: LiveAgg = liveAggregate(role, scope, period);
   const vol = liveVolume(role, scope, period);
@@ -392,7 +396,7 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
      the full ones, and the referrer's own stuck counts. They are supposed to see
      every referral in the agency. See liveDashboard for the whole argument; both
      builders now split it the same way. */
-  const ownOnly = role !== 'superadmin' && role !== 'management';
+  const ownOnly = !readsTheWholeBook(role);
   const seesComm = maySeeCommission(role);
   const w = ownOnly ? 1 : weightFor(scope);
   const sent = ownOnly ? Math.max(1, Math.round(period.fSent * REF_FRACTION)) : Math.round(period.fSent * w);

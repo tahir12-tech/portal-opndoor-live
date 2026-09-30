@@ -98,7 +98,16 @@ interface SessionValue {
 
 const SessionContext = createContext<SessionValue | null>(null);
 
-const KNOWN_ROLES: Role[] = ['superadmin', 'management', 'referrer', 'developer'];
+/* 'opndoor_manager' WAS MISSING FROM HERE, and the list is doing exactly what
+   it was built to do about that: failing an unknown role to the least
+   privileged one. The cost was still real and had two shapes. In Supabase
+   mode the profile arrives a moment later and calls setRole, so Opndoor's
+   ops staff got a Negotiator's page on every load until it landed. In mock
+   and test mode there IS no profile, so the role never corrected: staging
+   `grp_role = 'opndoor_manager'` produced a referrer for good, which means
+   no render test of this role could say anything true, and one of mine
+   quietly did not. Found while fixing their blank Reporting page. */
+const KNOWN_ROLES: Role[] = ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'];
 
 /**
  * The role cached in localStorage, used before the profile loads.
@@ -356,7 +365,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute('data-role', role);
   }, [role]);
 
-  const partnerScope = role === 'superadmin' ? selectedPartner : homePartner();
+  /* THE READER'S BOOK.
+     `homePartner()` is the right answer for everybody who HAS a home
+     partner, and Opndoor's ops staff do not have one: 20260922090000's
+     users_partner_by_role constraint requires partner_id to be NULL for
+     the role, so nothing ever calls setHomePartner for them and the module
+     default stands. In mock that default is the string 'northwind', so
+     Opndoor's own operations staff were scoped to one arbitrary supplier
+     and scopeFull's FIRST filter emptied their book before the role
+     allowlist below was even consulted. They read the whole estate, which
+     is what ALL_PARTNERS says; they have no partner switch, which is why
+     they take the constant rather than `selectedPartner`. */
+  const partnerScope = role === 'superadmin' ? selectedPartner
+    : role === 'opndoor_manager' ? ALL_PARTNERS
+      : homePartner();
   const viewingAs = role === 'superadmin' && isOneParty(scopeSel) ? scopeSel : null;
 
   /* THE LABEL UNDER THE NAME, in the words the agency uses for itself.

@@ -11,7 +11,7 @@ import { ORIGIN_ALL, originMatches, type OriginScope } from './origin';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import type { PartnerScope, Period, Role } from './types';
 import { reachableAgencyNames } from './orgService';
-import { ALL_PARTNERS } from './types';
+import { ALL_PARTNERS, readsTheWholeBook } from './types';
 import { allFull, type FullApp } from './applicationsService';
 
 /** Period date range. Real "today" in Supabase mode; the demo date otherwise. */
@@ -49,11 +49,34 @@ export function scopeFull(
     const mine = reachableAgencyNames();
     if (mine) set = set.filter((a) => !a.agency || mine.has(a.agency));
   }
-  // Positive allowlist. This scopes the set every downstream metric is built
-  // from, so an unrecognised role reaching it with no filter handed over the
-  // whole partner book. A role not named here gets nothing.
+  /* Positive allowlist. This scopes the set every downstream metric is built
+     from, so an unrecognised role reaching it with no filter handed over the
+     whole partner book. A role not named here gets nothing, and that stays
+     true: the fix below ADDS a name, it does not remove the default.
+
+     WHY `opndoor_manager` WAS MISSING, and it is the failure mode the
+     comment above invites. The allowlist is correct to be positive and
+     correct to be conservative; what it cannot do is notice when a new role
+     is created. `opndoor_manager` arrived in 20260922090000, months after
+     this line, and nobody came back. So Opndoor's own operations staff were
+     treated as an unrecognised role and every live figure on their
+     Reporting page read zero -- reported by Matt as "the blank Reporting
+     page for opndoor_manager".
+
+     It failed in the safe direction, which is why it survived: they were
+     shown too little, never too much.
+
+     WHAT THE PRODUCT INTENDS, from App.tsx's own route comment:
+     "opndoor_manager is Opndoor ops staff: it reads the whole book like an
+     admin (its RLS read arms mirror superadmin) but cannot create referrals
+     or reach the sensitive-settings routes below."
+
+     AND READING THE BOOK IS NOT SEEING THE MONEY. Those are two
+     permissions and only this one is widened here: `maySeeCommission` is a
+     flat no for this role and stays so, which is what keeps every
+     commission figure at zero for them while the volumes become real. */
   if (role === 'referrer') set = set.filter((a) => a.owner === 1);
-  else if (role !== 'superadmin' && role !== 'management') set = [];
+  else if (!readsTheWholeBook(role)) set = [];
   /* THE READER'S SELECTION, LAST AND DELIBERATELY SO.
      Everything above is isolation: what this reader is permitted to see. This
      is preference: which of it they are currently looking at. Running it last

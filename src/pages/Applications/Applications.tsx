@@ -284,10 +284,16 @@ export function Applications() {
      `measured` is the guard viewerShape cannot give us. It answers "one of
      everything" for an EMPTY book, deliberately and correctly for the screens
      it was written for; but it reads through scopeFull, whose role allowlist
-     hands opndoor_manager and developer nothing at all, and collapsing on a
-     measurement of zero would take the Agency and Branch columns off a table
-     that is still showing several of each. So a book has to have told us
-     something before its answer is acted on. */
+     hands 'developer' nothing at all, and collapsing on a measurement of zero
+     would take the Agency and Branch columns off a table that is still showing
+     several of each. So a book has to have told us something before its answer
+     is acted on.
+
+     THIS PARAGRAPH NAMED opndoor_manager TOO until their blank Reporting page
+     was fixed. Widening scopeFull to admit them does not weaken the guard here:
+     it turns their measurement from a starved zero into the real shape of the
+     estate, which is several agencies, so `oneAgency` is false and the columns
+     stay for the right reason instead of by exemption. */
   const shape = useMemo(() => viewerShape(role, effectiveScope), [role, effectiveScope, dataVersion]);
   const measured = shape.agencies > 0;
   const showRoute = !(measured && shape.oneRoute);

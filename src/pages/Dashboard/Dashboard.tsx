@@ -23,7 +23,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ALL_PARTNERS, buildApplicationDoc, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
+  ALL_PARTNERS, READS_THE_WHOLE_BOOK, buildApplicationDoc, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPeriods, getTrend, maySeeCommission, partnerName,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
@@ -441,12 +441,12 @@ export function Dashboard() {
               <Icon name="download" /> Export summary
             </Button>
           </RoleOnly>
-          <RoleOnly roles={['superadmin', 'management']}>
+          <RoleOnly roles={READS_THE_WHOLE_BOOK}>
             <Button variant="ghost" size="sm" onClick={() => setAppsOpen(true)} title="Downloads one row per application, pseudonymised by guarantee reference">
               <Icon name="apps" /> Application export
             </Button>
           </RoleOnly>
-          <RoleOnly roles={['superadmin', 'management']}>
+          <RoleOnly roles={READS_THE_WHOLE_BOOK}>
             <Button variant="ghost" size="sm" onClick={() => setExpOpen(true)} title="Guarantees expiring in a chosen month, soonest first, for renewal outreach">
               <Icon name="calendar" /> Expiries
             </Button>
@@ -624,7 +624,7 @@ export function Dashboard() {
               rate routes return nothing for them, so it does not reconstruct the
               agency's income. Gating it would leave a Manager a dashboard with no
               money on it at all, which is not the level. */}
-          <RoleOnly roles={['superadmin', 'management']}>
+          <RoleOnly roles={READS_THE_WHOLE_BOOK}>
             {/* #85 Net fees leads the money block; Total guaranteed rent value second. */}
             <div className="card hero-kpi hero-kpi--dark">
               <div className="kpi__label">Net fees{d.live ? ' (after refunds)' : ''}</div>
@@ -685,7 +685,7 @@ export function Dashboard() {
               "Commission (agreed terms)" with an amount, beside the fees tile, at
               the top of their own dashboard. There is no narrower version of this
               tile to show them, because the amount IS the tile. */}
-          <RoleOnly roles={['superadmin', 'management']} commission>
+          <RoleOnly roles={READS_THE_WHOLE_BOOK} commission>
             <div className="card hero-kpi">
               <div className="spread">
                 {/* The label is the service's, not the page's: it is the one bit
@@ -780,7 +780,7 @@ export function Dashboard() {
         {isOpndoorStaff && <CustomersTable rows={customers} seesCommission={seesCommission} />}
 
         {d.live && partnerBreakdown.length > 0 && !agencyFacing && (
-          <RoleOnly roles={['superadmin', 'management']} commission>
+          <RoleOnly roles={READS_THE_WHOLE_BOOK} commission>
             <section className="card settle">
               <CardHead
                 title={<>Commission by partner</>}
@@ -854,13 +854,13 @@ export function Dashboard() {
             // same allowlist as its siblings rather than an early exit.
             if (key === 'referrer') {
               return (
-                <RoleOnly key={key} roles={['superadmin', 'management']}>
+                <RoleOnly key={key} roles={READS_THE_WHOLE_BOOK}>
                   {chart}
                 </RoleOnly>
               );
             }
             return (
-              <RoleOnly key={key} roles={['superadmin', 'management']}>
+              <RoleOnly key={key} roles={READS_THE_WHOLE_BOOK}>
                 {chart}
               </RoleOnly>
             );
@@ -868,7 +868,7 @@ export function Dashboard() {
         </section>
 
         {/* MONTHLY TREND */}
-        <RoleOnly roles={['superadmin', 'management']}>
+        <RoleOnly roles={READS_THE_WHOLE_BOOK}>
           <Card style={{ marginBottom: 18 }}>
             <CardHead
               title="Monthly volume trend"
@@ -905,7 +905,7 @@ export function Dashboard() {
             standing over an empty space tells a Manager exactly what they are not
             being shown, which is worse than the heading being absent. */}
         {d.live && (
-          <RoleOnly roles={['superadmin', 'management']} commission>
+          <RoleOnly roles={READS_THE_WHOLE_BOOK} commission>
             {/* NAMED, not "Your". Under View as it is not the reader's
                 commission and saying so was the whole of Matt's third point. */}
             <div className="section-label">

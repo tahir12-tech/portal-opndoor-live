@@ -558,7 +558,21 @@ export function trendMeasuresFor(
   if (role === 'superadmin' || role === 'opndoor_manager') {
     return [
       { value: 'value', label: 'Fees collected' },
-      { value: 'payable', label: 'Commission payable' },
+      /* AND NOT TO A READER WHO MAY NOT SEE COMMISSION, which on this arm
+         means Opndoor's ops staff. `payable` is what Opndoor owes out, so
+         it is a commission figure by the test RoleOnly's note sets: it
+         would let somebody work out what the estate earns. Migration
+         20261005170000 is explicit that may_see_commission is "never true
+         for opndoor_manager, who is Opndoor operations and has never seen
+         commission."
+
+         THIS WAS LATENT, NOT NEW. The role was named on this arm from the
+         start, but the trend card itself sat behind a RoleOnly allowlist
+         that omitted them, so the option was never drawn. Fixing their
+         blank Reporting page draws the card, which is what turned a dormant
+         line into a live one -- and is the reason the gate belongs here and
+         not in the caller. */
+      ...(maySeeCommission(role) ? [{ value: 'payable' as TrendMeasure, label: 'Commission payable' }] : []),
       { value: 'count', label: 'Referrals sent' },
       { value: 'deeds', label: 'Deeds issued' },
     ];
@@ -779,7 +793,14 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
            (totalRate, always) plus a real supplier's (never a house route's,
            which is Opndoor's own margin). The same two terms the tile's
            headline adds, and the same refund rule. */
-        if (!app.refunded) {
+        /* `seesComm` HERE TOO, which the line above has always had and this
+           one did not. A reader the predicate refuses gets a zero that was
+           never computed rather than a figure the chart is trusted to hide,
+           which is the rule liveByCustomer states for the same measure.
+           Nobody who is OFFERED this measure loses anything: the only arm
+           of trendMeasuresFor that lists it is the Opndoor one, and an
+           admin passes the predicate. */
+        if (!app.refunded && seesComm) {
           m.payable += feeBaseFor(app) * totalRate(app);
           if (!isHousePartner(app.partner)) m.payable += feeBaseFor(app) * app.partnerRate;
         }

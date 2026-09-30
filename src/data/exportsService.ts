@@ -15,7 +15,7 @@
    export format is identical regardless of source.
    ===================================================================== */
 import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
-import { ALL_PARTNERS, maySeeCommission } from './types';
+import { ALL_PARTNERS, maySeeCommission, readsTheWholeBook } from './types';
 import {
   ANNUAL, APP_BRANCHES, APP_RENTS, APP_REFERRERS, AVG_RENT,
   BX_FIRST, BX_FLATS, BX_LAST, BX_STREETS, BX_TITLES, TREND_MONTHS,
@@ -283,16 +283,25 @@ function agencyFacing(role: Role): boolean {
  * is the list of their own referrals. What has to go is the commission COLUMNS
  * inside those documents, and each site now drops those instead.
  *
- * The two roles here are exactly the two maySeeCommission used to admit at these
- * sites, so nothing moves for an Opndoor admin, a Director, a Negotiator, a
- * developer or an opndoor_manager: only the Manager, who was losing whole files.
- * It is the same test buildExpiriesCsv has always made for the same reason.
+ * The roles here are the ones maySeeCommission used to admit at these sites,
+ * so nothing moved for an Opndoor admin, a Director, a Negotiator or a
+ * developer: only the Manager, who was losing whole files.
+ *
+ * THE SENTENCE ABOVE USED TO NAME opndoor_manager TOO, and it was true only
+ * by accident: they could not build these documents, but the reason was that
+ * scopeFull handed them an empty book, not that this gate refused them. Fix
+ * the blank Reporting page without touching this and they get a scoped book
+ * and an Application export button that produces a file with nothing in it.
+ * So this reads the same named allowlist the page's own gates read.
  *
  * Scope is a separate question and is still scopeFor/scopeFull's: this says which
- * documents a reader may open, never how much of the book goes into them.
+ * documents a reader may open, never how much of the book goes into them. What
+ * a document CONTAINS is decided inside each builder, which asks
+ * maySeeCommission and drops the commission lines and columns -- so admitting
+ * Opndoor's ops staff here gives them the volumes and never the money.
  */
 function seesEveryReferral(role: Role): boolean {
-  return role === 'superadmin' || role === 'management';
+  return readsTheWholeBook(role);
 }
 
 /**
@@ -956,7 +965,9 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
      of everything" deliberately, and scopeFull hands some roles nothing at all,
      so collapsing on a measurement of zero would strip the columns off a file
      that still holds several of each. Lifted from Applications.tsx, where the
-     same sentence is written out at length. */
+     same sentence is written out at length. The roles it protects against are
+     now 'developer' alone: opndoor_manager was the other one, and it reads a
+     real book from the commit that fixed their blank Reporting page. */
   const shape = viewerShape(role, scopeFor(role));
   const measured = shape.agencies > 0;
   const showAgency = !(measured && shape.oneAgency);
@@ -1886,7 +1897,7 @@ export async function exportBordereauFile(role: Role, year: number, m0: number, 
  * Supabase mode; a modelled generator keeps the demo download non-empty.
  */
 export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: string; filename: string } | null {
-  if (role !== 'superadmin' && role !== 'management') return null;
+  if (!readsTheWholeBook(role)) return null;
   const mStart = new Date(year, m0, 1, 0, 0, 0, 0);
   const mEnd = new Date(year, m0 + 1, 0, 23, 59, 59, 999);
   const nowD = new Date();

@@ -86,10 +86,33 @@ describe('the options an Opndoor admin is offered', () => {
       .not.toContain('Commission earned');
   });
 
-  /* An opndoor_manager reads the same book and pays the same commission. */
-  it('and an opndoor manager gets the same four', () => {
+  /* THIS ASSERTION USED TO SAY "and an opndoor manager gets the same four",
+     on the reasoning that "an opndoor_manager reads the same book and pays
+     the same commission". The first half is right and the second is not,
+     and the distinction is the whole of it: reading the book and seeing
+     what it earns are two permissions. maySeeCommission is a flat no for
+     this role, and migration 20261005170000 says why in as many words --
+     "never true for opndoor_manager, who is Opndoor operations and has
+     never seen commission."
+
+     IT DID NO HARM UNTIL 2026-09-30, which is why it stood. The trend card
+     sat behind a RoleOnly allowlist that omitted the role, so the dropdown
+     this describes was never drawn for them. Fixing their blank Reporting
+     page draws the card, and `liveMonths` computed `payable` with no
+     commission guard at all, so the figures behind the option were real.
+     Both were closed together; the other half is asserted in
+     opndoorManagerReadsTheBook.test.ts.
+
+     WALK FIX 17'S OWN POINT SURVIVES INTACT. "Commission earned" is not
+     Opndoor's money and is still not offered to either Opndoor role, and
+     the card still opens on fees collected. */
+  it('and an opndoor manager gets the three that are not money', () => {
     expect(trendMeasuresFor('opndoor_manager', true).map((o) => o.value))
-      .toEqual(['value', 'payable', 'count', 'deeds']);
+      .toEqual(['value', 'count', 'deeds']);
+  });
+
+  it('and still opens on fees collected, like the admin’s', () => {
+    expect(trendMeasuresFor('opndoor_manager', true)[0].value).toBe('value');
   });
 });
 
