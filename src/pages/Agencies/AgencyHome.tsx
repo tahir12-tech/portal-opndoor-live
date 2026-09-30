@@ -62,6 +62,7 @@ import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/Position
 import { AgencyGrow } from './AgencyGrow';
 import { AgreementEditor, agreementSummary } from './AgreementEditor';
 import { CommissionStatement } from '@/components/CommissionStatement';
+import { showsOffices } from '@/data/agencyOffices';
 import './AgencyHome.css';
 
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
@@ -1185,10 +1186,19 @@ export function AgencyHome() {
                   <span className="ah-fig-sep">·</span>
                 </>
               )}
-              <button className="ah-fig" onClick={() => setTab('overview')}>
-                <b>{branchCount}</b> {branchCount === 1 ? 'branch' : 'branches'}
-              </button>
-              <span className="ah-fig-sep">·</span>
+              {/* NM-P. "No '1 branch'", in Matt's own words. The figure and
+                  its separator go together: leaving the separator prints a
+                  stray dot between People and Referrals. A group keeps the
+                  figure, because a group of single-office agencies still
+                  has several offices and the count is about the group. */}
+              {showsOffices(title) && (
+                <>
+                  <button className="ah-fig" onClick={() => setTab('overview')}>
+                    <b>{branchCount}</b> {branchCount === 1 ? 'branch' : 'branches'}
+                  </button>
+                  <span className="ah-fig-sep">·</span>
+                </>
+              )}
               <button className="ah-fig" onClick={() => setTab('people')}>
                 <b>{people.total}</b> {people.total === 1 ? 'person' : 'people'}
               </button>

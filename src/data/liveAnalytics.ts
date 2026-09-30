@@ -36,6 +36,7 @@
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
 import { ALL_PARTNERS, agencyLevelOf, maySeeCommission } from './types';
+import { showsOffices } from './agencyOffices';
 import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp, guaranteedAnnual } from './applicationsService';
 import { getPartner, getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
@@ -407,7 +408,23 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
   const S = '\u0000';
   const pn = partnerName(app.partner);
   if (key === 'agency') return { id: `${app.partner}${S}${app.agency}`, name: app.agency || '(unknown agency)', sub: '', partner: pn };
-  if (key === 'branch') return { id: `${app.partner}${S}${app.agency}${S}${app.branch}`, name: app.branch || '(unknown branch)', sub: app.agency || '', partner: pn };
+  /* NM-P. A SINGLE-OFFICE AGENCY IS NAMED BY THE AGENCY, and its subtitle
+     goes with it -- the sub is the agency, so leaving it would print the
+     same words on both lines of the row.
+
+     THE ID IS UNTOUCHED. It is the grouping key, not a label: two distinct
+     offices that happen to share a display name must still be two rows,
+     and collapsing the key would merge them. Only what the reader SEES
+     changes, which is the whole of Matt's rule. */
+  if (key === 'branch') {
+    const names = showsOffices(app.agency);
+    return {
+      id: `${app.partner}${S}${app.agency}${S}${app.branch}`,
+      name: names ? (app.branch || '(unknown branch)') : (app.agency || '(unknown agency)'),
+      sub: names ? (app.agency || '') : '',
+      partner: pn,
+    };
+  }
   if (key === 'referrer') {
     // opndoor internal staff never appear in referrer performance rankings (League
     // Referrers, dashboard volume-by-referrer, export breakdown, by-referrer trend).

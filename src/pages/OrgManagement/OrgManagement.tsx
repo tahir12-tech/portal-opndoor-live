@@ -17,6 +17,7 @@
 //   getAgencies, getPartners, getRatesFor, removeContactLive, setPrimaryLive, updateContactLive,
 //   type Agency, type AgentContact, type Branch,
 // } from '@/data';
+import { showsOffices } from '@/data/agencyOffices';
 // import { useSession } from '@/session/SessionContext';
 // import { usePageMeta } from '@/components/layout/pageMeta';
 // import { useToast } from '@/components/ui/Toast';
@@ -1272,7 +1273,24 @@ function requestCloseContacts() {
     // only the path to a hit opens.
     const open = q ? branchHit : openSet.has(id);
     const fees = feesOf(a, true);
-    const meta = `${a.branches.length} ${a.branches.length === 1 ? 'branch' : 'branches'}`;
+    /* NM-P. NO "1 branch". Matt, 2026-09-30: "A single-office agency shows
+       only as the agency... No '1 branch', no branch row, no branch name."
+       This line was the literal phrase he named.
+
+       `showsOffices` and not `branches.length !== 1`, because the count has
+       to come from the agency's REAL offices: the placeholder "Unattached"
+       branches the house rail carries would otherwise make a single-office
+       agency look like two and the rule would never fire for it. And it
+       reads `a.branches`, never the search-filtered `branches` below --
+       typing "Chelsea" narrows a three-office agency to one, and a collapse
+       keyed on that would hide a real office name mid-search.
+
+       Zero offices still prints "0 branches", deliberately: an agency with
+       no office is a real state this screen exists to surface. */
+    const namesOffices = showsOffices(a.name);
+    const meta = namesOffices
+      ? `${a.branches.length} ${a.branches.length === 1 ? 'branch' : 'branches'}`
+      : '';
     return (
       <div className={`agency${open ? ' is-open' : ''}`} key={id}>
         <div className="agency__head" onClick={(e) => onHeadClick(e, id)}>
@@ -1280,7 +1298,7 @@ function requestCloseContacts() {
           <span className="agency__ic"><Icon name="org" /></span>
           <div className="agency__txt">
             <Link className="agency__name agency__namelink" to={`/agencies/${encodeURIComponent(a.id ?? a.name)}`} data-stop title={`Open ${a.name}`}>{highlight(a.name, q)}</Link>
-            <div className="agency__meta">{meta}</div>
+            {meta && <div className="agency__meta">{meta}</div>}
             <ContactSummary agency={a} branch={null} canManage={canManageContacts} onManage={() => openContacts(a.name, null)} ready={a.id ? readiness?.agencies.get(a.id) : undefined} />
           </div>
           <Link className="statlink statlink--agency" to={`/applications?agency=${encodeURIComponent(a.name)}`} title={`View all applications for ${a.name}`}>
@@ -1302,7 +1320,22 @@ function requestCloseContacts() {
             agencies. */}
         {open && (
         <div className="branches">
-          {branches.map((b) => {
+          {/* NM-P. NO BRANCH ROW for a single-office agency. Its referrals,
+              fees and commission are already on the agency head above and
+              are the same numbers, and its contact line is already there
+              too, so the row said nothing the head did not.
+
+              THE CONTAINER STAYS EVEN SO, and this is the trap the whole
+              item turns on: "Add branch" lives inside it, and Matt's
+              instruction keeps that -- "'Add branch' stays available on the
+              agency". Hiding the rows by hiding the block would delete the
+              one control he asked to keep. */}
+          {!namesOffices && !q && (
+            <div className="branch__meta" style={{ padding: '6px 0 2px 28px' }}>
+              One office, which is the agency itself. Add a second and both will show here.
+            </div>
+          )}
+          {namesOffices && branches.map((b) => {
             const bFees = feesOf(b, false);
             return (
               <div className="branch" key={b.name}>
