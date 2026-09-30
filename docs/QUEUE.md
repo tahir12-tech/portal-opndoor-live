@@ -592,6 +592,110 @@ template that escapes its input. Whatever is doing that will be doing it to
 anything else built the same way, so the fix belongs at the builder rather
 than in the two lines Matt saw.
 
+## NOTHING IS DONE UNTIL IT IS DEPLOYED TO DEV AND CHECKED THERE
+
+**Matt's instruction, 2026-09-30, verbatim:**
+
+> Walk fixes 13 and 14 are not working on dev. Inviting a Negotiator to Regent's Lettings as Opndoor admin, the form now says "They are invited to Regent's Park", but Send invite still fails with the old message: "Everybody on our estate holds a position... jane@jane.com has none". So the page is new and whatever runs on the server is old.
+>
+> Find out why: whether the invite function was never deployed to dev, a migration wasn't applied, or the admin path doesn't pass the office. You may change dev to fix this. Prove it by actually inviting through the same path the browser uses on dev, for each level, from Opndoor admin and from a Regent director, not only by the test suite.
+>
+> Then check every item you reported done this morning (the seven fixes and walk fixes 2, 3, 4, 11, 13, 14) against what is actually running on dev, including server functions, and list which are live and which aren't. From now on nothing is marked done until it is deployed to dev and checked there. Report, then carry on with the queue.
+
+### The cause, and it is worse than the one item he hit
+
+**No Edge Function had been deployed to dev since 28 September at 10:21.**
+Not by me and not by anyone. I had no way to deploy one: the Supabase CLI was
+not installed on this machine, and I never noticed that this made "done" mean
+something different for a function than for a migration.
+
+Matt's three candidate causes were: the function was never deployed, a
+migration was not applied, or the admin path does not pass the office. It was
+the first. Proven by fetching the deployed bundle from the Management API:
+it contained the old message and did NOT contain `resolveInvitePosition`,
+which was introduced in `f570ca2`. The deployed code predated even that.
+
+**It was 32 function files, not one.** Everything any Edge Function did on
+dev was up to two days old. So Matt's walk was not testing this branch: the
+database was current and the server code was not.
+
+### What was done about it
+
+| | |
+| --- | --- |
+| Deno installed | 2.9.7, and `deno check` run over the functions for the first time ever. It found **two real defects** immediately -- see below. |
+| Supabase CLI installed | 2.118.0, standalone binary, no Homebrew or Docker needed. |
+| All 34 functions deployed | 30 in the bulk run, 4 retried individually after 500s from the deploy API. Verified: 34 of 34 now stamped today. |
+| `APP_URL` corrected | walk fix 34: it was `http://localhost:5173`, proven by matching the Management API's SHA-256 digest against candidate strings. Now `:5174`, confirmed the same way. |
+| `npm run check:functions` added | so the type check is one command and cannot be forgotten again. |
+
+### The two defects `deno check` found on its first run
+
+Both had been invisible because the only tool that could see them was not
+installed.
+
+1. **`expiry-reminders` crashed the whole nightly job.** It called
+   `.catch()` directly on a Supabase query builder. A builder is a THENABLE:
+   it implements `then` and not `catch`, so that line threw a TypeError
+   before the RPC was awaited. It runs when a reminder is PARKED -- a
+   guarantee about to expire with nobody to send to -- so one guarantee with
+   a missing contact silenced the reminders for every other guarantee that
+   night. Fixed, with a lint so it cannot come back.
+2. **`create-referral` could drop a failed-email flag.** `emailError` is
+   declared `string | null` and was being handed `string | undefined`. Across
+   JSON an `undefined` property DISAPPEARS rather than arriving as null, so a
+   caller testing for the key would read a failed send as a successful one.
+
+### Proof through the real path, not the test suite
+
+Matt asked for this specifically, and it is a fair demand: the suite passed
+throughout while the product was broken.
+
+Two probe accounts were created on dev, an Opndoor admin and a Regent
+director, and each invited all three levels by **signing in with a password,
+enrolling and verifying a real TOTP second factor, and calling the
+`invite-user` function over HTTPS with that session** -- exactly what the
+browser does. Six of six succeeded, and the invitees were then checked in the
+database: Negotiator at the branch, Manager at the agency without commission,
+Director at the agency with it.
+
+**One thing that fell out of it:** the hand-made accounts could not sign in at
+all at first -- `Database error querying schema`. Four token columns on
+`auth.users` were NULL where GoTrue expects empty strings. **The Kestrel login
+handed to Matt earlier had the same fault and would not have worked.** Fixed
+for all three.
+
+### The audit Matt asked for
+
+Every database fix was already live, because migrations had been applied all
+along. The gap was entirely the server functions.
+
+| item | on dev? |
+| --- | --- |
+| R1 (three parts: predicate, trigger, deed fallback) | **live** |
+| R2 refund state | **live** |
+| R3 preview reads the agreement | **live** |
+| R4 rates redacted (helper + callers) | **live** |
+| R5 amend covers the whole tenancy | **live** |
+| R6 rates and bands not writable from a browser | **live** |
+| R7 API prices like the portal, and refuses a non-tenant payer | **live** |
+| Walk 14 server messages | **live** |
+| Walk 2, 3, 4, 11 (client only) | **live** -- served by Vite from this branch |
+| Walk 13 form | **live** -- client |
+| Walk 13/14 invite FUNCTION | **was NOT live. Now deployed and proven.** |
+
+61 pgTAP files / 0 failing against dev. 34 of 34 functions current.
+
+### The rule, from now on
+
+A change is not done when it is committed, and not done when its test passes.
+It is done when the thing that runs it has been updated and the behaviour has
+been observed there. For a migration that means applied to dev; for an Edge
+Function it means **deployed**; for either it means checked afterwards
+against dev rather than against a local database.
+
+---
+
 ### Status, updated as the night run proceeds
 
 | what | state |

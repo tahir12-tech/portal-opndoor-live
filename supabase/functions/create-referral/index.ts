@@ -436,7 +436,16 @@ Deno.serve(async (req) => {
         });
       }
 
-      return { id: appId, ref, paymentUrl: session.url, emailSent: emailRes.ok, emailError: emailRes.ok ? null : emailRes.error };
+      /* `?? null` on emailError, and only there. FinishResult declares
+         `emailError: string | null`, but the sender returns `string |
+         undefined` on failure, so an undefined was being returned as though
+         it were null. Absent and null mean the same thing to every caller --
+         no error -- but the two are not interchangeable across JSON: this is
+         serialised to the browser, and an `undefined` property DISAPPEARS
+         from the payload rather than arriving as null. A caller checking
+         `'emailError' in result` would have read a failed send as a
+         successful one. Found by `deno check`. */
+      return { id: appId, ref, paymentUrl: session.url, emailSent: emailRes.ok, emailError: emailRes.ok ? null : (emailRes.error ?? null) };
     }
 
     // ------------------------------------------------------------------
