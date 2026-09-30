@@ -15,6 +15,36 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## THE OPNDOOR TEAM NOTIFICATIONS PANEL IS OPNDOOR'S (instruction, 2026-09-30, verbatim). ACTIVE.
+
+> Opndoor team notifications panel: for an Opndoor staff member it shows only Opndoor's internal alerts (the ones the old Internal notifications page listed), grouped Critical, Operations, Commercial, Information, each switchable per person, with the rule that a critical alert can never be left with nobody explained beside any box that can't be unticked. It must not show the agency sections ("Copied on colleagues' referrals", referral events). Deploy to dev and check there.
+
+### THE PANEL IS SHOWING SOMEBODY ELSE'S SETTINGS
+
+An Opndoor staff member is being offered "Copied on colleagues'
+referrals" and the referral events, which belong to the agency rail and
+mean nothing on our own estate. The panel was built for a partner user
+and reused for staff without asking what staff actually receive.
+
+### THE RULE WITH TEETH
+
+"a critical alert can never be left with nobody explained beside any box
+that can't be unticked". Two halves, and the second is the one usually
+dropped:
+
+1. The last person holding a critical alert cannot switch it off.
+   `who_opndoor_tells.test.sql` and `each_party_says_who_it_tells.test.sql`
+   are where that kind of rule already lives; check whether the guard
+   exists server-side before building a disabled checkbox, because a
+   disabled checkbox is not a guard.
+2. **The box says WHY.** A control that is simply dead, with no sentence
+   next to it, reads as a bug and invites somebody to "fix" it.
+
+### AND THE GROUPS ARE NAMED
+
+Critical, Operations, Commercial, Information, from the old Internal
+notifications page. Find that list rather than inventing four buckets.
+
 ## DELIVERY PANEL SHOWS WHAT HAPPENED (instruction, 2026-09-30, verbatim). ACTIVE, after the Reporting fixes.
 
 > Application detail: the Delivery panel must show where the deed was actually sent and when, from the send record, never who it would go to under today's rules. If it hasn't been sent, say who it will go to. On GR-20845 it should show manager@regent.dev.test. Also, for a single-office agency, Referring agent shows just the agency and its own address, no Branch line. Deploy to dev and check there.
