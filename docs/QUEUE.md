@@ -52,10 +52,20 @@ cheap half of this instruction.
 
 > League tables, admin: replace the "All partners" dropdown with the same Origin filter as Applications, so you can narrow to any agency (e.g. Regent's Lettings), group or supplier, or to all agencies or all suppliers, with search. Branches and Negotiators tabs follow the selection. Deploy to dev and check there.
 
-Sent within a minute of each other and the second SUPERSEDES the last
-clause of the first: the "All partners" dropdown is not reworded, it is
-replaced by the Applications Origin filter. Everything else in the first
-stands.
+> League tables, admin: replace the "All partners" dropdown with a searchable filter that can narrow to any single agency (e.g. Regent's Lettings), group or supplier, or to all agencies or all suppliers. Branches and Negotiators tabs follow the selection. Deploy to dev and check there.
+
+Three sends within a couple of minutes, and they converge rather than
+conflict. The second superseded the last clause of the first: the "All
+partners" dropdown is not reworded, it is replaced. The third restates
+the second and drops the words "the same Origin filter as Applications"
+in favour of "a searchable filter".
+
+**Built as the Applications Origin filter anyway**, because that is what
+the second said and the third does not contradict it: one searchable
+control that already narrows to an agency, a group or a supplier is the
+thing both describe, and a second control that behaves almost the same
+is how two screens come to disagree. If he meant a NEW control, this is
+the line to correct.
 
 ### SO THE LIST IS
 
