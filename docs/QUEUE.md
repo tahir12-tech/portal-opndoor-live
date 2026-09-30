@@ -619,6 +619,42 @@ it, and the party-wide half of the assembler. Their tests go with them, and
 that is a deliberate deletion rather than a regression -- recorded here so
 the test count moving down is explained.
 
+### One part of "replace the agency-wide switches" cannot be per person, and here is why
+
+**The supplier rail's `agent_contact` is not a person.** It is resolved by
+`effective_primary_contact_route` from `agent_contacts` -- a contact record
+with a name and an email, no login, and no row in `public.users`. So it
+cannot have a panel, because there is nobody to open one.
+
+| party | classes today | can become per person? |
+| --- | --- | --- |
+| agency | `referrer`, `ticked_users` | **yes, both are users** |
+| supplier | `referrer`, `agent_contact` | referrer yes; **agent_contact no** |
+| Opndoor | already per recipient | already yes |
+
+So the build is: every class that is a USER becomes per person, and the
+supplier's agent-contact routing stays a party setting, because there is no
+third option. It will be shown on the supplier's own page rather than in a
+person's panel, and labelled as what it is: where the executed deed goes when
+the supplier has no human on the referral.
+
+**Flagged rather than decided.** If Matt wants the agent contact gone as a
+concept, that is a different and much larger change -- it is the only
+recipient on the supplier rail when a referral arrives through an API key
+with no human attached, which is the case Q-02 exists for.
+
+### A second thing the instruction does not settle, so it is being read literally
+
+"Each person chooses" and "Opndoor admin can see every person's choices" name
+two capabilities: the person CHOOSES, the admin SEES. It does not say whether
+an agency Director may change their own staff's choices.
+
+Read literally, they may not -- and that is a real change, because today a
+Director can edit their agency's matrix for everybody. **Built as: the person
+edits their own, an opndoor admin edits anyone's, and a Director can SEE
+their team's but not change them.** Say if that is wrong; it is one predicate
+either way.
+
 ### The clause that is easy to miss, and is the whole risk
 
 > **migrate today's agency settings onto each existing person so nobody's
