@@ -2306,6 +2306,67 @@ Matt's instruction of 2026-09-29: "Do not decide anything else on Matt's
 behalf." So everything below is open, and the build stops at the point that
 depends on it. Each says what it blocks, so nothing waits unnecessarily.
 
+### NM-N. Item 24's dedupe rule, which the HubSpot report says we cannot have yet.
+
+Item 24 says: *"when a direct tenant names a letting agent Opndoor doesn't
+work with, that agency should go to HubSpot as a new company (a prospect),
+with the agent contact details the tenant gave, marked as having come from a
+direct tenant. If the company already exists in HubSpot, add to it rather
+than duplicating. Only the agency and agent contact go across, never the
+tenant's details. **Check this against the HubSpot consequences report before
+building.**"*
+
+Checked. Here is what the check says.
+
+**The data exists.** `application_delivery_contacts` already holds
+`agency_name, title, first_name, last_name, email, phone` per application --
+exactly the agent contact the tenant gave, and nothing of the tenant's. Dev
+has 5 rows, and the one dismissed match has a contact against it. No capture
+step needs building.
+
+**The write is mechanical.** `hubspot-sync` already upserts companies via
+`POST /crm/v3/objects/companies/batch/upsert` on the unique property
+`crm_company_key`, and already searches HubSpot on that same property. A
+prospect is that call with a different key and a "came from a direct tenant"
+property.
+
+**The dedupe is not, and it is the sentence "if the company already exists in
+HubSpot, add to it rather than duplicating".** HubSpot's upsert matches ONLY
+on the unique property. A prospect keyed on something of ours dedupes against
+our own previous writes and **will happily create a second company next to
+one a salesperson typed in by hand** -- which is precisely what item 24
+forbids.
+
+Matching it instead needs a search by NAME or DOMAIN and a rule for what
+counts as the same company. "Foo Lettings" against "Foo Lettings Ltd" against
+"Foo Lettings (Chelsea)" is a judgement, and getting it wrong attaches a
+prospect's contact to the wrong company in your CRM.
+
+**And this is the report's own open question.** HUBSPOT-CONSEQUENCES.md ends:
+*"If only one thing comes back: may the portal store, and own, the identity
+of the HubSpot records it writes?"* Today it stores none -- HubSpot returns
+its record id on every write and the code throws it away -- so the portal
+cannot tell whether a company it is about to create is one it already made,
+let alone one somebody else did.
+
+**Three ways, and it is your call:**
+
+1. **Match on name, exactly, case- and punctuation-insensitive; create if no
+   exact match.** Simple, predictable, and will still create a duplicate of
+   "Foo Lettings Ltd" when the tenant typed "Foo Lettings". Safe in the
+   direction that matters -- it never merges the wrong two -- and leaves you
+   tidying duplicates.
+2. **Match on the agent's email DOMAIN first, then name.** Much better hit
+   rate; risks attaching to the wrong company where an agent uses a personal
+   or shared domain (gmail, a franchise's head-office domain).
+3. **Answer the report's question first** -- let the portal store the HubSpot
+   company id it is given -- and then this becomes exact for everything the
+   portal has ever written, with name matching only for the rest.
+
+**Not built.** Creating companies in your CRM is outward-facing and hard to
+undo, and every option above duplicates or mis-merges without your answer.
+Everything up to the write is ready.
+
 ### NM-M. Deleting the Reporting scope picker also deletes "view as". Item 15.
 
 **This is the one thing in items 15 and 20 I have not done, and it is a
