@@ -15,7 +15,49 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
-## SUPPLIER MONTHLY STATEMENTS (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+## SUPPLIER MONTHLY STATEMENTS, REVISED (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+
+> Supplier monthly commission statements: sent to the supplier's Management users who have statements switched on, addressed to the supplier. Only Opndoor admin can switch statements on or off for a supplier's users; supplier users cannot change it for themselves or colleagues. Opndoor admin can also add named email addresses that aren't portal users (e.g. a finance inbox) to receive a supplier's statement. Deploy to dev and check it there.
+
+**This supersedes the version sent minutes earlier**, kept below so the
+change is visible rather than silently overwritten. The first version said
+only who RECEIVES; this one also says who may SWITCH, and adds a third
+thing that is a build of its own.
+
+### IT REVERSES HALF OF Q4, AND THAT IS THE PART TO GET RIGHT
+
+Q4, two hours ago: "Monthly statements stay Management-only." I built that
+as: on the supplier rail, a supplier's Management may switch statements on,
+through the new `caller_leads_their_party()`.
+
+This instruction narrows it: **"Only Opndoor admin can switch statements on
+or off for a supplier's users; supplier users cannot change it for
+themselves or colleagues."**
+
+So on the supplier rail the setting is OPNDOOR-ONLY. The agency rail is
+untouched -- a Director still switches it for their own people. The two
+rails now differ on this one setting, which is why it needs its own
+predicate rather than another arm on a shared one.
+
+**What Q4 gave supplier Management stands for the other two settings**:
+event choices and being copied on colleagues' referrals. Only statements
+are withdrawn.
+
+### Three parts, and the third is a new capability
+
+1. **Receiving.** A supplier's Management users with the tick get their
+   supplier's statement, addressed to the SUPPLIER company -- not a person
+   and not an agency underneath it. On that rail `partner_id` IS the
+   company.
+2. **Switching.** Opndoor admin only, for a supplier's people. Narrower
+   than Q4 left it.
+3. **Named addresses that are not portal users.** New. Agencies and groups
+   already have a single `finance_email` column; Matt says "email
+   addresses", plural, so a supplier needs a LIST an admin maintains.
+
+---
+
+## SUPERSEDED: the first version of the supplier-statements instruction (sent minutes earlier, 2026-09-30, verbatim). ACTIVE. Top of the list.
 
 > Supplier monthly commission statements: a supplier's Management users who have statements switched on receive their supplier's monthly commission statement, addressed to the supplier. Deploy to dev and check it there.
 
