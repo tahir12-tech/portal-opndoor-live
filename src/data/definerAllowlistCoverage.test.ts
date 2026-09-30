@@ -162,8 +162,12 @@ describe('the definer allowlist', () => {
      exercised by name in a_supplier_gets_its_own_statement.test.sql, so
      none joins the uncovered list below. Supplier statements,
      2026-09-30. */
-  it('is 136 functions wide, and does not widen by accident', () => {
-    expect(allowlist.length).toBeLessThanOrEqual(136);
+  /* 136 -> 138, RAISED DELIBERATELY AND IN THE SAME COMMIT AS THE TWO
+     FUNCTIONS. `set_supplier_commission` and `supplier_commission_tiers`
+     are the supplier Commission tab's write and read. Both are exercised
+     by name in commission_is_set_in_one_place.test.sql. 2026-09-30. */
+  it('is 138 functions wide, and does not widen by accident', () => {
+    expect(allowlist.length).toBeLessThanOrEqual(138);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

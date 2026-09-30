@@ -197,8 +197,14 @@ insert into allowed(name) values
   ('set_receives_commission_statements'),
   ('set_receives_notifications'),
   ('set_referrer_leaderboard_mode'),
+  /* The one way a supplier's commission changes, and the reader the
+     same tab uses for its tiers (20261007090000). Both are called
+     from the supplier Commission tab and guarded inside with
+     is_admin + is_aal2. Covered by commission_is_set_in_one_place. */
+  ('set_supplier_commission'),
   ('set_user_scope'),
   ('staff_payment_page_token'),
+  ('supplier_commission_tiers'),
   ('trigger_crm_sync'),
   ('update_partner_settings'),
   ('user_notification_enabled'),
