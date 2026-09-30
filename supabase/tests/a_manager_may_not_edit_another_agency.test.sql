@@ -149,9 +149,20 @@ select throws_ok(
   '42501', 'You can only change this for people at or below your own position, in your own agency.',
   'and the RPC refuses another agency''s person, in a sentence that says why');
 
-select lives_ok(
+/* CHANGED BY MATT'S RULING OF 2026-09-30, and the change is the point.
+   This was `lives_ok`: a MANAGER could set who is copied on colleagues'
+   referrals for her own Negotiator. Matt has made that setting
+   Director-only -- "Two settings are Director-only... whether someone is
+   copied on colleagues' referrals within their position."
+
+   So the actor here is a Manager and is now refused, with the same sentence
+   she gets for another agency's person, because the reason is the same
+   shape: this is not hers to change. A Director doing it IS asserted, in
+   who_may_change_a_notification.test.sql. */
+select throws_ok(
   $$select public.set_receives_notifications('93000000-0000-0000-0000-00000000e0a4', true)$$,
-  'while her own Negotiator is allowed');
+  '42501', 'You can only change this for people at or below your own position, in your own agency.',
+  'and her own Negotiator is refused too, because this setting is now Director-only');
 
 select * from finish();
 rollback;

@@ -320,6 +320,36 @@ Deno.serve(async (req) => {
            A 5xx is the correct answer: Stripe retries a refund event, and retrying
            an unapplied refund is exactly what we want. */
         const { error: refundErr } = await service.rpc("apply_stripe_refund", { p_payment_intent: pi, p_refund_id: refundId, p_amount: refundAmount });
+
+        /* A PART REFUND IS REFUSED, AND THAT MUST NOT BECOME A RETRY LOOP.
+           Matt's rule is that Opndoor never gives part refunds, so
+           apply_stripe_refund raises 22023 on any amount that is not the
+           whole fee. But Stripe has ALREADY moved the money: this function
+           is recording a fact, not performing an action, and you cannot
+           refuse a fact.
+
+           Treated as an ordinary failure it would 500, Stripe would retry
+           for ever, and the application would never be marked at all --
+           still fully paid, commission still paid, deed still live. So this
+           is matched by code, reported LOUDLY with the guarantee and the
+           amount, and answered 200 so Stripe stops.
+
+           The row then still says paid while Stripe says partly refunded.
+           That divergence is deliberate and visible: somebody has to go and
+           look, which is the honest handling of something the business says
+           never happens. */
+        if (refundErr && (refundErr as { code?: string }).code === "22023") {
+          await service.rpc("report_ops_incident", {
+            p_type: "stripe_partial_refund_refused",
+            p_detail: `Payment intent ${pi}: Stripe reported a PART refund of ${refundAmount}. `
+              + `Opndoor does not give part refunds, so nothing has been recorded and the `
+              + `application still reads as paid. Refund ${refundId}. `
+              + `Reconcile in Stripe and decide whether this should be a full refund.`,
+          }).then(() => {}, () => {});
+          return new Response(JSON.stringify({ ok: false, refused: "part_refund" }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+
         if (refundErr) {
           await service.rpc("report_ops_incident", {
             p_type: "stripe_refund_not_applied",

@@ -1,32 +1,46 @@
-/* THE TICKBOX HAS TO EXIST WHERE THE PERSON IS.
+/* THE SETTING HAS TO BE REACHABLE WHERE THE PERSON IS.
  *
- * "Receives notifications" decides who is copied on every per-application
- * notification, the executed deed included. The rule for who may set it was
- * built in SQL (set_receives_notifications: an Opndoor admin, or an agency's
- * own Directors and Managers, for people at or below their own position), and
- * the control was put on ONE screen: the agency People tab, which only
- * Opndoor admin reaches.
+ * The rule for who may change somebody's notifications was built in SQL (an
+ * Opndoor admin, or an agency's own Director, for people at or below them),
+ * and the control was put on ONE screen: the agency People tab, which only
+ * Opndoor admin reaches. So for an agency's own Director the setting existed
+ * and was unreachable. A permission with no control is not a feature. That is
+ * the property this file protects, and it is unchanged.
  *
- * So for an agency's own Director the setting existed and was unreachable.
- * They could be told the rule and had no way to apply it. A permission with
- * no control is not a feature.
+ * WHAT CHANGED, 2026-09-30. The control was a loose "Receives notifications"
+ * tickbox in its own column. Matt's ruling made notifications per person and
+ * put all three settings on one panel, so the row now opens that panel
+ * instead of toggling a third of it in place. The assertions below follow the
+ * control to its new shape; two are rewritten rather than deleted because the
+ * property they check still holds:
  *
- * This asserts the Team-side control: present for a Director, present for a
- * Manager, on the rows they may act on and not on the rows they may not, and
- * absent entirely for a Negotiator (who has no team screen at all).
+ *   "is on the screen for a Director"            -> still, as a button
+ *   "is there for a Manager too"                 -> still, as a button
+ *   "not drawn on a row the viewer may not act on" -> unchanged in meaning
+ *   "is nowhere for a Negotiator"                -> unchanged (no Team screen)
+ *   "sends the person and the new value"         -> now: opens THAT person's
+ *                                                   panel. The write moved
+ *                                                   into the panel and is
+ *                                                   asserted there.
  *
- * WHAT IT DOES NOT ASSERT. That ticking it makes the deed arrive: that is a
+ * And one is DELETED rather than rewritten: "states the reason on a
+ * Negotiator row instead of drawing a tickbox". That cell said a Negotiator
+ * had nothing to widen. The resolver in 20261006160000 disagrees -- its
+ * `copies` arm does not filter on role, so a ticked Negotiator whose branch
+ * scope covers the referral IS copied. The old copy was wrong about the
+ * server; a Negotiator gets the same panel as anybody else, which is what the
+ * replacement assertion below says.
+ *
+ * WHAT IT DOES NOT ASSERT. That the setting makes the deed arrive: that is a
  * server rule and lives in pgTAP, in
  * supabase/tests/the_ticked_user_gets_the_deed.test.sql, where a real ladder
- * is resolved against a real application. A render test that mocked its way
- * to an email would be asserting the mock.
+ * is resolved against a real application.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
 import { ToastProvider } from '@/components/ui/Toast';
-import * as positionsService from '@/data/positionsService';
 import { hydrateCommissionVisibility } from '@/data';
 import { App } from '@/App';
 
@@ -43,7 +57,7 @@ async function openTeam(role: 'management' | 'referrer', director = true) {
   await waitFor(() => { if (!view.container.querySelector('.sb__user-role')) throw new Error('shell not ready'); });
   /* THE GROUPS OPEN CLOSED. Team collapses every block until the heading is
      clicked or a filter is typed, so a test that only waits sees no rows at
-     all and would pass for the wrong reason whatever the tickbox did. */
+     all and would pass for the wrong reason whatever the control did. */
   // A Negotiator has no Team screen at all, so there is nothing to expand and
   // waiting for a group would fail the case that is asserting its absence.
   if (role !== 'referrer') {
@@ -56,84 +70,78 @@ async function openTeam(role: 'management' | 'referrer', director = true) {
   return view;
 }
 
-/** Every notification tickbox on the page, by its stable aria-label prefix. */
-const ticks = (v: { container: HTMLElement }) =>
-  [...v.container.querySelectorAll('input[type="checkbox"]')]
-    .filter((el) => (el.getAttribute('aria-label') ?? '').startsWith('Receives notifications'));
+/** Every Notifications control on the page. */
+const controls = (v: { container: HTMLElement }) =>
+  [...v.container.querySelectorAll('.tm-person button')]
+    .filter((el) => el.textContent === 'Notifications');
 
-describe('the Receives notifications tickbox on Team', () => {
+describe('the Notifications control on Team', () => {
   it('is on the screen for a Director', async () => {
     const v = await openTeam('management', true);
-    expect(ticks(v).length).toBeGreaterThan(0);
-  });
-
-  it('says what it does, once, above the list rather than in every row', async () => {
-    const v = await openTeam('management', true);
-    // The shared sentence from positionsService, so Team and the agency People
-    // tab cannot describe the same setting differently.
-    expect(v.container.textContent ?? '').toMatch(/copied on every referral within the position they already hold/i);
+    expect(controls(v).length).toBeGreaterThan(0);
   });
 
   it('is there for a Manager too, who may set it for people below them', async () => {
     const v = await openTeam('management', false);
-    expect(ticks(v).length).toBeGreaterThan(0);
+    expect(controls(v).length).toBeGreaterThan(0);
   });
 
-  /* THE ROWS IT IS NOT ON. set_receives_notifications refuses somebody above
-     the caller, so drawing a control there would be a button that always
-     errors. `may` is already how this row decides its other actions, and this
-     follows it rather than inventing a second rule the SQL does not share. */
+  /* THE ROWS IT IS NOT ON. The server refuses somebody above the caller, so
+     drawing a control there would be a button that always errors. `mayTick`
+     is at-or-below, the client twin of caller_may_set_for, rather than a
+     second rule the SQL does not share. */
   it('is not drawn on a row the viewer may not act on', async () => {
     const v = await openTeam('management', false);
     const rows = [...v.container.querySelectorAll('.tm-person')];
-    const withTick = rows.filter((r) =>
-      [...r.querySelectorAll('input[type="checkbox"]')]
-        .some((el) => (el.getAttribute('aria-label') ?? '').startsWith('Receives notifications')));
+    const withControl = rows.filter((r) =>
+      [...r.querySelectorAll('button')].some((b) => b.textContent === 'Notifications'));
     // A Manager cannot act on a Director, so at least one row must be bare.
-    expect(withTick.length).toBeLessThan(rows.length);
+    expect(withControl.length).toBeLessThan(rows.length);
   });
 
   it('is nowhere for a Negotiator, who has no Team screen at all', async () => {
     const v = await openTeam('referrer');
-    expect(ticks(v).length).toBe(0);
+    expect(controls(v).length).toBe(0);
   });
 
-  /* A NEGOTIATOR'S ROW SAYS WHY, RATHER THAN SHOWING A DEAD CONTROL.
-     "Receives notifications" widens somebody to their whole position. A
-     Negotiator's position IS their own referrals, so there is nothing to
-     widen and the tickbox would do nothing whichever way it was set. An
-     always-inert control reads as a broken one, so the cell states the
-     reason instead. */
-  it('states the reason on a Negotiator row instead of drawing a tickbox', async () => {
+  /* A NEGOTIATOR'S ROW GETS THE SAME PANEL. It used to say "Own referrals"
+     and draw nothing, on the reasoning that there was no position to widen.
+     The deed resolver copies anybody ticked whose scope covers the referral
+     and does not filter on role, so that was never true; and the panel also
+     carries the event choices, which are a Negotiator's own to make. */
+  it('is drawn on an active Negotiator row like any other', async () => {
     const v = await openTeam('management', true);
+    const has = (r: Element) =>
+      [...r.querySelectorAll('button')].some((b) => b.textContent === 'Notifications');
     const negRows = [...v.container.querySelectorAll('.tm-person')]
       .filter((r) => r.querySelector('.role-tag')?.textContent === 'Negotiator');
-    // If the fixture ever stops containing one, this must fail rather than
+    const active = negRows.filter((r) => r.querySelector('.pill')?.textContent === 'Active');
+    const invited = negRows.filter((r) => r.querySelector('.pill')?.textContent === 'Invited');
+    // If the fixture ever stops containing either, this must fail rather than
     // pass vacuously over an empty list.
-    expect(negRows.length).toBeGreaterThan(0);
-    for (const r of negRows) {
-      expect(r.querySelector('.tm-person__notify')?.textContent).toMatch(/Own referrals/i);
-      expect(r.querySelectorAll('input[type="checkbox"]').length).toBe(0);
-    }
+    expect(active.length).toBeGreaterThan(0);
+    expect(invited.length).toBeGreaterThan(0);
+    for (const r of active) expect(has(r)).toBe(true);
+    /* AND NOT ON AN INVITATION. They have never signed in, so there are no
+       settings to hold and no address the panel could change anything for. */
+    for (const r of invited) expect(has(r)).toBe(false);
   });
 
-  /* AND TICKING IT ACTUALLY WRITES. Every assertion above is about whether the
-     control is DRAWN. A control that renders correctly and is wired to
-     nothing passes all five, which is the gap this closes: the click must
-     reach set_receives_notifications with that person and the new value.
-     What the server then does with it is asserted in SQL, not here. */
-  it('sends the person and the new value to the server when it is ticked', async () => {
-    const spy = vi.spyOn(positionsService, 'setReceivesNotifications');
+  /* AND IT ACTUALLY OPENS, FOR THAT PERSON. Every assertion above is about
+     whether the control is DRAWN. A control that renders correctly and is
+     wired to nothing passes all of them, which is the gap this closes: the
+     click must open the panel naming the person on that row. What the panel
+     then writes is asserted in its own tests and in SQL. */
+  it('opens the panel for the person on that row', async () => {
     const v = await openTeam('management', true);
-    const box = ticks(v)[0] as HTMLInputElement;
-    expect(box).toBeTruthy();
-    const wasOn = box.checked;
-    await act(async () => { fireEvent.click(box); });
-    await waitFor(() => expect(spy).toHaveBeenCalled());
-    const [userId, next] = spy.mock.calls.at(-1)!;
-    expect(typeof userId).toBe('string');
-    expect(userId.length).toBeGreaterThan(0);
-    // The value sent is the OPPOSITE of what the row showed, not a constant.
-    expect(next).toBe(!wasOn);
+    const row = [...v.container.querySelectorAll('.tm-person')]
+      .find((r) => [...r.querySelectorAll('button')].some((b) => b.textContent === 'Notifications'))!;
+    const name = row.querySelector('.tm-person__name')?.textContent?.replace(/You$/, '').trim();
+    expect(name).toBeTruthy();
+    const btn = [...row.querySelectorAll('button')].find((b) => b.textContent === 'Notifications')!;
+    await act(async () => { btn.click(); });
+    await waitFor(() => {
+      if (!document.body.textContent?.includes(`Notifications for ${name}`)) throw new Error('panel not open');
+    });
   });
 });

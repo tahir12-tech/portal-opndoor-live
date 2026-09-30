@@ -56,7 +56,7 @@ import {
   type Agency, type ManagedUser,
 } from '@/data';
 import * as positionsService from '@/data/positionsService';
-import { NOTIFY_LABEL, NOTIFY_NOTE, getNotificationTicks, setReceivesNotifications } from '@/data/positionsService';
+import { PersonNotifications } from '@/components/people/PersonNotifications';
 import { viewerShape, type ViewerShape } from '@/data/viewerShape';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
 import { useSession } from '@/session/SessionContext';
@@ -332,12 +332,11 @@ export function Team() {
   const [busy, setBusy] = useState(false);
   const [positionsByUser, setPositionsByUser] = useState<Record<string, positionsService.Position[]>>({});
   const [ownPositions, setOwnPositions] = useState<positionsService.Position[]>([]);
-  /* WHO IS COPIED. The setting is one boolean on the person, and the scope
-     it implies is the position they already hold, never a second setting.
-     Loaded for the whole visible list in one call, like the positions. */
-  const [notify, setNotify] = useState<Record<string, boolean>>({});
-  const [notifyBusy, setNotifyBusy] = useState<string | null>(null);
   const [posUser, setPosUser] = useState<ManagedUser | null>(null);
+  /* The person whose notifications panel is open. The bulk read of "who is
+     copied" that used to sit beside this went with the column: the panel
+     reads one person, when it is opened. */
+  const [notifUser, setNotifUser] = useState<ManagedUser | null>(null);
   /** The Change level chooser, and the one-line confirmation it asks before acting. */
   const [levelUser, setLevelUser] = useState<ManagedUser | null>(null);
   const [levelPick, setLevelPick] = useState<AgencyLevel | null>(null);
@@ -393,9 +392,6 @@ export function Team() {
       }));
       if (alive) setPositionsByUser(out);
     })();
-    getNotificationTicks(people.map((u) => u.id))
-      .then((t) => { if (alive) setNotify(t); })
-      .catch(() => { if (alive) setNotify({}); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [people.map((p) => p.id).join(','), version]);
@@ -501,25 +497,9 @@ export function Team() {
      mayChangeCommissionTick and topLevelHeld remain in positionsService for the
      admin screen and for the SQL guard that is the actual rule. */
 
-  /* THE VALUE THE SERVER SETTLED ON, and SQL's refusal word for word.
-     set_receives_notifications is the rule; a paraphrase here would be a
-     second copy of it that can be wrong, and an agency's own Directors and
-     Managers CAN be refused by it, so the sentence is one a customer reads. */
-  async function doSetNotify(userId: string, who: string, next: boolean) {
-    if (notifyBusy) return;
-    setNotifyBusy(userId);
-    try {
-      const now = await setReceivesNotifications(userId, next);
-      setNotify((t) => ({ ...t, [userId]: now }));
-      toast(now
-        ? `${who} is now copied on notifications for their position.`
-        : `${who} is no longer copied on notifications.`, 'ok');
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not change that.', 'error');
-    } finally {
-      setNotifyBusy(null);
-    }
-  }
+  /* doSetNotify stood here, for the tickbox column. The panel owns that
+     setting now, together with the event choices and the monthly statement,
+     and owns the toast and the reload with it. */
 
   async function run(fn: () => Promise<void>, success: string) {
     if (busy) return;
@@ -604,34 +584,21 @@ export function Team() {
         <span className={`role-tag ${pillCls}`}>{pillLabel}</span>
         <Pill variant={statusVariant}>{statusLabel}</Pill>
         <span className="tm-person__pos">{positionsService.describePosition(held, showLevel, u.role)}</span>
-        {/* WHO IS COPIED ON THIS PERSON'S REFERRALS. The rule for who may set
-            it lived in SQL and the control lived on one screen an agency
-            cannot reach, so an agency's own Directors had the permission and
-            no way to use it. Drawn only where `may` is true, which is the
-            same test the row's other actions use and the same shape
-            set_receives_notifications enforces: at or below your own
-            position, in your own agency. A Negotiator's scope is their own
-            referrals, so there is nothing to widen and the control would do
-            nothing. */}
-        <span className="tm-person__notify">
-          {pillLabel === 'Negotiator' ? (
-            <span className="soft" title="A Negotiator sees their own referrals, which is already their scope.">Own referrals</span>
-          ) : !mayTick || u.status === 'deactivated' ? (
-            <span className="soft">{'\u2014'}</span>
-          ) : (
-            <label className="tm-notify" title={NOTIFY_LABEL}>
-              <input
-                type="checkbox"
-                checked={!!notify[u.id]}
-                disabled={busy || notifyBusy !== null}
-                aria-label={`${NOTIFY_LABEL}: ${u.name || userEmail(u)}`}
-                onChange={(e) => void doSetNotify(u.id, u.name || userEmail(u), e.target.checked)}
-              />
-              <span>{notify[u.id] ? 'Yes' : 'No'}</span>
-            </label>
-          )}
-        </span>
         <div className="tm-person__acts">
+          {/* NOTIFICATIONS, ON THE PERSON. A loose "Receives notifications"
+              tickbox stood in its own column here. It was one of three
+              places the same subject was split across, which is what walk
+              fix 12 was about, and it could only ever answer a third of the
+              question: not which events this person is told about, and not
+              whether they get a monthly statement.
+
+              `mayTick` is AT OR BELOW, not strictly below, and so is not
+              `may`: a person may always change their own event choices, and
+              `may` is false on your own row because it governs things done
+              TO somebody. It is the client twin of caller_may_set_for. */}
+          {mayTick && u.status !== 'pending' && (
+            <Button variant="quiet" size="sm" disabled={busy} onClick={() => setNotifUser(u)}>Notifications</Button>
+          )}
           {/* NOTHING AT ALL AGAINST SOMEONE AT OR ABOVE YOU. `may` is false for
               your own row too, since self is somebody at your own level, which is
               why the old !isSelf tests have gone rather than been kept beside it.
@@ -836,13 +803,6 @@ export function Team() {
         )}
       </div>
 
-      {/* SAID ONCE, ABOVE THE LIST, rather than in every row's title attribute.
-          The sentence is the one positionsService exports, so Team and the
-          agency People tab cannot describe the same setting differently, which
-          is how two screens end up teaching two different rules for one
-          boolean. */}
-      <p className="tm-notify-note">{NOTIFY_NOTE}</p>
-
       <div className="tm-blocks">
         {filtering && matchCount === 0 ? (
           /* Said once, here, rather than as an empty state inside every group:
@@ -920,6 +880,14 @@ export function Team() {
           targets={scopeTargets}
           onClose={() => setPosUser(null)}
           onSaved={() => { setPosUser(null); void refreshData().then(refresh); }}
+        />
+      )}
+
+      {notifUser && (
+        <PersonNotifications
+          userId={notifUser.id}
+          personName={notifUser.name || userEmail(notifUser)}
+          onClose={() => setNotifUser(null)}
         />
       )}
 

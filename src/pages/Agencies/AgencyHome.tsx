@@ -36,9 +36,6 @@ import {
 } from '@/data';
 import {
   getPositionsForUsers, getDeedRecipients, getOrgDeedReadiness,
-  getCommissionStatementTicks, setReceivesCommissionStatements,
-  getNotificationTicks, setReceivesNotifications,
-  COMMISSION_STATEMENT_LABEL, COMMISSION_STATEMENT_NOTE, NOTIFY_LABEL, NOTIFY_NOTE,
   type DeedReadiness,
 } from '@/data/positionsService';
 import { setNodeRate, getCommissionSplits, previewNodeRate, agencyReferencingMode, setAgencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
@@ -52,8 +49,8 @@ import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
-import { NotificationMatrix } from '@/components/NotificationMatrix';
-import { agencyLevelOf, AGENCY_LEVELS, setAgencyLevel, type AgencyLevel, type Role } from '@/data';
+import { PersonNotifications } from '@/components/people/PersonNotifications';
+import { agencyLevelOf, AGENCY_LEVELS, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions } from '@/components/people/PersonActions';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
@@ -148,7 +145,7 @@ const SOURCE_LABEL: Record<'standard' | 'agreement' | 'rate', string> = {
 
 export function AgencyHome() {
   const { key } = useParams<{ key: string }>();
-  const { role, partnerScope, dataVersion, refresh: refreshSession } = useSession();
+  const { role, seesCommission, currentUserId, partnerScope, dataVersion, refresh: refreshSession } = useSession();
   const toast = useToast();
   const decoded = decodeURIComponent(key ?? '');
   const isAdmin = role === 'superadmin';
@@ -195,16 +192,13 @@ export function AgencyHome() {
   const [people, setPeople] = useState<{ group: Placed[]; agency: Record<string, Placed[]>; branch: Record<string, Placed[]>; total: number }>({ group: [], agency: {}, branch: {}, total: 0 });
   const [usersById, setUsersById] = useState<Record<string, ManagedUser>>({});
   const [deedRecipients, setDeedRecipients] = useState<Record<string, string>>({});
-  /* Who receives the monthly commission statement, by user id. Read off
-     users.receives_commission_statements in one query rather than carried on
-     ManagedUser: hydrate's user list is shared by every screen in the portal
-     and a boolean two screens read does not belong in it. */
-  const [ticks, setTicks] = useState<Record<string, boolean>>({});
-  const [notify, setNotify] = useState<Record<string, boolean>>({});
-  const [notifyBusy, setNotifyBusy] = useState<string | null>(null);
-  const [tickBusy, setTickBusy] = useState<string | null>(null);
+  /* The two tickbox columns that used to sit here -- "Notifications" and
+     "Statements", each with its own row-level busy flag and its own bulk read
+     -- are gone with walk fix 12. Both settings are now on the person's own
+     Notifications panel, next to their event choices, which is where somebody
+     looking for "what does this person get emailed" actually goes. */
   useEffect(() => {
-    if (!org || !partner) { setPeople({ group: [], agency: {}, branch: {}, total: 0 }); setDeedRecipients({}); setTicks({}); setNotify({}); return; }
+    if (!org || !partner) { setPeople({ group: [], agency: {}, branch: {}, total: 0 }); setDeedRecipients({}); return; }
     let alive = true;
     const groupId = org.kind === 'group' ? org.group.id : undefined;
     const agencyIds = new Set(agencies.map((a) => a.id).filter(Boolean) as string[]);
@@ -234,12 +228,6 @@ export function AgencyHome() {
       })
       .catch(() => { if (alive) setPeople({ group: [], agency: {}, branch: {}, total: 0 }); });
     getDeedRecipients(branchIds).then((m) => { if (alive) setDeedRecipients(m); }).catch(() => { if (alive) setDeedRecipients({}); });
-    getCommissionStatementTicks(users.map((u) => u.id))
-      .then((t) => { if (alive) setTicks(t); })
-      .catch(() => { if (alive) setTicks({}); });
-    getNotificationTicks(users.map((u) => u.id))
-      .then((t) => { if (alive) setNotify(t); })
-      .catch(() => { if (alive) setNotify({}); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org, partner, role, dataVersion, tick]);
@@ -452,50 +440,9 @@ export function AgencyHome() {
     } finally { setSavingRow(false); }
   };
 
-  /* Turn one person's monthly commission statement on or off.
-     No refreshSession() and no bump(): one boolean moved, nothing else on this
-     page reads it, and re-hydrating the whole org tree to redraw a checkbox
-     would collapse the tab the administrator is standing in. */
-  /* WHO IS COPIED. Same shape as doSetTick below and for the same reasons: the
-     value the RPC settled on, and SQL's refusal word for word. Unlike the
-     commission tick, an agency's own Directors and Managers may set this for
-     people at or below their position, so a customer can actually see that
-     refusal and it has to read as a sentence rather than a code. */
-  const doSetNotify = async (userId: string, who: string, next: boolean) => {
-    if (notifyBusy) return;
-    setNotifyBusy(userId);
-    try {
-      const now = await setReceivesNotifications(userId, next);
-      setNotify((t) => ({ ...t, [userId]: now }));
-      toast(now
-        ? `${who} is now copied on notifications for their position.`
-        : `${who} is no longer copied on notifications.`, 'ok');
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not change that.', 'error');
-    } finally {
-      setNotifyBusy(null);
-    }
-  };
-
-  const doSetTick = async (userId: string, who: string, next: boolean) => {
-    if (tickBusy) return;
-    setTickBusy(userId);
-    try {
-      // The value the RPC settled on, not the one asked for, so the screen
-      // shows the row rather than its own optimism.
-      const now = await setReceivesCommissionStatements(userId, next);
-      setTicks((t) => ({ ...t, [userId]: now }));
-      toast(now
-        ? `${who} now receives commission statements.`
-        : `${who} no longer receives commission statements.`, 'ok');
-    } catch (e) {
-      // SQL's refusal, word for word. The rule lives there, and paraphrasing it
-      // here would be a second copy of it that is free to be wrong.
-      toast(e instanceof Error ? e.message : 'Could not change that.', 'error');
-    } finally {
-      setTickBusy(null);
-    }
-  };
+  /* doSetNotify and doSetTick lived here, one per tickbox column. Both are on
+     the person's Notifications panel now, which owns the toast and the
+     reload, so there is nothing for this page to hold. */
 
   // A pending person has not accepted; withdrawing the invitation removes them.
   const doCancelInvite = async (userId: string, who: string) => {
@@ -521,6 +468,18 @@ export function AgencyHome() {
   const [levelFor, setLevelFor] = useState<{ userId: string; name: string; current: string } | null>(null);
   const [levelPick, setLevelPick] = useState<AgencyLevel | null>(null);
   const [posFor, setPosFor] = useState<{ id: string; name: string } | null>(null);
+  const [notifFor, setNotifFor] = useState<{ id: string; name: string } | null>(null);
+
+  /* WHO MAY OPEN WHOSE NOTIFICATIONS. The client twin of the server's
+     `caller_may_set_for`: at or below you, and yourself. An admin is above
+     everybody, so this is only ever load-bearing for an agency's own
+     Director or Manager, who is drawn no other row action at all. */
+  const actor: Actor = useMemo(
+    () => ({ id: currentUserId, role, seesCommission }),
+    [currentUserId, role, seesCommission],
+  );
+  const mayNotify = (r: { userId: string; role: string; seesCommission: boolean }) =>
+    mayActOnOrEqual(actor, { id: r.userId, role: r.role as Role, seesCommission: r.seesCommission });
 
   /** Everywhere an admin could place somebody in THIS org: the same reach the
       Overview tree draws, so the picker cannot offer a node off this page. */
@@ -758,10 +717,6 @@ export function AgencyHome() {
               <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setPFilter({ level: '', position: '', agency: '', branch: '', status: '', q: '' })}>Clear filters</button>
             )}
           </div>
-          {/* The column needs a sentence to be readable, and a sentence does not
-              fit in a table head. Said once, above the table it governs. */}
-          <p className="ah-stmt-note">{NOTIFY_NOTE}</p>
-          {isAdmin && <p className="ah-stmt-note">{COMMISSION_STATEMENT_NOTE}</p>}
           {peopleShown.length === 0 ? (
             <div className="ah-empty">Nobody matches those filters.</div>
           ) : (
@@ -771,8 +726,6 @@ export function AgencyHome() {
                 {manyAgencies && <th>Agency</th>}
                 {manyOffices && <th>Office</th>}
                 <th>Status</th>
-                <th>Notifications</th>
-                {isAdmin && <th>Statements</th>}
                 <th />
               </tr></thead>
               <tbody>
@@ -791,63 +744,6 @@ export function AgencyHome() {
                       : r.status === 'deactivated'
                         ? <Pill variant="muted">Deactivated</Pill>
                         : <Pill variant="paid">Active</Pill>}</td>
-                    {/* COPIED ON THIS PERSON'S POSITION. The referrer always
-                        receives their own referral's notifications; this is
-                        who else does. A Negotiator holds no position and their
-                        scope is their own referrals, so there is nothing for a
-                        tick to widen and the cell says so instead of offering
-                        a control that would do nothing. */}
-                    <td>
-                      {r.agencyLevel === 'Negotiator' ? (
-                        <span className="soft" title="A Negotiator sees their own referrals, which is already their scope.">Own referrals</span>
-                      ) : r.status === 'deactivated' ? (
-                        <span className="soft">{EMPTY}</span>
-                      ) : !isAdmin ? (
-                        /* READ-ONLY FOR AN OPNDOOR MANAGER. Round 6, M11: this
-                           control had no isAdmin gate, unlike the commission
-                           tick in the next column, but nav gives an
-                           opndoor_manager the Agencies section and
-                           set_receives_notifications passes only on is_admin()
-                           or app_role() = 'management'. An opndoor_manager is
-                           neither, so every click raised 42501. The VALUE is
-                           still worth showing them -- they answer "why did
-                           this person not get it?" -- so it is shown, and only
-                           the control is withheld. */
-                        <span className="soft" title={NOTIFY_LABEL}>{notify[r.userId] ? 'Yes' : 'No'}</span>
-                      ) : (
-                        <label className="ah-stmt" title={NOTIFY_LABEL}>
-                          <input
-                            type="checkbox"
-                            checked={!!notify[r.userId]}
-                            disabled={notifyBusy !== null}
-                            aria-label={`${NOTIFY_LABEL}: ${r.name || r.email}`}
-                            onChange={(e) => void doSetNotify(r.userId, r.name || r.email, e.target.checked)}
-                          />
-                          <span>{notify[r.userId] ? 'Yes' : 'No'}</span>
-                        </label>
-                      )}
-                    </td>
-                    {isAdmin && (
-                      <td>
-                        {/* A pending invite has never signed in, so
-                            commission_statement_recipients will not write to
-                            them and the switch would do nothing. Shown anyway
-                            when it is already on, so a tick can always be
-                            switched off wherever it ended up. */}
-                        {r.status === 'active' || ticks[r.userId] ? (
-                          <label className="ah-stmt" title={COMMISSION_STATEMENT_LABEL}>
-                            <input
-                              type="checkbox"
-                              checked={!!ticks[r.userId]}
-                              disabled={tickBusy !== null}
-                              aria-label={`${COMMISSION_STATEMENT_LABEL}: ${r.name || r.email}`}
-                              onChange={(e) => void doSetTick(r.userId, r.name || r.email, e.target.checked)}
-                            />
-                            <span>{ticks[r.userId] ? 'Yes' : 'No'}</span>
-                          </label>
-                        ) : <span className="soft">{EMPTY}</span>}
-                      </td>
-                    )}
                     <td className="num">
                       <PersonActions
                         person={r}
@@ -857,6 +753,8 @@ export function AgencyHome() {
                         onCancelInvite={(id, who) => void doCancelInvite(id, who)}
                         onChangeLevel={(p) => { setLevelPick(null); setLevelFor(p); }}
                         onPosition={setPosFor}
+                        onNotifications={setNotifFor}
+                        mayNotify={mayNotify(r)}
                       />
                     </td>
                   </tr>
@@ -975,6 +873,8 @@ export function AgencyHome() {
                         onCancelInvite={(id, who) => void doCancelInvite(id, who)}
                         onChangeLevel={(p) => { setLevelPick(null); setLevelFor(p); }}
                         onPosition={setPosFor}
+                        onNotifications={setNotifFor}
+                        mayNotify={mayNotify(r)}
                       />
                     </td>
                   </tr>
@@ -1465,14 +1365,11 @@ export function AgencyHome() {
       )}
 
       {tab === 'people' && PeopleTab()}
-      {/* WHO IS TOLD WHAT, on the People tab because that is where the "Receives
-          notifications" tick already lives: the tick says WHICH PEOPLE are
-          copied, and this says WHICH EVENTS they are copied on. Q-03. One
-          agency is one party; a group page has no single matrix, so it is
-          drawn only when the page is focused on one. */}
-      {tab === 'people' && agencies.length === 1 && agencies[0]?.id && (
-        <NotificationMatrix party={{ agencyId: agencies[0].id }} />
-      )}
+      {/* The "Who is told what" grid stood here. It was one set of switches
+          for the whole agency, so it could not answer the question anybody
+          arriving at it actually had -- what does THIS person get emailed --
+          and a Director changing one row changed it for all their colleagues.
+          Settings are per person now, on the person's own row. */}
       {tab === 'commission' && canSeeCommission && CommissionTab()}
 
       {/* REFERRALS — follows the selected node, with one click back to the top. */}
@@ -1567,6 +1464,15 @@ export function AgencyHome() {
           targets={scopeTargets}
           onClose={() => setPosFor(null)}
           onSaved={() => { setPosFor(null); refreshSession(); bump(); }}
+        />
+      )}
+      {/* No bump() on close: the panel owns its own reload and this page no
+          longer reads any of what it changes. */}
+      {notifFor && (
+        <PersonNotifications
+          userId={notifFor.id}
+          personName={notifFor.name}
+          onClose={() => setNotifFor(null)}
         />
       )}
       {editAgreement && (

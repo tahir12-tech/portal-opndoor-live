@@ -291,15 +291,26 @@ select ok(
 select set_config('request.jwt.claims',
   '{"sub":"96000000-0000-0000-0000-0000000000e2","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
-select throws_ok(
+/* CHANGED BY MATT'S RULING OF 2026-09-30. These two asserted that nobody
+   at an agency could set this -- it was Opndoor's alone. He has given it to
+   Directors: "Two settings are Director-only: turning monthly commission
+   statements on or off (and only for people who can see commission)."
+
+   And the actor here IS a Director, whatever the old assertion text called
+   her: the fixture at line 69 is 'Agency Director', management with
+   sees_commission true. So the old descriptions said "manager" about
+   somebody the data has always made a Director, which is part of why the
+   change reads as surprising.
+
+   What still holds, and is asserted in who_may_change_a_notification:
+   a real Manager cannot, a Negotiator cannot, and nobody at all can switch
+   it on for somebody who may not see commission. */
+select lives_ok(
   $$select public.set_receives_commission_statements('96000000-0000-0000-0000-0000000000e3', true)$$,
-  '42501',
-  'Who receives a commission statement is set by Opndoor, not by the agency.',
-  'an agency manager cannot set it, not even inside her own agency');
-select throws_ok(
+  'a Director may now set it for a Director at or below her, inside her own agency');
+select lives_ok(
   $$select public.set_receives_commission_statements('96000000-0000-0000-0000-0000000000e2', false)$$,
-  '42501', null,
-  'nor turn her own off, which is the route somebody would actually try');
+  'and may turn her own off, being at or below herself');
 
 select * from finish();
 rollback;

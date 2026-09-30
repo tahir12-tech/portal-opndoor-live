@@ -79,6 +79,14 @@ insert into allowed(name) values
   ('assert_may_grant_position'),
   ('attach_user_to_agency'),
   ('authorise_password_reset'),
+  /* The two ladder questions the three notification setters share
+     (20261006920000). Both read only the CALLER and grant nothing on their
+     own: caller_is_director is the Director capability test, and
+     caller_may_set_for is at-or-below within the caller's own POSITION --
+     never partner_id, because every agency shares the house partner.
+     Covered by who_may_change_a_notification.test.sql. */
+  ('caller_is_director'),
+  ('caller_may_set_for'),
   ('clear_branch_deed_recipient'),
   ('commission_preview'),
   ('commission_split_batch'),
@@ -144,6 +152,12 @@ insert into allowed(name) values
   ('origin_is_agent_estate'),
   ('origin_referencing_mode'),
   ('partner_active_key_count'),
+  /* The whole panel in one round trip, including a flag PER SECTION saying
+     whether the caller may change that section -- so the screen can only
+     ever offer what the server will accept. Bounded by the same ladder as
+     the setters. Covered by
+     a_person_panel_says_what_you_may_change.test.sql. */
+  ('person_notification_panel'),
   ('reconciliation_queue'),
   ('referral_fee_preview'),
   ('referrer_league'),
@@ -159,7 +173,15 @@ insert into allowed(name) values
   ('set_branch_deed_recipient'),
   ('set_group_rates'),
   ('set_home_branch'),
+  /* Notifications became per person (20261006900000). set_my_notification
+     writes only auth.uid()'s own row and refuses a locked type by name;
+     user_notification_enabled is the read the send path makes. Both are
+     covered by notifications_are_per_person.test.sql. Placed in sort order
+     rather than appended, because the list is asserted sorted so that two
+     people adding to it cannot collide. */
+  ('set_my_notification'),
   ('set_node_rate'),
+  ('set_notification_for'),
   ('set_notification_setting'),
   ('set_ops_route'),
   ('set_receives_commission_statements'),
@@ -169,6 +191,7 @@ insert into allowed(name) values
   ('staff_payment_page_token'),
   ('trigger_crm_sync'),
   ('update_partner_settings'),
+  ('user_notification_enabled'),
   ('user_within_caller_scope'),
   ('viewer_runs_eligibility_journey');
 

@@ -201,10 +201,19 @@ Deno.serve(async (req) => {
                is not lost -- somebody has to be told to place a recipient. */
             if (parked) {
               parkedCount += 1;
+              /* `.then(ok, err)`, NOT `.catch`. A Supabase query builder is a
+                 THENABLE and implements `then` only; `.catch` is undefined on
+                 it, so the previous line threw a TypeError before the RPC was
+                 even awaited. The outer handler caught that, the whole nightly
+                 job returned 500, and every remaining reminder went unsent --
+                 one guarantee with no recipient silenced the rest. Found by
+                 `deno check` the day Deno was installed; the same two-argument
+                 shape is already used in send-deed-to-agent, renewal-notices
+                 and stripe-webhook. */
               await service.rpc("report_ops_incident", {
                 p_type: "expiry_reminder_unaddressed",
                 p_detail: `${r.guarantee_ref}: ${parked}`,
-              }).catch(() => {});
+              }).then(() => {}, () => {});
               await service.from("activity_log").insert({
                 application_id: r.application_id, kind: "expiry_reminder_parked",
                 message: `Expiry reminder not sent: ${parked}.`, actor: "System", visibility: "internal",

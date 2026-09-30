@@ -19,8 +19,8 @@ export * from './activityService';
 export * from './leagueService';
 export * from './exportsService';
 export * from './usersService';
-export * from './notificationMatrixService';
-export * from './opsRoutingService';
+// notificationMatrixService and opsRoutingService went with the two grids
+// they fed. Notifications are per person now: personNotifications.ts.
 export * from './settingsService';
 export * from './reconciliationService';
 export * from './addressService';

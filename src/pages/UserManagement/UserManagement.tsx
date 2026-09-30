@@ -15,8 +15,9 @@ import { LEVEL_PILL, holdsAgencyLevel, personLevelLabel } from '@/data/levelLabe
 import { ChangeLevelModal } from '@/components/people/ChangeLevelModal';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { PositionModal, type ScopeTarget } from './PositionModal';
+import { PersonNotifications } from '@/components/people/PersonNotifications';
 import * as positionsService from '@/data/positionsService';
-import { AGENCY_LEVELS, getAgencies, getGroups, levelsGrantableBy, mayActOn, type Actor, type AgencyLevel } from '@/data';
+import { AGENCY_LEVELS, getAgencies, getGroups, levelsGrantableBy, mayActOn, mayActOnOrEqual, type Actor, type AgencyLevel } from '@/data';
 import { isHousePartner } from '@/data/channel';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
@@ -153,6 +154,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   // Positions. Loaded for everybody on screen so the column can show what each
   // person covers, which is the question the column exists to answer.
   const [positionUser, setPositionUser] = useState<ManagedUser | null>(null);
+  const [notifUser, setNotifUser] = useState<ManagedUser | null>(null);
   const [positionsByUser, setPositionsByUser] = useState<Record<string, positionsService.Position[]>>({});
   const [ownPositions, setOwnPositions] = useState<positionsService.Position[]>([]);
 
@@ -210,6 +212,15 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
 
   const canDeactivate = (u: ManagedUser) => u.status === 'active' && !isSelf(u) && !isLastActiveAdmin(u) && mayAct(u);
   const canEditRole = (u: ManagedUser) => !isSelf(u) && !isLastActiveAdmin(u) && mayAct(u);
+
+  /* WHOSE NOTIFICATIONS THIS READER MAY OPEN. AT OR BELOW, not strictly
+     below, and so not `mayAct`: a person may always change their own event
+     choices, and `mayAct` is false on your own row because it governs things
+     done TO somebody. A pending invite has never signed in, so there is
+     nothing to set and nobody to email. */
+  const canNotify = (u: ManagedUser) =>
+    u.status !== 'pending'
+    && mayActOnOrEqual(actor, { id: u.id, role: u.role, seesCommission: u.seesCommission === true });
 
   // ---- role-aware framing ----
   let eyebrow = 'Administration · opndoor admin';
@@ -450,6 +461,10 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
         {canEditRole(u) && (holdsAgencyLevel(u)
           ? <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); setLevelUser(u); }}><Icon name="org" />Change level</button>
           : <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('edit-role', u); }}><Icon name="edit" />Edit role</button>)}
+        {/* WALK FIX 10: "reached from their row (the three dots menu)". Beside
+            "Set what they see" on purpose, because they answer the same shape
+            of question about a person. */}
+        {canNotify(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); setNotifUser(u); }}><Icon name="send" />Notifications</button>}
         {mayAct(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-password', u); }}><Icon name="lock" />Send password reset</button>}
         {mayAct(u) && <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reset-2fa', u); }}><Icon name="phone" />Reset two-factor</button>}
         {canDeactivate(u) && <>
@@ -829,6 +844,16 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
           targets={scopeTargets}
           onClose={() => setPositionUser(null)}
           onSaved={() => { void loadPositions(users.map((u) => u.id)); }}
+        />
+      )}
+
+      {/* Walk fixes 9 and 10. No reload on close: the panel owns its own, and
+          nothing on this table reads what it changes. */}
+      {notifUser && (
+        <PersonNotifications
+          userId={notifUser.id}
+          personName={notifUser.name || userEmail(notifUser)}
+          onClose={() => setNotifUser(null)}
         />
       )}
 

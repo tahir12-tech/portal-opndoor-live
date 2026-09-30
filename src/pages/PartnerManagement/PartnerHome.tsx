@@ -64,7 +64,7 @@ import { Button } from '@/components/ui/Button';
 import { Tag } from '@/components/ui/Tag';
 import { fmtRatePct } from '@/lib/format';
 import { agencyKey } from '@/pages/Agencies/AgencyHome';
-import { NotificationMatrix } from '@/components/NotificationMatrix';
+import { PersonNotifications } from '@/components/people/PersonNotifications';
 import './PartnerHome.css';
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
@@ -105,6 +105,7 @@ export function PartnerHome() {
   );
   const [keyCount, setKeyCount] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [notifFor, setNotifFor] = useState<{ id: string; name: string } | null>(null);
   const toast = useToast();
   const isAdmin = role === 'superadmin';
 
@@ -400,6 +401,7 @@ export function PartnerHome() {
                           onCancelInvite={(userId, who) => void runPerson('cancel', userId, who)}
                           onChangeLevel={() => toast('Change a supplier user\u2019s role from Users.')}
                           onPosition={() => {}}
+                          onNotifications={setNotifFor}
                         />
                       </td>
                     )}
@@ -410,18 +412,21 @@ export function PartnerHome() {
           )}
         </CardBody>
       </Card>
-      {/* WHO IS TOLD WHAT, under the people who would be told. Q-03. A supplier
-          IS a party: on that rail partner_id is the company, so the matrix is
-          keyed on the partner rather than on an agency under it. Its recipient
-          classes are the referrer and the branch agent contact -- there are no
-          positions on this rail, so there is no "ticked users" column, and the
-          server says so rather than this page assuming it.
+      {/* The "Who is told what" grid stood here, one set of switches for the
+          whole supplier. Settings are per person now, on each person's row
+          above, so there is nothing party-wide left to draw.
 
-          Editing a supplier's matrix stays with opndoor: that rail has no
-          Director level to hold the decision, so there is nobody else it could
-          be given to. The card renders read-only for anyone else. */}
-      {partner.dbId && <NotificationMatrix party={{ partnerId: partner.dbId }} title="Who is told what" />}
+          ONE THING THIS RAIL STILL CANNOT DO PER PERSON: the branch agent
+          contact is a contact record with no user row behind it, so it has no
+          per-person settings to hold. Its deliveries are unchanged. B3. */}
       </>)}
+      {notifFor && (
+        <PersonNotifications
+          userId={notifFor.id}
+          personName={notifFor.name}
+          onClose={() => setNotifFor(null)}
+        />
+      )}
     </>
   );
 }
