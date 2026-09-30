@@ -527,8 +527,15 @@ export function getTrend(view: TrendView, role: Role, scope: PartnerScope): Tren
      if it ever is not. */
   const rate = maySeeCommission(role) ? getRatesFor(scope).partner : 0;
   if (view === 'month') {
-    return TREND_MONTHS.map((m) => { const fees = Math.round(m[1] * AVG_RENT * 0.8); return { label: m[0], count: m[1], fees, comm: Math.round(fees * rate) }; });
+    /* The mock path carries the two new measures too. `payable` uses the
+       same modelled rate: this is the synthetic book, so there is no real
+       split to apportion and a zero would make the mock disagree with live
+       about whether the measure exists at all. */
+    return TREND_MONTHS.map((m) => {
+      const fees = Math.round(m[1] * AVG_RENT * 0.8);
+      return { label: m[0], count: m[1], fees, comm: Math.round(fees * rate), deeds: Math.round(m[1] * 0.6), payable: Math.round(fees * rate) };
+    });
   }
   const key = view === 'branch' ? 'branches' : view === 'agency' ? 'agencies' : 'referrers';
-  return scaleRows(SHAPE_FULL[key], 3.754, 3.832).map((r) => ({ label: r[0], count: r[1], fees: r[2], comm: Math.round(r[2] * rate), sub: r[3] }));
+  return scaleRows(SHAPE_FULL[key], 3.754, 3.832).map((r) => ({ label: r[0], count: r[1], fees: r[2], comm: Math.round(r[2] * rate), deeds: Math.round(Number(r[1]) * 0.6), payable: Math.round(Number(r[2]) * rate), sub: r[3] }));
 }

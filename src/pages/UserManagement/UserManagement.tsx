@@ -11,6 +11,8 @@
    and a confirmation dialog stating the consequence. Reachable by opndoor admin
    + Management (route guard).
    ===================================================================== */
+// Walk fix 19: the possessive is formed in one place.
+import { possessive } from '@/lib/format';
 import { LEVEL_PILL, holdsAgencyLevel, personLevelLabel } from '@/data/levelLabel';
 import { ChangeLevelModal } from '@/components/people/ChangeLevelModal';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -602,10 +604,10 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     const to = ROLE_META[editRole][0];
     setEditUser(null);
     setConfirm({
-      title: `Change ${u.name}'s role?`,
+      title: `Change ${possessive(u.name)} role?`,
       body: <><b>{from}</b> → <b>{to}</b>. Their access changes immediately at their next page load. {editRole === 'management' ? 'They will see everything in your organisation.' : editRole === 'referrer' ? 'They will see only their own referrals.' : ''}</>,
       confirmLabel: 'Change role',
-      success: `${u.name}’s role updated to ${to}.`,
+      success: `${possessive(u.name)} role updated to ${to}.`,
       run: () => updateUserRole(u.id, editRole),
     });
   }

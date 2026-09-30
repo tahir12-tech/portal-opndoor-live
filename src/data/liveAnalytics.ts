@@ -41,6 +41,8 @@ import { getPartner, getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
 import { payeesFor, orgRate, totalRate, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
 import { deliveryStateOf } from './deliveryState';
+// Walk fix 21: one rule for the line under a referrer's name.
+import { whereTheyWork, type WhereReader } from './whereTheyWork';
 // Walk fixes 8 and 16 share one rule for what is under guarantee, and when.
 import { inForceDuring } from './inForce';
 import { isHousePartner } from './channel';
@@ -361,6 +363,10 @@ interface Group {
   refs: number; paid: number; deed: number;
   /** Tenancy-grain denominators; see LiveAgg.sentTenancies for why. */
   refLets: Set<string>; paidLets: Set<string>;
+  /* WALK FIX 21. Where this person's referrals came from, gathered across
+     their rows: somebody who moved office has two, and the line has to be
+     able to say both rather than pick one. Only filled for referrer rows. */
+  agencies: Set<string>; branches: Set<string>;
   feesGross: number; refundValue: number;
   partnerComm: number; agentComm: number;
   partnerCommExcl: number; agentCommExcl: number;
@@ -406,13 +412,37 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
     // Their applications remain fully real in every other surface (money,
     // settlements, agency/branch groupings, exports).
     if (app.referrerRole === 'superadmin') return null;
-    // Nor does an application that nobody referred. A direct signup has no
-    // referrer at all (applications.referrer_id is nullable as of 20260812090000),
-    // and without this it would rank as a referrer called "(unknown)" whose
-    // volume grows every time the direct rail is used. Tested by
-    // referrer-exclusion.test.ts alongside the superadmin case.
+    /* Nor does an application that nobody referred. A direct signup has no
+       referrer at all (applications.referrer_id is nullable as of
+       20260812090000), and without this it would rank as a referrer whose
+       volume grows every time the direct rail is used.
+
+       WALK FIX 18: ASKED OF THE ID, NOT THE NAME. This tested `!app.referrer`,
+       which is the DISPLAY NAME, and hydrate fills that from
+       `referrer_name ?? joined.full_name ?? '(unknown)'`. Dev's ten direct
+       applications carry referrer_name = 'Direct signup' with a null
+       referrer_id, so the name was always truthy and the guard never fired --
+       the list showed "Direct signup" ranked as a Negotiator, which is what
+       Matt reported.
+
+       And not `referrerRole` either, which is the trap in the obvious fix:
+       it comes from the embedded users row and RLS can withhold that from a
+       reader who can still see the application. Dev has 17 agency
+       applications in that state, and keying on the role would drop real
+       referrals by real people while fixing the direct ones.
+
+       `referrerId === undefined` is the mock path, which has no such column
+       and whose rows all have real referrers; only an explicit null is "no
+       referrer". */
+    if (app.referrerId === null) return null;
     if (!app.referrer) return null;
-    return { id: `${app.partner}${S}${app.referrer}`, name: app.referrer || '(unknown)', sub: roleLabel(app.referrerRole, app.referrerSeesCommission), partner: '' };
+    /* WALK FIX 21. The sub was `roleLabel(...)`: "Negotiator", "Director".
+       Matt: "their level ... which is irrelevant. Show where they work
+       instead." Left EMPTY here and filled in groupRows below, because
+       where somebody works is gathered across their rows and this function
+       sees one row at a time -- a referrer with referrals from two offices
+       has to be able to say so. */
+    return { id: `${app.partner}${S}${app.referrer}`, name: app.referrer || '(unknown)', sub: '', partner: '' };
   }
   // month: bucket by the sent month (drives the referrer "monthly volume" chart)
   if (!app.sentAt) return null;
@@ -424,12 +454,15 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
     `seesComm` is the caller's answer to maySeeCommission: false means the rows carry
     no commission, and the ranking is unaffected because it has never been a
     commission ranking (fees, then refs, then name). */
-function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date, seesComm: boolean): LeagueRow[] {
+function groupRows(
+  set: FullApp[], key: GroupKey, start: Date, end: Date, seesComm: boolean,
+  reader: WhereReader = 'opndoor',
+): LeagueRow[] {
   const monthLabel = (d: Date) => `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`;
   const map = new Map<string, Group>();
   const get = (id: string, name: string, sub: string, partner: string): Group => {
     let g = map.get(id);
-    if (!g) { g = { id, name, sub, partner, refs: 0, paid: 0, deed: 0, refLets: new Set(), paidLets: new Set(), feesGross: 0, refundValue: 0, partnerComm: 0, agentComm: 0, partnerCommExcl: 0, agentCommExcl: 0 }; map.set(id, g); }
+    if (!g) { g = { id, name, sub, partner, refs: 0, paid: 0, deed: 0, refLets: new Set(), paidLets: new Set(), agencies: new Set(), branches: new Set(), feesGross: 0, refundValue: 0, partnerComm: 0, agentComm: 0, partnerCommExcl: 0, agentCommExcl: 0 }; map.set(id, g); }
     return g;
   };
   for (const app of set) {
@@ -457,6 +490,7 @@ function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date, seesCo
     const deedIn = inRange(app.deedAt, start, end);
     if (!sentIn && !paidIn && !deedIn) continue; // nothing in period for this entity
     const g = get(k.id, k.name, k.sub, k.partner);
+    if (key === 'referrer') { g.agencies.add(app.agency ?? ''); g.branches.add(app.branch ?? ''); }
     const letId = app.tenancyId ?? `solo:${app.ref}`;
     if (sentIn) { g.refs += 1; g.refLets.add(letId); }
     if (paidIn) {
@@ -469,7 +503,15 @@ function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date, seesCo
     }
     if (deedIn) g.deed += 1;
   }
-  const rows = [...map.values()].map(emit);
+  /* WALK FIX 21, and the reader decides what it says. An admin's list spans
+     agencies so it names both; an agency with several offices names the
+     office; a single-office agency gets no line, because every row would
+     say the same thing. `reader` is worked out once per call rather than
+     per row: it is a fact about the book, not about the person. */
+  const rows = [...map.values()].map((g) => (
+    key === 'referrer'
+      ? emit({ ...g, sub: whereTheyWork({ reader, agencies: [...g.agencies], branches: [...g.branches] }) })
+      : emit(g)));
   // Months sort chronologically (most recent first); entities sort by fees.
   if (key === 'month') return rows.sort((x, y) => monthOrder(y.name) - monthOrder(x.name));
   return rows.sort((x, y) => y.fees - x.fees || y.refs - x.refs || x.name.localeCompare(y.name)); // #104 fees, then refs, then name
@@ -478,6 +520,74 @@ function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date, seesCo
 function monthOrder(label: string): number {
   const [abbr, yr] = label.split(' ');
   return Number(yr) * 12 + MONTH_ABBR.indexOf(abbr);
+}
+
+/** What the monthly-volume trend can be measured in. Walk fix 17 added the
+ *  two that are Opndoor's own view of its book. */
+export type TrendMeasure = 'commission' | 'payable' | 'value' | 'count' | 'deeds';
+
+/**
+ * WHICH MEASURES THIS READER IS OFFERED, and in which order. Walk fix 17.
+ *
+ * "Opndoor doesn't earn commission, it pays it. For admin, the trend's
+ * options should be Opndoor's view: fees collected, commission payable,
+ * referrals sent, deeds issued, defaulting to fees collected. 'Commission
+ * earned' stays for agency and supplier users, where it's their money."
+ *
+ * THE OLD SERIES WAS NOT MERELY UNHELPFUL, IT WAS STRUCTURALLY ZERO. The
+ * trend's "commission" is the supplier cut, and `liveMonths` zeroes that on
+ * a house route because a house route's cut is Opndoor's own margin owed to
+ * nobody -- which is right, and is asserted in
+ * our_margin_is_not_theirs.test.sql. So an admin on the house rail could
+ * only ever see twelve bars of zero beside a tile saying GBP 3,232. The
+ * money model was correct and the CHART was offering a reader a series that
+ * cannot apply to them.
+ *
+ * FIRST IS THE DEFAULT, which is why the order is Matt's and not
+ * alphabetical, and why this returns a list rather than a set.
+ *
+ * AND A CUSTOMER IS NEVER OFFERED "payable". It is Opndoor's view of what
+ * leaves the business; an agency reading it would be reading its own income
+ * as an expense.
+ */
+export function trendMeasuresFor(
+  role: Role, seesCommission: boolean,
+): { value: TrendMeasure; label: string }[] {
+  if (role === 'superadmin' || role === 'opndoor_manager') {
+    return [
+      { value: 'value', label: 'Fees collected' },
+      { value: 'payable', label: 'Commission payable' },
+      { value: 'count', label: 'Referrals sent' },
+      { value: 'deeds', label: 'Deeds issued' },
+    ];
+  }
+  return [
+    // The measure itself is the commission surface here, so the OPTION is
+    // what gets gated, not the chart it draws.
+    ...(seesCommission ? [{ value: 'commission' as TrendMeasure, label: 'Commission earned' }] : []),
+    { value: 'value' as TrendMeasure, label: 'Fees collected' },
+    { value: 'count' as TrendMeasure, label: 'Referral count' },
+  ];
+}
+
+/**
+ * WHO IS READING, as far as the line under a referrer's name is concerned.
+ * Walk fix 21.
+ *
+ * Three answers, and only one of them is about a role: Opndoor staff read
+ * across agencies, and for everybody else what decides it is the SHAPE of
+ * their own book rather than their permissions. An agency Director and an
+ * agency Negotiator get the same line.
+ *
+ * COUNTED OFF THE SCOPED SET, BEFORE THE PERIOD FILTER. "An agency with more
+ * than one branch" is a fact about the agency, not about what it happened to
+ * refer this month -- counting inside the period would drop the second line
+ * from a two-office agency in a quiet month and put it back in a busy one.
+ */
+function readerFor(role: Role, set: FullApp[]): WhereReader {
+  if (role === 'superadmin' || role === 'opndoor_manager') return 'opndoor';
+  const branches = new Set(set.map((a) => (a.branch ?? '').trim()).filter(Boolean));
+  return branches.size > 1 ? 'multi-branch' : 'one-branch';
 }
 
 /** Live volume rows for the three dashboard charts (full lists; callers take top-N). */
@@ -490,7 +600,7 @@ export function liveVolume(role: Role, scope: PartnerScope, period: Period): { b
     branches: groupRows(set, 'branch', start, end, seesComm),
     agencies: groupRows(set, 'agency', start, end, seesComm),
     // A referrer's own third chart is their monthly volume; everyone else's is by referrer.
-    referrers: groupRows(set, isRef ? 'month' : 'referrer', start, end, seesComm),
+    referrers: groupRows(set, isRef ? 'month' : 'referrer', start, end, seesComm, readerFor(role, set)),
   };
 }
 
@@ -522,20 +632,36 @@ export function liveLeague(view: LeagueView, role: Role, scope: PartnerScope, pa
      and no row: the volume ranking IS the ranking, and it is the same table a
      Director sees with two columns removed. Nothing to substitute. */
   const seesComm = maySeeCommission(role);
-  const cur = groupRows(set, view, start, end, seesComm);
+  // Walk fix 21: "Same rule anywhere else referrers are listed (League,
+  // exports)." Ignored by groupRows for the agency, branch and month views.
+  const reader = readerFor(role, set);
+  const cur = groupRows(set, view, start, end, seesComm, reader);
   // #107 Week-over-week movement: rank the SAME table as it stood 7 days ago (the
   // window pulled back a week) and diff positions by entity (on the fly, no store).
   // A period shorter than a week has no comparable prior table, so movement is null.
   const prevEnd = new Date(end.getTime() - 7 * DAY);
   const priorRank = new Map<string, number>();
-  if (prevEnd > start) groupRows(set, view, start, prevEnd, seesComm).forEach((r, i) => priorRank.set(leagueKey(r), i));
+  if (prevEnd > start) groupRows(set, view, start, prevEnd, seesComm, reader).forEach((r, i) => priorRank.set(leagueKey(r), i));
   return cur.map((r, i) => {
     const pr = priorRank.get(leagueKey(r));
     return { ...r, movement: pr == null ? null : pr - i };
   });
 }
 
-export interface MonthRow { label: string; refs: number; fees: number; deeds: number; comm: number; }
+export interface MonthRow {
+  label: string; refs: number; fees: number; deeds: number;
+  /** Commission EARNED by the reader: the supplier cut, zero on a house
+      route because a house route's cut is Opndoor's own margin. */
+  comm: number;
+  /* WALK FIX 17. COMMISSION PAYABLE, which is the other side of the same
+     money and is what an Opndoor admin's page is about. `comm` above is
+     structurally zero for an admin looking at the house rail -- correctly,
+     and that is why the trend showed GBP 0 every month while the tile said
+     GBP 3,232. This is what leaves the business: the agency's cut plus a
+     real supplier's, net of refunds, matching the tile's own
+     `agentCommNet + supplierCommNet`. */
+  payable: number;
+}
 
 /** Trailing-12-month buckets: referrals sent, gross fees paid, deeds issued, and
     net partner commission (per-application rates, refunded apps excluded) per
@@ -552,7 +678,7 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
   const months: (MonthRow & { key: number })[] = [];
   for (let i = 0; i < 12; i++) {
     const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
-    months.push({ label: `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`, key: d.getFullYear() * 12 + d.getMonth(), refs: 0, fees: 0, deeds: 0, comm: 0 });
+    months.push({ label: `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`, key: d.getFullYear() * 12 + d.getMonth(), refs: 0, fees: 0, deeds: 0, comm: 0, payable: 0 });
   }
   const lo = months[0].key, hi = months[11].key;
   const idx = (d: Date) => d.getFullYear() * 12 + d.getMonth();
@@ -567,7 +693,18 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
          a NAMED partner configured 'opndoor_referenced' is still owed real
          commission, and zeroing by referencing mode would wipe a legitimate
          supplier settlement. :220 already draws the line this way. */
-      if (m) { m.fees += feeBaseFor(app); if (!app.refunded && seesComm) m.comm += feeBaseFor(app) * (isHousePartner(app.partner) ? 0 : app.partnerRate); }
+      if (m) {
+        m.fees += feeBaseFor(app);
+        if (!app.refunded && seesComm) m.comm += feeBaseFor(app) * (isHousePartner(app.partner) ? 0 : app.partnerRate);
+        /* WALK FIX 17. What Opndoor owes out on this fee: the agency's cut
+           (totalRate, always) plus a real supplier's (never a house route's,
+           which is Opndoor's own margin). The same two terms the tile's
+           headline adds, and the same refund rule. */
+        if (!app.refunded) {
+          m.payable += feeBaseFor(app) * totalRate(app);
+          if (!isHousePartner(app.partner)) m.payable += feeBaseFor(app) * app.partnerRate;
+        }
+      }
     }
     if (app.deedAt && idx(app.deedAt) >= lo && idx(app.deedAt) <= hi) { const m = at(app.deedAt); if (m) m.deeds += 1; }
   }
@@ -582,7 +719,7 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
      that for every caller it will ever have, including the ones that do not
      exist yet. The export carried a re-summing workaround for exactly one
      release; it is gone with this line. */
-  return months.map((m) => ({ label: m.label, refs: m.refs, fees: m.fees, deeds: m.deeds, comm: m.comm }));
+  return months.map((m) => ({ label: m.label, refs: m.refs, fees: m.fees, deeds: m.deeds, comm: m.comm, payable: m.payable }));
 }
 
 /* ---------- Tenant initials (privacy-preserving) ----------
@@ -957,17 +1094,31 @@ export function getCommissionStatements(role: Role, scope: PartnerScope, monthKe
     .sort((x, y) => y.total - x.total);
 }
 
-export interface TrendRow { label: string; count: number; fees: number; comm: number; sub?: string; }
+export interface TrendRow {
+  label: string; count: number; fees: number; comm: number;
+  /** Walk fix 17: Opndoor's own two measures. */
+  deeds: number; payable: number;
+  sub?: string;
+}
 
 /** Live 12-month trend: by-month or an entity breakdown, carrying real net
     partner commission (per-application rates) so it reconciles with the KPIs. */
 export function liveTrend(view: 'month' | 'branch' | 'agency' | 'referrer', role: Role, scope: PartnerScope): TrendRow[] {
   // Both paths carry a zero `comm` for a reader the predicate refuses: liveMonths
   // never adds it, and groupRows never applies a rate.
-  if (view === 'month') return liveMonths(role, scope).map((m) => ({ label: m.label, count: m.refs, fees: m.fees, comm: m.comm }));
+  if (view === 'month') return liveMonths(role, scope).map((m) => ({ label: m.label, count: m.refs, fees: m.fees, comm: m.comm, deeds: m.deeds, payable: m.payable }));
   const set = scopeFull(allFull(), role, scope);
   const end = nowRef();
   const start = new Date(end.getFullYear(), end.getMonth() - 11, 1);
   // Unrounded, for the same reason as liveMonths above.
-  return groupRows(set, view, start, end, maySeeCommission(role)).map((r) => ({ label: r.name, count: r.refs, fees: r.fees, comm: r.partnerComm, sub: r.sub || undefined }));
+  return groupRows(set, view, start, end, maySeeCommission(role), readerFor(role, set))
+    .map((r) => ({
+      label: r.name, count: r.refs, fees: r.fees, comm: r.partnerComm,
+      deeds: r.deed,
+      // Walk fix 17: both halves of what leaves the business. LeagueRow's
+      // partnerComm is already zero on a house route, so adding it here is
+      // the supplier cut and nothing else.
+      payable: r.agentComm + r.partnerComm,
+      sub: r.sub || undefined,
+    }));
 }

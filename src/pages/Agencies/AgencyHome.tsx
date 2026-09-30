@@ -27,6 +27,8 @@
    was fetch the splits and the negotiated agreement for them anyway and hold
    them in memory unshown; it no longer asks for either. See the two effects.
    ===================================================================== */
+// Walk fix 19: the possessive is formed in one place.
+import { possessive } from '@/lib/format';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -1273,7 +1275,7 @@ export function AgencyHome() {
                     {open && PeopleInline({ level: 'agency', list: agencyPeople, ctx: { level: 'brand', partner, agencyId: a.id, name: a.name } })}
                     {open && branchCount === 0 && (
                       <div className="ah-node-note">
-                        No branches yet. {a.name}'s manager can add them, or add one here.
+                        No branches yet. {possessive(a.name)} manager can add them, or add one here.
                       </div>
                     )}
                     {open && isAdmin && a.id && (
@@ -1438,7 +1440,7 @@ export function AgencyHome() {
         <Modal
           open
           width={460}
-          title={`Change ${levelFor.name}'s level`}
+          title={`Change ${possessive(levelFor.name)} level`}
           sub="This changes what they can see and do across the portal."
           onClose={() => { setLevelFor(null); setLevelPick(null); }}
           footer={<>

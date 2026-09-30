@@ -69,6 +69,17 @@ export interface FullApp {
   agencyId?: string;
   groupId?: string | null;
   referrer: string;
+  /** WHETHER THERE IS A REFERRER AT ALL, which is a different question from
+   *  what to call them. Walk fix 18: a direct signup has no referring person
+   *  (`applications.referrer_id` is nullable) but dev stores the LABEL
+   *  "Direct signup" in `referrer_name`, so every test of the display name
+   *  said yes and the direct rail ranked as a referrer.
+   *
+   *  Not answerable from `referrerRole` either: that comes from the embedded
+   *  users row, which RLS can withhold from a reader who can still see the
+   *  application. Dev has 17 agency applications in exactly that state. The
+   *  id is the only honest signal, so the id is carried. */
+  referrerId?: string | null;
   /** The referring user's actual role (superadmin/management/referrer), so the
       league can label who generated the referral truthfully. */
   referrerRole?: Role | null;
