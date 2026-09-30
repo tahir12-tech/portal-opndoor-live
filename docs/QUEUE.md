@@ -15,6 +15,57 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## VIEW AS: STOPGAP (instruction, 2026-09-30, verbatim). ACTIVE. Ahead of the queue-clearing run.
+
+> Stopgap now: hide View as on agency and group pages, keep it on supplier pages where it works, and make sure no banner can claim a party the figures don't reflect. Also fix the three small ones: the Expiries button for opndoor_manager, the invisible Not in network empty state, and last_named_at. Record the proper fix (every Reporting figure following the selection) as the first item after shipping, and don't start it now. Then carry on clearing the rest of the queue, deploy each to dev and check it there.
+
+### Why the stopgap is two changes and not one
+
+Hiding the button is NOT sufficient for "no banner can claim a party the
+figures don't reflect", and this is the part worth writing down. `scopeSel`
+is ONE shared selection: Applications still has its own Origin picker
+(`Applications.tsx`, walk fix 7), and it writes the same value. So an admin
+can choose "Regent's Lettings" on Applications, open Reporting, and get the
+false banner with no View as button involved at all. The selection also
+survives a browser restart from localStorage, and the recents list offers it
+back.
+
+So the second half of the stopgap is in `SessionContext`: `viewingAs` derives
+ONLY from a selection the figures actually follow, which today is
+`partner:<slug>` alone. `partnerFor` yields a real partner slug for that and
+ALL_PARTNERS for everything else, and every figure on Reporting is keyed on
+`partnerScope`. Narrowing the derivation is what makes the banner honest
+whatever route the selection arrived by.
+
+### AFTER SHIPPING, FIRST ITEM: every Reporting figure follows the selection
+
+**This is the proper fix and Matt has said not to start it now.**
+
+`scopeFull(apps, role, scope, sel)` already takes the selection as its fourth
+argument and applies `originMatches` AFTER isolation, which is the correct
+order and the whole design. **No production call site passes it** -- 19 of
+them, across `liveAnalytics.ts`, `exportsService.ts`, `viewerShape.ts` and
+`paymentMetrics.ts`, all stop at three arguments. So an `agency:` or
+`group:` selection narrows nothing anywhere.
+
+This is the same defect walk item 15 reported about the picker ("choosing an
+option does nothing") and NM-F's acceptance line is the specification for
+fixing it: *"Every tile, chart, export and statement on the page follows the
+selection."*
+
+The work is to thread the selection through the Reporting entry points --
+`getDashboardData`, `getTrend`, `getCommissionSettlement`,
+`getAgentCommissionSettlement`, `livePartnerBreakdown`, `liveScopeShape`,
+`liveByCustomer`, `liveAggregate`, `liveVolume`, `liveTrend` -- and the
+export builders, then restore View as on agency and group pages and widen
+`viewingAs` back. The test that must fail first measures a FIGURE, not a
+caption: the twelve assertions shipped with NM-M all checked the localStorage
+string and the banner text, and the older test named "viewing as one of our
+agencies" actually stages `partner:northwind`, the supplier arm that does
+narrow, so the agency path had never been measured by anything.
+
+---
+
 ## CLEAR THE QUEUE (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
 
 > Clear the whole queue now, without stopping: the Home wording change ("Awaiting decision, Sent and Paid show who is there now. Deed issued is all time."), round 6's M4, M9, M10, the eight lows, the allowlist ratchet, and walk fixes 22a and 23. Keep the audit to the three items you just built; no new review rounds. Deploy each to dev and check it there before marking it done.
