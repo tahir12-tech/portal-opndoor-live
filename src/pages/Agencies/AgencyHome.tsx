@@ -1203,9 +1203,19 @@ export function AgencyHome() {
         {/* NM-M. THE PICKER'S JOB, ON THE PAGE OF THE PARTY IT IS ABOUT.
             A group page views as the group: `isOneParty` accepts `group:`
             and `originMatches` resolves it to every agency under it, which
-            is exactly the party this page is already showing. */}
+            is exactly the party this page is already showing.
+
+            THE GROUP'S ID AND NOTHING ELSE. `originMatches` resolves a
+            group by `a.groupId === id` and `originLabel` by `getGroup(id)`,
+            and neither has a name fallback -- so a selection carrying a
+            name would narrow to nothing and produce a banner that cannot
+            say who you are looking at, which is worse than failing loudly.
+            AgencyGroup.id is a non-optional string, so there is nothing to
+            fall back FROM. An agency keeps its name, because Matt's ruling
+            of 2026-08-17 is that an agency exists once across partners and
+            is identified by name. */}
         <div className="page-head__actions">
-          <ViewAsButton scope={org.kind === 'group' ? `group:${org.group.id ?? org.group.name}` : `agency:${org.agency.name}`} />
+          <ViewAsButton scope={org.kind === 'group' ? `group:${org.group.id}` : `agency:${org.agency.name}`} />
         </div>
       </div>
 

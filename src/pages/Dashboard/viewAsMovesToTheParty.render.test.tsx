@@ -28,7 +28,9 @@ import { Dashboard } from './Dashboard';
 import { AgencyHome } from '@/pages/Agencies/AgencyHome';
 import { PartnerHome } from '@/pages/PartnerManagement/PartnerHome';
 import { KEYS } from '@/data/storage';
-import { hydrateCommissionVisibility, getAgencies, getPartners, ALL_PARTNERS } from '@/data';
+import { hydrateCommissionVisibility, getAgencies, getPartners, hydrateGroups, hydrateOrg, ALL_PARTNERS } from '@/data';
+import { ORG_SEED } from '@/data/mock/org';
+import type { Agency } from '@/data';
 
 const AGENCY = getAgencies(ALL_PARTNERS).filter((a) => !a.isPlaceholder)[0];
 const SUPPLIER = getPartners()[0];
@@ -127,6 +129,76 @@ describe('the View as button on an agency page', () => {
     const v = await open('superadmin', `/agencies/${encodeURIComponent(AGENCY.name)}`);
     await act(async () => { viewAsButton(v)!.click(); });
     expect(v.container.textContent).toMatch(/Viewing as/);
+  });
+});
+
+/* A GROUP PAGE IS A PARTY TOO, AND IT HAD NO COVERAGE AT ALL.
+ *
+ * `/agencies/:key` resolves a GROUP before it resolves an agency, and an
+ * agency that belongs to one renders its parent's page instead of its own.
+ * So on a group page the button must emit `group:<id>`, not `agency:<name>`
+ * -- a different shape, resolved by a different arm of `originMatches`, and
+ * named by a different arm of `originLabel`.
+ *
+ * NONE OF THAT WAS EXERCISED BY ANYTHING. The mock book has no group: the
+ * working copy starts `GROUPS = []` and the seed sets no `groupId` on any
+ * agency, so every existing test takes the agency arm and the group arm has
+ * never run, here or anywhere else in the suite. A branch that cannot be
+ * reached by the fixture is a branch nobody has read the output of, and on
+ * dev every agency of Matt's that sits under a group takes it.
+ *
+ * So this block builds the one thing the mock book will not give us. It is
+ * the same trick, and the same reason, as staging an agency WITH an id in
+ * customerLinksOpen.test.tsx.
+ */
+describe('the View as button on a group page', () => {
+  const GROUP = { id: 'grp-abc', partner: 'northwind', name: 'ABC group' };
+
+  beforeEach(() => {
+    hydrateGroups([GROUP]);
+    /* Two of the seed's agencies placed under the group, and the rest left
+       alone, so "narrowed to the group" is a real claim: there is something
+       outside it to exclude. */
+    const seeded: Agency[] = ORG_SEED.map((a, i) => (i < 2 ? { ...a, groupId: GROUP.id } : { ...a }));
+    hydrateOrg(seeded);
+  });
+  afterEach(() => { hydrateGroups([]); hydrateOrg(ORG_SEED.map((a) => ({ ...a }))); });
+
+  it('opens the group’s own page, not the agency’s', async () => {
+    const v = await open('superadmin', `/agencies/${encodeURIComponent(GROUP.id)}`);
+    expect(v.container.querySelector('.page-head__title')?.textContent).toBe(GROUP.name);
+  });
+
+  it('and offers View as there', async () => {
+    const v = await open('superadmin', `/agencies/${encodeURIComponent(GROUP.id)}`);
+    expect(buttons(v)).toContain('View as');
+  });
+
+  /* THE SHAPE MATTERS. `agency:<name>` here would view as one of the
+     group's members and silently drop the others. */
+  it('and selects the GROUP, by id, not one of its agencies', async () => {
+    const v = await open('superadmin', `/agencies/${encodeURIComponent(GROUP.id)}`);
+    await act(async () => { viewAsButton(v)!.click(); });
+    expect(localStorage.getItem(KEYS.scopeSel)).toBe(`group:${GROUP.id}`);
+  });
+
+  /* AND REPORTING CAN NAME IT. `originLabel` resolves a group through
+     getGroup(id), which matches on the id alone and has no name fallback --
+     so a selection carrying anything but the real id produces a banner that
+     cannot say who you are looking at. */
+  it('and the banner names the group', async () => {
+    localStorage.setItem(KEYS.scopeSel, `group:${GROUP.id}`);
+    const v = await open('superadmin', '/dashboard');
+    expect(v.container.textContent).toMatch(new RegExp(`Viewing as ${GROUP.name}`));
+  });
+
+  it('and stopping works from there like anywhere else', async () => {
+    localStorage.setItem(KEYS.scopeSel, `group:${GROUP.id}`);
+    const v = await open('superadmin', '/dashboard');
+    const stop = [...v.container.querySelectorAll<HTMLElement>('button')]
+      .find((b) => (b.textContent ?? '').trim() === 'Stop viewing as')!;
+    await act(async () => { stop.click(); });
+    expect(localStorage.getItem(KEYS.scopeSel) ?? '').toBe('');
   });
 });
 
