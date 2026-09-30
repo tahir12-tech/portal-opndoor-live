@@ -51,7 +51,37 @@ describe('getCommissionSettlement (prior calendar month, net of refunds, payable
   });
 });
 
-describe('buildLiveBordereau (tenancy-start anchored, live rows, frozen format)', () => {
+/* WALK FIX 8 CHANGED WHAT THIS DOCUMENT IS.
+ *
+ * It was "guarantees COMMENCING in the month". Matt: "only guarantees with
+ * an executed deed, IN FORCE DURING the period, and not refunded or
+ * withdrawn." So the window is no longer the month a guarantee was written
+ * in; it is every guarantee on cover at any point during it, and a deed the
+ * tenant has not signed is not one.
+ *
+ * WHAT MOVED IN THIS FILE, rather than being quietly re-baselined:
+ *
+ *   the fixtures gained `deedState`. They were written when `status ===
+ *   'deed'` was the whole test, so none of them said whether the tenant had
+ *   signed. GR-5 keeps a null deed state and stays excluded, as it always
+ *   was; GR-4 gains 'awaiting_tenant' so it is now excluded for TWO reasons
+ *   and the assertion below names both.
+ *
+ *   GR-4 is no longer "wrong month". Its cover starts on 1 June and runs a
+ *   year, so under the old rule it was out of May's bordereau and under the
+ *   new one it would be IN it -- May ends before its cover begins, so it is
+ *   still out, but for a different reason. It is now also unsigned, which is
+ *   the clause that keeps it out however the dates move.
+ *
+ *   one assertion is renamed from "commencing in the month" to what is now
+ *   true. The old wording described a rule that no longer exists, and
+ *   leaving it would have left the file passing while teaching the wrong
+ *   thing.
+ *
+ * The clause-by-clause coverage of the new rule is in
+ * bordereauIsTheBookInForce.test.ts; this file keeps the column mapping and
+ * the format, which are unchanged. */
+describe('buildLiveBordereau (in force during the month, live rows, frozen format)', () => {
   const rec = (ref: string, o: Partial<AppRecord>): AppRecord => ({
     ref, name: 'John Doe', title: 'Mr', role: '', addr1: '1 Street', postcode: 'E1 1AA', branch: 'Br', agency: 'Ag',
     rent: 1200, status: 'deed', date: '2026-05-10', referrer: 'R', owner: 0,
@@ -61,11 +91,12 @@ describe('buildLiveBordereau (tenancy-start anchored, live rows, frozen format)'
   // constructor here - this keeps the bordereau window/format timezone-robust.
   const LD = (y: number, m: number, d: number) => new Date(y, m - 1, d);
   const FULL: FullApp[] = [
-    full({ ref: 'GR-1', rent: 1200, partner: 'northwind', status: 'deed', tenancyStart: LD(2026, 5, 10), deedAt: LD(2026, 4, 20), expiry: LD(2027, 5, 9) }),
-    full({ ref: 'GR-2', rent: 1500, partner: 'harbourside', status: 'deed', tenancyStart: LD(2026, 5, 25), deedAt: LD(2026, 4, 30), expiry: LD(2027, 5, 24) }),
-    full({ ref: 'GR-3', rent: 2000, partner: 'northwind', status: 'deed', tenancyStart: LD(2026, 5, 5), deedAt: LD(2026, 4, 10), refunded: true }), // refunded -> excluded
-    full({ ref: 'GR-4', rent: 1000, partner: 'northwind', status: 'deed', tenancyStart: LD(2026, 6, 1), deedAt: LD(2026, 5, 10) }), // wrong month
-    full({ ref: 'GR-5', rent: 1000, partner: 'northwind', status: 'paid', tenancyStart: LD(2026, 5, 12) }), // not deed
+    full({ ref: 'GR-1', rent: 1200, partner: 'northwind', status: 'deed', deedState: 'executed', tenancyStart: LD(2026, 5, 10), deedAt: LD(2026, 4, 20), expiry: LD(2027, 5, 9) }),
+    full({ ref: 'GR-2', rent: 1500, partner: 'harbourside', status: 'deed', deedState: 'executed', tenancyStart: LD(2026, 5, 25), deedAt: LD(2026, 4, 30), expiry: LD(2027, 5, 24) }),
+    full({ ref: 'GR-3', rent: 2000, partner: 'northwind', status: 'deed', deedState: 'executed', tenancyStart: LD(2026, 5, 5), deedAt: LD(2026, 4, 10), expiry: LD(2027, 5, 4), refunded: true }), // refunded -> excluded
+    // Cover begins after May ends, AND nobody has signed it. Two reasons.
+    full({ ref: 'GR-4', rent: 1000, partner: 'northwind', status: 'deed', deedState: 'awaiting_tenant', tenancyStart: LD(2026, 6, 1), deedAt: LD(2026, 5, 10), expiry: LD(2027, 5, 31) }),
+    full({ ref: 'GR-5', rent: 1000, partner: 'northwind', status: 'paid', tenancyStart: LD(2026, 5, 12) }), // no deed at all
   ];
   hydrateFull(FULL);
   hydrateApplications([], [rec('GR-1', {}), rec('GR-2', { firstName: 'Jane', lastName: 'Roe' }), rec('GR-3', {}), rec('GR-4', {}), rec('GR-5', {})]);
@@ -73,12 +104,13 @@ describe('buildLiveBordereau (tenancy-start anchored, live rows, frozen format)'
 
   const out = buildLiveBordereau(2026, 4, 13.5); // May 2026
 
-  it('anchors the month on tenancy commencement date and buckets it', () => {
+  it('labels the month and counts what was on cover in it', () => {
     expect(out.monthLabel).toBe('May 2026');
     expect(out.issued).toBe(2);
   });
-  it('includes only Deed-Issued, non-refunded tenancies commencing in the month', () => {
-    expect(out.rows.map((r) => r[0]).sort()).toEqual(['GR-1', 'GR-2']); // GR-3 refunded, GR-4 wrong month, GR-5 not deed
+  it('includes only executed, non-refunded guarantees in force during the month', () => {
+    // GR-3 refunded, GR-4 starts after May and is unsigned, GR-5 has no deed.
+    expect(out.rows.map((r) => r[0]).sort()).toEqual(['GR-1', 'GR-2']);
   });
   it('maps real fields onto the 18 template columns (A–R)', () => {
     const g1 = out.rows.find((r) => r[0] === 'GR-1')!;

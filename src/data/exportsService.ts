@@ -27,6 +27,8 @@ import { viewerShape } from './viewerShape';
 // the PDF and the CSV the cron emails. See statementColumns.ts.
 import { dimensionCollapsed, statementShape, type StatementDimension } from './statementColumns';
 import { guaranteeExpiry, allFull, findRecord, type FullApp, guaranteedAnnual } from './applicationsService';
+// Walk fixes 8 and 16 share one rule for what is under guarantee, and when.
+import { inForceDuring } from './inForce';
 import { getLeague } from './leagueService';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { periodRange as realPeriodRange, scopeFull, basisInPeriod, inRange } from './paymentMetrics';
@@ -1733,9 +1735,9 @@ function bxIssuedCount(y: number, m0: number): number {
   return 58 + ((seed * 37) % 53);
 }
 
-/** Live bordereau: real applications whose TENANCY START falls in the month,
-    Deed Issued, excluding refunded. Format and columns are frozen identical to
-    the synthetic version; only the row source changes. Whole opndoor book. */
+/** Live bordereau: every guarantee IN FORCE during the month. Format and
+    columns are frozen identical to the synthetic version; only the row source
+    changes. Whole opndoor book. */
 // #116 The bordereau matches the "Guarantee Policy Premium Bordereau" template:
 // grouped two-row headers, 18 columns A–R, Landlord Name = agency, Insurance %
 // column = monthly rent × the premium rate as a £ amount (the rate lives in the
@@ -1773,8 +1775,23 @@ export function buildLiveBordereau(year: number, m0: number, insuranceRate: numb
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? '');
     return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
   };
+  /* WALK FIX 8. "Only guarantees with an executed deed, in force during the
+     period, and not refunded or withdrawn."
+
+     WAS: `status === 'deed' && !refunded && tenancy start inside the month`.
+     Three of the four clauses were missing and the fourth asked about the
+     wrong thing -- `status === 'deed'` is the deed ISSUED, and a deed out
+     for the tenant's signature was being reported to the insurer as cover.
+     "Tenancy start inside the month" asked when the cover was WRITTEN, so a
+     guarantee still running from an earlier month appeared on no bordereau
+     at all.
+
+     The rule is inForce.ts, shared with Reporting's "Total guaranteed rent
+     value" (item 16), because they are the same three clauses and an
+     underwriter's document disagreeing with our own reporting is worse than
+     either being wrong alone. */
   const eligible = allFull()
-    .filter((a) => a.status === 'deed' && !a.refunded && a.tenancyStart && a.tenancyStart >= mStart && a.tenancyStart <= mEnd)
+    .filter((a) => inForceDuring(a, mStart, mEnd))
     .sort((x, y) => (x.tenancyStart!.getTime() - y.tenancyStart!.getTime()) || x.ref.localeCompare(y.ref));
   /* EVERY DEED IS A ROW. The tenancy dedupe that used to live here elected one
      applicant per tenancy and dropped the rest, because one deed covered the

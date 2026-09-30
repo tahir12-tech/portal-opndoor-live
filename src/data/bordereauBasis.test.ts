@@ -16,11 +16,17 @@ import type { FullApp } from './applicationsService';
 const RENT = 2000;
 const start = new Date(2026, 5, 10);
 
-/** One deed-issued application whose FEE deliberately differs from its rent. */
+/* WALK FIX 8: `deedState: 'executed'` added to the fixture. This suite was
+   written when `status === 'deed'` was the whole test, so it never said
+   whether the tenant had signed. It is about the PREMIUM BASIS -- 13.5% of
+   one month's rent, per deed, whatever the party pays -- and that is
+   unchanged; the fixture now just says out loud that these are real
+   guarantees, which is what it always meant. No assertion moved. */
+/** One executed guarantee whose FEE deliberately differs from its rent. */
 const app = (fee: number): FullApp => ({
   ref: 'GR-BORD-1', partner: 'opndoor-agents', agency: 'Regent’s Lettings', branch: "Regent's Park",
   rent: RENT, fee, agentRate: 0.25, partnerRate: 0.25,
-  status: 'deed', refunded: false, tenancyStart: start, deedAt: start, expiry: null,
+  status: 'deed', deedState: 'executed', refunded: false, tenancyStart: start, deedAt: start, expiry: null,
 } as unknown as FullApp);
 
 beforeEach(() => hydrateFull([]));

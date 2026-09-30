@@ -22,7 +22,12 @@ function app(o: Partial<FullApp> & Pick<FullApp, 'ref' | 'rent' | 'status'>): Fu
 
 // All dates inside the all-time window [2024-09-01 .. 2026-06-26].
 const APPS: FullApp[] = [
-  app({ ref: 'A', rent: 1000, status: 'deed', owner: 1, agency: 'Foxglove', branch: 'South Kensington', referrer: 'Priya', sentAt: D('2026-01-10'), paidAt: D('2026-01-12'), deedAt: D('2026-01-15'), deedState: 'executed' }),
+  /* WALK FIX 16 gave A a tenancy start and an expiry. Guaranteed value is
+     the book IN FORCE now, so a guarantee with no cover dates is not in
+     force at any moment and contributes nothing -- which is right, and left
+     this fixture asserting 12,000 from a row that never said when its cover
+     ran. The dates are the ones its deed implies. */
+  app({ ref: 'A', rent: 1000, status: 'deed', owner: 1, agency: 'Foxglove', branch: 'South Kensington', referrer: 'Priya', sentAt: D('2026-01-10'), paidAt: D('2026-01-12'), deedAt: D('2026-01-15'), deedState: 'executed', tenancyStart: D('2026-01-20'), expiry: D('2027-01-19') }),
   app({ ref: 'B', rent: 2000, status: 'paid', owner: 0, agency: 'Foxglove', branch: 'Chelsea', referrer: 'James', sentAt: D('2026-02-01'), paidAt: D('2026-02-03'), deedState: 'awaiting_tenant', deedSentAt: D('2026-02-03') }),
   app({ ref: 'C', rent: 1500, status: 'paid', owner: 0, agency: 'Marylebone', branch: 'Marylebone', referrer: 'Sophie', sentAt: D('2026-03-01'), paidAt: D('2026-03-05'), refunded: true, refundedAt: D('2026-03-10'), refundedAmount: 1500 }),
   app({ ref: 'D', rent: 1800, status: 'sent', owner: 1, agency: 'Foxglove', branch: 'South Kensington', referrer: 'Priya', sentAt: D('2026-06-01') }),
@@ -47,7 +52,11 @@ describe('liveAggregate (event-in-period, net of refunds)', () => {
     expect(a.refundValue).toBe(1500);
     expect(a.feesNet).toBe(3000);
   });
-  it('guaranteed value = annualised rent over deeds issued in period', () => {
+  /* WALK FIX 16: in force DURING the period, not issued inside it. A's
+     cover runs from 20 Jan 2026 to 19 Jan 2027 and the all-time window ends
+     at the demo clock, so it is on cover and counts; B is out for
+     signature, C was refunded, D has no deed. */
+  it('guaranteed value = annualised rent over the deeds in force in the period', () => {
     expect(a.guaranteed).toBe(12000); // 1000 * 12
   });
   it('commission is net of refunds, per-partner rates', () => {
