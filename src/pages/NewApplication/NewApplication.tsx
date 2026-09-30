@@ -27,7 +27,7 @@ import { gbpPence } from '@/lib/format';
 import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, rebalanceShares, shareSumError } from './shareMath';
-import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, originReferencingMode, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, UNRESOLVED, orgSectionCopy, type OrgShape } from '@/data';
+import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, originReferencingMode, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, UNRESOLVED, newApplicationSectionCopy, type OrgShape } from '@/data';
 import { Modal } from '@/components/ui/Modal';
 import { TITLE_OPTIONS, validateReferral, validateTenant, parseFlexibleDate, toISODate, type ReferralValues, type TenantErrors, type TenantValues } from '@/lib/validation';
 import { useSession } from '@/session/SessionContext';
@@ -113,8 +113,15 @@ export function NewApplication() {
   // FULL_PICKER's heading is the SUPPLIER's question ("Which agency is letting
   // this property... You can add either on the fly"), which is the wrong thing to
   // print at an agency user for even one frame. See orgShapeService.
+  /* Declared here rather than beside Referred by below, because the section
+     copy and the one-office collapse both read it. */
+  const isAdminForm = role === 'superadmin';
   const [orgShape, setOrgShape] = useState<OrgShape>(UNRESOLVED);
-  const orgCopy = orgSectionCopy(orgShape);
+  /* WALK FIX 28. An admin is not asking any of the shape's questions, and
+     my_org_shape returns no row for them at all, so the section used to sit
+     on "Your office / Working out which office this referral is against"
+     for ever. See newApplicationSectionCopy. */
+  const orgCopy = newApplicationSectionCopy(isAdminForm, orgShape);
   /* ONE OFFICE: THE SECTION GOES, AND SO DOES THE FACT.
      A section heading, a number in the rail and a bordered card, all to tell
      somebody the name of the only office they work at. That furniture went first
@@ -136,7 +143,32 @@ export function NewApplication() {
      office, and collapsing on it would file the referral against whatever the
      picker happened to settle on. The picker makes the same call on the same
      field. */
-  const oneOffice = orgShape.collapseAgency && orgShape.collapseBranch && !!orgShape.onlyAgencyName;
+  /* WALK FIX 29, and never for an admin. "After choosing Supplier, Kestrel
+     Lettings, then an agency and branch, the choices disappear and the only
+     way to correct a wrong agency or branch is to cancel and start again."
+     That is this collapse: it hides the whole section once the org resolves
+     to a single office, which is right for somebody who works at one office
+     and has nothing to choose, and wrong for an admin, who is choosing
+     somebody ELSE's agency and branch and must be able to change it. */
+  const oneOffice = !isAdminForm
+    && orgShape.collapseAgency && orgShape.collapseBranch && !!orgShape.onlyAgencyName;
+
+  /* WALK FIX 27. "The section numbers repeat (Tenant and Property are both
+     '2'). Number the sections in order."
+
+     They were literals: Referred by 1, Tenant `isAdminForm ? 2 : 1`,
+     Property 2, Tenancy 3, the office section 4. So the admin form read
+     1, 2, 2, 3, 4 and the agency form read 1, 2, 3, 4 with Referred by
+     absent. Two of the five already knew about isAdminForm and three did
+     not, which is the whole of the bug -- and renumbering the literals
+     would leave the next conditional section to break it again.
+
+     Counted in render order instead. `sectionNo()` is called once per
+     section HEAD as the JSX is built, so a section that is not drawn takes
+     no number. Deliberately reset on each render, because a component
+     renders many times and a counter that survived would climb. */
+  let sectionCount = 0;
+  const sectionNo = () => { sectionCount += 1; return sectionCount; };
   const [org, setOrg] = useState({
     agencyNew: false, branchNew: false,
     agencyContactEmail: '', agencyContactName: '', agencyContactPhone: '', branchContactEmail: '',
@@ -159,7 +191,6 @@ export function NewApplication() {
      Everything below it used to be inferred from the branch AFTER the fact --
      the rail, the route and the fee -- which cannot answer the one question
      that decides them for an agency a supplier introduced. */
-  const isAdminForm = role === 'superadmin';
   const [referredBy, setReferredBy] = useState<'' | 'supplier' | 'agency'>('');
   const [routeSupplier, setRouteSupplier] = useState('');
   /* Complete means: a non-admin has nothing to answer, and an admin has
@@ -513,9 +544,13 @@ export function NewApplication() {
               way it always did. */}
           {isAdminForm && (
             <section className="card sec" id="sec-referredby">
-              <div className="sec__head"><span className="sec__num">1</span><div>
+              <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div>
                 <div className="sec__title">Referred by</div>
-                <div className="sec__sub">Who this referral came through. It decides the rail, the route and the commission, and nothing below can be filled in until it is answered.</div>
+                {/* WALK FIX 30, in Matt's own words. "Rail" and "route" are
+                    internal vocabulary: a rail is which of the three kinds of
+                    referral this is, a route is the partner record carrying
+                    it, and nobody outside this codebase has ever used either. */}
+                <div className="sec__sub">Who sent us this tenant. This decides the price and who is paid commission. Nothing below can be filled in until it is answered.</div>
               </div></div>
               <CardBody>
                 <div className="form-grid">
@@ -581,7 +616,7 @@ export function NewApplication() {
           {/* 1. TENANTS */}
           <section className="card sec" id="sec-tenant" aria-disabled={!referredByDone}
             style={referredByDone ? undefined : { opacity: 0.45, pointerEvents: 'none' }}>
-            <div className="sec__head"><span className="sec__num">{isAdminForm ? 2 : 1}</span><div>
+            <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div>
               <div className="sec__title">{joint ? 'Tenants' : 'Tenant'}</div>
               <div className="sec__sub">{joint ? `${tenantCount} tenants on one tenancy, one guarantee` : 'The tenant being referred'}</div>
             </div></div>
@@ -651,7 +686,7 @@ export function NewApplication() {
 
           {/* 2. PROPERTY */}
           <section className="card sec" id="sec-property">
-            <div className="sec__head"><span className="sec__num">2</span><div><div className="sec__title">Property</div><div className="sec__sub">The address being let</div></div></div>
+            <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div><div className="sec__title">Property</div><div className="sec__sub">The address being let</div></div></div>
             <CardBody>
               {addrMode === 'lookup' ? (
                 <div className="addr-lookup">
@@ -706,7 +741,7 @@ export function NewApplication() {
 
           {/* 3. TENANCY */}
           <section className="card sec" id="sec-tenancy">
-            <div className="sec__head"><span className="sec__num">3</span><div><div className="sec__title">Tenancy</div><div className="sec__sub">Rent{joint ? ', shares' : ''} and start date</div></div></div>
+            <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div><div className="sec__title">Tenancy</div><div className="sec__sub">Rent{joint ? ', shares' : ''} and start date</div></div></div>
             <CardBody>
               <div className="form-grid">
                 <Field label={<>Monthly rent (£) <Req /></>} htmlFor="ty-rent" error={err('rent')}
@@ -829,7 +864,7 @@ export function NewApplication() {
               the office is stated as one line under Tenancy instead. */}
           <section className={oneOffice ? 'sec-quiet' : 'card sec'} id="sec-branch">
             {!oneOffice && (
-              <div className="sec__head"><span className="sec__num">4</span><div><div className="sec__title">{orgCopy.title} <Req /></div><div className="sec__sub">{orgCopy.sub}</div></div></div>
+              <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div><div className="sec__title">{orgCopy.title} <Req /></div><div className="sec__sub">{orgCopy.sub}</div></div></div>
             )}
             <CardBody>
               {picker}
@@ -869,8 +904,15 @@ export function NewApplication() {
                 <a href="#sec-tenant" className="is-active"><span className="dot" />{joint ? 'Tenants' : 'Tenant'}</a>
                 <a href="#sec-property"><span className="dot" />Property</a>
                 <a href="#sec-tenancy"><span className="dot" />Tenancy</a>
+                {/* WALK FIX 28: "The side navigation should match the
+                    section names." It said "Agent & branch" while the
+                    section said "Agency and branch", "Your office" or
+                    "Agency and office" depending on who was reading, so for
+                    most readers the rail named a section that was not
+                    there. Taken from the same orgCopy the heading uses, so
+                    the two cannot say different things again. */}
                 {/* No link to a section that is not on the page. */}
-                {!oneOffice && <a href="#sec-branch"><span className="dot" />Agent &amp; branch</a>}
+                {!oneOffice && <a href="#sec-branch"><span className="dot" />{orgCopy.title}</a>}
               </div>
             </CardBody>
           </Card>
