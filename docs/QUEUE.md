@@ -39,6 +39,25 @@ looks at every day.
 
 So: no default, the run refuses, and Home and Health both say why.
 
+### AND THEN HE GAVE THE ADDRESS (2026-10-01, verbatim)
+
+> Invoice email: default it to accounts@opndoor.co, as a setting Opndoor admin can change later. No warning needed while it's set. Tell me where the setting lives.
+
+Three messages about one setting, and they converge rather than
+contradict:
+
+- **It defaults to `accounts@opndoor.co`** and an admin can change it.
+  That is the address, finally given.
+- **"No warning needed WHILE IT'S SET"** keeps the second message's
+  machinery rather than undoing it. The run still refuses and both
+  screens still warn if somebody ever clears it -- which is now an
+  unlikely case rather than the starting state, and is exactly the
+  shape a guard should have.
+
+**Where the setting lives:** Health, in the Settings card beside the
+bordereau insurance rate, which is where the only other app setting is
+already edited.
+
 ### THE REST IS READ OFF THE STATEMENT
 
 Total and reference both already exist on every statement, agency and
