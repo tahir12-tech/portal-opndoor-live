@@ -113,3 +113,7 @@
   line-height: 1.5;
   margin: 0;
 }
+
+/* A lead line under a section heading: the short example that makes the
+   table beneath it readable without a glossary. */
+.agr-hint--lead { margin-top: -4px; margin-bottom: 10px; }

@@ -42,11 +42,29 @@ import './AgreementEditor.css';
 
 export type PricingModel = 'standard' | 'flat' | 'bands' | 'tiered';
 
+/* THE FOUR SHAPES A DEAL TAKES, named and described for the person
+   agreeing one rather than for the table they are stored in. */
 const MODELS: { id: PricingModel; name: string; desc: string }[] = [
-  { id: 'standard', name: 'Standard terms', desc: "One month's rent, at the Opndoor standard rate. No agreement: the party is priced by the partner's own terms." },
-  { id: 'flat', name: 'Flat', desc: 'One fee basis and one rate for every referral, however many tenants and however many they send.' },
-  { id: 'bands', name: 'By tenant count', desc: 'The fee and the rate both move with the number of tenants on the tenancy. A joint tenancy is priced once, at the band its tenant count falls in.' },
-  { id: 'tiered', name: 'Volume tiered', desc: 'Priced by tenant count as above, with the rate stepping up as the party’s volume grows through the period.' },
+  {
+    id: 'standard',
+    name: 'Standard terms',
+    desc: 'No special deal. The tenant pays one month’s rent and we pay our usual commission.',
+  },
+  {
+    id: 'flat',
+    name: 'One price for everything',
+    desc: 'The same fee and the same commission on every referral, however many tenants and however many they send. For example: the tenant pays one month’s rent, we pay 20% of it.',
+  },
+  {
+    id: 'bands',
+    name: 'Price by number of tenants',
+    desc: 'The fee and the commission both change with how many tenants are on the tenancy. For example: 1 tenant pays one month’s rent, 2 tenants pay 5 weeks’ rent. A joint tenancy is priced once, then split between the tenants.',
+  },
+  {
+    id: 'tiered',
+    name: 'Commission grows with volume',
+    desc: 'Price by number of tenants as above, and pay more commission the more they send. For example: referrals 1 to 50 at 20%, 51 and over at 25%.',
+  },
 ];
 
 /* A week is rent x 12 / 52, so one month is 52/12 weeks, which does not
@@ -74,6 +92,82 @@ export function feeBasisShort(qty: number, unit: FeeBasisUnit): string {
 
 const pctOf = (r: number | null) => (r == null ? '' : String(Number((r * 100).toFixed(2))));
 
+/* =====================================================================
+   PLAIN ENGLISH, FOR SOMEBODY AGREEING A COMMERCIAL DEAL
+
+   Matt, 2026-10-01: "rewrite every heading and description in plain
+   English for someone agreeing a commercial deal, with a short example
+   where it helps. No internal terms ('party', 'additive', 'own line',
+   'coverage', 'fee basis', 'lands at') ... Show bands as '1 tenant',
+   '2 tenants', '3 or more', and tiers as 'Referrals 1 to 50: 20%, 51
+   and over: 25%'."
+
+   THE WORDS WERE THE DATA MODEL'S. A band is a row with `min`, `max`,
+   `weeks` and `unit`, and the screen said so: "From 1 To (blank) Fee
+   basis 1 Unit months". Every one of those is the right name for the
+   column in the table and the wrong name for the thing being agreed,
+   which is "1 tenant pays one month's rent". These three functions are
+   the translation, in one place, so the summary on the Overview tree
+   and the summary in the editor cannot word the same deal differently.
+   ===================================================================== */
+
+/** Who a band applies to: "1 tenant", "2 tenants", "3 or more". */
+export function tenantsWords(min: number, max: number | null): string {
+  const lo = Number.isFinite(min) && min > 0 ? min : 1;
+  /* OPEN-ENDED FROM ONE IS EVERY TENANCY, and saying "1 or more" there
+     would invite the reader to look for the band above it. */
+  if (max == null) return lo <= 1 ? 'any number of tenants' : `${lo} or more`;
+  if (max === lo) return `${lo} tenant${lo === 1 ? '' : 's'}`;
+  return `${lo} to ${max} tenants`;
+}
+
+/** A volume tier: "Referrals 1 to 50", "51 and over". */
+export function tierWords(from: number, to: number | null): string {
+  /* THE STORED LOWEST TIER STARTS AT 0, because the volume counter is 0
+     before the first referral of a period. Nobody agreeing a deal says
+     "referrals 0 to 50", so the words start at 1 while the number
+     stored stays 0. The two differ on purpose and the comment is here
+     so the next person does not "fix" one of them. */
+  const lo = Number.isFinite(from) ? Math.max(from, 1) : 1;
+  if (to == null) return `${lo} and over`;
+  return `${lo} to ${to}`;
+}
+
+/**
+ * The whole deal in a sentence, for somebody who is agreeing it.
+ *
+ * Replaces "The next referral lands at", which named a mechanism rather
+ * than a deal and used a word nobody outside this file would use.
+ */
+export function dealWords(
+  bands: { min: number; max: number | null; weeks: number; unit: FeeBasisUnit; rate: number | null }[],
+  tiers: { from: number; to: number | null; rate: number }[],
+): string {
+  if (!bands.length) return 'Nothing agreed yet.';
+  const tiered = tiers.length > 0;
+  const feeParts = bands.map((b) => {
+    const who = tenantsWords(b.min, b.max);
+    /* THE VERB AGREES. "1 tenant pay 3 weeks of rent" is the shape you
+       get from building a sentence out of a table row, and Matt's own
+       example says "1 tenant pays one month's rent, 2 tenants pay 5
+       weeks' rent". One band of exactly one tenant is the only singular
+       case; "any number of tenants" and "3 or more" are both plural. */
+    const verb = b.max === b.min && b.min === 1 ? 'pays' : 'pay';
+    const fee = feeBasisWords(b.weeks, b.unit);
+    if (tiered || b.rate == null) return `${who} ${verb} ${fee}`;
+    return `${who} ${verb} ${fee}, and we pay ${pctOf(b.rate)}% of that`;
+  });
+  const fee = feeParts.join('; ');
+  if (!tiered) return `${fee}.`;
+  const rates = tiers
+    .map((t) => `${tierWords(t.from, t.to)}: ${pctOf(t.rate)}%`)
+    .join(', ');
+  /* THE STEPS, AND NOTHING ELSE. A sentence explaining that commission
+     steps up with volume, immediately above a list of the steps, is the
+     list said twice. */
+  return `${fee}. We pay by volume. Referrals ${rates}.`;
+}
+
 /**
  * A negotiated agreement in one line, for the Overview tree.
  *
@@ -91,16 +185,23 @@ const pctOf = (r: number | null) => (r == null ? '' : String(Number((r * 100).to
 export function agreementSummary(a: AgreementView | null | undefined): string | null {
   if (!a || a.isStandard || !a.bands.length) return null;
   const tiered = a.tiers.length > 0;
+  /* NAMED BY WHO THEY APPLY TO, not just by the fee. "Agreement: 3
+     weeks, 5 weeks" left the reader to work out which was which; "1
+     tenant: 3 weeks at 20%" says it. Matt, 2026-10-01: "Show bands as
+     '1 tenant', '2 tenants', '3 or more'." */
   const parts = a.bands.map((b) => {
+    const who = tenantsWords(b.min, b.max);
     const basis = feeBasisShort(b.weeks, b.unit ?? 'weeks');
-    return tiered || b.rate == null ? basis : `${basis} at ${pctOf(b.rate)}%`;
+    return tiered || b.rate == null ? `${who}: ${basis}` : `${who}: ${basis} at ${pctOf(b.rate)}%`;
   });
-  const head = `Agreement: ${parts.join(', ')}`;
+  const head = `Deal: ${parts.join(', ')}`;
   if (!tiered) return head;
-  const rates = a.tiers.map((t) => t.rate);
-  const lo = pctOf(Math.min(...rates));
-  const hi = pctOf(Math.max(...rates));
-  return `${head}, ${lo === hi ? `${lo}%` : `${lo}% to ${hi}%`} by volume`;
+  /* THE TIERS IN FULL, in Matt's own shape: "Referrals 1 to 50: 20%, 51
+     and over: 25%". It used to collapse them to a range ("20% to 25% by
+     volume"), which hid where the step actually falls -- the one number
+     a commercial reader is checking. */
+  const rates = a.tiers.map((t) => `${tierWords(t.from, t.to)}: ${pctOf(t.rate)}%`).join(', ');
+  return `${head}. Referrals ${rates}`;
 }
 const toRate = (s: string) => (s.trim() === '' ? null : Number(s) / 100);
 
@@ -171,25 +272,33 @@ export function AgreementEditor({
      the administrator reads the deal back before committing it rather than
      after. Not a rule: the arithmetic below is display only, and SQL prices the
      referral. */
+  /* THE WHOLE DEAL, IN A SENTENCE. Matt, 2026-10-01: "Replace 'The next
+     referral lands at' with a plain summary of the whole deal."
+
+     It used to read "1 tenant: 3 weeks of rent at 20% · 2+ tenants: 5
+     weeks of rent at 25%", which is the table again with punctuation
+     between the cells. The reader already has the table; what they
+     cannot get from it is the deal read back to them as a sentence. */
   const preview = useMemo(() => {
-    if (model === 'standard') return "One month's rent at the Opndoor standard rate.";
-    const b = shownBands.map((x) => {
-      const who = x.max === '' ? (x.min === '1' ? 'every tenancy' : `${x.min}+ tenants`)
-        : x.min === x.max ? `${x.min} tenant${x.min === '1' ? '' : 's'}`
-        : `${x.min}-${x.max} tenants`;
-      /* THE WORDING FOLLOWS THE UNIT, rather than guessing it back out of the
-         number. This compared the quantity against 4.3333 within a tolerance,
-         which is how a month had to be recognised when a month could only be
-         written as weeks. Now the band says which it is. */
-      const fee = feeBasisWords(Number(x.weeks), x.unit);
-      // On a tiered agreement the band has no rate to name, and saying one
-      // would contradict the tiers below.
-      const rate = model === 'tiered' || x.rate === '' ? '' : ` at ${x.rate}%`;
-      return `${who}: ${fee}${rate}`;
-    }).join(' · ');
-    if (model !== 'tiered') return b;
-    const t = tiers.map((x) => `${x.from}${x.to === '' ? '+' : `-${x.to}`} at ${x.rate}%`).join(' · ');
-    return `${b}. The rate comes from the volume tiers: ${t}.`;
+    if (model === 'standard') {
+      return 'No special deal. The tenant pays one month’s rent and we pay our usual commission.';
+    }
+    return dealWords(
+      shownBands.map((x) => ({
+        min: Number(x.min) || 1,
+        max: x.max.trim() === '' ? null : Number(x.max),
+        weeks: Number(x.weeks),
+        unit: x.unit,
+        rate: model === 'tiered' || x.rate.trim() === '' ? null : Number(x.rate) / 100,
+      })),
+      model === 'tiered'
+        ? tiers.map((t) => ({
+            from: Number(t.from) || 0,
+            to: t.to.trim() === '' ? null : Number(t.to),
+            rate: Number(t.rate) / 100,
+          }))
+        : [],
+    );
   }, [model, shownBands, tiers]);
 
   async function save(confirmReplace = false, confirmBreach = false) {
@@ -258,8 +367,8 @@ export function AgreementEditor({
         open
         onClose={onClose}
         width={720}
-        title={`Commission for ${name}`}
-        sub="What this party is paid, and on what. Saved changes price the NEXT referral: every application already sent keeps the fee and the commission frozen onto it."
+        title={`Commission deal for ${name}`}
+        sub="What the tenant pays, and what we pay this agency out of it. A change applies to the next referral: anything already sent keeps the fee and commission it was created with."
         footer={<>
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
           <Button variant="primary" onClick={() => void save()} arrow disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
@@ -287,36 +396,65 @@ export function AgreementEditor({
         {model !== 'standard' && (
           <>
             <div className="agr-grid">
-              <Field label="Coverage" hint={coverage === 'all_in'
-                ? 'The entire commission for everything under this party. No branch below may hold a rate of its own.'
-                : 'This party’s own line. Rates at other levels still add on top.'}>
-                <select value={coverage} onChange={(e) => setCoverage(e.target.value as 'additive' | 'all_in')}>
-                  <option value="additive">Additive: this party’s own line</option>
-                  <option value="all_in" disabled={level === 'branch'}>All-in: everything underneath</option>
-                </select>
+              {/* "ADDITIVE" EXPLAINED, OR HIDDEN. Matt, 2026-10-01: 'Explain
+                  "Additive" in one sentence, or hide it if it isn't needed.'
+
+                  HIDDEN FOR A BRANCH, where it never was a choice: all-in
+                  is disabled at that level because there is nothing below
+                  a branch to cover, so the control offered one option and
+                  called it a decision.
+
+                  EXPLAINED EVERYWHERE ELSE, in the only terms that matter
+                  commercially: does this one deal settle the whole bill,
+                  or can the office below and the group above add their own
+                  on top. The words "additive", "coverage" and "own line"
+                  are gone; the stored values are untouched. */}
+              {level !== 'branch' && (
+                <Field
+                  label="Does this cover everyone?"
+                  hint={coverage === 'all_in'
+                    ? 'Yes. This is the whole commission on these referrals and no office underneath can be paid separately.'
+                    : 'No. Offices underneath and the group above can be paid their own commission on the same referral, on top of this.'}
+                >
+                  <select value={coverage} onChange={(e) => setCoverage(e.target.value as 'additive' | 'all_in')}>
+                    <option value="additive">No, others can also be paid</option>
+                    <option value="all_in">Yes, this is the whole commission</option>
+                  </select>
+                </Field>
+              )}
+              <Field label="Count referrals over" hint="How long before the count starts again at nought. Only matters if commission grows with volume.">
+                <PeriodSelect ariaLabel="Count referrals over" value={period} onChange={setPeriod}
+                  options={[{ value: 'month', label: 'A month' }, { value: 'quarter', label: 'A quarter' }, { value: 'year', label: 'A year' }]} />
               </Field>
-              <Field label="Volume period" hint="When the counter resets.">
-                <PeriodSelect ariaLabel="Volume period" value={period} onChange={setPeriod}
-                  options={[{ value: 'month', label: 'Month' }, { value: 'quarter', label: 'Quarter' }, { value: 'year', label: 'Year' }]} />
-              </Field>
-              <Field label="Volume counted per" hint="Whose referrals move the counter.">
-                <PeriodSelect ariaLabel="Counting scope" value={countingScope} onChange={setCountingScope}
-                  options={[{ value: 'branch', label: 'Branch' }, { value: 'agency', label: 'Agency' }, { value: 'group', label: 'Group' }]} />
+              <Field label="Count referrals from" hint="Whose referrals add to the count: one office, the whole agency, or the whole group.">
+                <PeriodSelect ariaLabel="Count referrals from" value={countingScope} onChange={setCountingScope}
+                  options={[{ value: 'branch', label: 'This office only' }, { value: 'agency', label: 'The whole agency' }, { value: 'group', label: 'The whole group' }]} />
               </Field>
             </div>
 
-            <div className="agr-sect">Fee and rate{model !== 'flat' ? ', by tenant count' : ''}</div>
+            <div className="agr-sect">
+              {model === 'flat' ? 'What the tenant pays, and what we pay' : 'Pricing by number of tenants'}
+            </div>
+            <p className="agr-hint agr-hint--lead">
+              {model === 'flat'
+                ? 'The fee is what the tenant pays for the guarantee. The commission is the share of that fee we pay the agency.'
+                : 'For example: 1 tenant pays one month’s rent, 2 tenants pay 5 weeks’ rent. A joint tenancy is priced once and then split between the tenants.'}
+            </p>
             <table className="dt agr-table">
               <thead>
                 <tr>
-                  <th>From</th><th>To</th><th>Fee basis</th><th>Unit</th>
+                  {/* NAMED FOR WHAT THEY ARE, not for the columns they are
+                      stored in. "Fee basis" and "Unit" are two halves of
+                      one idea -- how much rent the tenant pays -- so they
+                      are headed as one. */}
+                  <th>Tenants from</th><th>to</th><th>Fee</th><th aria-label="Weeks or months" />
                   {/* UNDER VOLUME TIERED THE BANDS CARRY THE FEE ONLY. The rate
                       comes from the tiers, which is what the model MEANS, and
                       the column was an editable box whose value the pricing
                       ignored: resolve_pricing_agreement coalesces the tier's
                       rate over the band's, so a number typed here on a tiered
                       agreement changed nothing and read as though it had. */}
-                  {model !== 'tiered' && <th>Rate %</th>}
+                  {model !== 'tiered' && <th>Commission %</th>}
                   {model !== 'flat' && <th aria-label="Remove" />}
                 </tr>
               </thead>
@@ -326,7 +464,7 @@ export function AgreementEditor({
                     <td><input className="inp" inputMode="numeric" value={b.min} onChange={(e) => setBand(i, { min: e.target.value })} aria-label={`Band ${i + 1} from`} /></td>
                     {/* Blank = "and above". Exactly one band may be open-ended. */}
                     <td><input className="inp" inputMode="numeric" value={b.max} placeholder="and above" onChange={(e) => setBand(i, { max: e.target.value })} aria-label={`Band ${i + 1} to`} /></td>
-                    <td><input className="inp" inputMode="decimal" value={b.weeks} onChange={(e) => setBand(i, { weeks: e.target.value })} aria-label={`Band ${i + 1} fee basis`} /></td>
+                    <td><input className="inp" inputMode="decimal" value={b.weeks} onChange={(e) => setBand(i, { weeks: e.target.value })} aria-label={`Band ${i + 1} fee`} /></td>
                     {/* THE UNIT, on Flat and on every band. A month is not
                         4.3333 weeks: 52/12 does not terminate, so "one month"
                         written as weeks priced at 0.99999 of the rent, twopence
@@ -334,14 +472,14 @@ export function AgreementEditor({
                         multiple of the rent instead. */}
                     <td>
                       <select value={b.unit} onChange={(e) => setBand(i, { unit: e.target.value as FeeBasisUnit })} aria-label={`Band ${i + 1} unit`}>
-                        <option value="weeks">Weeks</option>
-                        <option value="months">Months</option>
+                        <option value="weeks">weeks’ rent</option>
+                        <option value="months">months’ rent</option>
                       </select>
                     </td>
                     {model !== 'tiered' && (
                       <td>
                         <input className="inp" inputMode="decimal" value={b.rate}
-                          onChange={(e) => setBand(i, { rate: e.target.value })} aria-label={`Band ${i + 1} rate`} />
+                          onChange={(e) => setBand(i, { rate: e.target.value })} aria-label={`Band ${i + 1} commission percent`} />
                       </td>
                     )}
                     {model !== 'flat' && (
@@ -358,26 +496,30 @@ export function AgreementEditor({
             {model !== 'flat' && (
               <button type="button" className="ah-linkbtn agr-add"
                 onClick={() => setBands((bs) => [...bs, { min: String(bs.length + 1), max: '', weeks: '1', unit: 'months', rate: '' }])}>
-                <Icon name="plus" size={12} /> Add a band
+                <Icon name="plus" size={12} /> Add another tenant count
               </button>
             )}
             <p className="agr-hint">
-              The fee basis is the FEE. One month is standard terms; 3 weeks and 5 weeks are the common
-              negotiated bases. A tenancy is priced ONCE at the band its tenant count falls in, then split
-              between the tenants by share.
+              One month’s rent is our standard; 3 weeks and 5 weeks are the usual negotiated prices.
+              Leave <b>to</b> empty for the last row to mean &ldquo;and above&rdquo;.
             </p>
 
             {model === 'tiered' && (
               <>
-                <div className="agr-sect">Rate by volume</div>
+                <div className="agr-sect">Commission by volume</div>
+                <p className="agr-hint agr-hint--lead">
+                  How much we pay as they send more. For example: referrals 1 to 50 at 20%,
+                  51 and over at 25%. Leave <b>to</b> empty on the last row to mean
+                  &ldquo;and over&rdquo;.
+                </p>
                 <table className="dt agr-table">
-                  <thead><tr><th>From referral</th><th>To</th><th>Rate %</th><th aria-label="Remove" /></tr></thead>
+                  <thead><tr><th>Referrals from</th><th>to</th><th>Commission %</th><th aria-label="Remove" /></tr></thead>
                   <tbody>
                     {tiers.map((t, i) => (
                       <tr key={i}>
                         <td><input className="inp" inputMode="numeric" value={t.from} onChange={(e) => setTier(i, { from: e.target.value })} aria-label={`Tier ${i + 1} from`} /></td>
                         <td><input className="inp" inputMode="numeric" value={t.to} placeholder="and above" onChange={(e) => setTier(i, { to: e.target.value })} aria-label={`Tier ${i + 1} to`} /></td>
-                        <td><input className="inp" inputMode="decimal" value={t.rate} onChange={(e) => setTier(i, { rate: e.target.value })} aria-label={`Tier ${i + 1} rate`} /></td>
+                        <td><input className="inp" inputMode="decimal" value={t.rate} onChange={(e) => setTier(i, { rate: e.target.value })} aria-label={`Tier ${i + 1} commission percent`} /></td>
                         <td>
                           {tiers.length > 1 && (
                             <button type="button" className="ah-linkbtn" onClick={() => setTiers((ts) => ts.filter((_, j) => j !== i))}>Remove</button>
@@ -389,19 +531,21 @@ export function AgreementEditor({
                 </table>
                 <button type="button" className="ah-linkbtn agr-add"
                   onClick={() => setTiers((ts) => [...ts, { from: '', to: '', rate: '' }])}>
-                  <Icon name="plus" size={12} /> Add a tier
+                  <Icon name="plus" size={12} /> Add another volume step
                 </button>
               </>
             )}
 
-            <Field label="Note" span2 hint="What was agreed, and with whom. Shown on the Commission tab and kept in the audit.">
+            <Field label="What was agreed, and with whom" span2 hint="Shown on the Commission tab and kept with the record of changes.">
               <input className="inp" type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Agreed with …, signed …" />
             </Field>
           </>
         )}
 
+        {/* THE DEAL, READ BACK. Matt, 2026-10-01: "Replace 'The next
+            referral lands at' with a plain summary of the whole deal." */}
         <div className="agr-preview">
-          <span className="agr-preview__lbl">The next referral lands at</span>
+          <span className="agr-preview__lbl">This deal, in plain English</span>
           <span className="agr-preview__val">{preview}</span>
         </div>
 
@@ -411,8 +555,8 @@ export function AgreementEditor({
             which is stated rather than implied by an absent field. */}
         <p className="agr-hint">
           {live
-            ? <>In force since <b>{live.periodStart ?? 'the day it was agreed'}</b>. Saving replaces it from today; choose <b>Standard terms</b> to end it. An agreement cannot be future-dated, so enter it on the day it starts.</>
-            : <>This takes effect today and runs until it is ended or replaced. An agreement cannot be future-dated, so enter it on the day it starts.</>}
+            ? <>Agreed on <b>{live.periodStart ?? 'the day it was signed'}</b>. Saving replaces it from today; choose <b>Standard terms</b> to end it. A deal cannot be dated in the future, so enter it on the day it starts.</>
+            : <>This starts today and runs until it is ended or replaced. A deal cannot be dated in the future, so enter it on the day it starts.</>}
         </p>
       </Modal>
 
@@ -435,8 +579,8 @@ export function AgreementEditor({
           <p className="agr-confirm">{confirm.message}</p>
           <p className="agr-hint">
             {confirm.kind === 'replace'
-              ? 'Anything cleared is recorded against the party it belonged to, with your name on it.'
-              : 'Overriding this is recorded against both parties, with your name on it.'}
+              ? 'Whatever is cleared is recorded against the agency or office it belonged to, with your name on it.'
+              : 'Going ahead is recorded against both the agency and the office, with your name on it.'}
           </p>
         </Modal>
       )}

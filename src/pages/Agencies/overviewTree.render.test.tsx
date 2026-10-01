@@ -282,8 +282,12 @@ describe('an agreement replaces Set rate', () => {
   it('states the deal on the agency priced by one', async () => {
     const view = await openGroup();
     const regent = nodeNamed(view, '.ah-node--agency', "Regent's Lettings")!;
+    /* REWORDED 2026-10-01, and the point of the change is in the
+       string: it now says WHO each price applies to. "3 weeks at 20%,
+       5 weeks at 25%" named two prices and left the reader to work out
+       which tenancy got which. */
     expect(regent.querySelector('.ah-agreement-sum')!.textContent)
-      .toBe('Agreement: 3 weeks at 20%, 5 weeks at 25%');
+      .toBe('Deal: 1 tenant: 3 weeks at 20%, 2 or more: 5 weeks at 25%');
     /* A rate cannot be set alongside an agreement: the database refuses it, and
        the refusal used to arrive only after the round trip. */
     const buttons = [...regent.querySelectorAll('.ah-node-main button')].map((b) => (b.textContent ?? '').trim());

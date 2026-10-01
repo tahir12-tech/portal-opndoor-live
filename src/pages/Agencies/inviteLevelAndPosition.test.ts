@@ -173,21 +173,29 @@ function view(o: Partial<AgreementView>): AgreementView {
   };
 }
 
+/* REWORDED 2026-10-01. Matt: "Show bands as '1 tenant', '2 tenants', '3
+   or more', and tiers as 'Referrals 1 to 50: 20%, 51 and over: 25%'."
+
+   The old line was "Agreement: 3 weeks at 20%, 5 weeks at 25%", which
+   names two prices and leaves the reader to work out which applies to
+   whom; and for a tiered deal it collapsed the steps to "20% to 25% by
+   volume", which hides where the step actually falls -- the one number
+   a commercial reader is checking. */
 describe('wording an agreement', () => {
   /* Regent's real deal, which is the wording this was specified against. */
-  it('states each band as its basis and its rate', () => {
+  it('says who each price applies to, not just the price', () => {
     expect(agreementSummary(view({
       bands: [
         { min: 1, max: 1, weeks: 3, unit: 'weeks', rate: 0.2 },
         { min: 2, max: null, weeks: 5, unit: 'weeks', rate: 0.25 },
       ],
-    }))).toBe('Agreement: 3 weeks at 20%, 5 weeks at 25%');
+    }))).toBe('Deal: 1 tenant: 3 weeks at 20%, 2 or more: 5 weeks at 25%');
   });
 
   it('reads a month as a month, not as 4.33 weeks', () => {
     expect(agreementSummary(view({
       bands: [{ min: 1, max: null, weeks: 1, unit: 'months', rate: 0.15 }],
-    }))).toBe('Agreement: one month at 15%');
+    }))).toBe('Deal: any number of tenants: one month at 15%');
   });
 
   /* A VOLUME-TIERED BAND HAS NO RATE, by design: the rate lives on the tiers.
@@ -199,16 +207,27 @@ describe('wording an agreement', () => {
       bands: [{ min: 1, max: null, weeks: 3, unit: 'weeks', rate: null }],
       tiers: [{ from: 0, to: 10, rate: 0.2 }, { from: 11, to: null, rate: 0.25 }],
     }));
-    expect(s).toBe('Agreement: 3 weeks, 20% to 25% by volume');
+    expect(s).toBe('Deal: any number of tenants: 3 weeks. Referrals 1 to 10: 20%, 11 and over: 25%');
     expect(s).not.toContain('standard');
     expect(s).not.toContain('at ,');
   });
 
-  it('does not print a range when every tier pays the same', () => {
+  /* THE STORED LOWEST TIER STARTS AT 0, because the volume counter is 0
+     before the first referral of a period. Nobody agreeing a deal says
+     "referrals 0 to 10", so the WORDS start at 1 while the number stored
+     stays 0. Asserted because the two differ on purpose. */
+  it('and says the first tier starts at referral 1, though it is stored as 0', () => {
+    expect(agreementSummary(view({
+      bands: [{ min: 1, max: null, weeks: 3, unit: 'weeks', rate: null }],
+      tiers: [{ from: 0, to: 10, rate: 0.2 }],
+    }))).toContain('Referrals 1 to 10');
+  });
+
+  it('names every step rather than collapsing them to a range', () => {
     expect(agreementSummary(view({
       bands: [{ min: 1, max: null, weeks: 3, unit: 'weeks', rate: null }],
       tiers: [{ from: 0, to: null, rate: 0.2 }],
-    }))).toBe('Agreement: 3 weeks, 20% by volume');
+    }))).toBe('Deal: any number of tenants: 3 weeks. Referrals 1 and over: 20%');
   });
 
   /* NULL, NOT AN EMPTY SENTENCE. Standard terms are not an agreement, and the
