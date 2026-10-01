@@ -1030,7 +1030,9 @@ export function ApplicationDetail() {
 
   // ---- send deed to agent ----
   // Resolve the branch's effective contacts (agency default when the branch has none).
-  const resolved = contactForApplication(d.agency, d.branch);
+  // IN THIS RECORD'S OWN ESTATE. Two estates may hold the same company, and
+  // the deed goes to the contact in the one the referral came through.
+  const resolved = contactForApplication(d.agency, d.branch, d.partner);
   const eff = effectiveContacts(resolved.agency, resolved.branch);
   const sendSrc = eff.inherited ? `agency default for ${d.agency}` : `${d.branch} branch`;
   const isReferrer = role === 'referrer';

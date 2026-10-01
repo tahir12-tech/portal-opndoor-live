@@ -150,8 +150,23 @@ export async function setAgencyGroup(agencyId: string, groupId: string | null): 
 }
 
 /** Same as findAgency but returns null. Internal helper for createBranchOnTheFly. */
-function findAgencyByName(name: string): Agency | null {
-  return AGENCIES.find((a) => a.name === name) ?? null;
+function findAgencyByName(name: string, estate?: string | null): Agency | null {
+  /* THE ESTATE PICKS BETWEEN TWO RECORDS OF ONE NAME. Matt, 2026-10-01:
+     "Signed deeds on supplier referrals go to the branch contact in the
+     supplier's estate." The same real company can be a record of ours and
+     a record under a supplier, and by name alone this returned whichever
+     came first -- which, for a deed, is the wrong company's mailbox.
+
+     The SEND has always been right: `deed_delivery_target` resolves off
+     the application's agency_id and branch_id, which are rows and not
+     names. This is the client's PREDICTION of where it will go, and a
+     prediction that names the other estate's contact is a screen lying
+     about an email that has not been sent yet.
+
+     Optional, because a caller holding a bare name is still better served
+     by the first match than by nothing. */
+  const all = AGENCIES.filter((a) => a.name === name);
+  return (estate ? all.find((a) => a.partner === estate) : undefined) ?? all[0] ?? null;
 }
 
 /* =====================================================================
@@ -179,9 +194,10 @@ export function effectivePrimary(agency: Agency | null, branch?: Branch | null):
   return { contact: primaryOf(eff.list), inherited: eff.inherited };
 }
 
-/** Resolve the deed recipient for an application at (agency, branch). */
-export function contactForApplication(agencyName: string, branchName: string): { contact: AgentContact | null; inherited: boolean; agency: Agency | null; branch: Branch | null } {
-  const agency = findAgencyByName(agencyName);
+/** Resolve the deed recipient for an application at (agency, branch), in the
+    application's own estate. */
+export function contactForApplication(agencyName: string, branchName: string, estate?: string | null): { contact: AgentContact | null; inherited: boolean; agency: Agency | null; branch: Branch | null } {
+  const agency = findAgencyByName(agencyName, estate);
   if (!agency) return { contact: null, inherited: false, agency: null, branch: null };
   const branch = (agency.branches || []).find((b) => b.name === branchName) ?? null;
   const ep = effectivePrimary(agency, branch);
