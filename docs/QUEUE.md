@@ -123,7 +123,7 @@ Two things worth knowing for whoever picks the next one up:
   than a screenshot and did catch two wording faults a screenshot would
   not have.
 
-## A SUPPLIER'S REPORTING SHOWS OTHER CUSTOMERS (instruction, 2026-10-01, verbatim). ACTIVE, TAKES PRIORITY.
+## A SUPPLIER'S REPORTING SHOWS OTHER CUSTOMERS (instruction, 2026-10-01, verbatim). **done** (`3a03ef8`).
 
 > Reporting under View as Kestrel Lettings shows the "Every customer" table (other agencies' referrals, fees and commission), the Agencies/Suppliers commission split and Settlements, none of which a supplier may see. First check whether a real supplier login (director@kestrel.dev.test) sees them too, and tell me. Then fix both: a supplier's Reporting, and View as of it, shows only its own figures, statements and agencies, never other customers or Opndoor's settlements. Also fix "Kestrel Lettings's" to "Kestrel Lettings'". Add a test that a supplier's Reporting contains no other customer's name. Deploy to dev and check there.
 
@@ -136,6 +136,50 @@ Two things worth knowing for whoever picks the next one up:
   evidence, not with a reading of the client.
 - It goes above the commission work because an isolation question
   outranks a layout one.
+
+### THE ANSWER TO THE QUESTION, with the evidence
+
+**No, a real supplier login did not see other customers. It did see two
+of the three things named.**
+
+Acting as `director@kestrel.dev.test`'s uid against dev RLS, in a
+transaction, read-only:
+
+| table | rows visible | names |
+|---|---|---|
+| applications | 1 | its own |
+| partners | 1 | Kestrel Lettings |
+| agencies | 1 | Kestrel Lettings |
+| branches | 2 | Kestrel Central, Kestrel Riverside |
+
+No other customer's row or name is reachable by that login. The "Every
+customer" table is gated on `isOpndoorStaff`, which is superadmin or
+opndoor_manager, so it never drew for them either. Rendering Reporting
+as that login over a book deliberately containing another customer
+confirms it: the other name appears nowhere on the page.
+
+So the cross-customer part was **View as only**, in an admin session
+that may lawfully read those rows. Nothing reached anybody who should
+not have had it. What it was, was a preview that showed the viewer's
+page while captioned as the viewed party's.
+
+What the real login DID get: the Agencies/Suppliers payable split and
+the Settlements blocks. Both are Opndoor's own surfaces, scoped to
+their own figures but Opndoor's run, not theirs.
+
+### WHY ALL THREE FELL THE SAME WAY
+
+Every gate on them was written as a pair -- agency, or not an agency --
+and "not an agency" meant Opndoor, because when they were written the
+only non-agency reader WAS Opndoor. A supplier is the third case and
+landed on Opndoor's side of all of them. The payable split's own
+comment said "Admin only" while its code tested `ownOnly`, which is
+false for a supplier's management because they do read a whole book:
+their own.
+
+`partyIsSupplier(scope)` now sits beside `partyIsAgency` and asks about
+the PARTY, not the reader, so the preview and the real page cannot
+diverge again.
 
 ## ONE WAY TO SET SUPPLIER COMMISSION, AND TWO DEAL SHAPES (instructions, 2026-10-01, verbatim). ACTIVE.
 
