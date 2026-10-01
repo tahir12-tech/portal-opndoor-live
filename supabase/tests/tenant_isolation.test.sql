@@ -40,7 +40,7 @@
 -- difference between a policy that filters and a guard that throws.
 
 begin;
-select plan(93);
+select plan(105);
 
 -- ===========================================================================
 -- THE FIXTURE
@@ -137,6 +137,22 @@ values
    null,null,'Mx','Dana','Direct','1990-01-01','dana@iso.test','07700900005',
    '5 Direct Rd','London','N1 5AA',1500,current_date+30,'deed',true,0.25,0.10,'pre_referenced_open',
    now()-interval '10 days', now()-interval '9 days', now()-interval '8 days');
+
+-- OPNDOOR'S OWN NOTE AND THE TENANT'S OWN FILES, on applications these people
+-- can see. That is the whole point of this fixture: the question is not "can
+-- Alpha read Beta's note", it is "can Alpha read OPNDOOR's note about Alpha".
+insert into public.app_notes (application_id, body, author, author_id) values
+  ('90000000-0000-0000-0000-00000000e001','Chased the landlord twice, no answer.','ZZZ Ops','90000000-0000-0000-0000-00000000c001'),
+  ('90000000-0000-0000-0000-00000000e004','Supplier asked us to hold this one.','ZZZ Ops','90000000-0000-0000-0000-00000000c001');
+
+insert into public.application_documents (application_id, kind, bucket, path, filename, source) values
+  ('90000000-0000-0000-0000-00000000e001','bank_statement','applicant-docs','iso/e001/bank.pdf','bank.pdf','applicant'),
+  ('90000000-0000-0000-0000-00000000e004','proof_of_address','applicant-docs','iso/e004/poa.pdf','poa.pdf','applicant'),
+  -- NOT an applicant upload. The table holds two buckets and only one of them
+  -- is the tenant's own files, so the rule names the bucket rather than the
+  -- table, and a provider's reference report keeps the reach it had.
+  ('90000000-0000-0000-0000-00000000e001','reference_report','reference-reports','iso/e001/report.pdf','report.pdf','provider');
+
 
 -- The direct tenant names their own contact. The agency rail must never
 -- displace it, which is what the auto-match used to do.
@@ -593,6 +609,83 @@ select is(
  * Fixed by 20261006780000, which gives all nine the same restrictive policy
  * the other eighteen already had.
  */
+-- ===========================================================================
+-- OPNDOOR'S OWN NOTES, AND THE TENANT'S OWN FILES
+-- ===========================================================================
+--
+-- Matt, 2026-10-01: "Notes are Opndoor-only: hide the Notes section entirely
+-- from agency and supplier users, and check they can't read notes through any
+-- other route."
+--
+-- The other route was the table. notesService selects from app_notes in the
+-- browser, so `app_notes_select` was the whole boundary, and it read
+-- "application_id in (select id from applications)" -- every note on every
+-- application you can see. The screen's own rule admitted `management`, which
+-- is the word an agency Director, an agency Manager and a supplier Management
+-- user all hold.
+--
+-- These assertions are deliberately about a party's OWN application. Every
+-- other block in this file asks whether Alpha can reach Beta; this one asks
+-- whether Alpha can read what Opndoor wrote about Alpha, which is a different
+-- boundary and the one that was open. 20261007310000.
+-- ---------------------------------------------------------------------------
+
+-- ---- the brand Manager, on their own agency's application ------------------
+select set_config('request.jwt.claims', '{"sub":"90000000-0000-0000-0000-00000000c002","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+
+select cmp_ok((select count(*)::int from public.applications a where a.id = '90000000-0000-0000-0000-00000000e001'), '>', 0,
+  'the brand Manager can see the application the note is about');
+select is((select count(*)::int from public.app_notes), 0,
+  'and reads no note on it, nor any other: the notes are Opndoor''s');
+select is((select count(*)::int from public.application_documents d where d.bucket = 'applicant-docs'), 0,
+  'and none of the tenant''s own uploaded files');
+select cmp_ok((select count(*)::int from public.application_documents d where d.bucket <> 'applicant-docs'), '>', 0,
+  'while still reaching the provider''s reference report, which this change does not touch');
+select throws_ok(
+  $$select public.add_application_note('GR-ISO-AC', 'Added by the agency')$$,
+  '42501', null,
+  'and cannot write one either, on the application they referred themselves');
+
+-- ---- the Negotiator who REFERRED it ----------------------------------------
+-- The old rule let the owning referrer read and write notes, which is the rest
+-- of the product's shape and the wrong one for Opndoor's own record.
+reset role;
+select set_config('request.jwt.claims', '{"sub":"90000000-0000-0000-0000-00000000c004","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+
+select is((select count(*)::int from public.app_notes), 0,
+  'the Negotiator who referred the application reads no note on it');
+select is((select count(*)::int from public.application_documents d where d.bucket = 'applicant-docs'), 0,
+  'and none of their tenant''s uploaded files');
+select throws_ok(
+  $$select public.add_application_note('GR-ISO-AC', 'Added by the referrer')$$,
+  '42501', null,
+  'and cannot add to Opndoor''s record of it');
+
+-- ---- the supplier's Management user, on the supplier's own application -----
+reset role;
+select set_config('request.jwt.claims', '{"sub":"90000000-0000-0000-0000-00000000c006","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+
+select is((select count(*)::int from public.app_notes), 0,
+  'the supplier''s Management user reads no note, on their own rail or any other');
+select is((select count(*)::int from public.application_documents d where d.bucket = 'applicant-docs'), 0,
+  'and none of the tenant''s uploaded files');
+
+-- ---- and Opndoor still has both --------------------------------------------
+reset role;
+select set_config('request.jwt.claims',
+  json_build_object('sub', (select id from public.users where role = 'superadmin' and status = 'active' limit 1),
+                    'role', 'authenticated', 'aal', 'aal2')::text, true);
+set local role authenticated;
+
+select cmp_ok((select count(*)::int from public.app_notes), '>=', 2,
+  'Opndoor reads every note, which is the half of this that must not break');
+select cmp_ok((select count(*)::int from public.application_documents d where d.bucket = 'applicant-docs'), '>=', 2,
+  'and every file the tenant uploaded for the decision we make');
+reset role;
+
 reset role;
 select set_config('request.jwt.claims',
   json_build_object('sub', (select id from public.users where role = 'superadmin' and status = 'active' limit 1),

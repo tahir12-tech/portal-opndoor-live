@@ -36,6 +36,7 @@ import { showsOffices, officeLabel, isPlaceholderOrg } from '@/data/agencyOffice
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedCardState, deedDownloadUrl, deedIsOverdue, mayGenerateDeed, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
+import { isOpndoorStaff } from '@/data/types';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { maySeeDeliveryState, type DeliveryState } from '@/data/deliveryState';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
@@ -217,7 +218,7 @@ const REASON_LABEL: Record<WithdrawReason, string> = {
 
 export function ApplicationDetail() {
   const { ref } = useParams();
-  const { role, partnerScope, refresh, dataVersion } = useSession();
+  const { role, partnerScope, viewingAs, refresh, dataVersion } = useSession();
   const toast = useToast();
   // #10 dataVersion is a memo dep so `d` recomputes after a mutation + refresh()
   // re-hydrates the working copies — the single source of truth for every surface.
@@ -296,12 +297,37 @@ export function ApplicationDetail() {
   const [wReason, setWReason] = useState<WithdrawReason | ''>('');
   const [wNote, setWNote] = useState('');
   const [withdrawBusy, setWithdrawBusy] = useState(false);
-  // #8 Operational notes (internal-only): admin + management + the owning referrer.
-  const maySeeNotes = role === 'superadmin' || role === 'management' || (role === 'referrer' && d.owner === 1);
+  /* #8 OPERATIONAL NOTES: OPNDOOR'S, AND NOBODY ELSE'S.
+
+     Matt, 2026-10-01: "Notes are Opndoor-only: hide the Notes section
+     entirely from agency and supplier users, and check they can't read
+     notes through any other route."
+
+     It read `superadmin || management || (referrer && owner)`, and
+     `management` is the role an agency Director, an agency Manager and a
+     supplier Management user all hold -- the level words are shared across
+     the rails, which is the same trap as the supplier Reporting fix. So
+     the section was not hidden from them at all.
+
+     The other route was the table: notesService selects from app_notes
+     directly, so the policy was the whole boundary and it admitted anyone
+     who could see the application. 20261007310000 closes it, and this line
+     is now the screen agreeing with the database rather than being it.
+
+     NOT WHILE VIEWING AS SOMEBODY. View as shows an admin what that party
+     sees, and what they see is no notes. */
+  const maySeeNotes = isOpndoorStaff(role) && viewingAs === null;
   // The applicant's uploaded documents (bank statements, proof of address) are
   // opndoor-internal: they are collected for the guarantee decision we make, not
   // for the referring agent, so a referrer never sees this card.
-  const maySeeDocuments = role === 'superadmin' || role === 'management';
+  /* AND THE TENANT'S OWN UPLOADS, which is the same fault one line down and
+     was found checking the first: bank statements, proof of address, a P60,
+     a tax return, collected for the decision Opndoor makes and shown to
+     every agency Director by the same shared role word. The policy behind
+     them is closed in the same migration, which also closes
+     application-document-url, since that endpoint signs the file on the
+     strength of the caller's own read. */
+  const maySeeDocuments = isOpndoorStaff(role) && viewingAs === null;
   /* THE DOCUMENTS CARD IS PART OF A JOURNEY THAT DID NOT HAPPEN HERE. A
      pre-referenced tenant is checked by their own agency and goes straight to
      payment: they never reach the Address and Financials steps, so the card can
