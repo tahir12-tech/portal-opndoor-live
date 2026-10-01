@@ -167,17 +167,30 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
-## EVERY EMAIL CARRIES THE SUPPORT FOOTER AND REPLY-TO (instruction, 2026-10-01, verbatim). ACTIVE.
+## EVERY EMAIL COMES FROM no-reply AND POINTS AT SUPPORT (instructions, 2026-10-01, verbatim). ACTIVE.
+
+The first, which the second supersedes on the Reply-To point:
 
 > The invite email footer still says "Questions? Reply to this email." Apply the support@opndoor.co footer and Reply-To to every email, check each email template individually on dev, and list any that didn't have it.
 
-- **"Check each email template individually"** is the instruction, and
-  it rules out sweeping by grep and declaring victory. Each template
-  has to be rendered or read, one at a time, and the ones that were
-  missing it named.
-- Two things, not one: the FOOTER (what the reader sees) and the
-  REPLY-TO header (where a reply actually goes). An email can have
-  the right footer and still land in nobody's inbox.
+And the second, which is the one to build:
+
+> Every email is sent from no-reply@opndoor.co (display name "opndoor"), with no Reply-To. The footer reads "Questions? Email support@opndoor.co" as a mailto link. The sender address is a setting, not hardcoded. Check each email template on dev and list any that didn't have it. Add to HANDOVER-BALAL.md: verify opndoor.co in Resend and set the sender to no-reply@opndoor.co before go-live, with a check.
+
+- **THE SECOND REVERSES THE REPLY-TO.** The first said to add one
+  pointing at support; the second says no Reply-To at all and a
+  mailto in the footer instead. Build the second. A reply-to on a
+  no-reply address is a contradiction, and a mailto the reader
+  clicks is the honest version of "get in touch".
+- **"Check each email template on dev"** rules out sweeping by grep
+  and declaring victory. Each template gets looked at, one at a
+  time, and the ones that were missing it are named.
+- **"The sender address is a setting, not hardcoded"** is the part
+  with teeth: it has to be changeable without a deploy, which means
+  a row somewhere and a reader, not a constant.
+- The HANDOVER entry needs a CHECK, not just a sentence: something
+  Balal can run to see whether the domain is verified and the
+  sender is right.
 
 ## A DEVELOPER'S "SEES" SAYS WHAT THEY SEE (instruction, 2026-10-01, verbatim). ACTIVE.
 
