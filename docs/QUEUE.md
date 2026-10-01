@@ -11,6 +11,10 @@
 5. The deed emailed to the agent twice on GR-20846
 6. Everything else, in the order sent
 
+Three more arrived while item 1 was in flight, so they join the back of item
+6 in the order they were sent: the rent label before the deed is issued, the
+Agency League headings, and the office chosen first on New application.
+
 
 The single source of truth for outstanding work on this branch.
 
@@ -26,6 +30,30 @@ anything it is under a heading that says so.
 Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
+
+## THE RENT FIGURE IS NOT GUARANTEED UNTIL IT IS (instruction, 2026-10-01, verbatim). todo.
+
+> Application detail: before the deed is issued, label the rent figure "Rent to be guaranteed" instead of "Guaranteed annual rent".
+
+- One label, two states. The figure is the same number throughout; what
+  changes is whether anybody has guaranteed it yet. The deed is the moment,
+  so the label follows `deed_issued_at`, not the payment and not the
+  signature.
+
+## THE AGENCY LEAGUE SAYS WHAT ITS COLUMNS ARE (instruction, 2026-10-01, verbatim). todo.
+
+> Agency League (signed in as a Regent Director): every column has a clear heading (Referrals, Fees collected, Paid, Deeds, Sent to paid, Sent to deed); rename the "7d" column to "Change this week" with a tooltip explaining "new" and "-"; change "Every negotiator ranked" to "Everyone who has referred, ranked"; remove "Agency referral" from the header line. Deploy to dev and check there.
+
+- "Everyone who has referred" rather than "Every negotiator" because a
+  Director and a Manager refer too, and the table already ranks them.
+
+## THE OFFICE IS CHOSEN FIRST, NOT LAST (instruction, 2026-10-01, verbatim). todo.
+
+> New application (signed in as a supplier user, joe@bloggs.com at Kestrel): "Add another tenant" is disabled until an office is chosen, but the office section is last on the form. Move the office/agent section to the top as step 1, so it's chosen before tenants; if the supplier or agency only has one office, pick it automatically so the button works straight away. Same for agency users. Never leave a disabled button whose reason is further down the page. Deploy to dev and check as a supplier user and as Tom.
+
+- **The last sentence is a standing rule, not a detail of this form.** A
+  disabled control whose reason is below the fold is the bug; this form is
+  one instance of it.
 
 ## THE ADD AGENCY FORM MUST NEVER DO NOTHING (instruction, 2026-10-01, verbatim). **done** (`8ff9b71`).
 
