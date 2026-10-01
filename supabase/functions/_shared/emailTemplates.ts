@@ -200,6 +200,54 @@ export function passwordResetEmail(link: string, audience: "tenant" | "portal" =
   };
 }
 
+/* =====================================================================
+   SOMEBODY RESET YOUR TWO-FACTOR.
+
+   Matt, 2026-10-01: 'Two-factor reset email: add "Delete the old
+   opndoor entry from your authenticator app before scanning the new
+   code."'
+
+   THE SENTENCE IS THE WHOLE REASON THIS EXISTS, and it is the answer to
+   a real failure. An authenticator entry is labelled issuer + account,
+   and after a reset both halves are identical to the old entry's -- so
+   the app shows two "opndoor (you@example.com)" lines, six digits
+   each, and nothing to tell them apart. Scanning the new code without
+   deleting the old one leaves a trap the person falls into at their
+   next sign-in. Labelling dev separately (2026-10-01) fixes dev
+   against live; nothing in a QR code can fix old against new, so the
+   person has to be told.
+
+   AND THE EMAIL ITSELF HAD TO EXIST. A reset destroys the factor and
+   every session, and sent nothing: from the person's side that is
+   indistinguishable from being attacked. The first block is there for
+   them, not for the instruction.
+
+   NO LINK AND NO BUTTON, deliberately. There is nothing to click: they
+   sign in as usual and the portal asks them to set up an authenticator.
+   A button here would have to be a sign-in link, which is one more
+   thing for a phisher to imitate on the one email most likely to make
+   somebody anxious.
+   ===================================================================== */
+export function twoFactorResetEmail(p: { actorName: string | null }): Message {
+  const who = (p.actorName ?? "").trim();
+  return {
+    audience: "portal",
+    subject: "Your opndoor two-factor has been reset",
+    heading: "Set up your authenticator again",
+    blocks: [
+      { p: who
+        ? `${who} at opndoor has reset the two-factor authentication on your account. You have been signed out everywhere, and your old authenticator code will no longer work.`
+        : "The two-factor authentication on your opndoor account has been reset. You have been signed out everywhere, and your old authenticator code will no longer work." },
+      { p: "Next time you sign in you will be shown a new QR code to scan." },
+      /* MATT'S SENTENCE, ON ITS OWN AND BEFORE THE REASSURANCE, because
+         it is an instruction to carry out rather than something to
+         read. It is the only thing in here the reader has to DO. */
+      { p: "<strong>Delete the old opndoor entry from your authenticator app before scanning the new code.</strong> Two entries with the same name are impossible to tell apart, and the old one will not work." },
+      { small: "If you did not expect this, contact your opndoor administrator before signing in." },
+    ],
+  };
+}
+
 export function accountExistsEmail(signInUrl: string, resetUrl: string): Message {
   return {
     audience: "tenant",

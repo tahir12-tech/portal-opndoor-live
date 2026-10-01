@@ -85,6 +85,7 @@ insert into allowed(name) values
   ('assert_may_grant_level'),
   ('assert_may_grant_position'),
   ('attach_user_to_agency'),
+  ('authorise_mfa_reset_notice'),
   ('authorise_password_reset'),
   /* The two ladder questions the three notification setters share
      (20261006920000). Both read only the CALLER and grant nothing on their

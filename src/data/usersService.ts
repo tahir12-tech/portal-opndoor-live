@@ -173,15 +173,39 @@ export async function cancelInvite(id: string): Promise<void> {
 }
 
 /** Reset a user's 2FA: they re-enrol at next sign in. */
-export async function resetUserMfa(id: string): Promise<void> {
+/** Reset somebody's two-factor, and tell them.
+
+    THE EMAIL IS SENT AFTER, AND ITS FAILURE IS NOT THE RESET'S. The reset
+    is the thing that had to happen and it is irreversible by the time the
+    send is attempted; reporting "could not reset" because an email bounced
+    would be a lie that sends an administrator round again. The caller gets
+    `emailed: false` and says so. */
+export async function resetUserMfa(id: string): Promise<{ emailed: boolean; emailError?: string }> {
   const u = USERS.find((x) => x.id === id);
   if (!u) throw new Error('User not found.');
   if (SUPABASE_ENABLED) {
     const { error } = await sb().rpc('admin_reset_user_mfa', { p_user: id });
     if (error) throw new Error(error.message);
-    return;
+    /* AND NOW TELL THEM. Matt, 2026-10-01, asked for a sentence in "the
+       two-factor reset email"; there was no such email at all. A reset
+       destroys every factor and every session, and said nothing -- which
+       from the person's side is indistinguishable from being attacked.
+
+       THE USER ID, NOT THE ADDRESS. `authorise_mfa_reset_notice` judges
+       the caller and hands the address to the edge function, so the
+       browser cannot make us email somewhere else. */
+    try {
+      const { data, error: mailErr } = await sb().functions.invoke('send-mfa-reset-notice', { body: { user: id } });
+      if (mailErr || !data?.ok) {
+        return { emailed: false, emailError: data?.error ?? mailErr?.message ?? 'Could not send the email.' };
+      }
+    } catch (e) {
+      return { emailed: false, emailError: e instanceof Error ? e.message : 'Could not send the email.' };
+    }
+    return { emailed: true };
   }
   recordUserAudit(id, 'reset_mfa', 'enrolled', 'reset');
+  return { emailed: false };
 }
 
 /** Send a password-reset link to a user's email (live mode). No-op in mock mode.

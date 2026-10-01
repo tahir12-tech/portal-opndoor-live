@@ -419,7 +419,9 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
         body: <>Their current authenticator stops working immediately and they are signed out. They set up a new authenticator at their next sign in.</>,
         confirmLabel: 'Reset 2FA',
         success: `Two-factor authentication reset for ${u.name}. They will set it up again at next sign in.`,
-        run: () => resetUserMfa(u.id),
+        /* The email's success is reported by the caller that can show it;
+           this confirm dialog has its own success line. */
+        run: async () => { await resetUserMfa(u.id); },
       });
       return;
     }
@@ -434,7 +436,9 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
         body: <>Your current authenticator stops working immediately and you are signed out. You set up a new one the next time you sign in, so have your phone with you.</>,
         confirmLabel: 'Reset my two-factor',
         success: 'Two-factor reset. Sign in again and set up your new authenticator.',
-        run: () => resetUserMfa(u.id),
+        /* The email's success is reported by the caller that can show it;
+           this confirm dialog has its own success line. */
+        run: async () => { await resetUserMfa(u.id); },
       });
       return;
     }

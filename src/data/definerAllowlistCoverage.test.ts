@@ -181,7 +181,7 @@ describe('the definer allowlist', () => {
      `set_app_setting_text` is Health's field, `statement_invoice_email`
      is what it reads back, and `statements_can_be_posted` is the
      boolean Home and Health both warn on. 2026-10-01. */
-  it('is 150 functions wide, and does not widen by accident', () => {
+  it('is 151 functions wide, and does not widen by accident', () => {
     /* 142 -> 144, 2026-10-01: refund_questions_open and
        decide_refund_question, the list and the answer for a refund that
        landed on commission already sent on a statement. Both are staff
@@ -206,7 +206,11 @@ describe('the definer allowlist', () => {
     /* 149 -> 150, 2026-10-01: email_from, who every email is sent from.
        A reader of one app setting and nothing else; it exposes an address
        the product prints at the foot of every email it sends. */
-    expect(allowlist.length).toBeLessThanOrEqual(150);
+    /* 150 -> 151, 2026-10-01: authorise_mfa_reset_notice, the twin of
+       authorise_password_reset. It judges the same ladder and returns the
+       address to tell that their two-factor was reset, so the browser
+       never nominates where that email goes. It writes nothing. */
+    expect(allowlist.length).toBeLessThanOrEqual(151);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

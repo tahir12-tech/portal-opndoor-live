@@ -245,7 +245,18 @@ export function PartnerHome() {
       if (what === 'resend') { await resendInvite(userId); toast(`Invitation resent to ${who}.`); }
       else if (what === 'cancel') { await cancelInvite(userId); toast(`Invitation to ${who} cancelled.`); }
       else if (what === 'password') { await resetUserPassword(userId); toast(`Password reset link sent to ${who}.`); }
-      else if (what === 'mfa') { await resetUserMfa(userId); toast(`${who} will set up two-factor again at next sign-in.`); }
+      /* THE RESET AND THE EMAIL ARE TWO FACTS, and the toast says both.
+         The reset is irreversible by the time the send is attempted, so a
+         failed email must not read as a failed reset -- an administrator
+         who presses the button again on that reading achieves nothing and
+         signs the person out twice. */
+      else if (what === 'mfa') {
+        const r = await resetUserMfa(userId);
+        toast(r.emailed
+          ? `Two-factor reset for ${who}, and they have been emailed.`
+          : `Two-factor reset for ${who}. We could not email them, so tell them to delete the old opndoor entry from their authenticator before scanning the new code.`,
+          r.emailed ? undefined : 'error');
+      }
       else if (what === 'remove') { await setUserStatus(userId, 'deactivated'); toast(`${who} no longer has access.`); }
       else if (what === 'restore') { await setUserStatus(userId, 'active'); toast(`${who} has access again.`); }
     } catch (e) {

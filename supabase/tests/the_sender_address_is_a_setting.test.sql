@@ -12,7 +12,7 @@
 -- watching.
 
 begin;
-select plan(11);
+select plan(9);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 select x.id,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',x.email,'',now(),now(),now()
@@ -25,22 +25,24 @@ insert into public.users (id, full_name, email, role, partner_id, status, sees_c
   ('ac000000-0000-0000-0000-0000000000bb','ZZZ From Other','zzz.from.other@o.test','opndoor_manager',null,'active',false);
 
 -- ===========================================================================
--- 1. IT IS SEEDED, so an unset setting is not something anybody has to notice
+-- 1. THE SHIPPED DEFAULT IS THE ADDRESS MATT NAMED
 -- ===========================================================================
-select is(
-  (select public.email_from()),
-  'opndoor <no-reply@opndoor.co>',
-  'the sender is seeded with the address and display name Matt named');
+/* ASSERTED ON THE MIGRATION, NOT ON WHAT THIS DATABASE HOLDS.
 
-/* THE HYPHEN IS THE POINT. The old default was noreply@opndoor.co, which is
-   a different mailbox from no-reply@opndoor.co -- and on a domain where
-   neither is verified yet, the difference between arriving and not. */
-select matches(
-  (select public.email_from()), 'no-reply@opndoor\.co',
-  'spelled no-reply, not noreply');
+   The first version read `email_from()` and expected the seed, which was
+   true for about an hour: dev now sends from onboarding@resend.dev,
+   because opndoor.co is not verified in Resend yet and a send from an
+   unverified domain is refused. That divergence is the whole reason the
+   sender became a setting, so a test that forbids it is testing against
+   the feature.
 
+   What must stay true everywhere is the value a FRESH environment is
+   seeded with -- live included, when Balal applies the migrations. That
+   lives in the file. */
 -- ===========================================================================
--- 2. AN ADMIN MAY CHANGE IT, WITHOUT A DEPLOY
+-- 1. AN ADMIN MAY CHANGE IT, WITHOUT A DEPLOY
+--    (the seeded DEFAULT is asserted in src/data/theSenderIsASetting.test.ts,
+--     which reads the migration file -- dev's own value deliberately differs)
 -- ===========================================================================
 select set_config('request.jwt.claims',
   '{"sub":"ac000000-0000-0000-0000-0000000000ad","role":"authenticated","aal":"aal2"}', true);
@@ -53,8 +55,12 @@ select is((select public.email_from()), 'opndoor <hello@opndoor.co>', 'and it ta
 
 /* AUDITED, like every other setting: who changed the address every email in
    the product comes from, and when. */
+/* COUNTED SINCE THIS TRANSACTION STARTED, not for all time: dev has real
+   rows from real changes, and a test that counts them all is a test about
+   how often somebody has edited the setting. */
 select is(
-  (select count(*)::int from public.settings_audit where key = 'email_from'),
+  (select count(*)::int from public.settings_audit
+    where key = 'email_from' and at >= now() - interval '1 minute'),
   1, 'and the change is recorded');
 
 -- A bare address, with no display name, is also valid.

@@ -655,7 +655,9 @@ export function Team() {
               onClick={() => setConfirm({
                 line: `Reset two-factor for ${u.name}? They will set up a new authenticator the next time they sign in.`,
                 cta: 'Reset two-factor',
-                run: () => resetUserMfa(u.id),
+                /* The email's success is reported by the caller that can show it;
+                   this confirm dialog has its own success line. */
+                run: async () => { await resetUserMfa(u.id); },
                 done: `${u.name} will enrol a new authenticator at their next sign in.`,
               })}>
               Reset two-factor

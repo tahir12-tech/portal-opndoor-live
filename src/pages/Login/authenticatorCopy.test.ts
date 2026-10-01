@@ -116,9 +116,24 @@ describe('the same copy in the invite email', () => {
     expect(copy).toMatch(/On an iPhone, the built-in Passwords app works too\./);
   });
 
-  /* AND SAYS IT ONCE. The merge is the fix, so the count is the assertion. */
+  /* AND SAYS IT ONCE. The merge is the fix, so the count is the
+     assertion.
+
+     COUNTED IN THE INVITE TEMPLATE, NOT ACROSS THE FILE. It counted the
+     whole of emailTemplates.ts, which was the same thing while exactly
+     one template mentioned an authenticator. `twoFactorResetEmail`
+     (2026-10-01) is a second, and it says "authenticator app" once on
+     purpose: Matt's "Delete the old opndoor entry from your
+     authenticator app before scanning the new code." The duplication
+     this file is about is ONE EMAIL saying it twice, so that is what is
+     counted -- the whole-file version would have forbidden any other
+     email from ever mentioning one. */
   it('and says it once rather than twice', () => {
-    expect((copy.match(/authenticator app/gi) ?? []).length).toBe(1);
+    const i = EMAIL.indexOf('export function staffInviteEmail');
+    expect(i, 'staffInviteEmail is no longer in emailTemplates.ts').toBeGreaterThan(-1);
+    const j = EMAIL.indexOf('\nexport function ', i + 1);
+    const invite = copyOnly(EMAIL.slice(i, j < 0 ? undefined : j));
+    expect((invite.match(/authenticator app/gi) ?? []).length).toBe(1);
   });
 
   it('carries both store links', () => {
