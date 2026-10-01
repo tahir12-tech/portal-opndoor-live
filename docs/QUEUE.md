@@ -19,7 +19,7 @@ signed-deed email saying the insurance sentence once, and a corrected deed
 saying that it is a correction, and two decimal places with the payment
 link on joint applications, the fee paid email counting the tenants, and
 "deed 2 of 2" on a tenancy with one signature, and the landlord getting
-one email with every deed.
+one email with every deed, and the correction page naming every tenant.
 
 
 The single source of truth for outstanding work on this branch.
@@ -36,6 +36,15 @@ anything it is under a heading that says so.
 Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
+
+## THE CORRECTION PAGE NAMES EVERY TENANT (instruction, 2026-10-01, verbatim). todo.
+
+> Tenancy start correction page on a joint tenancy: before submitting, say "We will void the current deeds and send each tenant on this tenancy a corrected deed to sign", followed by their names. After, "Each tenant has been sent a corrected deed to sign: [names]. Once each signs, their corrected deed will be emailed to you." For one tenant, keep the singular wording. Show dates as "29 Dec 2026", including in the PandaDoc email text.
+
+- Pairs with the corrected-deed email item above: the page says what is
+  about to happen, the email says it happened.
+- "including in the PandaDoc email text" means the message the envelope
+  carries, which is built in the function, not on the page.
 
 ## THE LANDLORD GETS ONE EMAIL WITH EVERY DEED (instruction, 2026-10-01, verbatim). todo.
 
