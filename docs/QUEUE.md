@@ -63,9 +63,25 @@ already edited.
 Total and reference both already exist on every statement, agency and
 supplier, in the PDF, the CSV and the email. Nothing new to compute.
 
-## STATEMENT LINES IN REFERENCE ORDER (instruction, 2026-10-01, verbatim). ACTIVE.
+## STATEMENT LINES IN REFERENCE ORDER, AND THE TENANCY COLUMN (instruction, 2026-10-01, verbatim). ACTIVE.
 
 > Commission statements (PDF, CSV and on screen, agency and supplier): list lines in guarantee reference order, lowest first.
+
+Restated a minute later with a second half:
+
+> Commission statements (on screen, PDF and CSV, agency and supplier): list lines in guarantee reference order, lowest first. The Tenancy column shows "Single" for one tenant, or "Joint (2)", "Joint (3)" and so on with the number of tenants on that tenancy, instead of "1 of 2" and "-".
+
+### THE TENANCY COLUMN WAS ANSWERING A QUESTION NOBODY ASKED
+
+It printed "1 of 2", the tenant's POSITION in the tenancy, and a hyphen
+for a solo let. On a commission statement the position is of no interest
+at all: the payee is reconciling money, and what they need to know is
+whether the fee they are looking at is one let or a share of a joint
+one. "Single" and "Joint (3)" answer that; "2 of 3" makes the reader work
+out that there is a third line somewhere else.
+
+It also means the column is never empty, so the drop-empty rule stops
+dropping it, which is right: it now always says something.
 
 **Four places, and they do not agree today**, which is the reason to
 name all four in one instruction:
