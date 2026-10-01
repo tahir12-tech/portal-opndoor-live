@@ -167,6 +167,24 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
+## AN EMAIL LINK LANDS ON THE RIGHT SIGN-IN TAB (instruction, 2026-10-01, verbatim). todo.
+
+> Password reset and invite links send each person to the sign-in tab for their own type: supplier users to the Supplier tab, agency users to the Agent tab, tenants to the Tenant tab. Check every email link that lands on the sign-in page. Deploy to dev and check there.
+
+- "Check every email link that lands on the sign-in page" is the
+  sweep: not just the two named. The links are built in the edge
+  functions as `redirectTo`, so the type has to be known at send
+  time.
+
+## THE NOTIFICATIONS PANEL OFFERS ONLY WHAT CAN HAPPEN (instruction, 2026-10-01, verbatim). todo.
+
+> Supplier people's notifications panel: when Opndoor admin opens it, include the monthly commission statements switch (Management only; supplier users can't change it themselves). Only list events that can actually happen for that supplier: for a pre-referenced supplier, hide "Sent for referencing", "Approved" and "Declined". Deploy to dev and check there.
+
+- Two halves: a switch that is ADMIN-ONLY on a panel the supplier
+  can also open, and a list narrowed by the supplier's referencing
+  mode. The three hidden events are the agency rail's decision
+  journey, which a pre-referenced supplier never enters.
+
 ## EVERY PEOPLE-TAB ACTION WORKS IN PLACE (instruction, 2026-10-01, verbatim). ACTIVE.
 
 > Supplier People tab: "Change role" opens the role dialog right here (Management, Referrer, Developer), instead of a message pointing to the Users page. Check every other action on supplier and agency People tabs works in place, with no message sending you elsewhere. Deploy to dev and check there.
