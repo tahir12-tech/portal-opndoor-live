@@ -111,9 +111,16 @@ const headers = (v: View) => [...v.container.querySelectorAll('table.dt thead th
    searchable combobox when it became the shared scope picker; the rest are
    still native selects, and the assertions here are about WHICH filters the
    bar offers, not about what they are made of. */
+/* EVERY FILTER CONTROL IN THE BAR, by the name it announces. The native
+   ones are a hidden <select> inside an .fchip pill; Origin is its own
+   button since 2026-10-01, when it stopped being a bare text box and
+   became a pill like the rest. Both are collected, because what this
+   asserts is WHICH FILTERS a viewer gets, not how each is built. */
 const chips = (v: View) => [
   ...v.container.querySelectorAll('.fchip select, .fchip input[role="combobox"]'),
-].map((s) => s.getAttribute('aria-label') ?? '');
+].map((s) => s.getAttribute('aria-label') ?? '')
+  .concat([...v.container.querySelectorAll('.scopepick__text')]
+    .map((t) => (t.textContent ?? '').split(':')[0].trim()));
 const tabs = (v: View) => [...v.container.querySelectorAll('.ftab')].map((b) => b.textContent ?? '');
 const rowFor = (v: View, ref: string) => [...v.container.querySelectorAll<HTMLElement>('table.dt tbody tr')]
   .find((tr) => (tr.textContent ?? '').includes(ref));
@@ -221,8 +228,23 @@ const refs = (v: View) => [...v.container.querySelectorAll('table.dt tbody tr')]
    focus it, then click the row. Choosing by the LABEL a user reads rather
    than by the value underneath it also makes these assertions say what they
    mean. */
-const originInput = (v: View) =>
-  v.container.querySelector<HTMLInputElement>('.scopepick input[role="combobox"]')!;
+/* THE PILL OPENS IT. 2026-10-01: the control became a filter button
+   reading "Origin: Everything"; the search input only exists once it has
+   been pressed, so these press it first. */
+function openOrigin(v: View) {
+  if (!v.container.querySelector('.scopepick__pop')) {
+    const btn = v.container.querySelector<HTMLButtonElement>('.scopepick__btn');
+    if (!btn) throw new Error('no Origin picker on the page');
+    fireEvent.click(btn);
+  }
+  const input = v.container.querySelector<HTMLInputElement>('.scopepick__pop input[role="combobox"]');
+  if (!input) throw new Error('the pill did not open the search');
+  return input;
+}
+const originInput = (v: View) => openOrigin(v);
+/** What the control READS at rest: the pill, not a box. */
+const originPill = (v: View) =>
+  (v.container.querySelector('.scopepick__text')?.textContent ?? '').trim().replace(/^Origin:\s*/, '');
 
 /* TYPES FIRST FOR A NAMED PARTY, which is how the control now works.
    Matt, 2026-09-30: "Show only the quick choices and recent selections
@@ -314,21 +336,21 @@ describe('the Origin filter', () => {
     seedMixedBook();
     const view = await openList('superadmin', '/applications?route=Direct');
     expect(refs(view)).toEqual([A_DIRECT]);
-    expect(originInput(view).value).toBe('Direct');
+    expect(originPill(view)).toBe('Direct');
   });
 
   it('lands a supplier page\'s ?partner= link on that supplier\'s rows', async () => {
     seedMixedBook();
     const view = await openList('superadmin', '/applications?partner=harbourside');
     expect(refs(view)).toEqual([A_SUPP]);
-    expect(originInput(view).value).toBe('Harbourside Homes');
+    expect(originPill(view)).toBe('Harbourside Homes');
   });
 
   it('opens the whole book on a stale ?partner=, rather than an empty list', async () => {
     seedMixedBook();
     const view = await openList('superadmin', '/applications?partner=no-such-partner');
     expect(refs(view)).toHaveLength(4);
-    expect(originInput(view).value).toBe('Everything');
+    expect(originPill(view)).toBe('Everything');
   });
 });
 

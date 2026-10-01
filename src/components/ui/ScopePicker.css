@@ -1,16 +1,77 @@
-/* The scope picker sits in a filter bar beside other chips, so it inherits
-   their height and label treatment rather than inventing its own. */
-.scopepick { display: inline-flex; align-items: center; gap: 8px; }
-.scopepick__lbl { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
-.scopepick .typeahead { min-width: 260px; }
-.scopepick .typeahead input { width: 100%; }
+/* THE ORIGIN FILTER, AS A FILTER BUTTON.
 
-/* The clear (x). Sits inside the chip, after the box, and only appears when
-   there is something to clear. */
+   Matt, 2026-10-01: style it "to match the other filter buttons (like
+   'Period: All time'), reading 'Origin: Everything' with a dropdown arrow,
+   opening the search and list when clicked. No bare text box."
+
+   THE PILL IS OWNED HERE rather than borrowed from Applications' `.fchip`.
+   The control is on League too, which does not load that stylesheet, so the
+   same component was a styled pill on one page and a bare rectangle on the
+   other. These are the same declarations `.fchip` makes, against the same
+   global tokens, so the two line up in the row they share. */
+.scopepick { position: relative; display: inline-flex; align-items: center; gap: 2px; }
+
+.scopepick__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.scopepick__btn svg { width: 13px; height: 13px; color: var(--ink-mute); }
+.scopepick__text b { color: var(--ink); font-weight: 700; }
+.scopepick__caret { margin-left: -2px; transition: transform 120ms ease; }
+.scopepick__btn.is-open .scopepick__caret { transform: rotate(180deg); }
+.scopepick__btn:hover { border-color: var(--line-strong); }
+.scopepick__btn:focus-visible {
+  outline: none;
+  border-color: var(--heliotrope-deep);
+  box-shadow: 0 0 0 3px rgba(211, 100, 251, 0.15);
+}
+
+/* The clear (x). Beside the pill, only when there is something to clear. */
 .scopepick__clear {
   appearance: none; border: 0; background: transparent; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; margin-left: 2px; border-radius: 999px;
+  width: 22px; height: 22px; border-radius: 999px;
   color: var(--ink-mute);
 }
 .scopepick__clear:hover { background: var(--app-bg); color: var(--ink); }
+
+/* WHAT OPENS. The search box lives in here, not on the page, which is the
+   whole of "no bare text box". Left-aligned under the pill and wide enough
+   for an agency name, which the pill itself is not. */
+.scopepick__pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 300px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md, 0 12px 28px rgba(39, 29, 95, 0.14));
+}
+.scopepick__pop .typeahead { width: 100%; }
+.scopepick__pop .typeahead input { width: 100%; }
+/* The list is already absolute inside .typeahead; inside the popover it
+   should flow under the search box rather than float over the page. */
+.scopepick__pop .typeahead__menu {
+  position: static;
+  margin-top: 6px;
+  box-shadow: none;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  max-height: 320px;
+}

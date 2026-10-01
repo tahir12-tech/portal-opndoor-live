@@ -23,8 +23,30 @@
    THE QUICK CHOICES STAY VISIBLE WHILE TYPING. They are how you get back, and
    a search box that hides the way back is a trap. Typing filters the parties
    below them only.
+
+   =====================================================================
+   IT IS A BUTTON THAT OPENS A PICKER, NOT A BOX THAT SITS THERE
+   =====================================================================
+
+   Matt, 2026-10-01: "The Origin filter box on League and Applications:
+   style it to match the other filter buttons (like 'Period: All time'),
+   reading 'Origin: Everything' with a dropdown arrow, opening the search
+   and list when clicked. No bare text box."
+
+   It used to render the search input itself, permanently, which put a
+   plain rectangle in a row of pills: on Applications beside "Period: All
+   time" and "Branch: All", and on League beside the same period control.
+   At rest it now reads what every other filter in that row reads -- a
+   label, the value in bold, a chevron -- and the search appears when it
+   is asked for.
+
+   THE PILL IS STYLED HERE, NOT BORROWED. It used to take the `fchip`
+   class from Applications.css, which League does not load, so the same
+   control was styled on one page and bare on the other. The look is the
+   same; it is just owned by the component that needs it.
    ===================================================================== */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useOnClickOutside } from '@/hooks/useOnClickOutside';
 import { TypeAhead, highlightMatch, type TypeAheadOption } from './TypeAhead';
 import { Icon } from './Icon';
 import {
@@ -48,7 +70,7 @@ const iconFor = (v: OriginScope) =>
     : 'home';
 
 export function ScopePicker({
-  value, onChange, options, recents = [], label, ariaLabel = 'Scope',
+  value, onChange, options, recents = [], label = 'Origin', ariaLabel = 'Scope',
 }: {
   value: OriginScope;
   onChange: (v: OriginScope) => void;
@@ -60,7 +82,10 @@ export function ScopePicker({
   ariaLabel?: string;
 }) {
   const [query, setQuery] = useState('');
-  const [typing, setTyping] = useState(false);
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const close = () => { setOpen(false); setQuery(''); };
+  useOnClickOutside(wrap, close, open);
 
   const byValue = new Map(options.map((o) => [o.value, o]));
   /* The quick choices the BOOK supports. Direct and Provider come from
@@ -100,8 +125,7 @@ export function ScopePicker({
     sub: section ?? undefined,
     onSelect: () => {
       onChange(o.value);
-      setQuery('');
-      setTyping(false);
+      close();
     },
   });
 
@@ -123,36 +147,58 @@ export function ScopePicker({
     ?? quick.find((o) => o.value === value)?.label
     ?? originLabelFor(value);
 
+  /* THE LABEL, WITHOUT A TRAILING COLON. Applications passed "Origin:"
+     and League passed nothing at all, so one page's control was labelled
+     and the other's was not. One default, one place the colon is added. */
+  const labelText = label.replace(/:\s*$/, '');
+
   return (
-    /* `fchip` as well as its own class: on Applications this sits in the
-       filter bar beside Branch and Referrer and must line up with them. On
-       Reporting it sits in the page head, where fchip adds nothing and costs
-       nothing. */
-    <div className="scopepick fchip">
-      {label && <span className="scopepick__lbl">{label}</span>}
-      <TypeAhead
-        value={typing ? query : current}
-        ariaLabel={ariaLabel}
-        placeholder="Type to find a supplier, agency or group"
-        options={rows}
-        emptyText="No party of that name in this book"
-        onChange={(v) => { setQuery(v); setTyping(true); }}
-      />
+    <div className="scopepick" ref={wrap}>
+      <button
+        type="button"
+        className={`scopepick__btn${open ? ' is-open' : ''}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`${labelText}: ${current}`}
+        onClick={() => (open ? close() : setOpen(true))}
+      >
+        <Icon name={iconFor(value) as 'dashboard'} />
+        <span className="scopepick__text">{labelText}: <b>{current}</b></span>
+        <Icon name="chevronDown" className="scopepick__caret" />
+      </button>
+
       {/* CLEAR, BACK TO EVERYTHING. Matt: "Add a clear (x) to go back to
           Everything." Only when something is applied: an x beside
-          "Everything" offers to undo nothing. It also drops whatever is
-          half-typed, because leaving a query in a cleared box is the same
-          disagreement between the control and the list in miniature. */}
+          "Everything" offers to undo nothing. Outside the button, so it
+          is its own target and does not open the picker on the way to
+          clearing it. */}
       {value !== ORIGIN_ALL && (
         <button
           type="button"
           className="scopepick__clear"
-          aria-label="Clear the origin filter"
+          aria-label={`Clear the ${labelText.toLowerCase()} filter`}
           title="Show everything"
-          onClick={() => { onChange(ORIGIN_ALL); setQuery(''); setTyping(false); }}
+          onClick={() => { onChange(ORIGIN_ALL); close(); }}
         >
           <Icon name="x" size={13} />
         </button>
+      )}
+
+      {open && (
+        <div className="scopepick__pop">
+          <TypeAhead
+            value={query}
+            ariaLabel={ariaLabel}
+            placeholder="Type to find a supplier, agency or group"
+            options={rows}
+            emptyText="No party of that name in this book"
+            onChange={setQuery}
+            /* Focused on open, which is what makes the list appear: the
+               press on the pill was the intent to choose, and a dropdown
+               that needs a second click into a box does not drop down. */
+            autoFocus
+          />
+        </div>
       )}
     </div>
   );

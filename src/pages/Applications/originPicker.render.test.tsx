@@ -75,9 +75,23 @@ const originNames = (v: View) =>
     2026-09-30: "individual agencies and suppliers appear only as search
     results, so the list never grows endless." The quick choices are
     still there on focus. */
+/* THE PILL OPENS IT. Matt, 2026-10-01: the control is "a filter button
+   ... opening the search and list when clicked. No bare text box." The
+   search input only exists once the pill has been pressed, so every
+   interaction below starts there. */
+async function openPicker(v: View) {
+  const btn = v.container.querySelector<HTMLButtonElement>('.scopepick__btn');
+  expect(btn, 'no Origin picker on the page').toBeTruthy();
+  if (!v.container.querySelector('.scopepick__pop')) {
+    await act(async () => { fireEvent.click(btn!); });
+  }
+  const box = v.container.querySelector<HTMLInputElement>('.scopepick__pop input[role="combobox"]');
+  expect(box, 'the pill did not open the search').toBeTruthy();
+  return box!;
+}
+
 async function pick(v: View, label: string) {
-  const box = v.container.querySelector<HTMLInputElement>('.scopepick input[role="combobox"]')!;
-  expect(box, 'no Origin picker on the page').toBeTruthy();
+  const box = await openPicker(v);
   await act(async () => { fireEvent.focus(box); });
   const find = () => [...v.container.querySelectorAll('.typeahead__opt')]
     .find((o) => o.querySelector('.typeahead__opt-main')?.textContent?.trim() === label);
@@ -165,15 +179,33 @@ describe('choosing an origin', () => {
    appear only as search results, so the list never grows endless. No
    duplicate entries."
    ===================================================================== */
-const boxOf = (v: View) => v.container.querySelector<HTMLInputElement>('.scopepick input[role="combobox"]')!;
+/** What the control READS at rest, which is now the pill and not a box. */
+const pillOf = (v: View) =>
+  (v.container.querySelector('.scopepick__text')?.textContent ?? '').trim();
 const offered = (v: View) =>
   [...v.container.querySelectorAll('.typeahead__opt-main')].map((o) => (o.textContent ?? '').trim());
 
 describe('the box and the list agree', () => {
-  it('the box names the quick choice that is applied', async () => {
+  it('the button names the quick choice that is applied', async () => {
     const v = await openList();
     await pick(v, 'Suppliers');
-    expect(boxOf(v).value).toBe('Suppliers');
+    /* "Origin: Suppliers", which is Matt's wording and matches "Period:
+       All time" in the same row. */
+    expect(pillOf(v)).toBe('Origin: Suppliers');
+  });
+
+  it('and reads "Origin: Everything" before anything is chosen', async () => {
+    const v = await openList();
+    expect(pillOf(v)).toBe('Origin: Everything');
+  });
+
+  /* NO BARE TEXT BOX. The thing Matt actually reported: at rest there is
+     no input on the page at all, only the button. */
+  it('and shows no input at all until it is pressed', async () => {
+    const v = await openList();
+    expect(v.container.querySelector('.scopepick input')).toBeNull();
+    await openPicker(v);
+    expect(v.container.querySelector('.scopepick__pop input[role="combobox"]')).toBeTruthy();
   });
 
   it('and the counts move with the rows, not just the rows', async () => {
@@ -202,7 +234,7 @@ describe('the clear (x)', () => {
     const x = v.container.querySelector<HTMLButtonElement>('.scopepick__clear');
     expect(x, 'no clear button').toBeTruthy();
     await act(async () => { fireEvent.click(x!); });
-    expect(boxOf(v).value).toBe('Everything');
+    expect(pillOf(v)).toBe('Origin: Everything');
     expect(v.container.querySelector('.scopepick__clear')).toBeNull();
   });
 
@@ -219,7 +251,8 @@ describe('the clear (x)', () => {
 describe('the list never grows endless', () => {
   it('offers only the quick choices before anybody types', async () => {
     const v = await openList();
-    await act(async () => { fireEvent.focus(boxOf(v)); });
+    const box = await openPicker(v);
+    await act(async () => { fireEvent.focus(box); });
     const labels = offered(v);
     expect(labels).toContain('Everything');
     expect(labels).toContain('Suppliers');
@@ -231,9 +264,10 @@ describe('the list never grows endless', () => {
 
   it('and named parties only once something is typed', async () => {
     const v = await openList();
-    await act(async () => { fireEvent.focus(boxOf(v)); });
+    const box = await openPicker(v);
+    await act(async () => { fireEvent.focus(box); });
     const before = offered(v).length;
-    await act(async () => { fireEvent.change(boxOf(v), { target: { value: 'e' } }); });
+    await act(async () => { fireEvent.change(box, { target: { value: 'e' } }); });
     expect(offered(v).length).toBeGreaterThan(before);
   });
 
@@ -245,7 +279,8 @@ describe('the list never grows endless', () => {
     const v = await openList();
     await pick(v, 'Suppliers');
     await pick(v, 'Agencies');
-    await act(async () => { fireEvent.focus(boxOf(v)); });
+    const box = await openPicker(v);
+    await act(async () => { fireEvent.focus(box); });
     const labels = offered(v);
     expect(labels.length).toBe(new Set(labels).size);
   });

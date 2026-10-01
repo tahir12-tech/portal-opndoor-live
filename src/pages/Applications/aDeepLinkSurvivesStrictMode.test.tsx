@@ -50,8 +50,13 @@ afterEach(() => {
   localStorage.removeItem(KEYS.scopeRecents);
 });
 
-const originBox = (c: HTMLElement) =>
-  c.querySelector<HTMLInputElement>('.scopepick input[role="combobox"]')?.value ?? '(no picker)';
+/* READ OFF THE PILL, not an input. The control became a filter button
+   that opens the search on 2026-10-01; at rest there is no text box on
+   the page at all, which was the point of the change. */
+const originBox = (c: HTMLElement) => {
+  const t = c.querySelector('.scopepick__text')?.textContent?.trim();
+  return t ? t.replace(/^Origin:\s*/, '') : '(no picker)';
+};
 
 let api: ReturnType<typeof useSession> | null = null;
 function Grab() { api = useSession(); return null; }

@@ -88,8 +88,14 @@ async function open(url: string) {
 }
 type View = Awaited<ReturnType<typeof open>>;
 const activeTab = (v: View) => (v.container.querySelector('.ftab.is-active')?.textContent ?? '').trim();
-const originBox = (v: View) =>
-  v.container.querySelector<HTMLInputElement>('.scopepick input[role="combobox"]')?.value ?? '(no picker)';
+/* READ OFF THE PILL, not an input. The control became a filter button
+   that opens the search on 2026-10-01; at rest there is no text box on
+   the page at all, which was the point of the change. The pill reads
+   "Origin: Direct", so the value is what follows the colon. */
+const originBox = (v: View) => {
+  const t = v.container.querySelector('.scopepick__text')?.textContent?.trim();
+  return t ? t.replace(/^Origin:\s*/, '') : '(no picker)';
+};
 
 /** What each status parameter should light up, by the tab's own label. */
 const TAB_FOR: Record<string, RegExp> = {

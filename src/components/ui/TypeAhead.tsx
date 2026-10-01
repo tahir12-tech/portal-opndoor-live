@@ -27,6 +27,11 @@ export interface TypeAheadProps {
   emptyText?: string;
   /** Names the control for a screen reader where no visible <label> does. */
   ariaLabel?: string;
+  /** Focus on mount, which also opens the list. For a TypeAhead that is
+      revealed by a button press: the press was the intent to search, and
+      making the reader click a second time into the box would be a
+      dropdown that does not drop down. */
+  autoFocus?: boolean;
 }
 
 /** Highlight the matched substring using the .typeahead__match style. */
@@ -46,7 +51,7 @@ export function highlightMatch(name: string, query: string): ReactNode {
 
 export function TypeAhead({
   id, value, onChange, onEnter, options, placeholder, disabled,
-  emptyText = 'No matches', ariaLabel,
+  emptyText = 'No matches', ariaLabel, autoFocus,
 }: TypeAheadProps) {
   const [open, setOpen] = useState(false);
   /* THE HIGHLIGHTED ROW. Reset whenever the option list changes, because the
@@ -77,6 +82,8 @@ export function TypeAhead({
         id={id}
         type="text"
         autoComplete="off"
+        // eslint-disable-next-line jsx-a11y/no-autofocus
+        autoFocus={autoFocus}
         role="combobox"
         aria-expanded={open}
         aria-controls={listId}
