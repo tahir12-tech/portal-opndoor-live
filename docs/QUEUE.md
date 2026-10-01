@@ -268,7 +268,22 @@ live rather than trust the default.
 - A message pointing at another page is the same fault the Users and
   Manage buttons were removed for last week.
 
-## THE DEV CENTRE IS FOR DEVELOPERS ONLY (instruction, 2026-10-01, verbatim). **done** (`0136694`).
+## THE DEV CENTRE IS FOR DEVELOPERS ONLY (instruction, 2026-10-01, verbatim). **done** (`0136694`), then CORRECTED.
+
+### THE CORRECTION, verbatim (2026-10-01)
+
+> Admin keeps the Dev Centre route; the instruction only covered supplier Management and Referrer users. Restore it for Opndoor admin, keeping the existing rule that admin never sees or creates full keys.
+
+**I over-read the first instruction.** "Dev Centre is for developers
+only" plus "Opndoor admin keeps the ability to revoke keys from the
+supplier's Integration tab" I took as admin losing the route. Matt
+means the second sentence as reassurance about the Integration tab,
+not as a replacement for the Dev Centre. The instruction named two
+roles and I removed four.
+
+I flagged it as the half he had not spelled out, which is why it cost
+one message rather than a day. The lesson is the cheaper one: when an
+instruction names the parties it applies to, that list is the scope.
 
 > Dev Centre is for developers only: hide it from supplier Management and Referrer users entirely. Opndoor admin keeps the ability to revoke keys from the supplier's Integration tab.
 
