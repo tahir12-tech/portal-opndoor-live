@@ -35,7 +35,7 @@ import {
   decideRefundQuestion, loadRefundQuestions, reissueCorrectedStatement,
   type RefundQuestion,
 } from '@/data';
-import { gbpPence } from '@/lib/format';
+import { gbpPence, possessive } from '@/lib/format';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { Button } from '@/components/ui/Button';
@@ -91,7 +91,8 @@ export function RefundQuestions({ onChanged }: { onChanged?: () => void }) {
       try {
         await decideRefundQuestion(r.id, 'deduct');
         await after();
-        toast(`${gbpPence(r.commission)} will come off ${r.payeeName}'s next statement.`);
+        // Same hand-rolled possessive as the statements card, same fix.
+        toast(`${gbpPence(r.commission)} will come off ${possessive(r.payeeName)} next statement.`);
       } catch (e) {
         toast(e instanceof Error ? e.message : 'Could not record that.', 'error');
       } finally { setBusy(false); }

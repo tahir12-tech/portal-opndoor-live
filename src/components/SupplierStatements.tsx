@@ -25,7 +25,7 @@
    download of nothing.
    ===================================================================== */
 import { useEffect, useMemo, useState } from 'react';
-import { gbpPence } from '@/lib/format';
+import { gbpPence, possessive } from '@/lib/format';
 import {
   downloadSupplierDocument, getSupplierBundle,
   type SupplierBundleResult,
@@ -85,7 +85,12 @@ export function SupplierStatements({ partner, supplierName, months }: SupplierSt
     <Card>
       <CardHead
         title="Commission statements"
-        sub={`${supplierName}'s own statement, and one for each of its agencies. The same documents that were emailed.`}
+        /* `possessive`, not `${name}'s`. A supplier whose name ends in s --
+           Kestrel Lettings, and most letting agency names do -- read
+           "Kestrel Lettings's own statement". Reported by Matt, 2026-10-01.
+           The helper exists for exactly this and already carries the
+           typographic apostrophe the rest of the page uses. */
+        sub={`${possessive(supplierName)} own statement, and one for each of its agencies. The same documents that were emailed.`}
         actions={months.length > 1 && (
           <PeriodSelect
             value={monthKey}

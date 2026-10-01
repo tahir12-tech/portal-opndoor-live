@@ -31,7 +31,7 @@ import {
 import { formatLondonDate, gbpPence, possessive } from '@/lib/format';
 import { BASIS_META, type ExportBasis } from '@/data';
 import { getAgentRailFunnel, viewerRunsEligibilityJourney, type AgentRailFunnel } from '@/data/agentFunnel';
-import { isAgencyUser } from '@/data/capabilities';
+import { isAgencyUser, partyIsSupplier } from '@/data/capabilities';
 import { ORIGIN_ALL, originLabel, selectionIsAgency } from '@/data/origin';
 import { scopedSummaries } from '@/data/applicationsService';
 import type { Role } from '@/data';
@@ -160,7 +160,28 @@ export function Dashboard() {
      a third Opndoor role appeared, exactly as the four Reporting
      allowlists did. Fifteen other sites still hand-roll this; noted in
      QUEUE.md rather than swept here. */
-  const opndoorStaff = isOpndoorStaff(role);
+  /* AND NOT WHILE THE PAGE IS SOMEBODY ELSE'S. Matt, 2026-10-01: "Reporting
+     under View as Kestrel Lettings shows the 'Every customer' table (other
+     agencies' referrals, fees and commission) ... none of which a supplier
+     may see."
+
+     The table is gated on the READER, and View as does not change the reader:
+     an admin previewing Kestrel's page is still a superadmin, so the gate
+     stayed open and the rows below are built with a hardcoded ALL_PARTNERS,
+     which no scope selection can narrow. The result named every other
+     customer on a page captioned "This is the page their management sees".
+
+     It is the preview that was false, not the isolation: the admin may
+     lawfully read all of it, and a real supplier login never could -- their
+     book is one partner wide on the server, and `isOpndoorStaff` is false for
+     them besides. But a View as that shows what the viewer may see rather than
+     what the viewed party may see is not a preview of anything. */
+  const opndoorStaff = isOpndoorStaff(role) && viewingAs === null;
+  /* A SUPPLIER'S PAGE, whoever is reading it. The settlement blocks and the
+     payable split are Opndoor's own money surfaces; a supplier gets a
+     statement instead. Asked of the PARTY so the answer is the same for their
+     director and for an admin under View as. */
+  const supplierFacing = partyIsSupplier(partnerScope);
   const customers = useMemo(
     () => (opndoorStaff ? liveByCustomer(role, ALL_PARTNERS, period) : []),
     [opndoorStaff, role, period],
@@ -182,7 +203,7 @@ export function Dashboard() {
 
   // ---- Needs-attention row (compact stat-lines promoted from existing data) ----
   // Same scoped figures shown everywhere; each line renders only when non-zero.
-  const canSeeSettlements = role === 'superadmin' || role === 'management';
+  const canSeeSettlements = (role === 'superadmin' || role === 'management') && !supplierFacing;
   const partnerDue = settlement.partners.reduce((s, p) => s + p.commission, 0);
   // AUTHORITATIVE total: the sum of every payee line. The agencies rollup holds
   // agency-level lines only, so summing it would miss group and branch payees.
@@ -1032,13 +1053,21 @@ export function Dashboard() {
             while this month was already taking money: silence, where the admin
             surface printed a wrong sentence. The two blocks answer both
             questions, and the per-payee detail below is unchanged. */}
-        <RoleOnly roles={['management']} as={drawAs} commission>
-          <div id="settlements" className="section-label"><Eyebrow>Settlements</Eyebrow></div>
-          <SettlementBlocks role={role} scope={partnerScope} />
-        </RoleOnly>
+        {/* EXCEPT ON A SUPPLIER'S PAGE. "Payable now" and "Accruing" are
+            Opndoor's settlement run, and the split inside them names the
+            parties Opndoor owes. A supplier is one of those parties, not a
+            reader of the list: what they get is their own statement, which is
+            on this page already. Dropped for them on their own login and
+            under View as alike, which is the same predicate. */}
+        {!supplierFacing && (
+          <RoleOnly roles={['management']} as={drawAs} commission>
+            <div id="settlements" className="section-label"><Eyebrow>Settlements</Eyebrow></div>
+            <SettlementBlocks role={role} scope={partnerScope} />
+          </RoleOnly>
+        )}
 
         {/* COMMISSION SETTLEMENT (partner, prior calendar month, payable the 15th) */}
-        {d.live && settlement.partners.length > 0 && (
+        {d.live && !supplierFacing && settlement.partners.length > 0 && (
           <RoleOnly roles={['management']} as={drawAs} commission>
             <section className="card settle">
               <CardHead
@@ -1084,7 +1113,7 @@ export function Dashboard() {
         )}
 
         {/* AGENT COMMISSION SETTLEMENT (agency level, prior calendar month, payable the 15th) */}
-        {d.live && agentSettlement.payees.length > 0 && (
+        {d.live && !supplierFacing && agentSettlement.payees.length > 0 && (
           <RoleOnly roles={['management']} as={drawAs} commission>
             <section className="card settle">
               <CardHead

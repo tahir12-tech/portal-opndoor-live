@@ -13,6 +13,7 @@
 import type { PartnerScope, Role } from './types';
 import { ALL_PARTNERS } from './types';
 import { getPartner } from './partnersService';
+import { isHousePartner } from './channel';
 
 /**
  * Is this a CUSTOMER of ours on the agent rail — one of our agencies' own
@@ -66,6 +67,38 @@ export function isAgencyUser(role: Role, scope: PartnerScope): boolean {
 export function partyIsAgency(scope: PartnerScope): boolean {
   if (scope === ALL_PARTNERS) return false;
   return getPartner(scope)?.referencingMode === 'opndoor_referenced';
+}
+
+/**
+ * Is this PARTY a supplier? The third answer to a question that only ever had
+ * two, and the reason Reporting handed a supplier Opndoor's own money.
+ *
+ * THE DEFECT IT IS NAMED FOR. Matt, 2026-10-01: "Reporting under View as
+ * Kestrel Lettings shows the 'Every customer' table (other agencies'
+ * referrals, fees and commission), the Agencies/Suppliers commission split
+ * and Settlements, none of which a supplier may see."
+ *
+ * Every gate on those three surfaces was written as a pair: agency, or not
+ * an agency. "Not an agency" was taken to mean Opndoor, because when the
+ * gates were written the only non-agency reader WAS Opndoor. A supplier
+ * reading its own page is the third case, and it fell on Opndoor's side of
+ * every one of them -- so a supplier's Reporting drew the payable split
+ * ("Agencies £X / Suppliers £Y", which is Opndoor's book) and the Settlements
+ * blocks (Opndoor's settlement run). A supplier gets a STATEMENT; it does not
+ * get the settlement.
+ *
+ * ASKS ABOUT THE PARTY, NOT THE READER, exactly as `partyIsAgency` does and
+ * for the same reason: it has to give the same answer for the supplier's own
+ * director and for an admin under View as, or the preview goes on lying.
+ *
+ * The house partners are not suppliers. `opndoor-agents`, `opndoor-direct`
+ * and `referencing-partner` are our own plumbing, and a reader scoped to one
+ * of them is Opndoor looking at its own rail.
+ */
+export function partyIsSupplier(scope: PartnerScope): boolean {
+  if (scope === ALL_PARTNERS) return false;
+  if (isHousePartner(scope)) return false;
+  return !partyIsAgency(scope);
 }
 
 /**

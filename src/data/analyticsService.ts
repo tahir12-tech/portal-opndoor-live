@@ -28,7 +28,7 @@ import {
   convFor, scaleRows, type PeriodDef, type ShapeRow,
 } from './mock/analyticsModel';
 import { getRatesFor, weightFor } from './partnersService';
-import { isAgencyUser, partyIsAgency } from './capabilities';
+import { isAgencyUser, partyIsAgency, partyIsSupplier } from './capabilities';
 import { ALL_PARTNERS } from './types';
 import { liveAvailable, liveAggregate, liveVolume, liveTrend, deedsWithoutContact, lapsingWithin14, agentRailScope, type LiveAgg, type TrendRow } from './liveAnalytics';
 import { SOURCE_LABEL } from './commissionSplit';
@@ -275,6 +275,12 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
      and not the session. */
   const agencyFacing = isAgencyUser(role, scope)
     || (role === 'superadmin' && scope !== ALL_PARTNERS && partyIsAgency(scope));
+  /* AND THE THIRD READER, which every gate below was missing. "Not an agency"
+     was read as "Opndoor" throughout this tile, so a supplier scoped to its own
+     partner was handed the payable split: "Agencies £X / Suppliers £Y" is the
+     shape of OPNDOOR's book, not of theirs. Asked of the SCOPE, so a supplier's
+     own director and an admin under View as of them get the same page. */
+  const supplierFacing = partyIsSupplier(scope);
   // What the rates in the headline actually are. Named from the frozen lines, so
   // a negotiated 20% is called an agreement and not "the Opndoor standard".
   const srcWord = a.sources.length === 1 ? SOURCE_LABEL[a.sources[0]]
@@ -333,12 +339,18 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
       ? `Passed to opndoor as partner (${pPct}, net)`
       : 'Agencies',
     commSecondVal: ownOnly ? fmtMoney(a.partnerCommNet) : fmtMoney(a.agentCommNet),
-    commSecondShown: !noPartner,
-    // The other half of the payable split. Admin only: an agency has no
-    // suppliers and a single-partner reader is looking at their own cut.
+    commSecondShown: !noPartner && !supplierFacing,
+    /* The other half of the payable split. Admin only: an agency has no
+       suppliers and a single-partner reader is looking at their own cut.
+
+       "ADMIN ONLY" IS WHAT THE COMMENT SAID AND NOT WHAT THE CODE DID.
+       `ownOnly` is `!readsTheWholeBook(role)`, and a supplier's management
+       DOES read the whole book -- their own -- so every term here was true
+       for them and the split drew. The gate now says what the sentence above
+       it always claimed. */
     commThirdLbl: 'Suppliers',
     commThirdVal: fmtMoney(a.supplierCommNet),
-    commThirdShown: !agencyFacing && !ownOnly && !noPartner,
+    commThirdShown: !agencyFacing && !ownOnly && !noPartner && !supplierFacing,
     commExcl: signedNeg(a.partnerCommExcl + a.agentCommExcl),
     commExclDetail: noPartner
       ? fmtMoney(a.agentCommExcl)
@@ -439,6 +451,12 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
      and not the session. */
   const agencyFacing = isAgencyUser(role, scope)
     || (role === 'superadmin' && scope !== ALL_PARTNERS && partyIsAgency(scope));
+  /* AND THE THIRD READER, which every gate below was missing. "Not an agency"
+     was read as "Opndoor" throughout this tile, so a supplier scoped to its own
+     partner was handed the payable split: "Agencies £X / Suppliers £Y" is the
+     shape of OPNDOOR's book, not of theirs. Asked of the SCOPE, so a supplier's
+     own director and an admin under View as of them get the same page. */
+  const supplierFacing = partyIsSupplier(scope);
 
   /* And the tile itself, all of it or none of it, exactly as on the live path. The
      synthetic model multiplies the scope's rates by the period's fees right here,
@@ -468,13 +486,13 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
        different tile. */
     commThirdLbl: 'Suppliers',
     commThirdVal: fmtMoney(feesNum * rates.partner),
-    commThirdShown: !agencyFacing && !ownOnly,
+    commThirdShown: !agencyFacing && !ownOnly && !supplierFacing,
     // The synthetic model prices every referral at one month's rent by
     // construction, so it always has a partner line and a single basis. One of
     // our own agencies is the exception: there is no supplier above them, and a
     // £0 partner line reads as money withheld rather than as a party that does
     // not exist.
-    commSecondShown: !agencyFacing,
+    commSecondShown: !agencyFacing && !supplierFacing,
     // No refunds in the synthetic model, so there is nothing reversed to state.
     commExcl: signedNeg(0),
     commExclDetail: '',
