@@ -480,6 +480,10 @@ mark.hl {
 
 /* The per-row line, now a warning rather than a neutral "not filled in". */
 .contact-line--none { color: #b91c1c; }
+/* An agency whose branches each hold their own contact. Not a warning and
+   not a reading of the agency's own row: a statement that the question is
+   answered one level down, where the addresses are printed. */
+.contact-line--perbranch { color: var(--ink-mute); font-style: italic; }
 .contact-line--none .cl-none { color: inherit; }
 
 /* ---- group tree node (group → brand → branch) ---- */

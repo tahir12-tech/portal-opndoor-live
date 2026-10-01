@@ -636,6 +636,7 @@ import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
+import { agencyContactState, branchesWithNoDeedContact } from '@/data/deedContact';
 import { Icon } from '@/components/ui/Icon';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { Field } from '@/components/ui/Field';
@@ -716,6 +717,48 @@ const realName = (name: string, email: string): string => {
     in mock mode, and that case keeps the mailbox warning exactly as before. */
 function ContactSummary({ agency, branch, canManage, onManage, ready }: { agency: Agency; branch: Branch | null; canManage: boolean; onManage: () => void; ready?: boolean }) {
   const ep = effectivePrimary(agency, branch);
+  /* AN AGENCY ROW ASKS A DIFFERENT QUESTION FROM A BRANCH ROW.
+
+     Matt, 2026-10-01: "Apply the same rule as the admin supplier Overview
+     everywhere this warning appears: only warn on a branch that genuinely
+     has nowhere to send the deed, on that branch."
+
+     This row ran the BRANCH question on the agency node, so an agency that
+     keeps its contacts on its branches -- the normal arrangement, and the
+     one inheritance exists to support -- said "No agent contact. A deed
+     cannot be issued" above two branches each printing a working address.
+     Measured on dev: that is exactly Kestrel Lettings, which is the screen
+     Matt was looking at. `agencyContactState` is the Overview's rule,
+     lifted out so the two cannot answer differently again. */
+  if (!branch && ready === undefined) {
+    const state = agencyContactState(agency);
+    if (state.kind === 'per-branch') {
+      return (
+        <div className="contact-line contact-line--perbranch">
+          <Icon name="send" />
+          <span>Contacts are set per branch</span>
+          {canManage ? (
+            <button className="contact-manage" onClick={(e) => { e.stopPropagation(); onManage(); }}>Manage</button>
+          ) : null}
+        </div>
+      );
+    }
+    if (state.kind === 'bare') {
+      return (
+        <div className="contact-line contact-line--none">
+          <Icon name="alert" />
+          <span className="cl-none">
+            <b>No agent contact on {state.bare} of {state.branches} {plural(state.branches, 'branch')}.</b>
+            {' '}A deed for those branches has nowhere to go, and an application against one will
+            fail after the tenant has paid.
+          </span>
+          {canManage ? (
+            <button className="contact-manage" onClick={(e) => { e.stopPropagation(); onManage(); }}>Manage</button>
+          ) : null}
+        </div>
+      );
+    }
+  }
   const manageBtn = canManage ? (
     <button className="contact-manage" onClick={(e) => { e.stopPropagation(); onManage(); }}>Manage</button>
   ) : null;
@@ -907,17 +950,13 @@ export function OrgManagement() {
   // which the agency detail page surfaces per branch; the mailbox check does not apply.
   // Memoised: this walks every agency and every branch and calls getPartner (a
   // linear find) per agency, so unmemoised it ran on every keystroke.
-  const deedBlocked = useMemo(() => pool
+  const deedBlocked = useMemo(() => branchesWithNoDeedContact(
     // The ESTATE, not the referencing choice. M3 made this follow the agency's own
     // referencing_mode, which was right for an agency opting INTO eligibility and
     // wrong for one opting out: Regent reference their own tenants and are still
     // one of ours, with people to deliver to and no mailbox to warn about.
-    .filter((a) => getPartner(a.partner)?.referencingMode !== 'opndoor_referenced')
-    .flatMap((a) =>
-      a.branches
-        .filter((b) => !effectivePrimary(a, b).contact)
-        .map((b) => ({ agency: a.name, branch: b.name })),
-    ), [pool]);
+    pool.filter((a) => getPartner(a.partner)?.referencingMode !== 'opndoor_referenced'),
+  ), [pool]);
 
   // Resolve the contacts-modal owner fresh each render (reflects mutations + re-hydration).
   const ctAgency = ctOpen ? findAgency(ctAgencyName) ?? null : null;
@@ -1197,7 +1236,12 @@ function requestCloseContacts() {
     // in the same bundle any logged-in user can read. Route-gating a screen does
     // not gate the strings on it. See REGRESSION.md section C.
     role === 'superadmin' ? <>As an <b>opndoor admin</b> you have full control: add, edit and reorganise agencies and branches, and sync the hierarchy to the CRM.</>
-      : role === 'management' ? <>You can view, add and edit the agencies and branches you manage, and your changes apply straight away. Keeping opndoor's own records in step is handled by <b>opndoor</b>.</>
+      /* Matt's own sentence, 2026-10-01: "change the banner to 'You can
+         view, add and edit the agencies and branches you manage. Changes
+         apply straight away.'" The half that went was about opndoor
+         keeping its own records in step, which is true and is not this
+         reader's business on this screen. */
+      : role === 'management' ? <>You can view, add and edit the agencies and branches you manage. Changes apply straight away.</>
         : <>You can view every agency and branch. Adding and editing records is handled by your management team and <b>opndoor</b>.</>;
 
   // Real groups (agency_groups) for the current scope, keyed by id — used both to
