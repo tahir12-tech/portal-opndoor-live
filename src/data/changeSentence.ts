@@ -39,11 +39,71 @@
    the sentences for free, which is the point of Matt's "anywhere else".
    ===================================================================== */
 
+/* =====================================================================
+   A CHANGE COMES IN TWO SHAPES, AND ONLY ONE OF THEM IS A TRIPLE.
+
+   Matt, 2026-10-01: "Agency page: add a 'Recent changes' list like the
+   supplier's ... using the shared builder."
+
+   The supplier's history is `partner_audit`, a (field, old, new) triple
+   per row, so the builder took one. An agency's is mostly `org_audit`,
+   which records an EVENT -- "created", "group_set", "agreement_created",
+   "position_set" -- with a free-text detail.
+
+   AN EVENT IS NOT A BEFORE-AND-AFTER and forcing it into a triple would
+   mean inventing one: "action changed from nothing to created" is worse
+   than useless. So the builder takes either, and a row brings whichever
+   it has. That is still one builder, which is what the instruction is
+   about -- two lists wording the same change two ways is the fault.
+   ===================================================================== */
 /** A row in any of the change lists: what moved, and from what to what. */
 export interface ChangeLike {
-  field: string;
-  oldValue: string | null | undefined;
-  newValue: string | null | undefined;
+  field?: string | null;
+  oldValue?: string | null;
+  newValue?: string | null;
+  /** The event shape: what happened, and the detail recorded with it. */
+  action?: string | null;
+  detail?: string | null;
+}
+
+/* WHAT EACH EVENT READS AS. A function of the detail rather than a fixed
+   string, because the detail is where the actual value is -- and for most
+   of these the stored detail is ALREADY a sentence somebody wrote when
+   the row was inserted ("Rosa Vance now receives ... monthly commission
+   statement"), so the right thing is to use it rather than to re-say it
+   worse. */
+const EVENTS: Record<string, (detail: string) => string> = {
+  created: (d) => (d ? `Created: ${d}` : 'Created'),
+  merged: (d) => d || 'Merged with another agency',
+  group_set: (d) => (d ? `Moved into the ${d} group` : 'Moved into a group'),
+  position_set: (d) => (d ? `Position set to ${d}` : 'Position set'),
+  commission_set: (d) => `Commission set to ${ratePair(d)}`,
+  agreement_created: (d) => `Commission deal agreed${d ? `: ${d}` : ''}`,
+  agreement_superseded: (d) => d || 'The previous commission deal was ended',
+  agreement_ended: (d) => d || 'The commission deal was ended',
+  all_in_breach_confirmed: (d) => `All-in deal confirmed over a higher rate${d ? `: ${d}` : ''}`,
+  commission_statements_on: (d) => d || 'Now receives the monthly commission statement',
+  commission_statements_off: (d) => d || 'No longer receives the monthly commission statement',
+  commission_statement_tick_cleared: (d) => d || 'Commission statements turned off with the level change',
+  notifications_on: (d) => d || 'Now receives notifications',
+  notifications_off: (d) => d || 'No longer receives notifications',
+  invited: () => 'Invited',
+};
+
+/* "partner 0.25, agent 0.1" is what set_agency_rates stores, and it is
+   the one detail in the list that is a pair of raw numbers rather than a
+   sentence. Read as percentages, which is how every other rate on the
+   screen is shown. */
+function ratePair(detail: string): string {
+  const m = detail.match(/partner\s+([^,]+),\s*agent\s+(.+)/i);
+  if (!m) return detail;
+  const pc = (v: string) => {
+    const t = v.trim();
+    if (t === 'inherit') return 'inherited';
+    const n = Number(t);
+    return Number.isFinite(n) ? `${Number((n * 100).toFixed(2))}%` : t;
+  };
+  return `${pc(m[1])} total, ${pc(m[2])} to the agents`;
 }
 
 /** What each field is called when somebody who does not work here reads it. */
@@ -112,6 +172,21 @@ const word = (v: string) => VALUE_WORDS[v.trim()] ?? v.trim();
  * and is a great deal better than nothing while somebody adds it above.
  */
 export function changeSentence(e: ChangeLike): string {
+  /* THE EVENT SHAPE FIRST, where a row has one. A row never has both:
+     the reader fills in one or the other. */
+  const act = (e.action ?? '').trim();
+  if (act) {
+    const detail = (e.detail ?? '').trim();
+    const said = EVENTS[act];
+    if (said) return said(detail);
+    /* AN EVENT NOBODY HAS WORDED still reads, the same way an unlabelled
+       field does: the action with its underscores taken out, and the
+       detail after it where there is one. */
+    const name = act.replace(/_/g, ' ');
+    const label = name.charAt(0).toUpperCase() + name.slice(1);
+    return detail ? `${label}: ${detail}` : label;
+  }
+
   const field = (e.field ?? '').trim();
   const from = (e.oldValue ?? '').trim();
   const to = (e.newValue ?? '').trim();

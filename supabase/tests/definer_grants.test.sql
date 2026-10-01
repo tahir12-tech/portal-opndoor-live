@@ -64,6 +64,7 @@ insert into allowed(name) values
   ('admin_update_user_name'),
   ('admin_update_user_role'),
   ('agency_branches_for_match'),
+  ('agency_changes'),
   ('agency_match_queue'),
   ('agent_rail_funnel'),
   ('agreement_for_agency'),

@@ -158,3 +158,25 @@
 .prow:focus-visible { outline: 2px solid var(--heliotrope-deep); outline-offset: -2px; }
 .prow__go { width: 14px; height: 14px; color: var(--ink-mute); }
 .prow:hover .prow__go { color: var(--ink); }
+
+/* THE AGENCY'S CHANGE LIST adds a chip the supplier's does not need: its
+   history has four subjects (the agency, a branch, a person, a deal) and
+   the supplier's has one. Coloured by subject so the eye can group them
+   without reading. */
+.agc-chip {
+  display: inline-block;
+  margin-right: 7px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+  background: var(--app-bg-2);
+  color: var(--ink-mute);
+}
+.agc-chip--deal { background: var(--heliotrope-pale, #f1e9ff); color: var(--heliotrope-deep); }
+.agc-chip--person { background: #e8f1ff; color: #1f4f9c; }
+.agc-chip--branch { background: #e9f7ee; color: #1d6b3a; }
+.agc-who { margin-right: 6px; }

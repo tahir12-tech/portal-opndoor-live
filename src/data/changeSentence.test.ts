@@ -104,3 +104,82 @@ describe('never a raw field name or a raw value', () => {
     expect(all).not.toMatch(/_/);
   });
 });
+
+/* ===========================================================================
+   AND THE EVENT SHAPE, which is how an agency's history is kept.
+
+   Matt, 2026-10-01: "Agency page: add a 'Recent changes' list like the
+   supplier's ... using the shared builder."
+
+   `org_audit` records an action and a free-text detail, not a triple. An
+   event is not a before-and-after, so the builder takes either rather than
+   inventing one: "action changed from nothing to created" would be worse
+   than no sentence at all.
+   =========================================================================== */
+const ev = (action: string, detail = '') => changeSentence({ action, detail });
+
+describe('an event rather than a triple', () => {
+  it('reads a branch being created', () => {
+    expect(ev('created', 'Chelsea')).toBe('Created: Chelsea');
+  });
+
+  it('and a move into a group', () => {
+    expect(ev('group_set', 'Northgate')).toBe('Moved into the Northgate group');
+  });
+
+  it('and a position, which the reader has already resolved to a place', () => {
+    expect(ev('position_set', 'the Chelsea branch')).toBe('Position set to the Chelsea branch');
+  });
+
+  /* THE ONE DETAIL THAT IS RAW NUMBERS. `set_agency_rates` stores
+     "partner 0.25, agent 0.1", which is the only row in org_audit that is
+     not already a sentence somebody wrote. */
+  it('and turns the stored rate pair into percentages', () => {
+    expect(ev('commission_set', 'partner 0.2500, agent 0.1000'))
+      .toBe('Commission set to 25% total, 10% to the agents');
+  });
+
+  it('including an inherited one, which is not a number at all', () => {
+    expect(ev('commission_set', 'partner 0.2500, agent inherit'))
+      .toBe('Commission set to 25% total, inherited to the agents');
+  });
+
+  it('and a deal being agreed', () => {
+    expect(ev('agreement_created', 'additive agreement, volume per agency per year'))
+      .toBe('Commission deal agreed: additive agreement, volume per agency per year');
+  });
+
+  /* MOST DETAILS ARE ALREADY A SENTENCE, written when the row was
+     inserted. Re-saying them would be saying them worse. */
+  it('and uses the sentence the trail already recorded, where there is one', () => {
+    expect(ev('commission_statements_on', 'Rosa Vance now receives the monthly statement'))
+      .toBe('Rosa Vance now receives the monthly statement');
+  });
+
+  it('falling back to a plain one where the detail is empty', () => {
+    expect(ev('commission_statements_on')).toBe('Now receives the monthly commission statement');
+  });
+
+  /* AN EVENT NOBODY HAS WORDED still reads, like an unlabelled field. */
+  it('and an action nobody has worded yet is still readable', () => {
+    expect(ev('some_new_event', 'with a detail')).toBe('Some new event: with a detail');
+    expect(ev('some_new_event')).toBe('Some new event');
+  });
+
+  it('with no raw underscore left anywhere', () => {
+    const all = [
+      ev('position_set', 'the Chelsea branch'),
+      ev('commission_statements_off', ''),
+      ev('agreement_superseded', ''),
+      ev('some_new_event', ''),
+    ].join(' | ');
+    expect(all).not.toMatch(/_/);
+  });
+
+  /* AND THE TRIPLE SHAPE STILL WORKS, because the supplier's list and
+     the agency's people both use it. */
+  it('while a triple is still a triple', () => {
+    expect(changeSentence({ field: 'status', oldValue: 'active', newValue: 'deactivated' }))
+      .toBe('Status changed from Active to Deactivated');
+  });
+});

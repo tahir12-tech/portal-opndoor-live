@@ -181,7 +181,7 @@ describe('the definer allowlist', () => {
      `set_app_setting_text` is Health's field, `statement_invoice_email`
      is what it reads back, and `statements_can_be_posted` is the
      boolean Home and Health both warn on. 2026-10-01. */
-  it('is 148 functions wide, and does not widen by accident', () => {
+  it('is 149 functions wide, and does not widen by accident', () => {
     /* 142 -> 144, 2026-10-01: refund_questions_open and
        decide_refund_question, the list and the answer for a refund that
        landed on commission already sent on a statement. Both are staff
@@ -198,7 +198,12 @@ describe('the definer allowlist', () => {
        product and these decide what an agency is paid. The reader returns
        one supplier's deals and nobody else's; the two writers refuse a
        deal that is not that supplier's through the membership trigger. */
-    expect(allowlist.length).toBeLessThanOrEqual(148);
+    /* 148 -> 149, 2026-10-01: agency_changes, the agency page's Recent
+       changes list. Gated on `app_may_reach_agency`, the same predicate
+       every other agency-scoped reader uses, so it cannot become a way
+       round the boundary; within it the rows are about the agency the
+       caller is already reading. */
+    expect(allowlist.length).toBeLessThanOrEqual(149);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

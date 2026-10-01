@@ -793,6 +793,49 @@ export async function clearAgencyShareDeal(agencyId: string): Promise<void> {
   if (error) throw new Error(cleanRpcError(error.message));
 }
 
+/* ===========================================================================
+   WHAT CHANGED ABOUT ONE AGENCY.
+
+   Matt, 2026-10-01: "Agency page: add a 'Recent changes' list like the
+   supplier's, showing every change to the agency's details, branches,
+   people's levels and commission deals in plain English, with who and when,
+   using the shared builder."
+
+   Four sources in two shapes; see agency_changes in
+   20261007270000. The wording is `changeSentence`, which this does not
+   touch: the list and the supplier's must read the same.
+   =========================================================================== */
+export interface AgencyChange {
+  at: Date;
+  actor: string;
+  /** What the change was about, for the chip at the start of the row. */
+  subjectKind: 'agency' | 'branch' | 'person' | 'deal';
+  /** The branch or person; null where it is the agency itself. */
+  subject: string | null;
+  action: string | null;
+  detail: string | null;
+  field: string | null;
+  oldValue: string | null;
+  newValue: string | null;
+}
+
+export async function getAgencyChanges(agencyId: string, limit = 50): Promise<AgencyChange[]> {
+  if (!orgLive()) return [];
+  const { data, error } = await sb().rpc('agency_changes', { p_agency: agencyId, p_limit: limit });
+  if (error) throw new Error(cleanRpcError(error.message));
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    at: new Date(String(r.at)),
+    actor: String(r.actor ?? 'somebody'),
+    subjectKind: (r.subject_kind as AgencyChange['subjectKind']) ?? 'agency',
+    subject: (r.subject as string) ?? null,
+    action: (r.action as string) ?? null,
+    detail: (r.detail as string) ?? null,
+    field: (r.field as string) ?? null,
+    oldValue: (r.old_value as string) ?? null,
+    newValue: (r.new_value as string) ?? null,
+  }));
+}
+
 /** End an agreement, returning the party to standard terms from now on.
     History does not move: every application already created keeps the fee and
     the commission lines frozen onto it. */

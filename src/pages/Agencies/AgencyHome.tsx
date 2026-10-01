@@ -65,6 +65,7 @@ import { CommissionStatement } from '@/components/CommissionStatement';
 import { showsOffices } from '@/data/agencyOffices';
 import './AgencyHome.css';
 import { plural } from '@/lib/plural';
+import { AgencyChanges } from './AgencyChanges';
 
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
 const STATUS_ST: Partial<Record<Status, string>> = { referencing: 'st-wait', sent: 'st-live', paid: 'st-live', deed: 'st-ok' };
@@ -1425,6 +1426,26 @@ export function AgencyHome() {
           </div>
         </CardBody>
       </Card>
+      )}
+
+      {/* RECENT CHANGES, UNDER THE TREE. Matt, 2026-10-01: "Agency page:
+          add a 'Recent changes' list like the supplier's, showing every
+          change to the agency's details, branches, people's levels and
+          commission deals in plain English, with who and when, using the
+          shared builder."
+
+          ON OVERVIEW, where the supplier's sits on Settings, because an
+          agency has no Settings tab -- its details are the tree itself.
+          Under it rather than over it: the question "what is this
+          agency" comes before "what changed about it".
+
+          ONLY FOR A SINGLE AGENCY. A group's page shows several, and a
+          list mixing three agencies' histories under one heading would
+          need a fourth chip to say whose -- which is a different screen
+          from the one Matt asked for. The group case is noted in
+          QUEUE.md rather than guessed at. */}
+      {tab === 'overview' && !focus && agencies.length === 1 && agencies[0]?.id && (
+        <AgencyChanges agencyId={agencies[0].id} />
       )}
 
       {tab === 'reporting' && isOpndoorStaff && (
