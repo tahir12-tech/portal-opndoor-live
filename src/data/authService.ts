@@ -9,6 +9,7 @@
    the database requires before it returns any data.
    ===================================================================== */
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import { portalEnvironment } from './devCentreService';
 
 export interface LoginResult {
   ok: boolean;
@@ -120,6 +121,32 @@ export interface EnrolResult extends AuthResult {
     surfaced a raw "a factor with the friendly name '' already exists" error): we
     drop unverified factors first, and if enrolment still collides we clear every
     TOTP factor and retry once. Any failure returns a clean, mapped message. */
+/* =====================================================================
+   WHICH OPNDOOR THE PHONE IS SHOWING YOU.
+
+   Matt, 2026-10-01: "Authenticator labels: on dev, the issuer shows as
+   'opndoor DEV' so dev and live entries can't be confused. On live it
+   stays 'opndoor'."
+
+   An authenticator entry is labelled issuer + account, and the account
+   half is the person's email -- the same email on both projects. So
+   somebody who holds an account on dev and on live had two entries
+   reading "opndoor (rosa@regents.co.uk)", identical, six digits each,
+   and no way to tell which one the sign-in screen in front of them
+   wants.
+
+   THE EXISTING PREDICATE, NOT A SECOND ONE. `portalEnvironment()`
+   already answers "which project is this" from the Supabase URL's ref,
+   against the same list the Stripe key guard uses, and its own comment
+   is emphatic that there must not be two answers to that question. Its
+   rule that an UNRECOGNISED project counts as production applies here
+   too, and is the right way round for the same reason: a live entry is
+   the one that must be labelled plainly.
+   ===================================================================== */
+export function totpIssuer(): string {
+  return portalEnvironment().id === 'development' ? 'opndoor DEV' : 'opndoor';
+}
+
 export async function enrolTotp(): Promise<EnrolResult> {
   // enrolTotp is only reached when the user has NO verified factor, so any
   // factors present are stale unverified attempts. Clear them all (best effort),
@@ -161,7 +188,7 @@ export async function enrolTotp(): Promise<EnrolResult> {
      friendlyName stays unique and separate: it is our own handle for the factor
      row and is what stops the duplicate-name collision that used to strand
      invitees. It is not what the phone displays. */
-  const res = await sb().auth.mfa.enroll({ factorType: 'totp', friendlyName, issuer: 'opndoor' });
+  const res = await sb().auth.mfa.enroll({ factorType: 'totp', friendlyName, issuer: totpIssuer() });
   if (res.error || !res.data) {
     const detail = res.error?.message ?? '';
     // #92/#73 Never surface a raw server-ism. A session/token error means the
