@@ -266,3 +266,64 @@ describe('the words on a supplier’s own page', () => {
     expect(cells).not.toContain('active');
   });
 });
+
+/* ===========================================================================
+   A BRANCH'S OWN CONTACT IS SHOWN, AND KEEPS BEING SHOWN.
+
+   Matt, 2026-10-01: "Supplier Overview for Kestrel Lettings: Kestrel
+   Riverside no longer shows its contact email (it showed
+   kestrel.riverside@kestrel.invalid earlier). Find whether the contact was
+   removed or the screen stopped showing it, fix it, and if a branch
+   genuinely has no contact, warn on that branch."
+
+   THE CONTACT WAS NOT REMOVED: it is on dev, RLS returns it to an admin,
+   the hydration maps it onto the branch and the page renders it -- checked
+   with dev's own rows, in the plain state and in the View as state. I could
+   not reproduce the disappearance, and these are the assertions that would
+   have caught it, written so that the next change which could cause it
+   fails here instead of on Matt's screen.
+
+   THE FIXTURE IS KESTREL'S SHAPE, which is the one with nothing on the
+   agency and a contact on every branch -- the arrangement the agency row's
+   own warning was rewritten around this afternoon, and therefore the one
+   most likely to lose a branch's line by accident.
+   =========================================================================== */
+describe('a branch with its own contact', () => {
+  const branchRow = (v: { container: HTMLElement }, name: string) =>
+    [...v.container.querySelectorAll('.ph-tree__branch')]
+      .find((d) => (d.textContent ?? '').includes(name))!;
+
+  it('shows that contact on the branch, not just on the agency', async () => {
+    const v = await open();
+    expect(branchRow(v, 'ZZZ North').textContent).toContain('north@zzz.test');
+    expect(branchRow(v, 'ZZZ South').textContent).toContain('south@zzz.test');
+  });
+
+  /* THE ROW SHOWS AN ADDRESS OR A WARNING, NEVER NEITHER. "No longer shows
+     its contact email" could mean either an empty row or a wrong one, and
+     an empty row is the version nobody notices. */
+  it('and every branch row says one or the other, never nothing', async () => {
+    const v = await open();
+    for (const row of v.container.querySelectorAll('.ph-tree__branch')) {
+      const contact = row.querySelector('.ph-contact');
+      expect(contact, `no contact line at all on: ${row.textContent}`).toBeTruthy();
+      expect((contact!.textContent ?? '').trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  /* "IF A BRANCH GENUINELY HAS NO CONTACT, WARN ON THAT BRANCH" -- which
+     is the branch's own row, not a count on the agency above it. */
+  it('while a branch that genuinely has none is warned about there', async () => {
+    const v = await open();
+    expect(branchRow(v, 'ZZZ West').textContent).toMatch(/No agent contact/);
+  });
+
+  /* AND A BRANCH THAT INHERITS ITS AGENCY'S IS NOT WARNED ABOUT, because
+     the deed has somewhere to go. The line says where it came from. */
+  it('and one that inherits the agency’s shows it, marked as inherited', async () => {
+    const v = await open();
+    const row = branchRow(v, 'ZZZ Office');
+    expect(row.textContent).toContain('ada@zzz.test');
+    expect(row.textContent).not.toMatch(/No agent contact/);
+  });
+});
