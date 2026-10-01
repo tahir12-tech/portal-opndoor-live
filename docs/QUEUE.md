@@ -195,7 +195,7 @@ one the product ships -- which is exactly what the setting was built
 for, and is why the handover check tells Balal to look at the value on
 live rather than trust the default.
 
-## THE RESET EMAIL SAYS TO DELETE THE OLD ENTRY (instruction, 2026-10-01, verbatim). **done** (`pending`). THE EMAIL DID NOT EXIST; it does now.
+## THE RESET EMAIL SAYS TO DELETE THE OLD ENTRY (instruction, 2026-10-01, verbatim). **done** (`7775fb0`). THE EMAIL DID NOT EXIST; it does now.
 
 > Two-factor reset email: add "Delete the old opndoor entry from your authenticator app before scanning the new code."
 
