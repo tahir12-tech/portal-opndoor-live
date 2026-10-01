@@ -167,6 +167,18 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
+## THE AUTHENTICATOR ENTRY SAYS WHICH ENVIRONMENT IT IS (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Authenticator labels: on dev, the issuer shows as "opndoor DEV" so dev and live entries can't be confused. On live it stays "opndoor".
+
+- This answers the thing I raised at the end of the two-factor
+  investigation: the QR is labelled issuer "opndoor" + the user's
+  email, so two entries for the same person are indistinguishable in
+  the app. Matt's answer separates DEV from LIVE.
+- It does NOT separate an OLD entry from a NEW one in the SAME
+  environment, which is the half that could still produce what he
+  described. Noted below rather than guessed at.
+
 ## RESET TWO-FACTOR DOES NOT REVOKE THE OLD AUTHENTICATOR (security bug, 2026-10-01, verbatim). ACTIVE, TOP OF THE QUEUE.
 
 > Security bug: after Opndoor admin pressed "Reset two-factor" on joe@bloggs.com, I followed the email link and scanned the new QR code. The new authenticator's code was rejected, and a code from the OLD authenticator was accepted. Reset must remove every existing two-factor factor and sign the person out of all sessions immediately; the old authenticator must never work again, and enrolment must verify against the newly created factor only. Reproduce it on dev through the browser path, fix it, and add tests: old code rejected after reset, new code accepted, sessions ended. Check whether the same flaw exists on the live system and tell me.
