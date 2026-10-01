@@ -123,6 +123,39 @@ Two things worth knowing for whoever picks the next one up:
   than a screenshot and did catch two wording faults a screenshot would
   not have.
 
+## ONE WAY TO SET SUPPLIER COMMISSION, AND TWO DEAL SHAPES (instructions, 2026-10-01, verbatim). ACTIVE.
+
+> Supplier Commission tab: one way to set commission only. Remove the old card (Total commission %, Agents' share %, read-only volume tiers, Save commission) and keep the deal editors ("What opndoor pays this supplier", "What the agencies underneath keep"), moving the "Opndoor pays the agents directly" switch and the plain-English summary into that layout. Supplier Overview: don't show "No agent contact" on an agency when its branches have contacts; only warn where a branch would actually have nowhere to send the deed. Settings: replace "The partner references first" with "The supplier references first". People: show status as "Active", capitalised, like elsewhere. Deploy to dev and check there.
+
+> Supplier Commission tab, two deal shapes chosen by the "Opndoor pays the agents directly" switch. Off (paid through the supplier): one total commission, all paid to the supplier, which settles with its agents; the agents' share sits within that total and is only used for the per-agency statements. On (paid directly by Opndoor): the supplier's own commission and the agents' commission are separate deals, each can be flat or tiered, and Opndoor pays each party its own; the total is the sum. The plain-English summary explains whichever applies. Statements follow: off, one supplier statement plus per-agency schedules for them to forward; on, the supplier is paid its own share and each agency gets its own statement from Opndoor. Deploy to dev and check there.
+
+### THE SECOND MESSAGE CHANGES THE MODEL THE FIRST ONE ASSUMED
+
+What was built on 2026-10-01 has ONE shape: the commission deal is the
+total and the agents' share is carved out of it, guarded so the share can
+never exceed the total at any tenant count or volume. That is now the OFF
+shape only.
+
+ON, the two deals are SIBLINGS: the supplier's own and the agency's own,
+each priced independently, and the total is their sum. Three things
+follow and each is a real change, not a wording one:
+
+- **The share-within-total guard must not apply when the switch is on.**
+  Two independent rates cannot breach each other, and refusing a 30%
+  agency rate because the supplier's own is 20% would be refusing a
+  perfectly ordinary deal.
+- **The supplier's statement line stops subtracting.** It is
+  `partner_rate - supplier_agent_rate` today whenever Opndoor pays the
+  agents; under the new model the supplier is simply paid its own
+  commission, so the subtraction goes and the arm is the same either way.
+- **`supplier_agent_rate` caps the share at the total**, which is an OFF
+  idea. Capping an independent agency rate at the supplier's own is
+  wrong.
+
+**Safe to change:** measured on dev, every supplier has the switch OFF
+and NOT ONE has a paid referral, so no statement that exists is repriced
+by any of this.
+
 ## DECISIONS TAKEN, 2026-10-01
 
 **ANSWERED, 2026-10-01. Matt: "Leave paymentLinkEmail exactly as it is;
