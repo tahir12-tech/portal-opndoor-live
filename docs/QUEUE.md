@@ -15,6 +15,36 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## THE ORIGIN BOX LOOKS LIKE A FILTER, AND THE DEFAULT PERIOD (instruction, 2026-10-01, verbatim). ACTIVE, after the route=Direct bug.
+
+> The Origin filter box on League and Applications: style it to match the other filter buttons (like "Period: All time"), reading "Origin: Everything" with a dropdown arrow, opening the search and list when clicked. No bare text box. Also default League and Reporting to "Last 30 days" instead of "This calendar month", so they aren't empty on the 1st of the month. Deploy to dev and check there.
+
+- **It is a button that opens a picker, not a text input.** The search box
+  belongs INSIDE what opens, not on the page.
+- **"Origin: Everything"** is the resting label, matching "Period: All
+  time" beside it.
+- **The period default is a separate half**: League and Reporting, not
+  Applications, and the reason is stated in the instruction. Today is the
+  1st, which is exactly when it bites.
+
+## ?route=Direct IS IGNORED, AGAIN (bug, 2026-10-01, verbatim). ACTIVE, in hand.
+
+> Steps: signed in as Opndoor admin on dev, on Home I click "View all Direct". It opens /applications?route=Direct, but the Origin box doesn't show Direct and the list shows every application, not just direct ones. Same after a hard refresh. Reproduce this through the browser path, fix it, deploy to dev and check there.
+
+**I reported this as not reproducible on 2026-09-30 and I was wrong.**
+The sweep I built (`everyFilteredLinkArrives.render.test.tsx`) rendered
+`<Applications />` directly at each URL with the role already settled in
+localStorage, so it proved the URL arrives filtered and nothing about
+what the live app does with it. It also never exercised Home's link at
+all: the mock book has no Direct rows, so that card does not render in
+jsdom.
+
+**Reproduced:** the filter arrives and is then WIPED by the `[role]`
+reset effect in Applications. In live mode the session boots on the
+cached or least-privileged role and corrects it to the profile's once
+that resolves, which is after the page has mounted. The reset cannot
+tell that correction from a seat change.
+
 ## FOR MATT, 2026-10-01: ONE DECISION WAITING
 
 **The first fee email still repeats the property address, and I left it
