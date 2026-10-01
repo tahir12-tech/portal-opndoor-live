@@ -13,7 +13,8 @@
 
 Three more arrived while item 1 was in flight, so they join the back of item
 6 in the order they were sent: the rent label before the deed is issued, the
-Agency League headings, and the office chosen first on New application.
+Agency League headings, the office chosen first on New application, and
+one support address and one name for the fee on the tenant side.
 
 
 The single source of truth for outstanding work on this branch.
@@ -30,6 +31,15 @@ anything it is under a heading that says so.
 Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
+
+## ONE ADDRESS AND ONE NAME FOR THE FEE, TENANT SIDE (instruction, 2026-10-01, verbatim). todo.
+
+> Tenant payment page: use support@opndoor.co (not hello@), the same fee name as the emails everywhere ("guarantee fee"), and dates as "20 Nov 2026". Sweep all tenant-facing pages and emails for hello@opndoor.co and "guarantor fee" and make them consistent.
+
+- A sweep, not a page fix: the instruction names the page and then says to
+  sweep every tenant-facing page AND email. "guarantee fee" is the name,
+  "guarantor fee" is the one to remove.
+- The date format is the shared `formatDate`, already built.
 
 ## THE RENT FIGURE IS NOT GUARANTEED UNTIL IT IS (instruction, 2026-10-01, verbatim). todo.
 
