@@ -29,9 +29,19 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
 /** yyyy-mm-dd (or ISO) -> dd/mm/yyyy for display. */
+/* "29 Dec 2026", the way the rest of the product writes a date. Matt,
+   2026-10-01: "Show dates as '29 Dec 2026', including in the PandaDoc
+   email text." This page is where somebody corrects a date that is
+   already wrong, so a format that can be read two ways is the last thing
+   it should print. The month table is written out for the reason
+   src/lib/format.ts carries one: Node's en-GB gives "Sept". */
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 function dmy(iso: string | null): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? "");
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso ?? "");
+  if (!m) return iso ?? "";
+  return `${Number(m[3])} ${MONTH_SHORT[Number(m[2]) - 1] ?? m[2]} ${m[1]}`;
 }
 
 Deno.serve(async (req) => {
@@ -53,7 +63,26 @@ Deno.serve(async (req) => {
     const property = [app?.prop_addr1, app?.prop_postcode].filter(Boolean).join(", ");
 
     if (b.action === "load") {
-      return json({ ok: true, guaranteeRef: tok.guarantee_ref, currentStart: dmy(app?.tenancy_start ?? null), property, alreadySubmitted: !!tok.submitted_at });
+      /* WHO IS ON THIS TENANCY, so the page can name them before anybody
+         presses the button. Matt, 2026-10-01: "before submitting, say 'We
+         will void the current deeds and send each tenant on this tenancy a
+         corrected deed to sign', followed by their names."
+
+         Read here rather than on the page: the page holds a token and
+         nothing else, and this endpoint is the only thing that can turn
+         one into a tenancy without a login. */
+      const { data: self } = await service.from("applications")
+        .select("tenancy_id").eq("id", tok.application_id).maybeSingle();
+      let tenants: string[] = [];
+      if (self?.tenancy_id) {
+        const { data: mates } = await service.from("applications")
+          .select("tenant_first_name, tenant_last_name, tenancy_position")
+          .eq("tenancy_id", self.tenancy_id).order("tenancy_position");
+        tenants = ((mates ?? []) as Array<{ tenant_first_name: string; tenant_last_name: string }>)
+          .map((m) => `${m.tenant_first_name ?? ""} ${m.tenant_last_name ?? ""}`.trim())
+          .filter(Boolean);
+      }
+      return json({ ok: true, guaranteeRef: tok.guarantee_ref, currentStart: dmy(app?.tenancy_start ?? null), property, alreadySubmitted: !!tok.submitted_at, tenants });
     }
 
     if (b.action === "submit") {
@@ -71,7 +100,7 @@ Deno.serve(async (req) => {
 
       // Full deed state for the lifecycle decision. Read with the service role:
       // the token is the authorisation here, there is no signed-in user.
-      const COLS = "id, guarantee_ref, status, deed_state, pandadoc_document_id, executed_pdf_path, tenancy_start, livemode, withdrawn_at, tenancy_id";
+      const COLS = "id, guarantee_ref, status, deed_state, pandadoc_document_id, executed_pdf_path, tenancy_start, livemode, withdrawn_at, tenancy_id, tenant_first_name, tenant_last_name";
       const { data: full } = await service.from("applications")
         .select(COLS)
         .eq("id", tok.application_id).maybeSingle();
@@ -251,7 +280,13 @@ Deno.serve(async (req) => {
           visibility: "business",
         });
       }
-      return json({ ok: true, newStart: dmy(proposed), reissued, tenants: siblings.length });
+      /* THE NAMES, not just how many. The page has to say "Each tenant has
+         been sent a corrected deed to sign: <names>", and it cannot name
+         anybody it was not told about. */
+      const tenantNames = (siblings as Array<{ tenant_first_name?: string; tenant_last_name?: string }>)
+        .map((x) => `${x.tenant_first_name ?? ""} ${x.tenant_last_name ?? ""}`.trim())
+        .filter(Boolean);
+      return json({ ok: true, newStart: dmy(proposed), reissued, tenants: siblings.length, tenantNames });
     }
 
     return json({ ok: false, error: "Unknown action." }, 400);

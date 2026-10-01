@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       }
 
       const { data: app, error: appErr } = await service.from("applications")
-        .select("id, guarantee_ref, branch_id, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, tenancy_start, livemode, deed_delivered_at, deed_delivered_to, agency:agencies(name)")
+        .select("id, guarantee_ref, branch_id, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, tenancy_start, livemode, deed_delivered_at, deed_delivered_to, deed_issued_at, agency:agencies(name)")
         .eq("pandadoc_document_id", docId).maybeSingle();
       /* "COULD NOT LOOK IT UP" IS NOT "IT IS NOT OURS", and conflating the two
          loses signed deeds. The error was discarded, so a transient read failure
@@ -310,7 +310,8 @@ Deno.serve(async (req) => {
               p_type: "deed_delivery_target_unreadable",
               p_detail: `Application ${app.id} (${app.guarantee_ref}): the deed is executed but deed_delivery_target failed (${targetErr.message}), so it could not be delivered and is queued for a staff send.`,
             }).then(() => {}, () => {});
-          } else if (deliverable && mayEmail && app.deed_delivered_at) {
+          } else if (deliverable && mayEmail && app.deed_delivered_at
+              && !(app.deed_issued_at && new Date(app.deed_issued_at) > new Date(app.deed_delivered_at))) {
             /* ALREADY DELIVERED, SO NOT AGAIN. Matt, 2026-10-01: "one
                delivery per signed deed unless someone presses Resend."
 

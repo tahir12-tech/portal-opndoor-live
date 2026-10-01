@@ -589,6 +589,9 @@ export function executedDeedAgentEmail(p: {
       signed, and the closing sentence followed the same number. An ordinal
       read as a count. */
   joint?: { signed: number; count: number; coTenants: string } | null;
+  /** Set when this deed replaces one already sent, after a tenancy-start
+      correction: the date the earlier copy went out. */
+  correctedFrom?: string | null;
 }): Message {
   // Tenancy start + the 12-month period first, so "the guarantor for the term
   // above" in the small print has a term above it to point at.
@@ -631,6 +634,15 @@ export function executedDeedAgentEmail(p: {
       : `Signed Deed of Guarantee for ${p.guaranteeRef}`,
     heading: "The Deed of Guarantee has been signed",
     blocks: [
+      /* A CORRECTION SAYS SO FIRST. Matt, 2026-10-01: "Signed deed email
+         after a tenancy start correction: say so at the top, e.g. 'This
+         corrected deed replaces the one sent on 1 Oct 2026. The tenancy
+         start is now 21 November 2026; please discard the earlier copy.'"
+         Without it the second email reads as a duplicate of the first,
+         and the one with the wrong date is the one already filed. */
+      ...(p.correctedFrom
+        ? [{ callout: `This corrected deed replaces the one sent on ${p.correctedFrom}.${p.tenancyStartLabel ? ` The tenancy start is now ${p.tenancyStartLabel};` : ''} please discard the earlier copy.` }]
+        : []),
       { p: `Your signed copy is attached. Keep it with the tenancy paperwork, it is the reference for any claim under the guarantee.${portalLine}${jointLine}` },
       { rows },
       { p: "We will email you a month before the guarantee ends." },
@@ -713,6 +725,9 @@ export function executedDeedLandlordEmail(p: {
 export function executedDeedTenantEmail(p: {
   guaranteeRef: string; propertyAddr: string;
   tenancyStartLabel?: string | null;
+  /** The same correction notice as the agent's copy: "Same for the
+      tenant's copy", Matt, 2026-10-01. */
+  correctedFrom?: string | null;
 }): Message {
   const rows: [string, string][] = [];
   if (p.tenancyStartLabel) {
@@ -726,6 +741,9 @@ export function executedDeedTenantEmail(p: {
     subject: `Your signed Deed of Guarantee for ${p.guaranteeRef}`,
     heading: "Your Deed of Guarantee has been signed",
     blocks: [
+      ...(p.correctedFrom
+        ? [{ callout: `This corrected deed replaces the one sent on ${p.correctedFrom}.${p.tenancyStartLabel ? ` The tenancy start is now ${p.tenancyStartLabel};` : ''} please discard the earlier copy.` }]
+        : []),
       { p: "The Deed of Guarantee for your tenancy has been signed by all parties. A copy is attached for your records, and you do not need to do anything else." },
       { rows },
       { p: "We will email you a month before the guarantee ends." },

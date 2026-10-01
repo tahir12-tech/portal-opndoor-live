@@ -154,7 +154,9 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
     }
   }
 
+  const correctedFrom = await correctedFromLabel(service, target.appId);
   const message = executedDeedAgentEmail({
+    correctedFrom,
     guaranteeRef: target.ref,
     tenantName: `${target.tenantTitle ?? ""} ${target.tenantName ?? ""}`.trim() || target.tenantName,
     propertyAddr: [target.addr1, target.postcode].filter(Boolean).join(", "),
@@ -194,6 +196,35 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
     });
   }
   return { ...res, to: recipient.email };
+}
+
+/**
+ * The date an earlier copy of this deed was sent, when this one replaces it.
+ *
+ * Matt, 2026-10-01: "Signed deed email after a tenancy start correction:
+ * say so at the top ... This corrected deed replaces the one sent on 1 Oct
+ * 2026." Null on a first delivery and on a plain resend, which are not
+ * corrections and must not say they are.
+ *
+ * WHICH IS NEWER IS THE WHOLE TEST, the same one the delivery guard uses:
+ * a tenancy-start correction voids the document and issues a new one, so
+ * its issue stamp lands after the previous delivery's. A resend of the
+ * same deed has them the other way round.
+ */
+export async function correctedFromLabel(service: any, appId: string): Promise<string | null> {
+  const { data } = await service.from("applications")
+    .select("deed_delivered_at, deed_issued_at").eq("id", appId).maybeSingle();
+  const sent = data?.deed_delivered_at ? new Date(data.deed_delivered_at) : null;
+  const issued = data?.deed_issued_at ? new Date(data.deed_issued_at) : null;
+  if (!sent || !issued || issued <= sent) return null;
+  const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const d = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", day: "numeric", month: "numeric", year: "numeric",
+  }).formatToParts(sent);
+  const day = d.find((p) => p.type === "day")?.value ?? "";
+  const mon = Number(d.find((p) => p.type === "month")?.value ?? "0");
+  const year = d.find((p) => p.type === "year")?.value ?? "";
+  return `${day} ${MONTH[mon - 1] ?? mon} ${year}`;
 }
 
 export interface LandlordRecipient { email: string; name: string; note?: string; actor?: string }

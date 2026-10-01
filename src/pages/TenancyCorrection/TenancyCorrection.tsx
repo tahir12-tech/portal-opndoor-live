@@ -16,7 +16,7 @@ import './TenancyCorrection.css';
 
 type Phase = 'checking' | 'form' | 'done' | 'invalid' | 'already';
 
-interface LoadInfo { guaranteeRef: string; currentStart: string; property: string }
+interface LoadInfo { guaranteeRef: string; currentStart: string; property: string; tenants: string[] }
 
 export function TenancyCorrection() {
   useDocumentTitle('Tenancy start correction');
@@ -28,7 +28,7 @@ export function TenancyCorrection() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<{ newStart: string; reissued: boolean } | null>(null);
+  const [result, setResult] = useState<{ newStart: string; reissued: boolean; tenantNames: string[] } | null>(null);
 
   async function call(action: 'load' | 'submit', body: Record<string, unknown> = {}) {
     const { data, error: err } = await sb().functions.invoke('tenancy-correction', { body: { action, token, ...body } });
@@ -39,7 +39,7 @@ export function TenancyCorrection() {
   useEffect(() => {
     if (!SUPABASE_ENABLED) {
       // Mock/demo mode: show the form with placeholder context so the page renders.
-      setInfo({ guaranteeRef: 'GR-DEMO', currentStart: '01/09/2026', property: 'The property on the deed' });
+      setInfo({ guaranteeRef: 'GR-DEMO', currentStart: '1 Sep 2026', property: 'The property on the deed', tenants: [] });
       setPhase('form');
       return;
     }
@@ -49,8 +49,9 @@ export function TenancyCorrection() {
       .then((d) => {
         if (!alive) return;
         if (!d.ok) { setPhase(d.expired ? 'invalid' : 'invalid'); return; }
-        if (d.alreadySubmitted) { setInfo({ guaranteeRef: String(d.guaranteeRef), currentStart: String(d.currentStart), property: String(d.property) }); setPhase('already'); return; }
-        setInfo({ guaranteeRef: String(d.guaranteeRef), currentStart: String(d.currentStart), property: String(d.property) });
+        const tenants = Array.isArray(d.tenants) ? (d.tenants as string[]) : [];
+        if (d.alreadySubmitted) { setInfo({ guaranteeRef: String(d.guaranteeRef), currentStart: String(d.currentStart), property: String(d.property), tenants }); setPhase('already'); return; }
+        setInfo({ guaranteeRef: String(d.guaranteeRef), currentStart: String(d.currentStart), property: String(d.property), tenants });
         setPhase('form');
       })
       .catch(() => { if (alive) setPhase('invalid'); });
@@ -68,7 +69,11 @@ export function TenancyCorrection() {
       if (SUPABASE_ENABLED) {
         const d = await call('submit', { proposedStart: proposed, note });
         if (!d.ok) { setError(String(d.error ?? 'Could not submit. Please try again.')); return; }
-        setResult({ newStart: String(d.newStart ?? ''), reissued: !!d.reissued });
+        setResult({
+          newStart: String(d.newStart ?? ''),
+          reissued: !!d.reissued,
+          tenantNames: Array.isArray(d.tenantNames) ? (d.tenantNames as string[]) : [],
+        });
       }
       setPhase('done');
     } catch (err) {
@@ -105,7 +110,12 @@ export function TenancyCorrection() {
             {result && !result.reissued ? (
               <p className="tcx__muted">The tenancy start{result.newStart ? <> is now <b>{result.newStart}</b></> : null} has been updated.</p>
             ) : (
-              <p className="tcx__muted">{result?.newStart ? <>The deed now shows a tenancy start of <b>{result.newStart}</b>. </> : null}The tenant has been sent a corrected deed to sign again. Once they sign, the corrected signed deed will be emailed to you.</p>
+              <p className="tcx__muted">
+                {result?.newStart ? <>The deed now shows a tenancy start of <b>{result.newStart}</b>. </> : null}
+                {(result?.tenantNames.length ?? 0) > 1
+                  ? <>Each tenant has been sent a corrected deed to sign: <b>{result!.tenantNames.join(', ')}</b>. Once each signs, their corrected deed will be emailed to you.</>
+                  : <>The tenant has been sent a corrected deed to sign again. Once they sign, the corrected signed deed will be emailed to you.</>}
+              </p>
             )}
           </>
         )}
@@ -113,8 +123,20 @@ export function TenancyCorrection() {
         {phase === 'form' && info && (
           <>
             <h1 className="tcx__title">Correct the tenancy start date</h1>
+            {/* WHOSE DEEDS ARE ABOUT TO BE VOIDED, by name. Matt,
+                2026-10-01: "before submitting, say 'We will void the
+                current deeds and send each tenant on this tenancy a
+                corrected deed to sign', followed by their names. ... For
+                one tenant, keep the singular wording."
+
+                A joint tenancy has a deed per tenant, so "the current
+                deed" and "the tenant" described one of the two or three
+                people about to be asked to sign again. */}
             <p className="tcx__muted">
-              Deed <b>{info.guaranteeRef}</b>{info.property ? <> for {info.property}</> : null} shows a tenancy start of <b>{info.currentStart}</b>. If that is wrong, enter the correct date below. We will void the current deed and send the tenant a corrected one to sign straight away.
+              Deed <b>{info.guaranteeRef}</b>{info.property ? <> for {info.property}</> : null} shows a tenancy start of <b>{info.currentStart}</b>. If that is wrong, enter the correct date below.
+              {' '}{info.tenants.length > 1
+                ? <>We will void the current deeds and send each tenant on this tenancy a corrected deed to sign: <b>{info.tenants.join(', ')}</b>.</>
+                : <>We will void the current deed and send the tenant a corrected one to sign straight away.</>}
             </p>
             <form className="tcx__form" onSubmit={submit} noValidate>
               <div className="field">

@@ -64,6 +64,23 @@ function fmtDate(iso: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || "");
 }
 
+/* THE SAME DATE, SPELLED, FOR ANYTHING A PERSON READS. Matt, 2026-10-01:
+   "Show dates as '29 Dec 2026', including in the PandaDoc email text."
+
+   The DEED keeps dd/mm/yyyy: it is a legal document with a fixed layout
+   and its own conventions, and the token above fills a field on it. The
+   covering email is prose a tenant reads once, in a hurry, about a date
+   that has just changed -- which is exactly where 12/11 and 11/12 must
+   not be a question. */
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function spelledDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+  if (!m) return iso || "";
+  return `${Number(m[3])} ${MONTH_SHORT[Number(m[2]) - 1] ?? m[2]} ${m[1]}`;
+}
+
 /** Today's date in Europe/London, as both dd/mm/yyyy (deed) and yyyy-mm-dd (DB). */
 function londonToday(): { dmy: string; iso: string } {
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", day: "2-digit", month: "2-digit", year: "numeric" }).formatToParts(new Date());
@@ -202,8 +219,8 @@ export async function createAndSend(a: DeedApp, livemode: boolean): Promise<Deed
       ? " Already signed from your application page? No further action is needed, you can disregard this email."
       : " Already signed? If you've completed your deed through the payment confirmation page, no further action is needed, you can disregard this email.";
     const message = a.reissue
-      ? `Dear ${a.tenant_first_name} ${a.tenant_last_name}, your Deed of Guarantee has been updated to reflect a new tenancy start date of ${fmtDate(a.tenancy_start)}. The previous document is now void. Please review and sign this updated document to put your guarantee in place. Reference ${a.guarantee_ref}.`
-      : `Dear ${a.tenant_first_name} ${a.tenant_last_name}, your opndoor guarantor fee has been received and your Deed of Guarantee is ready to sign. Please review and sign the document to put your guarantee in place. Reference ${a.guarantee_ref}.${alreadySigned}`;
+      ? `Dear ${a.tenant_first_name} ${a.tenant_last_name}, this corrected Deed of Guarantee replaces the one sent to you earlier. The tenancy start is now ${spelledDate(a.tenancy_start)}; please discard the earlier copy, which is void. Review and sign this updated document to put your guarantee in place. Reference ${a.guarantee_ref}.`
+      : `Dear ${a.tenant_first_name} ${a.tenant_last_name}, your opndoor guarantee fee has been received and your Deed of Guarantee is ready to sign. Please review and sign the document to put your guarantee in place. Reference ${a.guarantee_ref}.${alreadySigned}`;
     const sendRes = await fetch(`${API}/documents/${docId}/send`, {
       method: "POST",
       headers: headers(key),
