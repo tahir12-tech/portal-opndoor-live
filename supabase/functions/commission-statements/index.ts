@@ -39,6 +39,7 @@ import { bytesToBase64, sendMessage } from "../_shared/mailer.ts";
 import { renderTablePdf, type PdfColumn } from "../_shared/pdf.ts";
 import type { Block, Message } from "../_shared/emailLayout.ts";
 import { timingSafeEqual } from "../_shared/partnerAuth.ts";
+import { makeZip, type ZipEntry } from "../_shared/zip.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -857,6 +858,115 @@ export function supplierScheduleCsv(
   ]);
 }
 
+/* =====================================================================
+   THE SUPPLIER'S BUNDLE: TWO ATTACHMENTS AND A ZIP.
+
+   Matt, 2026-10-01, verbatim: "attach the supplier's own statement (PDF
+   and CSV) directly, plus one zip file containing the per-agency
+   statements, laid out as the supplier's statement at the top level and
+   an 'Agents' folder with one PDF and CSV per agency, named by agency.
+   If the zip would be over 10MB, don't attach it; instead the email
+   links to download it from the supplier's Reporting page, where it's
+   always available."
+
+   WHY THE SUPPLIER'S OWN STATEMENT IS IN BOTH PLACES, which looks like
+   duplication and is the instruction. Directly attached, it is one
+   click for the person who only wants the number. Inside the zip, at
+   the top level, the archive is a complete record of the month rather
+   than an appendix that makes no sense on its own once it is saved to a
+   finance folder.
+
+   THE CAP IS ON THE ZIP, NOT ON THE EMAIL. Over 10MB it is not attached
+   at all and the email links instead. The two direct attachments stay
+   either way: they are small, they are the statement itself, and a
+   month big enough to blow the cap is exactly the month somebody still
+   needs the headline from.
+   ===================================================================== */
+const ZIP_LIMIT_BYTES = 10 * 1024 * 1024;
+
+export interface SupplierBundle {
+  /** What goes on the email, already base64. */
+  attachments: { filename: string; content: string }[];
+  /** The zip, whether or not it was attached: the Reporting page serves
+      the same bytes, so it is built once and returned either way. */
+  zip: Uint8Array;
+  zipName: string;
+  /** True when the zip was too big to attach and the email must link. */
+  tooBig: boolean;
+  /** How many agencies have a schedule in it, for the sentence that
+      tells the supplier the breakdown exists. */
+  agencies: number;
+}
+
+/**
+ * Both documents, every agency's schedule, and the archive of all of it.
+ *
+ * EXPORTED AND TAKING A CLIENT, so the monthly run and the Reporting
+ * page's download produce the same bytes from the same code. The page
+ * cannot build this itself: `supplier_statement_lines` is service_role
+ * only, deliberately, so the download goes through this function.
+ */
+export async function buildSupplierBundle(
+  // deno-lint-ignore no-explicit-any
+  service: any,
+  p: PayeeRow, monthStart: string, monthKey: string, label: string,
+  reference: string, invoiceEmail: string,
+): Promise<SupplierBundle | null> {
+  const { data, error } = await service.rpc("supplier_statement_lines", {
+    p_partner: p.org_id, p_month: monthStart,
+  });
+  if (error) return null;
+  const sl = (data ?? []) as SupplierLineRow[];
+  if (!sl.length) return null;
+
+  const ownPdf = supplierStatementPdf(p, sl, label, reference, invoiceEmail);
+  const ownCsv = supplierStatementCsv(p, sl, label, reference, invoiceEmail);
+  const ownPdfName = `opndoor-commission-${monthKey}.pdf`;
+  const ownCsvName = `opndoor-commission-${monthKey}.csv`;
+
+  /* GROUPED HERE RATHER THAN ASKED FOR PER AGENCY. supplier_agency_schedules
+     answers which agencies qualify; the LINES are already in hand, so a
+     round trip per agency would ask the database the same question again
+     for every one of them. */
+  const { data: schedData } = await service.rpc("supplier_agency_schedules", {
+    p_partner: p.org_id, p_month: monthStart,
+  });
+
+  const enc = new TextEncoder();
+  const zipEntries: ZipEntry[] = [
+    { path: ownPdfName, bytes: ownPdf },
+    { path: ownCsvName, bytes: enc.encode(ownCsv) },
+  ];
+  for (const ag of ((schedData ?? []) as SupplierScheduleRow[])) {
+    const mine = sl.filter((l) => l.agency_id === ag.agency_id);
+    if (!mine.length) continue;
+    /* NAMED BY AGENCY, as Matt asked, and by the agency's REAL name
+       rather than the filename slug: inside the archive there is no
+       filesystem to be careful of beyond the separator, and a human
+       extracting twenty of these is looking for "Regent's Lettings",
+       not "regents-lettings". The slug is kept for the flat filenames
+       outside the zip, where two agencies could otherwise collide. */
+    const safe = ag.agency_name.replace(/[/\\]/g, "-").trim() || "Agency";
+    zipEntries.push(
+      { path: `Agents/${safe}.pdf`, bytes: supplierSchedulePdf(p.org_name, ag.agency_name, mine, label) },
+      { path: `Agents/${safe}.csv`, bytes: enc.encode(supplierScheduleCsv(p.org_name, ag.agency_name, mine, label)) },
+    );
+  }
+
+  /* TWO ENTRIES PER AGENCY, after the supplier's own two at the top. */
+  const agencies = (zipEntries.length - 2) / 2;
+  const zip = makeZip(zipEntries);
+  const zipName = `opndoor-commission-${monthKey}-${scheduleSlug(p.org_name, "supplier")}.zip`;
+  const tooBig = zip.length > ZIP_LIMIT_BYTES;
+
+  const attachments = [
+    { filename: ownPdfName, content: bytesToBase64(ownPdf) },
+    { filename: ownCsvName, content: textToBase64(ownCsv) },
+    ...(tooBig ? [] : [{ filename: zipName, content: bytesToBase64(zip) }]),
+  ];
+  return { attachments, zip, zipName, tooBig, agencies };
+}
+
 /** A filename per agency, and it has to be stable and distinct. Two
     agencies called "Central Lettings" under one supplier would otherwise
     both be `agent-commission-central-lettings-2026-05.csv` and the second
@@ -996,6 +1106,10 @@ function settlementCsv(payees: PayeeRow[], label: string, grand: number): string
 export function statementMessage(opts: {
   payeeName: string; label: string; total: number; applications: number; reference: string;
   appUrl: string; invoiceEmail: string;
+  /** A supplier's per-agency schedules: how many, and whether the zip
+      was too big to attach. Absent for an agency payee, which has
+      none. */
+  schedules?: { count: number; tooBig: boolean };
 }): Message {
   const blocks: Block[] = [
     /* NOT esc() HERE ANY MORE. emailLayout's blockHtml escapes p, small and
@@ -1015,6 +1129,24 @@ export function statementMessage(opts: {
       ],
     },
     { p: "It covers every application that paid in the month, and the commission each one earned. Refunded applications are excluded." },
+    /* THE SCHEDULES, AND WHERE THEY ARE. Matt, 2026-10-01: the zip
+       holds "the supplier's statement at the top level and an 'Agents'
+       folder with one PDF and CSV per agency", and over 10MB "the email
+       links to download it from the supplier's Reporting page, where
+       it's always available".
+
+       SAID EITHER WAY, because a supplier who is told nothing about the
+       agency breakdown will not go looking for it on a page. The only
+       thing that changes is whether the sentence points at an
+       attachment or at a link. */
+    ...(opts.schedules && opts.schedules.count > 0 ? [
+      opts.schedules.tooBig
+        ? { p: `A statement for each of your ${opts.schedules.count} agencies is too large to attach this month. `
+            + `Download them from your Reporting page, where they are always available.` }
+        : { p: `The zip holds this statement again plus an Agents folder, with a statement for each of your `
+            + `${opts.schedules.count} ${opts.schedules.count === 1 ? "agency" : "agencies"}. `
+            + `They are also always available on your Reporting page.` },
+    ] : []),
     /* THE SAME SENTENCE AS THE ATTACHMENT, built by the same function,
        so the email and the PDF cannot name two different totals, two
        references or two addresses. Matt asked for it on both. */
@@ -1077,6 +1209,144 @@ function settlementMessage(opts: {
   };
 }
 
+/* =====================================================================
+   THE SUPPLIER'S SCHEDULES, DOWNLOADED RATHER THAN EMAILED.
+
+   Matt, 2026-10-01: "If the zip would be over 10MB, don't attach it;
+   instead the email links to download it from the supplier's Reporting
+   page, where it's always available."
+
+   ALWAYS AVAILABLE IS THE HALF THAT MATTERS, and it is why this exists
+   even though the zip is usually attached. The email says the schedules
+   are on the Reporting page whether or not it carried them, so the page
+   has to be able to produce them for any month, not only the month that
+   blew the cap. A sentence in an email that points at a page with
+   nothing on it is worse than no sentence.
+
+   THE SAME BYTES AS THE EMAIL, because it is the same builder: a
+   supplier comparing the attachment they were sent in June with the
+   download they take in October must not find two different documents.
+   That is the whole reason buildSupplierBundle takes a client instead of
+   closing over the run's.
+
+   WHY IT CANNOT BE BUILT IN THE BROWSER. supplier_statement_lines and
+   supplier_agency_schedules are service_role only, deliberately: they
+   carry every agency's fee and share under the supplier. So the download
+   goes through here, which holds the service key and does its own
+   authorisation first.
+   ===================================================================== */
+async function serveSupplierBundle(
+  req: Request,
+  // deno-lint-ignore no-explicit-any
+  body: any,
+  // deno-lint-ignore no-explicit-any
+  service: any,
+  supabaseUrl: string, anon: string,
+): Promise<Response> {
+  const month = typeof body.month === "string" && /^\d{4}-\d{2}$/.test(body.month) ? body.month : "";
+  const asked = typeof body.partner === "string" ? body.partner.trim() : "";
+  if (!month) return json({ ok: false, error: "A statement month is YYYY-MM." }, 400);
+  if (!asked) return json({ ok: false, error: "Which supplier?" }, 400);
+
+  /* WHO MAY TAKE IT: an opndoor admin, or the supplier themselves
+     holding the commission capability. Established BEFORE anything is
+     read, including before the supplier is resolved. */
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!authHeader) return json({ ok: false, error: "Not authorised." }, 401);
+  const userClient = createClient(supabaseUrl, anon, { global: { headers: { Authorization: authHeader } } });
+  const { data: u } = await userClient.auth.getUser();
+  if (!u.user?.id) return json({ ok: false, error: "Not authorised." }, 401);
+  const { data: prof } = await userClient.from("users").select("role").eq("id", u.user.id).maybeSingle();
+  const callerRole = prof?.role ?? "";
+  const staff = callerRole === "superadmin" || callerRole === "opndoor_manager";
+
+  /* BEFORE THE SUPPLIER IS EVEN LOOKED UP, which the first version of
+     this got wrong: it resolved the slug first and answered "No such
+     supplier." to callers with no token at all, so an unauthenticated
+     probe could tell one supplier slug from another by the status code.
+     Nothing secret, but a thing nobody asked us to publish, and the fix
+     is an ordering rather than a check. */
+  let mine = "";
+  if (!staff) {
+    const { data: sees } = await userClient.rpc("may_see_commission");
+    if (sees !== true) return json({ ok: false, error: "You can only read a statement for a party you hold." }, 403);
+    const { data: p } = await userClient.rpc("app_partner");
+    mine = typeof p === "string" ? p : "";
+    if (!mine) return json({ ok: false, error: "You can only read a statement for a party you hold." }, 403);
+  }
+
+  /* THE SUPPLIER, BY ID OR BY SLUG. The screens hold a slug (that is what
+     a partner scope is); the run holds the uuid. Accepting both keeps the
+     caller from having to look one up to ask for the other. */
+  const uuidish = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(asked);
+  const { data: partnerRow } = await service.from("partners")
+    .select("id, name, slug").eq(uuidish ? "id" : "slug", asked).maybeSingle();
+  if (!partnerRow?.id) return json({ ok: false, error: "No such supplier." }, 404);
+  const partnerId = partnerRow.id as string;
+
+  /* `partner_id = app_partner()` IS the company boundary here, because
+     this is the supplier rail and a supplier is its own partner. It is
+     the rule commission_statement_ref already states for a partner payee
+     rather than a second opinion about the same question. The same line
+     would be wrong on the agency rail, where every agency shares the
+     house partner; no agency ever reaches this endpoint, which only ever
+     answers for a partner-level payee. */
+  const may = staff || mine === partnerId;
+  if (!may) return json({ ok: false, error: "You can only read a statement for a party you hold." }, 403);
+
+  const monthStart = `${month}-01`;
+  const label = monthLabel(month);
+
+  /* THE INVOICE ADDRESS, and the same refusal as the run. A statement
+     that cannot say where to send the invoice is not a statement, and
+     handing one out from a page would be a quieter way of doing exactly
+     what the run refuses to do loudly. */
+  const { data: invoiceTo } = await service.rpc("statement_invoice_email");
+  const invoiceEmail = typeof invoiceTo === "string" ? invoiceTo.trim() : "";
+  if (!invoiceEmail) {
+    return json({ ok: false, error: "The invoice email is not set yet, so a statement cannot say where to send an invoice." }, 409);
+  }
+
+  const { data: payeeData, error: payeeErr } = await service.rpc("commission_statement_payees", { p_month: monthStart });
+  if (payeeErr) return json({ ok: false, error: payeeErr.message }, 500);
+  const p = ((payeeData ?? []) as PayeeRow[]).find((x) => x.level === "partner" && x.org_id === partnerId);
+  if (!p) return json({ ok: false, error: `No supplier commission for ${label}.` }, 404);
+
+  /* THE REFERENCE IS READ HERE, NEVER MINTED, and that is the one thing
+     this endpoint must get right that the run does not. commission_statement_ref
+     assigns a number on first read. A supplier opening a month that has
+     not been posted yet would take that month's next number for a
+     statement nobody sent, and the sequence would have a hole in it that
+     no document explains. So the table is read directly: a month already
+     posted shows its real reference, and a month not yet posted shows the
+     same placeholder the dry run does. */
+  const { data: refRow } = await service.from("commission_statement_refs")
+    .select("seq").eq("statement_month", month).eq("payee_key", p.payee_key).maybeSingle();
+  const reference = typeof refRow?.seq === "number"
+    ? `STMT-${month}-${String(refRow.seq).padStart(4, "0")}`
+    : REF_ON_SEND;
+
+  const bundle = await buildSupplierBundle(service, p, monthStart, month, label, reference, invoiceEmail);
+  if (!bundle) return json({ ok: false, error: `No supplier commission for ${label}.` }, 404);
+
+  /* THE WHOLE SET, not only the zip. The page offers the statement and
+     the schedules side by side, and building them twice over two requests
+     would be two reads of the month to produce bytes that have to match. */
+  return json({
+    ok: true,
+    month, monthLabel: label, reference,
+    payeeName: p.org_name,
+    applications: bundle.attachments.length ? p.line_count : 0,
+    total: num(p.total),
+    agencies: bundle.agencies,
+    documents: [
+      ...bundle.attachments.filter((a) => !a.filename.endsWith(".zip")),
+      { filename: bundle.zipName, content: bytesToBase64(bundle.zip) },
+    ],
+    zipName: bundle.zipName,
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -1092,6 +1362,16 @@ Deno.serve(async (req) => {
     // a browser or a curl, and the body, because the other crons take flags there.
     const dry = new URL(req.url).searchParams.get("dry") === "1" || !!body.dry;
     const service = createClient(SUPABASE_URL, SERVICE);
+
+    /* THE DOWNLOAD, BEFORE THE CRON GATE. It is not a run: it posts
+       nothing, mints nothing and writes nothing, so the "manual runs must
+       set test or dry" rule below would refuse it for being the one thing
+       it is safe to do on any day of the month. It brings its own
+       authorisation, which is narrower than this one in the part that
+       matters: a supplier may take their own and nobody else's. */
+    if (body.action === "supplier_bundle") {
+      return await serveSupplierBundle(req, body, service, SUPABASE_URL, ANON);
+    }
 
     // Cron auth: x-reminders-secret must match the edge env OR the ops_secrets
     // mirror (resilient to a drifted edge env; the crons pass the Vault secret).
@@ -1185,10 +1465,24 @@ Deno.serve(async (req) => {
       list.push(l);
       linesByPayee.set(l.payee_key, list);
     }
-    // Oldest payment first, then reference, which is how the screen sorts a
-    // statement and therefore how a reader expects to scan it.
+    /* GUARANTEE REFERENCE ORDER, LOWEST FIRST. Matt, 2026-10-01:
+       "Commission statements (PDF, CSV and on screen, agency and
+       supplier): list lines in guarantee reference order, lowest
+       first."
+
+       It was oldest payment first, with the reference only as a
+       tiebreak, and the comment claimed that was "how the screen sorts
+       a statement". The screen sorted its own way, the supplier
+       documents sorted by agency then date, and a reader holding the
+       PDF beside the page was comparing two different orders. A
+       reference is what a finance team reconciles by, so it is the
+       order they read in.
+
+       A STRING SORT, not a numeric one: GR-20845 and GR-9 are both real
+       shapes and parsing a number out would need a rule for the prefix
+       that nothing else in the product has. */
     for (const list of linesByPayee.values()) {
-      list.sort((a, b) => (a.paid_on < b.paid_on ? -1 : a.paid_on > b.paid_on ? 1 : a.guarantee_ref.localeCompare(b.guarantee_ref)));
+      list.sort((a, b) => a.guarantee_ref.localeCompare(b.guarantee_ref));
     }
 
     // Already posted (idempotency). A dry run reads this too, so it can tell you
@@ -1224,41 +1518,6 @@ Deno.serve(async (req) => {
        PDF FIRST, THEN CSV, THEN THE SCHEDULES, because a mail client
        shows the first attachment as the document and the order is the
        only signal of which is the statement and which is the working. */
-    async function supplierAttachments(p: PayeeRow, reference: string) {
-      const { data, error } = await service.rpc("supplier_statement_lines", {
-        p_partner: p.org_id, p_month: monthStart,
-      });
-      if (error) return null;
-      const sl = (data ?? []) as SupplierLineRow[];
-      if (!sl.length) return null;
-      const out = [
-        { filename: `opndoor-commission-${monthKey}.pdf`,
-          content: bytesToBase64(supplierStatementPdf(p, sl, label, reference, invoiceEmail)) },
-        { filename: `opndoor-commission-${monthKey}.csv`,
-          content: textToBase64(supplierStatementCsv(p, sl, label, reference, invoiceEmail)) },
-      ];
-      /* GROUPED HERE RATHER THAN ASKED FOR PER AGENCY. supplier_agency_schedules
-         answers which agencies qualify; the LINES are already in hand, so
-         a round trip per agency would ask the database the same question
-         again for every one of them. The qualifying set is the authority
-         on WHICH, and these rows are the authority on WHAT. */
-      const { data: schedData } = await service.rpc("supplier_agency_schedules", {
-        p_partner: p.org_id, p_month: monthStart,
-      });
-      for (const ag of ((schedData ?? []) as SupplierScheduleRow[])) {
-        const mine = sl.filter((l) => l.agency_id === ag.agency_id);
-        if (!mine.length) continue;
-        const slug = scheduleSlug(ag.agency_name, String(ag.agency_id ?? "agency"));
-        out.push(
-          { filename: `agent-commission-${slug}-${monthKey}.pdf`,
-            content: bytesToBase64(supplierSchedulePdf(p.org_name, ag.agency_name, mine, label)) },
-          { filename: `agent-commission-${slug}-${monthKey}.csv`,
-            content: textToBase64(supplierScheduleCsv(p.org_name, ag.agency_name, mine, label)) },
-        );
-      }
-      return out;
-    }
-
     for (const p of payees) {
       if (alreadyPosted.has(p.payee_key)) { alreadySent += 1; continue; }
       const lines = linesByPayee.get(p.payee_key) ?? [];
@@ -1306,7 +1565,9 @@ Deno.serve(async (req) => {
            crash in a writer nobody has exercised would otherwise first be
            noticed by a supplier on the 1st. There are more of them to go
            wrong now, one per agency. */
-        const supplierSet = p.level === "partner" ? await supplierAttachments(p, reference) : null;
+        const supplierSet = p.level === "partner"
+          ? (await buildSupplierBundle(service, p, monthStart, monthKey, label, reference, invoiceEmail))?.attachments ?? null
+          : null;
         const pdf = statementPdf(p, lines, label, reference, invoiceEmail);
         const csv = statementCsv(p, lines, label, reference, invoiceEmail);
         would.push({
@@ -1332,16 +1593,22 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      /* BUILT ONCE PER PAYEE, so the message and the attachments cannot
+         disagree about whether the zip is there. */
+      const bundle = p.level === "partner"
+        ? await buildSupplierBundle(service, p, monthStart, monthKey, label, reference, invoiceEmail)
+        : null;
       const res = await sendMessage({
         to,
         message: statementMessage({
           payeeName: p.org_name, label, total, applications: lines.length, reference,
           appUrl: APP_URL, invoiceEmail,
+          ...(bundle ? { schedules: { count: bundle.agencies, tooBig: bundle.tooBig } } : {}),
         }),
         // PDF FIRST. A mail client shows the first attachment as the document,
         // so the order is the only signal of which is the statement and which
         // is the working.
-        attachments: (p.level === "partner" ? await supplierAttachments(p, reference) : null) ?? [{
+        attachments: bundle?.attachments ?? [{
           filename: `opndoor-commission-${monthKey}.pdf`,
           // Bytes, so the chunked encoder, never the text path's
           // btoa(unescape(encodeURIComponent(...))), which corrupts binary.

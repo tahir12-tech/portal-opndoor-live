@@ -25,6 +25,7 @@ import { Link } from 'react-router-dom';
 import {
   ALL_PARTNERS, READS_THE_WHOLE_BOOK, isOpndoorStaff, readsTheWholeBook, buildApplicationDoc, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPeriods, getTrend, maySeeCommission, partnerName,
+  statementMonths,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
 import { formatLondonDate, gbpPence, possessive } from '@/lib/format';
@@ -36,6 +37,8 @@ import { scopedSummaries } from '@/data/applicationsService';
 import type { Role } from '@/data';
 import { liveByCustomer, liveScopeShape } from '@/data/liveAnalytics';
 import { CommissionStatement } from '@/components/CommissionStatement';
+import { SupplierStatements } from '@/components/SupplierStatements';
+import { isHousePartner } from '@/data/channel';
 // Walk fixes 15 and 20: every customer, side by side.
 import { CustomersTable } from '@/components/CustomersTable';
 import { useSession } from '@/session/SessionContext';
@@ -994,6 +997,27 @@ export function Dashboard() {
             </div>
             <CommissionStatement role={role} scope={partnerScope} />
           </RoleOnly>
+        )}
+
+        {/* THE SUPPLIER'S OWN STATEMENTS. Matt, 2026-10-01: the supplier
+            statement email says the per-agency schedules are "always
+            available" on the supplier's Reporting page, so they are here.
+
+            A SUPPLIER IS A PARTNER THAT IS NOT ONE OF OURS, which is the
+            whole of the test: the three house slugs carry the agency and
+            direct rails, where there is no supplier and no three-way
+            split, and a card about "your agencies' schedules" over the
+            house partner would be a card about every agency Opndoor has
+            onboarded. Under View as, an agency selection is not a
+            supplier and does not get it. */}
+        {d.live && seesCommission
+          && partnerScope !== ALL_PARTNERS && !isHousePartner(partnerScope)
+          && (viewingAs === null || !selectionIsAgency(viewingAs)) && (
+          <SupplierStatements
+            partner={partnerScope}
+            supplierName={partnerName(partnerScope)}
+            months={statementMonths(role, partnerScope)}
+          />
         )}
 
         {/* SETTLEMENTS (below performance) — payable totals; applications collapsed.

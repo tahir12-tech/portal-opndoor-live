@@ -59,3 +59,4 @@ coverage
 .Trashes
 ehthumbs.db
 Thumbs.db
+scripts/__pycache__/

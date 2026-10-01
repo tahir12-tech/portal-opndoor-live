@@ -21,11 +21,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ALL_PARTNERS, getPartner, getPeriods, getRatesFor, getAgencies, getUsers, maySeeCommission,
+  statementMonths,
   partnerActiveKeyCount, REFERENCING_MODES, type Agency, type ManagedUser, type ReferencingMode,
 } from '@/data';
 // Walk fix 15: this customer's report, on this customer's page.
 import { liveByCustomer } from '@/data/liveAnalytics';
 import { CustomerReport } from '@/components/CustomerReport';
+import { SupplierStatements } from '@/components/SupplierStatements';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { getApplications } from '@/data/applicationsService';
@@ -242,6 +244,20 @@ export function PartnerHome() {
       />
 
       {tab === 'reporting' && (
+        <>
+        {/* THE STATEMENTS THE SUPPLIER WAS SENT, on the page the email
+            points at. Matt, 2026-10-01: the schedules are "always
+            available" on the supplier's Reporting page. Admin reads the
+            identical card here, so a supplier asking "what did you send
+            me in June" is answered from the same bytes rather than from
+            somebody's sent folder. */}
+        {maySeeCommission(role) && (
+          <SupplierStatements
+            partner={partner.dbId ?? partner.id}
+            supplierName={partner.name}
+            months={statementMonths(role, partner.id)}
+          />
+        )}
         <CustomerReport
           rows={customerRows}
           seesCommission={maySeeCommission(role)}
@@ -250,6 +266,7 @@ export function PartnerHome() {
           onPeriod={(id) => setReportPeriod(reportPeriods.find((p) => p.id === id) ?? reportPeriod)}
           emptyText={`No referrals from ${partner?.name ?? 'this supplier'} in this period.`}
         />
+        </>
       )}
 
       {tab === 'commission' && (
