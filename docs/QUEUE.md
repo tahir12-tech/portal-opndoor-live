@@ -15,7 +15,8 @@ Three more arrived while item 1 was in flight, so they join the back of item
 6 in the order they were sent: the rent label before the deed is issued, the
 Agency League headings, the office chosen first on New application, and
 one support address and one name for the fee on the tenant side, and the
-signed-deed email saying the insurance sentence once.
+signed-deed email saying the insurance sentence once, and a corrected deed
+saying that it is a correction.
 
 
 The single source of truth for outstanding work on this branch.
@@ -32,6 +33,13 @@ anything it is under a heading that says so.
 Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
+
+## A CORRECTED DEED SAYS IT IS A CORRECTION (instruction, 2026-10-01, verbatim). todo.
+
+> Signed deed email after a tenancy start correction: say so at the top, e.g. "This corrected deed replaces the one sent on 1 Oct 2026. The tenancy start is now 21 November 2026; please discard the earlier copy." Same for the tenant's copy.
+
+- Both copies: the agent's and the tenant's. The date of the earlier send is
+  needed in the sentence, so the template takes it rather than inventing it.
 
 ## THE SIGNED-DEED EMAIL SAYS IT ONCE (instruction, 2026-10-01, verbatim). todo.
 
