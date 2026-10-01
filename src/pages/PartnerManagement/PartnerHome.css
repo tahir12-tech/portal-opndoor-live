@@ -87,6 +87,11 @@
 .ph-contact { font-size: 12px; color: var(--ink-mute); display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; }
 .ph-contact--none { color: #b54708; font-weight: 700; }
 .ph-contact__inh { font-size: 11px; background: var(--app-bg-2); border-radius: 999px; padding: 1px 6px; margin-left: 4px; }
+/* "Contacts are set per branch" is a statement of fact, not a problem, so it
+   takes the muted colour of a resolved contact and not the amber of a missing
+   one. It replaced an amber "No agent contact" that was wrong whenever the
+   contacts were organised the usual way. */
+.ph-contact--perbranch { font-style: italic; }
 
 /* Monthly statement addresses. A list of addresses and one row to add another;
    the same borders and spacing as the rate cards beside it, so the Commission

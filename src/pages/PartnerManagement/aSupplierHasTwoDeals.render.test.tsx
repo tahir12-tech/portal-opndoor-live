@@ -171,3 +171,65 @@ describe('the editor it opens', () => {
     expect(dialog.textContent).not.toContain('Does this cover everyone?');
   });
 });
+
+/* ===========================================================================
+   ONE WAY TO SET COMMISSION, AND THE OLD CARD IS NOT IT.
+
+   Matt, 2026-10-01, verbatim: "Supplier Commission tab: one way to set
+   commission only. Remove the old card (Total commission %, Agents' share %,
+   read-only volume tiers, Save commission) and keep the deal editors ...
+   moving the 'Opndoor pays the agents directly' switch and the plain-English
+   summary into that layout."
+
+   ASSERTED BY ABSENCE OF THE CONTROLS, not of the words. "Total commission"
+   is a phrase the deal cards may well use in prose one day; what must not
+   come back is a second pair of INPUTS that writes the same rate, which is
+   the thing that could disagree with a deal.
+   =========================================================================== */
+describe('the old commission card', () => {
+  it('is gone, with its inputs and its Save', async () => {
+    vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
+    const v = await commissionTab();
+    expect(v.container.querySelector('#sc-total')).toBeNull();
+    expect(v.container.querySelector('#sc-share')).toBeNull();
+    expect(v.container.querySelector('.sc-tiers')).toBeNull();
+    const saves = [...v.container.querySelectorAll('button')]
+      .filter((b) => /save commission/i.test(b.textContent ?? ''));
+    expect(saves).toEqual([]);
+  });
+
+  /* AND WHAT IT OWNED IS STILL HERE. Removing the card must not take the
+     switch or the one sentence with it: those are the two things on it
+     that were not a duplicate of a deal. */
+  it('but the pays-agents switch came across', async () => {
+    vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
+    const v = await commissionTab();
+    const box = v.container.querySelector<HTMLInputElement>('.sc-switch input[type="checkbox"]');
+    expect(box, 'no pays-agents switch on the tab').toBeTruthy();
+    expect(box!.checked, 'the fixture supplier settles its own agents').toBe(false);
+    expect(v.container.textContent).toContain('Opndoor pays the agents directly');
+  });
+
+  /* THE SENTENCE THE TWO CARDS CANNOT WRITE SEPARATELY: that one rate comes
+     out of the other. With no deal either side, both flat rates apply --
+     35% total, 15% to the agencies, 20% kept. */
+  it('and so did the sentence saying who ends up with what', async () => {
+    vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
+    const t = (await commissionTab()).container.textContent ?? '';
+    expect(t).toContain('What a referral costs');
+    expect(t).toMatch(/Opndoor pays\s*35(\.0)?%\s*of the fee/);
+    expect(t).toMatch(/the agencies get\s*15(\.0)?%/);
+    expect(t).toMatch(/ZZZ Deals Co keeps\s*20(\.0)?%/);
+  });
+
+  /* AND IT SAYS SO ONLY OF THE COMMONEST REFERRAL once a deal varies, rather
+     than printing a figure that is true some of the time. */
+  it('and hedges the sentence when a deal varies by volume', async () => {
+    vi.spyOn(org, 'getSupplierDeal').mockImplementation(async (_s: string, kind: string) =>
+      (kind === 'commission'
+        ? view({ tiers: [{ from: 0, to: 50, rate: 0.3 }, { from: 51, to: null, rate: 0.4 }] })
+        : null) as AgreementView | null);
+    const t = (await commissionTab()).container.textContent ?? '';
+    expect(t).toContain('on a single-tenant referral; it changes with the deals below');
+  });
+});

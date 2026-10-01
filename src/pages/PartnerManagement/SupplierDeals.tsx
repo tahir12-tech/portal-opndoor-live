@@ -33,9 +33,18 @@ import {
   dealWords, agreementSummary, AgreementEditor,
 } from '@/pages/Agencies/AgreementEditor';
 import { getSupplierDeal, type AgreementView } from '@/data/orgService';
+import { setSupplierCommission } from '@/data/partnersService';
+import { fmtRatePct } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import { useToast } from '@/components/ui/Toast';
+/* THE STYLESHEET IT USES, imported by the file that uses it. `.sc-switch` and
+   `.sd-summary` live in PartnerHome.css and this card only ever renders inside
+   PartnerHome, which imports it -- so it works today and would break silently
+   the first time this card is mounted anywhere else. That is the exact fault
+   the Add agency form hit with `.ac-*` in AgencyHome.css. */
+import './PartnerHome.css';
 
 type Kind = 'commission' | 'agent_share';
 
@@ -50,34 +59,28 @@ const SUB: Record<Kind, string> = {
     'The part of that commission the referring agency is paid. It comes out of the total above, so it can never be more than it.',
 };
 
+/** What a deal prices at for the commonest referral: one tenant, no volume
+    behind it. Used for the combined sentence, which has to name a figure. */
+function headlineRate(deal: AgreementView | null, flat: number | null): number | null {
+  if (!deal) return flat;
+  const band = deal.bands.find((b) => b.min <= 1 && (b.max == null || b.max >= 1)) ?? deal.bands[0];
+  const tier = deal.tiers.find((t) => t.from <= 0 && (t.to == null || t.to > 0)) ?? deal.tiers[0];
+  return tier?.rate ?? band?.rate ?? flat;
+}
+
 /** One deal: what it says now, and the button that changes it. */
-function Deal({ slug, partnerId, name, kind, canEdit, flat, onSaved }: {
-  /** The slug reads the deal; the uuid writes it. */
-  slug: string;
+function Deal({ partnerId, name, kind, canEdit, flat, deal, loaded, onSaved }: {
   partnerId: string;
   name: string;
   kind: Kind;
   canEdit: boolean;
   /** The flat rate still in force when there is no deal. */
   flat: number | null;
+  deal: AgreementView | null;
+  loaded: boolean;
   onSaved: () => void;
 }) {
-  const toast = useToast();
-  const [deal, setDeal] = useState<AgreementView | null>(null);
-  const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      setDeal(await getSupplierDeal(slug, kind));
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not read the deal.', 'error');
-    } finally {
-      setLoaded(true);
-    }
-  }, [slug, kind, toast]);
-
-  useEffect(() => { void load(); }, [load]);
 
   /* THE SUMMARY IS THE DEAL IN PLAIN ENGLISH, from the same function the
      editor's own preview uses, so the card and the editor cannot word one
@@ -140,14 +143,16 @@ function Deal({ slug, partnerId, name, kind, canEdit, flat, onSaved }: {
           kind={kind}
           current={deal}
           onClose={() => setOpen(false)}
-          onSaved={() => { setOpen(false); void load(); onSaved(); }}
+          onSaved={() => { setOpen(false); onSaved(); }}
         />
       )}
     </>
   );
 }
 
-export function SupplierDeals({ slug, partnerId, name, canEdit, total, agentShare, onSaved }: {
+export function SupplierDeals({
+  slug, partnerId, name, canEdit, total, agentShare, paysAgents, onSaved,
+}: {
   slug: string;
   /** The uuid, which is what a partner-scope agreement is keyed on. */
   partnerId: string;
@@ -155,14 +160,126 @@ export function SupplierDeals({ slug, partnerId, name, canEdit, total, agentShar
   canEdit: boolean;
   total: number | null;
   agentShare: number | null;
+  /** Whether Opndoor settles the agents instead of the supplier doing it. */
+  paysAgents: boolean;
   onSaved: () => void;
 }) {
+  const toast = useToast();
+  const { ask, confirmEl } = useConfirm();
+  const [deals, setDeals] = useState<{ commission: AgreementView | null; agent_share: AgreementView | null }>(
+    { commission: null, agent_share: null });
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  /* BOTH READ HERE, not in each card, because the combined sentence below
+     needs them together: "Opndoor pays 35%, of which the agents get 15%"
+     cannot be written by either card alone. */
+  const load = useCallback(async () => {
+    try {
+      const [c, a] = await Promise.all([
+        getSupplierDeal(slug, 'commission'),
+        getSupplierDeal(slug, 'agent_share'),
+      ]);
+      setDeals({ commission: c, agent_share: a });
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not read the deals.', 'error');
+    } finally {
+      setLoaded(true);
+    }
+  }, [slug, toast]);
+  useEffect(() => { void load(); }, [load]);
+
+  const saved = () => { void load(); onSaved(); };
+
+  const effTotal = headlineRate(deals.commission, total);
+  const effShare = headlineRate(deals.agent_share, agentShare);
+  const banded = !!(deals.commission?.bands.length ?? 0 > 1)
+    || !!deals.commission?.tiers.length
+    || !!(deals.agent_share?.bands.length ?? 0 > 1)
+    || !!deals.agent_share?.tiers.length;
+
+  /* WHO ENDS UP WITH WHAT. The old flat card's one useful line, kept:
+     two rates on two cards do not say that one comes out of the other.
+     Where a deal varies by tenant count or volume it names the commonest
+     referral and says so, rather than printing a figure that is only
+     sometimes true. */
+  const combined = effTotal == null ? null : (
+    <>
+      Opndoor pays <b>{fmtRatePct(effTotal)}</b> of the fee
+      {effShare != null && <>. Of that, the agencies get <b>{fmtRatePct(effShare)}</b> and {name} keeps{' '}
+        <b>{fmtRatePct(Math.max(effTotal - effShare, 0))}</b></>}
+      {banded && <> on a single-tenant referral; it changes with the deals below</>}.
+    </>
+  );
+
+  /* IMMEDIATE, WITH A CONFIRMATION, like the API switch. It changes who
+     Opndoor sends money to, which is not a thing to flip on the way past.
+     The two rates are passed back exactly as stored: set_supplier_commission
+     takes all three, and sending anything else here would rewrite a rate
+     from a card that no longer shows one. */
+  const togglePays = (next: boolean) => ask({
+    title: next ? 'Opndoor pays the agents directly' : 'The supplier pays its own agents',
+    body: next ? (
+      <>
+        The agencies&rsquo; share will be paid by opndoor to each agency, and each will appear as
+        an opndoor payee with its own commission statement. {name} will be paid its own share only.
+      </>
+    ) : (
+      <>
+        opndoor will pay the whole commission to <b>{name}</b>, which settles with its own agencies.
+        No agency under it appears as an opndoor payee, and none receives a statement from us.
+      </>
+    ),
+    confirmLabel: next ? 'Opndoor pays the agents' : `${name} pays its agents`,
+    run: async () => {
+      setBusy(true);
+      try {
+        await setSupplierCommission(slug, total ?? 0, agentShare ?? 0, next);
+        toast(next ? 'Opndoor now pays the agents directly.' : `${name} now settles its own agents.`);
+        onSaved();
+      } catch (e) {
+        toast(e instanceof Error ? e.message : 'Could not change that.', 'error');
+      } finally { setBusy(false); }
+    },
+  });
+
   return (
     <>
-      <Deal slug={slug} partnerId={partnerId} name={name} kind="commission"
-        canEdit={canEdit} flat={total} onSaved={onSaved} />
-      <Deal slug={slug} partnerId={partnerId} name={name} kind="agent_share"
-        canEdit={canEdit} flat={agentShare} onSaved={onSaved} />
+      {/* ONE SENTENCE FOR THE WHOLE ARRANGEMENT, and the switch that
+          decides who hands the money over. Matt, 2026-10-01: the switch
+          and the plain-English summary move into this layout. */}
+      <Card>
+        <CardHead
+          title="What a referral costs"
+          sub="The whole arrangement in one line, and who pays the agencies."
+        />
+        <CardBody>
+          {!loaded ? (
+            <p className="ph-note muted">Loading…</p>
+          ) : (
+            <p className="sd-summary">{combined ?? 'No commission is set for this supplier.'}</p>
+          )}
+          <label className="sc-switch">
+            <input
+              type="checkbox" checked={paysAgents} disabled={!canEdit || busy}
+              onChange={(e) => togglePays(e.target.checked)}
+            />
+            <span>
+              <b>Opndoor pays the agents directly</b>
+              <span className="sc-switch__note">
+                Off: opndoor pays the whole commission to {name}, which settles with its own
+                agencies, and no agency appears as an opndoor payee. On: the agencies&rsquo; share is
+                paid to each agency instead, and each gets its own statement.
+              </span>
+            </span>
+          </label>
+        </CardBody>
+      </Card>
+
+      <Deal partnerId={partnerId} name={name} kind="commission" canEdit={canEdit}
+        flat={total} deal={deals.commission} loaded={loaded} onSaved={saved} />
+      <Deal partnerId={partnerId} name={name} kind="agent_share" canEdit={canEdit}
+        flat={agentShare} deal={deals.agent_share} loaded={loaded} onSaved={saved} />
       {/* WHERE AN OVERRIDE LIVES. Matt's "per-agency overrides" are
           agency-scope deals, which the resolver already prefers over the
           supplier's. They are edited on the agency's own page: a second
@@ -180,6 +297,7 @@ export function SupplierDeals({ slug, partnerId, name, canEdit, total, agentShar
           </p>
         </CardBody>
       </Card>
+      {confirmEl}
     </>
   );
 }

@@ -47,6 +47,24 @@ const ORG = [
     branches: [{ id: 'br-1', name: 'ZZZ Office', referrals: 3, guaranteed: '0' }] },
   { id: 'ag-none', partner: SUPPLIER, name: 'ZZZ No Contact', referrals: 0, guaranteed: '0',
     branches: [] },
+  /* AND THE ARRANGEMENT THE WARNING WAS WRONG ABOUT. No contact on the
+     agency, one on every branch: the deed always has somewhere to go, and
+     the agency row used to shout that it did not. */
+  { id: 'ag-perbranch', partner: SUPPLIER, name: 'ZZZ Per Branch', referrals: 4, guaranteed: '0',
+    branches: [
+      { id: 'br-p1', name: 'ZZZ North', referrals: 2, guaranteed: '0',
+        contacts: [{ id: 'c2', name: 'Nora North', email: 'north@zzz.test', primary: true }] },
+      { id: 'br-p2', name: 'ZZZ South', referrals: 2, guaranteed: '0',
+        contacts: [{ id: 'c3', name: 'Sol South', email: 'south@zzz.test', primary: true }] },
+    ] },
+  /* AND THE ONE THAT MUST STILL WARN: covered on one branch, bare on the
+     other, so one of the two really has nowhere to send. */
+  { id: 'ag-partial', partner: SUPPLIER, name: 'ZZZ Partly Covered', referrals: 2, guaranteed: '0',
+    branches: [
+      { id: 'br-q1', name: 'ZZZ East', referrals: 1, guaranteed: '0',
+        contacts: [{ id: 'c4', name: 'Eve East', email: 'east@zzz.test', primary: true }] },
+      { id: 'br-q2', name: 'ZZZ West', referrals: 1, guaranteed: '0' },
+    ] },
 ] as never[];
 
 const PEOPLE: ManagedUser[] = [
@@ -125,6 +143,54 @@ describe('the Overview tab', () => {
     const v = await open();
     expect(v.container.textContent).toMatch(/No agent contact/);
   });
+
+  /* =======================================================================
+     AND ONLY WHERE A DEED WOULD ACTUALLY HAVE NOWHERE TO GO.
+
+     Matt, 2026-10-01: "Supplier Overview: don't show 'No agent contact' on
+     an agency when its branches have contacts; only warn where a branch
+     would actually have nowhere to send the deed."
+
+     The agency row ran the branch row's question -- "does THIS node have a
+     contact" -- so an agency keeping its contacts on the branches, which is
+     the ordinary arrangement, was marked as having none while every branch
+     under it printed a working address.
+     ======================================================================= */
+  const agencyRow = (v: { container: HTMLElement }, name: string) =>
+    [...v.container.querySelectorAll('.ph-tree__agency')]
+      .find((d) => (d.querySelector('.ph-tree__name')?.textContent ?? '') === name)!;
+  /** The agency's OWN row, without the branch rows underneath it. */
+  const rowText = (v: { container: HTMLElement }, name: string) =>
+    agencyRow(v, name).querySelector('.ph-tree__arow')!.parentElement!.textContent!
+      .replace(agencyRow(v, name).querySelector('.ph-tree__branches')?.textContent ?? '', '');
+
+  it('so an agency whose branches all have contacts is not warned about', async () => {
+    const v = await open();
+    expect(rowText(v, 'ZZZ Per Branch')).not.toMatch(/No agent contact/);
+  });
+
+  it('and says instead where its contacts actually are', async () => {
+    const v = await open();
+    expect(rowText(v, 'ZZZ Per Branch')).toMatch(/Contacts are set per branch/);
+  });
+
+  /* THE WARNING IS NOT WEAKENED, ONLY AIMED. An agency covered on one branch
+     and bare on the other still has a deed with nowhere to go, and the row
+     counts them so the reader knows how much work it is. */
+  it('while one with a bare branch is still warned about, and counted', async () => {
+    const v = await open();
+    expect(rowText(v, 'ZZZ Partly Covered')).toMatch(/No agent contact on 1 of 2 branches/);
+  });
+
+  /* AND THE BRANCH ROWS GO ON ANSWERING FOR THEMSELVES, which is where the
+     warning was always right and is what makes the agency row redundant. */
+  it('and the bare branch itself still says so', async () => {
+    const v = await open();
+    const branches = agencyRow(v, 'ZZZ Partly Covered').querySelector('.ph-tree__branches')!;
+    const west = [...branches.querySelectorAll('.ph-tree__branch')]
+      .find((d) => (d.textContent ?? '').includes('ZZZ West'))!;
+    expect(west.textContent).toMatch(/No agent contact/);
+  });
 });
 
 describe('the People tab', () => {
@@ -169,5 +235,34 @@ describe('the Integration tab', () => {
     expect(v.container.textContent).toMatch(/API access/);
     // Two dead pointers told the reader to go somewhere item A removes.
     expect(v.container.textContent).not.toMatch(/Manage on the Suppliers list/);
+  });
+});
+
+/* ===========================================================================
+   TWO WORDS, BOTH OF THEM THE READER'S.
+
+   Matt, 2026-10-01: 'Settings: replace "The partner references first" with
+   "The supplier references first". People: show status as "Active",
+   capitalised, like elsewhere.'
+   =========================================================================== */
+describe('the words on a supplier’s own page', () => {
+  it('call the supplier a supplier, not a partner, on Settings', async () => {
+    const v = await open();
+    await openTab(v, 'Settings');
+    const t = v.container.textContent ?? '';
+    expect(t).toContain('The supplier references first');
+    expect(t).not.toContain('The partner references first');
+  });
+
+  /* STATUS IS A LABEL, NOT THE STORED VALUE. The column printed `u.status`
+     straight out of the record, so it read "active" beside a People list
+     that says "Active" everywhere else -- and "pending" where every other
+     list says "Invited", which is also the truer word. */
+  it('and capitalise the status on People, as every other people list does', async () => {
+    const v = await open();
+    await openTab(v, 'People');
+    const cells = [...v.container.querySelectorAll('.pill')].map((e) => e.textContent ?? '');
+    expect(cells).toContain('Active');
+    expect(cells).not.toContain('active');
   });
 });

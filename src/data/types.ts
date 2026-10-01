@@ -284,12 +284,21 @@ export interface Partner {
 
 export type ReferencingMode = 'pre_referenced_open' | 'pre_referenced_screened' | 'opndoor_referenced';
 
-/** Labels for the three modes. The stored value is what goes in the audit trail. */
+/** Labels for the three modes. The stored value is what goes in the audit trail.
+
+    "THE SUPPLIER", NOT "THE PARTNER". Matt, 2026-10-01: 'Settings: replace
+    "The partner references first" with "The supplier references first".'
+    Every screen that shows these three is a supplier's, and partner is
+    Opndoor's word for Opndoor's own business: the only party who could read
+    "the partner" here as themselves is the one reading it. The two
+    pre-referenced modes exist for suppliers alone -- an agency on our own
+    rail is always opndoor_referenced -- so there is no reader this sentence
+    is now wrong for. */
 export const REFERENCING_MODES: { id: ReferencingMode; label: string; desc: string }[] = [
   { id: 'pre_referenced_screened', label: 'Pre-referenced, screened',
-    desc: 'The partner references first and opndoor applies its own criteria. Applications are refused.' },
+    desc: 'The supplier references first and opndoor applies its own criteria. Applications are refused.' },
   { id: 'pre_referenced_open', label: 'Pre-referenced, open',
-    desc: 'The partner references first and opndoor applies no criteria at all. A commercial position, granted deliberately.' },
+    desc: 'The supplier references first and opndoor applies no criteria at all. A commercial position, granted deliberately.' },
   { id: 'opndoor_referenced', label: 'opndoor referenced',
     desc: 'opndoor completes the reference. Applications are refused.' },
 ];

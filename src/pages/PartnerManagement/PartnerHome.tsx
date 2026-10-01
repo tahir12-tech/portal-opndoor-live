@@ -67,6 +67,56 @@ function ContactLine({ agency, branch }: { agency: Agency; branch?: Branch }) {
   );
 }
 
+/* ===========================================================================
+   THE AGENCY ROW'S CONTACT, WHICH IS A DIFFERENT QUESTION FROM A BRANCH'S.
+
+   Matt, 2026-10-01: "Supplier Overview: don't show 'No agent contact' on an
+   agency when its branches have contacts; only warn where a branch would
+   actually have nowhere to send the deed."
+
+   The agency row ran the same `ContactLine` as the branch rows, which asks
+   "does THIS node have a contact". For an agency that keeps its contacts on
+   the branches -- the normal arrangement, and the one the inheritance exists
+   to support -- the answer is no, so the row cried "No agent contact" with a
+   working email printed under it on every branch. A warning that is wrong
+   whenever the data is organised the usual way is a warning people learn to
+   scroll past, which costs the ones that are real.
+
+   What the row should answer is "would any deed under this agency have
+   nowhere to go". That is the union of the branches, not the agency node:
+
+     a contact of its own    show it. Every branch inherits it.
+     none, branches all      say nothing. Each branch prints its own below,
+     covered                 and repeating them at the agency is noise.
+     none, some branch bare  warn, and COUNT them, because the point of the
+                             warning is to send somebody to fix those.
+     none, no branches       warn. There is nothing underneath to cover it.
+   =========================================================================== */
+function AgencyContactLine({ agency }: { agency: Agency }) {
+  const own = effectivePrimary(agency, null);
+  if (own.contact) return <ContactLine agency={agency} />;
+
+  const branches = agency.branches ?? [];
+  if (branches.length === 0) return <ContactLine agency={agency} />;
+
+  const bare = branches.filter((b) => !effectivePrimary(agency, b).contact);
+  if (bare.length === 0) {
+    return (
+      <span className="ph-contact ph-contact--perbranch" title="Each branch below has its own agent contact.">
+        <Icon name="send" size={12} /> Contacts are set per branch
+      </span>
+    );
+  }
+  return (
+    <span
+      className="ph-contact ph-contact--none"
+      title="An executed deed for these branches has nowhere to go until a contact is set."
+    >
+      No agent contact on {bare.length} of {branches.length} {branches.length === 1 ? 'branch' : 'branches'}
+    </span>
+  );
+}
+
 const PH_STATUS_LABEL: Record<Status, string> = {
   draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent',
   paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired',
@@ -86,7 +136,6 @@ import { Tag } from '@/components/ui/Tag';
 import { agencyKey } from '@/pages/Agencies/AgencyHome';
 import { PersonNotifications } from '@/components/people/PersonNotifications';
 import { StatementRecipients } from '@/components/StatementRecipients';
-import { SupplierCommission } from '@/components/SupplierCommission';
 import { ViewAsButton } from '@/components/ViewAsButton';
 import './PartnerHome.css';
 
@@ -116,7 +165,17 @@ const ROLE_LABEL: Record<string, string> = {
 const supplierSees = (role: string): string =>
   (role === 'management' ? 'Everything' : role === 'referrer' ? 'Own referrals' : '-');
 
-const USER_STATUS_PILL: Record<string, PillVariant> = { active: 'deed', pending: 'warn', deactivated: 'muted' };
+/* THE SAME WORDS TEAM USES. Matt, 2026-10-01: 'People: show status as
+   "Active", capitalised, like elsewhere.' This printed `u.status`, the stored
+   value, so the supplier's People tab read "active" and "pending" in a column
+   that reads "Active" and "Invited" on every other people list -- and
+   "pending" is not even the word, since what is pending is an invitation.
+   Label and pill colour together, as Team has them. */
+const USER_STATUS_PILL: Record<string, [string, PillVariant]> = {
+  active: ['Active', 'deed'],
+  pending: ['Invited', 'warn'],
+  deactivated: ['Deactivated', 'muted'],
+};
 const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 const modeLabel = (m: ReferencingMode | undefined) => REFERENCING_MODES.find((x) => x.id === m)?.label ?? 'Screened referral';
 
@@ -309,42 +368,45 @@ export function PartnerHome() {
 
       {tab === 'commission' && (
       <div className="ph-grid">
-        {/* THE ONE PLACE COMMISSION IS SET. The two read-only figures and
-            the pointer at Manage that used to sit here were the other half
-            of the "two screens editing one number" this replaces: Manage
-            owned the boxes and this tab described them. Matt, 2026-09-30:
-            "Supplier commission is edited only on the supplier's Commission
-            tab." */}
-        <SupplierCommission
+        {/* ONE WAY TO SET COMMISSION, AND THIS IS IT.
+
+            Matt, 2026-10-01: "Supplier Commission tab: one way to set
+            commission only. Remove the old card (Total commission %, Agents'
+            share %, read-only volume tiers, Save commission) and keep the
+            deal editors ... moving the 'Opndoor pays the agents directly'
+            switch and the plain-English summary into that layout."
+
+            The old card and the deal editors were two ways to price the same
+            referral, sitting one above the other, and they could disagree:
+            the card's "Total commission %" is the flat rate, a deal
+            overrides it, and the card went on printing the flat figure as
+            though it were in force. Keeping the card "for the common case"
+            was my reasoning when I put the deals below it, and it was wrong
+            for exactly the reason this tab exists -- the fault it was built
+            to end was two screens editing one number.
+
+            What the card owned that was worth keeping has moved into
+            SupplierDeals: the pays-agents switch, and the one sentence
+            saying who ends up with what. The flat pair is still what prices
+            a supplier with no deal, and the deal cards say so in words
+            rather than in a second pair of inputs.
+
+            NO LONGER BEHIND `isAdmin`. The card it replaces rendered
+            read-only for anybody who could reach this page and took
+            `canEdit` for the buttons; gating the whole component instead
+            would have left an opndoor_manager on a Commission tab with no
+            commission on it. `canEdit` is passed and every control already
+            honours it. */}
+        <SupplierDeals
           slug={partner.id}
-          supplierName={partner.name}
-          total={rates.partner}
-          agentShare={rates.agent}
-          opndoorPaysAgents={partner.opndoorPaysAgents === true}
+          partnerId={partner.dbId ?? partner.id}
+          name={partner.name}
           canEdit={isAdmin}
+          total={rates.partner ?? null}
+          agentShare={rates.agent ?? null}
+          paysAgents={partner.opndoorPaysAgents === true}
           onSaved={refresh}
         />
-
-        {/* THE TWO DEALS, with the agency editor. Matt, 2026-10-01: "use the
-            same commission deal editor agencies have, with all its options
-            ... for both the supplier's total commission and the agents'
-            share within it."
-
-            BELOW THE FLAT PAIR, not instead of it. Most suppliers are priced
-            by the two numbers above and a deal is the exception; putting the
-            exception first would make the common case look like the
-            override. A deal, where one exists, wins. */}
-        {isAdmin && (
-          <SupplierDeals
-            slug={partner.id}
-            partnerId={partner.dbId ?? partner.id}
-            name={partner.name}
-            canEdit={isAdmin}
-            total={rates.partner ?? null}
-            agentShare={rates.agent ?? null}
-            onSaved={refresh}
-          />
-        )}
 
         {/* WHO THE MONTHLY STATEMENT GOES TO. On the Commission tab because
             the statement IS the commission, and this is the only screen in
@@ -451,7 +513,7 @@ export function PartnerHome() {
                       none. A supplier agency with no contact anywhere has
                       nowhere to send an executed deed, and the page said
                       nothing about it. */}
-                  <ContactLine agency={a} />
+                  <AgencyContactLine agency={a} />
                   {a.branches.length > 0 && (
                     <div className="ph-tree__branches">
                       {a.branches.map((b) => (
@@ -541,7 +603,10 @@ export function PartnerHome() {
                     </td>
                     <td>{ROLE_LABEL[u.role] ?? u.role}</td>
                     <td className="soft">{supplierSees(u.role)}</td>
-                    <td><Pill variant={USER_STATUS_PILL[u.status] ?? 'muted'}>{u.status}</Pill></td>
+                    <td>{(() => {
+                      const [label, variant] = USER_STATUS_PILL[u.status] ?? [u.status, 'muted' as PillVariant];
+                      return <Pill variant={variant}>{label}</Pill>;
+                    })()}</td>
                     <td className="soft">{u.lastActive}</td>
                     {/* THE SAME ROW ACTIONS THE AGENCY PAGE HAS. Q-06 item A:
                         "their staff with the same row actions". The table was
