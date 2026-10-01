@@ -26,14 +26,36 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 import { fmtRatePct } from '@/lib/format';
+/* THE STYLES THIS FORM USES. `.ac-shapes`, `.ac-agency` and now
+   `.ac-problems` live in AgencyHome.css beside their siblings, and this
+   component renders inside OrgManagement, which loads a different
+   stylesheet. They were arriving only when some other route had already
+   pulled AgencyHome.css in. A component imports the CSS it needs. */
+import './AgencyHome.css';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const HOUSE = 'opndoor-agents';
 
 type Shape = 'independent' | 'group' | 'join';
 
-interface DraftAgency { name: string; ratePct: string; branches: string[] }
-const emptyAgency = (): DraftAgency => ({ name: '', ratePct: '', branches: [''] });
+/* THE AGENCY'S OWN ADDRESS, NOT ITS FIRST BRANCH.
+
+   Matt, 2026-10-01: "Don't ask for a branch to create an agency: ask for the
+   agency's name and address; that becomes its office behind the scenes, never
+   shown separately. 'Add another branch' stays available for agencies with
+   several offices."
+
+   Which is NM-P's rule arriving in the create form. Every application hangs
+   off a branch and always will; what stops is SHOWING the office to somebody
+   who has one. So the form asks the two things an onboarder actually knows --
+   the name and where they are -- and the office is made behind them, named
+   after the agency.
+
+   `extra` is the offices BEYOND that one, for an agency with several. It is
+   empty for almost every agency, which is why it starts empty rather than
+   with a blank row demanding to be filled in. */
+interface DraftAgency { name: string; address: string; ratePct: string; extra: string[] }
+const emptyAgency = (): DraftAgency => ({ name: '', address: '', ratePct: '', extra: [] });
 
 export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => void }) {
   const toast = useToast();
@@ -78,15 +100,15 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
 
   const setDraft = (i: number, patch: Partial<DraftAgency>) =>
     setDrafts((d) => d.map((x, j) => (j === i ? { ...x, ...patch } : x)));
-  const setBranch = (i: number, bi: number, v: string) =>
-    setDrafts((d) => d.map((x, j) => (j === i ? { ...x, branches: x.branches.map((b, k) => (k === bi ? v : b)) } : x)));
+  const setExtra = (i: number, bi: number, v: string) =>
+    setDrafts((d) => d.map((x, j) => (j === i ? { ...x, extra: x.extra.map((b, k) => (k === bi ? v : b)) } : x)));
 
   /* THE SENTENCE. Stated before anything is created, naming every parent. */
   const sentence = (() => {
     if (shape === 'independent') {
       const n = drafts[0]?.name.trim() || 'a new agency';
-      const bs = drafts[0]?.branches.filter((b) => b.trim()).length ?? 0;
-      return `You're creating ${n} as an independent agency with ${bs} ${bs === 1 ? 'branch' : 'branches'}. No group sits above it.`;
+      const bs = 1 + (drafts[0]?.extra.filter((b) => b.trim()).length ?? 0);
+      return `You're creating ${n} as an independent agency with ${bs} ${bs === 1 ? 'office' : 'offices'}. No group sits above it.`;
     }
     if (shape === 'group') {
       const n = groupName.trim() || 'a new group';
@@ -104,20 +126,69 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
 
   const namedAgencies = drafts.filter((d) => d.name.trim());
   const emailOk = !invEmail.trim() || EMAIL_RE.test(invEmail.trim());
-  const canSave = !busy && emailOk && namedAgencies.length > 0
-    && (shape === 'independent' ? drafts[0].branches.some((b) => b.trim())
-      : shape === 'group' ? !!groupName.trim()
-      : shape === 'join' ? !!joinGroupId
-      : false);
+
+  /* WHAT IS MISSING, NAMED. Matt, 2026-10-01: "Create must never do nothing.
+     If anything is missing or the save fails, show the reason next to the
+     field or at the top of the form."
+
+     IT USED TO BE A BOOLEAN. `canSave` disabled the button and said nothing,
+     so an onboarder who typed the agency name and pressed Create got a dead
+     control and no reason -- and the thing it was silently waiting for was a
+     BRANCH NAME, which Matt has now said not to ask for at all. The two
+     halves of his instruction are the same bug from either end.
+
+     A REASON PER FIELD, so the message can sit beside the box it is about,
+     and the same list makes the one at the top. */
+  const problems: { field: string; why: string }[] = [];
+  if (shape === 'group' && !groupName.trim()) {
+    problems.push({ field: 'ac-groupname', why: 'Give the group a name.' });
+  }
+  if (shape === 'join' && !joinGroupId) {
+    problems.push({ field: 'ac-join', why: 'Choose the group this agency is joining.' });
+  }
+  drafts.forEach((d, i) => {
+    /* AN EMPTY EXTRA AGENCY ROW IS NOT A PROBLEM when it is not the only
+       one: a group form with three rows and two filled in means two. The
+       FIRST row always has to be filled, or nothing is being created. */
+    if (!d.name.trim() && (i === 0 || d.address.trim() || d.ratePct.trim())) {
+      problems.push({ field: `ac-name-${i}`, why: 'Give the agency a name.' });
+    }
+    /* BOTH AT ONCE, not one per press. With an empty form the first press
+       used to report only the missing name; fixing that and pressing again
+       then reported the missing address. Two round trips to learn two
+       things the form knew from the start. */
+    if ((d.name.trim() || i === 0) && !d.address.trim()) {
+      problems.push({ field: `ac-addr-${i}`, why: 'Give the agency an address. It becomes its office.' });
+    }
+  });
+  if (!emailOk) {
+    problems.push({ field: 'ac-inv-email', why: 'That is not an email address.' });
+  }
+  const problemFor = (field: string) => problems.find((p) => p.field === field)?.why;
+  const [showProblems, setShowProblems] = useState(false);
 
   const save = async () => {
-    if (!canSave || !shape) return;
+    if (busy || !shape) return;
+    /* THE BUTTON IS ALWAYS LIVE. Pressing it either creates or SAYS WHY NOT,
+       which is the whole instruction: a control that does nothing teaches
+       the reader that the form is broken, and they have no way to find out
+       which of eight fields it is waiting for. */
+    if (problems.length) { setShowProblems(true); return; }
     setBusy(true);
     try {
       const specs: AgencySpec[] = namedAgencies.map((d) => ({
         name: d.name.trim(),
         agentRate: pctToFrac(d.ratePct),
-        branches: d.branches.filter((b) => b.trim()).map((b) => ({ name: b.trim() })),
+        /* THE OFFICE IS MADE BEHIND THE AGENCY, named after it and carrying
+           the address that was typed. Matt: "that becomes its office behind
+           the scenes, never shown separately." A single-office agency
+           therefore has an office whose name is its own, which is exactly
+           what NM-P's "no Branch line for a single-office agency" renders
+           as nothing. */
+        branches: [
+          { name: d.name.trim(), area: d.address.trim() },
+          ...d.extra.filter((b) => b.trim()).map((b) => ({ name: b.trim() })),
+        ],
       }));
       const made = await createOrgShape({
         partner: HOUSE,
@@ -148,19 +219,30 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
         <b>{shape === 'independent' ? 'Agency' : `Agency ${i + 1}`}</b>
         {showRemove && <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setDrafts((x) => x.filter((_, j) => j !== i))}>Remove</button>}
       </div>
-      <Field label="Agency name" htmlFor={`ac-name-${i}`}>
+      <Field label="Agency name" htmlFor={`ac-name-${i}`}
+        error={showProblems ? problemFor(`ac-name-${i}`) : undefined}>
         <input id={`ac-name-${i}`} type="text" autoComplete="off" placeholder="e.g. Northgate Lettings" value={d.name} onChange={(e) => setDraft(i, { name: e.target.value })} />
+      </Field>
+      {/* THE ADDRESS, NOT A BRANCH NAME. It becomes the agency's office,
+          named after the agency, and is never shown as a separate thing. */}
+      <Field label="Agency address" htmlFor={`ac-addr-${i}`}
+        hint="Where they work from. This becomes their office."
+        error={showProblems ? problemFor(`ac-addr-${i}`) : undefined}>
+        <input id={`ac-addr-${i}`} type="text" autoComplete="off" placeholder="e.g. 14 Northgate, Chester CH1 2EX" value={d.address} onChange={(e) => setDraft(i, { address: e.target.value })} />
       </Field>
       <Field label="Agency commission %" htmlFor={`ac-rate-${i}`} hint={`Blank earns the Opndoor standard (${fmtRatePct(base.agent)}).`}>
         <input id={`ac-rate-${i}`} inputMode="decimal" placeholder="standard" value={d.ratePct} onChange={(e) => setDraft(i, { ratePct: e.target.value })} />
       </Field>
-      {d.branches.map((b, bi) => (
-        <Field key={bi} label={bi === 0 ? 'First branch' : `Branch ${bi + 1}`} htmlFor={`ac-br-${i}-${bi}`}
-          hint={bi === 0 && shape !== 'independent' ? 'Optional: the manager can add branches on first login.' : undefined}>
-          <input id={`ac-br-${i}-${bi}`} type="text" autoComplete="off" placeholder="e.g. Northgate Central" value={b} onChange={(e) => setBranch(i, bi, e.target.value)} />
+      {/* FURTHER OFFICES, for an agency that has them. Matt: "'Add another
+          branch' stays available for agencies with several offices." Almost
+          none do at the moment they are onboarded, so there is no blank row
+          sitting there asking to be filled in. */}
+      {d.extra.map((b, bi) => (
+        <Field key={bi} label={`Another office ${bi + 1}`} htmlFor={`ac-br-${i}-${bi}`}>
+          <input id={`ac-br-${i}-${bi}`} type="text" autoComplete="off" placeholder="e.g. Northgate Central" value={b} onChange={(e) => setExtra(i, bi, e.target.value)} />
         </Field>
       ))}
-      <button className="ah-linkbtn" onClick={() => setDraft(i, { branches: [...d.branches, ''] })}>
+      <button className="ah-linkbtn" onClick={() => setDraft(i, { extra: [...d.extra, ''] })}>
         <Icon name="plus" size={12} /> Add another branch
       </button>
     </div>
@@ -175,10 +257,26 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
       footer={shape
         ? <>
             <Button variant="ghost" onClick={() => setShape(null)} disabled={busy}>Back</Button>
-            <Button variant="primary" onClick={save} disabled={!canSave}>{busy ? 'Creating…' : 'Create'}</Button>
+            <Button variant="primary" onClick={save} disabled={busy}>{busy ? 'Creating…' : 'Create'}</Button>
           </>
         : <Button variant="ghost" onClick={close}>Cancel</Button>}
     >
+      {/* AND AT THE TOP, because a reason beside a field the reader has
+          scrolled past is a reason they will not find. Matt: "show the
+          reason next to the field or at the top of the form" -- both, since
+          this form is long enough to hide one. */}
+      {shape && showProblems && problems.length > 0 && (
+        <div className="ac-problems" role="alert">
+          <Icon name="alert" />
+          <div>
+            <b>{problems.length === 1 ? 'One thing is missing' : `${problems.length} things are missing`}</b>
+            <ul>
+              {problems.map((pr) => <li key={pr.field}>{pr.why}</li>)}
+            </ul>
+          </div>
+        </div>
+      )}
+
       {!shape && (
         <div className="ac-shapes">
           <button className="ac-shape" onClick={() => setShape('independent')}>
@@ -212,7 +310,7 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
 
       {shape === 'group' && (
         <>
-          <Field label="Group name" htmlFor="ac-groupname"><input id="ac-groupname" type="text" autoComplete="off" placeholder="e.g. Meridian Property Group" value={groupName} onChange={(e) => setGroupName(e.target.value)} /></Field>
+          <Field label="Group name" htmlFor="ac-groupname" error={showProblems ? problemFor('ac-groupname') : undefined}><input id="ac-groupname" type="text" autoComplete="off" placeholder="e.g. Meridian Property Group" value={groupName} onChange={(e) => setGroupName(e.target.value)} /></Field>
           <Field label="Group commission %" htmlFor="ac-grouprate" hint="Optional. A group rate is its own line, paid to the group, on top of each agency's.">
             <input id="ac-grouprate" inputMode="decimal" placeholder="none" value={groupRatePct} onChange={(e) => setGroupRatePct(e.target.value)} />
           </Field>
@@ -234,7 +332,7 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
         <div className="ac-invite">
           <div className="ac-invite__title">First invite <span className="soft">(optional)</span></div>
           <div className="form-grid">
-            <Field span2 label="Email" htmlFor="ac-inv-email"><input id="ac-inv-email" type="email" autoComplete="off" placeholder="manager@agency.co.uk" value={invEmail} onChange={(e) => setInvEmail(e.target.value)} /></Field>
+            <Field span2 label="Email" htmlFor="ac-inv-email" error={showProblems ? problemFor('ac-inv-email') : undefined}><input id="ac-inv-email" type="email" autoComplete="off" placeholder="manager@agency.co.uk" value={invEmail} onChange={(e) => setInvEmail(e.target.value)} /></Field>
             <Field label="First name" htmlFor="ac-inv-first" hint="Optional"><input id="ac-inv-first" type="text" autoComplete="off" value={invFirst} onChange={(e) => setInvFirst(e.target.value)} /></Field>
             <Field label="Last name" htmlFor="ac-inv-last" hint="Optional"><input id="ac-inv-last" type="text" autoComplete="off" value={invLast} onChange={(e) => setInvLast(e.target.value)} /></Field>
             {/* Only levels that exist in the shape being created. */}

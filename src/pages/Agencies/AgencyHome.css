@@ -236,3 +236,15 @@
   gap: 4px 10px;
   justify-content: flex-end;
 }
+
+/* WHY CREATE DID NOT CREATE. At the top of the Add agency form, because a
+   reason beside a field the reader has scrolled past is a reason they will
+   not find. The per-field messages are Field's own `error`. */
+.ac-problems {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 0 0 16px; padding: 12px 14px; border-radius: 10px;
+  background: var(--danger-bg); color: var(--danger);
+  font-size: 13px; line-height: 1.6;
+}
+.ac-problems svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+.ac-problems ul { margin: 4px 0 0; padding-left: 18px; }
