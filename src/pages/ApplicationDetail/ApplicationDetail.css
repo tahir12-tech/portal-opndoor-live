@@ -711,15 +711,25 @@
 .pay-state--awaiting .pay-dot { background: var(--sent); }
 .pay-state--refunded { color: var(--danger); }
 .pay-state--refunded .pay-dot { background: var(--danger); }
+/* THE LINK ITSELF HAS TO BE VISIBLE, not just the Copy button beside it.
+   Matt, 2026-10-01: "Show the payment link next to Copy on joint tenancy
+   applications as on singles."
+
+   `min-width: 0` on a flex child lets it shrink to nothing, which is what
+   happened in the threaded journey column a joint tenancy renders in: the
+   button kept its width and the input collapsed, so the row read as a Copy
+   button with nothing to copy. It wraps now rather than shrinking past
+   being readable. */
 .pay-link {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
   margin-top: 12px;
 }
 .pay-link input {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 200px;
+  min-width: 160px;
   font-size: 12px;
   padding: 8px 10px;
   border: 1px solid var(--line-strong);

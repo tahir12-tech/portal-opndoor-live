@@ -297,9 +297,18 @@ export function pageWithoutSplitting(
    are. `position` stays: it is the entry order the members are sorted by. */
 
 /** A one-line summary of where the tenancy has got to, for a group heading. */
+/** "both tenants" for two, "all 3 tenants" for three or more.
+
+    Matt, 2026-10-01: 'Say "both tenants" for two, "all 3 tenants" for three
+    or more.' "All 2 tenants" is what a counter says, not what a person
+    says, and a tenancy of two is the common joint case. */
+export function everyTenant(n: number): string {
+  return n === 2 ? 'both tenants' : `all ${countOf(n, 'tenant')}`;
+}
+
 export function tenancyProgress(g: TenancyGroup): string {
   const n = g.members.length;
-  if (g.fullyPaid) return `All ${countOf(n, 'tenant')} have paid`;
+  if (g.fullyPaid) return `${everyTenant(n).charAt(0).toUpperCase()}${everyTenant(n).slice(1)} have paid`;
   const paid = n - g.unpaidCount;
   if (paid === 0) return `No tenant has paid yet`;
   return `${paid} of ${countOf(n, 'tenant')} have paid`;

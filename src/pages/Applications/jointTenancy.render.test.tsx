@@ -203,7 +203,7 @@ describe('the application detail page', () => {
     expect(panel.querySelectorAll('.jt-panel__row')).toHaveLength(2);
     expect(panel.textContent).toMatch(/50%/);
     expect(panel.querySelectorAll('.jt-panel__paid.is-paid')).toHaveLength(2);
-    expect(panel.textContent).toMatch(/All 2 tenants have paid/i);
+    expect(panel.textContent).toMatch(/Both tenants have paid/i);
   });
 
   // Was "says the deed covers the tenancy, not this applicant", from the rule

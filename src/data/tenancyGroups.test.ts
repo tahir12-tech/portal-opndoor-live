@@ -151,7 +151,11 @@ describe('the deed is the person’s, and so is the payment', () => {
   it('is fully paid only once every tenant has paid their own share', () => {
     const g = groupTenancies(rows).get('ten-1')!;
     expect(g.fullyPaid).toBe(true);
-    expect(tenancyProgress(g)).toBe('All 2 tenants have paid');
+    /* "BOTH TENANTS", NOT "ALL 2 TENANTS", since 2026-10-01 on Matt's word:
+   "Say 'both tenants' for two, 'all 3 tenants' for three or more." The
+   second is what a counter says; the first is what a person says, and a
+   tenancy of two is the common joint case. */
+    expect(tenancyProgress(g)).toBe('Both tenants have paid');
   });
 
   it('prefers the payment timestamp over the status when it is there', () => {

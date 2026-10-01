@@ -38,6 +38,7 @@ import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendT
 import { useSession } from '@/session/SessionContext';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { isOpndoorStaff } from '@/data/types';
+import { gbpPence } from '@/lib/format';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { maySeeDeliveryState, type DeliveryState } from '@/data/deliveryState';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
@@ -723,8 +724,13 @@ export function ApplicationDetail() {
      number and is not on this page. Every surface below that prints this label
      (the timeline's Paid caption, the payment card's Amount row, the agent
      rail's guarantee-fee stage) is a Manager's to see. */
+  /* TO THE PENNY, ALWAYS. Matt, 2026-10-01: "money always shows two decimal
+     places (£34,545.60, not £34,545.6), everywhere." toLocaleString drops a
+     trailing zero, so a fee of £34,545.60 printed as £34,545.6 and read as a
+     different number from the one on the statement beside it. gbpPence is
+     the formatter every reconcilable figure already goes through. */
   const paidAmountLabel = paymentInfo?.paidAmount != null
-    ? `£${paymentInfo.paidAmount.toLocaleString('en-GB')}`
+    ? gbpPence(paymentInfo.paidAmount)
     : d.feeGBP ?? d.rent;
   const feeBasisSuffix = d.feeBasisLabel ? ` · ${d.feeBasisLabel}` : '';
   // #105 On a terminal pre-payment exit the second node shows the termination
