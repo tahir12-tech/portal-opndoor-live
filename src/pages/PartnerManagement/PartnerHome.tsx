@@ -49,6 +49,7 @@ import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { getApplications } from '@/data/applicationsService';
 import { effectivePrimary } from '@/data/orgService';
+import { DEVELOPER_SEES } from '@/data/positionsService';
 import type { Status, Branch } from '@/data';
 
 /* The same words the agency page and the applications list use. Copied
@@ -164,9 +165,17 @@ const ROLE_LABEL: Record<string, string> = {
    partner IS the company boundary, and their Management sees the whole
    of it.
 
-   Two roles, because that is all a supplier has. */
+   THREE ROLES, NOT TWO. A supplier with API access also has Developers,
+   and they fell through to the '-' that meant "none of the above" --
+   which reads as "sees nothing" for somebody who reads the whole
+   supplier's book. Matt, 2026-10-01. The sentence comes from
+   positionsService so this list and /users cannot word it differently;
+   the dash stays for a role genuinely outside the three. */
 const supplierSees = (role: string): string =>
-  (role === 'management' ? 'Everything' : role === 'referrer' ? 'Own referrals' : '-');
+  (role === 'management' ? 'Everything'
+    : role === 'referrer' ? 'Own referrals'
+    : role === 'developer' ? DEVELOPER_SEES
+    : '-');
 
 /* THE SAME WORDS TEAM USES. Matt, 2026-10-01: 'People: show status as
    "Active", capitalised, like elsewhere.' This printed `u.status`, the stored

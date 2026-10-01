@@ -38,6 +38,11 @@ const LEVELS: ScopeKind[] = ['group', 'agency', 'branch'];
  * Noise on a single-agency customer's Team page, where every position is the
  * same level and the prefix only repeats it: there it reads "Regent's Lettings".
  */
+/** What a Developer sees, in one place: the supplier's people list and the
+    estate-wide one both print it, and two lists wording one role two ways is
+    how "-" and "Own referrals" came to mean the same thing. */
+export const DEVELOPER_SEES = 'Dev Centre and API (no commission)';
+
 export function describePosition(positions: Position[], showLevel = true, role?: Role | null): string {
   /* WALK FIXES 2 AND 11. AN OPNDOOR ADMIN HOLDS NO POSITION BECAUSE THEIR
      ROLE ALREADY GRANTS EVERYTHING, so the absence of one means the opposite
@@ -49,6 +54,20 @@ export function describePosition(positions: Position[], showLevel = true, role?:
      decides. Optional, so the call sites that have not been updated behave
      exactly as they did rather than silently changing what a screen says. */
   if (role === 'superadmin' || role === 'opndoor_manager') return 'Everything';
+  /* A DEVELOPER HOLDS NO POSITION EITHER, and for the same reason: their
+     role grants what they see, so the ladder has nothing to say about them.
+     Reading the absence as "Own referrals" was the same mistake made about
+     an Opndoor admin above -- a developer has no referrals of their own at
+     all, since they cannot create one.
+
+     Matt, 2026-10-01: 'People lists: a Developer's "Sees" reads "Dev Centre
+     and API (no commission)" instead of "-".' The supplier list said "-",
+     this one said "Own referrals", and both read as "almost nothing" for a
+     role that sees the whole supplier's book. ROLE_OPTIONS already notes
+     that about its own description: "Sees the Dev Centre only" read as
+     seeing nothing, which made the role look useless and led to it being
+     handed out as management instead. */
+  if (role === 'developer') return DEVELOPER_SEES;
   if (!positions.length) return 'Own referrals';
   for (const kind of LEVELS) {
     const at = positions.filter((p) => p.kind === kind);
