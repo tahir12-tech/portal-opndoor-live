@@ -20,7 +20,12 @@
    of Regent's executed deeds are for tenancies starting next month; the
    tile now counts what the book HOLDS and names the part not yet started.
    The bordereau's rule is untouched.
-4. barb@barb.com's invite name
+4. barb@barb.com's invite name **done** (`793d284`). NOT REPRODUCED from
+   the forms: all five pass their two fields, the deployed function is byte
+   identical to the repo, and the fields were there on 30 September. Fixed
+   the fallback that stored the EMAIL as the name, added `personLabel` so
+   the four people lists say "Name not set" once instead of the address
+   twice, and set barb's name to 'barb barb' on dev.
 5. The deed emailed to the agent twice on GR-20846
 6. Everything else, in the order sent
 
