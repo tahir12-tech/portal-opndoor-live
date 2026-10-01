@@ -226,6 +226,90 @@ is the whole path working. A wrong secret gives 400 and never reaches SQL.
 
 ---
 
+## 0c. Opndoor's own notes are readable by partner staff on live today
+
+**Read off `main`, not off live.** Nothing in this item was measured against the
+production database. It is what a clean apply of the migrations on `main`
+produces, which is what live was built from. If anything has been applied to
+live that is not in `main`, this item does not describe it.
+
+### What is open
+
+`20260705124804_application_notes.sql`, which is on `main` and therefore on
+live, creates the notes table with this policy:
+
+```sql
+create policy app_notes_select on public.app_notes for select to authenticated
+  using (application_id in (select id from public.applications));
+```
+
+"Any note on any application you can see." The inner select is
+`applications_select` from `20260702134358_access_rls_rpc.sql`:
+
+```sql
+public.is_admin()
+or (public.app_role() = 'management' and partner_id = public.app_partner())
+or (public.app_role() = 'referrer'   and referrer_id = auth.uid())
+```
+
+And the browser reads the TABLE, not an RPC: `notesService.getApplicationNotes`
+on `main` selects `app_notes` through the anon client. So the policy is the
+whole boundary. The rule on the page -
+`role === 'superadmin' || role === 'management' || (role === 'referrer' && owner)`,
+`ApplicationDetail.tsx:144` - decides what is DRAWN and nothing else.
+
+### Exactly who can reach what
+
+| Who, on live | What they can read | How |
+| --- | --- | --- |
+| A partner's `management` user | Every Opndoor note on **every application of their partner**, not just their own referrals | The notes section on the application detail page, or any client holding their session |
+| A `referrer` | Every Opndoor note on **the applications they referred** | The same |
+| `superadmin` | Everything, which is correct | - |
+
+Both need AAL2, which every signed-in user with 2FA has. Both can also WRITE:
+`add_application_note` on `main` admits the same three, so a partner's manager
+can append to Opndoor's internal record of their own referral.
+
+These are the notes the product describes as "Internal operational notes. Not
+shared with tenants or agents, and never exported."
+
+### What is NOT open, and why the question was asked
+
+The tenant's uploaded documents - bank statements, proof of address, P60, tax
+return - are **not reachable on live, because the feature does not exist there**.
+`application_documents`, the `applicant-docs` bucket and the
+`application-document-url` function are all absent from `main`: `git grep
+application_documents main` returns nothing. The identical policy fault found on
+this branch (`20261007310000`) applies to a table live does not have.
+
+So the live exposure is the notes, and only the notes.
+
+### What to do about it
+
+- **The fix is on this branch** (`20261007310000_notes_are_opndoors_and_so_are_the_tenants_files.sql`),
+  which restricts both reads and writes to Opndoor staff. Cutting over closes it.
+- **If cutover slips**, it is one policy and one function, and neither depends on
+  anything else in the 763 commits between `main` and here. Applying that
+  migration's first two sections alone to live would close it, and nothing on
+  live reads notes except the people who should not.
+- Until one of those happens, treat anything written in a note as visible to the
+  partner the application belongs to.
+
+### Verify
+
+As a `management` user on a partner with at least one noted application, with a
+real session:
+
+```
+select count(*) from app_notes;
+```
+
+- Before: returns their partner's notes.
+- After: returns `0`, and `select public.add_application_note('<ref>','x')`
+  raises `42501`.
+
+---
+
 ## 1. Supabase Auth settings
 
 ### 1.1 Email OTP Expiration
