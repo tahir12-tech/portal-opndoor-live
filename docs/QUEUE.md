@@ -195,6 +195,20 @@ one the product ships -- which is exactly what the setting was built
 for, and is why the handover check tells Balal to look at the value on
 live rather than trust the default.
 
+## THE KEY WORDING SAYS WHAT THE SCREEN SHOWS (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Align the admin wording about API keys everywhere: say exactly what admin can see on that screen (e.g. "You can see how many keys are active and revoke one by its prefix; you can never see or create a full key"). No screen should claim more or less than it shows. Then carry on with the queue
+
+- This is the inconsistency I flagged after restoring admin's Dev
+  Centre: the Dev Centre card says "not the list, not the prefixes,
+  not how many there are" while the supplier's Integration tab shows
+  keys BY PREFIX with Revoke. Both do what Matt asked for; the older
+  copy overstates.
+- **"Say exactly what admin can see ON THAT SCREEN"** means the two
+  may differ in content, because they show different things. What
+  they may not do is claim something untrue. So: read what each
+  actually renders FIRST, then write the sentence.
+
 ## THE RESET EMAIL SAYS TO DELETE THE OLD ENTRY (instruction, 2026-10-01, verbatim). **done** (`7775fb0`). THE EMAIL DID NOT EXIST; it does now.
 
 > Two-factor reset email: add "Delete the old opndoor entry from your authenticator app before scanning the new code."
