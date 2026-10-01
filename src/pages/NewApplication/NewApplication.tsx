@@ -637,6 +637,44 @@ export function NewApplication() {
             </section>
           )}
 
+          {/* THE OFFICE IS CHOSEN FIRST. Matt, 2026-10-01: "'Add another
+              tenant' is disabled until an office is chosen, but the office
+              section is last on the form. Move the office/agent section to
+              the top as step 1, so it's chosen before tenants ... Never
+              leave a disabled button whose reason is further down the
+              page."
+
+              It was last because it reads like paperwork: who this is
+              for, after what it is about. But the rail the office sits on
+              decides whether a tenancy can have two tenants in it, so the
+              Tenants section could not be finished until it was answered,
+              and the reason for the disabled button was six hundred pixels
+              below the button. */}
+          <section className={oneOffice ? 'sec-quiet' : 'card sec'} id="sec-branch">
+            {!oneOffice && (
+              <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div><div className="sec__title">{orgCopy.title} <Req /></div><div className="sec__sub">{orgCopy.sub}</div></div></div>
+            )}
+            <CardBody>
+              {picker}
+              {!oneOffice && <>
+                {submitted && orgPartnerError && <p className="na-form-error" style={{ marginTop: 8 }}>Select the partner this new agency belongs to.</p>}
+                {submitted && orgOfficeError && <p className="na-form-error" style={{ marginTop: 8 }}>Tell us whether this is a single-office agency.</p>}
+                {submitted && orgContactError && <p className="na-form-error" style={{ marginTop: 8 }}>Enter a contact email for the new agency.</p>}
+                {submitted && !orgOfficeError && (errors.agency || errors.branch) && (
+                  <span className="field-error" style={{ marginTop: 10 }}>Select an agent and a branch.</span>
+                )}
+              </>}
+            </CardBody>
+          </section>
+          {/* Outside the hidden section, because it has to be readable. The
+              reader cannot fix this and still has to be told: with the section
+              gone there is no field to hang an error on, and a Send button that
+              quietly does nothing is the worse failure. */}
+          {oneOffice && submitted && (errors.agency || errors.branch) && (
+            <p className="na-form-error">We could not work out which office this referral is against. Reload the page, and tell us if it happens again.</p>
+          )}
+
+
           {/* 1. TENANTS */}
           <section className="card sec" id="sec-tenant" aria-disabled={!referredByDone}
             style={referredByDone ? undefined : { opacity: 0.45, pointerEvents: 'none' }}>
@@ -888,30 +926,6 @@ export function NewApplication() {
               not. When there is nothing to ask, the whole section is display:none
               (it contains only the picker, which renders null then anyway) and
               the office is stated as one line under Tenancy instead. */}
-          <section className={oneOffice ? 'sec-quiet' : 'card sec'} id="sec-branch">
-            {!oneOffice && (
-              <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div><div className="sec__title">{orgCopy.title} <Req /></div><div className="sec__sub">{orgCopy.sub}</div></div></div>
-            )}
-            <CardBody>
-              {picker}
-              {!oneOffice && <>
-                {submitted && orgPartnerError && <p className="na-form-error" style={{ marginTop: 8 }}>Select the partner this new agency belongs to.</p>}
-                {submitted && orgOfficeError && <p className="na-form-error" style={{ marginTop: 8 }}>Tell us whether this is a single-office agency.</p>}
-                {submitted && orgContactError && <p className="na-form-error" style={{ marginTop: 8 }}>Enter a contact email for the new agency.</p>}
-                {submitted && !orgOfficeError && (errors.agency || errors.branch) && (
-                  <span className="field-error" style={{ marginTop: 10 }}>Select an agent and a branch.</span>
-                )}
-              </>}
-            </CardBody>
-          </section>
-          {/* Outside the hidden section, because it has to be readable. The
-              reader cannot fix this and still has to be told: with the section
-              gone there is no field to hang an error on, and a Send button that
-              quietly does nothing is the worse failure. */}
-          {oneOffice && submitted && (errors.agency || errors.branch) && (
-            <p className="na-form-error">We could not work out which office this referral is against. Reload the page, and tell us if it happens again.</p>
-          )}
-
           <div style={{ marginTop: 6 }}>
             <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Guarantee reference, issue date and expiry are assigned automatically.</p>
             {formError && <p className="na-form-error">{formError}</p>}
@@ -927,7 +941,9 @@ export function NewApplication() {
           <Card>
             <CardBody style={{ padding: 16 }}>
               <div className="navrail">
-                <a href="#sec-tenant" className="is-active"><span className="dot" />{joint ? 'Tenants' : 'Tenant'}</a>
+                {/* The office leads here too, because it leads on the page. */}
+                {!oneOffice && <a href="#sec-branch" className="is-active"><span className="dot" />{orgCopy.title}</a>}
+                <a href="#sec-tenant" className={oneOffice ? 'is-active' : undefined}><span className="dot" />{joint ? 'Tenants' : 'Tenant'}</a>
                 <a href="#sec-property"><span className="dot" />Property</a>
                 <a href="#sec-tenancy"><span className="dot" />Tenancy</a>
                 {/* WALK FIX 28: "The side navigation should match the
@@ -937,8 +953,6 @@ export function NewApplication() {
                     most readers the rail named a section that was not
                     there. Taken from the same orgCopy the heading uses, so
                     the two cannot say different things again. */}
-                {/* No link to a section that is not on the page. */}
-                {!oneOffice && <a href="#sec-branch"><span className="dot" />{orgCopy.title}</a>}
               </div>
             </CardBody>
           </Card>

@@ -282,7 +282,16 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
       setBrEmail('');
       return;
     }
-    if (rec.branches.length === 1 && (isAdmin || shape.refersOwnStock)) {
+    /* ONE OFFICE IS NOT A CHOICE. Matt, 2026-10-01: "if the supplier or
+       agency only has one office, pick it automatically so the button
+       works straight away."
+
+       This was admin-or-own-stock only, so a supplier's user picking one
+       of their agencies was left to choose the single branch it has by
+       hand -- and until they did, "Add another tenant" stayed disabled
+       for a reason that was about the rail. Nothing is being guessed:
+       there is exactly one, and they can still change the agency. */
+    if (rec.branches.length === 1) {
       setBranchValue(rec.branches[0].name);
       setSelectedBranch(rec.branches[0].name);
       setBranchNew(false);
