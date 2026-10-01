@@ -140,6 +140,18 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
   what I described there is the sharing Matt is now asking for. The item
   has to be rewritten rather than left standing.
 
+## NOTES ARE SHARED WITH THE AGENCY TOO (correction, 2026-10-01, verbatim). ACTIVE.
+
+> Notes: also share them with the agency that referred the application (e.g. Regent's staff), on the same terms as suppliers: anyone who can see the application reads and adds notes, each showing who wrote it. Tenants and other partners never see them.
+
+- **Second correction in a row on the same rule**, and it lands on something
+  close to where the code started: "anyone who can see the application" is
+  what `app_notes_select` said before `8cae0f0`. What is new is that the
+  WRITE opens to the same set (it was management plus the owning referrer),
+  the author is shown on every note, and "tenants never see them" has to be
+  proved rather than assumed.
+- The tenant's uploaded documents are still not part of this.
+
 ## THE RENT FIGURE IS NOT GUARANTEED UNTIL IT IS (instruction, 2026-10-01, verbatim). todo.
 
 > Application detail: before the deed is issued, label the rent figure "Rent to be guaranteed" instead of "Guaranteed annual rent".
