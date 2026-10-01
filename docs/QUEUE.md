@@ -167,6 +167,16 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
+## EVERY PEOPLE-TAB ACTION WORKS IN PLACE (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Supplier People tab: "Change role" opens the role dialog right here (Management, Referrer, Developer), instead of a message pointing to the Users page. Check every other action on supplier and agency People tabs works in place, with no message sending you elsewhere. Deploy to dev and check there.
+
+- The named one is "Change role", but the instruction is the sweep:
+  EVERY action on BOTH People tabs, and the test is "does it do the
+  thing, here" rather than "does it say something".
+- A message pointing at another page is the same fault the Users and
+  Manage buttons were removed for last week.
+
 ## THE DEV CENTRE IS FOR DEVELOPERS ONLY (instruction, 2026-10-01, verbatim). ACTIVE.
 
 > Dev Centre is for developers only: hide it from supplier Management and Referrer users entirely. Opndoor admin keeps the ability to revoke keys from the supplier's Integration tab.
