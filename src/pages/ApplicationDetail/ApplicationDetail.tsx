@@ -1150,11 +1150,13 @@ export function ApplicationDetail() {
   // own right-rail cards (supplier rail) or threaded into the agent-rail journey
   // as the guarantee-fee (stage 8) and deed (stage 9) stages. Same JSX, same
   // behaviour, two placements.
-  const paymentBadge = stripeMode() === 'test'
-    ? <span className="pay-badge pay-badge--test">Test mode</span>
-    : stripeMode() === 'live'
-      ? <span className="pay-badge">Live mode</span>
-      : null;
+  const paymentBadge = !isOpndoorStaff(role)
+    ? null
+    : stripeMode() === 'test'
+      ? <span className="pay-badge pay-badge--test">Test mode</span>
+      : stripeMode() === 'live'
+        ? <span className="pay-badge">Live mode</span>
+        : null;
   const deedBadge = SUPABASE_ENABLED && pandadocSandbox() ? <span className="pay-badge">Sandbox</span> : null;
 
   const paymentBody = (
@@ -1184,11 +1186,21 @@ export function ApplicationDetail() {
       {payPaid && (
         <>
           <div className="pay-state pay-state--paid"><span className="pay-dot" />Paid</div>
-          <div className="drow"><span className="drow__k">Paid on</span><span className="drow__v">{pi?.paidAt ? fmtInput(new Date(pi.paidAt)) : '-'}</span></div>
+          {/* "27 Sep 2026", like every other date on the page. fmtInput is
+              the dd/mm/yyyy an <input type="date"> parses back, which is
+              what the amend form needs and is not a date to read. */}
+          <div className="drow"><span className="drow__k">Paid on</span><span className="drow__v">{pi?.paidAt ? formatDate(pi.paidAt) : '-'}</span></div>
           {/* The FEE. paid_amount where Stripe wrote one, else the fee snapshotted
               on the application, never the rent. See paidAmountLabel above. */}
           <div className="drow"><span className="drow__k">Amount</span><span className="drow__v"><b>{paidAmountLabel}</b>{d.feeBasisLabel ? ` · ${d.feeBasisLabel}` : ''}</span></div>
-          <div className="drow"><span className="drow__k">Stripe reference</span><span className="drow__v pay-mono">{pi?.paymentRef ?? 'Seeded test record'}</span></div>
+          {/* OPNDOOR'S OWN PLUMBING. Matt, 2026-10-01: "Hide the Stripe
+              reference and the Test mode label from agency and supplier
+              users." The reference is the key to a record in an account
+              they have no login for, and the mode label is a fact about
+              our configuration, not about their referral. */}
+          {isOpndoorStaff(role) && (
+            <div className="drow"><span className="drow__k">Stripe reference</span><span className="drow__v pay-mono">{pi?.paymentRef ?? 'Seeded test record'}</span></div>
+          )}
           {pi?.paymentRef == null && (
             // The parenthetical used to read "(one month's rent)" whatever the
             // basis was. The row states its own basis above, so this just names
@@ -1717,6 +1729,25 @@ export function ApplicationDetail() {
                     word for a supplier, which an agency of ours is not. The key now
                     describes what the value actually is, on every screen, so there is
                     one label rather than two that can drift apart. */}
+                {/* WHO SENT IT, which is what "Referring agent" says it is
+                    about. Matt, 2026-10-01: "'Referring agent' shows the
+                    referrer's name and office, not just the route; remove
+                    the duplicate Referrer line under Tenancy."
+
+                    The card named the agency, the branch and the route and
+                    never the person, while the Tenancy card below named the
+                    person and nothing else -- so the one fact the heading
+                    promises was on the other card, under a heading about
+                    the tenancy. */}
+                {d.referrer && (
+                  <div className="drow">
+                    <span className="drow__k">Referred by</span>
+                    <span className="drow__v">
+                      {d.referrerRole === 'superadmin' ? 'opndoor' : d.referrer}
+                      {d.branch && !isPlaceholderOrg(d.branch) && <span className="dt__sub">{d.branch}</span>}
+                    </span>
+                  </div>
+                )}
                 {maySeeRoute && d.partnerName && <div className="drow"><span className="drow__k">Route</span><span className="drow__v">{d.partnerName}</span></div>}
                 {referrerCard.address && <div className="drow"><span className="drow__k">Address</span><span className="drow__v">{titleCaseAddress(d.agentAddr)}</span></div>}
                 {!referrerCard.deedRowMoves && <div className="drow"><span className="drow__k">Deed in favour of</span><span className="drow__v">{titleCaseAddress(d.addr1)}, {d.postcode}</span></div>}
@@ -1734,7 +1765,6 @@ export function ApplicationDetail() {
             <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
               <div className="drow"><span className="drow__k">Monthly rent</span><span className="drow__v"><b style={{ fontFamily: 'var(--display)', fontSize: 16 }}>{d.rent}</b> per month{siblings.length > 1 && me?.sharePercent != null && <> · <b>{me.sharePercent}%</b> is this tenant’s share</>}</span></div>
               <div className="drow"><span className="drow__k">Tenancy start</span><span className="drow__v">{fmtLong(currentStart)}</span></div>
-              <div className="drow"><span className="drow__k">Referrer</span><span className="drow__v">{d.referrerRole === 'superadmin' ? 'opndoor' : d.referrer}</span></div>
 
               {/* THE OTHER TENANTS. One property and one rent, but several
                   applications and several deeds, and this page is only ever
