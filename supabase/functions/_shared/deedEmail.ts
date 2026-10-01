@@ -203,15 +203,63 @@ export interface LandlordRecipient { email: string; name: string; note?: string;
 // private landlord has no login). The activity entry names who sent it (actor)
 // and to whom (message), so the feed reads as an audit line.
 export async function deliverDeedToLandlord(service: any, target: DeedTarget, recipient: LandlordRecipient): Promise<SendResult> {
+  /* ONE EMAIL, EVERY SIGNED DEED ON THE TENANCY.
+
+     Matt, 2026-10-01: '"Send deed to landlord" on a joint tenancy: send
+     all the tenancy's signed deeds in one email, listing each tenant, and
+     say if any are still unsigned ("Joint Two has not signed yet; we'll
+     send theirs when they do" only if you can, otherwise just list what's
+     attached).'
+
+     A landlord does not hold a tenancy in two halves. Sending one deed
+     and calling it "the signed Deed of Guarantee" tells them the tenancy
+     is covered when half of it is -- the same fault as the agent's "deed
+     2 of 2", from the other end.
+
+     Everything executed on this tenancy is attached, named by tenant, and
+     anybody still out is named too. A tenancy of one takes the single
+     path unchanged: one row, one attachment, no list. */
+  const { data: me } = await service.from("applications")
+    .select("tenancy_id").eq("id", target.appId).maybeSingle();
+
+  type Mate = {
+    id: string; guarantee_ref: string; tenant_first_name: string; tenant_last_name: string;
+    deed_state: string | null; executed_pdf_path: string | null; tenancy_position: number;
+  };
+  let mates: Mate[] = [];
+  if (me?.tenancy_id) {
+    const { data } = await service.from("applications")
+      .select("id, guarantee_ref, tenant_first_name, tenant_last_name, deed_state, executed_pdf_path, tenancy_position")
+      .eq("tenancy_id", me.tenancy_id)
+      .order("tenancy_position");
+    mates = (data ?? []) as Mate[];
+  }
+  const nameOf = (m: Mate) => `${m.tenant_first_name ?? ""} ${m.tenant_last_name ?? ""}`.trim();
+  /* THIS ROW COUNTS AS SIGNED whatever its stored state says, for the
+     reason the agent's count does: the send can run in the same breath as
+     the signature being recorded. */
+  const signed = mates.filter((m) => m.id === target.appId || m.deed_state === "executed");
+  const unsigned = mates.filter((m) => !(m.id === target.appId || m.deed_state === "executed"));
+
   const attachments: Attachment[] = [];
-  if (target.pdfPath) {
-    const { data: blob } = await service.storage.from("deeds").download(target.pdfPath);
-    if (blob) {
-      attachments.push({
-        filename: `Deed of Guarantee ${target.ref}.pdf`,
-        content: bytesToBase64(new Uint8Array(await blob.arrayBuffer())),
-      });
+  const pull = async (path: string | null, ref: string, who: string) => {
+    if (!path) return;
+    const { data: blob } = await service.storage.from("deeds").download(path);
+    if (!blob) return;
+    attachments.push({
+      filename: mates.length > 1
+        ? `Deed of Guarantee ${ref} - ${who || "tenant"}.pdf`
+        : `Deed of Guarantee ${ref}.pdf`,
+      content: bytesToBase64(new Uint8Array(await blob.arrayBuffer())),
+    });
+  };
+  if (signed.length > 1) {
+    for (const m of signed) {
+      await pull(m.id === target.appId ? (target.pdfPath ?? m.executed_pdf_path) : m.executed_pdf_path,
+        m.guarantee_ref, nameOf(m));
     }
+  } else {
+    await pull(target.pdfPath, target.ref, nameOf(signed[0] ?? ({} as Mate)));
   }
   if (!attachments.length) {
     await service.from("activity_log").insert({
@@ -227,6 +275,9 @@ export async function deliverDeedToLandlord(service: any, target: DeedTarget, re
     propertyAddr: [target.addr1, target.postcode].filter(Boolean).join(", "),
     tenancyStartLabel: target.tenancyStartLabel ?? formatTenancyStart(target.tenancyStart),
     note: recipient.note,
+    joint: mates.length > 1
+      ? { signedNames: signed.map(nameOf).filter(Boolean), unsignedNames: unsigned.map(nameOf).filter(Boolean) }
+      : null,
   });
   const res = await sendMessage({ to: recipient.email, message, attachments });
 

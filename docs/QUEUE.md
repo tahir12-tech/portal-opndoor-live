@@ -57,6 +57,18 @@ only. The same company in both places is two records, not one.
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
 
+- **The TENANT's signed-deed email promises the same reminder.** "We will
+  email you a month before the guarantee ends" is in the tenant copy too,
+  and the tenant is on no lapse list either: `notification_recipients`
+  resolves portal users and the agent contact, and has no tenant arm. I
+  took the sentence off the LANDLORD copy because that is what the
+  instruction named. Say the word and the tenant's goes too, or say the
+  tenant should start getting one and I will add them to the list.
+- **The same "not insurance" duplication is in two more emails.** The
+  footer carries it on every email; `deedToSignEmail` and the PandaDoc
+  signing email repeat it in their own small print, exactly as the signed
+  deed one did. Same argument, same one-line fix, not done because the
+  instruction named the signed-deed email.
 - **"guarantor fee" off the tenant side only.** Tonight's sweep covered the
   tenant journey, the payment page and the two functions behind them. Three
   places still say it and I did not change them on a guess: the CSV exports

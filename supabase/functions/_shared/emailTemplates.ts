@@ -645,6 +645,9 @@ export function executedDeedAgentEmail(p: {
 export function executedDeedLandlordEmail(p: {
   guaranteeRef: string; tenantName: string; propertyAddr: string;
   tenancyStartLabel?: string | null; note?: string;
+  /** On a joint tenancy: who has signed, and who has not. Absent on a
+      tenancy of one, where the email is unchanged. */
+  joint?: { signedNames: string[]; unsignedNames: string[] } | null;
 }): Message {
   const rows: [string, string][] = [];
   if (p.tenancyStartLabel) {
@@ -652,21 +655,55 @@ export function executedDeedLandlordEmail(p: {
     rows.push(["Guarantee period", "12 months"]);
   }
   rows.push(["Reference", p.guaranteeRef]);
-  rows.push(["Tenant", p.tenantName]);
+  /* NAMED, EVERY ONE OF THEM. Matt, 2026-10-01: "send all the tenancy's
+     signed deeds in one email, listing each tenant, and say if any are
+     still unsigned". The single Tenant row named whoever triggered the
+     send, which on a joint tenancy is one of two or three people the
+     landlord is being told about. */
+  const signedNames = p.joint?.signedNames ?? [];
+  const unsignedNames = p.joint?.unsignedNames ?? [];
+  if (p.joint) {
+    rows.push([signedNames.length === 1 ? "Signed by" : "Signed by", signedNames.join(", ") || "-"]);
+    if (unsignedNames.length) rows.push(["Not yet signed", unsignedNames.join(", ")]);
+  } else {
+    rows.push(["Tenant", p.tenantName]);
+  }
   rows.push(["Property", p.propertyAddr]);
   const note = (p.note ?? "").trim();
   const blocks: Message["blocks"] = [];
   if (note) blocks.push({ p: note });
-  blocks.push({ p: "The signed Deed of Guarantee is attached. Keep it with the tenancy paperwork, it is the reference for any claim under the guarantee." });
+  /* ONE SENTENCE ABOUT THE ATTACHMENT, not two. The covering line the
+     agent types usually says "please find attached" in its own words, and
+     the body said it again in ours; on a joint tenancy there is more than
+     one to describe anyway, so the sentence now says how many and what
+     they are for. */
+  const whatIsAttached = signedNames.length > 1
+    ? `The ${signedNames.length} signed Deeds of Guarantee for this tenancy are attached, one for each tenant who has signed.`
+    : "The signed Deed of Guarantee is attached.";
+  const stillOut = unsignedNames.length
+    ? ` ${unsignedNames.join(" and ")} ${unsignedNames.length === 1 ? "has" : "have"} not signed yet; we will send ${unsignedNames.length === 1 ? "theirs" : "theirs"} when they do.`
+    : "";
+  blocks.push({ p: `${whatIsAttached} Keep ${signedNames.length > 1 ? "them" : "it"} with the tenancy paperwork, ${signedNames.length > 1 ? "they are" : "it is"} the reference for any claim under the guarantee.${stillOut}` });
   blocks.push({ rows });
-  blocks.push({ p: "We will email you a month before the guarantee ends." });
+  /* AND NOT A REMINDER NOBODY SENDS THEM. Matt, 2026-10-01: "remove 'We
+     will email you a month before the guarantee ends' unless the landlord
+     really does get that reminder."
+
+     They do not. expiry-reminders addresses notification_recipients(...,
+     'lapse'), which resolves portal users and the branch's agent contact.
+     A private landlord emailed once by their agent is on no list at all,
+     so this promised a letter that was never going to arrive. */
   blocks.push({ small: "opndoor is the guarantor for the term above." });
   return {
     // The landlord is not a portal user, so the header names the document, not
     // the portal.
     brandLabel: "Deed of Guarantee",
-    subject: `Signed Deed of Guarantee for ${p.guaranteeRef}`,
-    heading: "The Deed of Guarantee has been signed",
+    subject: signedNames.length > 1
+      ? `Signed Deeds of Guarantee for ${p.propertyAddr}`
+      : `Signed Deed of Guarantee for ${p.guaranteeRef}`,
+    heading: signedNames.length > 1
+      ? "The Deeds of Guarantee have been signed"
+      : "The Deed of Guarantee has been signed",
     blocks,
   };
 }
