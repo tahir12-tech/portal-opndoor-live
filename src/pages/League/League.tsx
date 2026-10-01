@@ -29,6 +29,10 @@ import {
   getReferrerLeague, maySeeCommission, isOpndoorStaff,
   type LeagueRow, type LeagueScope, type LeagueView, type ReferrerBoard, type Period,
 } from '@/data';
+/* THE SAME DEFAULT REPORTING USES, from the one place it is written.
+   League keeps its own period state, deliberately, but there is no
+   reason for the two screens to disagree about where to start. */
+import { DEFAULT_PERIOD } from '@/data/mock/analyticsModel';
 import { PeriodSelect, RankSelect } from '@/components/ui/Select';
 import { isAgencyUser } from '@/data/capabilities';
 import { ScopePicker } from '@/components/ui/ScopePicker';
@@ -160,11 +164,16 @@ export function League() {
   return role === 'referrer' ? <ReferrerLeagueView /> : <FullLeagueView />;
 }
 
-// #5 The League always opens on This calendar month (all roles), independent of
-// the dashboard's period selection, then the user can change it locally.
+/* #5 The League opens on its own period, independent of the dashboard's
+   selection, then the user can change it locally.
+
+   LAST 30 DAYS SINCE 2026-10-01. Matt: "default League and Reporting to
+   'Last 30 days' instead of 'This calendar month', so they aren't empty
+   on the 1st of the month." A league table of a month that started this
+   morning ranks nobody, and the 1st is exactly when people look. */
 function useLeaguePeriod(): [Period, (id: string) => void] {
   const periods = getPeriods();
-  const [period, setPeriodState] = useState<Period>(() => periods.find((p) => p.id === 'thismonth') ?? periods[0]);
+  const [period, setPeriodState] = useState<Period>(() => periods.find((p) => p.id === DEFAULT_PERIOD) ?? periods[0]);
   return [period, (id: string) => setPeriodState(periods.find((p) => p.id === id) ?? periods[0])];
 }
 

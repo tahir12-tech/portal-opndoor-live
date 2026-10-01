@@ -36,7 +36,16 @@ export const PERIODS: PeriodDef[] = [
   { id: 'lastmonth', label: 'Last calendar month', fSent: 127, sp: 0.79, pd: 0.9 },
   { id: 'alltime', label: 'All time', fSent: 2960, sp: 0.8, pd: 0.91 },
 ];
-export const DEFAULT_PERIOD = 'thismonth';
+/* LAST 30 DAYS, NOT THIS CALENDAR MONTH. Matt, 2026-10-01: "default
+   League and Reporting to 'Last 30 days' instead of 'This calendar
+   month', so they aren't empty on the 1st of the month."
+
+   The reason is the whole of it. A calendar-month default shows a
+   month that is nought days old on the 1st, which is the day the
+   statements go out and the day somebody is most likely to open
+   Reporting. A rolling thirty days is never empty for a reason that is
+   only about the date. */
+export const DEFAULT_PERIOD = 'last30';
 
 /** 90-day baseline distributions for the whole portfolio. */
 export const SHAPE_FULL: { branches: ShapeRow[]; agencies: ShapeRow[]; referrers: ShapeRow[] } = {
