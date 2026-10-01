@@ -129,6 +129,30 @@ Two things worth knowing for whoever picks the next one up:
 
 > Supplier Commission tab, two deal shapes chosen by the "Opndoor pays the agents directly" switch. Off (paid through the supplier): one total commission, all paid to the supplier, which settles with its agents; the agents' share sits within that total and is only used for the per-agency statements. On (paid directly by Opndoor): the supplier's own commission and the agents' commission are separate deals, each can be flat or tiered, and Opndoor pays each party its own; the total is the sum. The plain-English summary explains whichever applies. Statements follow: off, one supplier statement plus per-agency schedules for them to forward; on, the supplier is paid its own share and each agency gets its own statement from Opndoor. Deploy to dev and check there.
 
+> Supplier Commission tab: under "What the agencies underneath keep", allow several deals. One default deal for all agencies, plus extra deals that each apply to agencies picked from a searchable list of that supplier's agencies (several agencies can share one deal). Show which agencies are on which deal, and every agency not picked uses the default. An agency can only be on one deal at a time; moving it is one click. Changes apply to new referrals only and are recorded with who and when. Deploy to dev and check there.
+
+### AND THE THIRD NEEDS A MEMBERSHIP, WHICH NOTHING HAS
+
+"Per-agency overrides" as built are an agency-scope agreement: one
+agreement, one agency, and the resolver prefers it over the supplier's.
+That gives one deal per agency and cannot express "several agencies
+share one deal" except as N identical copies, which is not one deal:
+changing it would mean editing N, and "show which agencies are on which
+deal" would have nothing to show.
+
+So an agents'-share deal needs MEMBERS. The shape that fits what is
+already there: keep the deal at partner scope, kind `agent_share`, and
+add a membership table. The DEFAULT deal is the one with no members;
+an extra deal is one with some. The resolver prefers a deal whose
+members include this referral's agency, then the default.
+
+"An agency can only be on one deal at a time" is then a unique index on
+the agency, not a rule anybody has to remember, and "moving it is one
+click" is one upsert.
+
+This supersedes the agency-scope override for the agents' share. The
+agency-scope COMMISSION agreement on the agency rail is untouched.
+
 ### THE SECOND MESSAGE CHANGES THE MODEL THE FIRST ONE ASSUMED
 
 What was built on 2026-10-01 has ONE shape: the commission deal is the
