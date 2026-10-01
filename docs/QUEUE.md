@@ -127,6 +127,19 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
   "guarantor fee" is the one to remove.
 - The date format is the shared `formatDate`, already built.
 
+## NOTES ARE SHARED WITH THE SUPPLIER THAT REFERRED IT (correction, 2026-10-01, verbatim). ACTIVE.
+
+> notes on an application are shared between Opndoor and the supplier that referred it (e.g. Rightmove's staff); on agency referrals (e.g. Regent) notes stay Opndoor-only.
+
+- **This corrects `8cae0f0`**, which made notes Opndoor-only on every rail.
+  The agency half was right; the supplier half was not.
+- The tenant's uploaded documents are NOT part of this correction and stay
+  Opndoor-only: the instruction says notes.
+- It also changes the answer in CUTOVER.md item 0c, which called the live
+  behaviour an exposure. On live every partner is a supplier, so most of
+  what I described there is the sharing Matt is now asking for. The item
+  has to be rewritten rather than left standing.
+
 ## THE RENT FIGURE IS NOT GUARANTEED UNTIL IT IS (instruction, 2026-10-01, verbatim). todo.
 
 > Application detail: before the deed is issued, label the rent figure "Rent to be guaranteed" instead of "Guaranteed annual rent".
