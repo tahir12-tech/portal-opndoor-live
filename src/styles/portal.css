@@ -460,6 +460,37 @@ table.dt { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 }
 .field input[readonly], .field input:disabled { background: var(--app-bg); color: var(--ink-soft); cursor: not-allowed; }
 
+/* THE PORTAL'S TEXT INPUT, OUTSIDE A .field.
+
+   Matt, 2026-10-01: "Every bare text box in the admin screens ... gets the
+   same styled input as the rest of the portal: rounded border, padding,
+   label above, matching the commission fields on the same page."
+
+   `.field input` above is that input, and most of the portal gets it by
+   being inside a .field. Some inputs cannot be: a cell in the deal
+   editor's band table, where the COLUMN HEADING is the label and a second
+   one above each cell would be noise, and the share boxes on a joint
+   tenancy. Those take this class instead, so there is one definition of
+   what an input looks like rather than two that drift.
+
+   A SEARCH BOX IS NOT THIS. It is `.toolbar__search`, a pill with a
+   magnifier, which is also already defined and is the right house pattern
+   for searching rather than filling in. The sweep put each bare box into
+   whichever of the two it actually is. */
+.inp {
+  border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  padding: 9px 12px; font-family: var(--body); font-size: 14px; color: var(--ink);
+  background: #fff; transition: border-color 0.15s, box-shadow 0.15s; width: 100%;
+}
+.inp::placeholder { color: var(--ink-mute); }
+.inp:focus {
+  outline: none; border-color: var(--heliotrope-deep);
+  box-shadow: 0 0 0 3px rgba(211,100,251,0.15);
+}
+.inp[readonly], .inp:disabled { background: var(--app-bg); color: var(--ink-soft); cursor: not-allowed; }
+/* In a table cell the input is the cell: no extra width, tighter padding. */
+td > .inp { padding: 7px 10px; }
+
 /* Password field with show/hide toggle (#78). */
 .pw-input { position: relative; }
 .pw-input input { padding-right: 44px; }

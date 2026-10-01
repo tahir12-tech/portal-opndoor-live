@@ -144,6 +144,9 @@
 }
 /* The search takes the room, the selects take what they need. min-width rather
    than a fixed width so the row still wraps rather than overflowing on a phone. */
+/* The box is the portal's `.inp` now (border, padding, focus ring); this
+   only places it in the row. It had neither before: a search field with
+   no border at all, beside two styled selects. */
 .tm-search { flex: 1 1 240px; min-width: 0; }
 .tm-filters select { flex: 0 0 auto; }
 .tm-filters__state { display: flex; align-items: center; gap: 8px; margin-left: auto; }

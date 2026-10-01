@@ -769,7 +769,7 @@ export function Team() {
       <div className="tm-filters">
         <input
           type="search"
-          className="tm-search"
+          className="inp tm-search"
           value={filter.q}
           placeholder="Search by name or email"
           aria-label="Search people by name or email"

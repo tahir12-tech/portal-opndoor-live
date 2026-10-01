@@ -99,8 +99,13 @@
 .sr-row__who { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .sr-row__who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sr-row__name { color: var(--ink-mute); font-size: 12px; }
-.sr-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.sr-add input { flex: 1 1 180px; min-width: 0; }
+/* The add-an-address row. The two boxes are .field now (label above, the
+   portal's bordered input), so the row aligns them on their BASELINE
+   rather than their centres: a labelled field is taller than the button
+   beside it, and centring put the button halfway up the labels. */
+.sr-add { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.sr-add__f { flex: 1 1 180px; min-width: 0; }
+.sr-add .btn { margin-bottom: 1px; }
 
 /* Supplier commission. Two boxes, the subtraction they imply said out loud,
    the switch that decides who Opndoor pays, and the tiers read-only. */

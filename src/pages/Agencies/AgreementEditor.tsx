@@ -323,10 +323,10 @@ export function AgreementEditor({
               <tbody>
                 {shownBands.map((b, i) => (
                   <tr key={i}>
-                    <td><input inputMode="numeric" value={b.min} onChange={(e) => setBand(i, { min: e.target.value })} aria-label={`Band ${i + 1} from`} /></td>
+                    <td><input className="inp" inputMode="numeric" value={b.min} onChange={(e) => setBand(i, { min: e.target.value })} aria-label={`Band ${i + 1} from`} /></td>
                     {/* Blank = "and above". Exactly one band may be open-ended. */}
-                    <td><input inputMode="numeric" value={b.max} placeholder="and above" onChange={(e) => setBand(i, { max: e.target.value })} aria-label={`Band ${i + 1} to`} /></td>
-                    <td><input inputMode="decimal" value={b.weeks} onChange={(e) => setBand(i, { weeks: e.target.value })} aria-label={`Band ${i + 1} fee basis`} /></td>
+                    <td><input className="inp" inputMode="numeric" value={b.max} placeholder="and above" onChange={(e) => setBand(i, { max: e.target.value })} aria-label={`Band ${i + 1} to`} /></td>
+                    <td><input className="inp" inputMode="decimal" value={b.weeks} onChange={(e) => setBand(i, { weeks: e.target.value })} aria-label={`Band ${i + 1} fee basis`} /></td>
                     {/* THE UNIT, on Flat and on every band. A month is not
                         4.3333 weeks: 52/12 does not terminate, so "one month"
                         written as weeks priced at 0.99999 of the rent, twopence
@@ -340,7 +340,7 @@ export function AgreementEditor({
                     </td>
                     {model !== 'tiered' && (
                       <td>
-                        <input inputMode="decimal" value={b.rate}
+                        <input className="inp" inputMode="decimal" value={b.rate}
                           onChange={(e) => setBand(i, { rate: e.target.value })} aria-label={`Band ${i + 1} rate`} />
                       </td>
                     )}
@@ -375,9 +375,9 @@ export function AgreementEditor({
                   <tbody>
                     {tiers.map((t, i) => (
                       <tr key={i}>
-                        <td><input inputMode="numeric" value={t.from} onChange={(e) => setTier(i, { from: e.target.value })} aria-label={`Tier ${i + 1} from`} /></td>
-                        <td><input inputMode="numeric" value={t.to} placeholder="and above" onChange={(e) => setTier(i, { to: e.target.value })} aria-label={`Tier ${i + 1} to`} /></td>
-                        <td><input inputMode="decimal" value={t.rate} onChange={(e) => setTier(i, { rate: e.target.value })} aria-label={`Tier ${i + 1} rate`} /></td>
+                        <td><input className="inp" inputMode="numeric" value={t.from} onChange={(e) => setTier(i, { from: e.target.value })} aria-label={`Tier ${i + 1} from`} /></td>
+                        <td><input className="inp" inputMode="numeric" value={t.to} placeholder="and above" onChange={(e) => setTier(i, { to: e.target.value })} aria-label={`Tier ${i + 1} to`} /></td>
+                        <td><input className="inp" inputMode="decimal" value={t.rate} onChange={(e) => setTier(i, { rate: e.target.value })} aria-label={`Tier ${i + 1} rate`} /></td>
                         <td>
                           {tiers.length > 1 && (
                             <button type="button" className="ah-linkbtn" onClick={() => setTiers((ts) => ts.filter((_, j) => j !== i))}>Remove</button>
@@ -395,7 +395,7 @@ export function AgreementEditor({
             )}
 
             <Field label="Note" span2 hint="What was agreed, and with whom. Shown on the Commission tab and kept in the audit.">
-              <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Agreed with …, signed …" />
+              <input className="inp" type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Agreed with …, signed …" />
             </Field>
           </>
         )}

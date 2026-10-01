@@ -96,6 +96,7 @@ export function InvoiceEmailCard({ onChanged }: { onChanged?: (set: boolean) => 
             <div className="ie-row">
               <input
                 id="inv-email"
+                className="inp"
                 type="email"
                 value={draft}
                 placeholder="accounts@opndoor.co"

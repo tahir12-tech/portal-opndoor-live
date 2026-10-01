@@ -32,6 +32,7 @@ import {
 } from '@/data';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { Field } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
@@ -124,24 +125,35 @@ export function StatementRecipients({ partnerKey, supplierName }: Props) {
           </ul>
         )}
 
+        {/* LABELLED AND STYLED LIKE THE REST OF THE PORTAL. Matt,
+            2026-10-01, naming this card: "Every bare text box in the admin
+            screens (the supplier 'Monthly statement addresses' inputs ...)
+            gets the same styled input as the rest of the portal: rounded
+            border, padding, label above, matching the commission fields on
+            the same page." These were two unlabelled boxes carrying only a
+            placeholder, which disappears the moment anybody types in them;
+            the commission fields two cards down have had a label above and
+            a bordered box all along. */}
         <form className="sr-add" onSubmit={(e) => void add(e)}>
-          <input
-            id="sr-add-email"
-            type="email"
-            required
-            value={email}
-            placeholder="finance@example.co.uk"
-            aria-label="Email address"
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <input
-            id="sr-add-name"
-            type="text"
-            value={name}
-            placeholder="Who it is (optional)"
-            aria-label="Who it is"
-            onChange={(e) => setName(e.target.value)}
-          />
+          <Field label="Email address" htmlFor="sr-add-email" className="sr-add__f">
+            <input
+              id="sr-add-email"
+              type="email"
+              required
+              value={email}
+              placeholder="finance@example.co.uk"
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </Field>
+          <Field label="Who it is" htmlFor="sr-add-name" hint="optional" className="sr-add__f">
+            <input
+              id="sr-add-name"
+              type="text"
+              value={name}
+              placeholder="Accounts team"
+              onChange={(e) => setName(e.target.value)}
+            />
+          </Field>
           <Button variant="dark" size="sm" disabled={busy || !email.trim()}>Add address</Button>
         </form>
 

@@ -798,13 +798,13 @@ export function NewApplication() {
                       <div className="shares__row" key={i}>
                         <span className="shares__who">{name}</span>
                         <label className="shares__in">
-                          <input type="number" min="0" max="100" step="0.001" aria-label={`${name} share percent`}
+                          <input className="inp" type="number" min="0" max="100" step="0.001" aria-label={`${name} share percent`}
                             value={percents[i] ?? ''} onChange={(e) => setPercent(i, e.target.value)} />
                           <span>%</span>
                         </label>
                         <label className="shares__in">
                           <span>£</span>
-                          <input type="number" min="0" step="0.01" aria-label={`${name} share amount`}
+                          <input className="inp" type="number" min="0" step="0.01" aria-label={`${name} share amount`}
                             value={amt === null ? '' : String(amt)} onChange={(e) => setShareAmount(i, e.target.value)} />
                         </label>
                       </div>
