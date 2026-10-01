@@ -158,6 +158,12 @@
    with its audit line under it, not a table, because the only column
    that would ever have a second value is the date.
    ===================================================================== */
+/* THE HEADING SPANS, or the two-column grid puts it in the left column
+   while the deals it heads sit in the right and it reads as a stray
+   paragraph. Seen in the browser, not in a test: a render test asserting
+   the text is present passes either way. The same goes for the add row
+   and the footnote, which belong to the whole section. */
+.sd-sharehead, .sd-addrow, .sd-foot { grid-column: 1 / -1; }
 .sd-sharehead { margin: 22px 0 -4px; }
 .sd-sharehead__t {
   margin: 0; font-family: var(--display); font-weight: 700; font-size: 17px;
