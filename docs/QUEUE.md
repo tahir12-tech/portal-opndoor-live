@@ -123,6 +123,21 @@ Two things worth knowing for whoever picks the next one up:
   than a screenshot and did catch two wording faults a screenshot would
   not have.
 
+## TENANT BANDS VERSUS REFERRAL VOLUME, UNMISTAKABLY (instruction, 2026-10-01, verbatim). todo.
+
+> Commission deal editor: make the choice between pricing by number of tenants and pricing by number of referrals unmistakable, each with a one-line example ("e.g. 1 tenant 3 weeks' rent, 2 tenants 5 weeks'" vs "e.g. first 5 referrals a month at 10%, then 15%"). Warn before saving a tenant band above 4 tenants, since that's almost certainly meant as referral volume. Deploy to dev and check there.
+
+- The warning is a WARNING, not a refusal: a five-tenant HMO is real,
+  just rare. It has to be possible to go on.
+
+## ONE DATE FORMAT EVERYWHERE (instruction, 2026-10-01, verbatim). todo.
+
+> Show dates the same way everywhere on screen ("29 Sep 2026"), including the supplier Referrals tab and "Live from" (e.g. "Live from Aug 2026"), with one shared date formatter.
+
+- "Live from Aug 2026" is month precision, so the shared formatter
+  needs two shapes, not one: a day date and a month date. Both in the
+  same place.
+
 ## RECENT CHANGES IN PLAIN ENGLISH (instruction, 2026-10-01, verbatim). todo.
 
 > Supplier Recent changes: show every change in plain English (e.g. "API access turned on", "Live from changed from August to September 2026"), never raw field names. Only record a change when a value actually changed. Same for agencies and anywhere else changes are listed. Deploy to dev and check there.
