@@ -227,6 +227,32 @@ live rather than trust the default.
   the supplier Reporting work (`3a03ef8`): Opndoor's settlement run
   is not a customer's business. An agency gets its statement.
 
+## THE SIGNED DEED WAS EMAILED TWICE (bug, 2026-10-01, verbatim). ACTIVE, TOP OF THE QUEUE.
+
+> On GR-20846: the activity shows "Deed of Guarantee delivered to the agent" twice (16:49 and 16:51), and the Delivery panel says the deed was sent at 16:45, before the tenant signed at 16:49. Find why the signed deed was emailed to the agent twice and stop duplicates (one delivery per signed deed unless someone presses Resend), and make the Delivery panel show the time and recipients of the actual signed-deed email.
+
+- **Above the rest of the queue** because it is a duplicate email to a
+  customer's agent, and because the Delivery panel is reporting a time
+  that PRECEDES the signature -- so it is showing a different event
+  and calling it the delivery. Two faults, and the second is why the
+  first was hard to see.
+- 16:45 is before the tenant signed at 16:49. Whatever that row is, it
+  is not the signed deed going out.
+
+## AN AGENCY USER'S APPLICATION DETAIL (instruction, 2026-10-01, verbatim). todo.
+
+> Application detail as an agency user (signed in as a Regent Director):
+> - Notes are Opndoor-only: hide the Notes section entirely from agency and supplier users, and check they can't read notes through any other route.
+> - "Referring agent" shows the referrer's name and office, not just the route; remove the duplicate Referrer line under Tenancy.
+> - Hide the Stripe reference and the Test mode label from agency and supplier users.
+> - Show "Paid on" as "27 Sep 2026" like everywhere else.
+> Deploy to dev and check signed in as a Regent Director.
+
+- **"check they can't read notes through any other route"** is the
+  half with teeth: hiding a section is a screen change, and the
+  question asked is whether the ROWS are reachable -- the RPC, the
+  export, the detail payload. Answer that from the database.
+
 ## ONE SHARED PEOPLE TABLE, EVERYWHERE (instructions, 2026-10-01, verbatim). ACTIVE.
 
 The first:
