@@ -103,18 +103,15 @@ cached or least-privileged role and corrects it to the profile's once
 that resolves, which is after the page has mounted. The reset cannot
 tell that correction from a seat change.
 
-## FOR MATT, 2026-10-01: ONE DECISION WAITING
+## DECISIONS TAKEN, 2026-10-01
 
-**The first fee email still repeats the property address, and I left it
-alone on purpose.** `paymentLinkEmail` names the address in its opening
-sentence and again in its Property row, which is exactly the repetition
-the reminder instruction asked me to remove. It is also APPROVED COPY:
-`tenantFeeEmails.test.ts` pins the supplier rail's version byte for
-byte, on the stated grounds that "Rightmove's wording is approved and
-their volume is the reason this service exists". The row cannot go for
-the agency rail and stay for the supplier rail without giving one email
-two different tables for no reason a reader could state. Say the word
-and it is a two-line change plus a snapshot update.
+**ANSWERED, 2026-10-01. Matt: "Leave paymentLinkEmail exactly as it is;
+it's Rightmove-approved."** It repeats the property address, in its
+opening sentence and again in its Property row, exactly as the two
+emails that were changed. It stays that way. `tenantFeeEmails.test.ts`
+pins the supplier rail's version byte for byte and that snapshot is the
+guard: anything that changes a character of it should fail there and be
+brought back to Matt, not updated to match.
 
 Two other things, unchanged from the last report:
 
