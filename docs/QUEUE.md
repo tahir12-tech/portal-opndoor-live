@@ -14,7 +14,8 @@
 Three more arrived while item 1 was in flight, so they join the back of item
 6 in the order they were sent: the rent label before the deed is issued, the
 Agency League headings, the office chosen first on New application, and
-one support address and one name for the fee on the tenant side.
+one support address and one name for the fee on the tenant side, and the
+signed-deed email saying the insurance sentence once.
 
 
 The single source of truth for outstanding work on this branch.
@@ -31,6 +32,13 @@ anything it is under a heading that says so.
 Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
+
+## THE SIGNED-DEED EMAIL SAYS IT ONCE (instruction, 2026-10-01, verbatim). todo.
+
+> Tenant signed-deed email: remove the duplicate "not insurance, not a party to your tenancy" sentence from the body; the footer already says it.
+
+- The footer is `mailer.ts`, shared by all 22 templates, so the sentence in
+  the body is the one to go.
 
 ## ONE ADDRESS AND ONE NAME FOR THE FEE, TENANT SIDE (instruction, 2026-10-01, verbatim). todo.
 
