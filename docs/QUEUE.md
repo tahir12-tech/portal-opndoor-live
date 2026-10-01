@@ -167,7 +167,7 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
-## A BRANCH'S CONTACT VANISHED, AND "VIEWING AS" FOLLOWS YOU AROUND (bug, 2026-10-01, verbatim). ACTIVE.
+## A BRANCH'S CONTACT VANISHED, AND "VIEWING AS" FOLLOWS YOU AROUND (bug, 2026-10-01, verbatim). Second half **done** (`7dc734a`). First half **NOT REPRODUCED** -- see below.
 
 > Supplier Overview for Kestrel Lettings: Kestrel Riverside no longer shows its contact email (it showed kestrel.riverside@kestrel.invalid earlier). Find whether the contact was removed or the screen stopped showing it, fix it, and if a branch genuinely has no contact, warn on that branch. Also: the "Viewing as" tag must not show on any page that isn't showing that party's view; it's appearing on admin pages after View as was used. Deploy to dev and check there.
 
@@ -182,6 +182,45 @@ Two things worth knowing for whoever picks the next one up:
   have them. If that change hid a branch's email, it is mine.
 - The second half is a leak of a different kind: a banner claiming
   a party on a page that is not that party's.
+
+### THE FIRST HALF: THE CONTACT WAS NOT REMOVED, AND I CANNOT MAKE IT VANISH
+
+Checked in this order, each against dev, before touching anything:
+
+| asked | answer |
+|---|---|
+| is the contact still in the database | YES. `kestrel.riverside@kestrel.invalid`, `is_primary` true, on branch Kestrel Riverside |
+| does RLS return it to an admin | YES, both Kestrel contacts come back |
+| are the two branches different in any way | NO. Both `confirmed`, neither a placeholder, one contact each |
+| does the hydration map it onto the branch | YES. `contactsByBranch[b.id]` and `toContact` both correct |
+| does the page render it | YES |
+
+The last one was checked by pulling Kestrel's ACTUAL rows off dev and
+rendering PartnerHome with them rather than with a fixture I wrote --
+twice, once plainly and once in the View as state Matt was in when he
+saw it. Both branch emails appear both times. The layout cannot be
+hiding it either: the row is `flex-wrap: wrap`, so a long address
+wraps rather than clipping.
+
+**So I have not fixed it, because I have not found anything wrong.**
+
+WHAT I SUSPECTED AND CLEARED: this afternoon's `AgencyContactLine`
+(`a442fd6`) changed the AGENCY row's warning. It does not touch the
+branch rows, and the fixture above proves the branch rows still show
+their own contacts.
+
+THE LIKELIEST REMAINING EXPLANATION, which I cannot test from here:
+`grp_org_v3` is a localStorage working copy of the whole org tree, and
+a stale one predating those contacts would render exactly what Matt
+describes until a hydration replaced it. It is cleared on sign-out.
+
+WHAT WAS DONE INSTEAD: four assertions in supplierPageTabs that would
+have caught it -- a branch's own contact is shown, every branch row
+carries an address or a warning and never neither, a branch with
+genuinely none is warned about ON THAT BRANCH, and one inheriting its
+agency's is not warned about. Removing the branch's ContactLine fails
+five tests. If it happens again it fails here first.
+
 
 ## THE AGENCY PAGE GETS ITS OWN RECENT CHANGES (instruction, 2026-10-01, verbatim). **done** (`d5501f6`).
 
