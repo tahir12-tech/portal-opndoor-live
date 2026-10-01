@@ -572,9 +572,23 @@ export function deedToSignEmail(p: {
 export function executedDeedAgentEmail(p: {
   guaranteeRef: string; tenantName: string; propertyAddr: string;
   tenancyStartLabel?: string | null; portalUrl?: string;
-  /** On a joint tenancy: this deed's place, the number of tenants, and the
-      others by name. Absent on a tenancy of one, where the email is unchanged. */
-  joint?: { position: number; count: number; coTenants: string } | null;
+  /** On a joint tenancy: how many deeds are SIGNED, how many tenants there
+      are, and the others by name. Absent on a tenancy of one, where the
+      email is unchanged.
+
+      `signed`, NOT this deed's position. Matt, 2026-10-01, on GR-23853 and
+      GR-23854: "Joint Two signed first, and the agent's signed-deed email
+      said 'deed 2 of 2' and 'This is the last of this tenancy's deeds:
+      every tenant has now signed their own', while Joint One has not paid
+      or signed. The count must be of deeds actually signed ('1 of 2
+      signed'), and 'every tenant has now signed' only appears when it's
+      true."
+
+      The old field was `position`, which is the order the agent typed the
+      tenants in: the second tenant's deed was "2 of 2" however many had
+      signed, and the closing sentence followed the same number. An ordinal
+      read as a count. */
+  joint?: { signed: number; count: number; coTenants: string } | null;
 }): Message {
   // Tenancy start + the 12-month period first, so "the guarantor for the term
   // above" in the small print has a term above it to point at.
@@ -601,18 +615,19 @@ export function executedDeedAgentEmail(p: {
      The row names it, and the sentence says what to expect. Both are omitted
      entirely on a tenancy of one, so that email is unchanged. */
   if (p.joint && p.joint.count > 1) {
-    rows.push(["This deed", `Joint tenancy, deed ${p.joint.position} of ${p.joint.count}`]);
+    rows.push(["This tenancy", `Joint tenancy, ${p.joint.signed} of ${p.joint.count} deeds signed`]);
     if (p.joint.coTenants) rows.push(["Also on this tenancy", p.joint.coTenants]);
   }
+  const outstanding = p.joint ? p.joint.count - p.joint.signed : 0;
   const jointLine = p.joint && p.joint.count > 1
-    ? (p.joint.position < p.joint.count
-      ? ` This is a joint tenancy: each tenant signs their own deed for their own share, so ${p.joint.count - 1 === 1 ? "one more deed follows" : `${p.joint.count - p.joint.position} more deeds follow`} once ${p.joint.count - 1 === 1 ? "the other tenant has" : "the other tenants have"} paid.`
+    ? (outstanding > 0
+      ? ` This is a joint tenancy: each tenant signs their own deed for their own share, so ${outstanding === 1 ? "one more deed follows" : `${outstanding} more deeds follow`} once ${outstanding === 1 ? "the other tenant has" : "the other tenants have"} paid and signed.`
       : " This is the last of this tenancy's deeds: every tenant has now signed their own.")
     : "";
 
   return {
     subject: p.joint && p.joint.count > 1
-      ? `Signed Deed of Guarantee for ${p.guaranteeRef} (${p.joint.position} of ${p.joint.count})`
+      ? `Signed Deed of Guarantee for ${p.guaranteeRef} (${p.joint.signed} of ${p.joint.count} signed)`
       : `Signed Deed of Guarantee for ${p.guaranteeRef}`,
     heading: "The Deed of Guarantee has been signed",
     blocks: [
@@ -677,7 +692,12 @@ export function executedDeedTenantEmail(p: {
       { p: "The Deed of Guarantee for your tenancy has been signed by all parties. A copy is attached for your records, and you do not need to do anything else." },
       { rows },
       { p: "We will email you a month before the guarantee ends." },
-      { small: "opndoor is your guarantor for the term above. opndoor is a professional guarantor service, not insurance, and is not a party to your tenancy agreement. If anything changes, speak to your letting agent first." },
+      /* THE FOOTER ALREADY SAYS THE REST. Matt, 2026-10-01: "remove the
+         duplicate 'not insurance, not a party to your tenancy' sentence
+         from the body; the footer already says it." Every email built by
+         emailLayout carries it, so this line printed it twice, eight
+         words apart. What is kept is the half the footer does not say. */
+      { small: "opndoor is your guarantor for the term above. If anything changes, speak to your letting agent first." },
     ],
   };
 }

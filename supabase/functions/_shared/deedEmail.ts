@@ -113,17 +113,36 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
      coming. Read here rather than threaded through DeedTarget because both
      callers (the completion webhook and the manual send) would otherwise have to
      fetch and pass it, and one of them would eventually not. */
-  let joint: { position: number; count: number; coTenants: string } | null = null;
+  /* HOW MANY HAVE SIGNED, NOT WHICH ONE THIS IS.
+
+     Matt, 2026-10-01, on GR-23853/GR-23854: "Joint Two signed first, and the
+     agent's signed-deed email said 'deed 2 of 2' and 'This is the last of
+     this tenancy's deeds: every tenant has now signed their own', while
+     Joint One has not paid or signed."
+
+     This read `tenancy_position`, which is the order the agent typed the
+     tenants in. The second tenant's deed was "2 of 2" whoever had signed,
+     and the closing sentence followed the same number, so an agent was told
+     a tenancy was fully guaranteed when half of it was. An ordinal read as
+     a count.
+
+     `deed_state = 'executed'` is the count, and this row is counted whether
+     or not its own state has been written yet: the completion webhook sends
+     this email in the same breath as recording the signature, and the order
+     of those two is not something the sentence should depend on. */
+  let joint: { signed: number; count: number; coTenants: string } | null = null;
   const { data: me } = await service.from("applications")
     .select("tenancy_id, tenancy_position").eq("id", target.appId).maybeSingle();
   if (me?.tenancy_id && me?.tenancy_position) {
     const { data: mates } = await service.from("applications")
-      .select("tenancy_position, tenant_first_name, tenant_last_name")
+      .select("id, tenancy_position, tenant_first_name, tenant_last_name, deed_state")
       .eq("tenancy_id", me.tenancy_id)
       .order("tenancy_position");
     if (mates && mates.length > 1) {
+      const signed = mates.filter((m: { id: string; deed_state: string | null }) =>
+        m.id === target.appId || m.deed_state === "executed").length;
       joint = {
-        position: Number(me.tenancy_position),
+        signed,
         count: mates.length,
         coTenants: mates
           .filter((m: { tenancy_position: number }) => Number(m.tenancy_position) !== Number(me.tenancy_position))

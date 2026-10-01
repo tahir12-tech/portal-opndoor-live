@@ -370,34 +370,40 @@ describe('the executed-deed email on a joint tenancy', () => {
   };
   const flat = (m: { blocks: unknown[] }) => JSON.stringify(m.blocks);
 
-  it('says which deed this is, and names the other tenants', () => {
-    const m = executedDeedAgentEmail({ ...base, joint: { position: 1, count: 2, coTenants: 'Tomas Brandt' } });
-    expect(flat(m)).toContain('Joint tenancy, deed 1 of 2');
+  /* THE FIELD IS `signed`, NOT `position`, SINCE 2026-10-01. Matt, on
+     GR-23853/GR-23854: "The count must be of deeds actually signed ('1 of
+     2 signed'), and 'every tenant has now signed' only appears when it's
+     true." These four said position, which is the order the agent typed
+     the tenants in, so the second tenant's deed read "2 of 2" whoever had
+     signed. theDeedCountIsOfSignatures.test.ts holds the bug itself. */
+  it('says how many are signed, and names the other tenants', () => {
+    const m = executedDeedAgentEmail({ ...base, joint: { signed: 1, count: 2, coTenants: 'Tomas Brandt' } });
+    expect(flat(m)).toContain('Joint tenancy, 1 of 2 deeds signed');
     expect(flat(m)).toContain('Tomas Brandt');
   });
 
   it('says another one follows, so the second email is expected', () => {
-    const m = executedDeedAgentEmail({ ...base, joint: { position: 1, count: 2, coTenants: 'Tomas Brandt' } });
+    const m = executedDeedAgentEmail({ ...base, joint: { signed: 1, count: 2, coTenants: 'Tomas Brandt' } });
     expect(flat(m)).toMatch(/one more deed follows/);
   });
 
   /* The LAST deed closes the loop. Without this the final email would still
      promise another, which is the same error in the other direction. */
   it('says so when it is the last one', () => {
-    const m = executedDeedAgentEmail({ ...base, joint: { position: 2, count: 2, coTenants: 'Tomas Brandt' } });
+    const m = executedDeedAgentEmail({ ...base, joint: { signed: 2, count: 2, coTenants: 'Tomas Brandt' } });
     expect(flat(m)).toContain('last of this tenancy');
     expect(flat(m)).not.toMatch(/more deeds? follow/);
   });
 
   it('counts correctly on a three-tenant tenancy', () => {
-    const m = executedDeedAgentEmail({ ...base, joint: { position: 1, count: 3, coTenants: 'Tomas Brandt, Ana Ruiz' } });
-    expect(flat(m)).toContain('deed 1 of 3');
+    const m = executedDeedAgentEmail({ ...base, joint: { signed: 1, count: 3, coTenants: 'Tomas Brandt, Ana Ruiz' } });
+    expect(flat(m)).toContain('1 of 3 deeds signed');
     expect(flat(m)).toMatch(/2 more deeds follow/);
   });
 
   it('puts the count in the subject, so two emails are distinguishable in a list', () => {
-    expect(executedDeedAgentEmail({ ...base, joint: { position: 2, count: 2, coTenants: 'T B' } }).subject)
-      .toBe('Signed Deed of Guarantee for GR-20846 (2 of 2)');
+    expect(executedDeedAgentEmail({ ...base, joint: { signed: 2, count: 2, coTenants: 'T B' } }).subject)
+      .toBe('Signed Deed of Guarantee for GR-20846 (2 of 2 signed)');
   });
 
   /* A TENANCY OF ONE IS UNCHANGED, which is most of the book. */
@@ -408,7 +414,7 @@ describe('the executed-deed email on a joint tenancy', () => {
   });
 
   it('is also unchanged when a joint block arrives describing one tenant', () => {
-    const m = executedDeedAgentEmail({ ...base, joint: { position: 1, count: 1, coTenants: '' } });
+    const m = executedDeedAgentEmail({ ...base, joint: { signed: 1, count: 1, coTenants: '' } });
     expect(flat(m)).not.toMatch(/joint/i);
   });
 });
