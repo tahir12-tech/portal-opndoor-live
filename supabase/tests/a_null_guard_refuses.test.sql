@@ -107,9 +107,17 @@ select throws_ok(
   '42501', null,
   'and cannot withdraw it');
 
+/* THE REFUSAL MOVED EARLIER, AND IS STRONGER FOR IT. 20261007340000 made
+   notes the shared record of an application -- "anyone who can see the
+   application reads and adds notes" -- and with that, add_application_note
+   became SECURITY INVOKER: resolving the reference below is RLS'd to the
+   caller, so it IS the permission check. A caller who cannot see the
+   application no longer gets as far as a 42501 from a guard; the lookup
+   matches nothing and it stops at "application not found" (P0001). The
+   claim this case makes is unchanged. */
 select throws_ok(
   $$select public.add_application_note('ZZZ-NULL-DI','x')$$,
-  '42501', null,
+  'application not found',
   'and cannot write a note on it');
 
 select throws_ok(

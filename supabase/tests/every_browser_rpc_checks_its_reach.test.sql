@@ -145,8 +145,16 @@ select throws_ok($$select * from public.not_in_network_agencies()$$,
   '42501', null, 'and the not-in-network prospect list, which is Opndoor''s own, is staff-only');
 
 -- ---- writes on somebody else's application --------------------------------
+/* THE REFUSAL MOVED EARLIER, AND IS STRONGER FOR IT. 20261007340000 made
+   notes the shared record of an application -- "anyone who can see the
+   application reads and adds notes" -- and with that, add_application_note
+   became SECURITY INVOKER: resolving the reference below is RLS'd to the
+   caller, so it IS the permission check. A caller who cannot see the
+   application no longer gets as far as a 42501 from a guard; the lookup
+   matches nothing and it stops at "application not found" (P0001). The
+   claim this case makes is unchanged. */
 select throws_ok($$select public.add_application_note('ZZZ-REACH-THEIRS','hello')$$,
-  '42501', null, 'add_application_note cannot write a business note onto their application');
+  'application not found', 'add_application_note cannot write a business note onto their application');
 select throws_ok($$select public.mark_withdrawn('ZZZ-REACH-THEIRS','because','x')$$,
   '42501', null, 'mark_withdrawn cannot withdraw it');
 select throws_ok($$select public.amend_tenancy_start('97000000-0000-0000-0000-00000000e002', current_date + 60)$$,
