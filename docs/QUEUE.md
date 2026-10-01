@@ -123,14 +123,14 @@ Two things worth knowing for whoever picks the next one up:
   than a screenshot and did catch two wording faults a screenshot would
   not have.
 
-## TENANT BANDS VERSUS REFERRAL VOLUME, UNMISTAKABLY (instruction, 2026-10-01, verbatim). todo.
+## TENANT BANDS VERSUS REFERRAL VOLUME, UNMISTAKABLY (instruction, 2026-10-01, verbatim). **done** (`146f6d9`).
 
 > Commission deal editor: make the choice between pricing by number of tenants and pricing by number of referrals unmistakable, each with a one-line example ("e.g. 1 tenant 3 weeks' rent, 2 tenants 5 weeks'" vs "e.g. first 5 referrals a month at 10%, then 15%"). Warn before saving a tenant band above 4 tenants, since that's almost certainly meant as referral volume. Deploy to dev and check there.
 
 - The warning is a WARNING, not a refusal: a five-tenant HMO is real,
   just rare. It has to be possible to go on.
 
-## ONE DATE FORMAT EVERYWHERE (instruction, 2026-10-01, verbatim). todo.
+## ONE DATE FORMAT EVERYWHERE (instruction, 2026-10-01, verbatim). **done** (`f08c59f`).
 
 > Show dates the same way everywhere on screen ("29 Sep 2026"), including the supplier Referrals tab and "Live from" (e.g. "Live from Aug 2026"), with one shared date formatter.
 
@@ -138,7 +138,7 @@ Two things worth knowing for whoever picks the next one up:
   needs two shapes, not one: a day date and a month date. Both in the
   same place.
 
-## RECENT CHANGES IN PLAIN ENGLISH (instruction, 2026-10-01, verbatim). todo.
+## RECENT CHANGES IN PLAIN ENGLISH (instruction, 2026-10-01, verbatim). **done** (`c0ad276`).
 
 > Supplier Recent changes: show every change in plain English (e.g. "API access turned on", "Live from changed from August to September 2026"), never raw field names. Only record a change when a value actually changed. Same for agencies and anywhere else changes are listed. Deploy to dev and check there.
 
@@ -150,7 +150,7 @@ Two things worth knowing for whoever picks the next one up:
 - "Same for agencies and anywhere else changes are listed" means the
   wording belongs in one place both lists read.
 
-## SINGULAR AND PLURAL EVERYWHERE A COUNT IS SHOWN (instruction, 2026-10-01, verbatim). todo.
+## SINGULAR AND PLURAL EVERYWHERE A COUNT IS SHOWN (instruction, 2026-10-01, verbatim). **done** (`a126e67`).
 
 > Use singular and plural correctly everywhere counts are shown (1 referral, 2 referrals; 1 branch, 2 branches; 1 person, 2 people), with a shared helper and a check.
 
@@ -159,7 +159,7 @@ Two things worth knowing for whoever picks the next one up:
   hand-rolled `s` is caught rather than found.
 - "1 person, 2 people" says the helper cannot be `name + 's'`.
 
-## THE SUPPLIER PEOPLE TAB CAN INVITE (instruction, 2026-10-01, verbatim). todo.
+## THE SUPPLIER PEOPLE TAB CAN INVITE (instruction, 2026-10-01, verbatim). **done** (`339cb47`).
 
 > Supplier People tab: add an "Invite someone" button, using the supplier Add user form (no branch, levels Management and Referrer, plus Developer when API access is on). Deploy to dev and check there.
 
@@ -167,7 +167,7 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
-## THE TAB COUNTS FOLLOW THE FILTERS (instruction, 2026-10-01, verbatim). ACTIVE.
+## THE TAB COUNTS FOLLOW THE FILTERS (instruction, 2026-10-01, verbatim). **done** (`3149c88`).
 
 > Applications: every status tab count follows the current filters (origin, period, branch, referrer, search), so with Origin set to Direct, In progress and Fee unpaid count only direct applications. For a direct signup with no agency, the Branch column shows "-" instead of "Unattached Unattached", everywhere that label appears. Deploy to dev and check there.
 
