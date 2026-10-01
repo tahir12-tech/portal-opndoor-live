@@ -1613,7 +1613,8 @@ export function buildAllStatementsCsv(
         l.ref,
         l.tenant,
         l.branch || EMPTY,
-        l.tenancyPlace ? `Joint, ${l.tenancyPlace}` : 'Single',
+        // Already "Single" or "Joint (2)": see CommissionStatement.
+        l.tenancyPlace || 'Single',
         l.sharePercent == null ? '100%' : `${l.sharePercent}%`,
         dmy(l.paidAt),
         money(l.fee),
@@ -1665,7 +1666,7 @@ export async function buildCommissionStatementDoc(
     // branch and some cannot: that is the case the column survives for.
     ...(shape.oneBranch ? [] : [l.branch || EMPTY]),
     // A tenancy of one is not a joint tenancy and saying "1 of 1" invents one.
-    l.tenancyPlace ? `Joint, ${l.tenancyPlace}` : 'Single',
+    l.tenancyPlace || 'Single',
     l.sharePercent == null ? '100%' : `${l.sharePercent}%`,
     dmy(l.paidAt),
     money(l.fee),

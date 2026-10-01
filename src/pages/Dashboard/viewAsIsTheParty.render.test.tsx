@@ -121,9 +121,13 @@ describe('the same admin, viewing as one of our agencies', () => {
   /* THE HALF THAT WAS MISSING RATHER THAN LEAKING. The party's own settlement
      was gated on `management`, so an admin viewing as them saw nothing at
      all -- the page showed Opndoor's money and withheld the agency's. */
-  it('and IS shown that agency’s own settlement, which it was not before', async () => {
+  /* THE SETTLEMENT BLOCKS LEFT THE AGENCY'S PAGE on 2026-10-01, so View as
+     shows what the agency sees: their own statement and the date it is
+     paid, not Opndoor's run. */
+  it('and IS shown that agency’s own statement, with the date it is paid', async () => {
     const v = await openReporting('superadmin', AGENCY);
-    expect(text(v)).toMatch(/Settlements/);
+    expect(text(v)).toMatch(/Opndoor pays this on/);
+    expect(v.container.querySelector('#settlements')).toBeNull();
   });
 
   it('with the statement named for the party rather than called “Your commission”', async () => {

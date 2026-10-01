@@ -257,12 +257,17 @@ describe('Reporting, read by a Manager', () => {
     expect(text(asManager)).not.toMatch(/payable to/i);
     cleanup();
 
+    /* AND SINCE 2026-10-01 THE DIRECTOR GETS NONE OF IT EITHER, which is
+       Matt's instruction and not a loosening of this one: the blocks are
+       Opndoor's settlement run, and an agency's own money is the
+       statement below them. What a Director has that a Manager does not
+       is the statement itself, which is the line this now asserts. */
     beDirector();
     const asDirector = await openDashboard();
-    expect(asDirector.container.querySelector('.na-stat--pay')).not.toBeNull();
-    expect(text(asDirector)).toMatch(/Settlements due/);
-    expect(asDirector.container.querySelector('#settlements')).not.toBeNull();
-    expect(text(asDirector)).toMatch(/commission settlement/i);
+    expect(asDirector.container.querySelector('.na-stat--pay')).toBeNull();
+    expect(text(asDirector)).not.toMatch(/Settlements due/);
+    expect(asDirector.container.querySelector('#settlements')).toBeNull();
+    expect(text(asDirector)).toMatch(/Opndoor pays this on/);
   });
 
   it('reads no commission anywhere on the whole page, at any grain', async () => {
@@ -273,7 +278,8 @@ describe('Reporting, read by a Manager', () => {
     beManager();
     const view = await openDashboard();
     const body = text(view);
-    expect(body).not.toMatch(/Commission \(agreed terms\)/);
+    expect(body).not.toMatch(/Your commission/);
+    expect(body).not.toMatch(/Agency commission/);
     expect(body).not.toMatch(/Commission earned/);
     expect(body).not.toMatch(/Commission by route/);
     expect(body).not.toMatch(/Agent commission/);

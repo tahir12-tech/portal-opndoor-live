@@ -358,7 +358,13 @@ function StatementPanel({
                             case the column survives for. */}
                         {!shape.oneBranch && <td>{l.branch || '-'}</td>}
                         {/* A tenancy of one is not a joint tenancy; saying "1 of 1" invents one. */}
-                        <td>{l.tenancyPlace ? `Joint, ${l.tenancyPlace}` : 'Single'}</td>
+                        {/* THE COLUMN ALREADY SAYS IT. Matt, 2026-10-01:
+                            "Commission statement Tenancy column shows only
+                            'Single' or 'Joint (2)', never 'Joint, Single' or
+                            'Joint, Joint (2)'." `tenancyPlace` has been
+                            "Single" or "Joint (2)" since liveAnalytics built
+                            it; this prefixed "Joint," to both. */}
+                        <td>{l.tenancyPlace || 'Single'}</td>
                         <td className="num">{l.sharePercent == null ? '100%' : `${l.sharePercent}%`}</td>
                         <td>{dmy(l.paidAt)}</td>
                         <td className="num">{money(l.fee)}</td>

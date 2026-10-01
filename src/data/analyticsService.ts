@@ -20,7 +20,7 @@
    ===================================================================== */
 import type { LeagueRow, Period, PartnerScope, Role } from './types';
 import { fmtRatePct } from '@/lib/format';
-import { maySeeCommission, readsTheWholeBook } from './types';
+import { isOpndoorStaff, maySeeCommission, readsTheWholeBook } from './types';
 import { KEYS, loadString, saveString } from './storage';
 import {
   ANNUAL, AVG_RENT, BASE_PAID_FULL, BASE_PAID_REF, BASE_SENT_FULL, BASE_SENT_REF,
@@ -325,9 +325,20 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
        different number: the house route's partner cut is opndoor's own margin
        and is not owed to anybody. supplierCommNet excludes it. An agency's own
        tile is unchanged and still reads as their agreed terms. */
-    commLbl: agencyFacing ? 'Commission (agreed terms)' : ownOnly ? 'Commission earned' : 'Commission payable',
+    /* "YOUR COMMISSION, NET OF REFUNDS", in one line. Matt, 2026-10-01:
+       'Rename "Commission (agreed terms) · Agreement · net of refunds" to
+       "Your commission, net of refunds".'
+
+       The old pair said the same thing three times in two registers:
+       "(agreed terms)" and the source pill both answer "where does this
+       rate come from", which is a question an agency reading their own
+       earnings is not asking. The source prefix stays off the agency's
+       tag with it. */
+    commLbl: agencyFacing
+      ? (isOpndoorStaff(role) ? 'Agency commission' : 'Your commission')
+      : ownOnly ? 'Commission earned' : 'Commission payable',
     commTag: agencyFacing
-      ? `${sourcePrefix}net of refunds`
+      ? 'net of refunds'
       : ownOnly || noPartner
       ? `${sourcePrefix}${aPct} of ${basisPhrase}, net of refunds`
       // No "partner" pill on the admin tile: the split below names who is owed,
@@ -471,10 +482,15 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
      so this is where the figure has to not be computed: there is no aggregate
      upstream to have zeroed. */
   const comm: CommissionPart = !seesComm ? NO_COMMISSION : {
-    commLbl: agencyFacing ? 'Commission (agreed terms)' : ownOnly ? 'Commission earned to date' : 'Commission payable',
+    /* THE SAME WORDS AS THE LIVE PATH, which is the whole point of this
+       branch existing: the demo must not teach a different vocabulary.
+       Matt, 2026-10-01: "Your commission, net of refunds". */
+    commLbl: agencyFacing
+      ? (isOpndoorStaff(role) ? 'Agency commission' : 'Your commission')
+      : ownOnly ? 'Commission earned to date' : 'Commission payable',
     // No frozen lines to name a source from here and no refunds in the model, so
     // the agency tag is the bare "whose money is this", with no rate.
-    commTag: agencyFacing ? 'Agent commission'
+    commTag: agencyFacing ? 'net of refunds'
       : ownOnly ? `Your agent commission · ${aPct} of one month's rent` : 'Net of refunds',
     /* THE HEADLINE IS THE READER'S OWN MONEY, as it already is on the live path.
        This branched on isRef alone, so an agency DIRECTOR was handed the partner

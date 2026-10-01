@@ -29,8 +29,14 @@ import {
 
 /** Money-reconciliation surface: pence on every row and total, so rows sum. */
 // One format, shared. See lib/format.
+/* ONE DATE, ONE FORMAT, AND NOT THE YEAR TWICE. Matt, 2026-10-01: "Fix
+   '15 Oct 2026 2026'."
+
+   `dayMonth` used to be day and month only, and `fullDate` added the year
+   to it. When both moved onto the shared `formatDate` -- which already
+   ends in the year -- the second one went on appending it. */
 const dayMonth = (d: Date) => formatDate(d);
-const fullDate = (d: Date) => `${dayMonth(d)} ${d.getFullYear()}`;
+const fullDate = (d: Date) => formatDate(d);
 
 interface SplitRow { key: string; name: string; amount: number }
 

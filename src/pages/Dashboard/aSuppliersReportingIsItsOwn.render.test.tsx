@@ -214,9 +214,21 @@ describe('Opndoor’s settlements', () => {
      section for them. It is `RoleOnly roles={['management']}`, and the
      admin's settlement surface is the ops Home. Writing that assertion is how
      this file would have claimed to protect something that was never there. */
-  it('and still drawn for one of our own agencies', async () => {
+  /* CHANGED 2026-10-01 ON MATT'S WORD: "Remove the top banner
+     ('Settlements due... £0.00 partner / £1,601.54 agent') and the
+     'Payable now' and 'Agent commission settlement' blocks for agency
+     users. Under the statement, one line: 'Opndoor pays this on 15 Oct
+     2026.'"
+
+     Those blocks total Opndoor's own settlement run across both rails,
+     which is why they name a partner figure beside an agent one. To an
+     agency they read as money they are owed on a rail they are not on.
+     What they are owed is the statement, and the line under it. */
+  it('and not for one of our own agencies either, since 2026-10-01', async () => {
     const v = await openReporting({ role: 'management', partner: 'opndoor-agents' });
-    expect(v.container.querySelector('#settlements')).toBeTruthy();
+    expect(v.container.querySelector('#settlements')).toBeNull();
+    /* What they get instead is one line under their own statement. */
+    expect(v.container.textContent).toMatch(/Opndoor pays this on/);
   });
 });
 

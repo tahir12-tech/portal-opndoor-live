@@ -125,7 +125,9 @@ type View = Awaited<ReturnType<typeof openDashboard>>;
     about fees and never says "Commission". */
 function commissionTile(v: View): HTMLElement {
   const tile = [...v.container.querySelectorAll<HTMLElement>('.hero-kpi')]
-    .find((el) => /Commission/.test(el.textContent ?? ''));
+    /* Case-insensitive since 2026-10-01: an agency's own tile reads "Your
+       commission", so a capital C stopped finding it. */
+    .find((el) => /commission/i.test(el.textContent ?? ''));
   if (!tile) throw new Error('no commission tile on this dashboard');
   return tile;
 }
@@ -139,10 +141,13 @@ describe('the dashboard a director at one of our agencies reads', () => {
     expect(view.container.querySelectorAll('.settle table')).toHaveLength(0);
   });
 
-  it('labels the commission tile with the terms, and states no rate', async () => {
+  /* "YOUR COMMISSION, NET OF REFUNDS", Matt's words of 2026-10-01. The old
+     label said where the rate came from twice over, which is not what an
+     agency reading their own earnings is asking. */
+  it('labels the commission tile as theirs, and states no rate', async () => {
     const view = await openDashboard('management');
     const tile = commissionTile(view);
-    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Commission (agreed terms)');
+    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Your commission');
     // Not in the tag, not in the sub-line, not anywhere on the tile.
     expect(tile.textContent).not.toContain('%');
     // The amount is still the point of the tile.
@@ -182,7 +187,9 @@ describe('the same agency, read by Opndoor', () => {
     const view = await openDashboard('superadmin', AGENCY_PARTNER);
     expect(view.container.textContent).not.toMatch(/Commission by route/);
     const tile = commissionTile(view);
-    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Commission (agreed terms)');
+    /* "Agency commission", not "Your commission": Opndoor is reading
+       somebody else's page and the eyebrow above already names them. */
+    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Agency commission');
     // Still rate-free: an agency's tile states a total, not a blended rate.
     expect(tile.textContent).not.toMatch(/\bPartner \u00b7/);
   });
@@ -204,7 +211,7 @@ describe('mock and demo mode, where the synthetic model answers', () => {
     flags.live = false;
     const view = await openDashboard('management');
     const tile = commissionTile(view);
-    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Commission (agreed terms)');
+    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Your commission');
     // The hard-coded "12.4% vs prior period" is demo furniture, and a figure
     // nobody computed is the worst kind of rate to show somebody their money by.
     expect(tile.textContent).not.toContain('%');

@@ -263,7 +263,18 @@ export function Dashboard() {
      Reporting to the agency's payable in bold before anything else loaded. It
      also anchors to #settlements, which is now gated, so leaving the line would
      have pointed at nothing. Both halves answer to the predicate now. */
-  const naSettlements = d.live && role === 'management' && seesCommission && (partnerDue > 0 || agentDue > 0);
+  /* AND NOT FOR AN AGENCY. Matt, 2026-10-01: "Remove the top banner
+     ('Settlements due... £0.00 partner / £1,601.54 agent') and the
+     'Payable now' and 'Agent commission settlement' blocks for agency
+     users."
+
+     The banner totals Opndoor's settlement run across both rails, which
+     is why it names a partner figure and an agent figure. To Regent that
+     read as "you are owed £0.00 partner", about money that is not theirs
+     and a rail they are not on. What they are owed is the statement
+     below, which says so in one line. */
+  const naSettlements = d.live && role === 'management' && seesCommission
+    && !agencyFacing && (partnerDue > 0 || agentDue > 0);
   // #93 Deed-delivery failure is ops furniture: management + opndoor admin only.
   const naNoContact = d.live && canSeeSettlements && d.deedsNoContact > 0;
   const naLapsing = d.live && canSeeSettlements && d.lapsing14 > 0;
@@ -1029,6 +1040,18 @@ export function Dashboard() {
               </Eyebrow>
             </div>
             <CommissionStatement role={role} scope={partnerScope} />
+            {/* ONE LINE, INSTEAD OF THE SETTLEMENT BLOCKS. Matt,
+                2026-10-01: "Under the statement, one line: 'Opndoor pays
+                this on 15 Oct 2026.' Keep the Download statement button."
+
+                What an agency needs from the settlement run is the date
+                their own statement is paid. The blocks above said that
+                too, in three sections about Opndoor's whole run. */}
+            {agencyFacing && agentSettleDate && (
+              <p className="muted" style={{ margin: '10px 2px 0', fontSize: 13 }}>
+                Opndoor pays this on <b>{agentSettleDate}</b>.
+              </p>
+            )}
           </RoleOnly>
         )}
 
@@ -1071,7 +1094,9 @@ export function Dashboard() {
             reader of the list: what they get is their own statement, which is
             on this page already. Dropped for them on their own login and
             under View as alike, which is the same predicate. */}
-        {!supplierFacing && (
+        {/* Nor for an agency, for the same reason: "Payable now" is the
+            closed month of Opndoor's own run. */}
+        {!supplierFacing && !agencyFacing && (
           <RoleOnly roles={['management']} as={drawAs} commission>
             <div id="settlements" className="section-label"><Eyebrow>Settlements</Eyebrow></div>
             <SettlementBlocks role={role} scope={partnerScope} />
@@ -1079,7 +1104,7 @@ export function Dashboard() {
         )}
 
         {/* COMMISSION SETTLEMENT (partner, prior calendar month, payable the 15th) */}
-        {d.live && !supplierFacing && settlement.partners.length > 0 && (
+        {d.live && !supplierFacing && !agencyFacing && settlement.partners.length > 0 && (
           <RoleOnly roles={['management']} as={drawAs} commission>
             <section className="card settle">
               <CardHead
@@ -1125,7 +1150,7 @@ export function Dashboard() {
         )}
 
         {/* AGENT COMMISSION SETTLEMENT (agency level, prior calendar month, payable the 15th) */}
-        {d.live && !supplierFacing && agentSettlement.payees.length > 0 && (
+        {d.live && !supplierFacing && !agencyFacing && agentSettlement.payees.length > 0 && (
           <RoleOnly roles={['management']} as={drawAs} commission>
             <section className="card settle">
               <CardHead
