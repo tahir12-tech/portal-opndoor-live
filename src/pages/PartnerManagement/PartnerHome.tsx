@@ -30,6 +30,7 @@ import { CustomerReport } from '@/components/CustomerReport';
 import { SupplierStatements } from '@/components/SupplierStatements';
 import { SupplierSettings } from './SupplierSettings';
 import { ApiAccessSwitch } from './ApiAccessSwitch';
+import { SupplierDeals } from './SupplierDeals';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { getApplications } from '@/data/applicationsService';
@@ -310,6 +311,27 @@ export function PartnerHome() {
           canEdit={isAdmin}
           onSaved={refresh}
         />
+
+        {/* THE TWO DEALS, with the agency editor. Matt, 2026-10-01: "use the
+            same commission deal editor agencies have, with all its options
+            ... for both the supplier's total commission and the agents'
+            share within it."
+
+            BELOW THE FLAT PAIR, not instead of it. Most suppliers are priced
+            by the two numbers above and a deal is the exception; putting the
+            exception first would make the common case look like the
+            override. A deal, where one exists, wins. */}
+        {isAdmin && (
+          <SupplierDeals
+            slug={partner.id}
+            partnerId={partner.dbId ?? partner.id}
+            name={partner.name}
+            canEdit={isAdmin}
+            total={rates.partner ?? null}
+            agentShare={rates.agent ?? null}
+            onSaved={refresh}
+          />
+        )}
 
         {/* WHO THE MONTHLY STATEMENT GOES TO. On the Commission tab because
             the statement IS the commission, and this is the only screen in

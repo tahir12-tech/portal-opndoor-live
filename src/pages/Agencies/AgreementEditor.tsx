@@ -142,9 +142,28 @@ export function tierWords(from: number, to: number | null): string {
 export function dealWords(
   bands: { min: number; max: number | null; weeks: number; unit: FeeBasisUnit; rate: number | null }[],
   tiers: { from: number; to: number | null; rate: number }[],
+  /* AN AGENTS' SHARE SETS NO FEE, so its sentence cannot name one. "1 tenant
+     pays one month's rent, and we pay 20% of that" is the commission deal;
+     the share deal says only what proportion goes on to the agency. */
+  share = false,
 ): string {
   if (!bands.length) return 'Nothing agreed yet.';
   const tiered = tiers.length > 0;
+  if (share) {
+    const parts = bands.map((b) => {
+      const who = tenantsWords(b.min, b.max);
+      return tiered || b.rate == null
+        ? `${who}`
+        : `${who}: ${pctOf(b.rate)}% of the fee goes to the agency`;
+    });
+    if (!tiered) {
+      return bands.every((b) => b.rate == null)
+        ? 'Nothing agreed yet.'
+        : `${parts.join('; ')}.`;
+    }
+    const rates = tiers.map((t) => `${tierWords(t.from, t.to)}: ${pctOf(t.rate)}%`).join(', ');
+    return `The agency's share grows with volume. Referrals ${rates} of the fee.`;
+  }
   const feeParts = bands.map((b) => {
     const who = tenantsWords(b.min, b.max);
     /* THE VERB AGREES. "1 tenant pay 3 weeks of rent" is the shape you
@@ -218,14 +237,18 @@ function modelOf(a: AgreementView | null): PricingModel {
 }
 
 export function AgreementEditor({
-  level, id, name, current, onClose, onSaved,
+  level, id, name, current, onClose, onSaved, kind = 'commission',
 }: {
-  level: 'group' | 'agency' | 'branch';
+  level: 'partner' | 'group' | 'agency' | 'branch';
   id: string;
   name: string;
   current: AgreementView | null;
   onClose: () => void;
   onSaved: () => void;
+  /* WHICH OF A SUPPLIER'S TWO DEALS. Matt, 2026-10-01: the same editor, "for
+     both the supplier's total commission and the agents' share within it".
+     Everything on the agency rail is a commission and says nothing. */
+  kind?: 'commission' | 'agent_share';
 }) {
   const toast = useToast();
   const [model, setModel] = useState<PricingModel>(modelOf(current));
@@ -263,6 +286,13 @@ export function AgreementEditor({
      Flat to look at it and clicks back gets their bands returned. */
   const shownBands = model === 'flat' ? bands.slice(0, 1) : bands;
 
+  /* AN AGENTS' SHARE SETS NO FEE. The tenant's price is set once, by the
+     supplier's commission deal; a share band that also named one would be
+     two deals disagreeing about what the tenant pays. The column is hidden
+     and create_agreement stores NULL whatever is sent, so this is the
+     screen agreeing with the rule rather than being it. */
+  const share = kind === 'agent_share';
+
   const setBand = (i: number, patch: Partial<BandRow>) =>
     setBands((bs) => bs.map((b, j) => (j === i ? { ...b, ...patch } : b)));
   const setTier = (i: number, patch: Partial<TierRow>) =>
@@ -281,7 +311,9 @@ export function AgreementEditor({
      cannot get from it is the deal read back to them as a sentence. */
   const preview = useMemo(() => {
     if (model === 'standard') {
-      return 'No special deal. The tenant pays one month’s rent and we pay our usual commission.';
+      return share
+        ? 'No special arrangement. The agencies under this supplier keep whatever its flat share says.'
+        : 'No special deal. The tenant pays one month’s rent and we pay our usual commission.';
     }
     return dealWords(
       shownBands.map((x) => ({
@@ -298,8 +330,9 @@ export function AgreementEditor({
             rate: Number(t.rate) / 100,
           }))
         : [],
+      share,
     );
-  }, [model, shownBands, tiers]);
+  }, [model, shownBands, tiers, share]);
 
   async function save(confirmReplace = false, confirmBreach = false) {
     setBusy(true);
@@ -342,7 +375,7 @@ export function AgreementEditor({
         }
       }
       await createAgreement({
-        level, id, coverage, period: period as 'week' | 'month' | 'year' | 'lifetime',
+        level, id, kind, coverage, period: period as 'week' | 'month' | 'year' | 'lifetime',
         countingScope: countingScope as 'agency' | 'group' | 'branch',
         bands: bandInput, tiers: tierInput, note: note.trim() || null,
         confirmReplace, confirmBreach,
@@ -367,8 +400,10 @@ export function AgreementEditor({
         open
         onClose={onClose}
         width={720}
-        title={`Commission deal for ${name}`}
-        sub="What the tenant pays, and what we pay this agency out of it. A change applies to the next referral: anything already sent keeps the fee and commission it was created with."
+        title={share ? `Agents' share for ${name}` : `Commission deal for ${name}`}
+        sub={share
+          ? "How much of this supplier's commission belongs to the agencies underneath it. The tenant's price is set on the supplier's own commission deal, not here. A change applies to the next referral."
+          : "What the tenant pays, and what we pay this agency out of it. A change applies to the next referral: anything already sent keeps the fee and commission it was created with."}
         footer={<>
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
           <Button variant="primary" onClick={() => void save()} arrow disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
@@ -409,7 +444,7 @@ export function AgreementEditor({
                   or can the office below and the group above add their own
                   on top. The words "additive", "coverage" and "own line"
                   are gone; the stored values are untouched. */}
-              {level !== 'branch' && (
+              {level !== 'branch' && !share && (
                 <Field
                   label="Does this cover everyone?"
                   hint={coverage === 'all_in'
@@ -454,12 +489,16 @@ export function AgreementEditor({
             </div>
 
             <div className="agr-sect">
-              {model === 'flat' ? 'What the tenant pays, and what we pay' : 'Pricing by number of tenants'}
+              {share
+                ? (model === 'flat' ? 'The agencies’ share' : 'The agencies’ share, by number of tenants')
+                : (model === 'flat' ? 'What the tenant pays, and what we pay' : 'Pricing by number of tenants')}
             </div>
             <p className="agr-hint agr-hint--lead">
-              {model === 'flat'
-                ? 'The fee is what the tenant pays for the guarantee. The commission is the share of that fee we pay the agency.'
-                : 'For example: 1 tenant pays one month’s rent, 2 tenants pay 5 weeks’ rent. A joint tenancy is priced once and then split between the tenants.'}
+              {share
+                ? 'The part of this supplier’s commission that goes to the agency that referred. The tenant’s price is set on the supplier’s commission deal.'
+                : model === 'flat'
+                  ? 'The fee is what the tenant pays for the guarantee. The commission is the share of that fee we pay the agency.'
+                  : 'For example: 1 tenant pays one month’s rent, 2 tenants pay 5 weeks’ rent. A joint tenancy is priced once and then split between the tenants.'}
             </p>
             <table className="dt agr-table">
               <thead>
@@ -468,7 +507,8 @@ export function AgreementEditor({
                       stored in. "Fee basis" and "Unit" are two halves of
                       one idea -- how much rent the tenant pays -- so they
                       are headed as one. */}
-                  <th>Tenants from</th><th>to</th><th>Fee</th><th aria-label="Weeks or months" />
+                  <th>Tenants from</th><th>to</th>
+                  {!share && <><th>Fee</th><th aria-label="Weeks or months" /></>}
                   {/* UNDER VOLUME TIERED THE BANDS CARRY THE FEE ONLY. The rate
                       comes from the tiers, which is what the model MEANS, and
                       the column was an editable box whose value the pricing
@@ -485,18 +525,22 @@ export function AgreementEditor({
                     <td><input className="inp" inputMode="numeric" value={b.min} onChange={(e) => setBand(i, { min: e.target.value })} aria-label={`Band ${i + 1} from`} /></td>
                     {/* Blank = "and above". Exactly one band may be open-ended. */}
                     <td><input className="inp" inputMode="numeric" value={b.max} placeholder="and above" onChange={(e) => setBand(i, { max: e.target.value })} aria-label={`Band ${i + 1} to`} /></td>
-                    <td><input className="inp" inputMode="decimal" value={b.weeks} onChange={(e) => setBand(i, { weeks: e.target.value })} aria-label={`Band ${i + 1} fee`} /></td>
+                    {!share && (
+                      <td><input className="inp" inputMode="decimal" value={b.weeks} onChange={(e) => setBand(i, { weeks: e.target.value })} aria-label={`Band ${i + 1} fee`} /></td>
+                    )}
                     {/* THE UNIT, on Flat and on every band. A month is not
                         4.3333 weeks: 52/12 does not terminate, so "one month"
                         written as weeks priced at 0.99999 of the rent, twopence
                         under on a £2,000 tenancy. Months are stored as an exact
                         multiple of the rent instead. */}
-                    <td>
-                      <select value={b.unit} onChange={(e) => setBand(i, { unit: e.target.value as FeeBasisUnit })} aria-label={`Band ${i + 1} unit`}>
-                        <option value="weeks">weeks’ rent</option>
-                        <option value="months">months’ rent</option>
-                      </select>
-                    </td>
+                    {!share && (
+                      <td>
+                        <select value={b.unit} onChange={(e) => setBand(i, { unit: e.target.value as FeeBasisUnit })} aria-label={`Band ${i + 1} unit`}>
+                          <option value="weeks">weeks’ rent</option>
+                          <option value="months">months’ rent</option>
+                        </select>
+                      </td>
+                    )}
                     {model !== 'tiered' && (
                       <td>
                         <input className="inp" inputMode="decimal" value={b.rate}
@@ -521,7 +565,7 @@ export function AgreementEditor({
               </button>
             )}
             <p className="agr-hint">
-              One month’s rent is our standard; 3 weeks and 5 weeks are the usual negotiated prices.
+              {!share && <>One month’s rent is our standard; 3 weeks and 5 weeks are the usual negotiated prices. </>}
               Leave <b>to</b> empty for the last row to mean &ldquo;and above&rdquo;.
             </p>
 

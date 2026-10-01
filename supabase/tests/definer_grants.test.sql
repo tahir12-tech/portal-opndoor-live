@@ -220,6 +220,11 @@ insert into allowed(name) values
   ('statement_invoice_email'),
   ('statements_can_be_posted'),
   ('supplier_commission_tiers'),
+  /* A supplier's own live deal of one kind, for its Commission tab. Admin
+     only and MFA'd inside the function: what each agency under a supplier
+     keeps is that supplier's commercial business, not something Opndoor
+     publishes to its staff. Covered by a_supplier_has_two_deals.test.sql. */
+  ('supplier_deal'),
   ('trigger_crm_sync'),
   ('update_partner_settings'),
   ('user_notification_enabled'),

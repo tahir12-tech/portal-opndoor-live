@@ -142,3 +142,6 @@
 .apisw { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .apisw__state { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-soft); }
 .apisw__keys { color: var(--ink-mute); font-size: 12.5px; }
+
+/* A supplier's deal, said in a sentence. */
+.sd-summary { margin: 0 0 8px; font-size: 14px; line-height: 1.6; color: var(--ink); }

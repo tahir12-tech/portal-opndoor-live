@@ -22,7 +22,7 @@
 -- checks a surface rather than a pair of numbers.
 
 begin;
-select plan(19);
+select plan(26);
 
 -- ---------------------------------------------------------------------------
 -- FIXTURE: one supplier, one agency under it, one branch, one admin.
@@ -195,6 +195,67 @@ select cmp_ok(
       and action = 'agreement_created'),
   '>=', 1,
   'and a commission deal is audited under its own action, so the two read apart');
+
+-- ===========================================================================
+-- 8. AND A SCREEN CAN READ THEM BACK, SCOPE-EXACT
+-- ===========================================================================
+select is(
+  (select count(*)::int from public.supplier_deal('zzz-two-deals', 'commission')),
+  1, 'the Commission tab can read the supplier''s own commission deal');
+
+select is(
+  (select (bands -> 0 ->> 'rate')::numeric from public.supplier_deal('zzz-two-deals', 'commission')),
+  0.35::numeric, 'with its bands');
+
+/* SCOPE-EXACT, WHICH IS THE POINT. An agency under this supplier holds its
+   own share override (assertion 9 created it) and the resolver would return
+   THAT. The supplier's own tab must show the supplier's own terms, or an
+   admin editing it is shown figures that belong to one of its agencies and
+   saving writes them onto the supplier. */
+select is(
+  (select (bands -> 0 ->> 'rate')::numeric from public.supplier_deal('zzz-two-deals', 'agent_share')),
+  0.15::numeric, 'and the supplier''s own share, not an agency''s override of it');
+
+select throws_ok(
+  $$ select * from public.supplier_deal('zzz-two-deals', 'nonsense') $$,
+  '22023', null,
+  'and it refuses a kind that is neither');
+
+-- ===========================================================================
+-- 9. A SHARE BAND STATES NO FEE
+-- ===========================================================================
+/* A band carries the tenant's price and the party's rate. On a share deal
+   only the second means anything: the tenant's price is set once, by the
+   commission deal. Storing "one month" on a share band when the commission
+   deal says five weeks is the stored-but-ignored value this table already
+   refuses on the tiered band's rate, for the stated reason that it makes an
+   agreement unreadable a year later. */
+select is(
+  (select count(*)::int from public.pricing_agreement_bands bd
+     join public.pricing_agreements pa on pa.id = bd.agreement_id
+    where pa.scope_id = '94000000-0000-0000-0000-000000000001'
+      and pa.kind = 'agent_share'
+      and bd.fee_basis_weeks is not null),
+  0, 'an agents'' share band stores no fee, whatever the caller sent');
+
+select cmp_ok(
+  (select count(*)::int from public.pricing_agreement_bands bd
+     join public.pricing_agreements pa on pa.id = bd.agreement_id
+    where pa.scope_id = '94000000-0000-0000-0000-000000000001'
+      and pa.kind = 'commission'
+      and bd.fee_basis_weeks is not null),
+  '>=', 1, 'while a commission band still carries the tenant''s price');
+
+/* AND THE NULLABILITY IS NOT A WAY TO SAVE A COMMISSION DEAL THAT PRICES
+   NOTHING. The column had to become nullable for the share; the guard moved
+   into create_agreement rather than disappearing. */
+select throws_ok(
+  $$ select public.create_agreement(
+       'partner', '94000000-0000-0000-0000-000000000001', 'additive', 'year', 'agency',
+       '[{"min":1,"max":null,"weeks":"","unit":"months","rate":0.35}]'::jsonb,
+       '[]'::jsonb, null, true, false, 'commission') $$,
+  '22023', null,
+  'a commission deal with no fee on a band is refused');
 
 select * from finish();
 rollback;

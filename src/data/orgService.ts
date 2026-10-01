@@ -635,7 +635,9 @@ export interface AgreementTierInput {
 }
 
 export interface CreateAgreementInput {
-  level: 'group' | 'agency' | 'branch';
+  /* 'partner' IS A SUPPLIER, and it is the scope its Commission tab writes
+     at. The three below are the agency rail's ladder. */
+  level: 'partner' | 'group' | 'agency' | 'branch';
   id: string;
   coverage: 'additive' | 'all_in';
   /* THE FOUR THE DATABASE ALLOWS. `pricing_agreements.period` checks
@@ -654,6 +656,9 @@ export interface CreateAgreementInput {
   /** The administrator has read the all-in breach detail and meant it. Audited
       against both parties by SQL; this only carries the answer. */
   confirmBreach?: boolean;
+  /** Which of a supplier's two deals this is. Everything on the agency rail
+      is a 'commission'; only a supplier has an 'agent_share'. */
+  kind?: 'commission' | 'agent_share';
 }
 
 export async function createAgreement(input: CreateAgreementInput): Promise<string> {
@@ -674,9 +679,45 @@ export async function createAgreement(input: CreateAgreementInput): Promise<stri
     p_note: input.note ?? null,
     p_confirm_replace: input.confirmReplace ?? false,
     p_confirm_breach: input.confirmBreach ?? false,
+    p_kind: input.kind ?? 'commission',
   });
   if (error) throw new Error(cleanRpcError(error.message));
   return String(data);
+}
+
+/**
+ * A supplier's own live deal of one kind, for its Commission tab.
+ *
+ * NOT getAgreementForAgency. That one asks the resolver through the agency's
+ * first branch, which answers with whichever deal is most SPECIFIC: for a
+ * supplier whose agency holds an override it would return the agency's, and
+ * the supplier's own tab would show, and then save, terms belonging to one of
+ * its agencies. supplier_deal is scope-exact for that reason.
+ */
+export async function getSupplierDeal(
+  slug: string, kind: 'commission' | 'agent_share',
+): Promise<AgreementView | null> {
+  if (!orgLive()) return null;
+  const { data, error } = await sb().rpc('supplier_deal', { p_slug: slug, p_kind: kind });
+  if (error) throw new Error(cleanRpcError(error.message));
+  const r = Array.isArray(data) ? data[0] : data;
+  if (!r) return null;
+  return {
+    agreementId: String(r.agreement_id),
+    scopeLevel: String(r.scope_level),
+    coverage: r.coverage === 'all_in' ? 'all_in' : 'additive',
+    period: String(r.period),
+    countingScope: String(r.counting_scope),
+    isStandard: !!r.is_standard,
+    note: (r.note as string) ?? null,
+    periodStart: (r.period_start as string) ?? null,
+    volume: Number(r.volume ?? 0),
+    volumes: [],
+    bands: (r.bands ?? []) as AgreementView['bands'],
+    tiers: (r.tiers ?? []) as AgreementView['tiers'],
+    nextRate: null,
+    nextBasis: null,
+  };
 }
 
 /** End an agreement, returning the party to standard terms from now on.

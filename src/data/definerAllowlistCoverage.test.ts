@@ -175,14 +175,16 @@ describe('the definer allowlist', () => {
      `set_app_setting_text` is Health's field, `statement_invoice_email`
      is what it reads back, and `statements_can_be_posted` is the
      boolean Home and Health both warn on. 2026-10-01. */
-  it('is 144 functions wide, and does not widen by accident', () => {
+  it('is 145 functions wide, and does not widen by accident', () => {
     /* 142 -> 144, 2026-10-01: refund_questions_open and
        decide_refund_question, the list and the answer for a refund that
        landed on commission already sent on a statement. Both are staff
        only and the decision is MFA'd, because answering it either sends
        a payee a corrected document or changes what their next one says.
        Covered by a_refund_after_a_statement_is_a_question.test.sql. */
-    expect(allowlist.length).toBeLessThanOrEqual(144);
+    /* 144 -> 145, 2026-10-01: supplier_deal, which the Commission tab reads
+       its two deals from. */
+    expect(allowlist.length).toBeLessThanOrEqual(145);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {
