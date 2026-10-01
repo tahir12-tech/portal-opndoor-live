@@ -24,7 +24,7 @@ const NOTIFICATION_TYPE: Record<ReferrerEvent, string> = {
 export async function notifyReferrer(service: any, appId: string, event: ReferrerEvent): Promise<void> {
   try {
     const { data: app } = await service.from("applications")
-      .select("guarantee_ref, livemode, tenant_first_name, tenant_last_name, prop_addr1, prop_postcode")
+      .select("guarantee_ref, livemode, tenant_first_name, tenant_last_name, prop_addr1, prop_postcode, tenancy_id")
       .eq("id", appId).maybeSingle();
     if (!app) return;
     /* A SANDBOX APPLICATION DOES NOT EMAIL A REAL AGENT. Round 5, M7. This had
@@ -63,8 +63,25 @@ export async function notifyReferrer(service: any, appId: string, event: Referre
     const appBase = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
     const portalUrl = appBase ? `${appBase}/applications/${encodeURIComponent(app.guarantee_ref)}` : "";
     const common = { guaranteeRef: app.guarantee_ref, tenantName, propertyAddr, portalUrl };
+    /* WHERE THE TENANCY HAS GOT TO, on a "paid" notice. Read only for that
+       event: the other three say nothing about the tenancy's progress, and
+       a query per notification that nothing uses is a query per
+       notification. `paid_at` is the test, not payment_state, because that
+       is the column every other tally on this tenancy counts. */
+    let joint: { paid: number; count: number } | null = null;
+    if (event === "paid" && app.tenancy_id) {
+      const { data: mates } = await service.from("applications")
+        .select("id, paid_at").eq("tenancy_id", app.tenancy_id);
+      if (mates && mates.length > 1) {
+        joint = {
+          paid: mates.filter((m: { id: string; paid_at: string | null }) =>
+            m.id === appId || !!m.paid_at).length,
+          count: mates.length,
+        };
+      }
+    }
     const message = event === "submitted" ? referrerSubmittedEmail(common)
-      : event === "paid" ? referrerPaidEmail(common)
+      : event === "paid" ? referrerPaidEmail({ ...common, joint })
       : referrerDecisionEmail({ ...common, approved: event === "approved" });
     // ONE SEND WITH EACH AS A RECIPIENT, the shape every other
     // per-application notification uses and the one the deed rule specified.

@@ -751,12 +751,29 @@ export function referrerDecisionEmail(p: { guaranteeRef: string; tenantName: str
   }, p.portalUrl);
 }
 
-export function referrerPaidEmail(p: { guaranteeRef: string; tenantName: string; propertyAddr: string; portalUrl?: string }): Message {
+export function referrerPaidEmail(p: {
+  guaranteeRef: string; tenantName: string; propertyAddr: string; portalUrl?: string;
+  /** On a joint tenancy, how many of the tenants have paid and how many
+      there are. Absent on a tenancy of one, where the email is unchanged. */
+  joint?: { paid: number; count: number } | null;
+}): Message {
+  /* HOW MANY HAVE PAID. Matt, 2026-10-01: 'Agent "fee paid" email for a
+     joint tenancy: add how many have paid, e.g. "1 of 2 tenants have
+     paid."'
+
+     Each tenant pays their own share, so an agent gets one of these per
+     tenant, days apart, each naming a different person and none of them
+     saying where the tenancy has got to. "1 of 2" is the sentence that
+     tells them whether to expect another. A tenancy of one says nothing:
+     "1 of 1 tenants have paid" is noise. */
+  const tally = p.joint && p.joint.count > 1
+    ? ` ${p.joint.paid} of ${p.joint.count} tenants ${p.joint.paid === 1 ? "has" : "have"} paid.`
+    : "";
   return withAction({
     subject: `Guarantee fee paid for ${p.tenantName}`,
     heading: "The guarantee fee has been paid",
     blocks: [
-      { p: `${p.tenantName} has paid the guarantee fee for ${p.propertyAddr}. The Deed of Guarantee will be issued for signing.` },
+      { p: `${p.tenantName} has paid the guarantee fee for ${p.propertyAddr}. The Deed of Guarantee will be issued for signing.${tally}` },
       { rows: referrerRows(p.guaranteeRef, p.tenantName, p.propertyAddr) },
     ],
   }, p.portalUrl);

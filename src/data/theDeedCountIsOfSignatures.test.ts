@@ -21,7 +21,7 @@
  * the same question the email is finally asking.
  */
 import { describe, expect, it } from 'vitest';
-import { executedDeedAgentEmail } from '../../supabase/functions/_shared/emailTemplates.ts';
+import { executedDeedAgentEmail, referrerPaidEmail } from '../../supabase/functions/_shared/emailTemplates.ts';
 import { renderText } from '../../supabase/functions/_shared/emailLayout.ts';
 import { tenancyDeedProgress } from './tenancyGroups';
 
@@ -80,5 +80,38 @@ describe('the screens, which were already counting signatures', () => {
   it('say the same thing as the email now does', () => {
     expect(tenancyDeedProgress(group(1, 2))).toBe('1 of 2 deeds executed');
     expect(tenancyDeedProgress(group(2, 2))).toBe('2 of 2 deeds executed');
+  });
+});
+
+/* AND THE SAME QUESTION ONE STEP EARLIER.
+ *
+ * Matt, 2026-10-01: 'Agent "fee paid" email for a joint tenancy: add how
+ * many have paid, e.g. "1 of 2 tenants have paid."'
+ *
+ * Each tenant pays their own share, so an agent gets one of these per
+ * tenant, days apart, each naming a different person and none of them
+ * saying where the tenancy had got to.
+ */
+describe('the agent’s fee-paid email', () => {
+  const paidBase = {
+    guaranteeRef: 'GR-23853', tenantName: 'Joint One',
+    propertyAddr: '1 Example Road, N1 1AA',
+  };
+
+  it('says how many of the tenants have paid', () => {
+    const t = renderText(referrerPaidEmail({ ...paidBase, joint: { paid: 1, count: 2 } }));
+    expect(t).toContain('1 of 2 tenants has paid');
+  });
+
+  it('and reads as English when they all have', () => {
+    const t = renderText(referrerPaidEmail({ ...paidBase, joint: { paid: 2, count: 2 } }));
+    expect(t).toContain('2 of 2 tenants have paid');
+  });
+
+  /* "1 OF 1 TENANTS HAVE PAID" IS NOISE, and most of the book is one. */
+  it('and says nothing of the sort on a tenancy of one', () => {
+    expect(renderText(referrerPaidEmail(paidBase))).not.toMatch(/of \d+ tenants/);
+    expect(renderText(referrerPaidEmail({ ...paidBase, joint: { paid: 1, count: 1 } })))
+      .not.toMatch(/of \d+ tenants/);
   });
 });
