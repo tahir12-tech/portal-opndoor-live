@@ -186,6 +186,20 @@ Two things worth knowing for whoever picks the next one up:
   the code and the migration history -- and the limit stated
   plainly rather than worked around.
 
+## THE DEED WARNING FOLLOWS THE SAME RULE EVERYWHERE (instruction, 2026-10-01, verbatim). todo.
+
+> The "No agent contact. A deed cannot be issued…" warning still shows on the supplier user's Agencies page (signed in as joe@bloggs.com, Kestrel Management) even though both Kestrel branches have contacts. Apply the same rule as the admin supplier Overview everywhere this warning appears: only warn on a branch that genuinely has nowhere to send the deed, on that branch. Also change the banner to "You can view, add and edit the agencies and branches you manage. Changes apply straight away." Deploy to dev and check there, signed in as a supplier user.
+
+- **THIS IS PROBABLY THE ANSWER TO THE KESTREL RIVERSIDE REPORT TOO.**
+  I could not reproduce that on the admin supplier Overview and said
+  so; this names a DIFFERENT page -- the supplier user's Agencies
+  page -- which warns from `readiness.branches`, a different
+  mechanism from the contact tree entirely. Check whether the
+  earlier report was this page.
+- AgencyHome's warning is gated on `agentRailFor(a)` and reads a
+  readiness map, not `effectivePrimary`. Two mechanisms answering
+  one question is why one of them is wrong.
+
 ## AN EMAIL LINK LANDS ON THE RIGHT SIGN-IN TAB (instruction, 2026-10-01, verbatim). todo.
 
 > Password reset and invite links send each person to the sign-in tab for their own type: supplier users to the Supplier tab, agency users to the Agent tab, tenants to the Tenant tab. Check every email link that lands on the sign-in page. Deploy to dev and check there.
