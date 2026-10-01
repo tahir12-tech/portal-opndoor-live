@@ -1177,7 +1177,7 @@ export function AgencyHome() {
                   stray dot between People and Referrals. A group keeps the
                   figure, because a group of single-office agencies still
                   has several offices and the count is about the group. */}
-              {showsOffices(title) && (
+              {showsOffices(title, partner) && (
                 <>
                   <button className="ah-fig" onClick={() => setTab('overview')}>
                     <b>{branchCount}</b> {plural(branchCount, 'branch')}

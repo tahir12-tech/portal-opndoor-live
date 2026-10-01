@@ -89,9 +89,17 @@ describe('a single-office agency has no Branch line on Referring agent', () => {
      the reader. The two collapses beside it are about the reader's own
      scope and are a different rule; an admin was being shown a Branch
      row repeating the agency's own name. */
-  it('asks showsOffices about the agency, not the viewer', () => {
+  /* AND SINCE 2026-10-01, ABOUT THE AGENCY IN ITS OWN ESTATE. The same
+     real company can now be two records, one of Opndoor's own and one
+     under a supplier, so the name alone no longer picks a record out: a
+     three-office Frost in one estate could decide whether a one-office
+     Frost in the other drew this row. `d.partner` is the estate. The
+     claim this case makes is unchanged -- the question is still about
+     the agency and not the reader -- so the assertion is widened rather
+     than replaced. */
+  it('asks showsOffices about the agency and its estate, not the viewer', () => {
     const card = code.slice(code.indexOf('const referrerCard'), code.indexOf('const [notes'));
-    expect(card).toMatch(/showsOffices\(d\.agency\)/);
+    expect(card).toMatch(/showsOffices\(d\.agency, d\.partner\)/);
     // The admin arm is the one that had no collapse at all.
     expect(card).toMatch(/if \(!agencyViewer\)[\s\S]{0,200}branch: offices/);
   });

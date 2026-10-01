@@ -558,10 +558,15 @@ export interface AgreementView {
   note: string | null;
   periodStart: string | null;
   volume: number;
-  /** ONE ENTRY PER ROUTE the agency has paid business on. An agency exists
-      once and is never duplicated per supplier (Matt, 2026-08-17), so an
-      agency under two suppliers is one party with two counters. Usually a
-      single entry, and then the screen reads exactly as it always did. */
+  /** ONE ENTRY PER ROUTE the agency has paid business on.
+
+      WRITTEN FOR A MODEL THAT NO LONGER EXISTS, and kept because the shape
+      is harmless and the history is worth reading. It was built on Matt's
+      ruling of 2026-08-17, that an agency exists once and is never
+      duplicated per supplier, so one party could hold two counters. On
+      2026-10-01 he replaced that with separate estates: an agency record
+      belongs to exactly one partner, so there is exactly one route and
+      exactly one counter. The array holds one entry now. */
   volumes: { routeId: string; route: string; count: number }[];
   bands: { min: number; max: number | null; weeks: number; unit?: FeeBasisUnit; rate: number | null }[];
   tiers: { from: number; to: number | null; rate: number }[];

@@ -22,7 +22,7 @@
    the control and the column cannot disagree about what an origin is.
    ===================================================================== */
 import { channelOf, houseRouteLabel, isHousePartner, ROUTE_LABEL } from './channel';
-import { getPartner, partnerName } from './partnersService';
+import { getPartner, getPartners, partnerName } from './partnersService';
 import { findAgency, getAgencies, getGroup } from './orgService';
 import { ALL_PARTNERS, type PartnerScope } from './types';
 
@@ -106,9 +106,17 @@ export const ORIGIN_ALL = '';
  *   'direct'           the direct rail
  *   'provider'         provider hand-over
  *   'partner:<slug>'   one supplier, by slug
- *   'agency:<name>'    one agency, BY NAME across partners -- Matt's ruling of
- *                      2026-08-17, that an agency exists once and is never
- *                      duplicated per supplier, is already encoded here
+ *   'agency:<estate>:<name>'
+ *                      one agency, IN ONE ESTATE. Matt, 2026-10-01: "The same
+ *                      real company can exist in both estates (Frost as
+ *                      Opndoor's client and Frost under Rightmove). They are
+ *                      two separate records that never link, share nothing,
+ *                      and never show each other's data." The estate is the
+ *                      agency's partner slug, which is what separates the two
+ *                      Frosts; the older `agency:<name>` form still matches by
+ *                      name alone, because selections live in URLs people have
+ *                      already saved and a link that silently selects nothing
+ *                      is worse than one that selects a little too much.
  *   'group:<id>'       one group of agencies
  */
 export type OriginScope = string;
@@ -131,7 +139,30 @@ export function originValue(row: OriginRow): string {
   if (o.kind === 'direct') return 'direct';
   if (o.kind === 'provider') return 'provider';
   if (o.kind === 'supplier') return `partner:${row.partner}`;
-  return `agency:${o.name}`;
+  return `agency:${row.partner || ''}:${o.name}`;
+}
+
+/** An `agency:` selection, split into the estate it names and the agency.
+    The estate is empty for the older two-part form. */
+export function agencySelection(sel: string): { estate: string; name: string } | null {
+  if (!sel.startsWith('agency:')) return null;
+  const rest = sel.slice('agency:'.length);
+  const cut = rest.indexOf(':');
+  /* THE FIRST SEGMENT IS AN ESTATE ONLY IF IT IS A PARTNER. An agency called
+     "Smith: Lettings" would otherwise lose half its name, and the older
+     selections have no estate at all. */
+  if (cut > 0) {
+    const maybe = rest.slice(0, cut);
+    /* A HOUSE SLUG COUNTS, and is the common case: `opndoor-agents` carries
+       every agency Opndoor onboards and is plumbing, so it has no partner
+       record of its own to find. Reading it off the directory alone would
+       make the whole Opndoor estate unparseable and fold the slug into the
+       agency's name. */
+    if (isHousePartner(maybe) || getPartner(maybe) || getPartners().some((p) => p.id === maybe)) {
+      return { estate: maybe, name: rest.slice(cut + 1) };
+    }
+  }
+  return { estate: '', name: rest };
 }
 
 /**
@@ -153,7 +184,12 @@ export function originMatches(row: OriginRow, sel: OriginScope): boolean {
   if (sel === 'direct') return o.kind === 'direct';
   if (sel === 'provider') return o.kind === 'provider';
   if (sel.startsWith('partner:')) return (row.partner || '') === sel.slice('partner:'.length);
-  if (sel.startsWith('agency:')) return o.kind === 'agency' && o.name === sel.slice('agency:'.length);
+  if (sel.startsWith('agency:')) {
+    const a = agencySelection(sel)!;
+    if (o.kind !== 'agency' || o.name !== a.name) return false;
+    // No estate in the selection: the older form, which matches by name.
+    return !a.estate || (row.partner || '') === a.estate;
+  }
   if (sel.startsWith('group:')) {
     const id = sel.slice('group:'.length);
     return o.kind === 'agency'
@@ -344,7 +380,7 @@ export function originLabelFor(value: string): string {
   if (value === 'direct') return 'Direct';
   if (value === 'provider') return ROUTE_LABEL['Provider hand-over'];
   if (value.startsWith('partner:')) return partnerName(value.slice('partner:'.length));
-  if (value.startsWith('agency:')) return value.slice('agency:'.length);
+  if (value.startsWith('agency:')) return agencySelection(value)!.name;
   /* A GROUP RESOLVES TO ITS AGENCIES, and a group holding none resolves to an
      empty list, which the filter reads as "no agency matches" rather than "no
      agency filter". The difference is the whole book under one brand's name. */
@@ -383,7 +419,7 @@ export function originToFilter(value: string, scope: PartnerScope): {
      Agencies & branches sets ?agency=/?branch=, whose banner is still on screen
      with its own Clear; if the origin selector wrote the same field, one of the
      two controls would silently win. */
-  if (value.startsWith('agency:')) return { agencies: [value.slice('agency:'.length)] };
+  if (value.startsWith('agency:')) return { agencies: [agencySelection(value)!.name] };
   if (value.startsWith('group:')) {
     const id = value.slice('group:'.length);
     return { agencies: getAgencies(scope).filter((a) => a.groupId === id && !a.isPlaceholder).map((a) => a.name) };

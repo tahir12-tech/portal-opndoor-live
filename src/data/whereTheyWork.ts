@@ -64,6 +64,12 @@ export function whereTheyWork({ reader, agencies, branches }: WhereTheyWork): st
      has, and that is a different subject. A reader value would have made
      the two questions one, and neither would be answerable afterwards. */
   const ag = clean(agencies);
+  /* NO ESTATE TO PASS, and none needed. `showsOffices` takes one since
+     2026-10-01 so two same-named agencies in two estates can answer
+     differently, and this caller holds names alone. It is the line under a
+     PERSON's name, and only Opndoor's own estate has people: a supplier's
+     agencies never have logins, so there is nobody here whose agency could
+     be the other Frost. */
   const offices = ag.length === 1 && !showsOffices(ag[0]) ? [] : br;
   return [...ag, ...offices].join(', ');
 }

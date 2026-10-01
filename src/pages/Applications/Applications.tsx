@@ -659,12 +659,12 @@ export function Applications() {
                             the office on one row and the agency on the other.
                             `officeLabel` answers exactly that and never
                             returns an empty string. */}
-                        {showBranch ? officeLabel(r.agency, r.branch) : r.agency}
+                        {showBranch ? officeLabel(r.agency, r.branch, r.partner) : r.agency}
                         {/* Not when the Origin column has just said it, and not
                             when the line above has already been promoted to the
                             agency's own name for a single-office agency -- that
                             would print the same words twice. */}
-                        {showBranch && showAgency && showsOffices(r.agency) && r.agency !== o.name && !isPlaceholderOrg(r.agency) && <div className="dt__sub">{r.agency}</div>}
+                        {showBranch && showAgency && showsOffices(r.agency, r.partner) && r.agency !== o.name && !isPlaceholderOrg(r.agency) && <div className="dt__sub">{r.agency}</div>}
                       </td>
                     )}
                     {showReferredBy && (

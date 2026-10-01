@@ -66,22 +66,41 @@ export type AgencyOffices =
 /**
  * Count an agency's REAL offices, by name.
  *
- * By name because that is what the surfaces have: an application row, a
- * statement line and a league row all carry `agency` as a string, and
- * Matt's ruling of 2026-08-17 is that an agency exists once across
- * partners and is identified by its name.
+ * By name AND ESTATE, because the name alone stopped being unique on
+ * 2026-10-01. The surfaces hold `agency` as a string -- an application
+ * row, a statement line, a league row -- and under Matt's earlier ruling
+ * of 2026-08-17 that was the whole identity. It is not any more: see the
+ * estate parameter below.
  *
- * Read across ALL_PARTNERS rather than the reader's scope, for the same
- * reason: the agency is one party whichever route the row came down, and
- * scoping the count would make the same agency answer differently on two
+ * Read across ALL_PARTNERS rather than the reader's scope. The estate
+ * narrows it to one record; the scope would narrow it to what the reader
+ * may SEE, which would make the same agency answer differently on two
  * screens. Isolation is not this function's job and it exposes nothing --
  * it returns a count, and only for an agency already named on a row the
  * reader was allowed to see.
  */
-export function agencyOffices(agencyName: string | null | undefined): AgencyOffices {
+export function agencyOffices(
+  agencyName: string | null | undefined,
+  /* WHICH ESTATE'S AGENCY. Matt, 2026-10-01: "The same real company can
+     exist in both estates (Frost as Opndoor's client and Frost under
+     Rightmove). They are two separate records that never link, share
+     nothing, and never show each other's data."
+
+     This looked an agency up by name across every partner, on the older
+     ruling that an agency exists once. With two Frosts it would answer
+     with whichever row came back first, so a Rightmove-estate Frost with
+     three offices could decide whether OUR Frost shows a branch column.
+
+     Optional, because several callers hold a name and nothing else -- a
+     statement line, an export row -- and for them the old behaviour is
+     still the best available answer. Every caller that knows the estate
+     passes it. */
+  estate?: string | null,
+): AgencyOffices {
   const name = (agencyName ?? '').trim();
   if (!name) return { known: false };
-  const agency = getAgencies(ALL_PARTNERS).find((a) => a.name === name);
+  const all = getAgencies(ALL_PARTNERS).filter((a) => a.name === name);
+  const agency = (estate ? all.find((a) => a.partner === estate) : undefined) ?? all[0];
   if (!agency) return { known: false };
   const real = (agency.branches ?? []).filter((b) => !b.isPlaceholder);
   return {
@@ -154,8 +173,10 @@ export function orgLabel(name: string | null | undefined): string {
  * for an agency we do not know. False only where we KNOW there is exactly
  * one, which is the one case Matt's rule is about.
  */
-export function showsOffices(agencyName: string | null | undefined): boolean {
-  const r = agencyOffices(agencyName);
+export function showsOffices(
+  agencyName: string | null | undefined, estate?: string | null,
+): boolean {
+  const r = agencyOffices(agencyName, estate);
   return !r.known || !r.singleOffice;
 }
 
@@ -170,6 +191,7 @@ export function showsOffices(agencyName: string | null | undefined): boolean {
 export function officeLabel(
   agencyName: string | null | undefined,
   branchName: string | null | undefined,
+  estate?: string | null,
 ): string {
   /* THE PLACEHOLDER IS NOT A NAME. A direct signup has an "Unattached"
      agency AND an "Unattached" branch, so both halves below resolved to it
@@ -179,6 +201,6 @@ export function officeLabel(
      answer rather than rediscover the question. */
   const branch = isPlaceholderOrg(branchName) ? '' : (branchName ?? '').trim();
   const agency = isPlaceholderOrg(agencyName) ? '' : (agencyName ?? '').trim();
-  if (!showsOffices(agencyName)) return agency || branch || '-';
+  if (!showsOffices(agencyName, estate)) return agency || branch || '-';
   return branch || agency || '-';
 }

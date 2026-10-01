@@ -475,7 +475,7 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
      and collapsing the key would merge them. Only what the reader SEES
      changes, which is the whole of Matt's rule. */
   if (key === 'branch') {
-    const names = showsOffices(app.agency);
+    const names = showsOffices(app.agency, app.partner);
     return {
       id: `${app.partner}${S}${app.agency}${S}${app.branch}`,
       name: names ? (app.branch || '(unknown branch)') : (app.agency || '(unknown agency)'),
@@ -695,8 +695,10 @@ export interface CustomerRow {
    *  who may not see commission, never absent: the column is a number. */
   payable: number;
   /** THE AGENCY'S OWN ID, SO THE ROW CAN BE OPENED.
-   *  `key` is `agency:<name>` because Matt's ruling of 2026-08-17 is that
-   *  an agency exists once across partners and is identified by name. The
+   *  `key` is `agency:<estate>:<name>`, which is one row per agency RECORD
+   *  rather than per name: Matt's ruling of 2026-08-17 was that an agency
+   *  exists once across partners, and on 2026-10-01 he replaced it with
+   *  two estates that never link, so a Frost in each is two customers. The
    *  ROUTE is a different question: /agencies/:key resolves against
    *  `id ?? name`, so a link built from the name alone lands nowhere for
    *  any agency that has an id -- which on dev is all of them and in the

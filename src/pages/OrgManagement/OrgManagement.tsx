@@ -637,6 +637,7 @@ import { usePageMeta } from '@/components/layout/pageMeta';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { agencyContactState, branchesWithNoDeedContact } from '@/data/deedContact';
+import { partyIsSupplier } from '@/data/capabilities';
 import { Icon } from '@/components/ui/Icon';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { Field } from '@/components/ui/Field';
@@ -935,7 +936,28 @@ export function OrgManagement() {
      memoised on the things that can actually change the org tree: the scope, a
      re-hydration (dataVersion) and a local mutation (version). Without this the
      whole pool is rescanned on every keystroke in the search box. */
-  const pool = useMemo(() => getAgencies(listScope), [listScope, version, dataVersion]);
+  /* ADMIN'S AGENCIES TAB IS OPNDOOR'S OWN ESTATE. Matt, 2026-10-01:
+     "Opndoor's estate: agencies that are Opndoor's own clients (like
+     Regent). They have logins, users, branches, their own deals, and
+     Opndoor pays them. Admin's Agencies tab lists only these. ... Each
+     supplier's estate: the agencies and branches that come through that
+     supplier ... On admin's view, they appear in an 'Agencies' tab on
+     that supplier's page, not in admin's main Agencies tab."
+
+     An admin read ALL_PARTNERS here, so every supplier's agencies were
+     listed beside our own clients with nothing to tell them apart --
+     which is the list Matt is splitting. A supplier's own staff are
+     scoped to their partner and so are unaffected: they go on seeing
+     their own estate here, which is the sentence after the one above.
+
+     The ESTATE, not the referencing mode: `partyIsAgency` asks how a
+     party is referenced, and an agency of ours that references its own
+     tenants is still ours. The partner IS the estate. */
+  const pool = useMemo(() => {
+    const all = getAgencies(listScope);
+    if (role !== 'superadmin' && role !== 'opndoor_manager') return all;
+    return all.filter((a) => !partyIsSupplier(a.partner));
+  }, [listScope, role, version, dataVersion]);
 
   const partnerPoolForBranch = pool;
 
@@ -1332,7 +1354,7 @@ function requestCloseContacts() {
 
        Zero offices still prints "0 branches", deliberately: an agency with
        no office is a real state this screen exists to surface. */
-    const namesOffices = showsOffices(a.name);
+    const namesOffices = showsOffices(a.name, a.partner);
     const meta = namesOffices
       ? `${a.branches.length} ${plural(a.branches.length, 'branch')}`
       : '';

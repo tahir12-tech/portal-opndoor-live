@@ -260,7 +260,7 @@ export function PartnerHome() {
      detail page mirrors the agency page ... Regent's agency page is the
      template." The page was four flat cards in document order, so a reader
      scrolled past the commission rates to reach the people. */
-  type Tab = 'overview' | 'people' | 'settings' | 'reporting' | 'commission' | 'referrals' | 'integration';
+  type Tab = 'overview' | 'agencies' | 'people' | 'settings' | 'reporting' | 'commission' | 'referrals' | 'integration';
   const [tab, setTab] = useState<Tab>('overview');
   /* THE KEY COUNT MOVED WITH THE SWITCH. ApiAccessSwitch reads it
      itself, and re-reads it at the moment the switch is flipped rather
@@ -336,7 +336,19 @@ export function PartnerHome() {
         value={tab}
         onChange={setTab}
         tabs={[
-          ['overview', 'Overview'], ['people', 'People'],
+          ['overview', 'Overview'],
+          /* THIS SUPPLIER'S ESTATE, ON THIS SUPPLIER'S PAGE. Matt,
+             2026-10-01: "Each supplier's estate ... On admin's view, they
+             appear in an 'Agencies' tab on that supplier's page, not in
+             admin's main Agencies tab."
+
+             The tree was a card on Overview, under the heading
+             "Structure", which is a word about shape rather than about
+             who these companies are. It is the same tree; it has a tab of
+             its own now, and admin's main Agencies tab has stopped
+             listing them. */
+          ['agencies', 'Agencies'],
+          ['people', 'People'],
           /* SETTINGS, on the supplier's own page. Matt, 2026-10-01: "its
              settings (name, live from, status, referencing mode,
              capabilities) move into a Settings tab, with the same fields
@@ -527,12 +539,11 @@ export function PartnerHome() {
       </div>
       )}
 
-      {tab === 'overview' && (<>
-      {/* STRUCTURE — agencies + branches tree */}
+      {tab === 'agencies' && (
       <Card>
         <CardHead
-          title="Structure"
-          sub={`${agencies.length} ${plural(agencies.length, 'agency')} · ${branchCount} ${plural(branchCount, 'branch')}`}
+          title={`${partner.name}'s agencies`}
+          sub={`${agencies.length} ${plural(agencies.length, 'agency')} · ${branchCount} ${plural(branchCount, 'branch')}. These come through ${partner.name} and are theirs: they have no logins, and they are not on Opndoor's own Agencies list.`}
         />
         <CardBody style={{ padding: agencies.length === 0 ? undefined : 0 }}>
           {agencies.length === 0 ? (
@@ -576,8 +587,7 @@ export function PartnerHome() {
           )}
         </CardBody>
       </Card>
-
-      </>)}
+      )}
 
       {/* REFERRALS. There was no referrals tab at all: the only way to a
           supplier's own book was the header button that navigates away to

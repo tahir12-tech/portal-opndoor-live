@@ -116,11 +116,17 @@ describe('the supplier detail page', () => {
      (name, live from, status, referencing mode, capabilities) move into
      a Settings tab, with the same fields as Manage." Settings sits after
      People because it is what the supplier IS, and People is who is on
-     it. */
-  it('has the seven tabs, in order', async () => {
+     it.
+
+     EIGHT LATER THE SAME DAY, with the separate estates: "Each supplier's
+     estate ... appear in an 'Agencies' tab on that supplier's page, not
+     in admin's main Agencies tab." The agencies tree was a card on
+     Overview headed "Structure"; it is the same tree with a tab of its
+     own, and admin's Agencies list has stopped carrying them. */
+  it('has the eight tabs, in order', async () => {
     const v = await open();
     expect(tabNames(v)).toEqual([
-      'Overview', 'People', 'Settings', 'Reporting', 'Commission', 'Referrals', 'Integration',
+      'Overview', 'Agencies', 'People', 'Settings', 'Reporting', 'Commission', 'Referrals', 'Integration',
     ]);
   });
 
@@ -132,15 +138,19 @@ describe('the supplier detail page', () => {
   });
 });
 
-describe('the Overview tab', () => {
+/* THE TREE MOVED TO ITS OWN TAB on 2026-10-01, so these open it first.
+   Every claim is unchanged: they are about what the tree says. */
+describe('the Agencies tab', () => {
   it('says who an executed deed would actually reach', async () => {
     const v = await open();
+    await openTab(v, 'Agencies');
     expect(v.container.textContent).toMatch(/ada@zzz\.test/);
   });
 
   /* THE HALF THAT MATTERS. */
   it('and says so plainly where there is nobody, which it did not before', async () => {
     const v = await open();
+    await openTab(v, 'Agencies');
     expect(v.container.textContent).toMatch(/No agent contact/);
   });
 
@@ -166,11 +176,13 @@ describe('the Overview tab', () => {
 
   it('so an agency whose branches all have contacts is not warned about', async () => {
     const v = await open();
+    await openTab(v, 'Agencies');
     expect(rowText(v, 'ZZZ Per Branch')).not.toMatch(/No agent contact/);
   });
 
   it('and says instead where its contacts actually are', async () => {
     const v = await open();
+    await openTab(v, 'Agencies');
     expect(rowText(v, 'ZZZ Per Branch')).toMatch(/Contacts are set per branch/);
   });
 
@@ -179,6 +191,7 @@ describe('the Overview tab', () => {
      counts them so the reader knows how much work it is. */
   it('while one with a bare branch is still warned about, and counted', async () => {
     const v = await open();
+    await openTab(v, 'Agencies');
     expect(rowText(v, 'ZZZ Partly Covered')).toMatch(/No agent contact on 1 of 2 branches/);
   });
 
@@ -186,6 +199,7 @@ describe('the Overview tab', () => {
      warning was always right and is what makes the agency row redundant. */
   it('and the bare branch itself still says so', async () => {
     const v = await open();
+    await openTab(v, 'Agencies');
     const branches = agencyRow(v, 'ZZZ Partly Covered').querySelector('.ph-tree__branches')!;
     const west = [...branches.querySelectorAll('.ph-tree__branch')]
       .find((d) => (d.textContent ?? '').includes('ZZZ West'))!;
@@ -288,6 +302,7 @@ describe('the words on a supplier’s own page', () => {
    own warning was rewritten around this afternoon, and therefore the one
    most likely to lose a branch's line by accident.
    =========================================================================== */
+/* The tree is on its own tab since 2026-10-01; the claims are unchanged. */
 describe('a branch with its own contact', () => {
   const branchRow = (v: { container: HTMLElement }, name: string) =>
     [...v.container.querySelectorAll('.ph-tree__branch')]
@@ -295,6 +310,7 @@ describe('a branch with its own contact', () => {
 
   it('shows that contact on the branch, not just on the agency', async () => {
     const v = await open();
+    await openTab(v, 'Agencies');
     expect(branchRow(v, 'ZZZ North').textContent).toContain('north@zzz.test');
     expect(branchRow(v, 'ZZZ South').textContent).toContain('south@zzz.test');
   });
@@ -304,6 +320,7 @@ describe('a branch with its own contact', () => {
      an empty row is the version nobody notices. */
   it('and every branch row says one or the other, never nothing', async () => {
     const v = await open();
+    await openTab(v, 'Agencies');
     for (const row of v.container.querySelectorAll('.ph-tree__branch')) {
       const contact = row.querySelector('.ph-contact');
       expect(contact, `no contact line at all on: ${row.textContent}`).toBeTruthy();
@@ -315,6 +332,7 @@ describe('a branch with its own contact', () => {
      is the branch's own row, not a count on the agency above it. */
   it('while a branch that genuinely has none is warned about there', async () => {
     const v = await open();
+    await openTab(v, 'Agencies');
     expect(branchRow(v, 'ZZZ West').textContent).toMatch(/No agent contact/);
   });
 
@@ -322,6 +340,7 @@ describe('a branch with its own contact', () => {
      the deed has somewhere to go. The line says where it came from. */
   it('and one that inherits the agency’s shows it, marked as inherited', async () => {
     const v = await open();
+    await openTab(v, 'Agencies');
     const row = branchRow(v, 'ZZZ Office');
     expect(row.textContent).toContain('ada@zzz.test');
     expect(row.textContent).not.toMatch(/No agent contact/);

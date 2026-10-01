@@ -388,7 +388,7 @@ export function ApplicationDetail() {
        AGENCY: Regent Property has one office, so there is no branch to
        name, and that is true whoever is looking, including an admin who
        was shown a Branch row repeating the agency's own name. */
-    const offices = showsOffices(d.agency);
+    const offices = showsOffices(d.agency, d.partner);
     if (!agencyViewer) {
       return { show: true, agency: true, branch: offices, address: true, deedRowMoves: false };
     }
@@ -397,7 +397,7 @@ export function ApplicationDetail() {
     const address = agency || branch;
     const anything = agency || branch || (maySeeRoute && !!d.partnerName);
     return { show: anything, agency, branch, address, deedRowMoves: true };
-  }, [agencyViewer, referrerShape, maySeeRoute, d.partnerName, d.agency]);
+  }, [agencyViewer, referrerShape, maySeeRoute, d.partnerName, d.agency, d.partner]);
   const [notes, setNotes] = useState<AppNote[]>([]);
   const [noteBody, setNoteBody] = useState('');
   const [noteBusy, setNoteBusy] = useState(false);
@@ -1589,7 +1589,7 @@ export function ApplicationDetail() {
                   no longer mentions. Asked of THIS RECORD's agency, not of
                   the reader's book: the reader may hold several agencies of
                   both shapes at once. */}
-              <span>·</span><span>{officeLabel(d.agency, d.branch)}</span>
+              <span>·</span><span>{officeLabel(d.agency, d.branch, d.partner)}</span>
               {/* The supplier's own name, when there is one; hidden for house routes,
                   where partnerName is already the route label the badge shows. */}
               {maySeeRoute && d.partnerName && (!d.channel || d.partnerName !== ROUTE_LABEL[d.channel]) && <><span>·</span><span>{d.partnerName}</span></>}

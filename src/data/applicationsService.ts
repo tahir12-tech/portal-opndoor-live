@@ -525,7 +525,7 @@ function notFoundDetail(ref: string): ApplicationDetail {
   return {
     ref, status: 'sent', statusLabel: '', withdrawnReason: null, name: '', initials: '', title: '', role: '', fullName: '',
     dob: '', email: '', phone: '', addr1: '', addr2: '', city: '', county: '', postcode: '',
-    agency: '', branch: '', partnerName: '', agentAddr: '', rent: '', rentNum: 0, referrer: '', referrerRole: null,
+    agency: '', branch: '', partner: '', partnerName: '', agentAddr: '', rent: '', rentNum: 0, referrer: '', referrerRole: null,
     tenancyStart: '', tenancyStartDate: now, sentAt: now, paidAt: null, deedAt: null,
     sentStr: '', paidStr: null, deedStr: null, issue: null, expiry: null, annual: '',
     paymentDate: null, owner: 0, notFound: true,
@@ -672,6 +672,7 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
     postcode: r.postcode,
     agency: r.agency,
     branch: r.branch,
+    partner: summarySlug,
     partnerName: partnerName(summarySlug),
     agentAddr: AGENT_ADDR[r.branch] || `${r.branch}, London`,
     rent: `£${r.rent.toLocaleString('en-GB')}`,

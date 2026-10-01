@@ -591,6 +591,12 @@ export interface ApplicationDetail {
   postcode: string;
   agency: string;
   branch: string;
+  /** The ESTATE this record's agency belongs to: the owning partner's slug.
+      Carried beside the display name because the two answer different
+      questions -- `partnerName` is what the Route row prints, and this is
+      which of two same-named agencies the record's `agency` is. Since
+      2026-10-01 a name alone cannot tell Opndoor's Frost from Rightmove's. */
+  partner: string;
   /** Owning partner display name (shown to admin + management, #83). */
   partnerName: string;
   agentAddr: string;
