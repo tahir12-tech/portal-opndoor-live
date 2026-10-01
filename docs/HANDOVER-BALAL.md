@@ -145,6 +145,36 @@ browser steps are listed at the end of that document.
 been wrong before, and it is the step where being wrong costs a customer
 their deed.
 
+### Before go-live: check who the emails come FROM
+
+Matt, 2026-10-01: "on live, emails must send from a verified opndoor.co
+address, not onboarding@resend.dev, checked before go-live."
+
+This is a configuration check, not a code one. The code already defaults
+to the right thing: `supabase/functions/_shared/mailer.ts` reads
+`EMAIL_FROM` and falls back to `opndoor <noreply@opndoor.co>`. The risk
+is the live project having `EMAIL_FROM` unset or still pointed at
+Resend's shared sandbox sender, which is what you get before a domain is
+verified.
+
+**What to check, on the live project, before the first real send:**
+
+1. The domain `opndoor.co` is VERIFIED in Resend, with its DKIM and SPF
+   records live. An unverified domain is why `onboarding@resend.dev`
+   exists, and Resend will refuse or rewrite a from-address on a domain
+   it cannot verify.
+2. `EMAIL_FROM` is set to an address on that domain, and is NOT
+   `onboarding@resend.dev`.
+3. `EMAIL_REPLY_TO` is `support@opndoor.co`, or unset, which now falls
+   back to the same thing. The footer of every email prints that address
+   and the Reply button must reach it.
+4. `EMAIL_REVIEW_ADDRESS` is **unset** on live. It redirects every email
+   to one inbox, which is right on dev and would mean no customer ever
+   receives anything on production.
+
+Point 4 is the one that is silent: everything succeeds, the logs say
+sent, and the mail is all in one mailbox.
+
 ---
 
 ## 1. FIRST: rehearse on a clone. Do not skip this.

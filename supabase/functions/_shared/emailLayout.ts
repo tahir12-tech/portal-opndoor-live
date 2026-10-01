@@ -228,7 +228,7 @@ export function renderHtml(m: Message, r?: Recipients): string {
           opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
           or named on, the tenancy agreement.</p>
         <p style="margin:0;font:400 12px/1.6 ${FONT};color:${INK_MUTE};">
-          Sent by opndoor. Questions? Reply to this email.</p>
+          Sent by opndoor. Questions? Email <a href="mailto:support@opndoor.co" style="color:${HELIOTROPE_DEEP};">support@opndoor.co</a></p>
       </td></tr>
 
     </table>
@@ -266,6 +266,6 @@ export function renderText(m: Message, r?: Recipients): string {
   if (m.action) out.push("", `${m.action.label}: ${m.action.href}`, "");
   out.push("", "opndoor is a professional guarantor service, not insurance.",
     "opndoor is not a party to, or named on, the tenancy agreement.",
-    "Sent by opndoor. Questions? Reply to this email.");
+    "Sent by opndoor. Questions? Email support@opndoor.co");
   return out.join("\n").replace(/\n{3,}/g, "\n\n");
 }

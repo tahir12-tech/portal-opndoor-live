@@ -17,7 +17,17 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 // One default, not fourteen. Nine modules said noreply and six said payments,
 // so an unset EMAIL_FROM sent from two addresses depending on the email.
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <noreply@opndoor.co>";
-const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
+/* REPLY GOES WHERE THE FOOTER SAYS. Matt, 2026-10-01: "Set the
+   Reply-To header on every email to support@opndoor.co, so pressing
+   Reply also reaches support."
+
+   The default was hello@opndoor.co, the general contact address, so
+   the footer told a reader one thing and the Reply button did
+   another the moment EMAIL_REPLY_TO was unset -- which it is. The
+   env var still wins, because a live environment may route support
+   somewhere else, but the fallback is now the address the email
+   itself prints. */
+const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "support@opndoor.co";
 
 export interface SendResult {
   ok: boolean;
