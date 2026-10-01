@@ -140,3 +140,12 @@
 .pmcap input { margin-top: 2px; flex-shrink: 0; }
 .pmcap__name { font-weight: 700; font-size: 13.5px; margin-bottom: 2px; }
 .pmcap__desc { font-size: 12.5px; color: var(--ink-mute); line-height: 1.5; }
+
+/* THE WHOLE ROW IS THE WAY IN. Matt, 2026-10-01: "clicking a supplier
+   opens its page." The chevron says so without a button that would be a
+   second control for the one thing the row already does. */
+.prow { cursor: pointer; }
+.prow:hover { background: var(--app-bg); }
+.prow:focus-visible { outline: 2px solid var(--heliotrope-deep); outline-offset: -2px; }
+.prow__go { width: 14px; height: 14px; color: var(--ink-mute); }
+.prow:hover .prow__go { color: var(--ink); }

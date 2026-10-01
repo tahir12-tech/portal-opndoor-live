@@ -12,7 +12,7 @@
    ===================================================================== */
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { addPartner, getPartner, getPartners, getReferrerLeaderboardMode, orgCounts, setReferrerLeaderboardMode, updatePartnerSettings, getPartnerAudit, type LeaderboardMode, type PartnerAuditEntry, type PartnerSettingsInput, type PartnerStatus, partnerActiveKeyCount, REFERENCING_MODES, type ReferencingMode } from '@/data';
+import { addPartner, getPartner, getPartners, orgCounts, updatePartnerSettings, type PartnerSettingsInput, type PartnerStatus, REFERENCING_MODES, type ReferencingMode } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { fmtRatePct } from '@/lib/format';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -33,26 +33,8 @@ const STATUS_PILL: Record<PartnerStatus, [string, PillVariant]> = {
   paused: ['Paused', 'muted'],
 };
 const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
-// One decimal, never rounded, so a 9.5% rate populates the editor as "9.5" (not "10").
-const asPct = (frac: number | undefined, fallback: number) => Number(((frac != null ? frac : fallback) * 100).toFixed(1));
 
-const AUDIT_LABEL: Record<string, string> = {
-  partner_rate: 'Total commission', agent_rate: "Agents' share",
-  status: 'Status', live_from: 'Live from', name: 'Name',
-  referrer_leaderboard: 'Referrer leaderboard',
-};
-const auditField = (f: string) => AUDIT_LABEL[f] ?? f;
 
-const LB_LABEL: Record<LeaderboardMode, string> = {
-  full: 'Full (rankings and fees)',
-  rankings: 'Rankings only (no fees)',
-  private: 'Private (own performance only)',
-};
-// Friendly audit values for the leaderboard field (raw values are full/rankings/private).
-const LB_SHORT: Record<string, string> = { full: 'Full', rankings: 'Rankings only', private: 'Private' };
-const auditValue = (f: string, v: string) => (f === 'referrer_leaderboard' ? (LB_SHORT[v] ?? v) : v);
-const dmy = (d: Date) =>
-  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 
 interface RateChange { label: string; from: string; to: string; }
 
@@ -77,14 +59,10 @@ export function PartnerManagement() {
   // How many keys stop working if API access is turned off. Fetched when the
   // edit opens, so the confirmation can name a number rather than a warning.
   const [activeKeys, setActiveKeys] = useState(0);
-  const [lbMode, setLbMode] = useState<LeaderboardMode>('full'); // #88 referrer leaderboard visibility
-  const [audit, setAudit] = useState<PartnerAuditEntry[]>([]);
-  const [showAllAudit, setShowAllAudit] = useState(false); // #89 cap Recent changes at 5
   const [saving, setSaving] = useState(false);
   // Pending rate change awaiting confirmation (current -> new), or null.
   const [confirm, setConfirm] = useState<{ input: PartnerSettingsInput; changes: RateChange[] } | null>(null);
   // #114 Referrer-leaderboard change awaiting confirmation (Manage partner is the single lever).
-  const [lbConfirm, setLbConfirm] = useState<LeaderboardMode | null>(null);
 
   const partners = getPartners();
 
@@ -102,48 +80,12 @@ export function PartnerManagement() {
     setPortalOn(true);
     setApiOn(false);
     setActiveKeys(0);
-    setAudit([]);
     setConfirm(null);
-    setOpen(true);
-  }
-  function openEdit(id: string) {
-    const p = getPartner(id);
-    if (!p) return;
-    setEditingId(id);
-    setName(p.name);
-    setSince(p.since || '');
-    setStatus(p.status || 'active');
-    setPartnerRate(String(asPct(p.partnerRate, 0.25)));
-    setAgentRate(String(asPct(p.agentRate, 0.1)));
-    setRefMode(p.referencingMode ?? 'pre_referenced_screened');
-    setPortalOn(p.portalReferralsEnabled !== false);
-    setApiOn(p.apiAccessEnabled === true);
-    setActiveKeys(0);
-    void partnerActiveKeyCount(id).then(setActiveKeys).catch(() => setActiveKeys(0));
-    setLbMode(getReferrerLeaderboardMode(id));
-    setConfirm(null);
-    setAudit([]);
-    setShowAllAudit(false);
-    getPartnerAudit(id).then(setAudit).catch(() => setAudit([]));
     setOpen(true);
   }
 
   // #88 The referrer-leaderboard setting saves immediately (not via the rate save,
   // which has a rate-confirmation early-return). Same governed RPC + audit.
-  async function changeLbMode(next: LeaderboardMode) {
-    if (!editingId) return;
-    const prev = lbMode;
-    setLbMode(next);
-    try {
-      await setReferrerLeaderboardMode(editingId, next);
-      await refreshData();
-      getPartnerAudit(editingId).then(setAudit).catch(() => { /* keep prior */ });
-      toast('Referrer leaderboard visibility updated.', 'error');
-    } catch (e) {
-      setLbMode(prev);
-      toast(e instanceof Error ? e.message : 'Could not update the setting.', 'error');
-    }
-  }
 
   const modeLabel = (m: ReferencingMode): string =>
     REFERENCING_MODES.find((x) => x.id === m)?.label ?? m;
@@ -248,7 +190,7 @@ export function PartnerManagement() {
         <div>
           <div className="rec-eyebrow"><span className="opx">opndoor</span> · internal admin</div>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>Suppliers</h1>
-          <p className="page-head__sub">Every supplier on the portal. A supplier sits at the top of the hierarchy, with its own users, agencies, branches and applications beneath it. Click a supplier to open its page; <b>Manage</b> edits its settings.</p>
+          <p className="page-head__sub">Every supplier on the portal. A supplier sits at the top of the hierarchy, with its own users, agencies, branches and applications beneath it. Click a supplier to open its page, where its people, settings, commission and integration are.</p>
         </div>
         <div className="page-head__actions">
           <Button variant="primary" size="sm" onClick={openAdd}><Icon name="plus" /> Add supplier</Button>
@@ -284,7 +226,26 @@ export function PartnerManagement() {
                 const c = orgCounts(p.id);
                 const sp = STATUS_PILL[p.status] || STATUS_PILL.active;
                 return (
-                  <tr key={p.id}>
+                  /* THE ROW OPENS THE SUPPLIER. Matt, 2026-10-01:
+                     "remove the Users and Manage buttons; clicking a
+                     supplier opens its page." Keyboard too: a row that
+                     only responds to a mouse is a link somebody cannot
+                     reach. The name is still its own <Link>, so the
+                     browser's own "open in new tab" keeps working. */
+                  <tr
+                    key={p.id}
+                    className="prow"
+                    tabIndex={0}
+                    role="link"
+                    aria-label={`Open ${p.name}`}
+                    onClick={() => navigate(`/partners/${encodeURIComponent(p.id)}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigate(`/partners/${encodeURIComponent(p.id)}`);
+                      }
+                    }}
+                  >
                     <td>
                       <div className="pco">
                         <span className="pco__logo">{initials(p.name)}</span>
@@ -303,9 +264,14 @@ export function PartnerManagement() {
                     <td style={{ textAlign: 'right' }}><span className="pnum">{c.branches}</span></td>
                     <td style={{ textAlign: 'right' }}><span className="pnum">{p.apps.toLocaleString('en-GB')}</span></td>
                     <td><Pill variant={sp[1]}>{sp[0]}</Pill></td>
+                    {/* NO BUTTONS. Users went to a filtered list of
+                        every user in the estate; it is the supplier's
+                        own People tab now. Manage opened a modal of the
+                        settings that are on the supplier's Settings tab.
+                        Both were a second way to somewhere the row
+                        already goes. */}
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <Button variant="ghost" size="sm" onClick={() => navigate(`/users?partner=${encodeURIComponent(p.id)}`)}>Users</Button>{' '}
-                      <Button variant="primary" size="sm" onClick={() => openEdit(p.id)}>Manage</Button>
+                      <Icon name="chevronRight" className="prow__go" />
                     </td>
                   </tr>
                 );
@@ -318,9 +284,13 @@ export function PartnerManagement() {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title={editingId ? `Manage ${getPartner(editingId)?.name ?? ''}` : 'Add partner'}
-        sub={editingId ? "Adjust this supplier’s details. Commission is set on its Commission tab." : 'Onboard a new supplier. Users, agencies and branches can be added under it afterwards.'}
-        footer={<><Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button variant="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create supplier'}</Button></>}
+        /* CREATE ONLY. Matt, 2026-10-01: "Keep 'Add supplier' working
+           with its own create form." Everything this modal used to EDIT
+           is on the supplier's own Settings tab now, so the edit half is
+           gone rather than kept as a second way to the same fields. */
+        title="Add supplier"
+        sub="Onboard a new supplier. Its people, agencies and branches are added on its own page afterwards."
+        footer={<><Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button variant="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Create supplier'}</Button></>}
       >
         <Field label="Supplier company name" htmlFor="pm-name"><input id="pm-name" type="text" placeholder="e.g. Acme Property Group" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Live from" htmlFor="pm-since" hint="Optional"><input id="pm-since" type="month" value={since} onChange={(e) => setSince(e.target.value)} /></Field>
@@ -397,56 +367,12 @@ export function PartnerManagement() {
             volume tiers inside that, which is more than two boxes can
             say, and two screens editing one number is how they come to
             disagree. */}
-        {editingId && (
-          <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 16 }}>
-            <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Commission</div>
-            <div style={{ fontSize: 12.5, color: 'var(--ink-mute)' }}>
-              Set on this supplier's <Link to={`/partners/${editingId}`}>Commission tab</Link>: the total rate, the agents'
-              share within it, and whether Opndoor pays the agents directly.
-            </div>
-          </div>
-        )}
+        
 
         {/* #88 Referrer leaderboard visibility (per-partner policy, saves immediately). */}
-        {editingId && (
-          <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 16 }}>
-            <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Referrer leaderboard</div>
-            <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginBottom: 12 }}>
-              What referrers at this supplier see on the League Referrers tab. Commission is never shown to referrers.
-            </div>
-            <Field label="Visibility" htmlFor="pm-lb-mode">
-              <select id="pm-lb-mode" value={lbMode} onChange={(e) => setLbConfirm(e.target.value as LeaderboardMode)}>
-                {(Object.keys(LB_LABEL) as LeaderboardMode[]).map((m) => <option key={m} value={m}>{LB_LABEL[m]}</option>)}
-              </select>
-            </Field>
-          </div>
-        )}
+        
 
-        {editingId && (
-          <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 16 }}>
-            <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Recent changes</div>
-            {audit.length > 0 ? (
-              <>
-                <ul className="pm-audit">
-                  {(showAllAudit ? audit : audit.slice(0, 5)).map((e, i) => (
-                    <li key={i} className="pm-audit__row">
-                      <span className="pm-audit__field">{auditField(e.field)}</span>
-                      <span className="pm-audit__delta">{auditValue(e.field, e.oldValue)} → <b>{auditValue(e.field, e.newValue)}</b></span>
-                      <span className="pm-audit__meta">{e.actor} · {dmy(e.at)}</span>
-                    </li>
-                  ))}
-                </ul>
-                {audit.length > 5 && (
-                  <button type="button" className="pm-audit__more" onClick={() => setShowAllAudit((v) => !v)}>
-                    {showAllAudit ? 'Show fewer' : `View all changes (${audit.length})`}
-                  </button>
-                )}
-              </>
-            ) : (
-              <p style={{ fontSize: 13, color: 'var(--ink-mute)', margin: 0 }}>No changes recorded yet. Edits to this partner's name, status, go-live date or commission rates will appear here.</p>
-            )}
-          </div>
-        )}
+        
       </Modal>
 
       <Modal
@@ -468,22 +394,6 @@ export function PartnerManagement() {
         <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginTop: 4 }}>This change is recorded in the partner's audit trail.</p>
       </Modal>
 
-      <Modal
-        open={lbConfirm !== null}
-        onClose={() => setLbConfirm(null)}
-        width={460}
-        title="Change referrer leaderboard visibility?"
-        sub={`This changes what all referrers at ${name || 'this partner'} see on their leaderboard. Commission is never shown to referrers.`}
-        footer={<><Button variant="ghost" onClick={() => setLbConfirm(null)}>Back</Button><Button variant="primary" onClick={() => { const n = lbConfirm; setLbConfirm(null); if (n) void changeLbMode(n); }}>Change visibility</Button></>}
-      >
-        <ul className="pm-confirm">
-          <li className="pm-confirm__row">
-            <span className="pm-confirm__label">Visibility</span>
-            <span className="pm-confirm__delta"><span className="pm-confirm__from">{LB_LABEL[lbMode]}</span> → <b className="pm-confirm__to">{lbConfirm ? LB_LABEL[lbConfirm] : ''}</b></span>
-          </li>
-        </ul>
-        <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginTop: 4 }}>This change is recorded in the partner's audit trail.</p>
-      </Modal>
     </>
   );
 }

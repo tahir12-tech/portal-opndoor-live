@@ -94,9 +94,16 @@ describe('the supplier detail page', () => {
      `toContain`, because the ORDER is part of what it protects -- Reporting
      sits with the other read-only views and before Commission, which is
      the money. */
-  it('has the six tabs, in order', async () => {
+  /* SEVEN SINCE 2026-10-01. Matt: "On the supplier's page, its settings
+     (name, live from, status, referencing mode, capabilities) move into
+     a Settings tab, with the same fields as Manage." Settings sits after
+     People because it is what the supplier IS, and People is who is on
+     it. */
+  it('has the seven tabs, in order', async () => {
     const v = await open();
-    expect(tabNames(v)).toEqual(['Overview', 'People', 'Reporting', 'Commission', 'Referrals', 'Integration']);
+    expect(tabNames(v)).toEqual([
+      'Overview', 'People', 'Settings', 'Reporting', 'Commission', 'Referrals', 'Integration',
+    ]);
   });
 
   it('opens on Overview, and does not show the commission rates until asked', async () => {

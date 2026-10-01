@@ -17,17 +17,19 @@
    admin is entitled to: the API-access capability and the active-key COUNT
    (partner_active_key_count), never the keys themselves.
    ===================================================================== */
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ALL_PARTNERS, getPartner, getPeriods, getRatesFor, getAgencies, getUsers, maySeeCommission,
   statementMonths,
-  partnerActiveKeyCount, REFERENCING_MODES, type Agency, type ManagedUser, type ReferencingMode,
+  REFERENCING_MODES, type Agency, type ManagedUser, type ReferencingMode,
 } from '@/data';
 // Walk fix 15: this customer's report, on this customer's page.
 import { liveByCustomer } from '@/data/liveAnalytics';
 import { CustomerReport } from '@/components/CustomerReport';
 import { SupplierStatements } from '@/components/SupplierStatements';
+import { SupplierSettings } from './SupplierSettings';
+import { ApiAccessSwitch } from './ApiAccessSwitch';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { getApplications } from '@/data/applicationsService';
@@ -83,6 +85,23 @@ const ROLE_LABEL: Record<string, string> = {
   superadmin: 'opndoor admin', opndoor_manager: 'opndoor management',
   management: 'Management', referrer: 'Referrer', developer: 'Developer',
 };
+/* WHAT A SUPPLIER'S PERSON SEES. Matt, 2026-10-01: "On supplier people
+   lists, show supplier levels (Management, Referrer), and Management
+   sees 'Everything' not 'Own referrals'."
+
+   WHY IT IS NOT describePosition(). That function answers the AGENCY
+   rail's question, by reading the group / agency / branch ladder, and a
+   supplier's staff hold no position on that ladder at all -- there is no
+   group above them and no branch below. It therefore fell through to its
+   last line and told a supplier's Management user they could see "Own
+   referrals", which is the opposite of true: on the supplier rail the
+   partner IS the company boundary, and their Management sees the whole
+   of it.
+
+   Two roles, because that is all a supplier has. */
+const supplierSees = (role: string): string =>
+  (role === 'management' ? 'Everything' : role === 'referrer' ? 'Own referrals' : '-');
+
 const USER_STATUS_PILL: Record<string, PillVariant> = { active: 'deed', pending: 'warn', deactivated: 'muted' };
 const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 const modeLabel = (m: ReferencingMode | undefined) => REFERENCING_MODES.find((x) => x.id === m)?.label ?? 'Screened referral';
@@ -110,7 +129,6 @@ export function PartnerHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [partner, role, dataVersion],
   );
-  const [keyCount, setKeyCount] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [notifFor, setNotifFor] = useState<{ id: string; name: string } | null>(null);
   /* WALK FIX 15. This supplier's own numbers, from the same function the
@@ -153,16 +171,12 @@ export function PartnerHome() {
      detail page mirrors the agency page ... Regent's agency page is the
      template." The page was four flat cards in document order, so a reader
      scrolled past the commission rates to reach the people. */
-  type Tab = 'overview' | 'people' | 'reporting' | 'commission' | 'referrals' | 'integration';
+  type Tab = 'overview' | 'people' | 'settings' | 'reporting' | 'commission' | 'referrals' | 'integration';
   const [tab, setTab] = useState<Tab>('overview');
-  useEffect(() => {
-    if (!partner || !partner.apiAccessEnabled) { setKeyCount(null); return; }
-    let alive = true;
-    partnerActiveKeyCount(partner.id)
-      .then((n) => { if (alive) setKeyCount(n); })
-      .catch(() => { if (alive) setKeyCount(null); });
-    return () => { alive = false; };
-  }, [partner, dataVersion]);
+  /* THE KEY COUNT MOVED WITH THE SWITCH. ApiAccessSwitch reads it
+     itself, and re-reads it at the moment the switch is flipped rather
+     than when the page loaded: a key minted in between is a key the
+     confirmation would otherwise not be counting. */
 
   // getPartner resolves house/plumbing partners too (opndoor-direct etc.), which
   // are never shown as suppliers (their name is an internal route label). Treat
@@ -234,6 +248,12 @@ export function PartnerHome() {
         onChange={setTab}
         tabs={[
           ['overview', 'Overview'], ['people', 'People'],
+          /* SETTINGS, on the supplier's own page. Matt, 2026-10-01: "its
+             settings (name, live from, status, referencing mode,
+             capabilities) move into a Settings tab, with the same fields
+             as Manage." Before People because it is what the page IS,
+             and People is who is on it. */
+          ['settings', 'Settings'],
           /* WALK FIX 15: the report for this customer, on this customer's
              own page. This whole route is superadmin-only, so there is no
              role gate to add here. */
@@ -242,6 +262,10 @@ export function PartnerHome() {
           ['referrals', 'Referrals'], ['integration', 'Integration'],
         ]}
       />
+
+      {tab === 'settings' && (
+        <SupplierSettings slug={partner.id} canEdit={isAdmin} onSaved={refresh} />
+      )}
 
       {tab === 'reporting' && (
         <>
@@ -298,30 +322,22 @@ export function PartnerHome() {
 
       {tab === 'integration' && (
       <div className="ph-grid">
-        {/* API ACCESS & SANDBOX */}
+        {/* API ACCESS, AS A SWITCH, WHERE THE KEYS ARE. Matt,
+            2026-10-01: "add the API access on/off switch here (moved
+            from Settings), with a confirmation that says how many
+            active API keys will stop working if it's turned off." It
+            was a tickbox on the Manage modal, read beside a list of
+            unrelated settings and acted on by pressing Save at the
+            bottom; the sentence that matters now sits on its own
+            action. */}
         <Card>
-          <CardHead title="API access" sub="Whether this partner can use the partner API, and how many keys are live." />
+          <CardHead title="API access" sub="Whether this supplier can use the partner API, and how many keys are live." />
           <CardBody>
-            <div className="ph-caps">
-              <div className="ph-cap">
-                <span className={`ph-dot ph-dot--${partner.apiAccessEnabled ? 'on' : 'off'}`} />
-                <span>API access <b>{partner.apiAccessEnabled ? 'enabled' : 'disabled'}</b></span>
-              </div>
-              <div className="ph-cap">
-                <span className={`ph-dot ph-dot--${partner.portalReferralsEnabled !== false ? 'on' : 'off'}`} />
-                <span>Portal referrals <b>{partner.portalReferralsEnabled !== false ? 'enabled' : 'disabled'}</b></span>
-              </div>
-              {partner.apiAccessEnabled && (
-                <div className="ph-cap">
-                  <Icon name="lock" size={14} />
-                  <span>Active API keys: <b>{keyCount == null ? '-' : keyCount}</b></span>
-                </div>
-              )}
-            </div>
+            <ApiAccessSwitch slug={partner.id} canEdit={isAdmin} onChanged={refresh} />
             <p className="ph-note muted">
               {partner.apiAccessEnabled
-                ? 'Keys and sandbox data are managed by the partner’s own developer in the Dev Centre. For security, opndoor admin can see that keys exist, but never the keys themselves.'
-                : 'This partner cannot hold API keys. Enable API access on this tab first.'}
+                ? 'Keys and sandbox data are managed by the supplier’s own developer in the Dev Centre. For security, opndoor admin can see that keys exist, but never the keys themselves.'
+                : 'This supplier cannot hold API keys. Turn API access on first.'}
             </p>
           </CardBody>
         </Card>
@@ -423,14 +439,18 @@ export function PartnerHome() {
         <CardHead
           title="Users"
           sub={`${users.length} ${users.length === 1 ? 'person' : 'people'}`}
-          actions={<Link className="ph-viewall" to={`/users?partner=${encodeURIComponent(partner.id)}`}>Manage users <Icon name="arrowRight" size={13} /></Link>}
+          /* NO LINK OFF TO THE ESTATE-WIDE LIST. Matt, 2026-10-01: "Its
+             people are on the People tab only" and "Anything that linked
+             to /users?partner=… now goes to that supplier's People tab."
+             This tab IS that page, so the link pointed at a filtered copy
+             of itself. */
         />
         <CardBody style={{ padding: users.length === 0 ? undefined : 0 }}>
           {users.length === 0 ? (
             <div className="ph-empty">No users for this partner.</div>
           ) : (
             <table className="dt ph-table">
-              <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Last active</th>{isAdmin && <th />}</tr></thead>
+              <thead><tr><th>Name</th><th>Level</th><th>Sees</th><th>Status</th><th>Last active</th>{isAdmin && <th />}</tr></thead>
               <tbody>
                 {users.map((u) => (
                   <tr key={u.id}>
@@ -441,6 +461,7 @@ export function PartnerHome() {
                       </span>
                     </td>
                     <td>{ROLE_LABEL[u.role] ?? u.role}</td>
+                    <td className="soft">{supplierSees(u.role)}</td>
                     <td><Pill variant={USER_STATUS_PILL[u.status] ?? 'muted'}>{u.status}</Pill></td>
                     <td className="soft">{u.lastActive}</td>
                     {/* THE SAME ROW ACTIONS THE AGENCY PAGE HAS. Q-06 item A:

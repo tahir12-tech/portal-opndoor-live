@@ -128,3 +128,17 @@
 }
 .sc-actions { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
 @media (max-width: 560px) { .sc-grid { grid-template-columns: 1fr; } }
+
+/* The Settings tab. One column of fields, the same ones the Add form
+   renders, with the section rules Manage used to draw inline. */
+.ss-form { display: grid; gap: 14px; max-width: 520px; }
+.ss-sect { border-top: 1px solid var(--line); padding-top: 16px; }
+.ss-sect__head { font-family: var(--display); font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+.ss-sect__note { font-size: 12.5px; color: var(--ink-mute); line-height: 1.55; margin: 0 0 12px; }
+.ss-sect__note--tight { margin: 6px 0 0; }
+.ss-actions { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+
+/* The API access switch: the state on the left, the action on the right. */
+.apisw { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.apisw__state { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-soft); }
+.apisw__keys { color: var(--ink-mute); font-size: 12.5px; }
