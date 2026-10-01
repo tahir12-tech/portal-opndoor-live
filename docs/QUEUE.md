@@ -140,7 +140,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
   what I described there is the sharing Matt is now asking for. The item
   has to be rewritten rather than left standing.
 
-## NOTES ARE SHARED WITH THE AGENCY TOO (correction, 2026-10-01, verbatim). ACTIVE.
+## NOTES ARE SHARED WITH THE AGENCY TOO (correction, 2026-10-01, verbatim). **done** (`bbb3ba5`).
 
 > Notes: also share them with the agency that referred the application (e.g. Regent's staff), on the same terms as suppliers: anyone who can see the application reads and adds notes, each showing who wrote it. Tenants and other partners never see them.
 
