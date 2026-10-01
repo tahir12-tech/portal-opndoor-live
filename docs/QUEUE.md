@@ -123,6 +123,18 @@ Two things worth knowing for whoever picks the next one up:
   than a screenshot and did catch two wording faults a screenshot would
   not have.
 
+## THE TAB COUNTS FOLLOW THE FILTERS (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Applications: every status tab count follows the current filters (origin, period, branch, referrer, search), so with Origin set to Direct, In progress and Fee unpaid count only direct applications. For a direct signup with no agency, the Branch column shows "-" instead of "Unattached Unattached", everywhere that label appears. Deploy to dev and check there.
+
+- Two separate faults in one message. The first is a count computed
+  over a different set from the list it sits above, which is the
+  worst kind of wrong number: it is not off, it is answering another
+  question.
+- "Everywhere that label appears" is the part to be careful with.
+  Find every site that composes it, not just the Branch column on
+  Applications.
+
 ## A SUPPLIER'S REPORTING SHOWS OTHER CUSTOMERS (instruction, 2026-10-01, verbatim). **done** (`3a03ef8`).
 
 > Reporting under View as Kestrel Lettings shows the "Every customer" table (other agencies' referrals, fees and commission), the Agencies/Suppliers commission split and Settlements, none of which a supplier may see. First check whether a real supplier login (director@kestrel.dev.test) sees them too, and tell me. Then fix both: a supplier's Reporting, and View as of it, shows only its own figures, statements and agencies, never other customers or Opndoor's settlements. Also fix "Kestrel Lettings's" to "Kestrel Lettings'". Add a test that a supplier's Reporting contains no other customer's name. Deploy to dev and check there.
