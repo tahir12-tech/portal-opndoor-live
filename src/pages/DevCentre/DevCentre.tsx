@@ -476,9 +476,10 @@ export function DevCentre() {
         </div>
 
         <p className="soft">
-          You cannot see this partner&rsquo;s keys, deliberately, so there is nothing to browse. Paste the
-          prefix from wherever the key was exposed: the ticket, the scanner alert, or the partner&rsquo;s
-          message. It is the first 18 characters, like <code>opnd_live_XXXXXXXX</code>.
+          You cannot see this partner&rsquo;s keys, deliberately, so there is nothing to browse, and you
+          can never see or create a full key. Paste the prefix from wherever the key was exposed: the
+          ticket, the scanner alert, or the partner&rsquo;s message. It is the first 18 characters, like{' '}
+          <code>opnd_live_XXXXXXXX</code>.
         </p>
 
         <Field label="Key prefix">

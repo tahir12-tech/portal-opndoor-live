@@ -142,3 +142,64 @@ describe('the rule about keys, which the route does not govern', () => {
     expect(src).toMatch(/canSeeCredentials \? getApiKeys\(scope\) : Promise\.resolve\(\[\]\)/);
   });
 });
+
+/* ===========================================================================
+   AND NO SCREEN CLAIMS MORE OR LESS THAN IT SHOWS.
+
+   Matt, 2026-10-01: "Align the admin wording about API keys everywhere: say
+   exactly what admin can see on that screen ... No screen should claim more
+   or less than it shows."
+
+   THREE SCREENS MAKE A CLAIM and two of them were wrong in OPPOSITE
+   directions, which is why neither looked wrong on its own:
+
+     Dev Centre, Credentials   said "not how many there are" -- true of
+                               that screen, read as a rule about the
+                               product, and contradicted by the next one.
+     Integration tab           said admin "can see that keys exist", which
+                               understates a line printing the exact count.
+     Dev Centre, Break glass   said nothing about full keys at all.
+
+   ASSERTED ON THE SOURCE, because what is being checked is the agreement
+   between three files. A render test per screen would prove each sentence
+   appears and nothing about whether they agree.
+   =========================================================================== */
+describe('what each screen claims about keys', () => {
+  const config = readFileSync(join(process.cwd(), 'src/pages/DevCentre/Configuration.tsx'), 'utf8');
+  const devcentre = readFileSync(join(process.cwd(), 'src/pages/DevCentre/DevCentre.tsx'), 'utf8');
+  const integration = readFileSync(join(process.cwd(), 'src/pages/PartnerManagement/PartnerHome.tsx'), 'utf8');
+
+  /* THE ONE SENTENCE THAT IS TRUE EVERYWHERE, and the only claim all three
+     may make: it is the boundary itself. */
+  it('every one of them says admin never sees or creates a full key', () => {
+    for (const [name, src] of [['Configuration', config], ['DevCentre', devcentre], ['Integration', integration]] as const) {
+      expect(src, `${name} does not say it`).toMatch(/never see.{0,30}create a full key|never see a key, its prefix, or create one/i);
+    }
+  });
+
+  /* AND THE COUNT, WHICH IS THE ONE THEY DISAGREED ABOUT. */
+  it('the Integration tab says the count is there, because it is', () => {
+    expect(integration).toMatch(/You can see how many keys are active/);
+  });
+
+  it('and the Dev Centre says it is not there, because it is not', () => {
+    expect(config).toMatch(/not how many/);
+  });
+
+  /* AND POINTS AT WHERE IT IS, so "you cannot see how many" does not read
+     as "nobody can". */
+  it('and names where the count actually lives', () => {
+    expect(config).toMatch(/Integration tab/);
+  });
+
+  /* THE REVOKE IS ON ONE SCREEN AND ONLY ONE, and the other says so rather
+     than leaving an admin hunting for a button that is not there. */
+  it('and the Integration tab sends you to the Dev Centre to revoke', () => {
+    expect(integration).toMatch(/Break glass in the Dev Centre/);
+  });
+
+  /* THE CLAIM THAT WAS WRONG, pinned so it cannot come back. */
+  it('and nothing still says admin can only see "that keys exist"', () => {
+    expect(integration).not.toMatch(/can see that keys exist/);
+  });
+});

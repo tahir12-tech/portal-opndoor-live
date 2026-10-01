@@ -87,10 +87,28 @@ export function Configuration(props: {
         <Card>
           <CardHead title="Credentials" sub="Not visible to opndoor" />
           <CardBody>
+            {/* WHAT THIS SCREEN SHOWS, EXACTLY. Matt, 2026-10-01: "say
+                exactly what admin can see on that screen ... No screen
+                should claim more or less than it shows."
+
+                It said "not how many there are", which is true HERE and
+                was read as a rule about the product -- the supplier's
+                Integration tab prints the live count on its API access
+                line. Two screens describing one boundary differently is
+                how a reader stops believing either. So this one says what
+                is true of this screen and names where the count is. */}
             <p>
-              <strong>You cannot see this partner&rsquo;s API keys or webhook endpoints.</strong> Not the
-              list, not the prefixes, not how many there are, and never a signing secret. Their developers
-              manage their own credentials.
+              <strong>You cannot see this partner&rsquo;s API keys or webhook endpoints here.</strong> Not
+              the list, not the prefixes, not how many, and never a signing secret. Their developers manage
+              their own credentials.
+            </p>
+            <p>
+              <strong>You can revoke one key by its prefix</strong>, below, if you have the prefix from
+              wherever it was exposed. <strong>You can never see or create a full key.</strong>
+            </p>
+            <p className="soft">
+              How many keys are live is on the supplier&rsquo;s Integration tab, beside the API access
+              switch.
             </p>
             <p className="soft">
               This is deliberate rather than an oversight. A key inventory is a target, and after an

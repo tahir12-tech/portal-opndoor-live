@@ -460,8 +460,12 @@ export function PartnerHome() {
           <CardBody>
             <ApiAccessSwitch slug={partner.id} canEdit={isAdmin} onChanged={refresh} />
             <p className="ph-note muted">
+              {/* WHAT THIS SCREEN SHOWS, EXACTLY. It said admin "can see
+                  that keys exist", which UNDERSTATES it: the line above
+                  prints the live count. Matt, 2026-10-01: no screen should
+                  claim more or less than it shows. */}
               {partner.apiAccessEnabled
-                ? 'Keys and sandbox data are managed by the supplier’s own developer in the Dev Centre. For security, opndoor admin can see that keys exist, but never the keys themselves.'
+                ? 'You can see how many keys are active, above, and turn API access off, which stops all of them at once. You can never see a key, its prefix, or create one: the supplier’s own developer manages those in the Dev Centre. To revoke a single key you need its prefix, under Break glass in the Dev Centre.'
                 : 'This supplier cannot hold API keys. Turn API access on first.'}
             </p>
           </CardBody>
