@@ -26,7 +26,13 @@
    the fallback that stored the EMAIL as the name, added `personLabel` so
    the four people lists say "Name not set" once instead of the address
    twice, and set barb's name to 'barb barb' on dev.
-5. The deed emailed to the agent twice on GR-20846
+5. The deed emailed to the agent twice on GR-20846 **done** (`bf500bb`).
+   One fault and its consequence: nothing recorded when the SIGNED deed was
+   delivered, so the panel showed `deed_sent_at` (the signature request,
+   15:45) against a signature at 15:49, looked stale, and a person pressed
+   send at 15:51. Three columns now record the delivery, the recipients and
+   any resend; `send_deed_to_agent` refuses a second send unless it is
+   called a resend; the webhook will not re-send a replayed completion.
 6. Everything else, in the order sent
 
 Three more arrived while item 1 was in flight, so they join the back of item
@@ -357,7 +363,7 @@ live rather than trust the default.
   the supplier Reporting work (`3a03ef8`): Opndoor's settlement run
   is not a customer's business. An agency gets its statement.
 
-## THE SIGNED DEED WAS EMAILED TWICE (bug, 2026-10-01, verbatim). ACTIVE, TOP OF THE QUEUE.
+## THE SIGNED DEED WAS EMAILED TWICE (bug, 2026-10-01, verbatim). **done** (`bf500bb`).
 
 > On GR-20846: the activity shows "Deed of Guarantee delivered to the agent" twice (16:49 and 16:51), and the Delivery panel says the deed was sent at 16:45, before the tenant signed at 16:49. Find why the signed deed was emailed to the agent twice and stop duplicates (one delivery per signed deed unless someone presses Resend), and make the Delivery panel show the time and recipients of the actual signed-deed email.
 
