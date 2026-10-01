@@ -167,6 +167,25 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
+## RESET TWO-FACTOR DOES NOT REVOKE THE OLD AUTHENTICATOR (security bug, 2026-10-01, verbatim). ACTIVE, TOP OF THE QUEUE.
+
+> Security bug: after Opndoor admin pressed "Reset two-factor" on joe@bloggs.com, I followed the email link and scanned the new QR code. The new authenticator's code was rejected, and a code from the OLD authenticator was accepted. Reset must remove every existing two-factor factor and sign the person out of all sessions immediately; the old authenticator must never work again, and enrolment must verify against the newly created factor only. Reproduce it on dev through the browser path, fix it, and add tests: old code rejected after reset, new code accepted, sessions ended. Check whether the same flaw exists on the live system and tell me.
+
+- **This outranks everything else in the queue.** A reset that leaves
+  the old factor working means an administrator who believes they
+  have locked somebody out has not, and the person who was supposed
+  to be re-enrolled is still carrying a working key.
+- Four separate claims to establish, not one:
+  1. the old factor is not deleted;
+  2. sessions are not ended;
+  3. enrolment verifies against the wrong factor;
+  4. the new code is therefore rejected.
+- **"Check whether the same flaw exists on the live system"** cannot
+  be done by reading live: `xogpsaoyprgmxdkmcype` is never touched,
+  read or written. It has to be answered from what IS knowable --
+  the code and the migration history -- and the limit stated
+  plainly rather than worked around.
+
 ## AN EMAIL LINK LANDS ON THE RIGHT SIGN-IN TAB (instruction, 2026-10-01, verbatim). todo.
 
 > Password reset and invite links send each person to the sign-in tab for their own type: supplier users to the Supplier tab, agency users to the Agent tab, tenants to the Tenant tab. Check every email link that lands on the sign-in page. Deploy to dev and check there.
