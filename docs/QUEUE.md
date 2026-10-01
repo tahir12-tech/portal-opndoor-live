@@ -15,6 +15,29 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## THE ADD AGENCY FORM MUST NEVER DO NOTHING (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Add agency form: Create must never do nothing. If anything is missing or the save fails, show the reason next to the field or at the top of the form. Don't ask for a branch to create an agency: ask for the agency's name and address; that becomes its office behind the scenes, never shown separately. "Add another branch" stays available for agencies with several offices. The first invite is created with the agency in one step. Reproduce the silent failure first, then fix it. Deploy to dev and check there.
+
+- **"Reproduce the silent failure first"** is the same instruction as the
+  route=Direct bug and for the same reason: I called that one
+  not-reproducible off a test harness that could not have caught it. Use
+  the browser.
+- The office is created behind the agency and never shown separately,
+  which is NM-P's rule arriving in the create form.
+
+## THE COMMISSION DEAL EDITOR SPEAKS ENGLISH (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Commission deal editor: rewrite every heading and description in plain English for someone agreeing a commercial deal, with a short example where it helps. No internal terms ("party", "additive", "own line", "coverage", "fee basis", "lands at"). For example: "Fee: what the tenant pays, e.g. one month's rent or 5 weeks' rent"; "Commission: the % of that fee paid to this agency"; "Pricing by number of tenants: e.g. 1 tenant pays one month's rent, 2 tenants pay 5 weeks' rent". Show bands as "1 tenant", "2 tenants", "3 or more", and tiers as "Referrals 1 to 50: 20%, 51 and over: 25%". Replace "The next referral lands at" with a plain summary of the whole deal. Explain "Additive" in one sentence, or hide it if it isn't needed. Deploy to dev and check there.
+
+- **This and the supplier Commission tab are the same editor.** Doing the
+  wording first means the supplier tab inherits it rather than shipping
+  the internal vocabulary to a second screen and needing the same pass
+  twice. Ordered that way.
+- "Replace 'The next referral lands at' with a plain summary of the whole
+  deal" is the same summary line the supplier instruction asks for, so
+  it is one piece of work serving both.
+
 ## SUPPLIER COMMISSION USES THE AGENCY DEAL EDITOR (instruction, 2026-10-01, verbatim). ACTIVE.
 
 > Supplier Commission tab: use the same commission deal editor agencies have, with all its options (flat rate, volume tiers, bands by number of tenants, and per-agency overrides), for both the supplier's total commission and the agents' share within it. Both can be set independently per supplier. The agents' share can never exceed the supplier's total on any referral, checked on save. The summary line explains the resulting deal in plain English. Changes apply to new referrals only, recorded with who and when. Deploy to dev and check there.
