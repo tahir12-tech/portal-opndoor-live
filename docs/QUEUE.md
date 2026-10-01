@@ -63,6 +63,28 @@ already edited.
 Total and reference both already exist on every statement, agency and
 supplier, in the PDF, the CSV and the email. Nothing new to compute.
 
+## STATEMENT LINES IN REFERENCE ORDER (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Commission statements (PDF, CSV and on screen, agency and supplier): list lines in guarantee reference order, lowest first.
+
+**Four places, and they do not agree today**, which is the reason to
+name all four in one instruction:
+
+- the monthly run sorts each payee's lines by `paid_on`, then reference
+- `supplier_statement_lines` orders by agency name, then paid date, then
+  reference
+- the per-agency schedules inherit that order
+- the screen sorts its own way
+
+A reader comparing the PDF to the screen is comparing two orders. In
+reference order they are one list, and a reference is the thing a finance
+team reconciles by, so it is also the order they will read it in.
+
+**"Lowest first" is a STRING sort on a reference**, not a numeric one:
+GR-20845 and GR-9 are both real shapes and a numeric parse would have to
+invent a rule for the prefix. Plain ascending, which is what the existing
+`localeCompare` tiebreak already does.
+
 ## NO EM DASHES, AND THE BUILD SAYS SO (instruction, 2026-10-01, verbatim). ACTIVE.
 
 > No em dashes anywhere in emails, PDFs, CSV headers or screen text, including TEST subject lines. Replace any with a comma, colon or full stop. Add a check that fails the build if an em dash appears in any customer-facing text.
