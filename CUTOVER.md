@@ -226,14 +226,15 @@ is the whole path working. A wrong secret gives 400 and never reaches SQL.
 
 ---
 
-## 0c. Notes on live: mostly the sharing we want, with one gap
+## 0c. Notes on live: the sharing we want, and the tenant files are not there
 
-**Rewritten 2026-10-01, the same day it was written.** The first version of
-this item called the live behaviour an exposure. Matt then corrected the rule
-it was measured against: "notes on an application are shared between Opndoor
-and the supplier that referred it (e.g. Rightmove's staff); on agency
-referrals (e.g. Regent) notes stay Opndoor-only." Most of what that version
-described is the sharing, not a leak. What is left is narrower and is below.
+**Rewritten twice on 2026-10-01, the day it was written.** The first version
+called live's behaviour an exposure, measured against a rule Matt then
+corrected twice: notes are shared with the supplier that referred the
+application, and then with the agency too, on the same terms. What the first
+version called a leak is the sharing. This item is kept rather than deleted
+because "is the tenant document hole open on live" is a question somebody
+will ask again, and the answer is written down below.
 
 **Read off `main`, not off live.** Nothing here was measured against the
 production database. It is what a clean apply of the migrations on `main`
@@ -262,21 +263,23 @@ can also write one: `add_application_note` on `main` admits the same three.
 
 ### Which of that is wanted, and which is not
 
-- **A supplier's staff reading and writing notes on their own applications is
-  the behaviour we want**, and is what this branch restores deliberately in
-  `20261007330000` after I had briefly removed it.
-- **The gap is the agency rail, and live may not have one.** `main` has no
-  house partner, no `user_scopes` and no `is_house_partner_id`: every partner
-  on live is a company in its own right, and the agency rail arrived in the
-  763 commits since. So "an agency Director reading Opndoor's notes" is a
-  shape live cannot currently produce **unless an agency has been onboarded
-  as a partner of its own**. That is the one thing to check before cutover,
-  and it is a question about the DATA, not the schema: are any of the
-  partners on live agencies rather than suppliers?
-- **Direct referrals.** On this branch `opndoor-direct` is a house partner and
-  its notes are Opndoor's. On `main` there is no such distinction, so if live
-  carries direct business under a partner with portal users, those users read
-  its notes. Same check, same answer needed.
+**Almost all of it is wanted, after the second correction of 2026-10-01.**
+The rule on this branch is now "anyone who can see the application reads and
+adds notes, each showing who wrote it; tenants and other partners never see
+them" (`20261007340000`). Live's own policy is the same sentence:
+`application_id in (select id from public.applications)`.
+
+Two differences remain, and both are small:
+
+- **The write.** On live only management and the owning referrer may add a
+  note; on this branch anyone who can see the application may. Live is
+  stricter, which is not a risk, just a difference.
+- **The author.** Live stamps the author inside the RPC, which is the only
+  door into the table there, so it holds. This branch adds an insert policy
+  and therefore stamps the author in a TRIGGER instead, so the name is true
+  whichever door the row came through.
+
+Nothing here needs doing before cutover, and nothing needs patching on live.
 
 ### What is NOT open on live, and why the question was asked
 
@@ -291,11 +294,10 @@ every rail.
 
 ### Verify, before cutover
 
-List live's partners and say, for each, whether it is a supplier or an agency.
-If every one is a supplier, live's notes behaviour already matches the
-corrected rule and there is nothing to do but cut over. If any is an agency,
-its staff can read Opndoor's notes on their own referrals today, and
-`20261007330000` is what closes it.
+Nothing, for the notes. The one thing worth a glance on the day: after
+cutover, open an application as an agency user and confirm the Notes section
+is there and names its authors, because that is the behaviour that changed
+most between live and this branch.
 
 ---
 

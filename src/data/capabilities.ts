@@ -11,7 +11,7 @@
    mistake the Dev Centre item's own history records in constants/nav.ts.
    ===================================================================== */
 import type { PartnerScope, Role } from './types';
-import { ALL_PARTNERS, isOpndoorStaff } from './types';
+import { ALL_PARTNERS } from './types';
 import { getPartner } from './partnersService';
 import { isHousePartner } from './channel';
 
@@ -99,34 +99,6 @@ export function partyIsSupplier(scope: PartnerScope): boolean {
   if (scope === ALL_PARTNERS) return false;
   if (isHousePartner(scope)) return false;
   return !partyIsAgency(scope);
-}
-
-/**
- * May this reader see an application's notes?
- *
- * Matt, 2026-10-01: "notes on an application are shared between Opndoor and
- * the supplier that referred it (e.g. Rightmove's staff); on agency
- * referrals (e.g. Regent) notes stay Opndoor-only."
- *
- * So the question is about the RAIL, not the level. The words "management"
- * and "referrer" are held by an agency Director, a supplier's manager and a
- * negotiator alike, which is why the old rule
- * (`superadmin || management || (referrer && owner)`) showed Opndoor's
- * internal notes to every agency Director in the product.
- *
- * NOT WHILE VIEWING AS AN AGENCY. View as shows an admin what that party
- * sees, and an agency sees no notes. Viewing as a SUPPLIER still shows them,
- * because the supplier does see them: that is the whole of this correction.
- *
- * The database says the same thing in `app_notes_select`, and says it about
- * the application rather than the reader's scope, which is the part that
- * actually holds.
- */
-export function maySeeApplicationNotes(
-  role: Role, scope: PartnerScope, viewingAs: unknown = null,
-): boolean {
-  if (isOpndoorStaff(role) && viewingAs === null) return true;
-  return partyIsSupplier(scope);
 }
 
 /**

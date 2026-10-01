@@ -38,7 +38,6 @@ import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendT
 import { useSession } from '@/session/SessionContext';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { isOpndoorStaff } from '@/data/types';
-import { maySeeApplicationNotes } from '@/data/capabilities';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { maySeeDeliveryState, type DeliveryState } from '@/data/deliveryState';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
@@ -310,31 +309,19 @@ export function ApplicationDetail() {
   const [wReason, setWReason] = useState<WithdrawReason | ''>('');
   const [wNote, setWNote] = useState('');
   const [withdrawBusy, setWithdrawBusy] = useState(false);
-  /* #8 OPERATIONAL NOTES: OPNDOOR'S, AND NOBODY ELSE'S.
+  /* #8 NOTES ARE THE SHARED RECORD OF THE APPLICATION.
 
-     Matt, 2026-10-01: "Notes are Opndoor-only: hide the Notes section
-     entirely from agency and supplier users, and check they can't read
-     notes through any other route."
+     Matt, 2026-10-01, after two corrections in one evening: "anyone who can
+     see the application reads and adds notes, each showing who wrote it.
+     Tenants and other partners never see them."
 
-     It read `superadmin || management || (referrer && owner)`, and
-     `management` is the role an agency Director, an agency Manager and a
-     supplier Management user all hold -- the level words are shared across
-     the rails, which is the same trap as the supplier Reporting fix. So
-     the section was not hidden from them at all.
-
-     The other route was the table: notesService selects from app_notes
-     directly, so the policy was the whole boundary and it admitted anyone
-     who could see the application. 20261007310000 closes it, and this line
-     is now the screen agreeing with the database rather than being it.
-
-     CORRECTED 2026-10-01, the same evening. Matt: "notes on an application
-     are shared between Opndoor and the supplier that referred it (e.g.
-     Rightmove's staff); on agency referrals (e.g. Regent) notes stay
-     Opndoor-only." The agency half above stands; the supplier half was
-     mine and was wrong. `maySeeApplicationNotes` is the rule, and
-     app_notes_select is the same sentence about the application rather
-     than about the reader's scope, which is the part that holds. */
-  const maySeeNotes = maySeeApplicationNotes(role, partnerScope, viewingAs);
+     So there is no gate here at all. Reaching this page means the server
+     resolved the application for this caller, which is the same test
+     app_notes_select applies, and a second copy of it on the client could
+     only ever disagree -- which is what the first two versions of this line
+     did, in both directions. The author on each note comes from a database
+     trigger rather than from whoever wrote it. */
+  const maySeeNotes = true;
   // The applicant's uploaded documents (bank statements, proof of address) are
   // opndoor-internal: they are collected for the guarantee decision we make, not
   // for the referring agent, so a referrer never sees this card.
@@ -1797,8 +1784,8 @@ export function ApplicationDetail() {
             </CardBody>
           </Card>
 
-          {/* #8 Operational notes — internal only (opndoor admin + Management + owning
-              Referrer). Append-only; never shared with tenants or agents, never exported. */}
+          {/* The applicant's own files, which are NOT notes and are still
+              Opndoor's alone (20261007310000). */}
           {showDocuments && (
             <Card>
               <CardHead title="Documents" sub="What the applicant uploaded on the Address and Financials steps." />
@@ -1823,7 +1810,7 @@ export function ApplicationDetail() {
 
           {maySeeNotes && (
             <Card>
-              <CardHead title="Notes" sub="Internal operational notes. Not shared with tenants or agents, and never exported." />
+              <CardHead title="Notes" sub="The shared record of this application. Everyone who can see it can read and add notes. Never shown to the tenant, and never exported." />
               <CardBody style={{ paddingTop: 8, paddingBottom: 12 }}>
                 {notes.length === 0 ? (
                   <div style={{ fontSize: 13, color: 'var(--ink-mute)', padding: '4px 0 10px' }}>No notes yet.</div>

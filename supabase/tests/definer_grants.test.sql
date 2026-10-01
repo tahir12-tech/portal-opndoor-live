@@ -46,7 +46,6 @@ select plan(4);
 
 create temp table allowed(name text) on commit drop;
 insert into allowed(name) values
-  ('add_application_note'),
   /* The two admin doors onto a supplier's named statement addresses
      (20261007040000). Browser-called from the admin screens, guarded
      inside by is_aal2 + is_admin, so granted to `authenticated` and
@@ -146,12 +145,6 @@ insert into allowed(name) values
   ('is_house_partner_id'),
   ('is_opndoor_staff'),
   ('is_our_estate_partner'),
-  /* NOTES ARE SHARED WITH THE SUPPLIER THAT REFERRED IT (20261007330000).
-     app_notes_select evaluates it, so `authenticated` has to be able to,
-     and it answers one question about one partner: is this a supplier
-     company rather than one of our rails or an agency. Covered by
-     tenant_isolation. */
-  ('is_supplier_partner'),
   ('level_rank_of'),
   ('list_managed_users'),
   ('log_view_as'),

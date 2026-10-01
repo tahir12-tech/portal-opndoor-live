@@ -40,7 +40,7 @@
 -- difference between a policy that filters and a guard that throws.
 
 begin;
-select plan(109);
+select plan(112);
 
 -- ===========================================================================
 -- THE FIXTURE
@@ -636,16 +636,43 @@ set local role authenticated;
 
 select cmp_ok((select count(*)::int from public.applications a where a.id = '90000000-0000-0000-0000-00000000e001'), '>', 0,
   'the brand Manager can see the application the note is about');
-select is((select count(*)::int from public.app_notes), 0,
-  'and reads no note on it, nor any other: on the agency rail they are Opndoor''s');
+/* AND THEREFORE ITS NOTES. Matt, 2026-10-01, third version of this rule:
+   "anyone who can see the application reads and adds notes". */
+select is((select count(*)::int from public.app_notes n
+            where n.application_id = '90000000-0000-0000-0000-00000000e001'), 1,
+  'and reads the note on it, which is the shared record of their own referral');
+select is((select count(*)::int from public.app_notes n
+            where n.application_id <> '90000000-0000-0000-0000-00000000e001'), 0,
+  'and not one note on anybody else''s application');
+select lives_ok(
+  $$select public.add_application_note('GR-ISO-AC', 'Added by the agency')$$,
+  'and can add to it');
+/* "EACH SHOWING WHO WROTE IT", and not on the writer's word: the insert
+   policy makes a direct write possible, so the name is stamped from
+   auth.uid() by trg_stamp_app_note rather than taken from what was sent. */
+select is(
+  (select n.author from public.app_notes n
+    where n.body = 'Added by the agency'),
+  'ZZZ Alpha Brand Mgr',
+  'and the note carries their name, stamped by the database');
+select is(
+  (select n.author_id from public.app_notes n where n.body = 'Added by the agency'),
+  '90000000-0000-0000-0000-00000000c002'::uuid,
+  'and their id with it');
+select lives_ok(
+  $$insert into public.app_notes (application_id, body, author, author_id)
+    values ('90000000-0000-0000-0000-00000000e001', 'Direct insert', 'Somebody Else',
+            '90000000-0000-0000-0000-00000000c002')$$,
+  'a note written straight into the table is allowed, on an application they can see');
+select is(
+  (select n.author from public.app_notes n where n.body = 'Direct insert'),
+  'ZZZ Alpha Brand Mgr',
+  'and it is still stamped with who actually wrote it, not what they claimed');
+/* THE TENANT'S OWN FILES ARE NOT NOTES, and are still Opndoor's. */
 select is((select count(*)::int from public.application_documents d where d.bucket = 'applicant-docs'), 0,
   'and none of the tenant''s own uploaded files');
 select cmp_ok((select count(*)::int from public.application_documents d where d.bucket <> 'applicant-docs'), '>', 0,
   'while still reaching the provider''s reference report, which this change does not touch');
-select throws_ok(
-  $$select public.add_application_note('GR-ISO-AC', 'Added by the agency')$$,
-  '42501', null,
-  'and cannot write one either, on the application they referred themselves');
 
 -- ---- the Negotiator who REFERRED it ----------------------------------------
 -- The old rule let the owning referrer read and write notes, which is the rest
@@ -654,29 +681,18 @@ reset role;
 select set_config('request.jwt.claims', '{"sub":"90000000-0000-0000-0000-00000000c004","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
 
-select is((select count(*)::int from public.app_notes), 0,
-  'the Negotiator who referred the application reads no note on it');
-select is((select count(*)::int from public.application_documents d where d.bucket = 'applicant-docs'), 0,
-  'and none of their tenant''s uploaded files');
-select throws_ok(
+/* TWO, NOT ONE: Opndoor's and the one the brand Manager added four
+   assertions ago. Which is the better claim, because it proves the write
+   landed AND that the other party can see it, which is what "shared"
+   means. */
+select is((select count(*)::int from public.app_notes n
+            where n.application_id = '90000000-0000-0000-0000-00000000e001'), 3,
+  'the Negotiator who referred it reads Opndoor''s note and both of their Manager''s');
+select lives_ok(
   $$select public.add_application_note('GR-ISO-AC', 'Added by the referrer')$$,
-  '42501', null,
-  'and cannot add to Opndoor''s record of it');
-
-/* WHICH RAIL EACH FIXTURE IS ON, asserted before the notes are, because
-   every assertion below depends on this one answer and it is the sentence
-   the policy is written in.
-
-   AS POSTGRES, deliberately: the question is what the function answers, and
-   a supplier's own session cannot SEE the house partner row to ask about it
-   -- which is the policy working, and would have made this assertion fail
-   for a reason that has nothing to do with what it is testing. */
-select is(
-  (select public.is_supplier_partner('90000000-0000-0000-0000-00000000ac01')), true,
-  'the supplier is a supplier');
-select is(
-  (select public.is_supplier_partner(p.id) from public.partners p where p.slug = 'opndoor-agents'), false,
-  'and the house partner our agencies share is not');
+  'and can add one');
+select is((select count(*)::int from public.application_documents d where d.bucket = 'applicant-docs'), 0,
+  'and still none of their tenant''s uploaded files');
 
 -- ---- the supplier's Management user, on the supplier's own application -----
 /* AND HERE THE ANSWER IS YES, which is Matt's correction of 2026-10-01:
@@ -694,7 +710,7 @@ select is((select count(*)::int from public.app_notes n
   'the supplier''s Management user reads the note on their own application');
 select is((select count(*)::int from public.app_notes n
             where n.application_id <> '90000000-0000-0000-0000-00000000e004'), 0,
-  'and no note on anybody else''s, including the agency rail''s');
+  'and no note on anybody else''s: "other partners never see them"');
 select lives_ok(
   $$ select public.add_application_note('GR-ISO-GS', 'Supplier adding to the shared record') $$,
   'and can add to the shared record, which is what "shared" means');
