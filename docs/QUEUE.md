@@ -15,6 +15,53 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## BRANDED STATEMENT PDFs, EMPTY COLUMNS, AND THE BUTTON (instructions, 2026-10-01, verbatim). ACTIVE.
+
+> Commission statement PDFs should use the same branded design as the portal's existing branded statements and exports. Find that design and reuse it; don't invent a new one. If there isn't one, tell me before building anything. Also drop any column that is empty on every line (e.g. Tenancy and Share). Then send me one agency and one supplier statement, marked TEST, only to mdwyer@opndoor.co.
+
+> Commission statement emails: the "Open your statement" button doesn't render; there's a blank gap above "If the button does not work". Fix it for agency and supplier statement emails, and check every other email that has a button. Include it when you send me the branded TEST statements.
+
+### THERE IS ONE, SO I AM BUILDING. Found before touching anything:
+
+`src/data/xlsxTemplate.ts` is the branded design -- a `BrandedDoc` model
+(reportName, metaLine, section / keyvalue / table blocks) with the brand
+tokens taken from `portal.css :root`. The existing branded STATEMENTS are
+`buildPartnerStatementDoc` and `buildAgentStatementDoc` in
+`exportsService.ts`, which produce exactly that shape.
+
+**What is reused exactly:** the Valhalla header band and wordmark, the
+white-lilac column-header fill with its heliotrope rule, ink and ink-soft
+for data and labels, and the document shape itself.
+
+**The one thing that cannot be:** the typefaces. The brand is Sora and
+Manrope; both are TrueType and embedding one in a hand-written PDF means
+subsetting glyphs and writing the font descriptor by hand, in a writer
+that exists to avoid a PDF dependency. Helvetica and Helvetica-Bold are
+base-14 and cost no bytes. The xlsx template already tolerates the same
+fallback in its own note.
+
+### THE BUTTON
+
+Symptom is "a blank gap", which is a button that occupies space and
+cannot be seen. The likely cause is white text on a `<td>` whose
+`background` some clients strip, leaving white on white. The fix is to
+colour the anchor itself as well, and add the `bgcolor` attribute, so no
+single stripped declaration makes it invisible. To be confirmed against
+the rendered HTML rather than assumed.
+
+## TENANT PAYMENT REMINDER WORDING (instruction, 2026-10-01, verbatim). ACTIVE, after the statements.
+
+> Tenant payment reminder email: don't repeat the property address. Reword the opening to "[agency name] has arranged an opndoor guarantee for your tenancy at [property address]. To put it in place, pay the guarantee fee of [fee] ([fee basis, e.g. 3 weeks of rent or one month's rent])." Every bracketed part comes from that application; nothing is hardcoded. Where there's no agency (a direct signup), leave out the "[agency name] has arranged" part. Check the other tenant emails for the same repetition.
+
+- **Nothing hardcoded**: the fee BASIS is already a real per-application
+  value (`fee_basis_weeks` / `fee_basis_unit`, and `feeBasisCopy` on the
+  dashboard says "one month's rent each"), so the sentence reads it
+  rather than assuming a month.
+- **No agency means no clause**, not an empty one: a direct signup has no
+  agency and the sentence must still be a sentence.
+- **"Check the other tenant emails for the same repetition"** is the
+  sweep, and it is the part most easily skipped.
+
 ## TONIGHT'S RUN, 2026-09-30 into 10-01. ALL THIRTEEN INSTRUCTIONS DONE.
 
 Matt, last thing: "Work through every fix I've sent tonight without
