@@ -40,6 +40,7 @@ import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 import './UserManagement.css';
 import { changeSentence } from '@/data/changeSentence';
+import { personInitials, personLabel } from '@/data/personLabel';
 
 const ROLE_META: Record<Role, [string, string]> = {
   superadmin: ['opndoor admin', 'role-tag--super'],
@@ -75,7 +76,6 @@ const ROLE_OPTIONS: RoleOption[] = [
   { id: 'developer', name: 'Developer', desc: "The supplier's own integrator, for whoever builds against the API. Sees the applications list and detail, the dashboard and the league for the whole supplier, read-only, plus the Dev Centre: their own API keys and webhook endpoints, request logs, delivery history with replay, and a full sandbox to rehearse in. They cannot create a referral or change an application, and they never see commission, settlement, exports or the bordereau." },
 ];
 
-const initials = (n: string) => n.split(' ').map((p) => p[0]).slice(0, 2).join('');
 
 interface ConfirmSpec {
   title: string;
@@ -740,9 +740,16 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
                 return (
                   <tr key={u.id}>
                     <td>
+                      {/* A PERSON WITH NO NAME IS NOT CALLED BY THEIR
+                          ADDRESS. Matt, 2026-10-01: "show the email once
+                          with 'Name not set' beneath, not the email
+                          twice." The same helper on every people list. */}
                       <div className="who">
-                        <span className="who__av">{initials(u.name)}</span>
-                        <div><div className="dt__name">{u.name}</div><div className="dt__sub">{userEmail(u)}</div></div>
+                        <span className="who__av">{personInitials(personLabel(u.name, userEmail(u)))}</span>
+                        <div>
+                          <div className="dt__name">{personLabel(u.name, userEmail(u)).title}</div>
+                          <div className="dt__sub">{personLabel(u.name, userEmail(u)).sub}</div>
+                        </div>
                       </div>
                     </td>
                     {showPartner && <td className="soft">{userPartnerName(u.partner)}</td>}

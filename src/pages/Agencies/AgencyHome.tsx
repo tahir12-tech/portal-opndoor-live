@@ -66,6 +66,7 @@ import { showsOffices } from '@/data/agencyOffices';
 import './AgencyHome.css';
 import { plural } from '@/lib/plural';
 import { AgencyChanges } from './AgencyChanges';
+import { personInitials, personLabel } from '@/data/personLabel';
 
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
 const STATUS_ST: Partial<Record<Status, string>> = { referencing: 'st-wait', sent: 'st-live', paid: 'st-live', deed: 'st-ok' };
@@ -757,7 +758,7 @@ export function AgencyHome() {
               <tbody>
                 {peopleShown.map((r) => (
                   <tr key={r.userId}>
-                    <td><span className="who__av">{initials(r.name || r.email)}</span> <span className="dt__name">{r.name || r.email}</span><span className="dt__sub">{r.email}</span></td>
+                    <td><span className="who__av">{personInitials(personLabel(r.name, r.email))}</span> <span className="dt__name">{personLabel(r.name, r.email).title}</span><span className="dt__sub">{personLabel(r.name, r.email).sub}</span></td>
                     <td>{r.agencyLevel}</td>
                     {manyAgencies && <td className="soft">{r.agency}</td>}
                     {manyOffices && <td className="soft">{r.branch}</td>}
@@ -883,7 +884,7 @@ export function AgencyHome() {
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.userId}>
-                    <td><span className="who__av">{initials(r.name || r.email)}</span> <span className="dt__name">{r.name || r.email}</span><span className="dt__sub">{r.email}</span></td>
+                    <td><span className="who__av">{personInitials(personLabel(r.name, r.email))}</span> <span className="dt__name">{personLabel(r.name, r.email).title}</span><span className="dt__sub">{personLabel(r.name, r.email).sub}</span></td>
                     <td>{r.agencyLevel}</td>
                     <td>{r.status === 'pending'
                       ? <Pill variant="sent">Pending</Pill>

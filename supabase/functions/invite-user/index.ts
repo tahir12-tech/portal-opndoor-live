@@ -181,7 +181,20 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: "Not permitted." }, 403);
     }
 
-    const fullName = `${firstName} ${lastName}`.trim() || email;
+    /* NO NAME IS NO NAME, NOT THE EMAIL. Matt, 2026-10-01: "I invited
+       barb@barb.com with the name 'barb barb' but she shows by email."
+
+       This fell back to the address, so a person invited without a name
+       was STORED as their own email and every people list then printed it
+       as their name, twice: once in the name column and once under it.
+       The product already knew this was wrong -- #69 patched the invite
+       EMAIL to drop an inviter name containing an "@" -- and patched the
+       symptom at the one place it had been noticed.
+
+       Stored empty instead, which is what `personLabel` on the client
+       reads to say "Name not set" once. full_name is NOT NULL, so the
+       empty string is the honest value, not null. */
+    const fullName = `${firstName} ${lastName}`.trim();
 
     /* IS THE PERSON BEING INVITED ONTO OUR OWN ESTATE? Asked of the INVITEE's
        partner, not the caller's, because an admin invites into partners that
@@ -431,9 +444,10 @@ Deno.serve(async (req) => {
       partnerName: partnerRow?.name ?? null,
       agencyName,
     });
-    // #69: never expose a contact email as a display name. A name-less user's
-    // full_name falls back to their email (see fullName above), so if such a user
-    // is the inviter, drop it and let the template say "Your team".
+    /* #69: never expose a contact email as a display name. The fallback
+       that created those rows is gone (see fullName above), but rows made
+       before it went still carry an address in full_name, so the "@" test
+       stays: it is reading history, not guarding a live behaviour. */
     const inviterName = caller.full_name && !caller.full_name.includes("@") ? caller.full_name : "";
     const emailRes = await sendMessage({ to: email, message: staffInviteEmail({ inviterName, partnerName, link }) });
 

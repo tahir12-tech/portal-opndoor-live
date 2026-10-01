@@ -328,7 +328,11 @@ export async function inviteUser(input: AddUserInput): Promise<ManagedUser> {
     if (error) throw new Error(await functionErrorMessage(error, 'Could not send the invitation.'));
     if (!data?.ok) throw new Error(data?.error || 'Could not send the invitation.');
     const partner = input.role === 'superadmin' ? 'opndoor' : input.partner || homePartner();
-    const name = `${input.firstName} ${input.lastName}`.trim() || input.email.trim();
+    /* AND NOT THE EMAIL HERE EITHER. This row is what the list shows
+       until the next hydration, so a fallback here would put the address
+       in the name column for as long as the page is open, which is
+       exactly what it looks like when it is stored. */
+    const name = `${input.firstName} ${input.lastName}`.trim();
     return { id: `pending_${input.email.trim()}`, name, email: input.email.trim(), role: input.role, lastActive: 'Pending invite', status: 'pending', partner };
   }
   return addUser(input);

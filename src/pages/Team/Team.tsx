@@ -74,6 +74,7 @@ import { useToast } from '@/components/ui/Toast';
 import '@/pages/UserManagement/UserManagement.css';
 import './Team.css';
 import { plural, countOf } from '@/lib/plural';
+import { personInitials, personLabel } from '@/data/personLabel';
 
 /* THE TWO ROLES AN AGENCY HAS. Described in the words of the business the
    reader is in, not the portal's internals: no "partner", no "estate", no
@@ -100,7 +101,6 @@ const STATUS_PILL: Record<string, [string, PillVariant]> = {
   deactivated: ['Deactivated', 'muted'],
 };
 
-const initials = (n: string) => n.split(' ').map((p) => p[0]).slice(0, 2).join('');
 
 /** One node of the structure, and the people who sit at it. */
 interface Node {
@@ -579,10 +579,11 @@ export function Team() {
       && mayActOnOrEqual(actor, { id: u.id, role: u.role, seesCommission: u.seesCommission === true });
     return (
       <div className="tm-person">
-        <span className="tm-person__avatar">{initials(u.name)}</span>
+        <span className="tm-person__avatar">{personInitials(personLabel(u.name, userEmail(u)))}</span>
         <div className="tm-person__id">
-          <div className="tm-person__name">{u.name}{isSelf && <span className="tm-you">You</span>}</div>
-          <div className="tm-person__email">{userEmail(u)}</div>
+          {/* The email once, with what is missing under it. */}
+          <div className="tm-person__name">{personLabel(u.name, userEmail(u)).title}{isSelf && <span className="tm-you">You</span>}</div>
+          <div className="tm-person__email">{personLabel(u.name, userEmail(u)).sub}</div>
         </div>
         <span className={`role-tag ${pillCls}`}>{pillLabel}</span>
         <Pill variant={statusVariant}>{statusLabel}</Pill>

@@ -143,6 +143,7 @@ import { ViewAsButton } from '@/components/ViewAsButton';
 import './PartnerHome.css';
 import { plural, countOf } from '@/lib/plural';
 import { formatDate, formatMonth } from '@/lib/format';
+import { personInitials, personLabel } from '@/data/personLabel';
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
   active: ['Active', 'deed'],
@@ -189,7 +190,6 @@ const USER_STATUS_PILL: Record<string, [string, PillVariant]> = {
   pending: ['Invited', 'warn'],
   deactivated: ['Deactivated', 'muted'],
 };
-const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 const modeLabel = (m: ReferencingMode | undefined) => REFERENCING_MODES.find((x) => x.id === m)?.label ?? 'Screened referral';
 
 export function PartnerHome() {
@@ -662,8 +662,11 @@ export function PartnerHome() {
                   <tr key={u.id}>
                     <td>
                       <span className="ph-user">
-                        <span className="who__av">{initials(u.name || u.email)}</span>
-                        <span><span className="dt__name">{u.name || u.email}</span><span className="dt__sub">{u.email}</span></span>
+                        <span className="who__av">{personInitials(personLabel(u.name, u.email))}</span>
+                        <span>
+                          <span className="dt__name">{personLabel(u.name, u.email).title}</span>
+                          <span className="dt__sub">{personLabel(u.name, u.email).sub}</span>
+                        </span>
                       </span>
                     </td>
                     <td>{ROLE_LABEL[u.role] ?? u.role}</td>
