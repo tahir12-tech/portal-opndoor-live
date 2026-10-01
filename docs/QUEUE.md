@@ -1,5 +1,36 @@
 # QUEUE
 
+## Small items done
+
+Everything small from the list, in the order Matt sent it. One commit each,
+full suite and drift after each, every edge function deployed to dev.
+
+- A Developer's "Sees" reads "Dev Centre and API (no commission)" (already
+  shipped; verified tonight on both people lists).
+- Every email link lands on the tab that person signs in on (`882abea`).
+- The deed warning follows the branch, everywhere it appears, and the agency
+  banner is Matt's sentence (`40f9b9a`).
+- Applications has a "Referred by" column (`48a0e24`).
+- The rent reads "Rent to be guaranteed" until the deed is issued (`d61141d`).
+- The League says what each column is, "Change this week" replaces "7d", and
+  "Agency referral" is off the header line (`4a690d8`).
+- One address, one fee name, one date format on the tenant side (`bf5a643`).
+- The deed count is of signatures, not of the tenant's place in the list, and
+  the tenant's copy says the insurance sentence once (`846db61`).
+- The fee-paid email says how many of the tenants have paid (`8e3d1ab`).
+- The landlord gets one email with every signed deed, and no reminder nobody
+  sends (`175c19a`).
+- A corrected deed says it is a correction, the correction page names every
+  tenant, and a corrected deed gets delivered at all (`5b96bea`).
+- Money to the penny, the payment link beside Copy, "both tenants" (`1811be7`).
+
+Three of these turned out to be bigger than the wording: the deed count was an
+ordinal read as a count, the landlord email promised a reminder nobody sends,
+and the corrected deed would have been signed and never sent, because the
+one-delivery guard I added earlier in the evening could not tell a correction
+from a duplicate.
+
+
 ## THE NIGHT'S ORDER, 2026-10-01 (verbatim). THIS IS THE PLAN UNTIL MORNING.
 
 > I'm going to sleep; work through the night without waiting for me.
@@ -139,7 +170,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
-## THE CORRECTION PAGE NAMES EVERY TENANT (instruction, 2026-10-01, verbatim). todo.
+## THE CORRECTION PAGE NAMES EVERY TENANT (instruction, 2026-10-01, verbatim). **done** (`5b96bea`).
 
 > Tenancy start correction page on a joint tenancy: before submitting, say "We will void the current deeds and send each tenant on this tenancy a corrected deed to sign", followed by their names. After, "Each tenant has been sent a corrected deed to sign: [names]. Once each signs, their corrected deed will be emailed to you." For one tenant, keep the singular wording. Show dates as "29 Dec 2026", including in the PandaDoc email text.
 
@@ -148,7 +179,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 - "including in the PandaDoc email text" means the message the envelope
   carries, which is built in the function, not on the page.
 
-## THE LANDLORD GETS ONE EMAIL WITH EVERY DEED (instruction, 2026-10-01, verbatim). todo.
+## THE LANDLORD GETS ONE EMAIL WITH EVERY DEED (instruction, 2026-10-01, verbatim). **done** (`175c19a`).
 
 > "Send deed to landlord" on a joint tenancy: send all the tenancy's signed deeds in one email, listing each tenant, and say if any are still unsigned ("Joint Two has not signed yet; we'll send theirs when they do" only if you can, otherwise just list what's attached). Landlord email: remove the duplicate "attached" sentence, and remove "We will email you a month before the guarantee ends" unless the landlord really does get that reminder. Deploy to dev and check there.
 
@@ -158,7 +189,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 - Same family as the deed-count bug: what the email claims has to be what
   happened.
 
-## "DEED 2 OF 2" ON A TENANCY WITH ONE SIGNATURE (bug, 2026-10-01, verbatim). todo.
+## "DEED 2 OF 2" ON A TENANCY WITH ONE SIGNATURE (bug, 2026-10-01, verbatim). **done** (`846db61`).
 
 > Bug on joint tenancy GR-23853/GR-23854: Joint Two signed first, and the agent's signed-deed email said "deed 2 of 2" and "This is the last of this tenancy's deeds: every tenant has now signed their own", while Joint One has not paid or signed. The count must be of deeds actually signed ("1 of 2 signed"), and "every tenant has now signed" only appears when it's true. Check the same logic everywhere it appears (emails, application detail, Applications list).  Deploy to dev and check there.
 
@@ -167,14 +198,14 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 - "everywhere it appears" is named: emails, application detail, Applications
   list. One predicate, three readers.
 
-## THE FEE PAID EMAIL COUNTS THE TENANTS (instruction, 2026-10-01, verbatim). todo.
+## THE FEE PAID EMAIL COUNTS THE TENANTS (instruction, 2026-10-01, verbatim). **done** (`8e3d1ab`).
 
 > Agent "fee paid" email for a joint tenancy: add how many have paid, e.g. "1 of 2 tenants have paid."
 
 - Only on a joint tenancy. A single pays once and "1 of 1" says nothing.
 - The count has to come from the payment rows, not from the tenancy shape.
 
-## TWO DECIMAL PLACES, THE LINK ON JOINTS, AND HOW MANY TENANTS (instruction, 2026-10-01, verbatim). todo.
+## TWO DECIMAL PLACES, THE LINK ON JOINTS, AND HOW MANY TENANTS (instruction, 2026-10-01, verbatim). **done** (`1811be7`).
 
 > Application detail: money always shows two decimal places (£34,545.60, not £34,545.6), everywhere. Show the payment link next to Copy on joint tenancy applications as on singles. Say "both tenants" for two, "all 3 tenants" for three or more.
 
@@ -182,21 +213,21 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
   bare number and route it through the one formatter.
 - `oneMoneyFormatter.test.ts` is the check that already exists for this.
 
-## A CORRECTED DEED SAYS IT IS A CORRECTION (instruction, 2026-10-01, verbatim). todo.
+## A CORRECTED DEED SAYS IT IS A CORRECTION (instruction, 2026-10-01, verbatim). **done** (`5b96bea`).
 
 > Signed deed email after a tenancy start correction: say so at the top, e.g. "This corrected deed replaces the one sent on 1 Oct 2026. The tenancy start is now 21 November 2026; please discard the earlier copy." Same for the tenant's copy.
 
 - Both copies: the agent's and the tenant's. The date of the earlier send is
   needed in the sentence, so the template takes it rather than inventing it.
 
-## THE SIGNED-DEED EMAIL SAYS IT ONCE (instruction, 2026-10-01, verbatim). todo.
+## THE SIGNED-DEED EMAIL SAYS IT ONCE (instruction, 2026-10-01, verbatim). **done** (`846db61`).
 
 > Tenant signed-deed email: remove the duplicate "not insurance, not a party to your tenancy" sentence from the body; the footer already says it.
 
 - The footer is `mailer.ts`, shared by all 22 templates, so the sentence in
   the body is the one to go.
 
-## ONE ADDRESS AND ONE NAME FOR THE FEE, TENANT SIDE (instruction, 2026-10-01, verbatim). todo.
+## ONE ADDRESS AND ONE NAME FOR THE FEE, TENANT SIDE (instruction, 2026-10-01, verbatim). **done** (`bf5a643`).
 
 > Tenant payment page: use support@opndoor.co (not hello@), the same fee name as the emails everywhere ("guarantee fee"), and dates as "20 Nov 2026". Sweep all tenant-facing pages and emails for hello@opndoor.co and "guarantor fee" and make them consistent.
 
@@ -230,7 +261,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
   proved rather than assumed.
 - The tenant's uploaded documents are still not part of this.
 
-## THE RENT FIGURE IS NOT GUARANTEED UNTIL IT IS (instruction, 2026-10-01, verbatim). todo.
+## THE RENT FIGURE IS NOT GUARANTEED UNTIL IT IS (instruction, 2026-10-01, verbatim). **done** (`d61141d`).
 
 > Application detail: before the deed is issued, label the rent figure "Rent to be guaranteed" instead of "Guaranteed annual rent".
 
@@ -239,7 +270,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
   so the label follows `deed_issued_at`, not the payment and not the
   signature.
 
-## THE AGENCY LEAGUE SAYS WHAT ITS COLUMNS ARE (instruction, 2026-10-01, verbatim). todo.
+## THE AGENCY LEAGUE SAYS WHAT ITS COLUMNS ARE (instruction, 2026-10-01, verbatim). **done** (`4a690d8`).
 
 > Agency League (signed in as a Regent Director): every column has a clear heading (Referrals, Fees collected, Paid, Deeds, Sent to paid, Sent to deed); rename the "7d" column to "Change this week" with a tooltip explaining "new" and "-"; change "Every negotiator ranked" to "Everyone who has referred, ranked"; remove "Agency referral" from the header line. Deploy to dev and check there.
 
@@ -434,7 +465,7 @@ one the product ships -- which is exactly what the setting was built
 for, and is why the handover check tells Balal to look at the value on
 live rather than trust the default.
 
-## AGENCY APPLICATIONS: WHO REFERRED IT (instruction, 2026-10-01, verbatim). todo.
+## AGENCY APPLICATIONS: WHO REFERRED IT (instruction, 2026-10-01, verbatim). **done** (`48a0e24`).
 
 > Agency Applications: add a "Referred by" column for Directors and Managers.
 
@@ -653,7 +684,7 @@ today. A scan for them belongs in the suite.
   the code and the migration history -- and the limit stated
   plainly rather than worked around.
 
-## THE DEED WARNING FOLLOWS THE SAME RULE EVERYWHERE (instruction, 2026-10-01, verbatim). todo.
+## THE DEED WARNING FOLLOWS THE SAME RULE EVERYWHERE (instruction, 2026-10-01, verbatim). **done** (`40f9b9a`).
 
 > The "No agent contact. A deed cannot be issued…" warning still shows on the supplier user's Agencies page (signed in as joe@bloggs.com, Kestrel Management) even though both Kestrel branches have contacts. Apply the same rule as the admin supplier Overview everywhere this warning appears: only warn on a branch that genuinely has nowhere to send the deed, on that branch. Also change the banner to "You can view, add and edit the agencies and branches you manage. Changes apply straight away." Deploy to dev and check there, signed in as a supplier user.
 
@@ -667,7 +698,7 @@ today. A scan for them belongs in the suite.
   readiness map, not `effectivePrimary`. Two mechanisms answering
   one question is why one of them is wrong.
 
-## AN EMAIL LINK LANDS ON THE RIGHT SIGN-IN TAB (instruction, 2026-10-01, verbatim). todo.
+## AN EMAIL LINK LANDS ON THE RIGHT SIGN-IN TAB (instruction, 2026-10-01, verbatim). **done** (`882abea`).
 
 > Password reset and invite links send each person to the sign-in tab for their own type: supplier users to the Supplier tab, agency users to the Agent tab, tenants to the Tenant tab. Check every email link that lands on the sign-in page. Deploy to dev and check there.
 
@@ -744,7 +775,7 @@ And the second, which is the one to build:
   Balal can run to see whether the domain is verified and the
   sender is right.
 
-## A DEVELOPER'S "SEES" SAYS WHAT THEY SEE (instruction, 2026-10-01, verbatim). ACTIVE.
+## A DEVELOPER'S "SEES" SAYS WHAT THEY SEE (instruction, 2026-10-01, verbatim). **done** (already shipped; verified 2026-10-01 on both lists: `supplierSees` and `describePosition` return DEVELOPER_SEES).
 
 > People lists: a Developer's "Sees" reads "Dev Centre and API (no commission)" instead of "-".
 
