@@ -31,6 +31,7 @@ import { SupplierStatements } from '@/components/SupplierStatements';
 import { SupplierSettings } from './SupplierSettings';
 import { ApiAccessSwitch } from './ApiAccessSwitch';
 import { SupplierDeals } from './SupplierDeals';
+import { SupplierInvite } from './SupplierInvite';
 /* THE DEV CENTRE'S OWN PANELS, read-only. Matt, 2026-10-01: "read-only
    for Opndoor admin: their sandbox activity (sandbox applications and
    their status), recent API requests and errors, and webhook delivery
@@ -585,12 +586,26 @@ export function PartnerHome() {
       <Card>
         <CardHead
           title="Users"
-          sub={`${users.length} ${plural(users.length, 'person')}`}
+          sub={countOf(users.length, 'person')}
           /* NO LINK OFF TO THE ESTATE-WIDE LIST. Matt, 2026-10-01: "Its
              people are on the People tab only" and "Anything that linked
              to /users?partner=… now goes to that supplier's People tab."
              This tab IS that page, so the link pointed at a filtered copy
-             of itself. */
+             of itself.
+
+             WHICH IS ALSO WHY THE INVITE LIVES HERE. Matt, 2026-10-01:
+             "Supplier People tab: add an 'Invite someone' button, using
+             the supplier Add user form". Sending somebody to /users to
+             invite would undo the change above and would ask them to
+             pick the supplier whose page they are standing on. */
+          actions={isAdmin && (
+            <SupplierInvite
+              partnerId={partner.id}
+              partnerName={partner.name}
+              apiAccessEnabled={partner.apiAccessEnabled === true}
+              onInvited={refresh}
+            />
+          )}
         />
         <CardBody style={{ padding: users.length === 0 ? undefined : 0 }}>
           {users.length === 0 ? (

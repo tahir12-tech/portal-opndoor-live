@@ -78,11 +78,19 @@ describe('inviteUser call sites', () => {
     expect(silent).toEqual([]);
   });
 
-  /* AND THE PAIR COMES FROM THE ONE LIST. `seesCommission: true` written by
-     hand next to `role: 'management'` is correct today and is exactly how the
-     fourth combination gets invented. Each call site resolves an entry of
-     AGENCY_LEVELS (`chosen`/`spec`) and reads the pair off it. */
-  it('take the pair from AGENCY_LEVELS rather than writing it out', () => {
+  /* AND THE PAIR COMES FROM A LIST, NOT FROM THE CALL SITE.
+     `seesCommission: true` written by hand next to `role: 'management'` is
+     correct today and is exactly how the fourth combination gets invented.
+     Each call site resolves an entry (`chosen`/`spec`) and reads the pair
+     off it.
+
+     TWO LISTS, ONE PER RAIL, since 2026-10-01: AGENCY_LEVELS for our own
+     estate, where a level is a role plus a position and `sees_commission`
+     is what tells a Director from a Manager; SUPPLIER_LEVELS for the
+     supplier rail, which has no positions and where the levels are the
+     roles themselves. The rule is the same for both and this test does not
+     care which list a call site used -- only that it used one. */
+  it('take the pair from a levels list rather than writing it out', () => {
     const handwritten = callers.flatMap((c) => c.calls
       .filter((call) => /\bseesCommission\s*:\s*(true|false)\b/.test(call))
       .map(() => c.file));

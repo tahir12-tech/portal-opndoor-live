@@ -118,6 +118,49 @@ export const AGENCY_LEVELS: { level: AgencyLevel; role: Role; seesCommission: bo
 ];
 
 /* =====================================================================
+   AND THE SUPPLIER RAIL'S LEVELS, WHICH ARE NOT THOSE.
+
+   Matt, 2026-10-01: "Supplier People tab: add an 'Invite someone'
+   button, using the supplier Add user form (no branch, levels
+   Management and Referrer, plus Developer when API access is on)."
+
+   Director, Manager and Negotiator are OUR estate's ladder: they are a
+   role plus a position, and the pair above is what tells a Director
+   from a Manager. A supplier has no positions -- `partner_id` IS the
+   company boundary there -- so its levels are the roles themselves, and
+   `sees_commission` is not a dial anybody turns on that rail.
+
+   IT LIVES HERE, BESIDE AGENCY_LEVELS, FOR THE RULE THAT GUARDS IT.
+   `everyInviteSaysTheLevel.test.ts` requires every inviteUser call site
+   to read the (role, seesCommission) pair off a list rather than write
+   it by hand, because a hand-written pair "is correct today and is
+   exactly how the fourth combination gets invented". That rule is right
+   about this rail too; what it needed was a list to point at.
+
+   DEVELOPER IS IN THE LIST, NOT IN THE OFFER. Whether to show it is the
+   supplier's `api_access_enabled`, which is the Integration tab's
+   switch: a Developer at a supplier with the API off would sign in to a
+   Dev Centre that is not there. That is a question about one supplier,
+   so it belongs on the screen; the level itself is a fact about the
+   rail and belongs here.
+   ===================================================================== */
+export type SupplierLevel = 'Management' | 'Referrer' | 'Developer';
+
+export const SUPPLIER_LEVELS: {
+  level: SupplierLevel; role: Role; seesCommission: boolean;
+  /** True where the level is only meaningful with API access switched on. */
+  needsApi?: boolean;
+  desc: string;
+}[] = [
+  { level: 'Management', role: 'management', seesCommission: false,
+    desc: "Supplier management. The same screens and tools as a referrer, but across the whole supplier with full visibility of all tracking and analytics. Manages the supplier's own agencies, branches and team, with edits applying straight away. Cannot change portal settings." },
+  { level: 'Referrer', role: 'referrer', seesCommission: false,
+    desc: 'Sees and tracks only their own referrals. Can add agencies and branches on the fly while referring.' },
+  { level: 'Developer', role: 'developer', seesCommission: false, needsApi: true,
+    desc: "The supplier's own integrator, for whoever builds against the API. Sees the applications list and detail, the dashboard and the league for the whole supplier, read-only, plus the Dev Centre: their own API keys and webhook endpoints, request logs, delivery history with replay, and a full sandbox to rehearse in. They cannot create a referral or change an application, and they never see commission, settlement, exports or the bordereau." },
+];
+
+/* =====================================================================
    THE LADDER, CLIENT SIDE.
 
    A LENS, NOT THE BOUNDARY. public.assert_may_act_on_user and the
