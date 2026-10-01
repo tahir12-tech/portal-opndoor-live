@@ -127,7 +127,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
   "guarantor fee" is the one to remove.
 - The date format is the shared `formatDate`, already built.
 
-## NOTES ARE SHARED WITH THE SUPPLIER THAT REFERRED IT (correction, 2026-10-01, verbatim). ACTIVE.
+## NOTES ARE SHARED WITH THE SUPPLIER THAT REFERRED IT (correction, 2026-10-01, verbatim). **done** (`489c4aa`).
 
 > notes on an application are shared between Opndoor and the supplier that referred it (e.g. Rightmove's staff); on agency referrals (e.g. Regent) notes stay Opndoor-only.
 
