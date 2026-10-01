@@ -18,7 +18,8 @@ one support address and one name for the fee on the tenant side, and the
 signed-deed email saying the insurance sentence once, and a corrected deed
 saying that it is a correction, and two decimal places with the payment
 link on joint applications, the fee paid email counting the tenants, and
-"deed 2 of 2" on a tenancy with one signature.
+"deed 2 of 2" on a tenancy with one signature, and the landlord getting
+one email with every deed.
 
 
 The single source of truth for outstanding work on this branch.
@@ -35,6 +36,16 @@ anything it is under a heading that says so.
 Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
+
+## THE LANDLORD GETS ONE EMAIL WITH EVERY DEED (instruction, 2026-10-01, verbatim). todo.
+
+> "Send deed to landlord" on a joint tenancy: send all the tenancy's signed deeds in one email, listing each tenant, and say if any are still unsigned ("Joint Two has not signed yet; we'll send theirs when they do" only if you can, otherwise just list what's attached). Landlord email: remove the duplicate "attached" sentence, and remove "We will email you a month before the guarantee ends" unless the landlord really does get that reminder. Deploy to dev and check there.
+
+- "unless the landlord really does get that reminder" is a question to
+  answer before touching the copy: find whether any job sends it. If none
+  does, the sentence goes.
+- Same family as the deed-count bug: what the email claims has to be what
+  happened.
 
 ## "DEED 2 OF 2" ON A TENANCY WITH ONE SIGNATURE (bug, 2026-10-01, verbatim). todo.
 
