@@ -167,6 +167,18 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
+## EVERY EMAIL CARRIES THE SUPPORT FOOTER AND REPLY-TO (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> The invite email footer still says "Questions? Reply to this email." Apply the support@opndoor.co footer and Reply-To to every email, check each email template individually on dev, and list any that didn't have it.
+
+- **"Check each email template individually"** is the instruction, and
+  it rules out sweeping by grep and declaring victory. Each template
+  has to be rendered or read, one at a time, and the ones that were
+  missing it named.
+- Two things, not one: the FOOTER (what the reader sees) and the
+  REPLY-TO header (where a reply actually goes). An email can have
+  the right footer and still land in nobody's inbox.
+
 ## A DEVELOPER'S "SEES" SAYS WHAT THEY SEE (instruction, 2026-10-01, verbatim). ACTIVE.
 
 > People lists: a Developer's "Sees" reads "Dev Centre and API (no commission)" instead of "-".
