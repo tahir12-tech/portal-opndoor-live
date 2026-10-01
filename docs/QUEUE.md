@@ -181,7 +181,7 @@ their own.
 the PARTY, not the reader, so the preview and the real page cannot
 diverge again.
 
-## ONE WAY TO SET SUPPLIER COMMISSION, AND TWO DEAL SHAPES (instructions, 2026-10-01, verbatim). First **done** (`a442fd6`), second **done** (`pending`). Third ACTIVE.
+## ONE WAY TO SET SUPPLIER COMMISSION, AND TWO DEAL SHAPES (instructions, 2026-10-01, verbatim). First **done** (`a442fd6`), second **done** (`2aa7cb7`). Third ACTIVE.
 
 > Supplier Commission tab: one way to set commission only. Remove the old card (Total commission %, Agents' share %, read-only volume tiers, Save commission) and keep the deal editors ("What opndoor pays this supplier", "What the agencies underneath keep"), moving the "Opndoor pays the agents directly" switch and the plain-English summary into that layout. Supplier Overview: don't show "No agent contact" on an agency when its branches have contacts; only warn where a branch would actually have nowhere to send the deed. Settings: replace "The partner references first" with "The supplier references first". People: show status as "Active", capitalised, like elsewhere. Deploy to dev and check there.
 
