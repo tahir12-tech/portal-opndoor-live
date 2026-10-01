@@ -638,7 +638,13 @@ export interface CreateAgreementInput {
   level: 'group' | 'agency' | 'branch';
   id: string;
   coverage: 'additive' | 'all_in';
-  period: 'month' | 'quarter' | 'year';
+  /* THE FOUR THE DATABASE ALLOWS. `pricing_agreements.period` checks
+     against week / month / year / lifetime, and agreement_period_start
+     has an arm for each. 'quarter' was in this type and on the screen
+     and in neither of those: the insert was refused by the check
+     constraint, and had it got through, the period start would have
+     been NULL and the volume count nought for ever. */
+  period: 'week' | 'month' | 'year' | 'lifetime';
   countingScope: 'agency' | 'group' | 'branch';
   bands: AgreementBandInput[];
   tiers?: AgreementTierInput[];

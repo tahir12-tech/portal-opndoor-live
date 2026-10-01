@@ -342,7 +342,7 @@ export function AgreementEditor({
         }
       }
       await createAgreement({
-        level, id, coverage, period: period as 'month' | 'quarter' | 'year',
+        level, id, coverage, period: period as 'week' | 'month' | 'year' | 'lifetime',
         countingScope: countingScope as 'agency' | 'group' | 'branch',
         bands: bandInput, tiers: tierInput, note: note.trim() || null,
         confirmReplace, confirmBreach,
@@ -422,9 +422,30 @@ export function AgreementEditor({
                   </select>
                 </Field>
               )}
+              {/* THE PERIODS THE SYSTEM ACTUALLY HAS, which is not what
+                  this offered. It listed Month, Quarter and Year.
+
+                  QUARTER WAS REFUSED BY THE DATABASE: the check on
+                  pricing_agreements.period allows week, month, year and
+                  lifetime, so choosing it and pressing Save produced a
+                  raw constraint error. And it would not have worked if
+                  it had saved: agreement_period_start has no quarter
+                  arm, so the period start would be NULL, the volume
+                  comparison would match nothing, and the count would
+                  read nought for ever -- the lowest tier applying to
+                  every referral, silently.
+
+                  WEEK AND LIFETIME WERE MISSING, and both are real. So
+                  the control was wrong in both directions. Verified
+                  against dev by trying the insert. */}
               <Field label="Count referrals over" hint="How long before the count starts again at nought. Only matters if commission grows with volume.">
                 <PeriodSelect ariaLabel="Count referrals over" value={period} onChange={setPeriod}
-                  options={[{ value: 'month', label: 'A month' }, { value: 'quarter', label: 'A quarter' }, { value: 'year', label: 'A year' }]} />
+                  options={[
+                    { value: 'week', label: 'A week' },
+                    { value: 'month', label: 'A month' },
+                    { value: 'year', label: 'A year' },
+                    { value: 'lifetime', label: 'Never, count them all' },
+                  ]} />
               </Field>
               <Field label="Count referrals from" hint="Whose referrals add to the count: one office, the whole agency, or the whole group.">
                 <PeriodSelect ariaLabel="Count referrals from" value={countingScope} onChange={setCountingScope}

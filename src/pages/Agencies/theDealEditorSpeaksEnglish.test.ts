@@ -192,3 +192,34 @@ describe('the one-line summary agrees with the sentence', () => {
     expect(line.startsWith('Deal:')).toBe(true);
   });
 });
+
+/* =====================================================================
+   AND IT MAY ONLY OFFER PERIODS THE SYSTEM HAS.
+
+   Found while doing the wording pass: the control offered Month,
+   Quarter and Year. Quarter is refused by the check on
+   pricing_agreements.period, so choosing it put a raw constraint error
+   in front of somebody agreeing a deal; and had it saved,
+   agreement_period_start has no quarter arm, so the period start would
+   be NULL, the volume count nought for ever, and every referral priced
+   at the LOWEST tier on a deal agreed on the opposite basis. Week and
+   lifetime, which are both real, were missing.
+
+   the_editor_offers_only_real_periods.test.sql pins the database's
+   side. This pins the control's, so the two lists cannot drift apart
+   again.
+   ===================================================================== */
+describe('the period control', () => {
+  const periods = code.slice(code.indexOf('Count referrals over'), code.indexOf('Count referrals from'));
+
+  it('offers the four the database allows', () => {
+    for (const v of ['week', 'month', 'year', 'lifetime']) {
+      expect(periods, `the control no longer offers ${v}`).toContain(`value: '${v}'`);
+    }
+  });
+
+  it('and not the one it refuses', () => {
+    expect(periods).not.toContain("'quarter'");
+    expect(code).not.toMatch(/'month' \| 'quarter' \| 'year'/);
+  });
+});
