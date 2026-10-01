@@ -30,7 +30,15 @@ function deliveryMs(d: DevDelivery): string {
 
 type StatusFilter = 'all' | 'delivered' | 'retrying' | 'dead';
 
-export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
+export function WebhookHistory({ partnerId, readOnly = false }: {
+  partnerId: string | null;
+  /* READ-ONLY, FOR A SUPPLIER'S INTEGRATION TAB. The history is a
+     reading; sending a test event and replaying a delivery both put
+     traffic on somebody else's endpoint, which is their developer's to
+     do. Matt, 2026-10-01: "read-only for Opndoor admin ... webhook
+     delivery history". */
+  readOnly?: boolean;
+}) {
   const [rows, setRows] = useState<DevDelivery[]>([]);
   const [endpoints, setEndpoints] = useState<DevWebhookEndpoint[]>([]);
   const [status, setStatus] = useState<StatusFilter>('all');
@@ -132,9 +140,11 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
               onChange={(v) => setDays(Number(v))}
               options={PERIODS.map((p) => ({ value: String(p.id), label: p.label }))}
             />
-            <Button variant="ghost" size="sm" onClick={() => setTestOpen(true)} disabled={busy}>
-              <Icon name="send" /> Send test event
-            </Button>
+            {!readOnly && (
+              <Button variant="ghost" size="sm" onClick={() => setTestOpen(true)} disabled={busy}>
+                <Icon name="send" /> Send test event
+              </Button>
+            )}
             {/* A refresh icon, not a tick. The button was labelled Refresh and
                 showed a permanent green check, so a click that DID refetch looked
                 identical to one that did nothing. The stamp below is the actual
@@ -148,7 +158,7 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
       {err && <CardBody style={{ paddingBottom: 0 }}><div className="devalert">{err}</div></CardBody>}
       <table className="dt">
         <thead>
-          <tr><th>Event id</th><th>Event</th><th>Endpoint</th><th>Sent</th><th>Delivery time</th><th>Attempts</th><th>Status</th><th /></tr>
+          <tr><th>Event id</th><th>Event</th><th>Endpoint</th><th>Sent</th><th>Delivery time</th><th>Attempts</th><th>Status</th>{!readOnly && <th />}</tr>
         </thead>
         <tbody>
           {shown.map((d) => {
@@ -175,22 +185,27 @@ export function WebhookHistory({ partnerId }: { partnerId: string | null }) {
                     </div>
                   )}
                 </td>
-                <td>
-                  {/* Offered only where there is something to replay. A delivered
-                      row is excluded here and refused by the RPC as well:
-                      resending a success fixes nothing, and the button would
-                      eventually be pressed on the wrong row. */}
-                  {!d.delivered_at && (
-                    <Button variant="ghost" size="sm" onClick={() => void doReplay(d.id)} disabled={busy}>
-                      <Icon name="refresh" /> Replay
-                    </Button>
-                  )}
-                </td>
+                {/* REPLAY IS THE DEVELOPER'S, not an onlooker's: it puts
+                    traffic on their endpoint. The column is not drawn at
+                    all on a read-only view rather than drawn empty. */}
+                {!readOnly && (
+                  <td>
+                    {/* Offered only where there is something to replay. A delivered
+                        row is excluded here and refused by the RPC as well:
+                        resending a success fixes nothing, and the button would
+                        eventually be pressed on the wrong row. */}
+                    {!d.delivered_at && (
+                      <Button variant="ghost" size="sm" onClick={() => void doReplay(d.id)} disabled={busy}>
+                        <Icon name="refresh" /> Replay
+                      </Button>
+                    )}
+                  </td>
+                )}
               </tr>
             );
           })}
           {!shown.length && !busy && (
-            <tr><td colSpan={8} className="soft">
+            <tr><td colSpan={readOnly ? 7 : 8} className="soft">
               No deliveries match. If you expected some, check on Configuration that an endpoint is enabled and
               subscribed to that event.
             </td></tr>

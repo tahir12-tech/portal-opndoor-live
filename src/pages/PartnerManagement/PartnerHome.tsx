@@ -31,6 +31,19 @@ import { SupplierStatements } from '@/components/SupplierStatements';
 import { SupplierSettings } from './SupplierSettings';
 import { ApiAccessSwitch } from './ApiAccessSwitch';
 import { SupplierDeals } from './SupplierDeals';
+/* THE DEV CENTRE'S OWN PANELS, read-only. Matt, 2026-10-01: "read-only
+   for Opndoor admin: their sandbox activity (sandbox applications and
+   their status), recent API requests and errors, and webhook delivery
+   history, same data as their Dev Centre."
+
+   "SAME DATA" IS LITERAL HERE: these are the Dev Centre's components
+   with their actions taken away, not three new readers of the same
+   tables. A second implementation is how the two screens come to
+   disagree about what a partner's traffic looked like. */
+import { Sandbox } from '@/pages/DevCentre/Sandbox';
+import { Logs } from '@/pages/DevCentre/Logs';
+import { WebhookHistory } from '@/pages/DevCentre/WebhookHistory';
+import '@/pages/DevCentre/DevCentre.css';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { getApplications } from '@/data/applicationsService';
@@ -363,6 +376,50 @@ export function PartnerHome() {
             </p>
           </CardBody>
         </Card>
+
+        {/* WHAT THEIR INTEGRATION IS ACTUALLY DOING. Shown only once API
+            access is on: before that there is no traffic, no sandbox and
+            no endpoint, and three empty panels would read as broken
+            rather than as not-yet-started.
+
+            READ-ONLY, which is the instruction and is also the line that
+            matters: clearing a sandbox, replaying a delivery and sending
+            a test event all ACT on a developer's working state, and an
+            admin doing that from a page about a supplier would be
+            changing something this screen does not say it changes. */}
+        {partner.apiAccessEnabled && (
+          <>
+            <Card>
+              <CardHead
+                title="Sandbox activity"
+                sub="The test applications this supplier’s developer has created, and where each has got to. Read-only here; they drive it from their own Dev Centre."
+              />
+              <CardBody>
+                <Sandbox partnerId={partner.dbId ?? null} readOnly />
+              </CardBody>
+            </Card>
+
+            <Card>
+              <CardHead
+                title="Recent API requests and errors"
+                sub="Every call this supplier has made to the partner API, newest first, with the ones that failed and why."
+              />
+              <CardBody>
+                <Logs partnerId={partner.dbId ?? null} />
+              </CardBody>
+            </Card>
+
+            <Card>
+              <CardHead
+                title="Webhook delivery history"
+                sub="What opndoor has sent to their endpoints, whether it arrived, and how many attempts it took."
+              />
+              <CardBody>
+                <WebhookHistory partnerId={partner.dbId ?? null} readOnly />
+              </CardBody>
+            </Card>
+          </>
+        )}
       </div>
       )}
 

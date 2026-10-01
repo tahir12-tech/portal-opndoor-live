@@ -54,7 +54,20 @@ function statusVariant(s: string): PillVariant {
   return 'warn';
 }
 
-export function Sandbox({ partnerId }: { partnerId: string | null }) {
+export function Sandbox({ partnerId, readOnly = false }: {
+  partnerId: string | null;
+  /* READ-ONLY, FOR A SUPPLIER'S INTEGRATION TAB. Matt, 2026-10-01:
+     "read-only for Opndoor admin: their sandbox activity (sandbox
+     applications and their status) ... same data as their Dev Centre."
+
+     The same panel, with the things that ACT on somebody else's sandbox
+     taken away: clearing it, and the links that walk into one of their
+     test tenancies. Looking at a partner's sandbox is reading; emptying
+     it is not, and an admin doing it from a page about a supplier would
+     be destroying a developer's working state from a screen that does
+     not say so. */
+  readOnly?: boolean;
+}) {
   const toast = useToast();
   const [rows, setRows] = useState<SandboxApplication[]>([]);
   const [counts, setCounts] = useState<SandboxCounts | null>(null);
@@ -166,15 +179,17 @@ export function Sandbox({ partnerId }: { partnerId: string | null }) {
           {/* Deliberately NOT disabled when the count is zero or unknown. It was,
               and that made a click do nothing and say nothing, which is
               indistinguishable from a broken button. It now opens and explains. */}
-          <Button
-            variant="primary"
-            size="sm"
-            className="btn--danger"
-            onClick={() => setPurgeOpen(true)}
-            disabled={busy}
-          >
-            <Icon name="trash" /> Clear sandbox
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="primary"
+              size="sm"
+              className="btn--danger"
+              onClick={() => setPurgeOpen(true)}
+              disabled={busy}
+            >
+              <Icon name="trash" /> Clear sandbox
+            </Button>
+          )}
         </div>
       </div>
 
@@ -203,7 +218,7 @@ export function Sandbox({ partnerId }: { partnerId: string | null }) {
                 <th>Property</th>
                 <th>Rent</th>
                 <th>Created</th>
-                <th>Drive it</th>
+                {!readOnly && <th>Drive it</th>}
               </tr>
             </thead>
             <tbody>
@@ -229,23 +244,30 @@ export function Sandbox({ partnerId }: { partnerId: string | null }) {
                   </td>
                   <td>{fmtMoney(a.monthly_rent)}</td>
                   <td>{fmtDate(a.created_at)}</td>
-                  <td>
-                    <div className="sbxrowacts">
-                      {/* Offered only while there is something to pay, matching the
-                          API's own rule for returning the payment token. */}
-                      {a.payment_url && a.status === 'sent' && (
-                        <Button variant="ghost" size="sm" href={a.payment_url} target="_blank">
-                          <Icon name="external" /> Pay
-                        </Button>
-                      )}
-                      {a.pandadoc_document_id && (
-                        <Button variant="ghost" size="sm" onClick={() => void showSigningLink(a)} disabled={busy}>
-                          <Icon name="pen" /> Sign
-                        </Button>
-                      )}
-                      {!a.payment_url && !a.pandadoc_document_id && <span className="soft">-</span>}
-                    </div>
-                  </td>
+                  {/* THE ACTIONS COLUMN IS THE DEVELOPER'S, not an
+                      onlooker's: Pay and Sign walk into one of their test
+                      tenancies and move it on. An admin reading a
+                      supplier's Integration tab is watching, so the column
+                      is not drawn at all rather than drawn empty. */}
+                  {!readOnly && (
+                    <td>
+                      <div className="sbxrowacts">
+                        {/* Offered only while there is something to pay, matching the
+                            API's own rule for returning the payment token. */}
+                        {a.payment_url && a.status === 'sent' && (
+                          <Button variant="ghost" size="sm" href={a.payment_url} target="_blank">
+                            <Icon name="external" /> Pay
+                          </Button>
+                        )}
+                        {a.pandadoc_document_id && (
+                          <Button variant="ghost" size="sm" onClick={() => void showSigningLink(a)} disabled={busy}>
+                            <Icon name="pen" /> Sign
+                          </Button>
+                        )}
+                        {!a.payment_url && !a.pandadoc_document_id && <span className="soft">-</span>}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

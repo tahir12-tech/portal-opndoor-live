@@ -50,11 +50,17 @@ const NOT_YET_COVERED = [
   // --- dev centre: the supplier rail's API tooling, which the house route
   //     cannot reach at all (20261006270000 refuses a key and an endpoint
   //     there, and invite-user refuses to create a developer there) --------
-  'dev_api_errors_by_method', 'dev_api_keys', 'dev_api_logs',
+  /* THREE CAME OFF THIS LIST on 2026-10-01: dev_api_logs,
+     dev_api_errors_by_method and dev_sandbox_applications are now
+     exercised by an_admin_watches_one_suppliers_integration.test.sql,
+     which the supplier Integration tab's read-only panels needed. Not a
+     coverage drive: the panels read another party's data, so the
+     scoping had to be proved, and proving it covers the readers. */
+  'dev_api_keys',
   'dev_api_stats', 'dev_api_timeseries', 'dev_delete_api_key',
   'dev_delete_webhook_endpoint', 'dev_live_application_counts', 'dev_live_applications',
   'dev_partner_options', 'dev_purge_sandbox', 'dev_replay_webhook_delivery',
-  'dev_revoke_api_key', 'dev_sandbox_applications', 'dev_sandbox_counts',
+  'dev_revoke_api_key', 'dev_sandbox_counts',
   'dev_update_webhook_endpoint', 'dev_webhook_deliveries', 'dev_webhook_endpoint_secret',
   'dev_webhook_endpoints', 'dev_webhook_stats', 'partner_active_key_count',
   // --- opndoor-admin globals, which have no agency to be scoped to --------
@@ -239,9 +245,13 @@ describe('every allowlisted function is exercised by a pgTAP test', () => {
      the length follows, and the literal 36 read as "one more is
      tolerated" when nothing tolerated anything. Replaced by the one that
      keeps the two in step and cannot drift. */
-  it('the uncovered list is the uncovered set, exactly, and is 36', () => {
+  it('the uncovered list is the uncovered set, exactly, and is 33', () => {
     expect(NOT_YET_COVERED.length).toBe(uncovered.length);
-    expect(NOT_YET_COVERED.length).toBe(36);
+    /* 36 -> 33, 2026-10-01, and the ratchet turned the right way: three
+       Dev Centre readers gained a pgTAP test because the supplier
+       Integration tab reads another party's data through them and the
+       scoping had to be proved. */
+    expect(NOT_YET_COVERED.length).toBe(33);
   });
 
   /* AND THE SORTED CLAIM IS NOW TRUE OF THE FILE. The literal is `.sort()`ed
