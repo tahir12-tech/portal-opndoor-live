@@ -19,23 +19,25 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 > Commission statements (agency and supplier, email and PDF): replace "Paid by the 15th of the following month" with: "Please send an invoice to opndoor for [total], quoting statement reference [reference], to [invoice email], including your bank details. Invoices received by the 8th are paid by the 15th." The total and reference come from each statement; the invoice email is a setting Opndoor admin can change. Set it to [EMAIL].
 
-### THE ADDRESS IS MISSING AND I AM NOT INVENTING ONE
+### MATT ANSWERED THE GAP, AND OVERRULED THE FALLBACK (2026-10-01, verbatim)
 
-The instruction ends "Set it to [EMAIL]" with the placeholder still in
-it. Every other bracket in this instruction is a thing to read off the
-statement; that one was a thing to paste and it did not get pasted.
+> The invoice email is not hardcoded and has no default: make it a setting Opndoor admin fills in. Until it's set, don't send statements; show a clear warning on Home and Health saying the invoice email needs setting. Tell me where the setting lives.
 
-**An invoicing address on a money document that goes to every agency and
-supplier is the last thing to guess at.** A wrong one sends their
-invoices into a mailbox nobody reads and the first anybody knows is when
-they are not paid.
+I had the gap right -- the instruction ended "Set it to [EMAIL]" with
+the placeholder still in it -- and the answer wrong. I was going to fall
+back to `hello@opndoor.co`, the product's own contact address, on the
+reasoning that a statement naming our front door beats a statement
+naming nothing.
 
-So: the setting is built, Opndoor admin can change it, and until it is
-set the statements fall back to `hello@opndoor.co` -- the product's own
-contact address, already the reply-to on every email it sends, so it is
-at least an address Opndoor reads rather than one I made up. The TEST
-statements show that fallback. **Needs Matt: the real invoicing
-address.**
+**His answer is better and the reason is worth keeping.** A fallback
+that works is a fallback nobody replaces. Statements would go out for
+months quoting the wrong address, every one of them telling an agency
+where to invoice, and the error would surface as unpaid invoices rather
+than as anything anybody could see. NO DEFAULT means the thing cannot
+go out wrong; it can only not go out, loudly, in two places somebody
+looks at every day.
+
+So: no default, the run refuses, and Home and Health both say why.
 
 ### THE REST IS READ OFF THE STATEMENT
 
