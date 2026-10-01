@@ -144,15 +144,28 @@ export function mayUseDevCentre(role: Role, scope: PartnerScope): boolean {
      bounced to /help by the route guard, which is a hidden door with a
      sign on it.
 
-     AND OPNDOOR ADMIN GOES TOO, which is the reading of "for developers
-     only" plus the sentence that follows it: admin's key work is named
-     as the supplier's Integration tab, which has carried the revoke, the
-     API switch and read-only copies of the sandbox, request-log and
-     webhook panels since 2026-10-01. Nothing is lost; it moved. Stated
-     plainly to Matt rather than assumed, because it is the half he did
-     not spell out.
+     OPNDOOR ADMIN KEEPS IT. Matt, correcting me the same day: "Admin
+     keeps the Dev Centre route; the instruction only covered supplier
+     Management and Referrer users. Restore it for Opndoor admin,
+     keeping the existing rule that admin never sees or creates full
+     keys."
+
+     I had read "for developers only" plus "Opndoor admin keeps the
+     ability to revoke keys from the supplier's Integration tab" as
+     admin losing the route. The second sentence is reassurance about
+     the Integration tab, not a replacement. The instruction named two
+     roles and I removed four.
+
+     WHAT ADMIN SEES IN HERE IS UNCHANGED and is not governed by this
+     predicate: the keys panel shows a prefix and a Revoke, never a full
+     key and never a Create. That rule lives in Configuration.tsx and in
+     the RPCs, which is where it belongs -- this function answers who
+     may open the door, not what is behind it.
+
+     opndoor_manager is NOT admitted, and was not before: the route's
+     own list never carried it.
      ===================================================================== */
-  if (role !== 'developer') return false;
+  if (role !== 'developer' && role !== 'superadmin') return false;
   if (scope === ALL_PARTNERS) return false;
   const p = getPartner(scope);
   if (!p) return false;

@@ -15,6 +15,8 @@
  * NOTHING PINNED ANY OF THIS. The whole suite passed with the change already
  * made, which is why these exist.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mayUseDevCentre } from './capabilities';
 import { hydratePartners } from './partnersService';
@@ -51,15 +53,17 @@ describe('who may reach the Dev Centre', () => {
     expect(mayUseDevCentre('referrer', SUPPLIER)).toBe(false);
   });
 
-  /* AND NOT OPNDOOR ADMIN, which is the reading of "for developers only"
-     together with the sentence naming where admin's key work now lives.
-     Admin loses the route, not the capability: the Integration tab has
-     carried the revoke, the API switch and read-only copies of the
-     sandbox, request-log and webhook panels since 2026-10-01. */
-  it('and not Opndoor admin, whose key work is the Integration tab', () => {
-    expect(mayUseDevCentre('superadmin', SUPPLIER)).toBe(false);
+  /* BUT OPNDOOR ADMIN KEEPS IT. Matt, correcting me the same day: "the
+     instruction only covered supplier Management and Referrer users."
+     What admin sees inside is a separate rule and a separate place: a
+     key prefix and a Revoke, never a full key and never a Create. */
+  it('and Opndoor admin, who keeps the route', () => {
+    expect(mayUseDevCentre('superadmin', SUPPLIER)).toBe(true);
   });
-  it('nor Opndoor operations staff', () => {
+
+  /* AND NOT OPNDOOR OPERATIONS STAFF, who never had it: the route's own
+     role list has never carried opndoor_manager. */
+  it('but not Opndoor operations staff, who never had it', () => {
     expect(mayUseDevCentre('opndoor_manager', SUPPLIER)).toBe(false);
   });
 });
@@ -67,6 +71,13 @@ describe('who may reach the Dev Centre', () => {
 describe('and the party still has to have an API', () => {
   it('so not at a supplier with API access switched off', () => {
     expect(mayUseDevCentre('developer', NO_API)).toBe(false);
+  });
+
+  /* INCLUDING FOR ADMIN. A party with no API has no Dev Centre, whoever
+     is looking: that was true before the role test was added and stays
+     true under it. */
+  it('and not even for admin there', () => {
+    expect(mayUseDevCentre('superadmin', NO_API)).toBe(false);
   });
 
   /* AN AGENCY OF OURS IS NOT A PARTY WITH AN API, whoever references its
@@ -87,9 +98,47 @@ describe('and the party still has to have an API', () => {
 describe('every role, in one place', () => {
   /* THE WHOLE TABLE, so a role added later has to be thought about here
      rather than inheriting whatever the last condition happened to do. */
-  it('reads as one yes and the rest no', () => {
+  it('reads as two yeses and the rest no', () => {
     const roles: Role[] = ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'];
     const yes = roles.filter((r) => mayUseDevCentre(r, SUPPLIER));
-    expect(yes).toEqual(['developer']);
+    expect(yes).toEqual(['superadmin', 'developer']);
+  });
+});
+
+/* ===========================================================================
+   AND WHAT ADMIN SEES ONCE THEY ARE IN.
+
+   Matt, 2026-10-01, correcting the above: "Restore it for Opndoor admin,
+   keeping the existing rule that admin never sees or creates full keys."
+
+   Pinned here because the rule and the route are now two separate decisions
+   and this is the file that reads as being about both. The rule itself is
+   stronger than "never full keys": in the Dev Centre an admin sees no key
+   LIST at all -- `canSeeCredentials = !isAdmin` -- only a card saying so and
+   a break-glass revoke that takes a prefix the admin already holds from
+   wherever it leaked.
+
+   READ OFF THE SOURCE, not rendered: the gate is one expression in
+   DevCentre.tsx and the panels are driven by it, so the assertion that
+   matters is that the expression still excludes admin. A render test here
+   would need the whole Dev Centre and would prove less.
+   =========================================================================== */
+describe('the rule about keys, which the route does not govern', () => {
+  const src = readFileSync(join(process.cwd(), 'src/pages/DevCentre/DevCentre.tsx'), 'utf8');
+
+  it('gives an admin no credentials panel at all', () => {
+    expect(src).toMatch(/const canSeeCredentials = !isAdmin;/);
+  });
+
+  /* AND NO MINT. Creating a key is the developer's, and `canManage` is
+     what the Mint button hangs off. */
+  it('and no ability to mint one', () => {
+    expect(src).toMatch(/canManage=\{isDeveloper\}/);
+  });
+
+  /* AND DOES NOT EVEN FETCH THEM, which is the half a screen-only gate
+     would miss: a key list hidden by CSS has still been over the wire. */
+  it('and does not fetch the keys it is not allowed to show', () => {
+    expect(src).toMatch(/canSeeCredentials \? getApiKeys\(scope\) : Promise\.resolve\(\[\]\)/);
   });
 });

@@ -107,11 +107,16 @@ export function App() {
             and that is the capability that moved: revoking is done by
             Opndoor admin on the supplier's Integration tab now.
 
+            ADMIN KEEPS IT, per Matt's correction of the same day: the
+            instruction covered supplier Management and Referrer, and I had
+            removed admin too. What admin sees inside is unchanged -- a key
+            prefix and a Revoke, never a full key and never a Create.
+
             THE ROLE LIST AND THE CAPABILITY BOTH NARROW, deliberately. The
             capability is the one place the rule lives, and this list is the
             brace to that belt: a predicate that ever widened again would
             still not open this route. */}
-        <Route element={<RequireCapability roles={['developer']} capability="devCentre" redirectTo="/help" />}>
+        <Route element={<RequireCapability roles={['developer', 'superadmin']} capability="devCentre" redirectTo="/help" />}>
           <Route path="/dev-centre" element={<DevCentre />} />
         </Route>
 
