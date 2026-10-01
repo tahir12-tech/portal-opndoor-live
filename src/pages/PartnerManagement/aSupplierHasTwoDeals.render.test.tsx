@@ -165,10 +165,13 @@ describe('the editor it opens', () => {
     await act(async () => { fireEvent.click(agree[0]); });
     const dialog = document.querySelector('[role="dialog"]');
     expect(dialog?.textContent).toContain('Commission deal for ZZZ Deals Co');
-    // All four of the editor's models, which is "all its options".
+    /* All four of the editor's models, which is "all its options". The
+       two middle names changed on 2026-10-01 so the choice between
+       tenants and referrals is unmistakable; see
+       theTwoCountsAreUnmistakable.render.test.tsx. */
     expect(dialog?.textContent).toContain('One price for everything');
-    expect(dialog?.textContent).toContain('Price by number of tenants');
-    expect(dialog?.textContent).toContain('Commission grows with volume');
+    expect(dialog?.textContent).toContain('Price by number of TENANTS on the tenancy');
+    expect(dialog?.textContent).toContain('Price by number of REFERRALS they send');
   });
 
   /* A SHARE SETS NO FEE, so the editor drops the column rather than

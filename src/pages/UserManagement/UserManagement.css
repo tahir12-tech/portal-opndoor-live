@@ -168,6 +168,23 @@
   line-height: 1.5;
 }
 
+/* THE EXAMPLE AND THE CONTRAST, under a pricing model's description. The
+   example is the line a reader checks their intention against, so it is
+   set apart rather than buried in the paragraph; the contrast says what
+   the OTHER option is, which is the part a name alone cannot do. */
+.roleopt__eg {
+  margin-top: 4px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+.roleopt__vs {
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--heliotrope-deep);
+}
+
 .users-chip {
   display: inline-flex;
   align-items: center;

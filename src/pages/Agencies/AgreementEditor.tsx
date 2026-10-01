@@ -43,9 +43,28 @@ import { plural } from '@/lib/plural';
 
 export type PricingModel = 'standard' | 'flat' | 'bands' | 'tiered';
 
-/* THE FOUR SHAPES A DEAL TAKES, named and described for the person
-   agreeing one rather than for the table they are stored in. */
-const MODELS: { id: PricingModel; name: string; desc: string }[] = [
+/* =====================================================================
+   THE FOUR SHAPES A DEAL TAKES, named and described for the person
+   agreeing one rather than for the table they are stored in.
+
+   AND THE TWO IN THE MIDDLE ARE THE ONES PEOPLE CONFUSE. Matt,
+   2026-10-01: "make the choice between pricing by number of tenants and
+   pricing by number of referrals unmistakable, each with a one-line
+   example ('e.g. 1 tenant 3 weeks' rent, 2 tenants 5 weeks'' vs 'e.g.
+   first 5 referrals a month at 10%, then 15%')."
+
+   They were "Price by number of tenants" and "Commission grows with
+   volume", which name the same kind of thing two different ways: one
+   says what it varies BY, the other says what HAPPENS. Side by side
+   that reads as a difference of degree, and the numbers in both boxes
+   are small integers, so a 5 typed in the wrong one is invisible.
+
+   Now both are named for the thing counted -- tenants on one tenancy
+   against referrals they send -- and both carry a one-line example in
+   Matt's own words. `contrast` is the sentence that says what the other
+   one is, which is the part a name alone cannot do.
+   ===================================================================== */
+const MODELS: { id: PricingModel; name: string; desc: string; eg?: string; contrast?: string }[] = [
   {
     id: 'standard',
     name: 'Standard terms',
@@ -54,19 +73,46 @@ const MODELS: { id: PricingModel; name: string; desc: string }[] = [
   {
     id: 'flat',
     name: 'One price for everything',
-    desc: 'The same fee and the same commission on every referral, however many tenants and however many they send. For example: the tenant pays one month’s rent, we pay 20% of it.',
+    desc: 'The same fee and the same commission on every referral, however many tenants and however many they send.',
+    eg: 'e.g. the tenant pays one month’s rent, we pay 20% of it',
   },
   {
     id: 'bands',
-    name: 'Price by number of tenants',
-    desc: 'The fee and the commission both change with how many tenants are on the tenancy. For example: 1 tenant pays one month’s rent, 2 tenants pay 5 weeks’ rent. A joint tenancy is priced once, then split between the tenants.',
+    name: 'Price by number of TENANTS on the tenancy',
+    desc: 'The fee changes with how many people are named on one tenancy. A joint tenancy is priced once, then split between them.',
+    eg: 'e.g. 1 tenant 3 weeks’ rent, 2 tenants 5 weeks’',
+    contrast: 'Counts people on a tenancy, not referrals sent. Two or three is normal here.',
   },
   {
     id: 'tiered',
-    name: 'Commission grows with volume',
-    desc: 'Price by number of tenants as above, and pay more commission the more they send. For example: referrals 1 to 50 at 20%, 51 and over at 25%.',
+    name: 'Price by number of REFERRALS they send',
+    desc: 'The commission grows as they send more. The fee is still set per number of tenants, underneath.',
+    eg: 'e.g. first 5 referrals a month at 10%, then 15%',
+    contrast: 'Counts referrals in a period, not people on a tenancy. Fifty or a hundred is normal here.',
   },
 ];
+
+/* A TENANT COUNT THIS HIGH IS ALMOST CERTAINLY A VOLUME. Matt: "Warn
+   before saving a tenant band above 4 tenants, since that's almost
+   certainly meant as referral volume."
+
+   FOUR, because a four-bedroom share is an ordinary joint tenancy and a
+   five is not quite. A WARNING AND NOT A REFUSAL: a five-tenant HMO is
+   real, just rare, and the one thing this must not do is make a true
+   deal impossible to enter. */
+export const TENANT_BAND_WARN_ABOVE = 4;
+
+/** Every band edge that looks like a referral volume rather than a tenancy. */
+export function suspectTenantCounts(bands: { min: string | number; max: string | number }[]): number[] {
+  const out: number[] = [];
+  for (const b of bands) {
+    for (const v of [b.min, b.max]) {
+      const n = typeof v === 'number' ? v : Number(String(v).trim());
+      if (Number.isFinite(n) && n > TENANT_BAND_WARN_ABOVE && !out.includes(n)) out.push(n);
+    }
+  }
+  return out.sort((a, b) => a - b);
+}
 
 /* A week is rent x 12 / 52, so one month is 52/12 weeks, which does not
    terminate. MONTH_WEEKS used to live here and be seeded into every new band,
@@ -263,6 +309,8 @@ export function AgreementEditor({
   /* A refusal that has an answer. Held with the SQL's own words, which are what
      the dialog shows: the screen must not paraphrase a rule it does not own. */
   const [confirm, setConfirm] = useState<{ kind: 'replace' | 'breach'; message: string } | null>(null);
+  /** Band edges that look like a referral volume. Empty is the usual answer. */
+  const [tenantWarn, setTenantWarn] = useState<number[] | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const [bands, setBands] = useState<BandRow[]>(() =>
@@ -335,7 +383,26 @@ export function AgreementEditor({
     );
   }, [model, shownBands, tiers, share]);
 
-  async function save(confirmReplace = false, confirmBreach = false) {
+  async function save(confirmReplace = false, confirmBreach = false, confirmTenants = false) {
+    /* THE TENANT-COUNT WARNING COMES FIRST, before anything is sent.
+       Matt, 2026-10-01: "Warn before saving a tenant band above 4
+       tenants, since that's almost certainly meant as referral volume."
+
+       Raised HERE and not by the server, because the server cannot tell:
+       a band of 1 to 50 tenants is a perfectly valid row and the database
+       has no opinion about household size. What makes it a mistake is
+       that the number is the shape of a referral volume, and the only
+       place that knows the two controls sit next to each other is the
+       screen they sit on.
+
+       A WARNING, NOT A REFUSAL. A five-tenant HMO is real, just rare. */
+    if (!confirmTenants && model !== 'standard') {
+      const odd = suspectTenantCounts(shownBands);
+      if (odd.length) {
+        setTenantWarn(odd);
+        return;
+      }
+    }
     setBusy(true);
     setRefusal(null);
     try {
@@ -424,7 +491,15 @@ export function AgreementEditor({
           {MODELS.map((m) => (
             <label key={m.id} className={`roleopt${model === m.id ? ' is-sel' : ''}`} onClick={() => setModel(m.id)}>
               <span className="roleopt__radio" />
-              <div><div className="roleopt__name">{m.name}</div><div className="roleopt__desc">{m.desc}</div></div>
+              <div>
+                <div className="roleopt__name">{m.name}</div>
+                <div className="roleopt__desc">{m.desc}</div>
+                {/* THE EXAMPLE ON ITS OWN LINE, because it is the thing a
+                    reader checks their intention against and it should not
+                    have to be found inside a paragraph. */}
+                {m.eg && <div className="roleopt__eg">{m.eg}</div>}
+                {m.contrast && <div className="roleopt__vs">{m.contrast}</div>}
+              </div>
             </label>
           ))}
         </div>
@@ -625,6 +700,39 @@ export function AgreementEditor({
             : <>This starts today and runs until it is ended or replaced. A deal cannot be dated in the future, so enter it on the day it starts.</>}
         </p>
       </Modal>
+
+      {/* IS THAT A TENANT COUNT OR A REFERRAL VOLUME? Named after the
+          question it asks rather than after the rule it enforces, because
+          the answer "yes, five tenants" is a perfectly good one and the
+          dialog must not read as a telling-off. */}
+      {tenantWarn && (
+        <Modal
+          open
+          onClose={() => setTenantWarn(null)}
+          width={560}
+          title={plural(tenantWarn.length, 'Is that a tenant count?', 'Are those tenant counts?')}
+          footer={<>
+            <Button variant="ghost" onClick={() => setTenantWarn(null)} disabled={busy}>
+              Go back and change it
+            </Button>
+            <Button variant="dark" disabled={busy}
+              onClick={() => { setTenantWarn(null); void save(false, false, true); }}>
+              Yes, save it
+            </Button>
+          </>}
+        >
+          <p className="agr-confirm">
+            This deal prices by the number of TENANTS on one tenancy, and you have entered{' '}
+            <b>{tenantWarn.join(', ')}</b>. A tenancy with more than {TENANT_BAND_WARN_ABOVE} people on
+            it is unusual.
+          </p>
+          <p className="agr-hint">
+            If you meant the number of REFERRALS they send, go back and choose{' '}
+            <b>Price by number of REFERRALS they send</b> instead. If you really do mean a
+            tenancy that size, save it.
+          </p>
+        </Modal>
+      )}
 
       {confirm && (
         <Modal
