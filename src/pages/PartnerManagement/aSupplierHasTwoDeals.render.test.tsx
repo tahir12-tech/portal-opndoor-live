@@ -88,7 +88,11 @@ describe('the Commission tab', () => {
     vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
     const v = await commissionTab();
     expect(v.container.textContent).toMatch(/No deal\. Every referral pays 35%/);
-    expect(v.container.textContent).toMatch(/No deal\. Every referral pays 15%/);
+    /* THE SHARE SIDE SAYS IT DIFFERENTLY NOW, because it is a list of deals
+       rather than one: "every referral pays 15%" would be a claim about a
+       rate, and what is true with no deal is a claim about every AGENCY. */
+    expect(v.container.textContent)
+      .toMatch(/No deal\. Every agency under this supplier is paid the supplier’s flat agents’ rate/);
   });
 
   /* THE SUMMARY IS A SENTENCE. Matt: "The summary line explains the
@@ -100,7 +104,15 @@ describe('the Commission tab', () => {
             { min: 1, max: 1, weeks: 1, unit: 'months', rate: 0.35 },
             { min: 2, max: null, weeks: 5, unit: 'weeks', rate: 0.40 },
           ] })
-        : view({ agreementId: 'a2', bands: [{ min: 1, max: null, weeks: 0, unit: 'weeks', rate: 0.15 }] }));
+        : null);
+    /* THE SHARE DEALS COME FROM THEIR OWN READER NOW, because there may be
+       several of them. `getSupplierDeal` cannot answer for them: it is built
+       on active_agreement_of_kind, which returns one row and picks WHICH by
+       effective_from. */
+    vi.spyOn(org, 'getSupplierShareDeals').mockResolvedValue([{
+      ...view({ agreementId: 'a2', bands: [{ min: 1, max: null, weeks: 0, unit: 'weeks', rate: 0.15 }] }),
+      isDefault: true, members: [],
+    }]);
     const v = await commissionTab();
     const text = v.container.textContent ?? '';
     expect(text).toContain("1 tenant pays one month's rent, and we pay 35% of that");
@@ -117,16 +129,30 @@ describe('the Commission tab', () => {
     expect(labels.filter((l) => l === 'Agree a deal')).toHaveLength(2);
   });
 
-  /* PER-AGENCY OVERRIDES ARE NOT EDITED HERE. They are agency-scope deals
-     and belong on the agency's page; a second place to set the same thing
-     is how two screens come to disagree, which is the fault the
-     Commission tab exists to end. The card says so rather than being
-     silent about a thing the instruction names. */
-  it('and says where an agency on different terms is set', async () => {
+  /* AN AGENCY ON DIFFERENT TERMS IS NOW SET HERE, which is the change.
+
+     It used to be: "per-agency overrides are agency-scope deals and belong
+     on the agency's page; a second place to set the same thing is how two
+     screens come to disagree", and this card said so instead of offering
+     one. Matt's third message moved the question: "extra deals that each
+     apply to agencies picked from a searchable list of that supplier's
+     agencies". So the supplier's page IS the place now, and the card that
+     pointed elsewhere is gone with the reason for it.
+
+     The agency-scope override still exists and is still preferred over
+     everything here -- see several_agents_share_deals.test.sql -- it is
+     just no longer the only way to put one agency on its own terms. */
+  it('and offers to put a group of agencies on their own deal', async () => {
     vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
+    vi.spyOn(org, 'getSupplierShareDeals').mockResolvedValue([{
+      ...view({ agreementId: 'a2', bands: [{ min: 1, max: null, weeks: 0, unit: 'weeks', rate: 0.10 }] }),
+      isDefault: true, members: [],
+    }]);
     const v = await commissionTab();
-    expect(v.container.textContent).toContain('One agency on different terms');
-    expect(v.container.textContent).toMatch(/agreed on that agency's own page/i);
+    const t = v.container.textContent ?? '';
+    expect(t).toContain('The default deal');
+    expect(t).toContain('Add another deal');
+    expect(t).toMatch(/not named on another deal/);
   });
 });
 

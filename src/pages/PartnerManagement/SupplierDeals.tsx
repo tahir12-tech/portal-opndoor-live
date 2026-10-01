@@ -37,6 +37,7 @@ import { setSupplierCommission } from '@/data/partnersService';
 import { fmtRatePct } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
+import { ShareDeals, type ShareDealAgency } from './ShareDeals';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { useToast } from '@/components/ui/Toast';
 /* THE STYLESHEET IT USES, imported by the file that uses it. `.sc-switch` and
@@ -72,19 +73,16 @@ const TITLE: Record<Kind, string> = {
    this shape, deliberately, because a supplier on 5% introducing
    agencies on 20% is the arrangement ON exists for.
    ===================================================================== */
-const SUB: Record<'carved' | 'siblings', Record<Kind, string>> = {
-  carved: {
-    commission:
-      'The whole commission on a referral from this supplier, including the part that goes on to the agency. Opndoor pays all of it to the supplier.',
-    agent_share:
-      'The part of that total the referring agency is owed. The supplier pays it, not opndoor, so it is only used for the per-agency schedules. It comes out of the total above, so it can never be more than it.',
-  },
-  siblings: {
-    commission:
-      'What the supplier itself is paid on a referral. Opndoor pays this to the supplier and nothing passes through it.',
-    agent_share:
-      'What the referring agency is paid, as a deal of its own. Opndoor pays this to the agency directly, so it is not taken out of the supplier’s commission and may be more than it.',
-  },
+/* ONLY THE COMMISSION CARD IS LEFT TO DESCRIBE. The agents' share is no
+   longer one card with one deal on it -- it is the ShareDeals section, which
+   carries its own heading and its own shape sentence. The agent_share arms
+   that used to be here went with the card rather than being kept "in case",
+   which is how two descriptions of one thing start. */
+const SUB: Record<'carved' | 'siblings', string> = {
+  carved:
+    'The whole commission on a referral from this supplier, including the part that goes on to the agency. Opndoor pays all of it to the supplier.',
+  siblings:
+    'What the supplier itself is paid on a referral. Opndoor pays this to the supplier and nothing passes through it.',
 };
 
 /** What a deal prices at for the commonest referral: one tenant, no volume
@@ -130,7 +128,7 @@ function Deal({ partnerId, name, kind, shape, canEdit, flat, deal, loaded, onSav
       <Card>
         <CardHead
           title={TITLE[kind]}
-          sub={SUB[shape][kind]}
+          sub={SUB[shape]}
           actions={canEdit && (
             <Button variant={deal ? 'quiet' : 'dark'} size="sm" onClick={() => setOpen(true)}>
               {deal ? 'Change the deal' : 'Agree a deal'}
@@ -181,7 +179,7 @@ function Deal({ partnerId, name, kind, shape, canEdit, flat, deal, loaded, onSav
 }
 
 export function SupplierDeals({
-  slug, partnerId, name, canEdit, total, agentShare, paysAgents, onSaved,
+  slug, partnerId, name, canEdit, total, agentShare, paysAgents, agencies, onSaved,
 }: {
   slug: string;
   /** The uuid, which is what a partner-scope agreement is keyed on. */
@@ -192,6 +190,8 @@ export function SupplierDeals({
   agentShare: number | null;
   /** Whether Opndoor settles the agents instead of the supplier doing it. */
   paysAgents: boolean;
+  /** This supplier's agencies, for the share deals' searchable picker. */
+  agencies: ShareDealAgency[];
   onSaved: () => void;
 }) {
   const toast = useToast();
@@ -364,25 +364,35 @@ export function SupplierDeals({
 
       <Deal partnerId={partnerId} name={name} kind="commission" shape={shape} canEdit={canEdit}
         flat={total} deal={deals.commission} loaded={loaded} onSaved={saved} />
-      <Deal partnerId={partnerId} name={name} kind="agent_share" shape={shape} canEdit={canEdit}
-        flat={agentShare} deal={deals.agent_share} loaded={loaded} onSaved={saved} />
-      {/* WHERE AN OVERRIDE LIVES. Matt's "per-agency overrides" are
-          agency-scope deals, which the resolver already prefers over the
-          supplier's. They are edited on the agency's own page: a second
-          place to set the same thing is how two screens come to disagree,
-          which is the fault the Commission tab was built to end. */}
-      <Card>
-        <CardHead
-          title="One agency on different terms"
-          sub="An agency under this supplier can keep a different share. It is agreed on that agency's own page, and it beats the deal above for that agency only."
-        />
-        <CardBody>
-          <p className="ph-note muted">
-            Open the agency from the Overview tab and set its deal there. Nothing here overrides it,
-            and the referral is priced by the most specific deal that applies to it.
-          </p>
-        </CardBody>
-      </Card>
+
+      {/* WHAT THE AGENCIES KEEP, WHICH IS NOW SEVERAL DEALS.
+
+          Matt, 2026-10-01: "under 'What the agencies underneath keep',
+          allow several deals. One default deal for all agencies, plus
+          extra deals that each apply to agencies picked from a searchable
+          list."
+
+          The single `Deal` card for `agent_share` is gone: it showed one
+          deal, and showing the first of several is worse than showing
+          none, because it reads as the supplier's terms when it is one
+          group's. The heading moves onto this section, which owns the
+          whole question. The per-deal TERMS are still edited in the same
+          AgreementEditor; only the list and the membership live here. */}
+      <div className="sd-sharehead">
+        <h3 className="sd-sharehead__t">What the agencies underneath keep</h3>
+        <p className="sd-sharehead__s">
+          {/* THE SHAPE SENTENCE MOVES HERE WITH THE HEADING. It used to be the
+              agent_share card's `sub`, and that card is gone; losing it would
+              lose the one place the screen says whether the share is carved
+              out of the total or sits beside it, which is the difference the
+              switch above makes. */}
+          {shape === 'carved'
+            ? `The part of the total the referring agency is owed. ${name} pays it, not opndoor, so it is only used for the per-agency schedules. It comes out of the total above, so it can never be more than it.`
+            : `What the referring agency is paid, as a deal of its own. opndoor pays this to the agency directly, so it is not taken out of ${name}’s commission and may be more than it.`}
+        </p>
+      </div>
+      <ShareDeals slug={slug} partnerId={partnerId} name={name} agencies={agencies}
+        canEdit={canEdit} onChanged={saved} />
       {confirmEl}
     </>
   );

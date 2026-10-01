@@ -25,7 +25,7 @@
 -- answerable and "change the premium deal" one edit rather than two.
 
 begin;
-select plan(21);
+select plan(30);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, opndoor_pays_agents)
 values ('97000000-0000-0000-0000-0000000000f1', 'zzz-many', 'ZZZ Many Deals', 'pre_referenced_open', 0.35, 0.10, false, false),
@@ -250,6 +250,83 @@ select is(
   (select agent_rate from public.resolve_pricing_agreement(
      '97000000-0000-0000-0000-0000000000b5', '97000000-0000-0000-0000-0000000000f3', 1, 'agent_share')),
   0.12::numeric, 'and a marked default beats an unmarked deal beside it');
+
+-- ===========================================================================
+-- 8. AND THE SCREEN CAN READ THEM AND MOVE ONE
+-- ===========================================================================
+/* An admin with the second factor, because both readers refuse everybody
+   else and a test that ran as the owner would prove nothing about either. */
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
+values ('97000000-0000-0000-0000-00000000c001','00000000-0000-0000-0000-000000000000','authenticated','authenticated',
+        'zzz.many.admin@o.test','',now(),now(),now());
+insert into public.users (id, full_name, email, role, partner_id, status, sees_commission)
+values ('97000000-0000-0000-0000-00000000c001','ZZZ Many Admin','zzz.many.admin@o.test','superadmin',null,'active',true);
+
+select set_config('request.jwt.claims',
+  '{"sub":"97000000-0000-0000-0000-00000000c001","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+
+select is(
+  (select count(*)::int from public.supplier_share_deals('zzz-many')),
+  3, 'the screen reads all three of the supplier''s share deals, not just one');
+
+/* THE DEFAULT IS FIRST, because the extra deals are read as exceptions to
+   it and a list that buries it reads as four equals. */
+select is(
+  (select is_default from public.supplier_share_deals('zzz-many') limit 1),
+  true, 'with the default first');
+
+/* "SHOW WHICH AGENCIES ARE ON WHICH DEAL" -- the premium deal names both. */
+select is(
+  (select jsonb_array_length(members) from public.supplier_share_deals('zzz-many')
+    where agreement_id = '97000000-0000-0000-0000-0000000000d1'),
+  2, 'and the deal Alpha and Bravo share names both of them');
+
+select is(
+  (select jsonb_array_length(members) from public.supplier_share_deals('zzz-many')
+    where agreement_id = '97000000-0000-0000-0000-0000000000d0'),
+  0, 'while the default names nobody, because it is everybody else');
+
+-- "MOVING IT IS ONE CLICK", through the door the screen actually uses.
+select lives_ok(
+  $$select public.set_agency_share_deal(
+      '97000000-0000-0000-0000-0000000000d2', '97000000-0000-0000-0000-0000000000a1')$$,
+  'an admin moves Alpha onto Charlie''s deal in one call');
+
+/* AND IT CAME OFF THE OLD ONE, which is the half a delete-then-insert gets
+   wrong: the agency must not be on two, and must not be on none. */
+select is(
+  (select count(*)::int from public.pricing_agreement_members
+    where agency_id = '97000000-0000-0000-0000-0000000000a1'),
+  1, 'on exactly one deal afterwards, never two and never none');
+
+/* BACK TO THE OWNER TO ASK THE RESOLVER. `resolve_pricing_agreement` is
+   service_role only -- it is what create_referral freezes from, not
+   something a session calls -- so the admin seat that moved the agency
+   cannot be the one that checks the price. That split is the point: the
+   screen moves the agency, the server prices the referral. */
+reset role;
+
+select is(
+  (select agent_rate from public.resolve_pricing_agreement(
+     '97000000-0000-0000-0000-0000000000b1', '97000000-0000-0000-0000-0000000000f1', 1, 'agent_share')),
+  0.05::numeric, 'and the next referral is priced by the deal it moved to');
+
+-- And taking it off entirely returns it to the default.
+select set_config('request.jwt.claims',
+  '{"sub":"97000000-0000-0000-0000-00000000c001","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+
+select lives_ok(
+  $$select public.clear_agency_share_deal('97000000-0000-0000-0000-0000000000a1')$$,
+  'and taking it off a named deal is one call too');
+
+reset role;
+
+select is(
+  (select agent_rate from public.resolve_pricing_agreement(
+     '97000000-0000-0000-0000-0000000000b1', '97000000-0000-0000-0000-0000000000f1', 1, 'agent_share')),
+  0.10::numeric, 'which puts it back on the default');
 
 select * from finish();
 rollback;

@@ -150,3 +150,36 @@
 
 /* A supplier's deal, said in a sentence. */
 .sd-summary { margin: 0 0 8px; font-size: 14px; line-height: 1.6; color: var(--ink); }
+
+/* =====================================================================
+   SEVERAL AGENTS'-SHARE DEALS, AND WHO IS ON EACH.
+   Matt, 2026-10-01. The list is read down the page: the deal's terms in
+   one sentence, then the agencies it applies to. A member row is a name
+   with its audit line under it, not a table, because the only column
+   that would ever have a second value is the date.
+   ===================================================================== */
+.sd-sharehead { margin: 22px 0 -4px; }
+.sd-sharehead__t {
+  margin: 0; font-family: var(--display); font-weight: 700; font-size: 17px;
+  letter-spacing: -0.01em; color: var(--ink);
+}
+.sd-sharehead__s { margin: 4px 0 0; font-size: 13px; line-height: 1.55; color: var(--ink-mute); }
+
+.sd-members { margin-top: 10px; }
+.sd-memberlist { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.sd-member {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 7px 10px; border-radius: 8px; background: var(--app-bg-2);
+}
+.sd-member__name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.sd-member__when { font-size: 11.5px; color: var(--ink-mute); }
+/* The move sits at the end of the row it moves, and is quiet: it is an
+   adjustment, not the thing the row is for. */
+.sd-member__off {
+  margin-left: auto; border: 0; background: none; padding: 0; cursor: pointer;
+  font: inherit; font-size: 12px; color: var(--heliotrope-deep); text-decoration: underline;
+}
+.sd-member__off:disabled { opacity: 0.5; cursor: default; }
+.sd-picker { margin-top: 10px; max-width: 420px; }
+.sd-foot { margin: 10px 2px 0; }
+.sd-addrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 2px 2px 0; }

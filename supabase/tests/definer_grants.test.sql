@@ -94,6 +94,7 @@ insert into allowed(name) values
   ('caller_is_director'),
   ('caller_leads_their_party'),
   ('caller_may_set_for'),
+  ('clear_agency_share_deal'),
   ('clear_branch_deed_recipient'),
   ('commission_preview'),
   ('commission_split_batch'),
@@ -187,6 +188,7 @@ insert into allowed(name) values
   ('set_agency_level'),
   ('set_agency_rates'),
   ('set_agency_referencing_mode'),
+  ('set_agency_share_deal'),
   ('set_app_setting_num'),
   /* The invoice address agencies and suppliers send their commission
      invoices to, and the predicate Home and Health read to say when it
@@ -225,6 +227,7 @@ insert into allowed(name) values
      keeps is that supplier's commercial business, not something Opndoor
      publishes to its staff. Covered by a_supplier_has_two_deals.test.sql. */
   ('supplier_deal'),
+  ('supplier_share_deals'),
   ('trigger_crm_sync'),
   ('update_partner_settings'),
   ('user_notification_enabled'),

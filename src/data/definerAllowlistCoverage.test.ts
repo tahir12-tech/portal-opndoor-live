@@ -181,7 +181,7 @@ describe('the definer allowlist', () => {
      `set_app_setting_text` is Health's field, `statement_invoice_email`
      is what it reads back, and `statements_can_be_posted` is the
      boolean Home and Health both warn on. 2026-10-01. */
-  it('is 145 functions wide, and does not widen by accident', () => {
+  it('is 148 functions wide, and does not widen by accident', () => {
     /* 142 -> 144, 2026-10-01: refund_questions_open and
        decide_refund_question, the list and the answer for a refund that
        landed on commission already sent on a statement. Both are staff
@@ -190,7 +190,15 @@ describe('the definer allowlist', () => {
        Covered by a_refund_after_a_statement_is_a_question.test.sql. */
     /* 144 -> 145, 2026-10-01: supplier_deal, which the Commission tab reads
        its two deals from. */
-    expect(allowlist.length).toBeLessThanOrEqual(145);
+    /* 145 -> 148, 2026-10-01: supplier_share_deals, set_agency_share_deal
+       and clear_agency_share_deal, which are the Commission tab reading a
+       supplier's several agents' share deals and moving an agency between
+       them. All three are admin-only and behind MFA, checked inside each
+       rather than by a grant, because `authenticated` is every seat in the
+       product and these decide what an agency is paid. The reader returns
+       one supplier's deals and nobody else's; the two writers refuse a
+       deal that is not that supplier's through the membership trigger. */
+    expect(allowlist.length).toBeLessThanOrEqual(148);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

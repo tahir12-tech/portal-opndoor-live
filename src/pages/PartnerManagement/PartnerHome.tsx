@@ -405,6 +405,11 @@ export function PartnerHome() {
           total={rates.partner ?? null}
           agentShare={rates.agent ?? null}
           paysAgents={partner.opndoorPaysAgents === true}
+          /* THE REAL IDS ONLY. A membership is keyed on agencies.id, so an
+             agency with no db id -- mock mode, and any row that has not come
+             back from the server -- cannot be put on a deal, and offering it
+             in the picker would be offering a click that fails. */
+          agencies={agencies.filter((a) => !!a.id).map((a) => ({ id: a.id!, name: a.name }))}
           onSaved={refresh}
         />
 

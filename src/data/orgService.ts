@@ -720,6 +720,79 @@ export async function getSupplierDeal(
   };
 }
 
+/* ===========================================================================
+   SEVERAL AGENTS' SHARE DEALS, AND WHO IS ON EACH.
+
+   Matt, 2026-10-01: "One default deal for all agencies, plus extra deals
+   that each apply to agencies picked from a searchable list of that
+   supplier's agencies (several agencies can share one deal). Show which
+   agencies are on which deal, and every agency not picked uses the default."
+
+   `getSupplierDeal` above still exists and still answers "the supplier's
+   commission deal", which is a single thing. It cannot answer this one:
+   it is built on `active_agreement_of_kind`, which returns one row, and
+   WHICH row depends on effective_from.
+   =========================================================================== */
+export interface ShareDealMember {
+  agencyId: string;
+  name: string;
+  /** "Recorded with who and when", for the line under each agency. */
+  addedAt: string | null;
+  addedBy: string | null;
+}
+
+export interface ShareDealView extends AgreementView {
+  /** The deal every agency not named on another is priced by. */
+  isDefault: boolean;
+  members: ShareDealMember[];
+}
+
+export async function getSupplierShareDeals(slug: string): Promise<ShareDealView[]> {
+  if (!orgLive()) return [];
+  const { data, error } = await sb().rpc('supplier_share_deals', { p_slug: slug });
+  if (error) throw new Error(cleanRpcError(error.message));
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    agreementId: String(r.agreement_id),
+    scopeLevel: 'partner',
+    coverage: 'additive',
+    period: String(r.period),
+    countingScope: String(r.counting_scope),
+    isStandard: false,
+    note: (r.note as string) ?? null,
+    periodStart: (r.period_start as string) ?? null,
+    volume: Number(r.volume ?? 0),
+    volumes: [],
+    bands: (r.bands ?? []) as AgreementView['bands'],
+    tiers: (r.tiers ?? []) as AgreementView['tiers'],
+    nextRate: null,
+    nextBasis: null,
+    isDefault: !!r.is_default,
+    members: ((r.members ?? []) as Record<string, unknown>[]).map((m) => ({
+      agencyId: String(m.agencyId),
+      name: String(m.name),
+      addedAt: (m.addedAt as string) ?? null,
+      addedBy: (m.addedBy as string) ?? null,
+    })),
+  }));
+}
+
+/** Put an agency on a deal, moving it off whichever it was on. ONE call:
+    the server does it as an upsert, so it cannot leave the agency on none. */
+export async function setAgencyShareDeal(agreementId: string, agencyId: string): Promise<void> {
+  if (!orgLive()) throw new Error('Deals can only be set against live data.');
+  const { error } = await sb().rpc('set_agency_share_deal', {
+    p_agreement: agreementId, p_agency: agencyId,
+  });
+  if (error) throw new Error(cleanRpcError(error.message));
+}
+
+/** Take an agency off its named deal, which returns it to the default. */
+export async function clearAgencyShareDeal(agencyId: string): Promise<void> {
+  if (!orgLive()) throw new Error('Deals can only be set against live data.');
+  const { error } = await sb().rpc('clear_agency_share_deal', { p_agency: agencyId });
+  if (error) throw new Error(cleanRpcError(error.message));
+}
+
 /** End an agreement, returning the party to standard terms from now on.
     History does not move: every application already created keeps the fee and
     the commission lines frozen onto it. */
