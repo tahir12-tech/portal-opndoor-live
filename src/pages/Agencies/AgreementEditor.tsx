@@ -176,7 +176,7 @@ export function AgreementEditor({
     const b = shownBands.map((x) => {
       const who = x.max === '' ? (x.min === '1' ? 'every tenancy' : `${x.min}+ tenants`)
         : x.min === x.max ? `${x.min} tenant${x.min === '1' ? '' : 's'}`
-        : `${x.min}–${x.max} tenants`;
+        : `${x.min}-${x.max} tenants`;
       /* THE WORDING FOLLOWS THE UNIT, rather than guessing it back out of the
          number. This compared the quantity against 4.3333 within a tolerance,
          which is how a month had to be recognised when a month could only be
@@ -188,7 +188,7 @@ export function AgreementEditor({
       return `${who}: ${fee}${rate}`;
     }).join(' · ');
     if (model !== 'tiered') return b;
-    const t = tiers.map((x) => `${x.from}${x.to === '' ? '+' : `–${x.to}`} at ${x.rate}%`).join(' · ');
+    const t = tiers.map((x) => `${x.from}${x.to === '' ? '+' : `-${x.to}`} at ${x.rate}%`).join(' · ');
     return `${b}. The rate comes from the volume tiers: ${t}.`;
   }, [model, shownBands, tiers]);
 

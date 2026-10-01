@@ -36,7 +36,7 @@ export function Pager({ page, pageSize, total, onPage, noun = 'rows', pageCount,
   return (
     <div className="pager">
       <div className="pager__info">
-        Showing <b>{from.toLocaleString('en-GB')}–{to.toLocaleString('en-GB')}</b> of{' '}
+        Showing <b>{from.toLocaleString('en-GB')}-{to.toLocaleString('en-GB')}</b> of{' '}
         <b>{total.toLocaleString('en-GB')}</b> {noun}
       </div>
       <div className="pager__nav">

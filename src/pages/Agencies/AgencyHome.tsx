@@ -972,7 +972,7 @@ export function AgencyHome() {
     }
     const pct = (r: number | null) => (r == null ? 'standard' : pctLabel(r));
     const band = (b: AgreementView['bands'][number]) =>
-      `${b.min}${b.max == null ? '+' : b.max > b.min ? `–${b.max}` : ''} tenant${b.max === 1 ? '' : 's'}`;
+      `${b.min}${b.max == null ? '+' : b.max > b.min ? `-${b.max}` : ''} tenant${b.max === 1 ? '' : 's'}`;
     return (
       <Card>
         <CardHead
@@ -1010,7 +1010,7 @@ export function AgencyHome() {
                 <tbody>
                   {agreement.tiers.map((t) => (
                     <tr key={t.from}>
-                      <td className="dt__name">{t.from}{t.to == null ? ' and above' : `–${t.to - 1}`}</td>
+                      <td className="dt__name">{t.from}{t.to == null ? ' and above' : `-${t.to - 1}`}</td>
                       <td>{pctLabel(t.rate)}</td>
                     </tr>
                   ))}

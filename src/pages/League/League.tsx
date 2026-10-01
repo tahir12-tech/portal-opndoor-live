@@ -173,7 +173,7 @@ function useLeaguePeriod(): [Period, (id: string) => void] {
 // blank.
 function Movement({ m }: { m: number | null }) {
   if (m == null) return <span className="lt-move lt-move--new" title="New, or no comparison 7 days ago">new</span>;
-  if (m === 0) return <span className="lt-move lt-move--flat" title="No change">–</span>;
+  if (m === 0) return <span className="lt-move lt-move--flat" title="No change">-</span>;
   const up = m > 0;
   return <span className={`lt-move ${up ? 'lt-move--up' : 'lt-move--down'}`} title={`${up ? 'Up' : 'Down'} ${Math.abs(m)} since last week`}>{up ? '▲' : '▼'}{Math.abs(m)}</span>;
 }
