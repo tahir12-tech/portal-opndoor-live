@@ -254,7 +254,8 @@ export function submissionReceivedEmail(p: {
     heading: "We have your application",
     blocks: [
       { p: `${hi} Your application for an opndoor guarantee on ${p.propertyAddr} is in, and there is nothing for you to do right now.` },
-      { rows: [["Reference", p.guaranteeRef], ["Property", p.propertyAddr]] },
+      // The sentence above already names the property. See the sweep note.
+      { rows: [["Reference", p.guaranteeRef]] },
       { p: "If anything comes up, just reply to this email. You may also be asked for another document or two before it is finished." },
       { h: "What happens next" },
       { list: [
@@ -286,6 +287,32 @@ export function paymentLinkEmail(p: {
   tenantCount?: number | null;
 }): Message {
   const joint = isJoint(p.tenantCount);
+/* THE ADDRESS ONCE, IN THE SENTENCE. Matt, 2026-10-01: "don't repeat the
+   property address ... Check the other tenant emails for the same
+   repetition."
+
+   THE SWEEP, and what it found. Three of these emails spelled the address
+   in their opening line and then again in the table two lines below it.
+   Three others -- the invite, the deed to sign and the executed deed --
+   look like the same fault and are not: their prose says "the property
+   below" and "the tenancy below" and defers to the table, so the address
+   appears exactly once and the ROW is the one place it lives. Those are
+   left alone.
+
+   WHERE THE SENTENCE NAMES IT, THE ROW GOES, because the sentence is the
+   wording Matt specified and the table exists for the facts the prose
+   does not carry: the reference, the fee, the dates. */
+  /* AND THIS ONE IS NOT CHANGED, which is the sweep stopping where it
+     should. paymentLinkEmail repeats the address exactly as the two above
+     did: the opening sentence names it and the row below names it again.
+
+     IT IS ALSO APPROVED COPY. tenantFeeEmails.test.ts pins the supplier
+     rail's version byte for byte -- "Rightmove's wording is approved and
+     their volume is the reason this service exists" -- and the row cannot
+     be dropped for the agency rail and kept for the supplier rail without
+     giving one email two different tables for no reason a reader could
+     state. Changing an email a partner signed off is Matt's call, not
+     one to make overnight, so it is listed for him instead. */
   const rows: [string, string][] = [
     ["Reference", p.guaranteeRef],
     ["Property", p.propertyAddr],
@@ -338,7 +365,7 @@ export function directApprovalEmail(p: {
 }): Message {
   const rows: [string, string][] = [
     ["Reference", p.guaranteeRef],
-    ["Property", p.propertyAddr],
+    // The opening sentence names the property. See the sweep note above.
     ["Guarantee fee", p.amount],
   ];
   if (p.tenancyStartLabel) rows.push(["Tenancy starts", p.tenancyStartLabel]);
@@ -365,11 +392,22 @@ export function paymentReminderEmail(p: {
   /** Tenants sharing this tenancy's fee. 1 or omitted is a sole tenant. */
   tenantCount?: number | null;
 }): Message {
+  /* THE NUDGE SAYS NOTHING THE OPENING SAYS. Matt, 2026-10-01: "don't
+     repeat the property address."
+
+     Nudge 2 used to read "Your tenancy at 12 Example Street is waiting on
+     the guarantee fee." and the sentence straight after it said "...for
+     your tenancy at 12 Example Street" again: the address twice in two
+     lines, and "your tenancy" twice with it. Nudge 3 named the fee and
+     then the ask named it again.
+
+     So the lead is now ONLY the escalation -- how overdue this is -- and
+     every fact lives in the one sentence below it. */
   const lead = p.nudge === 1
     ? "Just checking this reached you."
     : p.nudge === 2
-      ? `Your tenancy at ${p.propertyAddr} is waiting on the guarantee fee.`
-      : "To keep your tenancy on track, the guarantee fee needs paying.";
+      ? "This one is still outstanding."
+      : "This is now holding your tenancy up.";
   const rows: [string, string][] = [["Reference", p.guaranteeRef], [feeRowLabel(p.tenantCount), p.amount]];
   if (p.openUntilLabel) rows.push(["Open until", p.openUntilLabel]);
 
@@ -385,12 +423,30 @@ export function paymentReminderEmail(p: {
     ? `pay your share of the guarantee fee, ${p.amount}`
       + (basis ? ` (the fee is ${basis}, split between ${p.tenantCount} tenants)` : "")
     : `pay the guarantee fee of ${p.amount}${basis ? ` (${basis})` : ""}`;
+  /* MATT'S SENTENCE, 2026-10-01, verbatim: "[agency name] has arranged an
+     opndoor guarantee for your tenancy at [property address]. To put it in
+     place, pay the guarantee fee of [fee] ([fee basis, e.g. 3 weeks of rent
+     or one month's rent])." Every bracketed part is read off the
+     application: the agency from the copy, the address from the row, the
+     amount as formatted, and the basis from feeBasisWeeks, which is
+     fee_basis_weeks on the application and not an assumption that a fee is
+     a month.
+
+     "Where there's no agency (a direct signup), leave out the '[agency
+     name] has arranged' part." Dropping the clause alone leaves a fragment,
+     so the direct rail keeps the sentence it already had -- which is the
+     same sentence with the agency taken out of it -- and GAINS the ask.
+     Until now a direct tenant's reminder named no fee in its prose at all:
+     the figure was in the table and the sentence stopped after the address,
+     so the one thing the email exists to ask for was the one thing it did
+     not say. */
   const body = isAgencyArranged(p.copy)
     ? `${lead} ${p.copy!.agencyName!.trim()} has arranged an opndoor guarantee for your tenancy at ${p.propertyAddr}. `
       + `To put it in place, ${ask}.`
     // True whoever referred them, and true if nobody did. This used to say
     // they had been referred, which is false for a direct signup.
-    : `${lead} opndoor is acting as guarantor for your tenancy at ${p.propertyAddr}.`;
+    : `${lead} opndoor is acting as guarantor for your tenancy at ${p.propertyAddr}. `
+      + `To put it in place, ${ask}.`;
 
   return {
     audience: "tenant",
