@@ -167,6 +167,34 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
+## DEV SENDS FROM RESEND'S SANDBOX, AND I DEPLOY FUNCTIONS MYSELF (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> I've deployed all 34 edge functions to dev with: npx supabase functions deploy --project-ref nfufwcpgrhfgwtphegca --use-api (logged in via npx supabase login on this Mac). Check the dev email sender setting now; if it's no-reply@opndoor.co, set dev's to onboarding@resend.dev so dev emails still send. From now on, deploy edge functions to dev yourself with that same command after any function change, then carry on with the queue.
+
+### A STANDING INSTRUCTION, not a one-off
+
+**After any edge-function change, deploy to dev:**
+
+```
+npx supabase functions deploy --project-ref nfufwcpgrhfgwtphegca --use-api
+```
+
+Run from the repo root, so `supabase/config.toml` is read and the nine
+`verify_jwt = false` functions keep it. Never `--no-verify-jwt` (it is
+global, and would turn it off for all 34). Never `--prune`.
+
+This replaces every note in this file saying edge functions cannot be
+deployed from here. They can, and from now on they are, by me.
+
+### AND WHY DEV'S SENDER HAS TO DIFFER FROM LIVE'S
+
+`no-reply@opndoor.co` is on a domain Resend has not verified yet, so a
+send from it is refused. `onboarding@resend.dev` is Resend's sandbox
+sender and always works. Dev therefore holds a DIFFERENT value from the
+one the product ships -- which is exactly what the setting was built
+for, and is why the handover check tells Balal to look at the value on
+live rather than trust the default.
+
 ## THE AUTHENTICATOR ENTRY SAYS WHICH ENVIRONMENT IT IS (instruction, 2026-10-01, verbatim). ACTIVE.
 
 > Authenticator labels: on dev, the issuer shows as "opndoor DEV" so dev and live entries can't be confused. On live it stays "opndoor".
