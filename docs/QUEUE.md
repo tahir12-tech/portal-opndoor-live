@@ -123,6 +123,23 @@ Two things worth knowing for whoever picks the next one up:
   than a screenshot and did catch two wording faults a screenshot would
   not have.
 
+## SINGULAR AND PLURAL EVERYWHERE A COUNT IS SHOWN (instruction, 2026-10-01, verbatim). todo.
+
+> Use singular and plural correctly everywhere counts are shown (1 referral, 2 referrals; 1 branch, 2 branches; 1 person, 2 people), with a shared helper and a check.
+
+- "With a shared helper and a check" is the whole instruction, not a
+  note on it: the helper so there is one place, the check so the next
+  hand-rolled `s` is caught rather than found.
+- "1 person, 2 people" says the helper cannot be `name + 's'`.
+
+## THE SUPPLIER PEOPLE TAB CAN INVITE (instruction, 2026-10-01, verbatim). todo.
+
+> Supplier People tab: add an "Invite someone" button, using the supplier Add user form (no branch, levels Management and Referrer, plus Developer when API access is on). Deploy to dev and check there.
+
+- "Plus Developer when API access is on" ties the level list to the
+  Integration tab's switch, which is the same `apiAccessEnabled` the
+  Dev Centre panels are gated on.
+
 ## THE TAB COUNTS FOLLOW THE FILTERS (instruction, 2026-10-01, verbatim). ACTIVE.
 
 > Applications: every status tab count follows the current filters (origin, period, branch, referrer, search), so with Origin set to Direct, In progress and Fee unpaid count only direct applications. For a direct signup with no agency, the Branch column shows "-" instead of "Unattached Unattached", everywhere that label appears. Deploy to dev and check there.
