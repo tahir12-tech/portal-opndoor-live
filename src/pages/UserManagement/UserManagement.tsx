@@ -39,6 +39,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 import './UserManagement.css';
+import { changeSentence } from '@/data/changeSentence';
 
 const ROLE_META: Record<Role, [string, string]> = {
   superadmin: ['opndoor admin', 'role-tag--super'],
@@ -54,7 +55,6 @@ const STATUS_PILL: Record<string, [string, PillVariant]> = {
   deactivated: ['Deactivated', 'muted'],
 };
 
-const AUDIT_LABEL: Record<string, string> = { status: 'Status', role: 'Role', reset_mfa: '2FA' };
 const dmy = (d: Date) =>
   `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 
@@ -911,10 +911,16 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
             {editAudit.length > 0 ? (
               <>
                 <ul className="pm-audit">
+                  {/* THE SAME SENTENCE THE SUPPLIER'S LIST USES. Matt,
+                      2026-10-01: "Same for agencies and anywhere else changes
+                      are listed." This one had its own AUDIT_LABEL map, which
+                      is how two lists come to word the same change
+                      differently. */}
                   {(showAllUserAudit ? editAudit : editAudit.slice(0, 6)).map((e, i) => (
                     <li key={i} className="pm-audit__row">
-                      <span className="pm-audit__field">{AUDIT_LABEL[e.action] ?? e.action}</span>
-                      <span className="pm-audit__delta">{e.oldValue} → <b>{e.newValue}</b></span>
+                      <span className="pm-audit__said">
+                        {changeSentence({ field: e.action, oldValue: e.oldValue, newValue: e.newValue })}
+                      </span>
                       <span className="pm-audit__meta">{e.actor} · {dmy(e.at)}</span>
                     </li>
                   ))}

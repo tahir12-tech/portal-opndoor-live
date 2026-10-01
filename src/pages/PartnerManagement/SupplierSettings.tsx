@@ -35,6 +35,7 @@ import { useConfirm } from '@/components/ui/ConfirmModal';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
+import { changeSentence } from '@/data/changeSentence';
 import { useToast } from '@/components/ui/Toast';
 
 /* MOVED HERE WITH THE REST OF THE SETTINGS. These two lived only inside
@@ -48,14 +49,12 @@ const LB_LABEL: Record<LeaderboardMode, string> = {
   rankings: 'Rankings only (no fees)',
   private: 'Private (own performance only)',
 };
-const LB_SHORT: Record<string, string> = { full: 'Full', rankings: 'Rankings only', private: 'Private' };
-const AUDIT_LABEL: Record<string, string> = {
-  partner_rate: 'Total commission', agent_rate: "Agents' share",
-  status: 'Status', live_from: 'Live from', name: 'Name',
-  referrer_leaderboard: 'Referrer leaderboard',
-};
-const auditField = (f: string) => AUDIT_LABEL[f] ?? f;
-const auditValue = (f: string, v: string) => (f === 'referrer_leaderboard' ? (LB_SHORT[v] ?? v) : v);
+/* `auditField` and `auditValue` are gone with the row that used them: the
+   field label and the value wording both live in `changeSentence` now, which
+   is what "same for agencies and anywhere else changes are listed" asks for.
+   LB_SHORT went with them -- it was a second, shorter set of words for the
+   leaderboard modes, and a change list that words a value differently from
+   the control that sets it is how two screens come to disagree. */
 const dmy = (d: Date) =>
   `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 
@@ -336,11 +335,16 @@ export function SupplierSettings({ slug, canEdit, onSaved }: {
             <>
               <ul className="pm-audit">
                 {(showAllAudit ? audit : audit.slice(0, 5)).map((e, i) => (
+                  /* ONE SENTENCE, NOT A FIELD NAME AND AN ARROW. Matt,
+                     2026-10-01: "show every change in plain English (e.g.
+                     'API access turned on', 'Live from changed from August
+                     to September 2026'), never raw field names." The row
+                     used to print the column name, then the stored value,
+                     then an arrow, then the stored value -- so it read
+                     "api_access_enabled  off → on (existing keys work
+                     again)" to somebody asking what an admin had done. */
                   <li key={i} className="pm-audit__row">
-                    <span className="pm-audit__field">{auditField(e.field)}</span>
-                    <span className="pm-audit__delta">
-                      {auditValue(e.field, e.oldValue)} → <b>{auditValue(e.field, e.newValue)}</b>
-                    </span>
+                    <span className="pm-audit__said">{changeSentence(e)}</span>
                     <span className="pm-audit__meta">{e.actor} · {dmy(e.at)}</span>
                   </li>
                 ))}

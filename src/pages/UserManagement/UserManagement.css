@@ -249,6 +249,15 @@
   font-weight: 700;
   color: var(--ink);
 }
+/* THE WHOLE CHANGE AS ONE SENTENCE, which replaced the field-name cell
+   and the value-arrow-value cell beside it. It spans, because a sentence
+   that wraps into a column half the row wide reads worse than the two
+   fragments it replaced. */
+.pm-audit__said {
+  grid-column: 1 / -1;
+  color: var(--ink);
+  line-height: 1.5;
+}
 .pm-audit__delta {
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
