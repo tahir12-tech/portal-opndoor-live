@@ -92,6 +92,60 @@ export function agencyOffices(agencyName: string | null | undefined): AgencyOffi
   };
 }
 
+/* ===========================================================================
+   THE PLACEHOLDER IS NOT A NAME, AND MUST NEVER BE PRINTED AS ONE.
+
+   Matt, 2026-10-01: 'For a direct signup with no agency, the Branch column
+   shows "-" instead of "Unattached Unattached", everywhere that label
+   appears.'
+
+   WHAT IT IS. The house rails -- opndoor-direct, referencing-partner,
+   opndoor-agents -- each carry an agency and a branch called "Unattached",
+   created by migration (20260812040000, 20260904240000) so an application's
+   NOT NULL agency_id and branch_id resolve. On dev every one of the ten
+   direct applications points at them. A direct signup HAS no agency, and
+   the row said so twice, in our own internal word.
+
+   WHY BOTH LINES READ IT. The Branch cell prints the branch over the
+   agency, and both are the placeholder, so the column read "Unattached
+   Unattached" -- which is not even a sentence, let alone an answer.
+
+   ASKED OF THE STORE FIRST, THE NAME SECOND. `is_placeholder` is the fact
+   and it is hydrated onto every agency and branch, so that is the question
+   asked. The name is a fallback for the window before the org store has
+   loaded and for mock rows that carry no flag: the placeholder is created
+   by migration under one fixed name, and a row that reaches a screen before
+   the store does must still not print it. Belt and braces on a string that
+   must never be shown to a customer.
+   =========================================================================== */
+/** The name the migrations give every house rail's placeholder. */
+const PLACEHOLDER_NAME = 'Unattached';
+
+export function isPlaceholderOrg(name: string | null | undefined): boolean {
+  const n = (name ?? '').trim();
+  if (!n) return false;
+  if (n === PLACEHOLDER_NAME) return true;
+  const agencies = getAgencies(ALL_PARTNERS);
+  const agency = agencies.find((a) => a.name === n);
+  if (agency) return agency.isPlaceholder === true;
+  /* A BRANCH OF THAT NAME, under any agency. The surfaces hold branch and
+     agency as bare strings, so this has to answer for either. */
+  return agencies.some((a) => (a.branches ?? []).some((b) => b.name === n && b.isPlaceholder));
+}
+
+/**
+ * What to print where an org name goes: the name, or "-" where there is no
+ * org and a placeholder is standing in for one.
+ *
+ * NEVER AN EMPTY STRING, for the same reason `officeLabel` never returns
+ * one: every caller prints this into a cell, and an empty one reads as a
+ * missing record rather than as "there is nobody here".
+ */
+export function orgLabel(name: string | null | undefined): string {
+  const n = (name ?? '').trim();
+  return !n || isPlaceholderOrg(n) ? '-' : n;
+}
+
 /**
  * THE ONE QUESTION EVERY SURFACE ASKS. May this surface say "branch", show
  * an office name, or count one for this agency?
@@ -117,8 +171,14 @@ export function officeLabel(
   agencyName: string | null | undefined,
   branchName: string | null | undefined,
 ): string {
-  const branch = (branchName ?? '').trim();
-  const agency = (agencyName ?? '').trim();
+  /* THE PLACEHOLDER IS NOT A NAME. A direct signup has an "Unattached"
+     agency AND an "Unattached" branch, so both halves below resolved to it
+     and the cell read "Unattached Unattached". Dropped here rather than at
+     the call site because this function is what every branch-shaped cell,
+     payee and document line asks, and the next caller should inherit the
+     answer rather than rediscover the question. */
+  const branch = isPlaceholderOrg(branchName) ? '' : (branchName ?? '').trim();
+  const agency = isPlaceholderOrg(agencyName) ? '' : (agencyName ?? '').trim();
   if (!showsOffices(agencyName)) return agency || branch || '-';
   return branch || agency || '-';
 }

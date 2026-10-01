@@ -18,7 +18,7 @@
    one Origin filter, over the four kinds of party in origin.ts.
    ===================================================================== */
 import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
-import { officeLabel, showsOffices } from '@/data/agencyOffices';
+import { officeLabel, showsOffices, isPlaceholderOrg } from '@/data/agencyOffices';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications,
@@ -223,8 +223,19 @@ export function Applications() {
     origin,
     periodRange: range,
   };
-  // #owner Chips recount within the selected period and the current filter state.
-  const counts = countByStatus(filterOpts);
+  /* #owner Chips recount within the selected period and the current filter
+     state -- AND WITHIN THE SEARCH, which was the one filter they did not
+     follow. Matt, 2026-10-01: "every status tab count follows the current
+     filters (origin, period, branch, referrer, search)."
+
+     `filterOpts` is deliberately the SAME object the rows are built from,
+     with only the status and the sort added on the row side, so a filter
+     added to one is a filter added to both. `q` was the exception: it was
+     passed to `getApplications` at the call site and never put in here, so
+     typing a reference narrowed the list to one row while every tab above
+     went on counting the whole book and "Showing 1 of 4" kept a denominator
+     the search had already excluded. */
+  const counts = countByStatus({ ...filterOpts, q });
   // #13: the "Showing X of Y" denominator must match the active status tab.
   // Withdrawn/Expired are terminal and excluded from counts.all, so on those tabs
   // Y must be the tab's own count, not the operational total.
@@ -642,7 +653,7 @@ export function Applications() {
                             when the line above has already been promoted to the
                             agency's own name for a single-office agency -- that
                             would print the same words twice. */}
-                        {showBranch && showAgency && showsOffices(r.agency) && r.agency !== o.name && <div className="dt__sub">{r.agency}</div>}
+                        {showBranch && showAgency && showsOffices(r.agency) && r.agency !== o.name && !isPlaceholderOrg(r.agency) && <div className="dt__sub">{r.agency}</div>}
                       </td>
                     )}
                     {/* The rent is the PROPERTY's and is the same on every sibling,

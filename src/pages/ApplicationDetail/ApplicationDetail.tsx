@@ -32,7 +32,7 @@
    time, not afterwards.
    ===================================================================== */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { showsOffices } from '@/data/agencyOffices';
+import { showsOffices, officeLabel, isPlaceholderOrg } from '@/data/agencyOffices';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedCardState, deedDownloadUrl, deedIsOverdue, mayGenerateDeed, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
@@ -1501,7 +1501,7 @@ export function ApplicationDetail() {
                   no longer mentions. Asked of THIS RECORD's agency, not of
                   the reader's book: the reader may hold several agencies of
                   both shapes at once. */}
-              <span>·</span><span>{showsOffices(d.agency) ? `${d.branch} · ${d.agency}` : d.agency}</span>
+              <span>·</span><span>{officeLabel(d.agency, d.branch)}</span>
               {/* The supplier's own name, when there is one; hidden for house routes,
                   where partnerName is already the route label the badge shows. */}
               {maySeeRoute && d.partnerName && (!d.channel || d.partnerName !== ROUTE_LABEL[d.channel]) && <><span>·</span><span>{d.partnerName}</span></>}
@@ -1596,7 +1596,7 @@ export function ApplicationDetail() {
                 ) : (
                   <>
                     <div className="drow"><span className="drow__k">Letting agent</span><span className="drow__v"><b>{matchRow?.typedName || d.agency || 'Not given'}</b></span></div>
-                    {!matchRow && d.branch && <div className="drow"><span className="drow__k">Branch</span><span className="drow__v">{d.branch}</span></div>}
+                    {!matchRow && d.branch && !isPlaceholderOrg(d.branch) && <div className="drow"><span className="drow__k">Branch</span><span className="drow__v">{d.branch}</span></div>}
                   </>
                 )}
                 <div className="drow"><span className="drow__k">Deed in favour of</span><span className="drow__v">{titleCaseAddress(d.addr1)}, {d.postcode}</span></div>
@@ -1634,7 +1634,7 @@ export function ApplicationDetail() {
               <CardHead title="Referring agent" />
               <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
                 {referrerCard.agency && <div className="drow"><span className="drow__k">Agency</span><span className="drow__v"><b>{d.agency}</b></span></div>}
-                {referrerCard.branch && <div className="drow"><span className="drow__k">Branch</span><span className="drow__v">{d.branch}</span></div>}
+                {referrerCard.branch && !isPlaceholderOrg(d.branch) && <div className="drow"><span className="drow__k">Branch</span><span className="drow__v">{d.branch}</span></div>}
                 {/* ROUTE, NOT PARTNER. The value was always the route for one of
                     our agencies — partnerName maps a house slug to its route label,
                     so this row read "Partner: Agency referral" — and "partner" is our

@@ -11,6 +11,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { getActivity, getActivityFeed, getAwaitingSignature, getUpcomingExpiries, runExpiryReminders, type ActivityFeedItem, type ActivityKind, type ExpiryBand } from '@/data';
+import { orgLabel } from '@/data/agencyOffices';
 import { useSession } from '@/session/SessionContext';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { hydrateFromSupabase } from '@/lib/hydrate';
@@ -98,7 +99,7 @@ export function Activity() {
   const feedLoading = SUPABASE_ENABLED && liveFeed === null;
   const feedRows: FeedRow[] = SUPABASE_ENABLED
     ? (liveFeed ?? []).map((f) => ({ id: f.id, ref: f.ref, dot: feedDot(f.kind), text: feedText(f.kind, f.tenant), meta: `${f.ref} · ${f.branch} · ${dmyTime(f.at)}` }))
-    : getActivity({ role, scope: partnerScope }).map((a) => ({ id: a.id, ref: a.ref, dot: KIND_DOT[a.kind], text: activityText(a.kind, a.tenant), meta: `${a.ref} · ${a.branch} · ${dmy(a.at)}` }));
+    : getActivity({ role, scope: partnerScope }).map((a) => ({ id: a.id, ref: a.ref, dot: KIND_DOT[a.kind], text: activityText(a.kind, a.tenant), meta: `${a.ref} · ${orgLabel(a.branch)} · ${dmy(a.at)}` }));
 
   // Feed pagination. Reset to page 1 when the scope changes.
   const [feedPage, setFeedPage] = useState(1);

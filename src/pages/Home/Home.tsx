@@ -14,6 +14,7 @@ import {
 import { channelOf, ROUTE_LABEL, type Channel } from '@/data/channel';
 import { getPartner } from '@/data/partnersService';
 import { getPositions } from '@/data/positionsService';
+import { orgLabel } from '@/data/agencyOffices';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
@@ -234,7 +235,9 @@ export function Home() {
                         </Link>
                       </td>
                       <td>{r.prop}</td>
-                      <td className="soft">{r.branch}</td>
+                      {/* "-" for a direct signup: its branch is the house
+                          rail's placeholder, not a branch. */}
+                      <td className="soft">{orgLabel(r.branch)}</td>
                     </tr>
                   );
                 })}

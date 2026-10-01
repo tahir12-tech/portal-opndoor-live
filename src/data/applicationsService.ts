@@ -23,6 +23,7 @@ import { channelOf, type Channel } from './channel';
 import { originMatches, type OriginScope } from './origin';
 import { reachableAgencyNames } from './orgService';
 import { deliveryStateOf } from './deliveryState';
+import { isPlaceholderOrg } from './agencyOffices';
 
 /** Who works the delivery QUEUE, as opposed to who is waiting for a deed.
     "Cannot deliver" means our own record of who can receive is incomplete, which
@@ -246,6 +247,27 @@ function inPeriod(r: ApplicationSummary, range?: [Date, Date]): boolean {
   return ts >= range[0].getTime() && ts <= range[1].getTime();
 }
 
+/* THE SEARCH, AS A PREDICATE RATHER THAN A LINE INSIDE ONE READER.
+
+   Matt, 2026-10-01: "every status tab count follows the current filters
+   (origin, period, branch, referrer, search)".
+
+   Four of those five were already shared between the rows and the counts.
+   Search was not: it lived as four lines inside `getApplications` and
+   `countByStatus` had never heard of it, so typing a reference narrowed the
+   list to one row while every tab above it went on counting the whole book
+   and "Showing 1 of 4" kept a denominator the filter had already excluded.
+
+   A count that is computed over a different set from the list beneath it is
+   the worst kind of wrong number: it is not off by a bit, it is the answer
+   to a question nobody asked. Making it a named predicate is what stops the
+   next filter being added to one reader and not the other. */
+function matchesQuery(r: ApplicationSummary, q?: string): boolean {
+  const needle = (q ?? '').trim().toLowerCase();
+  if (!needle) return true;
+  return `${r.tenant} ${r.prop} ${r.ref} ${r.ben} ${r.branch}`.toLowerCase().includes(needle);
+}
+
 export function countByStatus(opts: AppFilterOpts): { all: number; draft: number; invited: number; feeUnpaid: number; referencing: number; declined: number; sent: number; paid: number; deed: number; refunded: number; awaiting: number; deliveryFailed: number; cannotDeliver: number; withdrawn: number; expired: number } {
   // #owner Chips recount within the selected period (sent-date bucketed), and
   // must follow the same partner/agency/branch/referrer filters as the rows.
@@ -259,6 +281,8 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
     if (opts.channel && channelOfRow(r) !== opts.channel) return false;
     // Walk fix 7. AFTER the scope filters, never instead of them.
     if (opts.origin && !originMatches(r, opts.origin)) return false;
+    // THE FIFTH FILTER, which this reader did not have. See matchesQuery.
+    if (!matchesQuery(r, opts.q)) return false;
     return inPeriod(r, opts.periodRange);
   });
   // 'refunded' and 'awaiting' overlap 'paid' (both keep status Paid by design), so
@@ -360,10 +384,7 @@ export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
     // Walk fix 7. AFTER the scope filters, never instead of them.
     if (opts.origin && !originMatches(r, opts.origin)) return false;
     if (!inPeriod(r, opts.periodRange)) return false;
-    if (opts.q) {
-      const hay = `${r.tenant} ${r.prop} ${r.ref} ${r.ben} ${r.branch}`.toLowerCase();
-      if (!hay.includes(opts.q.toLowerCase())) return false;
-    }
+    if (!matchesQuery(r, opts.q)) return false;
     return true;
   });
   const sort = opts.sort || 'Newest first';
@@ -406,7 +427,8 @@ export function agencyNamesForScope(opts: AppScopeOpts): string[] {
   const rows = scopedSet(opts).filter((r) => (opts.partner ? r.partner === opts.partner : true));
   const names: string[] = [];
   rows.forEach((r) => {
-    if (!names.includes(r.agency)) names.push(r.agency);
+    // A PLACEHOLDER IS NOT A CHOICE. See branchNamesForScope below.
+    if (!names.includes(r.agency) && !isPlaceholderOrg(r.agency)) names.push(r.agency);
   });
   return names.sort();
 }
@@ -428,7 +450,14 @@ export function branchNamesForScope(opts: AppScopeOpts, agency?: string): string
   const rows = scopedSet(opts).filter((r) => (opts.partner ? r.partner === opts.partner : true)).filter((r) => !agency || r.agency === agency);
   const names: string[] = [];
   rows.forEach((r) => {
-    if (!names.includes(r.branch)) names.push(r.branch);
+    /* NOT THE PLACEHOLDER. Matt, 2026-10-01: the house rail's "Unattached"
+       is dropped "everywhere that label appears", and a filter chip is one
+       of the places it appeared -- the Branch dropdown offered it as though
+       it were an office somebody could narrow to. Filtering TO it would
+       have worked, which is worse than it not being there: it is a real
+       value on the rows, so the list would have narrowed to every direct
+       signup under a heading naming an office that does not exist. */
+    if (!names.includes(r.branch) && !isPlaceholderOrg(r.branch)) names.push(r.branch);
   });
   return names.sort();
 }
