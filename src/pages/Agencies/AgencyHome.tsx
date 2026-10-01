@@ -1444,8 +1444,13 @@ export function AgencyHome() {
           need a fourth chip to say whose -- which is a different screen
           from the one Matt asked for. The group case is noted in
           QUEUE.md rather than guessed at. */}
-      {tab === 'overview' && !focus && agencies.length === 1 && agencies[0]?.id && (
-        <AgencyChanges agencyId={agencies[0].id} />
+      {tab === 'overview' && !focus && agencies.length === 1 && (
+        /* THE ID MAY BE ABSENT -- mock rows carry none -- and the card
+           handles that by showing what WOULD appear here. Gating the card
+           on the id instead would make the section vanish rather than be
+           empty, which reads as a feature that is not there at all. The
+           supplier's list is always drawn for the same reason. */
+        <AgencyChanges agencyId={agencies[0]?.id ?? null} />
       )}
 
       {tab === 'reporting' && isOpndoorStaff && (
