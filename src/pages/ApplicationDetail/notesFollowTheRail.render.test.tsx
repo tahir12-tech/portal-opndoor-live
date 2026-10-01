@@ -1,8 +1,16 @@
-/* OPNDOOR'S NOTES, AND THE TENANT'S OWN FILES, ARE NOT THE AGENCY'S.
+/* NOTES FOLLOW THE RAIL, AND THE TENANT'S FILES NEVER LEAVE OPNDOOR.
  *
- * Matt, 2026-10-01, verbatim: "Notes are Opndoor-only: hide the Notes
- * section entirely from agency and supplier users, and check they can't
- * read notes through any other route."
+ * Matt, 2026-10-01: "Notes are Opndoor-only: hide the Notes section
+ * entirely from agency and supplier users, and check they can't read
+ * notes through any other route." And, the same evening, correcting the
+ * supplier half of it: "notes on an application are shared between
+ * Opndoor and the supplier that referred it (e.g. Rightmove's staff); on
+ * agency referrals (e.g. Regent) notes stay Opndoor-only."
+ *
+ * So the rule is about the RAIL. An agency Director sees none; a
+ * supplier's staff see the ones on their own applications; the tenant's
+ * uploaded files stay Opndoor's on every rail, because the correction
+ * says notes and a bank statement is not a note.
  *
  * =====================================================================
  * WHY THE PAGE SHOWED THEM, AND WHY THIS FILE IS NOT THE PROOF
@@ -18,9 +26,10 @@
  * notesService selects app_notes in the browser, so the policy was the
  * whole boundary and a role test on a page is not a boundary at all.
  * tenant_isolation.test.sql asserts it from the other side: an agency
- * Manager, the Negotiator who referred the application, and a supplier's
- * Management user each read zero notes and zero applicant files ON THEIR
- * OWN application, and Opndoor still reads both.
+ * Manager and the Negotiator who referred the application read zero notes
+ * on their OWN application, a supplier's Management user reads the one on
+ * theirs and nobody else's, and the applicant's files stay Opndoor's
+ * throughout.
  *
  * This file asserts only what a screen can assert: that the section is
  * gone for them and still there for us.
@@ -31,6 +40,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { App } from '@/App';
+import { maySeeApplicationNotes } from '@/data/capabilities';
+import { ALL_PARTNERS } from '@/data/types';
 
 afterEach(() => { cleanup(); localStorage.clear(); });
 
@@ -61,7 +72,10 @@ describe('the Notes section', () => {
   /* THE REPORTED BUG. "management" is an agency Director and an agency
      Manager as well as a supplier's Management user, and all three were
      reading Opndoor's internal notes about their own referrals. */
-  it('is gone for an agency or supplier Management user', async () => {
+  /* THE REPORTED BUG, which was about the AGENCY rail: GR-20601 is a
+     Northwind referral, and Northwind is on opndoor_referenced, so it is
+     an agency and its notes are Opndoor's. */
+  it('is gone for an agency Management user', async () => {
     const view = await openAs('management');
     expect(card(view, 'Notes'), 'the agency can still read Opndoor’s notes').toBeNull();
     expect(view.container.textContent).not.toContain('Internal operational notes');
@@ -93,5 +107,34 @@ describe('the applicant’s uploaded documents', () => {
   it('and gone for an agency or supplier Management user', async () => {
     const view = await openAs('management');
     expect(card(view, 'Documents'), 'the agency can still read the tenant’s bank statements').toBeNull();
+  });
+});
+
+/* AND THE RULE ITSELF, on both rails. The page can only be rendered for the
+   party the mock session is scoped to, so the two rails are asked of the
+   predicate the page uses, which is also the one the policy mirrors. */
+describe('who the notes belong to', () => {
+  it('Opndoor, on any rail', () => {
+    expect(maySeeApplicationNotes('superadmin', ALL_PARTNERS)).toBe(true);
+    expect(maySeeApplicationNotes('opndoor_manager', ALL_PARTNERS)).toBe(true);
+  });
+
+  /* THE CORRECTION. A supplier's staff work the account with us and the
+     notes are the shared record of that. */
+  it('and the supplier that referred it, on theirs', () => {
+    expect(maySeeApplicationNotes('management', 'harbourside')).toBe(true);
+    expect(maySeeApplicationNotes('referrer', 'harbourside')).toBe(true);
+  });
+
+  it('but never an agency, which is what the original instruction was about', () => {
+    expect(maySeeApplicationNotes('management', 'northwind')).toBe(false);
+    expect(maySeeApplicationNotes('referrer', 'northwind')).toBe(false);
+  });
+
+  /* VIEW AS SHOWS WHAT THAT PARTY SEES, which for an agency is no notes and
+     for a supplier is their own. */
+  it('and View as follows the party, not the admin', () => {
+    expect(maySeeApplicationNotes('superadmin', 'northwind', 'northwind')).toBe(false);
+    expect(maySeeApplicationNotes('superadmin', 'harbourside', 'harbourside')).toBe(true);
   });
 });

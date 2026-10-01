@@ -181,7 +181,7 @@ describe('the definer allowlist', () => {
      `set_app_setting_text` is Health's field, `statement_invoice_email`
      is what it reads back, and `statements_can_be_posted` is the
      boolean Home and Health both warn on. 2026-10-01. */
-  it('is 152 functions wide, and does not widen by accident', () => {
+  it('is 153 functions wide, and does not widen by accident', () => {
     /* 142 -> 144, 2026-10-01: refund_questions_open and
        decide_refund_question, the list and the answer for a refund that
        landed on commission already sent on a statement. Both are staff
@@ -218,7 +218,12 @@ describe('the definer allowlist', () => {
        deals it is allowed to end. Admin only, behind MFA, and it refuses
        an agency belonging to another supplier. Covered by name in
        one_save_for_a_share_deal.test.sql. */
-    expect(allowlist.length).toBeLessThanOrEqual(152);
+    /* 152 -> 153, 2026-10-01: is_supplier_partner, the SQL twin of
+       partyIsSupplier. A policy evaluates it, so it has to be executable
+       by `authenticated`; it reads one partner's rail and returns a
+       boolean, and it is what decides whether an application's notes are
+       shared with the supplier that referred it. */
+    expect(allowlist.length).toBeLessThanOrEqual(153);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

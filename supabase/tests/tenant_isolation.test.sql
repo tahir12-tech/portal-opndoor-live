@@ -40,7 +40,7 @@
 -- difference between a policy that filters and a guard that throws.
 
 begin;
-select plan(105);
+select plan(109);
 
 -- ===========================================================================
 -- THE FIXTURE
@@ -637,7 +637,7 @@ set local role authenticated;
 select cmp_ok((select count(*)::int from public.applications a where a.id = '90000000-0000-0000-0000-00000000e001'), '>', 0,
   'the brand Manager can see the application the note is about');
 select is((select count(*)::int from public.app_notes), 0,
-  'and reads no note on it, nor any other: the notes are Opndoor''s');
+  'and reads no note on it, nor any other: on the agency rail they are Opndoor''s');
 select is((select count(*)::int from public.application_documents d where d.bucket = 'applicant-docs'), 0,
   'and none of the tenant''s own uploaded files');
 select cmp_ok((select count(*)::int from public.application_documents d where d.bucket <> 'applicant-docs'), '>', 0,
@@ -663,15 +663,45 @@ select throws_ok(
   '42501', null,
   'and cannot add to Opndoor''s record of it');
 
+/* WHICH RAIL EACH FIXTURE IS ON, asserted before the notes are, because
+   every assertion below depends on this one answer and it is the sentence
+   the policy is written in.
+
+   AS POSTGRES, deliberately: the question is what the function answers, and
+   a supplier's own session cannot SEE the house partner row to ask about it
+   -- which is the policy working, and would have made this assertion fail
+   for a reason that has nothing to do with what it is testing. */
+select is(
+  (select public.is_supplier_partner('90000000-0000-0000-0000-00000000ac01')), true,
+  'the supplier is a supplier');
+select is(
+  (select public.is_supplier_partner(p.id) from public.partners p where p.slug = 'opndoor-agents'), false,
+  'and the house partner our agencies share is not');
+
 -- ---- the supplier's Management user, on the supplier's own application -----
+/* AND HERE THE ANSWER IS YES, which is Matt's correction of 2026-10-01:
+   "notes on an application are shared between Opndoor and the supplier that
+   referred it (e.g. Rightmove's staff); on agency referrals (e.g. Regent)
+   notes stay Opndoor-only." Gamma is a supplier, so Gamma's staff read the
+   note on Gamma's own application -- and still not Alpha's, which is an
+   agency referral on the house partner. 20261007330000. */
 reset role;
 select set_config('request.jwt.claims', '{"sub":"90000000-0000-0000-0000-00000000c006","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
 
-select is((select count(*)::int from public.app_notes), 0,
-  'the supplier''s Management user reads no note, on their own rail or any other');
+select is((select count(*)::int from public.app_notes n
+            where n.application_id = '90000000-0000-0000-0000-00000000e004'), 1,
+  'the supplier''s Management user reads the note on their own application');
+select is((select count(*)::int from public.app_notes n
+            where n.application_id <> '90000000-0000-0000-0000-00000000e004'), 0,
+  'and no note on anybody else''s, including the agency rail''s');
+select lives_ok(
+  $$ select public.add_application_note('GR-ISO-GS', 'Supplier adding to the shared record') $$,
+  'and can add to the shared record, which is what "shared" means');
+/* THE FILES ARE NOT NOTES. The correction says notes; a bank statement is
+   still collected for the decision Opndoor makes. */
 select is((select count(*)::int from public.application_documents d where d.bucket = 'applicant-docs'), 0,
-  'and none of the tenant''s uploaded files');
+  'but still none of the tenant''s uploaded files');
 
 -- ---- and Opndoor still has both --------------------------------------------
 reset role;

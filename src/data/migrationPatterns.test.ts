@@ -91,7 +91,15 @@ describe('partner_id = app_partner() is not an authorisation test on its own', (
   /* It is still CORRECT beside a reach predicate: on the supplier rail the
      partner is the company, and every fixed site in the sweep keeps it. What
      is refused is a policy or a guard where it is the ONLY narrowing. */
-  const REACH = /app_may_reach_|app_scoped_agencies|app_scope_branches|app_reachable_agency|app_reachable_group|app_user_in_scope|user_within_caller_scope|is_our_estate_partner|is_admin\s*\(\)|auth\.uid\s*\(\)/i;
+  /* `is_supplier_partner` qualifies, and it is the only addition this list
+     has had. The rule this guard exists for is that `partner_id =
+     app_partner()` means "every agency Opndoor has onboarded" on the agency
+     rail, because they all share the house partner. `is_supplier_partner`
+     is false for every house partner and for every agency, so an arm
+     holding it is an arm that can only be reached on the rail where the
+     partner IS the company -- which is the case the guard's own comment
+     above calls correct. It narrows; it does not excuse. */
+  const REACH = /app_may_reach_|app_scoped_agencies|app_scope_branches|app_reachable_agency|app_reachable_group|app_user_in_scope|user_within_caller_scope|is_our_estate_partner|is_supplier_partner|is_admin\s*\(\)|auth\.uid\s*\(\)/i;
 
   it('every new use sits beside a reach predicate', () => {
     const hits: string[] = [];

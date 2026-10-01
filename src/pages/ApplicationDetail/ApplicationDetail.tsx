@@ -38,6 +38,7 @@ import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendT
 import { useSession } from '@/session/SessionContext';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { isOpndoorStaff } from '@/data/types';
+import { maySeeApplicationNotes } from '@/data/capabilities';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { maySeeDeliveryState, type DeliveryState } from '@/data/deliveryState';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
@@ -326,9 +327,14 @@ export function ApplicationDetail() {
      who could see the application. 20261007310000 closes it, and this line
      is now the screen agreeing with the database rather than being it.
 
-     NOT WHILE VIEWING AS SOMEBODY. View as shows an admin what that party
-     sees, and what they see is no notes. */
-  const maySeeNotes = isOpndoorStaff(role) && viewingAs === null;
+     CORRECTED 2026-10-01, the same evening. Matt: "notes on an application
+     are shared between Opndoor and the supplier that referred it (e.g.
+     Rightmove's staff); on agency referrals (e.g. Regent) notes stay
+     Opndoor-only." The agency half above stands; the supplier half was
+     mine and was wrong. `maySeeApplicationNotes` is the rule, and
+     app_notes_select is the same sentence about the application rather
+     than about the reader's scope, which is the part that holds. */
+  const maySeeNotes = maySeeApplicationNotes(role, partnerScope, viewingAs);
   // The applicant's uploaded documents (bank statements, proof of address) are
   // opndoor-internal: they are collected for the guarantee decision we make, not
   // for the referring agent, so a referrer never sees this card.
@@ -338,7 +344,10 @@ export function ApplicationDetail() {
      every agency Director by the same shared role word. The policy behind
      them is closed in the same migration, which also closes
      application-document-url, since that endpoint signs the file on the
-     strength of the caller's own read. */
+     strength of the caller's own read.
+
+     NOT REOPENED BY THE NOTES CORRECTION. That one says notes, and a bank
+     statement is not a note: these stay Opndoor's on every rail. */
   const maySeeDocuments = isOpndoorStaff(role) && viewingAs === null;
   /* THE DOCUMENTS CARD IS PART OF A JOURNEY THAT DID NOT HAPPEN HERE. A
      pre-referenced tenant is checked by their own agency and goes straight to

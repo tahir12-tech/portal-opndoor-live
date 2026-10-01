@@ -226,25 +226,29 @@ is the whole path working. A wrong secret gives 400 and never reaches SQL.
 
 ---
 
-## 0c. Opndoor's own notes are readable by partner staff on live today
+## 0c. Notes on live: mostly the sharing we want, with one gap
 
-**Read off `main`, not off live.** Nothing in this item was measured against the
+**Rewritten 2026-10-01, the same day it was written.** The first version of
+this item called the live behaviour an exposure. Matt then corrected the rule
+it was measured against: "notes on an application are shared between Opndoor
+and the supplier that referred it (e.g. Rightmove's staff); on agency
+referrals (e.g. Regent) notes stay Opndoor-only." Most of what that version
+described is the sharing, not a leak. What is left is narrower and is below.
+
+**Read off `main`, not off live.** Nothing here was measured against the
 production database. It is what a clean apply of the migrations on `main`
-produces, which is what live was built from. If anything has been applied to
-live that is not in `main`, this item does not describe it.
+produces, which is what live was built from.
 
-### What is open
+### What live does today
 
-`20260705124804_application_notes.sql`, which is on `main` and therefore on
-live, creates the notes table with this policy:
+`20260705124804_application_notes.sql` carries:
 
 ```sql
 create policy app_notes_select on public.app_notes for select to authenticated
   using (application_id in (select id from public.applications));
 ```
 
-"Any note on any application you can see." The inner select is
-`applications_select` from `20260702134358_access_rls_rpc.sql`:
+and the inner `applications_select` is
 
 ```sql
 public.is_admin()
@@ -252,61 +256,46 @@ or (public.app_role() = 'management' and partner_id = public.app_partner())
 or (public.app_role() = 'referrer'   and referrer_id = auth.uid())
 ```
 
-And the browser reads the TABLE, not an RPC: `notesService.getApplicationNotes`
-on `main` selects `app_notes` through the anon client. So the policy is the
-whole boundary. The rule on the page -
-`role === 'superadmin' || role === 'management' || (role === 'referrer' && owner)`,
-`ApplicationDetail.tsx:144` - decides what is DRAWN and nothing else.
+So on live a partner's `management` user reads every note on their partner's
+applications, and a referrer reads the notes on the ones they referred. Both
+can also write one: `add_application_note` on `main` admits the same three.
 
-### Exactly who can reach what
+### Which of that is wanted, and which is not
 
-| Who, on live | What they can read | How |
-| --- | --- | --- |
-| A partner's `management` user | Every Opndoor note on **every application of their partner**, not just their own referrals | The notes section on the application detail page, or any client holding their session |
-| A `referrer` | Every Opndoor note on **the applications they referred** | The same |
-| `superadmin` | Everything, which is correct | - |
+- **A supplier's staff reading and writing notes on their own applications is
+  the behaviour we want**, and is what this branch restores deliberately in
+  `20261007330000` after I had briefly removed it.
+- **The gap is the agency rail, and live may not have one.** `main` has no
+  house partner, no `user_scopes` and no `is_house_partner_id`: every partner
+  on live is a company in its own right, and the agency rail arrived in the
+  763 commits since. So "an agency Director reading Opndoor's notes" is a
+  shape live cannot currently produce **unless an agency has been onboarded
+  as a partner of its own**. That is the one thing to check before cutover,
+  and it is a question about the DATA, not the schema: are any of the
+  partners on live agencies rather than suppliers?
+- **Direct referrals.** On this branch `opndoor-direct` is a house partner and
+  its notes are Opndoor's. On `main` there is no such distinction, so if live
+  carries direct business under a partner with portal users, those users read
+  its notes. Same check, same answer needed.
 
-Both need AAL2, which every signed-in user with 2FA has. Both can also WRITE:
-`add_application_note` on `main` admits the same three, so a partner's manager
-can append to Opndoor's internal record of their own referral.
-
-These are the notes the product describes as "Internal operational notes. Not
-shared with tenants or agents, and never exported."
-
-### What is NOT open, and why the question was asked
+### What is NOT open on live, and why the question was asked
 
 The tenant's uploaded documents - bank statements, proof of address, P60, tax
-return - are **not reachable on live, because the feature does not exist there**.
-`application_documents`, the `applicant-docs` bucket and the
+return - are **not reachable on live, because the feature does not exist
+there**. `application_documents`, the `applicant-docs` bucket and the
 `application-document-url` function are all absent from `main`: `git grep
-application_documents main` returns nothing. The identical policy fault found on
-this branch (`20261007310000`) applies to a table live does not have.
+application_documents main` returns nothing. The policy fault found on this
+branch (`20261007310000`) applies to a table live does not have, and that half
+of the rule is unchanged by Matt's correction: the files stay Opndoor's on
+every rail.
 
-So the live exposure is the notes, and only the notes.
+### Verify, before cutover
 
-### What to do about it
-
-- **The fix is on this branch** (`20261007310000_notes_are_opndoors_and_so_are_the_tenants_files.sql`),
-  which restricts both reads and writes to Opndoor staff. Cutting over closes it.
-- **If cutover slips**, it is one policy and one function, and neither depends on
-  anything else in the 763 commits between `main` and here. Applying that
-  migration's first two sections alone to live would close it, and nothing on
-  live reads notes except the people who should not.
-- Until one of those happens, treat anything written in a note as visible to the
-  partner the application belongs to.
-
-### Verify
-
-As a `management` user on a partner with at least one noted application, with a
-real session:
-
-```
-select count(*) from app_notes;
-```
-
-- Before: returns their partner's notes.
-- After: returns `0`, and `select public.add_application_note('<ref>','x')`
-  raises `42501`.
+List live's partners and say, for each, whether it is a supplier or an agency.
+If every one is a supplier, live's notes behaviour already matches the
+corrected rule and there is nothing to do but cut over. If any is an agency,
+its staff can read Opndoor's notes on their own referrals today, and
+`20261007330000` is what closes it.
 
 ---
 
