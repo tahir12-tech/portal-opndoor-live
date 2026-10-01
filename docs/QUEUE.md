@@ -167,6 +167,22 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
+## A BRANCH'S CONTACT VANISHED, AND "VIEWING AS" FOLLOWS YOU AROUND (bug, 2026-10-01, verbatim). ACTIVE.
+
+> Supplier Overview for Kestrel Lettings: Kestrel Riverside no longer shows its contact email (it showed kestrel.riverside@kestrel.invalid earlier). Find whether the contact was removed or the screen stopped showing it, fix it, and if a branch genuinely has no contact, warn on that branch. Also: the "Viewing as" tag must not show on any page that isn't showing that party's view; it's appearing on admin pages after View as was used. Deploy to dev and check there.
+
+- **"Find whether the contact was removed or the screen stopped
+  showing it"** is the instruction, and it is asked first for the
+  same reason the Reporting one was: the two have different fixes
+  and only one of them is a data loss. Answer it from the DATABASE
+  before touching the screen.
+- I am the obvious suspect. I changed the supplier Overview's
+  contact rendering this afternoon (`a442fd6`, AgencyContactLine)
+  to stop crying "No agent contact" on an agency whose branches
+  have them. If that change hid a branch's email, it is mine.
+- The second half is a leak of a different kind: a banner claiming
+  a party on a page that is not that party's.
+
 ## THE AGENCY PAGE GETS ITS OWN RECENT CHANGES (instruction, 2026-10-01, verbatim). **done** (`d5501f6`).
 
 > Agency page: add a "Recent changes" list like the supplier's, showing every change to the agency's details, branches, people's levels and commission deals in plain English, with who and when, using the shared builder.
