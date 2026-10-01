@@ -17,6 +17,12 @@
 >
 > Rules: dev only, never touch live, never push. Deploy edge functions to dev with the npx command after any function change. Full tests and drift after each item, commit each separately. If something needs a decision from me, don't guess: note it in QUEUE.md under "For Matt in the morning" and move on. In the morning, give me a short plain-English summary: what's done, what's left, and any decisions waiting for me.
 
+> 4. Then: the admin Agencies tab lists only agencies with a direct relationship with Opndoor. Agencies that only come through a supplier appear on that supplier's page, in an "Agents" tab, not in Agencies. An agency on both routes (like Frost) appears in both places as the same company.
+
+*(Sent after the three phases above, so it is phase 4 and it sits on top of
+phase 3: "the same company in both places" is only sayable once one agency
+record carries both routes.)*
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
