@@ -167,6 +167,17 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
+## A DEVELOPER'S "SEES" SAYS WHAT THEY SEE (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> People lists: a Developer's "Sees" reads "Dev Centre and API (no commission)" instead of "-".
+
+- "People lists", plural. Find every one that has a Sees column, not
+  just the supplier's.
+- "-" reads as "nothing", and a Developer sees a good deal: the whole
+  supplier's book read-only plus the Dev Centre. The dash was the
+  reason the role got handed out as management instead, which
+  ROLE_OPTIONS already notes about its own description.
+
 ## A BRANCH'S CONTACT VANISHED, AND "VIEWING AS" FOLLOWS YOU AROUND (bug, 2026-10-01, verbatim). Second half **done** (`7dc734a`). First half **NOT REPRODUCED** -- see below.
 
 > Supplier Overview for Kestrel Lettings: Kestrel Riverside no longer shows its contact email (it showed kestrel.riverside@kestrel.invalid earlier). Find whether the contact was removed or the screen stopped showing it, fix it, and if a branch genuinely has no contact, warn on that branch. Also: the "Viewing as" tag must not show on any page that isn't showing that party's view; it's appearing on admin pages after View as was used. Deploy to dev and check there.
