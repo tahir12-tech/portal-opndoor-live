@@ -17,7 +17,8 @@ Agency League headings, the office chosen first on New application, and
 one support address and one name for the fee on the tenant side, and the
 signed-deed email saying the insurance sentence once, and a corrected deed
 saying that it is a correction, and two decimal places with the payment
-link on joint applications, and the fee paid email counting the tenants.
+link on joint applications, the fee paid email counting the tenants, and
+"deed 2 of 2" on a tenancy with one signature.
 
 
 The single source of truth for outstanding work on this branch.
@@ -34,6 +35,15 @@ anything it is under a heading that says so.
 Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
+
+## "DEED 2 OF 2" ON A TENANCY WITH ONE SIGNATURE (bug, 2026-10-01, verbatim). todo.
+
+> Bug on joint tenancy GR-23853/GR-23854: Joint Two signed first, and the agent's signed-deed email said "deed 2 of 2" and "This is the last of this tenancy's deeds: every tenant has now signed their own", while Joint One has not paid or signed. The count must be of deeds actually signed ("1 of 2 signed"), and "every tenant has now signed" only appears when it's true. Check the same logic everywhere it appears (emails, application detail, Applications list).  Deploy to dev and check there.
+
+- The fault to look for is an ORDINAL being read as a COUNT: Joint Two is
+  tenant 2 of 2, which is not the same sentence as "2 of 2 have signed".
+- "everywhere it appears" is named: emails, application detail, Applications
+  list. One predicate, three readers.
 
 ## THE FEE PAID EMAIL COUNTS THE TENANTS (instruction, 2026-10-01, verbatim). todo.
 
