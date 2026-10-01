@@ -123,6 +123,20 @@ Two things worth knowing for whoever picks the next one up:
   than a screenshot and did catch two wording faults a screenshot would
   not have.
 
+## A SUPPLIER'S REPORTING SHOWS OTHER CUSTOMERS (instruction, 2026-10-01, verbatim). ACTIVE, TAKES PRIORITY.
+
+> Reporting under View as Kestrel Lettings shows the "Every customer" table (other agencies' referrals, fees and commission), the Agencies/Suppliers commission split and Settlements, none of which a supplier may see. First check whether a real supplier login (director@kestrel.dev.test) sees them too, and tell me. Then fix both: a supplier's Reporting, and View as of it, shows only its own figures, statements and agencies, never other customers or Opndoor's settlements. Also fix "Kestrel Lettings's" to "Kestrel Lettings'". Add a test that a supplier's Reporting contains no other customer's name. Deploy to dev and check there.
+
+- **The first half is a question, and it is asked before the fix for a
+  reason.** "View as" renders in an ADMIN's session: the admin may
+  lawfully read every row, so a leak there is a rendering fault in a
+  preview. A real supplier login reading the same rows would be a
+  live isolation failure. Those are different severities and different
+  fixes. Answer it before touching anything, and answer it with
+  evidence, not with a reading of the client.
+- It goes above the commission work because an isolation question
+  outranks a layout one.
+
 ## ONE WAY TO SET SUPPLIER COMMISSION, AND TWO DEAL SHAPES (instructions, 2026-10-01, verbatim). ACTIVE.
 
 > Supplier Commission tab: one way to set commission only. Remove the old card (Total commission %, Agents' share %, read-only volume tiers, Save commission) and keep the deal editors ("What opndoor pays this supplier", "What the agencies underneath keep"), moving the "Opndoor pays the agents directly" switch and the plain-English summary into that layout. Supplier Overview: don't show "No agent contact" on an agency when its branches have contacts; only warn where a branch would actually have nowhere to send the deed. Settings: replace "The partner references first" with "The supplier references first". People: show status as "Active", capitalised, like elsewhere. Deploy to dev and check there.
