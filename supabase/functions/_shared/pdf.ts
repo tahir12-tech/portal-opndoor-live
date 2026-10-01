@@ -156,6 +156,41 @@ export function fitText(s: string, max: number, size: number): string {
   return cut + dots;
 }
 
+/**
+ * Break a line into as many lines as it needs, on word boundaries.
+ *
+ * ADDED BECAUSE THE FOOTER OUTGREW ONE LINE, and the way it outgrew it
+ * is the point. The payment terms used to be "Paid by the 15th of the
+ * following month." -- eight words, comfortably inside the page. They
+ * are now an invoicing instruction naming a total, a statement
+ * reference and an address, which is about two hundred characters at
+ * 7.5pt against a page that fits around a hundred and thirty.
+ *
+ * `fitText` would truncate it, and the first rehearsal showed exactly
+ * where: "... to acc..." -- the ellipsis landing on the invoice
+ * address, which is the one piece of a payment instruction that cannot
+ * be guessed from the rest. A document telling somebody to invoice an
+ * address it does not finish printing is worse than one with no terms
+ * at all.
+ *
+ * A WORD TOO LONG FOR THE LINE IS LET THROUGH RATHER THAN BROKEN. It
+ * will be an email address or a reference, and a reader can live with
+ * one over-long line; a hyphenated email address is unusable.
+ */
+export function wrapText(s: string, max: number, size: number): string[] {
+  const words = s.split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const lines: string[] = [];
+  let line = words[0];
+  for (let i = 1; i < words.length; i++) {
+    const next = `${line} ${words[i]}`;
+    if (textWidth(next, size) <= max) line = next;
+    else { lines.push(line); line = words[i]; }
+  }
+  lines.push(line);
+  return lines;
+}
+
 // ---------------------------------------------------------------------
 // Byte assembly
 // ---------------------------------------------------------------------
@@ -228,6 +263,11 @@ export interface PdfColumn {
 export interface PdfTableDoc {
   /** The line at the top of every page. */
   title: string;
+  /** THE BRANDED EXPORT'S OWN META LINE: period, payee, reference,
+      generated and currency, on one line under the title. Named for
+      `BrandedDoc.metaLine` in src/data/xlsxTemplate.ts, which is where
+      the shape comes from. */
+  metaLine?: string;
   /** Label and value pairs under the title, on the first page only. */
   meta?: Array<[string, string]>;
   columns: PdfColumn[];
@@ -237,6 +277,41 @@ export interface PdfTableDoc {
   /** One quiet sentence along the bottom of every page. */
   footer?: string;
 }
+
+// ---- BEGIN SHARED BRAND TOKEN RULE ----
+/* THE BRAND, FROM THE ONE PLACE THE PORTAL ALREADY KEEPS IT.
+
+   These are `src/data/xlsxTemplate.ts`'s tokens, which are in turn
+   `portal.css :root`'s, and they are duplicated here for the same reason
+   STATEMENT_COLUMNS is: an Edge Function cannot import from `src`, and
+   `xlsx-js-style` is browser-only. `brandTokensMatch.test.ts` compares
+   this block to that file character for character, so the two cannot
+   drift.
+
+   WHY THESE EXACT FIVE. They are every colour the branded export uses:
+   the Valhalla header band behind the wordmark, white-lilac behind the
+   column headers with a heliotrope rule under them, ink for data and
+   ink-soft for labels. Nothing here was chosen for the PDF. */
+const VALHALLA: Colour = [0x27 / 255, 0x1d / 255, 0x5f / 255];
+const HELIOTROPE_DEEP: Colour = [0xb5 / 255, 0x4d / 255, 0xe0 / 255];
+const WHITE_LILAC: Colour = [0xf8 / 255, 0xef / 255, 0xf9 / 255];
+const INK: Colour = [0x27 / 255, 0x1d / 255, 0x5f / 255];
+const INK_SOFT: Colour = [0x5b / 255, 0x4d / 255, 0x86 / 255];
+const WHITE: Colour = [1, 1, 1];
+// ---- END SHARED BRAND TOKEN RULE ----
+
+/* THE TYPEFACES ARE THE ONE THING NOT REUSED, and it is worth saying why
+   rather than leaving somebody to find Helvetica here and assume
+   nobody thought about it. The brand is Sora for titles and Manrope for
+   data. Both are TrueType files, and embedding one in a PDF means
+   subsetting the glyphs and writing the font descriptor and widths by
+   hand -- a large piece of work in a writer that exists precisely to
+   avoid a PDF dependency. Helvetica and Helvetica-Bold are two of the
+   base 14, present in every reader, needing no bytes.
+
+   The xlsx template already tolerates exactly this: its own note says
+   "Excel falls back gracefully when they are not installed". */
+const BAND_H = 44;
 
 const MARGIN_X = 40;
 const MARGIN_TOP = 40;
@@ -255,18 +330,30 @@ const GRAY_FOOTER = 0.3;
 /** One drawing instruction. The page is laid out into these first, because the
     page count is not known until the last row is placed and the footer has to
     say "Page 2 of 3". */
+/** An RGB colour, each channel 0..1, which is what a PDF content stream
+    speaks. Grey is just a colour with three equal channels, so the one
+    type covers both and the writer has a single code path. */
+type Colour = readonly [number, number, number];
+const grey = (g: number): Colour => [g, g, g];
+
 type Op =
-  | { t: "text"; x: number; y: number; size: number; s: string; gray?: number }
-  | { t: "rule"; y: number; x1: number; x2: number; gray: number };
+  | { t: "text"; x: number; y: number; size: number; s: string; colour?: Colour; bold?: boolean }
+  | { t: "rule"; y: number; x1: number; x2: number; colour: Colour; w?: number }
+  /** A filled rectangle: the header band, and the fill behind the column
+      headers. The only two shapes this document has. */
+  | { t: "rect"; x: number; y: number; w: number; h: number; colour: Colour };
 
 /** Draw a row of cells inside the column grid, each clipped to its column. */
-function cells(ops: Op[], cols: readonly PdfColumn[], values: readonly string[], y: number, size: number, gray?: number) {
+function cells(
+  ops: Op[], cols: readonly PdfColumn[], values: readonly string[], y: number, size: number,
+  colour?: Colour, bold?: boolean,
+) {
   let x = MARGIN_X;
   for (let i = 0; i < cols.length; i++) {
     const col = cols[i];
     const text = fitText(values[i] ?? "", col.width - 4, size);
     const tx = col.align === "right" ? x + col.width - 4 - textWidth(text, size) : x;
-    ops.push({ t: "text", x: tx, y, size, s: text, ...(gray == null ? {} : { gray }) });
+    ops.push({ t: "text", x: tx, y, size, s: text, ...(colour ? { colour } : {}), ...(bold ? { bold } : {}) });
     x += col.width;
   }
 }
@@ -292,6 +379,13 @@ export function renderTablePdf(doc: PdfTableDoc): Uint8Array {
     );
   }
   const tableRight = MARGIN_X + tableWidth;
+  /* WRAPPED ONCE, BEFORE ANY PAGE IS LAID OUT, because the table's floor
+     depends on how tall the footer is: a three-line footer under a page
+     broken for a one-line one would be drawn over the last rows. */
+  const footerLines = doc.footer
+    ? wrapText(doc.footer, USABLE_WIDTH - 90, SIZE_FOOTER)
+    : [];
+  const footerH = footerLines.length ? (footerLines.length - 1) * (SIZE_FOOTER + 2.5) : 0;
   const pages: Op[][] = [];
   let ops: Op[] = [];
   let y = 0;
@@ -301,61 +395,96 @@ export function renderTablePdf(doc: PdfTableDoc): Uint8Array {
   const startPage = (first: boolean) => {
     ops = [];
     pages.push(ops);
-    y = A4_HEIGHT - MARGIN_TOP - SIZE_TITLE;
-    ops.push({ t: "text", x: MARGIN_X, y, size: first ? SIZE_TITLE : SIZE_META + 1, s: doc.title });
-    y -= first ? 20 : 16;
+
+    /* THE HEADER BAND AND THE WORDMARK, on every page, which is the first
+       thing the branded export does and the thing that makes one of
+       these recognisable face down on a desk. Full bleed, because a band
+       inset by the margin reads as a box rather than a masthead. */
+    ops.push({ t: "rect", x: 0, y: A4_HEIGHT - BAND_H, w: A4_WIDTH, h: BAND_H, colour: VALHALLA });
+    ops.push({
+      t: "text", x: MARGIN_X, y: A4_HEIGHT - BAND_H + 15, size: 18,
+      s: "opndoor", colour: WHITE, bold: true,
+    });
+
+    y = A4_HEIGHT - BAND_H - 26;
+    ops.push({
+      t: "text", x: MARGIN_X, y, size: first ? SIZE_TITLE : SIZE_META + 1,
+      s: doc.title, colour: INK, bold: true,
+    });
+    y -= first ? 16 : 14;
+
+    /* THE META LINE, which is the branded export's own: period, payee,
+       reference, generated, currency, on one line under the title. */
+    if (doc.metaLine) {
+      ops.push({
+        t: "text", x: MARGIN_X, y, size: SIZE_META, colour: INK_SOFT,
+        s: fitText(doc.metaLine, USABLE_WIDTH, SIZE_META),
+      });
+      y -= first ? 18 : 14;
+    }
 
     if (first && doc.meta?.length) {
       for (const [label, value] of doc.meta) {
-        ops.push({ t: "text", x: MARGIN_X, y, size: SIZE_META, s: label, gray: 0.4 });
-        ops.push({ t: "text", x: MARGIN_X + 118, y, size: SIZE_META, s: fitText(value, USABLE_WIDTH - 118, SIZE_META) });
+        ops.push({ t: "text", x: MARGIN_X, y, size: SIZE_META, s: label, colour: INK_SOFT, bold: true });
+        ops.push({ t: "text", x: MARGIN_X + 118, y, size: SIZE_META, colour: INK, s: fitText(value, USABLE_WIDTH - 118, SIZE_META) });
         y -= 13;
       }
       y -= 8;
     }
 
-    // Column headers, with a rule under them.
-    cells(ops, cols, cols.map((c) => c.header), y, SIZE_TABLE, 0.35);
+    /* COLUMN HEADERS ON WHITE LILAC WITH A HELIOTROPE RULE UNDER THEM,
+       which is exactly what the xlsx `headStyle` does: a filled header
+       cell with a medium heliotrope bottom border. */
+    ops.push({ t: "rect", x: MARGIN_X, y: y - 4, w: tableWidth, h: 15, colour: WHITE_LILAC });
+    cells(ops, cols, cols.map((c) => c.header), y, SIZE_TABLE, INK, true);
     y -= 5;
-    ops.push({ t: "rule", y, x1: MARGIN_X, x2: tableRight, gray: 0.55 });
+    ops.push({ t: "rule", y, x1: MARGIN_X, x2: tableRight, colour: HELIOTROPE_DEEP, w: 1.1 });
     y -= LEADING;
   };
 
   startPage(true);
   // Room for the last row plus the total line and the footer, or the total
   // lands on a page of its own with nothing above it.
-  const floor = MARGIN_BOTTOM + LEADING * 2 + 8;
+  const floor = MARGIN_BOTTOM + footerH + LEADING * 2 + 8;
   for (const row of doc.rows) {
     if (y < floor) startPage(false);
-    cells(ops, cols, row, y, SIZE_TABLE);
+    cells(ops, cols, row, y, SIZE_TABLE, INK);
     y -= LEADING;
   }
 
   if (doc.total) {
-    if (y < MARGIN_BOTTOM + LEADING + 8) startPage(false);
+    if (y < MARGIN_BOTTOM + footerH + LEADING + 8) startPage(false);
     y += LEADING - 6;
-    ops.push({ t: "rule", y, x1: MARGIN_X, x2: tableRight, gray: 0.55 });
+    ops.push({ t: "rule", y, x1: MARGIN_X, x2: tableRight, colour: HELIOTROPE_DEEP, w: 1.1 });
     y -= LEADING + 1;
     const valueW = textWidth(doc.total.value, SIZE_TABLE);
     const labelW = textWidth(doc.total.label, SIZE_TABLE);
     const lastW = cols[cols.length - 1]?.width ?? 60;
-    ops.push({ t: "text", x: tableRight - 4 - valueW, y, size: SIZE_TABLE, s: doc.total.value });
-    ops.push({ t: "text", x: tableRight - lastW - 10 - labelW, y, size: SIZE_TABLE, s: doc.total.label });
+    ops.push({ t: "text", x: tableRight - 4 - valueW, y, size: SIZE_TABLE, s: doc.total.value, colour: INK, bold: true });
+    ops.push({ t: "text", x: tableRight - lastW - 10 - labelW, y, size: SIZE_TABLE, s: doc.total.label, colour: INK, bold: true });
   }
 
   // Footers last, now that the count is known.
   for (let i = 0; i < pages.length; i++) {
     const page = pages[i];
     if (doc.footer) {
-      page.push({
-        t: "text", x: MARGIN_X, y: MARGIN_BOTTOM, size: SIZE_FOOTER, gray: GRAY_FOOTER,
-        s: fitText(doc.footer, USABLE_WIDTH - 90, SIZE_FOOTER),
-      });
+      /* STACKED UPWARDS FROM THE BOTTOM MARGIN, so the last line sits
+         on the same baseline as the page number and the terms grow into
+         the space above rather than into the table. The last line is
+         the only one that has to leave room for "Page 1 of 1". */
+      for (let n = 0; n < footerLines.length; n++) {
+        const last = n === footerLines.length - 1;
+        page.push({
+          t: "text", x: MARGIN_X, size: SIZE_FOOTER, colour: grey(GRAY_FOOTER),
+          y: MARGIN_BOTTOM + (footerLines.length - 1 - n) * (SIZE_FOOTER + 2.5),
+          s: fitText(footerLines[n], last ? USABLE_WIDTH - 90 : USABLE_WIDTH, SIZE_FOOTER),
+        });
+      }
     }
     const n = `Page ${i + 1} of ${pages.length}`;
     page.push({
       t: "text", x: MARGIN_X + USABLE_WIDTH - textWidth(n, SIZE_FOOTER), y: MARGIN_BOTTOM,
-      size: SIZE_FOOTER, gray: GRAY_FOOTER, s: n,
+      size: SIZE_FOOTER, colour: grey(GRAY_FOOTER), s: n,
     });
   }
 
@@ -365,18 +494,29 @@ export function renderTablePdf(doc: PdfTableDoc): Uint8Array {
 /** Ops to a content stream's bytes. */
 function contentStream(page: readonly Op[]): Uint8Array {
   const b = new Bytes();
-  let gray = 0; // the PDF default is black; only emit a change
+  const BLACK: Colour = [0, 0, 0];
+  let fill: Colour = BLACK; // the PDF default; only emit a change
+  const rgb = (c: Colour) => `${pt(c[0])} ${pt(c[1])} ${pt(c[2])}`;
   for (const op of page) {
     if (op.t === "rule") {
-      b.ascii(`${pt(op.gray)} G 0.7 w ${pt(op.x1)} ${pt(op.y)} m ${pt(op.x2)} ${pt(op.y)} l S\n`);
+      b.ascii(`${rgb(op.colour)} RG ${pt(op.w ?? 0.7)} w ${pt(op.x1)} ${pt(op.y)} m ${pt(op.x2)} ${pt(op.y)} l S\n`);
       continue;
     }
-    const g = op.gray ?? 0;
-    if (g !== gray) {
-      b.ascii(`${pt(g)} g\n`);
-      gray = g;
+    if (op.t === "rect") {
+      /* q/Q AROUND THE FILL. A rectangle sets the fill colour, and text
+         after it would inherit that colour -- white text on a white
+         page, which is the kind of fault that only shows up on the one
+         page nobody opened. Saving and restoring the graphics state
+         keeps a shape's colour to the shape. */
+      b.ascii(`q ${rgb(op.colour)} rg ${pt(op.x)} ${pt(op.y)} ${pt(op.w)} ${pt(op.h)} re f Q\n`);
+      continue;
     }
-    b.ascii(`BT /F1 ${pt(op.size)} Tf ${pt(op.x)} ${pt(op.y)} Td `);
+    const c = op.colour ?? BLACK;
+    if (c[0] !== fill[0] || c[1] !== fill[1] || c[2] !== fill[2]) {
+      b.ascii(`${rgb(c)} rg\n`);
+      fill = c;
+    }
+    b.ascii(`BT /${op.bold ? "F2" : "F1"} ${pt(op.size)} Tf ${pt(op.x)} ${pt(op.y)} Td `);
     b.raw(pdfString(op.s));
     b.ascii(" Tj ET\n");
   }
@@ -391,7 +531,10 @@ function contentStream(page: readonly Op[]): Uint8Array {
  */
 function serialise(pages: readonly Op[][]): Uint8Array {
   const out = new Bytes();
-  const total = 3 + pages.length * 2;
+  /* FOUR FIXED OBJECTS NOW, not three: the bold face is its own font
+     object. Helvetica-Bold is also one of the base 14, so it is another
+     dictionary and no bytes. Every id below counts from 4. */
+  const total = 4 + pages.length * 2;
   const offsets = new Array<number>(total).fill(0);
 
   const object = (n: number, body: Uint8Array | string) => {
@@ -407,20 +550,24 @@ function serialise(pages: readonly Op[][]): Uint8Array {
   // must not be line-ending-translated in transit.
   out.raw(new Uint8Array([0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a]));
 
-  const kids = pages.map((_, i) => `${4 + i * 2} 0 R`).join(" ");
+  const kids = pages.map((_, i) => `${5 + i * 2} 0 R`).join(" ");
   object(1, "<< /Type /Catalog /Pages 2 0 R >>");
   object(2, `<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`);
   // One of the base 14, so there is nothing to embed. WinAnsiEncoding is what
   // makes byte 0xA3 draw a pound sign; the default encoding would not.
   object(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  /* THE BOLD FACE, for the wordmark, the title, the column headers and
+     the total. The brand carries weight in all four and a document
+     drawn entirely in book weight reads as a draft. */
+  object(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
 
   for (let i = 0; i < pages.length; i++) {
-    const pageId = 4 + i * 2;
+    const pageId = 5 + i * 2;
     const contentId = pageId + 1;
     object(
       pageId,
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pt(A4_WIDTH)} ${pt(A4_HEIGHT)}] ` +
-        `/Resources << /Font << /F1 3 0 R >> >> /Contents ${contentId} 0 R >>`,
+        `/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`,
     );
 
     const stream = contentStream(pages[i]);

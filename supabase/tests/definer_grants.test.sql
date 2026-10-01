@@ -180,6 +180,10 @@ insert into allowed(name) values
   ('set_agency_rates'),
   ('set_agency_referencing_mode'),
   ('set_app_setting_num'),
+  /* The invoice address agencies and suppliers send their commission
+     invoices to, and the predicate Home and Health read to say when it
+     is unset (20261007150000). Covered by where_to_send_the_invoice. */
+  ('set_app_setting_text'),
   ('set_application_status'),
   ('set_branch_deed_recipient'),
   ('set_group_rates'),
@@ -205,6 +209,8 @@ insert into allowed(name) values
   ('set_supplier_commission'),
   ('set_user_scope'),
   ('staff_payment_page_token'),
+  ('statement_invoice_email'),
+  ('statements_can_be_posted'),
   ('supplier_commission_tiers'),
   ('trigger_crm_sync'),
   ('update_partner_settings'),

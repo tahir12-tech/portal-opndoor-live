@@ -172,4 +172,49 @@ export function keepColumns(
   const scale = before / after;
   return keep.map((c) => ({ ...c, width: c.width * scale }));
 }
+
+/**
+ * Drop any column that is empty on every line.
+ *
+ * Matt, 2026-10-01: "Also drop any column that is empty on every line
+ * (e.g. Tenancy and Share)."
+ *
+ * A DIFFERENT RULE FROM keepColumns, AND BOTH ARE WANTED. That one drops
+ * a dimension whose every line shares ONE value -- a statement from a
+ * single branch does not need a Branch column repeating the same office
+ * down the page. This one drops a column with no value at all. Tenancy
+ * and Share are the example because they are the two that go empty most
+ * often: a statement of solo lets has no tenancy positions and no
+ * frozen share percentages, and both columns then print a hyphen on
+ * every row and take width from the columns that say something.
+ *
+ * ASKED OF THE RENDERED CELLS, not of the data, because "empty" is a
+ * question about what the reader would see. The PDF writes a hyphen
+ * where the CSV writes nothing, so both are empty, and a column whose
+ * every cell is one of those has nothing to show.
+ *
+ * THE WIDTH IS SHARED OUT, by handing the survivors back through
+ * keepColumns' own redistribution: dropping a column and leaving the
+ * rest where they are pulls the table up short of the right margin.
+ */
+export function dropEmptyColumns(
+  columns: readonly StatementColumn[],
+  rows: readonly (readonly string[])[],
+  empty: string,
+): { columns: StatementColumn[]; rows: string[][] } {
+  const blank = (v: string | undefined) => {
+    const s = (v ?? '').trim();
+    return s === '' || s === empty;
+  };
+  const keep = columns.map((_, i) => rows.length === 0 || rows.some((r) => !blank(r[i])));
+  if (keep.every(Boolean)) return { columns: columns.slice(), rows: rows.map((r) => r.slice()) };
+  const kept = columns.filter((_, i) => keep[i]);
+  const before = columns.reduce((s, c) => s + c.width, 0);
+  const after = kept.reduce((s, c) => s + c.width, 0);
+  const scale = after ? before / after : 1;
+  return {
+    columns: kept.map((c) => ({ ...c, width: c.width * scale })),
+    rows: rows.map((r) => r.filter((_, i) => keep[i])),
+  };
+}
 // ---- END SHARED STATEMENT COLUMN RULE ----

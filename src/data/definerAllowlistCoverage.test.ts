@@ -171,8 +171,12 @@ describe('the definer allowlist', () => {
      buttons: called from the browser, guarded inside with is_aal2 +
      is_opndoor_staff. Exercised by name in
      a_decision_is_a_moment_not_a_flag.test.sql. 2026-09-30. */
-  it('is 139 functions wide, and does not widen by accident', () => {
-    expect(allowlist.length).toBeLessThanOrEqual(139);
+  /* 139 -> 142, RAISED DELIBERATELY AND IN THE SAME COMMIT AS THE THREE.
+     `set_app_setting_text` is Health's field, `statement_invoice_email`
+     is what it reads back, and `statements_can_be_posted` is the
+     boolean Home and Health both warn on. 2026-10-01. */
+  it('is 142 functions wide, and does not widen by accident', () => {
+    expect(allowlist.length).toBeLessThanOrEqual(142);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

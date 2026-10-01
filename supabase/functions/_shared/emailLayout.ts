@@ -161,11 +161,36 @@ function blockHtml(b: Block): string {
 
 /** The whole message, chrome included. */
 export function renderHtml(m: Message, r?: Recipients): string {
+  /* THE BUTTON WAS A BLANK GAP, and the cause is one declaration.
+
+     Matt, 2026-10-01: "the 'Open your statement' button doesn't render;
+     there's a blank gap above 'If the button does not work'."
+
+     The colour lived in ONE place: `background:` on the <td>, as the
+     shorthand. The anchor carried `color:#fff` and no background of its
+     own. Mail clients rewrite and drop CSS, and the `background`
+     shorthand on a table cell is one of the first things to go in
+     Gmail -- and the moment it goes, white text sits on a white cell at
+     full height. A button that is invisible but still occupies 43
+     points IS a blank gap, which is exactly what he saw and why it
+     looked like a rendering fault rather than a missing element.
+
+     THREE DECLARATIONS NOW, SO NO SINGLE STRIP HIDES IT:
+       bgcolor      the attribute, which predates CSS in email and is
+                    the one thing essentially nothing strips
+       background-color  the longhand, on the cell, which survives where
+                    the shorthand does not
+       background-color  on the ANCHOR as well, so even with the cell
+                    stripped bare the button is still a coloured pill
+
+     And `color:#ffffff` in full rather than `#fff`: a handful of clients
+     still normalise three-digit hex badly in inline styles, and it costs
+     three characters to not find out which. */
   const action = m.action
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 6px;">
-         <tr><td style="border-radius:999px;background:${HELIOTROPE};">
+         <tr><td bgcolor="${HELIOTROPE}" style="border-radius:999px;background-color:${HELIOTROPE};">
            <a href="${esc(m.action.href)}" style="display:inline-block;padding:14px 30px;font:700 15px/1 ${FONT};
-              color:#fff;text-decoration:none;border-radius:999px;">${esc(m.action.label)}</a>
+              background-color:${HELIOTROPE};color:#ffffff;text-decoration:none;border-radius:999px;">${esc(m.action.label)}</a>
          </td></tr>
        </table>`
     : "";

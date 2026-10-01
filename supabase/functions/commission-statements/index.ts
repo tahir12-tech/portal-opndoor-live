@@ -55,7 +55,26 @@ const json = (body: unknown, status = 200) =>
  * attachment, so the two can never say different things. If the terms change,
  * this one string changes and both follow.
  */
-export const PAYMENT_TERMS_LINE = "Paid by the 15th of the following month.";
+/* HOW TO GET PAID, NOT WHEN WE PAY. Matt, 2026-10-01, verbatim:
+   "replace 'Paid by the 15th of the following month' with: 'Please send
+   an invoice to opndoor for [total], quoting statement reference
+   [reference], to [invoice email], including your bank details.
+   Invoices received by the 8th are paid by the 15th.'"
+
+   A FUNCTION, BECAUSE TWO OF THE THREE BRACKETS ARE THIS STATEMENT'S.
+   The old line was a constant because it said the same thing to
+   everybody; this one names the payee's own total and their own
+   reference, so a constant cannot express it.
+
+   THE ADDRESS IS A SETTING AND HAS NO FALLBACK HERE. It arrives from
+   `statement_invoice_email()`, and the run refuses to post at all while
+   that is null -- so by the time this is called there is always an
+   address, and anything this function could substitute would be a
+   second answer to a question that already has one. */
+export function paymentTermsLine(total: string, reference: string, invoiceEmail: string): string {
+  return `Please send an invoice to opndoor for ${total}, quoting statement reference ${reference}, `
+    + `to ${invoiceEmail}, including your bank details. Invoices received by the 8th are paid by the 15th.`;
+}
 
 /**
  * The attachment is a PDF, written by _shared/pdf.ts.
@@ -497,6 +516,51 @@ export function keepColumns(
   const scale = before / after;
   return keep.map((c) => ({ ...c, width: c.width * scale }));
 }
+
+/**
+ * Drop any column that is empty on every line.
+ *
+ * Matt, 2026-10-01: "Also drop any column that is empty on every line
+ * (e.g. Tenancy and Share)."
+ *
+ * A DIFFERENT RULE FROM keepColumns, AND BOTH ARE WANTED. That one drops
+ * a dimension whose every line shares ONE value -- a statement from a
+ * single branch does not need a Branch column repeating the same office
+ * down the page. This one drops a column with no value at all. Tenancy
+ * and Share are the example because they are the two that go empty most
+ * often: a statement of solo lets has no tenancy positions and no
+ * frozen share percentages, and both columns then print a hyphen on
+ * every row and take width from the columns that say something.
+ *
+ * ASKED OF THE RENDERED CELLS, not of the data, because "empty" is a
+ * question about what the reader would see. The PDF writes a hyphen
+ * where the CSV writes nothing, so both are empty, and a column whose
+ * every cell is one of those has nothing to show.
+ *
+ * THE WIDTH IS SHARED OUT, by handing the survivors back through
+ * keepColumns' own redistribution: dropping a column and leaving the
+ * rest where they are pulls the table up short of the right margin.
+ */
+export function dropEmptyColumns(
+  columns: readonly StatementColumn[],
+  rows: readonly (readonly string[])[],
+  empty: string,
+): { columns: StatementColumn[]; rows: string[][] } {
+  const blank = (v: string | undefined) => {
+    const s = (v ?? '').trim();
+    return s === '' || s === empty;
+  };
+  const keep = columns.map((_, i) => rows.length === 0 || rows.some((r) => !blank(r[i])));
+  if (keep.every(Boolean)) return { columns: columns.slice(), rows: rows.map((r) => r.slice()) };
+  const kept = columns.filter((_, i) => keep[i]);
+  const before = columns.reduce((s, c) => s + c.width, 0);
+  const after = kept.reduce((s, c) => s + c.width, 0);
+  const scale = after ? before / after : 1;
+  return {
+    columns: kept.map((c) => ({ ...c, width: c.width * scale })),
+    rows: rows.map((r) => r.filter((_, i) => keep[i])),
+  };
+}
 // ---- END SHARED STATEMENT COLUMN RULE ----
 
 /** The dimensions of one month's lines, for the rule above. There is no agency
@@ -668,12 +732,18 @@ function supplierRow(l: SupplierLineRow): string[] {
 
 /** The supplier's own statement: every referral, decomposed. */
 export function supplierStatementPdf(
-  payee: PayeeRow, lines: SupplierLineRow[], label: string, reference: string,
+  payee: PayeeRow, lines: SupplierLineRow[], label: string, reference: string, invoiceEmail: string,
 ): Uint8Array {
   const total = lines.reduce((s, l) => s + num(l.total_amount), 0);
   const agents = lines.reduce((s, l) => s + num(l.agent_amount), 0);
+  const { columns, rows } = dropEmptyColumns(SUPPLIER_STATEMENT_COLUMNS, lines.map(supplierRow), EMPTY_CELL);
   return renderTablePdf({
-    title: "opndoor commission statement",
+    /* THE BRANDED DOCUMENT'S OWN SHAPE: report name, then a meta line of
+       period / payee / reference / generated / currency, then the
+       key-values, then the table. Taken from `buildPartnerStatementDoc`,
+       which is the portal's existing branded statement. */
+    title: "Commission statement",
+    metaLine: `${label} · Payee: ${payee.org_name} · Supplier commission · Reference ${reference} · GBP`,
     meta: [
       ["Payee", payee.org_name],
       ["Month", label],
@@ -687,18 +757,22 @@ export function supplierStatementPdf(
       ["Of which agents' share", gbp(agents)],
       ["Your share", gbp(total - agents)],
     ],
-    columns: SUPPLIER_STATEMENT_COLUMNS,
-    rows: lines.map(supplierRow),
+    columns,
+    rows,
     total: { label: "Total", value: gbp(total) },
-    footer: PAYMENT_TERMS_LINE,
+    footer: paymentTermsLine(gbp(total), reference, invoiceEmail),
   });
 }
 
 export function supplierStatementCsv(
-  payee: PayeeRow, lines: SupplierLineRow[], label: string, reference: string,
+  payee: PayeeRow, lines: SupplierLineRow[], label: string, reference: string, invoiceEmail: string,
 ): string {
   const total = lines.reduce((s, l) => s + num(l.total_amount), 0);
   const agents = lines.reduce((s, l) => s + num(l.agent_amount), 0);
+  /* THE SAME COLUMNS THE PDF DROPPED. Asked of the same rendered rows,
+     so the two documents of one statement cannot disagree about which
+     columns exist. */
+  const { columns, rows } = dropEmptyColumns(SUPPLIER_STATEMENT_COLUMNS, lines.map(supplierRow), "");
   return toCSV([
     ["opndoor commission statement"],
     ["Payee", payee.org_name],
@@ -709,12 +783,17 @@ export function supplierStatementCsv(
     ["Total commission", gbp(total)],
     ["Of which agents' share", gbp(agents)],
     ["Your share", gbp(total - agents)],
-    [PAYMENT_TERMS_LINE],
+    [paymentTermsLine(gbp(total), reference, invoiceEmail)],
     [],
-    SUPPLIER_STATEMENT_COLUMNS.map((c) => c.header),
-    ...lines.map(supplierRow),
+    columns.map((c) => c.header),
+    ...rows,
     [],
-    ["", "", "", "", "", "", gbp(agents), gbp(total - agents), gbp(total)],
+    /* THE FOOTING ROW FOLLOWS THE COLUMNS. Written as a fixed nine-cell
+       row, it put the three money totals under whatever happened to be
+       in those positions once a column was dropped. */
+    columns.map((c) => (c.header === "Agents' share" ? gbp(agents)
+      : c.header === "Your share" ? gbp(total - agents)
+        : c.header === "Total" ? gbp(total) : "")),
   ]);
 }
 
@@ -729,8 +808,14 @@ export function supplierSchedulePdf(
   supplierName: string, agencyName: string, lines: SupplierLineRow[], label: string,
 ): Uint8Array {
   const agents = lines.reduce((s, l) => s + num(l.agent_amount), 0);
+  const body = lines.map((l) => [
+    l.branch_name || EMPTY_CELL, l.guarantee_ref, l.tenant_name,
+    dmy(l.paid_on), gbp(num(l.fee)), gbp(num(l.agent_amount)),
+  ]);
+  const { columns, rows } = dropEmptyColumns(SUPPLIER_SCHEDULE_COLUMNS, body, EMPTY_CELL);
   return renderTablePdf({
-    title: "agent commission schedule",
+    title: "Agent commission schedule",
+    metaLine: `${label} · ${agencyName} · under ${supplierName} · GBP`,
     meta: [
       ["Agency", agencyName],
       ["Under", supplierName],
@@ -739,11 +824,8 @@ export function supplierSchedulePdf(
       ["Referrals", String(lines.length)],
       ["Agents' share", gbp(agents)],
     ],
-    columns: SUPPLIER_SCHEDULE_COLUMNS,
-    rows: lines.map((l) => [
-      l.branch_name || EMPTY_CELL, l.guarantee_ref, l.tenant_name,
-      dmy(l.paid_on), gbp(num(l.fee)), gbp(num(l.agent_amount)),
-    ]),
+    columns,
+    rows,
     total: { label: "Total", value: gbp(agents) },
     footer: `Paid by ${supplierName}, not by opndoor.`,
   });
@@ -753,6 +835,11 @@ export function supplierScheduleCsv(
   supplierName: string, agencyName: string, lines: SupplierLineRow[], label: string,
 ): string {
   const agents = lines.reduce((s, l) => s + num(l.agent_amount), 0);
+  const body = lines.map((l) => [
+    l.branch_name, l.guarantee_ref, l.tenant_name, dmy(l.paid_on),
+    gbp(num(l.fee)), gbp(num(l.agent_amount)),
+  ]);
+  const { columns, rows } = dropEmptyColumns(SUPPLIER_SCHEDULE_COLUMNS, body, "");
   return toCSV([
     ["agent commission schedule"],
     ["Agency", agencyName],
@@ -762,13 +849,11 @@ export function supplierScheduleCsv(
     ["Agents' share", gbp(agents)],
     [`Paid by ${supplierName}, not by opndoor.`],
     [],
-    SUPPLIER_SCHEDULE_COLUMNS.map((c) => c.header),
-    ...lines.map((l) => [
-      l.branch_name, l.guarantee_ref, l.tenant_name, dmy(l.paid_on),
-      gbp(num(l.fee)), gbp(num(l.agent_amount)),
-    ]),
+    columns.map((c) => c.header),
+    ...rows,
     [],
-    ["", "", "", "", "Total", gbp(agents)],
+    columns.map((c, i) => (c.header === "Agents' share" ? gbp(agents)
+      : i === columns.length - 2 ? "Total" : "")),
   ]);
 }
 
@@ -781,13 +866,27 @@ export function scheduleSlug(name: string, fallback: string): string {
   return slug || fallback;
 }
 
-export function statementPdf(payee: PayeeRow, lines: LineRow[], label: string, reference: string): Uint8Array {
+export function statementPdf(
+  payee: PayeeRow, lines: LineRow[], label: string, reference: string, invoiceEmail: string,
+): Uint8Array {
   const shape = shapeOf(lines);
-  // Typed as PdfColumn[] at the seam: StatementColumn is a PdfColumn plus the
-  // dimension tag, and this is where the compiler proves it still is.
-  const columns: PdfColumn[] = keepColumns(STATEMENT_COLUMNS, shape);
+  /* TWO RULES, IN ORDER, AND BOTH ARE WANTED. keepColumns first: drop a
+     dimension whose every line shares one value, which is a statement
+     from one branch not needing a Branch column. dropEmptyColumns
+     second, on what that leaves: drop a column with no value at all.
+     Matt, 2026-10-01: "drop any column that is empty on every line
+     (e.g. Tenancy and Share)" -- the two that go empty most often,
+     because a statement of solo lets has no tenancy positions and no
+     frozen share percentages, and both printed a hyphen down the page
+     while taking width from the columns that say something. */
+  const kept = keepColumns(STATEMENT_COLUMNS, shape);
+  const { columns, rows } = dropEmptyColumns(kept, lines.map((l) => statementCells(l, shape, EMPTY_CELL)), EMPTY_CELL);
   return renderTablePdf({
-    title: "opndoor commission statement",
+    /* THE BRANDED STATEMENT'S OWN SHAPE, from buildPartnerStatementDoc
+       in exportsService: the report name, then one meta line of period,
+       payee, reference and currency, then the key-values. */
+    title: "Commission statement",
+    metaLine: `${label} · Payee: ${payee.org_name} · Agent commission · Reference ${reference} · GBP`,
     meta: [
       ["Payee", payee.org_name],
       ["Month", label],
@@ -802,11 +901,11 @@ export function statementPdf(payee: PayeeRow, lines: LineRow[], label: string, r
       ["Total commission", gbp(num(payee.total))],
     ],
     columns,
-    rows: lines.map((l) => statementCells(l, shape, EMPTY_CELL)),
+    rows,
     total: { label: "Total", value: gbp(num(payee.total)) },
     // Along the bottom of every page, which is where a statement carries its
     // terms, and where a multi-page one still carries them on page three.
-    footer: PAYMENT_TERMS_LINE,
+    footer: paymentTermsLine(gbp(num(payee.total)), reference, invoiceEmail),
   });
 }
 
@@ -827,7 +926,11 @@ function settlementPdf(payees: PayeeRow[], label: string, grand: number): Uint8A
     ], // 510
     rows: payees.map((p) => [p.org_name, levelWord(p.level), String(p.line_count), gbp(num(p.total))]),
     total: { label: "Total", value: gbp(grand) },
-    footer: PAYMENT_TERMS_LINE,
+    /* NOT THE INVOICING SENTENCE. This is Opndoor's own settlement
+       summary, read by Opndoor: nobody invoices us for it, and telling
+       ourselves where to send an invoice would be the wrong document
+       wearing a payee's footer. */
+    footer: "What opndoor owes out for the month, across every payee.",
   });
 }
 
@@ -837,9 +940,19 @@ function settlementPdf(payees: PayeeRow[], label: string, grand: number): Uint8A
  * which matches the table on the Reporting page, so all three can be held side
  * by side.
  */
-export function statementCsv(payee: PayeeRow, lines: LineRow[], label: string, reference: string): string {
+export function statementCsv(
+  payee: PayeeRow, lines: LineRow[], label: string, reference: string, invoiceEmail: string,
+): string {
   const shape = shapeOf(lines);
-  const columns = keepColumns(STATEMENT_COLUMNS, shape);
+  const { columns, rows } = dropEmptyColumns(
+    keepColumns(STATEMENT_COLUMNS, shape),
+    // A spreadsheet cell is left EMPTY where the PDF prints a hyphen: the
+    // hyphen is a typographic answer to a blank box on a page, and in a column
+    // somebody is going to sum it is a value that breaks the sum. So the
+    // emptiness test here is the empty string, not the hyphen.
+    lines.map((l) => statementCells(l, shape, "")),
+    "",
+  );
   return toCSV([
     ["opndoor commission statement"],
     ["Payee", payee.org_name],
@@ -851,13 +964,10 @@ export function statementCsv(payee: PayeeRow, lines: LineRow[], label: string, r
     ["Basis", "Commission on fees paid in the month, refunds excluded"],
     ["Applications", lines.length],
     ["Total commission", gbp(num(payee.total))],
-    [PAYMENT_TERMS_LINE],
+    [paymentTermsLine(gbp(num(payee.total)), reference, invoiceEmail)],
     [],
     columns.map((c) => c.header),
-    // A spreadsheet cell is left EMPTY where the PDF prints a hyphen: the
-    // hyphen is a typographic answer to a blank box on a page, and in a column
-    // somebody is going to sum it is a value that breaks the sum.
-    ...lines.map((l) => statementCells(l, shape, "")),
+    ...rows,
     [],
     // Padded from the surviving columns, not from ten: a dropped column moves
     // the Total label left, and a hard-coded row would leave it stranded in the
@@ -873,7 +983,7 @@ function settlementCsv(payees: PayeeRow[], label: string, grand: number): string
     ["Month", label],
     ["Payees", payees.length],
     ["Total payable", gbp(grand)],
-    [PAYMENT_TERMS_LINE],
+    ["What opndoor owes out for the month, across every payee."],
     [],
     ["Payee", "Level", "Applications", "Commission"],
     ...payees.map((p) => [p.org_name, levelWord(p.level), p.line_count, gbp(num(p.total))]),
@@ -884,7 +994,8 @@ function settlementCsv(payees: PayeeRow[], label: string, grand: number): string
 
 /** One payee's email. Total in the subject and in the body, per the ruling. */
 export function statementMessage(opts: {
-  payeeName: string; label: string; total: number; applications: number; reference: string; appUrl: string;
+  payeeName: string; label: string; total: number; applications: number; reference: string;
+  appUrl: string; invoiceEmail: string;
 }): Message {
   const blocks: Block[] = [
     /* NOT esc() HERE ANY MORE. emailLayout's blockHtml escapes p, small and
@@ -904,8 +1015,10 @@ export function statementMessage(opts: {
       ],
     },
     { p: "It covers every application that paid in the month, and the commission each one earned. Refunded applications are excluded." },
-    // Rendered verbatim. See PAYMENT_TERMS_LINE.
-    { p: PAYMENT_TERMS_LINE },
+    /* THE SAME SENTENCE AS THE ATTACHMENT, built by the same function,
+       so the email and the PDF cannot name two different totals, two
+       references or two addresses. Matt asked for it on both. */
+    { p: paymentTermsLine(gbp(opts.total), opts.reference, opts.invoiceEmail) },
     { small: "The same figures are on your Reporting page, where you can pick any month and download it again." },
   ];
   return {
@@ -1038,6 +1151,26 @@ Deno.serve(async (req) => {
     const label = monthLabel(monthKey);
     const monthStart = `${monthKey}-01`;
 
+    /* WHERE THEY INVOICE, AND NO DEFAULT. Matt, 2026-10-01: "The invoice
+       email is not hardcoded and has no default: make it a setting
+       Opndoor admin fills in. Until it's set, don't send statements."
+
+       REFUSED BEFORE ANYTHING IS READ OR MINTED, which is the whole
+       point of refusing. A run that assembled the statements, took
+       reference numbers for them and then stopped would leave holes in
+       the month's sequence for documents nobody received. It is also
+       not an error: nothing is broken, a setting is unfilled, and Home
+       and Health are both saying so. */
+    const { data: invoiceTo } = await service.rpc("statement_invoice_email");
+    const invoiceEmail = typeof invoiceTo === "string" ? invoiceTo.trim() : "";
+    if (!invoiceEmail) {
+      return json({
+        ok: true,
+        skipped: "the invoice email is not set, so no statement can say where to send an invoice",
+        fix: "Set it on Health, under Settings.",
+      });
+    }
+
     // THE STATEMENT, from the database. One call for the payees, one for every
     // line in the month; the lines are grouped here rather than fetched per payee.
     const { data: payeeData, error: payeeErr } = await service.rpc("commission_statement_payees", { p_month: monthStart });
@@ -1100,9 +1233,9 @@ Deno.serve(async (req) => {
       if (!sl.length) return null;
       const out = [
         { filename: `opndoor-commission-${monthKey}.pdf`,
-          content: bytesToBase64(supplierStatementPdf(p, sl, label, reference)) },
+          content: bytesToBase64(supplierStatementPdf(p, sl, label, reference, invoiceEmail)) },
         { filename: `opndoor-commission-${monthKey}.csv`,
-          content: textToBase64(supplierStatementCsv(p, sl, label, reference)) },
+          content: textToBase64(supplierStatementCsv(p, sl, label, reference, invoiceEmail)) },
       ];
       /* GROUPED HERE RATHER THAN ASKED FOR PER AGENCY. supplier_agency_schedules
          answers which agencies qualify; the LINES are already in hand, so
@@ -1174,8 +1307,8 @@ Deno.serve(async (req) => {
            noticed by a supplier on the 1st. There are more of them to go
            wrong now, one per agency. */
         const supplierSet = p.level === "partner" ? await supplierAttachments(p, reference) : null;
-        const pdf = statementPdf(p, lines, label, reference);
-        const csv = statementCsv(p, lines, label, reference);
+        const pdf = statementPdf(p, lines, label, reference, invoiceEmail);
+        const csv = statementCsv(p, lines, label, reference, invoiceEmail);
         would.push({
           payee: p.org_name, level: p.level, total, applications: lines.length, to, reference,
           // Which columns this payee's statement came out with. Reading it off
@@ -1201,7 +1334,10 @@ Deno.serve(async (req) => {
 
       const res = await sendMessage({
         to,
-        message: statementMessage({ payeeName: p.org_name, label, total, applications: lines.length, reference, appUrl: APP_URL }),
+        message: statementMessage({
+          payeeName: p.org_name, label, total, applications: lines.length, reference,
+          appUrl: APP_URL, invoiceEmail,
+        }),
         // PDF FIRST. A mail client shows the first attachment as the document,
         // so the order is the only signal of which is the statement and which
         // is the working.
@@ -1209,10 +1345,10 @@ Deno.serve(async (req) => {
           filename: `opndoor-commission-${monthKey}.pdf`,
           // Bytes, so the chunked encoder, never the text path's
           // btoa(unescape(encodeURIComponent(...))), which corrupts binary.
-          content: bytesToBase64(statementPdf(p, lines, label, reference)),
+          content: bytesToBase64(statementPdf(p, lines, label, reference, invoiceEmail)),
         }, {
           filename: `opndoor-commission-${monthKey}.csv`,
-          content: textToBase64(statementCsv(p, lines, label, reference)),
+          content: textToBase64(statementCsv(p, lines, label, reference, invoiceEmail)),
         }],
       });
       if (!res.ok) { failed += 1; continue; }
