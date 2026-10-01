@@ -1,5 +1,17 @@
 # QUEUE
 
+## THE ORDER MATT WANTS, 2026-10-01 (verbatim). THIS OVERRIDES THE ORDER BELOW.
+
+> Finish the Commission tab since it's in flight. Then jump these ahead, in this order: Opndoor notes visible to agency users (hide them), the September £0 commission and £0 guaranteed rent figures, the barb@barb.com invite name, and the deed emailed to the agent twice on GR-20846. Then everything else in the order I sent it. Deploy each to dev and check there; don't stop to ask between items.
+
+1. Supplier Commission tab rebuild (in flight)
+2. Opndoor notes hidden from agency and supplier users
+3. September £0 commission, and £0 guaranteed rent
+4. barb@barb.com's invite name
+5. The deed emailed to the agent twice on GR-20846
+6. Everything else, in the order sent
+
+
 The single source of truth for outstanding work on this branch.
 
 **The rule this file exists for:** every instruction from Matt is written in
