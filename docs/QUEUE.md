@@ -195,6 +195,48 @@ one the product ships -- which is exactly what the setting was built
 for, and is why the handover check tells Balal to look at the value on
 live rather than trust the default.
 
+## REBUILD THE SUPPLIER COMMISSION TAB, PLAIN ENGLISH ONLY (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Rebuild the supplier Commission tab, plain English only (no "shapes", "deals underneath", "frozen", "carved", "Standard terms"):
+>
+> 1. "Who does opndoor pay?" Two options:
+>    - "Kestrel Lettings only. They pay their agencies themselves."
+>    - "Kestrel Lettings and each agency, separately."
+>
+> 2. "Kestrel Lettings gets": shows the current deal, e.g. "25% of the fee", with Change. Its editor sets the tenant's fee (one month's rent or a set number of weeks, optionally by number of tenants) and Kestrel's %: same on every referral, by number of tenants, or growing with referrals sent. Always call it a supplier, never "this agency".
+>
+> 3. "Agencies get": shows the current deal, e.g. "10% of the fee", with Change. Under option 1, label it "Of that, agencies get (shown on the statements Kestrel Lettings passes on)"; under option 2, "Opndoor pays each agency". Its editor sets only the agency's %, no fee options: "Same % on every referral", "% depends on number of tenants" (e.g. 1 tenant 10%, 2 or more 15%), or "% grows with referrals sent" (e.g. first 5 a month 10%, then 15%), with the count period and whose referrals count shown only for that last one. Volume steps start at referral 1, not 0.
+>
+> 4. "Agencies on different terms": a list of bespoke deals, each showing its agencies and terms with a Change button. "Add" opens one dialog that asks which agencies first (searchable list of this supplier's agencies, pick one or several), titled with them, e.g. "Deal for Frost Partnership and 2 others", then the agencies' % editor below, one Save.
+>
+> 5. A worked example that updates live: "On a £1,000 fee: opndoor pays Kestrel Lettings £250 and the agency £100. Total £350." (option 1: "opndoor pays Kestrel Lettings £250, of which £100 goes to the agency").
+>
+> 6. One line: "Changes apply to new referrals only."
+>
+> Every editor opens filled in with the current deal. Keep "What was agreed, and with whom". Show dates as "1 Oct 2026". Fix "Leave to empty" to "Leave 'to' empty" and "Kestrel Lettings’s" to "Kestrel Lettings’". Move Monthly statement addresses to its own section below, headed "Who gets the statements". Deploy to dev and check there.
+
+### WHAT THIS REPLACES, AND THE ONE THING IN IT THAT IS NOT COPY
+
+Most of this is wording and layout over machinery that already exists:
+the two payment arrangements are `opndoor_pays_agents`, the two deals
+are the `commission` and `agent_share` agreements, and the bespoke
+list is the agency membership built this afternoon.
+
+**The exception is "Volume steps start at referral 1, not 0."** That
+contradicts a rule I put in `AgreementEditor` and in
+`create_agreement` deliberately: the lowest tier must start at 0, or
+the first referral of each period has no rate, because
+`resolve_pricing_agreement` matches `volume >= from_count`. Changing
+the DISPLAY to 1-based is right; changing the stored value to 1 would
+leave the first referral unpriced. So the editor must show 1 and store
+0, and that translation needs a test of its own.
+
+### THE JARGON LIST IS A CHECK, NOT A STYLE NOTE
+
+"no 'shapes', 'deals underneath', 'frozen', 'carved', 'Standard
+terms'" -- every one of those is a word I introduced on this tab
+today. A scan for them belongs in the suite.
+
 ## THE KEY WORDING SAYS WHAT THE SCREEN SHOWS (instruction, 2026-10-01, verbatim). **done** (`937e1fb`, `4de6606`).
 
 > Align the admin wording about API keys everywhere: say exactly what admin can see on that screen (e.g. "You can see how many keys are active and revoke one by its prefix; you can never see or create a full key"). No screen should claim more or less than it shows. Then carry on with the queue
