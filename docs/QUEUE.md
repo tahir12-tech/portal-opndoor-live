@@ -1265,6 +1265,22 @@ ALL_PARTNERS for everything else, and every figure on Reporting is keyed on
 `partnerScope`. Narrowing the derivation is what makes the banner honest
 whatever route the selection arrived by.
 
+### AFTER SHIPPING: AN AGENCY BELONGS WHERE ITS RELATIONSHIP IS (instruction, 2026-10-01, verbatim)
+
+**Matt has said to record this and NOT build it.**
+
+> the Agencies tab lists only agencies with a direct partnership with Opndoor. Agencies that only come through a supplier appear under that supplier, in an "Agents" tab on the supplier's page, not in the main Agencies list. An agency that has both appears in both, as the same record.
+
+Worth noting now, while it is fresh, because it bears on the supplier-page
+work in flight: this adds a THIRD tab to a supplier's page ("Agents"),
+alongside the Settings and Integration tabs being built today. Whoever
+does that should leave room for it rather than design the tab strip twice.
+
+The hard half is "as the same record": one agency row, reachable from two
+places, with no second copy and no merge. The agency rail already shares
+one house partner, so "has a direct partnership with Opndoor" is a fact
+that is not currently recorded anywhere and will need somewhere to live.
+
 ### AFTER SHIPPING, FIRST ITEM: every Reporting figure follows the selection
 
 **This is the proper fix and Matt has said not to start it now.**
