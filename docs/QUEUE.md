@@ -167,6 +167,15 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
+## THE DEV CENTRE IS FOR DEVELOPERS ONLY (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Dev Centre is for developers only: hide it from supplier Management and Referrer users entirely. Opndoor admin keeps the ability to revoke keys from the supplier's Integration tab.
+
+- `mayUseDevCentre` already exists and already decides this; the
+  question is what it currently admits and whether the ROUTE is
+  closed as well as the nav item. A hidden link over a live route is
+  not hidden.
+
 ## EVERY EMAIL COMES FROM no-reply AND POINTS AT SUPPORT (instructions, 2026-10-01, verbatim). ACTIVE.
 
 The first, which the second supersedes on the Reply-To point:
