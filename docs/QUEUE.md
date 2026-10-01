@@ -268,7 +268,7 @@ live rather than trust the default.
 - A message pointing at another page is the same fault the Users and
   Manage buttons were removed for last week.
 
-## THE DEV CENTRE IS FOR DEVELOPERS ONLY (instruction, 2026-10-01, verbatim). **done** (`pending-dev`).
+## THE DEV CENTRE IS FOR DEVELOPERS ONLY (instruction, 2026-10-01, verbatim). **done** (`0136694`).
 
 > Dev Centre is for developers only: hide it from supplier Management and Referrer users entirely. Opndoor admin keeps the ability to revoke keys from the supplier's Integration tab.
 
