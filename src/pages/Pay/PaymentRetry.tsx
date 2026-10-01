@@ -37,7 +37,7 @@ export function PaymentRetry() {
       <Frame>
         <div className="pay__icon pay__icon--warn"><Icon name="alert" strokeWidth={2} /></div>
         <h1 className="pay__title">Payment not completed</h1>
-        <p className="pay__lead">Please use the payment link in your email to complete your guarantor fee.</p>
+        <p className="pay__lead">Please use the payment link in your email to complete your guarantee fee.</p>
       </Frame>
     );
   }
@@ -47,7 +47,7 @@ export function PaymentRetry() {
       <div className="pay__icon pay__icon--wait"><Icon name="clock" strokeWidth={2} /></div>
       <h1 className="pay__title">Payment not completed</h1>
       <p className="pay__lead">
-        No payment was taken{conf.firstName ? `, ${conf.firstName}` : ''}. You can complete your guarantor fee whenever you&rsquo;re ready.
+        No payment was taken{conf.firstName ? `, ${conf.firstName}` : ''}. You can complete your guarantee fee whenever you&rsquo;re ready.
       </p>
 
       <div className="pay__receipt">

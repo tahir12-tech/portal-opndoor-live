@@ -156,7 +156,7 @@ describe('the post-payment poll', () => {
     mountAt('?fee=paid');
     await vi.advanceTimersByTimeAsync(125000);
     expect(screen.getByText(/We have your payment and we are checking it/i)).toBeTruthy();
-    expect(screen.getByText(/hello@opndoor\.co/i)).toBeTruthy();
+    expect(screen.getByText(/support@opndoor\.co/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: /check again/i })).toBeTruthy();
     vi.useRealTimers();
   });

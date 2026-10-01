@@ -22,7 +22,7 @@ describe('ID check', () => {
     render(<IdCheckPanel />);
     expect(screen.queryByRole('button', { name: /upload a photo/i })).toBeNull();
     expect(screen.queryByText(/or send a photo/i)).toBeNull();
-    expect((screen.getByRole('link', { name: /hello@opndoor\.co/i }) as HTMLAnchorElement).getAttribute('href')).toBe('mailto:hello@opndoor.co');
+    expect((screen.getByRole('link', { name: /support@opndoor\.co/i }) as HTMLAnchorElement).getAttribute('href')).toBe('mailto:support@opndoor.co');
   });
 });
 

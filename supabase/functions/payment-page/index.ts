@@ -32,10 +32,27 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
+/* THE DATE THE REST OF THE PRODUCT SHOWS. Matt, 2026-10-01: the tenant
+   payment page shows "dates as '20 Nov 2026'".
+
+   This said 20/11/2026, which is the one format in the product that can be
+   read two ways: an American tenant reads 03/09/2026 as the third of
+   September and a British one as the ninth of March, and this is the page
+   where somebody is being told when a guarantee starts before paying for
+   it. The month is spelled, so there is nothing to misread.
+
+   The month table is written out rather than taken from toLocaleString,
+   for the same reason `src/lib/format.ts` carries one: Node's en-GB gives
+   "Sept" for September, which is four characters where every other month
+   is three and is not what the portal prints. */
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 function ddmmyyyy(iso: string | null): string | null {
   if (!iso) return null;
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+  if (!m) return iso;
+  return `${Number(m[3])} ${MONTH_SHORT[Number(m[2]) - 1] ?? m[2]} ${m[1]}`;
 }
 // Guarantee expiry = tenancy start + 12 months - 1 day.
 function guaranteeExpiryLabel(iso: string | null): string | null {
@@ -117,7 +134,7 @@ Deno.serve(async (req) => {
     const feeGBP = `£${feeAmount.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
     /* AND WHAT THAT FIGURE IS MEASURED AGAINST. The amount above was already
        right; nothing on this page said what it was, so GR-20837 showed a tenant
-       £692.31 under "Guarantor fee" with a £1,000 rent above it and left them to
+       £692.31 under "Guarantee fee" with a £1,000 rent above it and left them to
        guess, while their email called the same fee one month's rent. The basis
        is a fact now, stated in the same words everywhere.
 
@@ -173,13 +190,13 @@ Deno.serve(async (req) => {
       && referencingMode != null && referencingMode !== "opndoor_referenced";
     /* WHAT THE CHECKOUT PAGE AND THE CARD STATEMENT CALL THE FEE. Both line items
        branched on feeAmount === rent and hand-rolled their own two sentences, so a
-       Regent tenant paying £692.31 saw "the agreed guarantor fee for this tenancy"
+       Regent tenant paying £692.31 saw "the agreed guarantee fee for this tenancy"
        on Stripe while their email called it a month's rent. One phrase, from the
        same helper the email uses. A fee whose basis cannot be worked out still
        claims nothing: it is described as agreed, which is always true. */
     const feeLineDescription = feeBasis
       ? `${feeBasis.charAt(0).toUpperCase()}${feeBasis.slice(1)}, for the opndoor Deed of Guarantee.`
-      : "The agreed guarantor fee for this tenancy, for the opndoor Deed of Guarantee.";
+      : "The agreed guarantee fee for this tenancy, for the opndoor Deed of Guarantee.";
     const tenantName = [app.tenant_title, app.tenant_first_name, app.tenant_last_name].filter((x) => (x ?? "").toString().trim()).join(" ").trim();
     // #8 Display-layer title-casing of the property address (postcode left raw).
     const propFull = [titleCaseAddress(app.prop_addr1), titleCaseAddress(app.prop_addr2), titleCaseAddress(app.prop_city), app.prop_postcode].filter(Boolean).join(", ");
@@ -249,7 +266,7 @@ Deno.serve(async (req) => {
     if (action === "decline") {
       const reason = body.reason ? String(body.reason) : "other";
       const { data: result, error } = await service.rpc("decline_application_by_token", { p_token: token, p_reason: reason });
-      if (error) return json({ ok: false, error: "Could not record that. Please contact hello@opndoor.co." }, 500);
+      if (error) return json({ ok: false, error: "Could not record that. Please contact support@opndoor.co." }, 500);
       return json({ ok: true, status: result });
     }
 
@@ -287,7 +304,7 @@ Deno.serve(async (req) => {
             currency: "gbp",
             unit_amount: Math.round(feeAmount * 100),
             product_data: {
-              name: `Guarantor fee - ${app.guarantee_ref}`,
+              name: `Guarantee fee - ${app.guarantee_ref}`,
               description: feeLineDescription,
             },
           },
@@ -335,7 +352,7 @@ Deno.serve(async (req) => {
             currency: "gbp",
             unit_amount: Math.round(feeAmount * 100),
             product_data: {
-              name: `Guarantor fee - ${app.guarantee_ref}`,
+              name: `Guarantee fee - ${app.guarantee_ref}`,
               // Same sentence as the redirect checkout above, from the same
               // const: the inline card form and the hosted one are the same
               // purchase and used to be able to describe it differently.

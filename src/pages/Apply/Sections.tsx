@@ -123,7 +123,7 @@ export function IdCheckPanel() {
         {/* The fallback for anyone the scan cannot serve: reach a human, not a dead end. */}
         <p className="ap-p">
           No smartphone, or the scan will not work for you? Email{' '}
-          <a href="mailto:hello@opndoor.co">hello@opndoor.co</a> and we will sort your ID
+          <a href="mailto:support@opndoor.co">support@opndoor.co</a> and we will sort your ID
           another way. You have paid, and we will not leave you unable to finish.
         </p>
       </CardBody>

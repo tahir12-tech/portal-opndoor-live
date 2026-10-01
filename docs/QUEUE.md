@@ -57,7 +57,14 @@ only. The same company in both places is two records, not one.
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
 
-- Nothing yet.
+- **"guarantor fee" off the tenant side only.** Tonight's sweep covered the
+  tenant journey, the payment page and the two functions behind them. Three
+  places still say it and I did not change them on a guess: the CSV exports
+  (a column heading partners reconcile against), the staff activity feed
+  ("Guarantor fee paid ... via Stripe", written by stripe-webhook into
+  activity_log, so old rows would keep the old words whatever I do), and the
+  partner API documentation, where it is a published field description. Say
+  the word and all three follow; they are about twenty minutes.
 
 ## THE ORDER MATT WANTS, 2026-10-01 (verbatim). THIS OVERRIDES THE ORDER BELOW.
 

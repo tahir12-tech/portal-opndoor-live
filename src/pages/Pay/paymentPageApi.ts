@@ -24,7 +24,7 @@ export interface PayPageData {
      payment-page has returned all of these since the fee became a concept, and
      this interface stopped at feeGBP, so they were dropped at the type boundary
      and no part of the page could render them. That is the whole reason a Regent
-     tenant read "Guarantor fee £692.31" under "Monthly rent £1,000" with nothing
+     tenant read "Guarantee fee £692.31" under "Monthly rent £1,000" with nothing
      joining the two: not a missing string, a missing declaration. TypeScript
      could not report the absence of a field the contract never mentioned. */
 
@@ -76,7 +76,7 @@ export function getPayPageState(status: string | null | undefined, paymentState:
 const DEMO: PayPageData = {
   ok: true, ref: 'GR-20608', partnerName: 'Acme Property Group', tenantName: 'Mr Alex Turner', tenantTitle: 'Mr',
   addr1: '12 Sydney Street', postcode: 'SW3 6PU', propFull: '12 Sydney Street, London, SW3 6PU',
-  tenancyStart: '01/09/2026', guaranteeExpiry: '31/08/2027', monthlyRent: 2200, feeGBP: '£1,523.08',
+  tenancyStart: '1 Sep 2026', guaranteeExpiry: '31 Aug 2027', monthlyRent: 2200, feeGBP: '£1,523.08',
   feeBasis: '3 weeks of rent', rentShare: 2200, tenantCount: 1,
   rail: 'agency', referencingMode: 'pre_referenced_open',
   agencyName: 'Marylebone & Co', agencyArranged: true,
@@ -120,9 +120,9 @@ export async function declineApplication(token: string, reason: string): Promise
   if (!SUPABASE_ENABLED) return { ok: true, status: 'withdrawn' };
   try {
     const { data, error } = await sb().functions.invoke('payment-page', { body: { token, action: 'decline', reason } });
-    if (error) return { ok: false, error: 'Could not record that. Please contact hello@opndoor.co.' };
+    if (error) return { ok: false, error: 'Could not record that. Please contact support@opndoor.co.' };
     return (data ?? { ok: false }) as { ok: boolean; status?: string; error?: string };
   } catch {
-    return { ok: false, error: 'Could not record that. Please contact hello@opndoor.co.' };
+    return { ok: false, error: 'Could not record that. Please contact support@opndoor.co.' };
   }
 }

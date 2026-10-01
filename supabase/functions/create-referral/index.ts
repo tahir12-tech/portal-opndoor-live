@@ -3,7 +3,7 @@
 //
 // The "send" is the whole flow: create the application (Sent) via the
 // validated create_referral RPC (as the caller, so RLS + field validation
-// apply), open a Stripe Checkout Session for the guarantor fee, store the
+// apply), open a Stripe Checkout Session for the guarantee fee, store the
 // payment refs, and email the tenant the branded payment email. Graceful
 // degradation: if Resend is not configured the application and checkout still
 // succeed and the response reports emailSent = false with a reason.
@@ -326,7 +326,7 @@ Deno.serve(async (req) => {
       /* WHAT STRIPE CALLS THE FEE, in the same words as the email and the pay
          page. This branched on `feeAmount === rent`, a hand-rolled month test
          that is true only on standard terms: Regent's £692.31 against a £1,000
-         rent failed it and was described as "the agreed guarantor fee" with no
+         rent failed it and was described as "the agreed guarantee fee" with no
          basis at all, while the email called the same fee a month's rent. The
          phrase now comes from feeBasisPhrase, the one place a basis is put into
          words, which is also what payment-page's line item reads, so the two
@@ -335,12 +335,12 @@ Deno.serve(async (req) => {
       const feeLineDescription = sharePct < 100
         // A joint applicant is charged a share, and their basis is their share of
         // the fee against their share of the rent, so both facts belong here.
-        ? `Your ${sharePct}% share of the guarantor fee for this tenancy${basis ? ` (${basis})` : ""}, for the opndoor Deed of Guarantee.`
+        ? `Your ${sharePct}% share of the guarantee fee for this tenancy${basis ? ` (${basis})` : ""}, for the opndoor Deed of Guarantee.`
         : basis
           ? `${basis.charAt(0).toUpperCase()}${basis.slice(1)}, for the opndoor Deed of Guarantee.`
-          : "The agreed guarantor fee for this tenancy, for the opndoor Deed of Guarantee.";
+          : "The agreed guarantee fee for this tenancy, for the opndoor Deed of Guarantee.";
 
-      // Stripe test-mode Checkout Session for the guarantor fee.
+      // Stripe test-mode Checkout Session for the guarantee fee.
       // @ts-expect-error pinned apiVersion, older than the SDK types' latest literal
       const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
       const session = await stripe.checkout.sessions.create({
@@ -358,7 +358,7 @@ Deno.serve(async (req) => {
             currency: "gbp",
             unit_amount: Math.round(feeAmount * 100),
             product_data: {
-              name: `Guarantor fee - ${ref}`,
+              name: `Guarantee fee - ${ref}`,
               description: feeLineDescription,
             },
           },

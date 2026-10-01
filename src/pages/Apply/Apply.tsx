@@ -1193,7 +1193,7 @@ function PaymentReturn({ state, onContinue, onCheckAgain }: {
         </p>
         <p className="ap-p">
           If it has not cleared in a few minutes, email us at{' '}
-          <a href="mailto:hello@opndoor.co">hello@opndoor.co</a> and we will sort it.
+          <a href="mailto:support@opndoor.co">support@opndoor.co</a> and we will sort it.
         </p>
         <div className="ap-actions">
           <Button variant="primary" onClick={onCheckAgain}>Check again</Button>
