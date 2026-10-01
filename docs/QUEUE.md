@@ -5,7 +5,12 @@
 > Finish the Commission tab since it's in flight. Then jump these ahead, in this order: Opndoor notes visible to agency users (hide them), the September £0 commission and £0 guaranteed rent figures, the barb@barb.com invite name, and the deed emailed to the agent twice on GR-20846. Then everything else in the order I sent it. Deploy each to dev and check there; don't stop to ask between items.
 
 1. Supplier Commission tab rebuild **done** (`3e0ce09`, `f5e6bdd`, `150c222`)
-2. Opndoor notes hidden from agency and supplier users
+2. Opndoor notes hidden from agency and supplier users **done** (`8cae0f0`).
+   The other route was open: `app_notes_select` admitted anyone who could
+   see the application, and the browser reads the table. The tenant's own
+   uploaded files were the same policy one table over, and the signed-URL
+   endpoint treats the caller's read as the authorisation, so the agency
+   could download their bank statements. Both closed.
 3. September £0 commission, and £0 guaranteed rent
 4. barb@barb.com's invite name
 5. The deed emailed to the agent twice on GR-20846
