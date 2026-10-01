@@ -63,6 +63,43 @@ already edited.
 Total and reference both already exist on every statement, agency and
 supplier, in the PDF, the CSV and the email. Nothing new to compute.
 
+## A REFUND AFTER THE STATEMENT WENT OUT (instruction, 2026-10-01, verbatim). ACTIVE, next.
+
+> Refund after a commission statement has been sent: when a refund lands on an application whose commission was already on a sent statement, raise an internal alert to Opndoor naming the payee, the statement reference and the commission affected. On that alert, Opndoor admin chooses, with a confirmation box: (a) reissue a corrected statement to the payee, or (b) carry the amount as a deduction line on the payee's next statement. Nothing happens automatically. Record who chose what and when. Deploy to dev and check there.
+
+### "NOTHING HAPPENS AUTOMATICALLY" IS THE DESIGN, NOT A CAUTION
+
+The obvious build is to reverse the commission and move on. He is
+explicitly refusing that: a statement already sent is a document
+somebody may have invoiced against, and changing what it said without
+telling them is how a payee's books stop matching ours. So the refund
+raises a QUESTION, and a person answers it.
+
+### WHAT ALREADY EXISTS, to be checked before building
+
+- `commission_statement_sends` records (month, payee_key, recipients,
+  total) for every statement actually posted. That is what makes
+  "already on a sent statement" answerable.
+- `commission_statement_ref` mints and stores the reference, so naming
+  it in the alert is a read.
+- `ops_alerts` + `ops_notification_types()` is the internal alert
+  machinery, with Critical / Operations / Commercial / Information and
+  per-person routing. A new alert type belongs in that catalogue, not in
+  a new mechanism.
+- `useConfirm()` is the confirmation box, from walk fix 23.
+- The refund path itself is where the alert is raised: find it rather
+  than polling.
+
+### WHAT TO GET RIGHT
+
+- **Both choices are recorded with who and when**, the same shape as the
+  not-in-network decision: a row with a timestamp, not a flag.
+- **A deduction line must actually appear** on the next statement if
+  (b) is chosen, or the choice is a note to nobody.
+- **A reissued statement needs its own reference**, or two different
+  documents share one number and reconciliation breaks on the thing it
+  is keyed by.
+
 ## BRANDED STATEMENT PDFs, EMPTY COLUMNS, AND THE BUTTON (instructions, 2026-10-01, verbatim). ACTIVE.
 
 > Commission statement PDFs should use the same branded design as the portal's existing branded statements and exports. Find that design and reuse it; don't invent a new one. If there isn't one, tell me before building anything. Also drop any column that is empty on every line (e.g. Tenancy and Share). Then send me one agency and one supplier statement, marked TEST, only to mdwyer@opndoor.co.
