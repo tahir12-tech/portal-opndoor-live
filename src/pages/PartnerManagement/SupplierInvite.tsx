@@ -42,9 +42,10 @@
    ===================================================================== */
 import { useState } from 'react';
 import { inviteUser } from '@/data/usersService';
-import { SUPPLIER_LEVELS, type Role } from '@/data/types';
+import type { Role } from '@/data/types';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
+import { SupplierLevelOptions, supplierLevelsFor } from './SupplierLevels';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
@@ -72,7 +73,7 @@ export function SupplierInvite({
   const [email, setEmail] = useState('');
   const [level, setLevel] = useState<Role>('referrer');
 
-  const levels = SUPPLIER_LEVELS.filter((l) => apiAccessEnabled || !l.needsApi);
+  const levels = supplierLevelsFor(apiAccessEnabled);
 
   function openInvite() {
     setFirst(''); setLast(''); setEmail('');
@@ -148,31 +149,11 @@ export function SupplierInvite({
             <input type="email" placeholder="james@supplier.co.uk" value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
         </div>
-        <Field label="Level">
-          <div className="roleopts">
-            {levels.map((l) => (
-              <label
-                key={l.level}
-                className={`roleopt${level === l.role ? ' is-sel' : ''}`}
-                onClick={() => setLevel(l.role)}
-              >
-                <span className="roleopt__radio" />
-                <div>
-                  <div className="roleopt__name">{l.level}</div>
-                  <div className="roleopt__desc">{l.desc}</div>
-                </div>
-              </label>
-            ))}
-          </div>
-        </Field>
-        {!apiAccessEnabled && (
-          /* SAYING WHY A LEVEL IS MISSING, rather than leaving a gap. An
-             admin looking for Developer should not have to guess which
-             switch governs it. */
-          <p className="ph-note muted">
-            Developer is offered once API access is switched on, which is done on the Integration tab.
-          </p>
-        )}
+        {/* THE SHARED LIST. The change-role dialog offers the same three
+            and reads the same descriptions; two copies is how an invite
+            dialog and a change dialog come to disagree about what a
+            Developer is. */}
+        <SupplierLevelOptions value={level} onChange={setLevel} apiAccessEnabled={apiAccessEnabled} />
       </Modal>
     </>
   );

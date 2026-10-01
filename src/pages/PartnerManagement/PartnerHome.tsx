@@ -22,7 +22,7 @@ import { Link, useParams } from 'react-router-dom';
 import {
   ALL_PARTNERS, getPartner, getPeriods, getRatesFor, getAgencies, getUsers, maySeeCommission,
   statementMonths,
-  REFERENCING_MODES, type Agency, type ManagedUser, type ReferencingMode,
+  REFERENCING_MODES, type Agency, type ManagedUser, type ReferencingMode, type Role,
 } from '@/data';
 // Walk fix 15: this customer's report, on this customer's page.
 import { liveByCustomer } from '@/data/liveAnalytics';
@@ -32,6 +32,7 @@ import { SupplierSettings } from './SupplierSettings';
 import { ApiAccessSwitch } from './ApiAccessSwitch';
 import { SupplierDeals } from './SupplierDeals';
 import { SupplierInvite } from './SupplierInvite';
+import { SupplierRoleDialog } from './SupplierRoleDialog';
 /* THE DEV CENTRE'S OWN PANELS, read-only. Matt, 2026-10-01: "read-only
    for Opndoor admin: their sandbox activity (sandbox applications and
    their status), recent API requests and errors, and webhook delivery
@@ -215,6 +216,7 @@ export function PartnerHome() {
     [partner, role, dataVersion],
   );
   const [busy, setBusy] = useState(false);
+  const [roleFor, setRoleFor] = useState<{ userId: string; name: string; current: Role } | null>(null);
   const [notifFor, setNotifFor] = useState<{ id: string; name: string } | null>(null);
   /* WALK FIX 15. This supplier's own numbers, from the same function the
      estate-wide table uses, so the two cannot disagree about them. Its own
@@ -670,7 +672,15 @@ export function PartnerHome() {
                           changeLevelLabel="Change role"
                           onAction={(what, userId, who) => void runPerson(what, userId, who)}
                           onCancelInvite={(userId, who) => void runPerson('cancel', userId, who)}
-                          onChangeLevel={() => toast('Change a supplier user\u2019s role from Users.')}
+                          onChangeLevel={(pr) => setRoleFor({ userId: pr.userId, name: pr.name, current: u.role })}
+                          /* UNREACHABLE, and left as a no-op rather than
+                             wired to something: `manyOffices={false}` above
+                             means PersonActions never draws the Position
+                             button here, because a supplier's staff hold no
+                             position -- partner_id IS the company boundary
+                             on this rail and there is no ladder to stand
+                             on. If that ever changes, this is the line that
+                             has to change with it. */
                           onPosition={() => {}}
                           onNotifications={setNotifFor}
                         />
@@ -691,6 +701,16 @@ export function PartnerHome() {
           contact is a contact record with no user row behind it, so it has no
           per-person settings to hold. Its deliveries are unchanged. B3. */}
       </>)}
+      {/* THE ROLE DIALOG, HERE, which is the whole instruction: "Change
+          role" used to raise a toast naming the Users page. */}
+      {roleFor && (
+        <SupplierRoleDialog
+          user={roleFor}
+          apiAccessEnabled={partner.apiAccessEnabled === true}
+          onClose={() => setRoleFor(null)}
+          onSaved={() => { setRoleFor(null); refresh(); }}
+        />
+      )}
       {notifFor && (
         <PersonNotifications
           userId={notifFor.id}

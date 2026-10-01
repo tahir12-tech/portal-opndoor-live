@@ -195,7 +195,7 @@ one the product ships -- which is exactly what the setting was built
 for, and is why the handover check tells Balal to look at the value on
 live rather than trust the default.
 
-## THE KEY WORDING SAYS WHAT THE SCREEN SHOWS (instruction, 2026-10-01, verbatim). ACTIVE.
+## THE KEY WORDING SAYS WHAT THE SCREEN SHOWS (instruction, 2026-10-01, verbatim). **done** (`937e1fb`, `pending2`).
 
 > Align the admin wording about API keys everywhere: say exactly what admin can see on that screen (e.g. "You can see how many keys are active and revoke one by its prefix; you can never see or create a full key"). No screen should claim more or less than it shows. Then carry on with the queue
 
@@ -285,7 +285,7 @@ live rather than trust the default.
   mode. The three hidden events are the agency rail's decision
   journey, which a pre-referenced supplier never enters.
 
-## EVERY PEOPLE-TAB ACTION WORKS IN PLACE (instruction, 2026-10-01, verbatim). ACTIVE.
+## EVERY PEOPLE-TAB ACTION WORKS IN PLACE (instruction, 2026-10-01, verbatim). **done** (`pending2`).
 
 > Supplier People tab: "Change role" opens the role dialog right here (Management, Referrer, Developer), instead of a message pointing to the Users page. Check every other action on supplier and agency People tabs works in place, with no message sending you elsewhere. Deploy to dev and check there.
 

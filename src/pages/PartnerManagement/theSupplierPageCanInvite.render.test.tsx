@@ -196,3 +196,92 @@ describe('sending one', () => {
     expect(invite).not.toHaveBeenCalled();
   });
 });
+
+/* ===========================================================================
+   EVERY ACTION ON THE PEOPLE TAB DOES THE THING, HERE.
+
+   Matt, 2026-10-01, verbatim: 'Supplier People tab: "Change role" opens the
+   role dialog right here (Management, Referrer, Developer), instead of a
+   message pointing to the Users page. Check every other action on supplier
+   and agency People tabs works in place, with no message sending you
+   elsewhere.'
+
+   WHAT IT WAS: `onChangeLevel={() => toast('Change a supplier user's role
+   from Users.')}` -- a button that tells you where the button is. It is the
+   fault the Users and Manage buttons came off the suppliers list for a week
+   ago, and it survived because the tab was built by wiring up
+   `PersonActions`, whose other six callbacks all do their job. One no-op in
+   a row of working controls does not look like anything.
+   =========================================================================== */
+describe('changing a role, on the page the person is on', () => {
+  const rowButton = (v: Awaited<ReturnType<typeof peopleTab>>, label: string) =>
+    [...v.container.querySelectorAll<HTMLButtonElement>('.ah-rowacts button')]
+      .find((b) => (b.textContent ?? '').trim() === label);
+
+  it('offers Change role on the row', async () => {
+    expect(rowButton(await peopleTab(), 'Change role')).toBeTruthy();
+  });
+
+  /* THE ASSERTION THAT WOULD HAVE CAUGHT IT: a dialog, not a toast. */
+  it('and opens a dialog rather than telling you to go to Users', async () => {
+    const v = await peopleTab();
+    await act(async () => { fireEvent.click(rowButton(v, 'Change role')!); });
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog, 'Change role opened no dialog').toBeTruthy();
+    expect(dialog!.textContent).toContain('Change Sam Supplier’s role');
+    expect(document.body.textContent).not.toMatch(/from Users/i);
+  });
+
+  it('and offers the supplier’s three levels, not the estate’s', async () => {
+    const v = await peopleTab(true);
+    await act(async () => { fireEvent.click(rowButton(v, 'Change role')!); });
+    const names = [...document.querySelectorAll('[role="dialog"] .roleopt__name')]
+      .map((e) => (e.textContent ?? '').trim());
+    expect(names).toEqual(['Management', 'Referrer', 'Developer']);
+    expect(names).not.toContain('Director');
+  });
+
+  /* THE SAME API GATE AS THE INVITE, because they read one list. */
+  it('and drops Developer where API access is off', async () => {
+    const v = await peopleTab(false);
+    await act(async () => { fireEvent.click(rowButton(v, 'Change role')!); });
+    const names = [...document.querySelectorAll('[role="dialog"] .roleopt__name')]
+      .map((e) => (e.textContent ?? '').trim());
+    expect(names).toEqual(['Management', 'Referrer']);
+  });
+
+  /* AND SAVING IS REFUSED UNTIL SOMETHING CHANGES, so the dialog cannot
+     write the role somebody already has and report it as a change. */
+  it('and will not save a role they already hold', async () => {
+    const v = await peopleTab();
+    await act(async () => { fireEvent.click(rowButton(v, 'Change role')!); });
+    const save = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find((b) => (b.textContent ?? '').trim().startsWith('Change role') && b.closest('.modal'));
+    expect(save, 'no save button in the dialog').toBeTruthy();
+    expect(save!.disabled).toBe(true);
+  });
+});
+
+describe('and every other action on the row', () => {
+  /* THE SWEEP. Each of these is a control that must DO something, not say
+     where something is. They are asserted as present-and-wired here; what
+     each one does is tested where it is implemented. */
+  it('is a real control, with nothing pointing elsewhere', async () => {
+    const v = await peopleTab();
+    const labels = [...v.container.querySelectorAll<HTMLButtonElement>('.ah-rowacts button')]
+      .map((b) => (b.textContent ?? '').trim());
+    expect(labels).toEqual([
+      'Change role', 'Notifications', 'Send password reset', 'Reset two-factor', 'Remove access',
+    ]);
+  });
+
+  /* AND NO POSITION BUTTON, which is right rather than missing: a
+     supplier's staff hold no position, because partner_id IS the company
+     boundary on this rail and there is no ladder to stand on. */
+  it('and no Position, which this rail has no ladder for', async () => {
+    const v = await peopleTab();
+    const labels = [...v.container.querySelectorAll('.ah-rowacts button')]
+      .map((b) => (b.textContent ?? '').trim());
+    expect(labels).not.toContain('Position');
+  });
+});
