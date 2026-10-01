@@ -195,7 +195,7 @@ one the product ships -- which is exactly what the setting was built
 for, and is why the handover check tells Balal to look at the value on
 live rather than trust the default.
 
-## THE AUTHENTICATOR ENTRY SAYS WHICH ENVIRONMENT IT IS (instruction, 2026-10-01, verbatim). ACTIVE.
+## THE AUTHENTICATOR ENTRY SAYS WHICH ENVIRONMENT IT IS (instruction, 2026-10-01, verbatim). **done** (`a5b724a`).
 
 > Authenticator labels: on dev, the issuer shows as "opndoor DEV" so dev and live entries can't be confused. On live it stays "opndoor".
 
@@ -268,7 +268,7 @@ live rather than trust the default.
 - A message pointing at another page is the same fault the Users and
   Manage buttons were removed for last week.
 
-## THE DEV CENTRE IS FOR DEVELOPERS ONLY (instruction, 2026-10-01, verbatim). ACTIVE.
+## THE DEV CENTRE IS FOR DEVELOPERS ONLY (instruction, 2026-10-01, verbatim). **done** (`pending-dev`).
 
 > Dev Centre is for developers only: hide it from supplier Management and Referrer users entirely. Opndoor admin keeps the ability to revoke keys from the supplier's Integration tab.
 

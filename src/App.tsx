@@ -98,13 +98,20 @@ export function App() {
             the Dev Centre and every other role to their book (Reporting). */}
         <Route path="/home" element={<Home />} />
 
-        {/* Dev Centre. Management is here only to revoke a leaked key; the page
-            renders them the keys panel alone. The RPCs scope themselves, so this
-            guard decides what renders, not what is permitted. */}
-        {/* Capability-gated, by the SAME predicate the sidebar filters on: a
-            party with no API has no Dev Centre, and typing the address does not
-            get round that. superadmin is exempt inside mayUseDevCentre. */}
-        <Route element={<RequireCapability roles={['developer', 'superadmin', 'management']} capability="devCentre" redirectTo="/help" />}>
+        {/* Dev Centre, for developers. Matt, 2026-10-01: "Dev Centre is for
+            developers only: hide it from supplier Management and Referrer
+            users entirely. Opndoor admin keeps the ability to revoke keys
+            from the supplier's Integration tab."
+
+            Management used to be listed here "only to revoke a leaked key",
+            and that is the capability that moved: revoking is done by
+            Opndoor admin on the supplier's Integration tab now.
+
+            THE ROLE LIST AND THE CAPABILITY BOTH NARROW, deliberately. The
+            capability is the one place the rule lives, and this list is the
+            brace to that belt: a predicate that ever widened again would
+            still not open this route. */}
+        <Route element={<RequireCapability roles={['developer']} capability="devCentre" redirectTo="/help" />}>
           <Route path="/dev-centre" element={<DevCentre />} />
         </Route>
 

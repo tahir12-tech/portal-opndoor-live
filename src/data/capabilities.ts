@@ -129,7 +129,30 @@ export function partyIsSupplier(scope: PartnerScope): boolean {
  * and the safe answer to "may they" when we do not know is no.
  */
 export function mayUseDevCentre(role: Role, scope: PartnerScope): boolean {
-  if (role === 'superadmin') return true;
+  /* =====================================================================
+     DEVELOPERS ONLY, WHICH IS A ROLE TEST THIS NEVER MADE.
+
+     Matt, 2026-10-01: "Dev Centre is for developers only: hide it from
+     supplier Management and Referrer users entirely. Opndoor admin keeps
+     the ability to revoke keys from the supplier's Integration tab."
+
+     IT ASKED ABOUT THE PARTY AND NOT THE PERSON. After the superadmin
+     line it checked only whether the PARTNER had an API, so every role
+     at an API-enabled supplier passed -- Management by deliberate
+     exception ("here only to revoke a leaked key", says the route), and
+     Referrer by nobody having asked. A referrer saw the nav item and was
+     bounced to /help by the route guard, which is a hidden door with a
+     sign on it.
+
+     AND OPNDOOR ADMIN GOES TOO, which is the reading of "for developers
+     only" plus the sentence that follows it: admin's key work is named
+     as the supplier's Integration tab, which has carried the revoke, the
+     API switch and read-only copies of the sandbox, request-log and
+     webhook panels since 2026-10-01. Nothing is lost; it moved. Stated
+     plainly to Matt rather than assumed, because it is the half he did
+     not spell out.
+     ===================================================================== */
+  if (role !== 'developer') return false;
   if (scope === ALL_PARTNERS) return false;
   const p = getPartner(scope);
   if (!p) return false;
