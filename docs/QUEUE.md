@@ -4,7 +4,7 @@
 
 > Finish the Commission tab since it's in flight. Then jump these ahead, in this order: Opndoor notes visible to agency users (hide them), the September £0 commission and £0 guaranteed rent figures, the barb@barb.com invite name, and the deed emailed to the agent twice on GR-20846. Then everything else in the order I sent it. Deploy each to dev and check there; don't stop to ask between items.
 
-1. Supplier Commission tab rebuild (in flight)
+1. Supplier Commission tab rebuild **done** (`3e0ce09`, `f5e6bdd`, `150c222`)
 2. Opndoor notes hidden from agency and supplier users
 3. September £0 commission, and £0 guaranteed rent
 4. barb@barb.com's invite name
@@ -412,7 +412,7 @@ this repo already does), or it is deleted in the same turn that
 created it. Nothing with a `zzz`, `probe` or `test` name is left on
 dev at the end of a turn.
 
-## REBUILD THE SUPPLIER COMMISSION TAB, PLAIN ENGLISH ONLY (instruction, 2026-10-01, verbatim). ACTIVE.
+## REBUILD THE SUPPLIER COMMISSION TAB, PLAIN ENGLISH ONLY (instruction, 2026-10-01, verbatim). **done** (`3e0ce09`, `f5e6bdd`, `150c222`).
 
 > Rebuild the supplier Commission tab, plain English only (no "shapes", "deals underneath", "frozen", "carved", "Standard terms"):
 >
@@ -453,6 +453,20 @@ leave the first referral unpriced. So the editor must show 1 and store
 "no 'shapes', 'deals underneath', 'frozen', 'carved', 'Standard
 terms'" -- every one of those is a word I introduced on this tab
 today. A scan for them belongs in the suite.
+
+- **The second bespoke share deal could not be written at all**, and that
+  is what the migration in `3e0ce09` is for. `create_agreement` takes no
+  agencies, so it could not tell the default deal from a deal for named
+  ones, and its conflict loop ended every share deal at the scope.
+  `save_share_deal` takes the terms and the agencies together.
+- Three things the rebuild would have dropped and did not: who is on the
+  default terms (derived), whether the agencies' percentage may exceed the
+  supplier's own, and what each arrangement does to the statements.
+- Two faults found by the new tests rather than by reading: the worked
+  example multiplied by 100 before `gbpPence` (a GBP 1,000 fee read GBP
+  100,000), and the agencies' card read its deal through `supplier_deal`,
+  which answers with whichever share deal is newest.
+- Checked in the browser on 5199: the six parts in his order, one column.
 
 ## THE KEY WORDING SAYS WHAT THE SCREEN SHOWS (instruction, 2026-10-01, verbatim). **done** (`937e1fb`, `4de6606`).
 
