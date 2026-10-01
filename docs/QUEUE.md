@@ -1,5 +1,28 @@
 # QUEUE
 
+## THE NIGHT'S ORDER, 2026-10-01 (verbatim). THIS IS THE PLAN UNTIL MORNING.
+
+> I'm going to sleep; work through the night without waiting for me.
+>
+> 1. First, everything small in QUEUE.md (bugs and wording), in the order I sent it, so I can check them shortly. When they're done, write "Small items done" at the top of QUEUE.md with a one-line list of what changed.
+>
+> 2. Then the bigger screens (shared people table, Director's Reporting, application detail, New application with the office first, notifications panel), in the order I sent them.
+>
+> 3. Then one agency record across routes. How it must work, using Frost as the example:
+>    - Frost is one company in the system: one set of offices, people and branch contacts.
+>    - When Frost's own staff sign in and refer, that's the direct route: Frost's own deal with Opndoor, Opndoor pays Frost, and Frost sees those referrals and their commission.
+>    - When Rightmove refers a Frost tenant, that's the supplier route: Rightmove's deal, commission handled the Rightmove way (to Rightmove, or to Frost directly if Rightmove's "Opndoor pays the agents directly" switch is on). The signed deed still goes to Frost's branch contact. For now Frost's staff do not see Rightmove-route referrals in their login.
+>    - Separate deals, volume counters and statements per route; League and Reporting show Frost as one agency, split by route where it matters.
+>    Migrate dev's existing data so nothing changes for any current agency. Keep the duplicate-name warning until this is done.
+>
+> Rules: dev only, never touch live, never push. Deploy edge functions to dev with the npx command after any function change. Full tests and drift after each item, commit each separately. If something needs a decision from me, don't guess: note it in QUEUE.md under "For Matt in the morning" and move on. In the morning, give me a short plain-English summary: what's done, what's left, and any decisions waiting for me.
+
+### For Matt in the morning
+
+*(Anything that needed a decision goes here as I hit it. Empty is good news.)*
+
+- Nothing yet.
+
 ## THE ORDER MATT WANTS, 2026-10-01 (verbatim). THIS OVERRIDES THE ORDER BELOW.
 
 > Finish the Commission tab since it's in flight. Then jump these ahead, in this order: Opndoor notes visible to agency users (hide them), the September £0 commission and £0 guaranteed rent figures, the barb@barb.com invite name, and the deed emailed to the agent twice on GR-20846. Then everything else in the order I sent it. Deploy each to dev and check there; don't stop to ask between items.
