@@ -18,7 +18,7 @@
    ===================================================================== */
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { carriedStaffTab, forgotHref } from './carry';
+import { carriedStaffTab, forgotHref, signInHref } from './carry';
 import { authService } from '@/data';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
@@ -56,7 +56,16 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
      the allowlist made the sender drop the parameter. */
   const invalidCta = mode === 'reset'
     ? { ...c.invalidCta, to: forgotHref(carriedStaffTab(sp), '') }
-    : c.invalidCta;
+    : { ...c.invalidCta, to: signInHref(carriedStaffTab(sp), '') };
+  /* AND EVERY WAY BACK TO SIGN IN, not only the one on the expired-link
+     screen. Matt, 2026-10-01: "Password reset and invite links send each
+     person to the sign-in tab for their own type ... Check every email
+     link that lands on the sign-in page." There are four of them on this
+     page and three were a bare /login, which is the Agent tab for
+     everybody -- so a supplier who had just set their password was sent
+     to the wrong door, by the page that knew which door they came from.
+     A tenant never reaches this page: their reset lands on /apply/reset. */
+  const backToSignIn = signInHref(carriedStaffTab(sp), '');
   useDocumentTitle(c.title);
   const navigate = useNavigate();
   const { status, markMfaVerified } = useSession();
@@ -220,7 +229,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
               <h2 className="auth__title">This link is not valid</h2>
               <p className="auth__sub">{c.invalidLead}</p>
               <div className="auth__form"><Button variant="primary" block to={invalidCta.to}>{invalidCta.label}</Button></div>
-              <p className="auth__foot"><Link to="/login">Back to sign in</Link></p>
+              <p className="auth__foot"><Link to={backToSignIn}>Back to sign in</Link></p>
             </div>
           )}
 
@@ -243,7 +252,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
                 {error && <p className="auth__error" role="alert" style={{ color: 'var(--danger, #c0392b)' }}>{error}</p>}
                 <Button variant="primary" block type="submit" arrow disabled={busy || !pw || !pw2}>{busy ? 'Saving…' : (mode === 'invite' ? 'Set password' : 'Save new password')}</Button>
               </form>
-              <p className="auth__foot"><Link to="/login">Back to sign in</Link></p>
+              <p className="auth__foot"><Link to={backToSignIn}>Back to sign in</Link></p>
             </div>
           )}
 
@@ -267,7 +276,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
               <div className="confirm-ic"><Icon name="check" strokeWidth={2.4} /></div>
               <h2 className="auth__title">Password updated</h2>
               <p className="auth__sub">Your password has been changed. Sign in with your new password, then verify with your authenticator code.</p>
-              <div className="auth__form"><Button variant="primary" block to="/login">Back to sign in</Button></div>
+              <div className="auth__form"><Button variant="primary" block to={backToSignIn}>Back to sign in</Button></div>
             </div>
           )}
         </div>

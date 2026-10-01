@@ -345,16 +345,48 @@ Deno.serve(async (req) => {
       }
     }
 
+    /* THE TAB THIS PERSON SIGNS IN ON, carried in the link.
+
+       Matt, 2026-10-01: "Password reset and invite links send each person
+       to the sign-in tab for their own type: supplier users to the Supplier
+       tab, agency users to the Agent tab, tenants to the Tenant tab."
+
+       send-password-reset already does this and takes the audience from the
+       tab the person was looking at. An invite has no such tab to read, and
+       does not need one: the server knows which rail it is inviting on to.
+       Our own estate is the Agent tab, a supplier is the Supplier tab, and
+       Opndoor's own staff sign in beside the agents.
+
+       THE FALLBACK IS THE POINT, and it is the reset's: GoTrue matches
+       redirectTo against the project's Redirect URLs, and an entry without a
+       wildcard stops matching once a query string is on the end. A cosmetic
+       improvement to a tab must not be able to turn into no invite emails,
+       so a rejected redirect degrades to the link we sent yesterday. */
+    const tab = inviteeOnOurEstate || !inviteePartnerId ? "agent" : "supplier";
+    const landing = `${base}/accept-invite?tab=${tab}`;
+
     if (existing) {
-      const { data, error } = await service.auth.admin.generateLink({
-        type: "recovery", email, options: { redirectTo: `${base}/accept-invite` },
+      let { data, error } = await service.auth.admin.generateLink({
+        type: "recovery", email, options: { redirectTo: landing },
       });
+      if (error) {
+        const plain = await service.auth.admin.generateLink({
+          type: "recovery", email, options: { redirectTo: `${base}/accept-invite` },
+        });
+        data = plain.data; error = plain.error;
+      }
       if (error) return json({ ok: false, error: error.message }, 400);
       link = data?.properties?.action_link;
     } else {
-      const { data, error } = await service.auth.admin.generateLink({
-        type: "invite", email, options: { redirectTo: `${base}/accept-invite`, data: { full_name: fullName } },
+      let { data, error } = await service.auth.admin.generateLink({
+        type: "invite", email, options: { redirectTo: landing, data: { full_name: fullName } },
       });
+      if (error) {
+        const plain = await service.auth.admin.generateLink({
+          type: "invite", email, options: { redirectTo: `${base}/accept-invite`, data: { full_name: fullName } },
+        });
+        data = plain.data; error = plain.error;
+      }
       if (error) return json({ ok: false, error: error.message }, 400);
       link = data?.properties?.action_link;
       targetUserId = data?.user?.id;
