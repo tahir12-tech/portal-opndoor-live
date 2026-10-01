@@ -10,6 +10,21 @@
  * plain English. Changes apply to new referrals only, recorded with who
  * and when."
  *
+ * REBUILT ON 2026-10-01, SAME EVENING: "Rebuild the supplier Commission
+ * tab, plain English only ... 1. 'Who does opndoor pay?' Two options ...
+ * 2. 'Kestrel Lettings gets' ... 3. 'Agencies get' ... 5. A worked example
+ * that updates live." So the card titles, the switch and the summary
+ * sentence this file was written against are all gone, and the claims that
+ * outlived them are asserted in the new words:
+ *
+ *   two deals on the tab, each with its own editor          -> still here
+ *   no deal must not look broken                            -> still here
+ *   the deal read back as a sentence                        -> still here
+ *   the share editor sets no fee                            -> still here
+ *   one way to set commission: no second pair of inputs     -> still here
+ *   which arithmetic each arrangement gets                  -> the example
+ *   the cap, and what the statements do                     -> their lines
+ *
  * WHERE EACH HALF IS PROVED. The rules are the database's and
  * a_supplier_has_two_deals.test.sql holds them: both deals live at once,
  * the resolver answers for each, an agency override beats the
@@ -77,8 +92,9 @@ describe('the Commission tab', () => {
   it('shows both deals, named for what each is', async () => {
     vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
     const v = await commissionTab();
-    expect(v.container.textContent).toContain('What opndoor pays this supplier');
-    expect(v.container.textContent).toContain('What the agencies underneath keep');
+    expect(v.container.textContent).toContain('ZZZ Deals Co gets');
+    expect(v.container.textContent)
+      .toContain('Of that, agencies get (shown on the statements ZZZ Deals Co passes on)');
   });
 
   /* NO DEAL IS THE COMMON STATE and must not look broken. It says what
@@ -87,12 +103,11 @@ describe('the Commission tab', () => {
   it('and says what prices a referral when there is no deal', async () => {
     vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
     const v = await commissionTab();
-    expect(v.container.textContent).toMatch(/No deal\. Every referral pays 35%/);
-    /* THE SHARE SIDE SAYS IT DIFFERENTLY NOW, because it is a list of deals
-       rather than one: "every referral pays 15%" would be a claim about a
-       rate, and what is true with no deal is a claim about every AGENCY. */
-    expect(v.container.textContent)
-      .toMatch(/No deal\. Every agency under this supplier is paid the supplier’s flat agents’ rate/);
+    /* THE FLAT PERCENTAGE IS WHAT PRICES IT, and the card says the figure
+       rather than the word "none": a reader checking what a referral pays
+       gets an answer either way. */
+    expect(v.container.textContent).toMatch(/35% of the fee, on every referral/);
+    expect(v.container.textContent).toMatch(/15% of the fee, on every referral/);
   });
 
   /* THE SUMMARY IS A SENTENCE. Matt: "The summary line explains the
@@ -122,11 +137,14 @@ describe('the Commission tab', () => {
     expect(text).not.toMatch(/any number of tenants pay .* and we pay 15%/);
   });
 
-  it('and offers to agree one, or to change the one there is', async () => {
+  /* ONE CHANGE PER DEAL, whether or not there is one to change: the card
+     leads with what is true now and the editor is behind it. "Agree a
+     deal" and "Change the deal" were two labels for one door. */
+  it('and offers a Change on each of the two deals', async () => {
     vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
     const v = await commissionTab();
     const labels = [...v.container.querySelectorAll('button')].map((b) => (b.textContent ?? '').trim());
-    expect(labels.filter((l) => l === 'Agree a deal')).toHaveLength(2);
+    expect(labels.filter((l) => l === 'Change')).toHaveLength(2);
   });
 
   /* AN AGENCY ON DIFFERENT TERMS IS NOW SET HERE, which is the change.
@@ -150,9 +168,10 @@ describe('the Commission tab', () => {
     }]);
     const v = await commissionTab();
     const t = v.container.textContent ?? '';
-    expect(t).toContain('The default deal');
-    expect(t).toContain('Add another deal');
-    expect(t).toMatch(/not named on another deal/);
+    expect(t).toContain('Agencies on different terms');
+    expect(t).toMatch(/unless it is named on one of these/);
+    const labels = [...v.container.querySelectorAll('button')].map((b) => (b.textContent ?? '').trim());
+    expect(labels).toContain('Add');
   });
 });
 
@@ -160,9 +179,9 @@ describe('the editor it opens', () => {
   it('is the agency one, addressed to the supplier', async () => {
     vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
     const v = await commissionTab();
-    const agree = [...v.container.querySelectorAll<HTMLButtonElement>('button')]
-      .filter((b) => (b.textContent ?? '').trim() === 'Agree a deal');
-    await act(async () => { fireEvent.click(agree[0]); });
+    const change = [...v.container.querySelectorAll<HTMLButtonElement>('button')]
+      .filter((b) => (b.textContent ?? '').trim() === 'Change');
+    await act(async () => { fireEvent.click(change[0]); });
     const dialog = document.querySelector('[role="dialog"]');
     expect(dialog?.textContent).toContain('Commission deal for ZZZ Deals Co');
     /* All four of the editor's models, which is "all its options". The
@@ -174,25 +193,23 @@ describe('the editor it opens', () => {
     expect(dialog?.textContent).toContain('Price by number of REFERRALS they send');
   });
 
-  /* A SHARE SETS NO FEE, so the editor drops the column rather than
-     storing a number nothing reads. create_agreement stores NULL whatever
-     is sent, so this is the screen agreeing with the rule. */
-  it('and drops the fee column on the agents’ share', async () => {
+  /* A SHARE SETS NO FEE, and the editor no longer has a fee column to
+     drop: it asks for a percentage and nothing else. The shared editor hid
+     the column for an agents' share, which left a form built around a
+     question it was not asking. */
+  it('and the agents’ share editor asks for a percentage and no fee', async () => {
     vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
     const v = await commissionTab();
-    const agree = [...v.container.querySelectorAll<HTMLButtonElement>('button')]
-      .filter((b) => (b.textContent ?? '').trim() === 'Agree a deal');
-    await act(async () => { fireEvent.click(agree[1]); });
+    const change = [...v.container.querySelectorAll<HTMLButtonElement>('button')]
+      .filter((b) => (b.textContent ?? '').trim() === 'Change');
+    await act(async () => { fireEvent.click(change[1]); });
     const dialog = document.querySelector('[role="dialog"]')!;
-    expect(dialog.textContent).toContain("Agents' share for ZZZ Deals Co");
-    /* A NEW DEAL OPENS ON "Standard terms", which draws no table at all --
-       there is nothing to fill in until a shape is chosen. So choose one,
-       which is what a person does. */
-    const pick = [...dialog.querySelectorAll<HTMLElement>('.roleopt')]
-      .find((o) => (o.textContent ?? '').includes('One price for everything'))!;
-    await act(async () => { fireEvent.click(pick); });
+    expect(dialog.textContent).toContain('What the agencies get');
+    expect(dialog.textContent).toContain('How the percentage works');
+    expect(dialog.querySelector('input[aria-label="Percentage"]')).toBeTruthy();
+    /* NO FEE QUESTION AT ALL: no weeks, no months, no fee column. */
+    expect(dialog.textContent).not.toMatch(/month’s rent|weeks’ rent/);
     const heads = [...dialog.querySelectorAll('th')].map((h) => (h.textContent ?? '').trim());
-    expect(heads).toContain('Tenants from');
     expect(heads, 'the share must not set the tenant’s price').not.toContain('Fee');
     /* AND NO COVER QUESTION. All-in says "nobody underneath is paid
        separately", which is a statement about the commission; saying it
@@ -201,20 +218,6 @@ describe('the editor it opens', () => {
   });
 });
 
-/* ===========================================================================
-   ONE WAY TO SET COMMISSION, AND THE OLD CARD IS NOT IT.
-
-   Matt, 2026-10-01, verbatim: "Supplier Commission tab: one way to set
-   commission only. Remove the old card (Total commission %, Agents' share %,
-   read-only volume tiers, Save commission) and keep the deal editors ...
-   moving the 'Opndoor pays the agents directly' switch and the plain-English
-   summary into that layout."
-
-   ASSERTED BY ABSENCE OF THE CONTROLS, not of the words. "Total commission"
-   is a phrase the deal cards may well use in prose one day; what must not
-   come back is a second pair of INPUTS that writes the same rate, which is
-   the thing that could disagree with a deal.
-   =========================================================================== */
 describe('the old commission card', () => {
   it('is gone, with its inputs and its Save', async () => {
     vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
@@ -228,38 +231,43 @@ describe('the old commission card', () => {
   });
 
   /* AND WHAT IT OWNED IS STILL HERE. Removing the card must not take the
-     switch or the one sentence with it: those are the two things on it
-     that were not a duplicate of a deal. */
-  it('but the pays-agents switch came across', async () => {
+     choice or the arithmetic with it: those are the two things on it that
+     were not a duplicate of a deal. The switch is two radio options now --
+     Matt, 2026-10-01: "1. 'Who does opndoor pay?' Two options" -- because
+     a switch has an on state and an off state, and neither of these two
+     arrangements is the absence of the other. */
+  it('but the choice of who opndoor pays came across', async () => {
     vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
     const v = await commissionTab();
-    const box = v.container.querySelector<HTMLInputElement>('.sc-switch input[type="checkbox"]');
-    expect(box, 'no pays-agents switch on the tab').toBeTruthy();
-    expect(box!.checked, 'the fixture supplier settles its own agents').toBe(false);
-    expect(v.container.textContent).toContain('Opndoor pays the agents directly');
+    const t = v.container.textContent ?? '';
+    expect(t).toContain('Who does opndoor pay?');
+    expect(t).toContain('ZZZ Deals Co only. They pay their agencies themselves.');
+    expect(t).toContain('ZZZ Deals Co and each agency, separately.');
+    /* AND THE ONE IN FORCE IS THE ONE SHOWN AS CHOSEN. The fixture supplier
+       settles its own agents. */
+    const chosen = [...v.container.querySelectorAll('.roleopt.is-sel')].map((e) => e.textContent ?? '');
+    expect(chosen.join(' ')).toContain('They pay their agencies themselves');
   });
 
   /* THE SENTENCE THE TWO CARDS CANNOT WRITE SEPARATELY: that one rate comes
-     out of the other. With no deal either side, both flat rates apply --
-     35% total, 15% to the agencies, 20% kept. */
-  it('and so did the sentence saying who ends up with what', async () => {
+     out of the other. It is the worked example now -- Matt, 2026-10-01: "5.
+     A worked example that updates live" -- which is the same claim in money
+     instead of percentages, and money is what somebody checks. */
+  it('and so did the arithmetic saying who ends up with what', async () => {
     vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
-    const t = (await commissionTab()).container.textContent ?? '';
-    expect(t).toContain('What a referral costs');
-    expect(t).toMatch(/Opndoor pays\s*35(\.0)?%\s*of the fee to ZZZ Deals Co/);
-    expect(t).toMatch(/passes\s*15(\.0)?%\s*of it on to the referring agency/);
-    expect(t).toMatch(/keeps\s*20(\.0)?%/);
+    const t = ((await commissionTab()).container.textContent ?? '').replace(/\s+/g, ' ');
+    expect(t).toContain('On a £1,000.00 fee: opndoor pays ZZZ Deals Co £350.00, of which £150.00 goes to the agency.');
   });
 
   /* AND IT SAYS SO ONLY OF THE COMMONEST REFERRAL once a deal varies, rather
      than printing a figure that is true some of the time. */
-  it('and hedges the sentence when a deal varies by volume', async () => {
+  it('and hedges the example when a deal varies by volume', async () => {
     vi.spyOn(org, 'getSupplierDeal').mockImplementation(async (_s: string, kind: string) =>
       (kind === 'commission'
         ? view({ tiers: [{ from: 0, to: 50, rate: 0.3 }, { from: 51, to: null, rate: 0.4 }] })
         : null) as AgreementView | null);
     const t = (await commissionTab()).container.textContent ?? '';
-    expect(t).toContain('on a single-tenant referral; it changes with the deals below');
+    expect(t).toContain('On a single-tenant referral; it changes with the deals below');
   });
 });
 
@@ -295,58 +303,54 @@ describe('the two deal shapes', () => {
   beforeEach(() => { vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null); });
 
   /* OFF: ONE figure leaves Opndoor and the agencies' share comes out of it,
-     so the sentence subtracts and the total is the first number. */
-  it('paid through the supplier: one total, and the agents’ share comes out of it', async () => {
-    const t = (await commissionTab()).container.textContent ?? '';
-    expect(t).toMatch(/Opndoor pays\s*35(\.0)?%\s*of the fee to ZZZ Deals Co/);
-    expect(t).toMatch(/passes\s*15(\.0)?%\s*of it on to the referring agency and keeps\s*20(\.0)?%/);
+     so the example subtracts and the first number is the whole of it. */
+  it('paid through the supplier: one total, and the agencies’ share comes out of it', async () => {
+    const t = ((await commissionTab()).container.textContent ?? '').replace(/\s+/g, ' ');
+    expect(t).toContain('opndoor pays ZZZ Deals Co £350.00, of which £150.00 goes to the agency');
+    expect(t).toContain('This comes out of what ZZZ Deals Co gets, so it can never be more than it.');
   });
 
-  /* AND IT MUST NOT CLAIM THE SIBLING TOTAL. 50% is partner + agent, which
-     is the right answer under the other shape and a wrong one here. */
-  it('and never names the sum as the total under that shape', async () => {
-    const t = (await commissionTab()).container.textContent ?? '';
-    expect(t).not.toMatch(/50(\.0)?%\s*in total/);
+  /* AND IT MUST NOT CLAIM THE SIBLING TOTAL. £500 is supplier + agency,
+     which is the right answer under the other shape and a wrong one here. */
+  it('and never adds the two together under that shape', async () => {
+    const t = ((await commissionTab()).container.textContent ?? '').replace(/\s+/g, ' ');
+    expect(t).not.toContain('Total £500.00');
+    expect(t).not.toMatch(/and the agency £150\.00/);
   });
 
   /* ON: TWO figures leave Opndoor and neither is taken out of the other, so
-     the sentence adds. Nothing is "kept" and nothing is "passed on". */
+     the example adds. Nothing comes out of anything. */
   it('paid directly: two separate deals, and the total is their sum', async () => {
-    const t = (await paysOn()).container.textContent ?? '';
-    expect(t).toMatch(/Opndoor pays ZZZ Deals Co\s*35(\.0)?%\s*of the fee and the referring agency\s*15(\.0)?%/);
-    expect(t).toMatch(/50(\.0)?%\s*in total/);
+    const t = ((await paysOn()).container.textContent ?? '').replace(/\s+/g, ' ');
+    expect(t).toContain('opndoor pays ZZZ Deals Co £350.00 and the agency £150.00. Total £500.00.');
+    expect(t).toContain('Opndoor pays each agency');
   });
 
-  it('and does not describe the agents’ share as coming out of the supplier’s', async () => {
-    const t = (await paysOn()).container.textContent ?? '';
-    expect(t).not.toMatch(/passes .* on to the referring agency/);
-    expect(t).not.toMatch(/comes out of the total above/);
+  it('and does not describe the agencies’ share as coming out of the supplier’s', async () => {
+    const t = ((await paysOn()).container.textContent ?? '').replace(/\s+/g, ' ');
+    expect(t).not.toContain('of which');
+    expect(t).not.toContain('can never be more than it');
   });
 
-  /* THE CARD DESCRIPTIONS FOLLOW, which is where the "can never be more than
-     it" sentence lives. Under ON that sentence would be false: the guard
-     that enforced it is deliberately off, because a supplier on 5%
-     introducing agencies on 20% is what the shape exists for. */
+  /* THE CAP IS ONLY PROMISED UNDER THE SHAPE THAT ENFORCES IT. Under ON that
+     sentence would be false: the guard that enforced it is deliberately
+     off, because a supplier on 5% introducing agencies on 20% is what the
+     shape exists for. */
   it('and the cap is only promised under the shape that enforces it', async () => {
     expect((await commissionTab()).container.textContent ?? '')
       .toContain('can never be more than it');
     cleanup();
     expect((await paysOn()).container.textContent ?? '')
-      .not.toContain('can never be more than it');
+      .toContain('may be more than ZZZ Deals Co gets');
   });
 
-  it('while the other shape says the agencies may be paid more', async () => {
-    expect((await paysOn()).container.textContent ?? '')
-      .toContain('may be more than it');
-  });
-
-  /* AND THE SWITCH SAYS WHAT THE STATEMENTS DO, which is the half of the
+  /* AND THE CHOICE SAYS WHAT THE STATEMENTS DO, which is the half of the
      instruction that is not arithmetic: "off, one supplier statement plus
      per-agency schedules for them to forward; on, the supplier is paid its
      own share and each agency gets its own statement from Opndoor." */
-  it('and the switch names the statements each shape produces', async () => {
+  it('and names the statements each shape produces', async () => {
     expect((await commissionTab()).container.textContent ?? '')
-      .toMatch(/per-agency schedules .* forwards on/);
+      .toMatch(/per-agency schedules for them to forward on/);
     cleanup();
     expect((await paysOn()).container.textContent ?? '')
       .toMatch(/Each agency gets its own statement from opndoor/);

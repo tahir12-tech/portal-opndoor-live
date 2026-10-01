@@ -441,8 +441,25 @@ export function PartnerHome() {
         {/* WHO THE MONTHLY STATEMENT GOES TO. On the Commission tab because
             the statement IS the commission, and this is the only screen in
             the product where a supplier's named addresses can be set. Admin
-            only here; the RPCs behind it are guarded regardless. */}
-        {isAdmin && <StatementRecipients partnerKey={partner.dbId ?? partner.id} supplierName={partner.name} />}
+            only here; the RPCs behind it are guarded regardless.
+
+            UNDER ITS OWN HEADING, which is Matt's, 2026-10-01: "Move
+            Monthly statement addresses to its own section below, headed
+            'Who gets the statements'." It sat as one more card in the
+            run of deal cards, so it read as part of the negotiation
+            rather than as where the paperwork goes. */}
+        {isAdmin && (
+          <>
+            <div className="sd-sharehead">
+              <h3 className="sd-sharehead__t">Who gets the statements</h3>
+              <p className="sd-sharehead__s">
+                Where the monthly commission statement is sent. Management users of this supplier
+                get it by default; these are the extra addresses.
+              </p>
+            </div>
+            <StatementRecipients partnerKey={partner.dbId ?? partner.id} supplierName={partner.name} />
+          </>
+        )}
 
       </div>
       )}

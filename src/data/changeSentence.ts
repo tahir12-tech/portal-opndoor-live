@@ -79,6 +79,12 @@ const EVENTS: Record<string, (detail: string) => string> = {
   position_set: (d) => (d ? `Position set to ${d}` : 'Position set'),
   commission_set: (d) => `Commission set to ${ratePair(d)}`,
   agreement_created: (d) => `Commission deal agreed${d ? `: ${d}` : ''}`,
+  /* A SUPPLIER'S SHARE DEALS, which save_share_deal records with a
+     sentence of its own ("Agents' share deal agreed for ZZZ Frost
+     Partnership, counted per agency per month"). Used as written rather
+     than re-said worse, like the rest of these. */
+  agent_share_created: (d) => d || 'An agents’ share deal was agreed',
+  agent_share_changed: (d) => d || 'An agents’ share deal was changed',
   agreement_superseded: (d) => d || 'The previous commission deal was ended',
   agreement_ended: (d) => d || 'The commission deal was ended',
   all_in_breach_confirmed: (d) => `All-in deal confirmed over a higher rate${d ? `: ${d}` : ''}`,

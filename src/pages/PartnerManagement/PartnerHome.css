@@ -162,8 +162,8 @@
    while the deals it heads sit in the right and it reads as a stray
    paragraph. Seen in the browser, not in a test: a render test asserting
    the text is present passes either way. The same goes for the add row
-   and the footnote, which belong to the whole section. */
-.sd-sharehead, .sd-addrow, .sd-foot { grid-column: 1 / -1; }
+   and the worked example, which belong to the whole section. */
+.sd-sharehead, .sd-addrow, .sd-worked { grid-column: 1 / -1; }
 .sd-sharehead { margin: 22px 0 -4px; }
 .sd-sharehead__t {
   margin: 0; font-family: var(--display); font-weight: 700; font-size: 17px;
@@ -186,6 +186,32 @@
   font: inherit; font-size: 12px; color: var(--heliotrope-deep); text-decoration: underline;
 }
 .sd-member__off:disabled { opacity: 0.5; cursor: default; }
-.sd-picker { margin-top: 10px; max-width: 420px; }
-.sd-foot { margin: 10px 2px 0; }
 .sd-addrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 2px 2px 0; }
+
+/* =====================================================================
+   THE WORKED EXAMPLE, AND THE AGENCIES PICKED FOR A DEAL.
+   Matt, 2026-10-01: "A worked example that updates live: 'On a GBP 1,000
+   fee: opndoor pays Kestrel Lettings GBP 250 and the agency GBP 100.
+   Total GBP 350.'"
+   ===================================================================== */
+/* IT READS AS A QUOTED FIGURE, not as help text: it is the arithmetic
+   somebody is about to agree, and the two rates above it are only
+   checkable through it. */
+.sd-worked {
+  margin: 14px 0 0; padding: 11px 13px; border-radius: 10px;
+  background: var(--app-bg-2); border-left: 3px solid var(--heliotrope-deep);
+  font-size: 13.5px; line-height: 1.6; color: var(--ink);
+}
+.sd-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; padding: 0; }
+.sd-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 6px 4px 10px; border-radius: 999px;
+  background: var(--app-bg-2); border: 1px solid var(--line);
+  font-size: 12.5px; font-weight: 600; color: var(--ink);
+}
+.sd-chip__x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border: 0; border-radius: 999px; padding: 0;
+  background: none; cursor: pointer; color: var(--ink-mute);
+}
+.sd-chip__x:hover { background: var(--line); color: var(--ink); }

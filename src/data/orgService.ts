@@ -776,6 +776,55 @@ export async function getSupplierShareDeals(slug: string): Promise<ShareDealView
   }));
 }
 
+export interface SaveShareDealInput {
+  /** The supplier's uuid: a partner-scope agreement is keyed on partners.id. */
+  partnerId: string;
+  bands: AgreementBandInput[];
+  tiers?: AgreementTierInput[];
+  note?: string | null;
+  period: 'week' | 'month' | 'year' | 'lifetime';
+  countingScope: 'agency' | 'group' | 'branch';
+  /** The agencies this deal applies to, and the WHOLE set of them: one named
+      that was not on it moves onto it, one on it that is not named goes back
+      to the default. Empty is the default deal, which names nobody. */
+  agencies: string[];
+  /** The live deal being changed. Omitted writes a new one. */
+  agreementId?: string | null;
+}
+
+/**
+ * Write one of a supplier's agents'-share deals and the agencies it applies
+ * to, in one call.
+ *
+ * NOT createAgreement, and this is the correction 20261007300000 makes.
+ * create_agreement takes no agencies, so it cannot tell the supplier's
+ * default deal from a deal for named agencies -- and the difference decides
+ * what it may end. Asked to write a second deal it reported a conflict, and
+ * confirming that ended the default AND every other named deal before
+ * inserting the new one as the default. The agencies and the terms arriving
+ * together is what makes the question answerable, which is exactly what
+ * Matt's one dialog sends.
+ */
+export async function saveShareDeal(input: SaveShareDealInput): Promise<string> {
+  if (!orgLive()) throw new Error('Deals can only be set against live data.');
+  const { data, error } = await sb().rpc('save_share_deal', {
+    p_partner: input.partnerId,
+    // Strings for the same reason create_agreement takes them: an empty string
+    // is how "and above" and "no rate on this band" are spelled in the SQL.
+    p_bands: input.bands.map((b) => ({
+      min: b.min, max: b.max == null ? '' : b.max, rate: b.rate == null ? '' : b.rate,
+    })),
+    p_tiers: (input.tiers ?? []).map((t) => ({ from: t.from, to: t.to == null ? '' : t.to, rate: t.rate })),
+    p_note: input.note ?? null,
+    p_period: input.period,
+    p_counting_scope: input.countingScope,
+    p_agencies: input.agencies,
+    p_agreement: input.agreementId ?? null,
+  });
+  if (error) throw new Error(cleanRpcError(error.message));
+  return String(data);
+}
+
 /** Put an agency on a deal, moving it off whichever it was on. ONE call:
     the server does it as an upsert, so it cannot leave the agency on none. */
 export async function setAgencyShareDeal(agreementId: string, agencyId: string): Promise<void> {

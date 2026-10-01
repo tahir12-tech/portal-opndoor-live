@@ -86,7 +86,7 @@ const MODELS: { id: PricingModel; name: string; desc: string; eg?: string; contr
   {
     id: 'tiered',
     name: 'Price by number of REFERRALS they send',
-    desc: 'The commission grows as they send more. The fee is still set per number of tenants, underneath.',
+    desc: 'The commission grows as they send more. The fee is still set by number of tenants.',
     eg: 'e.g. first 5 referrals a month at 10%, then 15%',
     contrast: 'Counts referrals in a period, not people on a tenancy. Fifty or a hundred is normal here.',
   },
@@ -137,7 +137,11 @@ export function feeBasisShort(qty: number, unit: FeeBasisUnit): string {
   return qty === 1 ? 'one week' : `${qty} weeks`;
 }
 
-const pctOf = (r: number | null) => (r == null ? '' : String(Number((r * 100).toFixed(2))));
+/** A rate as a reader says it: 0.25 is "25", 0.125 is "12.5". Exported
+    because the Commission tab's summary cards have to print the flat
+    percentage the same way a deal's sentence prints a negotiated one, and
+    `fmtRatePct` pads a whole number to one decimal ("25.0%"). */
+export const pctOf = (r: number | null) => (r == null ? '' : String(Number((r * 100).toFixed(2))));
 
 /* =====================================================================
    PLAIN ENGLISH, FOR SOMEBODY AGREEING A COMMERCIAL DEAL
@@ -358,6 +362,23 @@ export function AgreementEditor({
      weeks of rent at 25%", which is the table again with punctuation
      between the cells. The reader already has the table; what they
      cannot get from it is the deal read back to them as a sentence. */
+  /* "STANDARD TERMS" IS NOT A THING A SUPPLIER HAS. Matt, 2026-10-01,
+     rebuilding the supplier Commission tab: plain English only, and
+     'Standard terms' is on his list of words to go. For an agency it is
+     the name of a real published position; for a supplier the words say
+     nothing, because what happens with no deal is that the flat
+     percentage on its own page prices the referral. Same option, named
+     for whoever is reading it. */
+  const models = useMemo(() => MODELS.map((m) => (
+    m.id === 'standard' && level === 'partner'
+      ? {
+          ...m,
+          name: 'No special deal',
+          desc: 'The supplier is paid the percentage set on its own page, on every referral.',
+        }
+      : m
+  )), [level]);
+
   const preview = useMemo(() => {
     if (model === 'standard') {
       return share
@@ -407,9 +428,9 @@ export function AgreementEditor({
     setRefusal(null);
     try {
       if (model === 'standard') {
-        if (!live) { toast('Already on standard terms.'); onClose(); return; }
+        if (!live) { toast('Already on our usual terms.'); onClose(); return; }
         await endAgreement(live.agreementId);
-        toast(`${name} is back on standard terms from today. Referrals already sent keep the fee and commission frozen onto them.`);
+        toast(`${name} is back on our usual terms from today. Referrals already sent keep the fee and commission they were given.`);
         onSaved();
         return;
       }
@@ -488,7 +509,7 @@ export function AgreementEditor({
         )}
 
         <div className="agr-models">
-          {MODELS.map((m) => (
+          {models.map((m) => (
             <label key={m.id} className={`roleopt${model === m.id ? ' is-sel' : ''}`} onClick={() => setModel(m.id)}>
               <span className="roleopt__radio" />
               <div>
@@ -642,7 +663,7 @@ export function AgreementEditor({
             )}
             <p className="agr-hint">
               {!share && <>One month’s rent is our standard; 3 weeks and 5 weeks are the usual negotiated prices. </>}
-              Leave <b>to</b> empty for the last row to mean &ldquo;and above&rdquo;.
+              Leave <b>&lsquo;to&rsquo;</b> empty on the last row to mean &ldquo;and above&rdquo;.
             </p>
 
             {model === 'tiered' && (
@@ -650,7 +671,7 @@ export function AgreementEditor({
                 <div className="agr-sect">Commission by volume</div>
                 <p className="agr-hint agr-hint--lead">
                   How much we pay as they send more. For example: referrals 1 to 50 at 20%,
-                  51 and over at 25%. Leave <b>to</b> empty on the last row to mean
+                  51 and over at 25%. Leave <b>&lsquo;to&rsquo;</b> empty on the last row to mean
                   &ldquo;and over&rdquo;.
                 </p>
                 <table className="dt agr-table">
