@@ -195,6 +195,30 @@ one the product ships -- which is exactly what the setting was built
 for, and is why the handover check tells Balal to look at the value on
 live rather than trust the default.
 
+## AN AGENCY DIRECTOR'S REPORTING, SIX THINGS (instruction, 2026-10-01, verbatim). todo.
+
+> Agency Director's Reporting (signed in as a Regent Director):
+> - Commission statement Tenancy column shows only "Single" or "Joint (2)", never "Joint, Single" or "Joint, Joint (2)".
+> - Monthly trend: September 2026 shows £0 commission earned, but the statement shows £1,601.54 paid in September. Make the trend use the same figures as the statement.
+> - Total guaranteed rent value shows £0 with five paid tenancies; fix it to show their guaranteed rent.
+> - Fix "15 Oct 2026 2026".
+> - Remove the top banner ("Settlements due… £0.00 partner / £1,601.54 agent") and the "Payable now" and "Agent commission settlement" blocks for agency users. Under the statement, one line: "Opndoor pays this on 15 Oct 2026." Keep the Download statement button.
+> - Rename "Commission (agreed terms) · Agreement · net of refunds" to "Your commission, net of refunds".
+> Deploy to dev and check signed in as a Regent Director.
+
+- **Two of these are arithmetic, not copy**, and are the ones with
+  teeth: a trend reading £0 for a month the statement says earned
+  £1,601.54, and a guaranteed-rent total of £0 across five paid
+  tenancies. Both are a figure disagreeing with another figure on the
+  same page, which is the class of fault the tab-counts work was
+  about.
+- "15 Oct 2026 2026" is a date formatted twice -- probably a
+  `formatDate` output with a year appended, introduced by this
+  afternoon's date sweep. Mine to fix.
+- The settlement blocks going for agency users is the same rule as
+  the supplier Reporting work (`3a03ef8`): Opndoor's settlement run
+  is not a customer's business. An agency gets its statement.
+
 ## ONE SHARED PEOPLE TABLE, EVERYWHERE (instructions, 2026-10-01, verbatim). ACTIVE.
 
 The first:
