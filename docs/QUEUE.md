@@ -181,13 +181,35 @@ their own.
 the PARTY, not the reader, so the preview and the real page cannot
 diverge again.
 
-## ONE WAY TO SET SUPPLIER COMMISSION, AND TWO DEAL SHAPES (instructions, 2026-10-01, verbatim). First **done** (`a442fd6`), second **done** (`2aa7cb7`). Third ACTIVE.
+## ONE WAY TO SET SUPPLIER COMMISSION, AND TWO DEAL SHAPES (instructions, 2026-10-01, verbatim). All three **done** (`a442fd6`, `2aa7cb7`, `b65e7af`, `d7f69d7`).
 
 > Supplier Commission tab: one way to set commission only. Remove the old card (Total commission %, Agents' share %, read-only volume tiers, Save commission) and keep the deal editors ("What opndoor pays this supplier", "What the agencies underneath keep"), moving the "Opndoor pays the agents directly" switch and the plain-English summary into that layout. Supplier Overview: don't show "No agent contact" on an agency when its branches have contacts; only warn where a branch would actually have nowhere to send the deed. Settings: replace "The partner references first" with "The supplier references first". People: show status as "Active", capitalised, like elsewhere. Deploy to dev and check there.
 
 > Supplier Commission tab, two deal shapes chosen by the "Opndoor pays the agents directly" switch. Off (paid through the supplier): one total commission, all paid to the supplier, which settles with its agents; the agents' share sits within that total and is only used for the per-agency statements. On (paid directly by Opndoor): the supplier's own commission and the agents' commission are separate deals, each can be flat or tiered, and Opndoor pays each party its own; the total is the sum. The plain-English summary explains whichever applies. Statements follow: off, one supplier statement plus per-agency schedules for them to forward; on, the supplier is paid its own share and each agency gets its own statement from Opndoor. Deploy to dev and check there.
 
 > Supplier Commission tab: under "What the agencies underneath keep", allow several deals. One default deal for all agencies, plus extra deals that each apply to agencies picked from a searchable list of that supplier's agencies (several agencies can share one deal). Show which agencies are on which deal, and every agency not picked uses the default. An agency can only be on one deal at a time; moving it is one click. Changes apply to new referrals only and are recorded with who and when. Deploy to dev and check there.
+
+### HOW THE THIRD WAS BUILT, which differs from the note below it
+
+The note below guessed that the DEFAULT would be "the deal with no
+members". It cannot be: an agreement is inserted BEFORE its members
+are, so at the moment the exclusivity trigger runs every deal looks
+like the default, and "at most one default" would refuse every extra
+deal or none of them depending on when you asked.
+
+So the default is MARKED (`pricing_agreements.is_default_share`), and
+all three invariants became indexes rather than rules:
+
+  one default per supplier     partial unique index
+  one deal per agency          unique index on agency_id
+  no members on the default    trigger, one line
+
+The resolver then also treats an UNMARKED deal with no members as a
+default, because otherwise a deal written by anything that does not
+know about the column prices nothing, silently, while looking live on
+the screen. The mark buys the index; it is not load-bearing for money.
+
+The agency-scope override is untouched and still beats everything here.
 
 ### AND THE THIRD NEEDS A MEMBERSHIP, WHICH NOTHING HAS
 
