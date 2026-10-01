@@ -195,6 +195,19 @@ one the product ships -- which is exactly what the setting was built
 for, and is why the handover check tells Balal to look at the value on
 live rather than trust the default.
 
+## THE RESET EMAIL SAYS TO DELETE THE OLD ENTRY (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Two-factor reset email: add "Delete the old opndoor entry from your authenticator app before scanning the new code."
+
+- This is the answer to the half the issuer label does not fix: an
+  OLD and a NEW entry in the SAME environment are identical, because
+  both halves of the label are the same. Telling the person to delete
+  the old one is the fix the product can actually make.
+- **FIRST QUESTION: is there a two-factor reset email at all?**
+  `admin_reset_user_mfa` writes an audit row and sends nothing. The
+  email Matt followed was the password reset. Check before writing
+  copy for a template that may not exist.
+
 ## THE AUTHENTICATOR ENTRY SAYS WHICH ENVIRONMENT IT IS (instruction, 2026-10-01, verbatim). **done** (`a5b724a`).
 
 > Authenticator labels: on dev, the issuer shows as "opndoor DEV" so dev and live entries can't be confused. On live it stays "opndoor".
