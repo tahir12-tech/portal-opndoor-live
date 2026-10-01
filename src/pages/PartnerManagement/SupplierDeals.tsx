@@ -52,11 +52,39 @@ const TITLE: Record<Kind, string> = {
   commission: 'What opndoor pays this supplier',
   agent_share: 'What the agencies underneath keep',
 };
-const SUB: Record<Kind, string> = {
-  commission:
-    'The whole commission on a referral from this supplier, including the part that goes on to the agency.',
-  agent_share:
-    'The part of that commission the referring agency is paid. It comes out of the total above, so it can never be more than it.',
+
+/* =====================================================================
+   THE SAME TWO CARDS MEAN DIFFERENT THINGS UNDER THE TWO SHAPES.
+
+   Matt, 2026-10-01: "two deal shapes chosen by the 'Opndoor pays the
+   agents directly' switch. Off (paid through the supplier): one total
+   commission, all paid to the supplier, which settles with its agents;
+   the agents' share sits within that total and is only used for the
+   per-agency statements. On (paid directly by Opndoor): the supplier's
+   own commission and the agents' commission are separate deals, each can
+   be flat or tiered, and Opndoor pays each party its own; the total is
+   the sum. The plain-English summary explains whichever applies."
+
+   So the DESCRIPTIONS are per shape, not fixed. Under OFF the second
+   card is a carve-out and says so, including that it cannot exceed the
+   first. Under ON it is a deal in its own right and the sentence about
+   not exceeding would be a lie: the guard that enforced it is off under
+   this shape, deliberately, because a supplier on 5% introducing
+   agencies on 20% is the arrangement ON exists for.
+   ===================================================================== */
+const SUB: Record<'carved' | 'siblings', Record<Kind, string>> = {
+  carved: {
+    commission:
+      'The whole commission on a referral from this supplier, including the part that goes on to the agency. Opndoor pays all of it to the supplier.',
+    agent_share:
+      'The part of that total the referring agency is owed. The supplier pays it, not opndoor, so it is only used for the per-agency schedules. It comes out of the total above, so it can never be more than it.',
+  },
+  siblings: {
+    commission:
+      'What the supplier itself is paid on a referral. Opndoor pays this to the supplier and nothing passes through it.',
+    agent_share:
+      'What the referring agency is paid, as a deal of its own. Opndoor pays this to the agency directly, so it is not taken out of the supplier’s commission and may be more than it.',
+  },
 };
 
 /** What a deal prices at for the commonest referral: one tenant, no volume
@@ -69,10 +97,12 @@ function headlineRate(deal: AgreementView | null, flat: number | null): number |
 }
 
 /** One deal: what it says now, and the button that changes it. */
-function Deal({ partnerId, name, kind, canEdit, flat, deal, loaded, onSaved }: {
+function Deal({ partnerId, name, kind, shape, canEdit, flat, deal, loaded, onSaved }: {
   partnerId: string;
   name: string;
   kind: Kind;
+  /** Which of the two deal shapes is in force, from the pays-agents switch. */
+  shape: 'carved' | 'siblings';
   canEdit: boolean;
   /** The flat rate still in force when there is no deal. */
   flat: number | null;
@@ -100,7 +130,7 @@ function Deal({ partnerId, name, kind, canEdit, flat, deal, loaded, onSaved }: {
       <Card>
         <CardHead
           title={TITLE[kind]}
-          sub={SUB[kind]}
+          sub={SUB[shape][kind]}
           actions={canEdit && (
             <Button variant={deal ? 'quiet' : 'dark'} size="sm" onClick={() => setOpen(true)}>
               {deal ? 'Change the deal' : 'Agree a deal'}
@@ -191,6 +221,12 @@ export function SupplierDeals({
 
   const saved = () => { void load(); onSaved(); };
 
+  /* THE SHAPE, from the one switch that chooses it. Named here rather
+     than tested inline at each site so the two cards, the sentence and
+     the switch's own note cannot drift into describing different
+     arrangements. */
+  const shape: 'carved' | 'siblings' = paysAgents ? 'siblings' : 'carved';
+
   const effTotal = headlineRate(deals.commission, total);
   const effShare = headlineRate(deals.agent_share, agentShare);
   const banded = !!(deals.commission?.bands.length ?? 0 > 1)
@@ -198,19 +234,46 @@ export function SupplierDeals({
     || !!(deals.agent_share?.bands.length ?? 0 > 1)
     || !!deals.agent_share?.tiers.length;
 
-  /* WHO ENDS UP WITH WHAT. The old flat card's one useful line, kept:
-     two rates on two cards do not say that one comes out of the other.
-     Where a deal varies by tenant count or volume it names the commonest
-     referral and says so, rather than printing a figure that is only
-     sometimes true. */
-  const combined = effTotal == null ? null : (
-    <>
-      Opndoor pays <b>{fmtRatePct(effTotal)}</b> of the fee
-      {effShare != null && <>. Of that, the agencies get <b>{fmtRatePct(effShare)}</b> and {name} keeps{' '}
-        <b>{fmtRatePct(Math.max(effTotal - effShare, 0))}</b></>}
-      {banded && <> on a single-tenant referral; it changes with the deals below</>}.
-    </>
-  );
+  /* ===================================================================
+     WHO ENDS UP WITH WHAT, AND IT IS A DIFFERENT SENTENCE PER SHAPE.
+
+     Matt, 2026-10-01: "The plain-English summary explains whichever
+     applies."
+
+     The two shapes do not differ in wording only; they differ in which
+     number is the total and in whether one rate is subtracted from the
+     other. Writing one sentence that covered both would mean writing
+     the vaguer of the two, and this line exists because two rates on
+     two cards do not say how they relate.
+
+       carved     opndoor pays ONE figure, the supplier's total, and the
+                  agents' share comes out of it. The arithmetic is a
+                  subtraction and the supplier keeps the remainder.
+       siblings   opndoor pays TWO figures and the total is their sum.
+                  There is no remainder; nothing is subtracted.
+
+     Where a deal varies by tenant count or volume the sentence names
+     the commonest referral and says so, rather than printing a figure
+     that is only sometimes true. */
+  const carried = banded && <> on a single-tenant referral; it changes with the deals below</>;
+  const combined = shape === 'carved'
+    ? (effTotal == null ? null : (
+      <>
+        Opndoor pays <b>{fmtRatePct(effTotal)}</b> of the fee to {name}
+        {effShare != null && <>, which passes <b>{fmtRatePct(Math.min(effShare, effTotal))}</b> of it on to the
+          referring agency and keeps{' '}
+          <b>{fmtRatePct(Math.max(effTotal - effShare, 0))}</b></>}
+        {carried}.
+      </>
+    ))
+    : (effTotal == null && effShare == null ? null : (
+      <>
+        Opndoor pays {name} <b>{fmtRatePct(effTotal ?? 0)}</b> of the fee and the referring agency{' '}
+        <b>{fmtRatePct(effShare ?? 0)}</b>, separately. That is{' '}
+        <b>{fmtRatePct((effTotal ?? 0) + (effShare ?? 0))}</b> in total
+        {carried}.
+      </>
+    ));
 
   /* IMMEDIATE, WITH A CONFIRMATION, like the API switch. It changes who
      Opndoor sends money to, which is not a thing to flip on the way past.
@@ -221,13 +284,33 @@ export function SupplierDeals({
     title: next ? 'Opndoor pays the agents directly' : 'The supplier pays its own agents',
     body: next ? (
       <>
-        The agencies&rsquo; share will be paid by opndoor to each agency, and each will appear as
-        an opndoor payee with its own commission statement. {name} will be paid its own share only.
+        <p>
+          The two deals below stop being a total and a share of it, and become separate deals.
+          opndoor will pay <b>{name}</b> its own commission in full, and each agency its own
+          beside it, so what opndoor pays in total becomes the <b>sum</b> of the two rather
+          than the first of them.
+        </p>
+        <p>
+          Each agency becomes an opndoor payee with its own commission statement from us.
+          The agencies&rsquo; deal is no longer capped by the supplier&rsquo;s.
+        </p>
+        <p className="muted">
+          Referrals already taken keep the rates frozen onto them. This applies to new ones.
+        </p>
       </>
     ) : (
       <>
-        opndoor will pay the whole commission to <b>{name}</b>, which settles with its own agencies.
-        No agency under it appears as an opndoor payee, and none receives a statement from us.
+        <p>
+          opndoor will pay the whole commission to <b>{name}</b>, which settles with its own
+          agencies. The agencies&rsquo; deal becomes a share carved out of that total, used for
+          the per-agency schedules {name} forwards, and it may no longer be more than the total.
+        </p>
+        <p>
+          No agency under it appears as an opndoor payee, and none receives a statement from us.
+        </p>
+        <p className="muted">
+          Referrals already taken keep the rates frozen onto them. This applies to new ones.
+        </p>
       </>
     ),
     confirmLabel: next ? 'Opndoor pays the agents' : `${name} pays its agents`,
@@ -251,7 +334,7 @@ export function SupplierDeals({
       <Card>
         <CardHead
           title="What a referral costs"
-          sub="The whole arrangement in one line, and who pays the agencies."
+          sub="The whole arrangement in one line, and who pays the agencies. The switch below chooses between the two shapes, and the deals underneath are read accordingly."
         />
         <CardBody>
           {!loaded ? (
@@ -267,18 +350,21 @@ export function SupplierDeals({
             <span>
               <b>Opndoor pays the agents directly</b>
               <span className="sc-switch__note">
-                Off: opndoor pays the whole commission to {name}, which settles with its own
-                agencies, and no agency appears as an opndoor payee. On: the agencies&rsquo; share is
-                paid to each agency instead, and each gets its own statement.
+                {shape === 'carved'
+                  ? <>Off, as now: one total commission, paid in full to {name}, which settles with
+                      its own agencies. The agencies&rsquo; deal is a share carved out of that total
+                      and is used only for the per-agency schedules {name} forwards on.</>
+                  : <>On: the two deals below are separate, opndoor pays each party its own, and the
+                      total is their sum. Each agency gets its own statement from opndoor.</>}
               </span>
             </span>
           </label>
         </CardBody>
       </Card>
 
-      <Deal partnerId={partnerId} name={name} kind="commission" canEdit={canEdit}
+      <Deal partnerId={partnerId} name={name} kind="commission" shape={shape} canEdit={canEdit}
         flat={total} deal={deals.commission} loaded={loaded} onSaved={saved} />
-      <Deal partnerId={partnerId} name={name} kind="agent_share" canEdit={canEdit}
+      <Deal partnerId={partnerId} name={name} kind="agent_share" shape={shape} canEdit={canEdit}
         flat={agentShare} deal={deals.agent_share} loaded={loaded} onSaved={saved} />
       {/* WHERE AN OVERRIDE LIVES. Matt's "per-agency overrides" are
           agency-scope deals, which the resolver already prefers over the

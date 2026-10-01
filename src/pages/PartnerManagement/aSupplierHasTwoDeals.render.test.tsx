@@ -217,9 +217,9 @@ describe('the old commission card', () => {
     vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null);
     const t = (await commissionTab()).container.textContent ?? '';
     expect(t).toContain('What a referral costs');
-    expect(t).toMatch(/Opndoor pays\s*35(\.0)?%\s*of the fee/);
-    expect(t).toMatch(/the agencies get\s*15(\.0)?%/);
-    expect(t).toMatch(/ZZZ Deals Co keeps\s*20(\.0)?%/);
+    expect(t).toMatch(/Opndoor pays\s*35(\.0)?%\s*of the fee to ZZZ Deals Co/);
+    expect(t).toMatch(/passes\s*15(\.0)?%\s*of it on to the referring agency/);
+    expect(t).toMatch(/keeps\s*20(\.0)?%/);
   });
 
   /* AND IT SAYS SO ONLY OF THE COMMONEST REFERRAL once a deal varies, rather
@@ -231,5 +231,95 @@ describe('the old commission card', () => {
         : null) as AgreementView | null);
     const t = (await commissionTab()).container.textContent ?? '';
     expect(t).toContain('on a single-tenant referral; it changes with the deals below');
+  });
+});
+
+/* ===========================================================================
+   TWO DEAL SHAPES, AND THE SWITCH CHOOSES WHICH.
+
+   Matt, 2026-10-01, verbatim: "Supplier Commission tab, two deal shapes
+   chosen by the 'Opndoor pays the agents directly' switch. Off (paid through
+   the supplier): one total commission, all paid to the supplier, which
+   settles with its agents; the agents' share sits within that total and is
+   only used for the per-agency statements. On (paid directly by Opndoor):
+   the supplier's own commission and the agents' commission are separate
+   deals, each can be flat or tiered, and Opndoor pays each party its own;
+   the total is the sum. The plain-English summary explains whichever
+   applies."
+
+   THE ARITHMETIC IS THE DATABASE'S and two_deal_shapes_not_one.test.sql
+   holds it: who Opndoor pays, how much, that the cap on the agents' rate is
+   an OFF-shape rule, and that the share-within-total guard does not bite
+   under ON. This file is the sentence: that the screen says the right one of
+   the two, and never the other one's arithmetic.
+
+   The fixture supplier settles its own agents, so `paysOn()` re-hydrates it
+   with the switch thrown. Both are asserted, because a summary that is right
+   about one shape and silent about the other is the defect.
+   =========================================================================== */
+async function paysOn() {
+  hydratePartners([{ ...PARTNERS[0], opndoorPaysAgents: true }] as unknown as Partner[]);
+  return commissionTab();
+}
+
+describe('the two deal shapes', () => {
+  beforeEach(() => { vi.spyOn(org, 'getSupplierDeal').mockResolvedValue(null); });
+
+  /* OFF: ONE figure leaves Opndoor and the agencies' share comes out of it,
+     so the sentence subtracts and the total is the first number. */
+  it('paid through the supplier: one total, and the agents’ share comes out of it', async () => {
+    const t = (await commissionTab()).container.textContent ?? '';
+    expect(t).toMatch(/Opndoor pays\s*35(\.0)?%\s*of the fee to ZZZ Deals Co/);
+    expect(t).toMatch(/passes\s*15(\.0)?%\s*of it on to the referring agency and keeps\s*20(\.0)?%/);
+  });
+
+  /* AND IT MUST NOT CLAIM THE SIBLING TOTAL. 50% is partner + agent, which
+     is the right answer under the other shape and a wrong one here. */
+  it('and never names the sum as the total under that shape', async () => {
+    const t = (await commissionTab()).container.textContent ?? '';
+    expect(t).not.toMatch(/50(\.0)?%\s*in total/);
+  });
+
+  /* ON: TWO figures leave Opndoor and neither is taken out of the other, so
+     the sentence adds. Nothing is "kept" and nothing is "passed on". */
+  it('paid directly: two separate deals, and the total is their sum', async () => {
+    const t = (await paysOn()).container.textContent ?? '';
+    expect(t).toMatch(/Opndoor pays ZZZ Deals Co\s*35(\.0)?%\s*of the fee and the referring agency\s*15(\.0)?%/);
+    expect(t).toMatch(/50(\.0)?%\s*in total/);
+  });
+
+  it('and does not describe the agents’ share as coming out of the supplier’s', async () => {
+    const t = (await paysOn()).container.textContent ?? '';
+    expect(t).not.toMatch(/passes .* on to the referring agency/);
+    expect(t).not.toMatch(/comes out of the total above/);
+  });
+
+  /* THE CARD DESCRIPTIONS FOLLOW, which is where the "can never be more than
+     it" sentence lives. Under ON that sentence would be false: the guard
+     that enforced it is deliberately off, because a supplier on 5%
+     introducing agencies on 20% is what the shape exists for. */
+  it('and the cap is only promised under the shape that enforces it', async () => {
+    expect((await commissionTab()).container.textContent ?? '')
+      .toContain('can never be more than it');
+    cleanup();
+    expect((await paysOn()).container.textContent ?? '')
+      .not.toContain('can never be more than it');
+  });
+
+  it('while the other shape says the agencies may be paid more', async () => {
+    expect((await paysOn()).container.textContent ?? '')
+      .toContain('may be more than it');
+  });
+
+  /* AND THE SWITCH SAYS WHAT THE STATEMENTS DO, which is the half of the
+     instruction that is not arithmetic: "off, one supplier statement plus
+     per-agency schedules for them to forward; on, the supplier is paid its
+     own share and each agency gets its own statement from Opndoor." */
+  it('and the switch names the statements each shape produces', async () => {
+    expect((await commissionTab()).container.textContent ?? '')
+      .toMatch(/per-agency schedules .* forwards on/);
+    cleanup();
+    expect((await paysOn()).container.textContent ?? '')
+      .toMatch(/Each agency gets its own statement from opndoor/);
   });
 });

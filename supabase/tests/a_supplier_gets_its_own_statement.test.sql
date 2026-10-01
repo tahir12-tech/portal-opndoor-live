@@ -225,29 +225,42 @@ select is(
 update public.partners set opndoor_pays_agents = true
  where id = 'e5000000-0000-0000-0000-0000000000f1';
 
+/* =========================================================================
+   THESE THREE SAID THE OPPOSITE UNTIL 20261007230000, AND THE COMMENT THEY
+   CARRIED NAMED THE CHANGE THAT WOULD BREAK THEM.
+
+   It read: "THE SUM IS THE SAME EITHER WAY, which is the point of a
+   carve-out and the thing that would break first if somebody made the arms
+   independent." Matt, 2026-10-01, made the arms independent: "On (paid
+   directly by Opndoor): the supplier's own commission and the agents'
+   commission are separate deals ... Opndoor pays each party its own; the
+   total is the sum."
+
+   So the switch no longer only decides WHO receives a fixed total; under ON
+   it decides what the total IS. Rewritten rather than deleted: the old rule
+   and the new one are both worth pinning, and the OFF half above is
+   untouched and still asserts the carve-out to the penny.
+   ========================================================================= */
 select is(
   (select total from public.commission_statement_payees('2026-05-01'::date)
     where level = 'agency'),
   (select round(2000 * p.agent_rate, 2) from public.partners p
     where p.id = 'e5000000-0000-0000-0000-0000000000f1'),
-  'with Opndoor paying agents directly the agency IS a payee, for the carved-out share');
+  'with Opndoor paying agents directly the agency IS a payee, for its own commission');
 
 select is(
   (select total from public.commission_statement_payees('2026-05-01'::date)
     where level = 'partner'),
-  (select round(2000 * (p.partner_rate - p.agent_rate), 2) from public.partners p
+  (select round(2000 * p.partner_rate, 2) from public.partners p
     where p.id = 'e5000000-0000-0000-0000-0000000000f1'),
-  'and the supplier is paid the rest, not the whole total as well');
+  'and the supplier is paid its OWN commission in full, not the total less the agents''');
 
-/* THE SUM IS THE SAME EITHER WAY, which is the point of a carve-out and
-   the thing that would break first if somebody made the arms independent.
-   Opndoor pays the total; the setting only decides who receives it. */
 select is(
   (select sum(total) from public.commission_statement_payees('2026-05-01'::date)
     where level in ('agency','partner')),
-  (select round(2000 * p.partner_rate, 2) from public.partners p
+  (select round(2000 * (p.partner_rate + p.agent_rate), 2) from public.partners p
     where p.id = 'e5000000-0000-0000-0000-0000000000f1'),
-  'and switching it changes who is paid, never how much Opndoor pays in total');
+  'so under this shape the total is the SUM of the two deals, not a fixed figure divided');
 
 update public.partners set opndoor_pays_agents = false
  where id = 'e5000000-0000-0000-0000-0000000000f1';
