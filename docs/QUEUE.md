@@ -14,14 +14,44 @@
 >    - When Rightmove refers a Frost tenant, that's the supplier route: Rightmove's deal, commission handled the Rightmove way (to Rightmove, or to Frost directly if Rightmove's "Opndoor pays the agents directly" switch is on). The signed deed still goes to Frost's branch contact. For now Frost's staff do not see Rightmove-route referrals in their login.
 >    - Separate deals, volume counters and statements per route; League and Reporting show Frost as one agency, split by route where it matters.
 >    Migrate dev's existing data so nothing changes for any current agency. Keep the duplicate-name warning until this is done.
+
+**SUPERSEDED** by "SEPARATE ESTATES" below, sent the same night. Phase 3 is
+not built as written: there is no one agency record across routes.
 >
 > Rules: dev only, never touch live, never push. Deploy edge functions to dev with the npx command after any function change. Full tests and drift after each item, commit each separately. If something needs a decision from me, don't guess: note it in QUEUE.md under "For Matt in the morning" and move on. In the morning, give me a short plain-English summary: what's done, what's left, and any decisions waiting for me.
 
 > 4. Then: the admin Agencies tab lists only agencies with a direct relationship with Opndoor. Agencies that only come through a supplier appear on that supplier's page, in an "Agents" tab, not in Agencies. An agency on both routes (like Frost) appears in both places as the same company.
 
-*(Sent after the three phases above, so it is phase 4 and it sits on top of
-phase 3: "the same company in both places" is only sayable once one agency
-record carries both routes.)*
+**SUPERSEDED** by "SEPARATE ESTATES" below. The Agents tab survives in a
+different shape: a supplier's page gets an "Agencies" tab holding that
+supplier's own estate, and admin's Agencies tab holds Opndoor's clients
+only. The same company in both places is two records, not one.
+
+## SEPARATE ESTATES: THE CORRECTION TO STEPS 3 AND 4 (correction, 2026-10-01, verbatim). THIS REPLACES BOTH.
+
+> CORRECTION to steps 3 and 4 of tonight's instructions; this replaces both. Do NOT build one agency record across routes or any membership table. Instead, separate estates:
+>
+> - Opndoor's estate: agencies that are Opndoor's own clients (like Regent). They have logins, users, branches, their own deals, and Opndoor pays them. Admin's Agencies tab lists only these.
+> - Each supplier's estate (e.g. Rightmove): the agencies and branches that come through that supplier. They never have logins. On admin's view, they appear in an "Agencies" tab on that supplier's page, not in admin's main Agencies tab. The supplier's own staff keep seeing their agencies in their own Agencies tab, as now.
+> - The same real company can exist in both estates (Frost as Opndoor's client and Frost under Rightmove). They are two separate records that never link, share nothing, and never show each other's data. Remove the duplicate-name warning across estates; keep it only within one estate.
+> - Supplier-route data belongs to the supplier only. Frost's own login never sees anything from Rightmove's estate: no referrals, no commission, no statements. If Rightmove's "Opndoor pays the agents directly" is on, that commission is paid to the Rightmove-estate agency and its statement goes to that agency's contact email, never into any login.
+> - Signed deeds on supplier referrals go to the branch contact in the supplier's estate.
+> - Check commission, volume counters, League and Reporting treat the two estates separately, and remove any code that assumes an agency exists once across routes. Nothing changes for any current agency on dev.
+> - Remove the after-launch item about agencies seeing their supplier-route referrals; that's now never.
+>
+> When done, set up a test "Frost" in both estates on dev, refer once each way, and write in QUEUE.md exactly what each screen showed (admin Agencies, admin Rightmove page, Frost's login, Rightmove's login), as a checklist I can repeat. Steps 1 and 2 and the rules are unchanged.
+
+- **Phases 3 and 4 above are dead.** No `agency_routes` table, no shared
+  record, no join. The model is the one the database already has:
+  `agencies.partner_id` IS the estate, and two estates means two rows.
+- That makes most of phase 3 a DELETION job rather than a build: find and
+  remove the places that assume an agency exists once across routes. The
+  `AgreementView.volumes` comment ("an agency exists once and is never
+  duplicated per supplier, so an agency under two suppliers is one party
+  with two counters") is the first of them, and the cross-estate
+  duplicate-name warning is the second.
+- The checklist Matt wants at the end is a test fixture plus four
+  screenshots described in words. It goes in this file.
 
 ### For Matt in the morning
 
