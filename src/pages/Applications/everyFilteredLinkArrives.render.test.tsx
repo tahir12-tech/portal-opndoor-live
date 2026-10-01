@@ -22,6 +22,7 @@
  * URL.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import { StrictMode } from 'react';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -66,9 +67,20 @@ const LINKS = [...new Set(
 async function open(url: string) {
   localStorage.setItem('grp_role', 'superadmin');
   const view = render(
-    <MemoryRouter initialEntries={[url]}>
-      <SessionProvider><ToastProvider><PageMetaProvider><Applications /></PageMetaProvider></ToastProvider></SessionProvider>
-    </MemoryRouter>,
+    /* INSIDE StrictMode, as src/main.tsx renders the app, and this file
+       is the reason that matters. It passed for a fortnight while
+       ?route=Direct was broken in the browser on every mount, because
+       React 18 only double-invokes effects under StrictMode and this
+       harness did not use it: the reset effect's `useRef(true)` guard
+       was spent by the first invocation and the second threw the filter
+       away. A render harness that does not render the app the way the
+       app is rendered can only prove things about a program nobody runs.
+       See aDeepLinkSurvivesStrictMode.test.tsx. */
+    <StrictMode>
+      <MemoryRouter initialEntries={[url]}>
+        <SessionProvider><ToastProvider><PageMetaProvider><Applications /></PageMetaProvider></ToastProvider></SessionProvider>
+      </MemoryRouter>
+    </StrictMode>,
   );
   await waitFor(() => { if (!document.querySelector('.ftabs')) throw new Error('page did not draw'); });
   await act(async () => {});

@@ -26,6 +26,7 @@ import {
   collateTenancies, groupTenancies, pageWithoutSplitting, scopedSummaries, tenancyDeedTally, tenancyPaidTally,
   originOf, originOptions, originToFilter, originFromParams, ORIGIN_KIND_LABEL,
 } from '@/data';
+import type { Role } from '@/data/types';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -158,13 +159,29 @@ export function Applications() {
   const [period, setPeriod] = useState<Period>(() => periods.find((p) => p.id === 'alltime') || periods[periods.length - 1]);
   const range = useMemo(() => periodRange(period), [period]);
 
-  // Reset origin/agency/branch/referrer when the role changes (partner isolation), skipping first run.
-  const firstRole = useRef(true);
+  /* Reset origin/agency/branch/referrer when the role CHANGES (partner
+     isolation): a seat that swaps role must not keep the last one's filters.
+
+     THE GUARD IS THE ROLE ITSELF, NOT A COUNT OF RUNS, and that is the whole
+     of bug `?route=Direct is ignored`. It was `useRef(true)` with "skip the
+     first run", which is invalid under StrictMode: React 18 double-invokes
+     every effect on mount -- run, clean up, run again -- with the component
+     instance and its refs PRESERVED. So the first invocation spent the guard
+     and the second did the reset, wiping the origin the arrival effect above
+     had just taken out of ?route=Direct. src/main.tsx wraps the app in
+     StrictMode, so this happened on every mount of this page in dev: the box
+     read Everything and the list showed the whole book, exactly as reported.
+
+     Comparing the VALUE is idempotent, so running twice does what running
+     once does. A real role change still clears, which is what the effect is
+     for; being invoked again with the same role does nothing. */
+  const actedOnRole = useRef<Role | null>(null);
   useEffect(() => {
-    if (firstRole.current) {
-      firstRole.current = false;
+    if (actedOnRole.current === null || actedOnRole.current === role) {
+      actedOnRole.current = role;
       return;
     }
+    actedOnRole.current = role;
     setOrigin('');
     setAgency('');
     setBranch('');
