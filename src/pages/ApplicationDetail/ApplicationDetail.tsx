@@ -1864,7 +1864,17 @@ export function ApplicationDetail() {
               <div className="gsum__row"><span className="k">Issue date</span><span className="v">{gsumIssue}</span></div>
               <div className="gsum__row"><span className="k">Expiry date</span><span className="v">{gsumExpiry}</span></div>
               <div className="gsum__row"><span className="k">Guarantee period</span><span className="v">12 months</span></div>
-              <div className="gsum__row"><span className="k">Guaranteed annual rent</span><span className="v">{d.annual}</span></div>
+              {/* NOTHING IS GUARANTEED UNTIL THE DEED IS. Matt, 2026-10-01:
+                  "before the deed is issued, label the rent figure 'Rent to
+                  be guaranteed' instead of 'Guaranteed annual rent'." The
+                  figure is the same number throughout; what changes is
+                  whether anybody has guaranteed it yet, and the deed is that
+                  moment -- not the payment and not the signature, both of
+                  which happen while the answer is still "nobody has". */}
+              <div className="gsum__row">
+                <span className="k">{isDeed ? 'Guaranteed annual rent' : 'Rent to be guaranteed'}</span>
+                <span className="v">{d.annual}</span>
+              </div>
             </CardBody>
           </Card>
 
