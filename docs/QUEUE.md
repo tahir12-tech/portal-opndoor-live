@@ -11,7 +11,15 @@
    uploaded files were the same policy one table over, and the signed-URL
    endpoint treats the caller's read as the authorisation, so the agency
    could download their bank statements. Both closed.
-3. September £0 commission, and £0 guaranteed rent
+3. September £0 commission, and £0 guaranteed rent **done** (`5223a95`).
+   Both structural. The trend read the PARTNER cut, which is zero for every
+   agency because they all share the house partner; it now reads the
+   agency-side lines from `payeesFor`, whose frozen amounts are the
+   statement's own figures (Regent's five September lines sum to £1,601.54,
+   Matt's figure). The guaranteed total asked `inForceDuring`, and all four
+   of Regent's executed deeds are for tenancies starting next month; the
+   tile now counts what the book HOLDS and names the part not yet started.
+   The bordereau's rule is untouched.
 4. barb@barb.com's invite name
 5. The deed emailed to the agent twice on GR-20846
 6. Everything else, in the order sent
