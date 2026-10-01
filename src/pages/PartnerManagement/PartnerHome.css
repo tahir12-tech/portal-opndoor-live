@@ -26,6 +26,19 @@
 .ph-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
 .ph-grid > * { min-width: 0; }
 
+/* =====================================================================
+   THE COMMISSION TAB IS ONE COLUMN, and it is the only tab that is.
+   Matt, 2026-10-01, numbered the page: who opndoor pays, then what the
+   supplier gets, then what the agencies get, then the agencies on
+   different terms, then the worked example. Two columns deal those out
+   left-right-left and the numbered order is gone -- and because a grid
+   row stretches its cells, the one-sentence card beside the tall
+   question stretched into a tall empty box. Seen in the browser; a
+   render test asserting the text is present passes either way.
+   ===================================================================== */
+.ph-grid--one { grid-template-columns: 1fr; }
+.ph-grid--one > * { grid-column: 1 / -1; }
+
 /* commission */
 .ph-rates { display: flex; gap: 14px; }
 .ph-rate { flex: 1; background: var(--white-lilac); border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px 16px; }

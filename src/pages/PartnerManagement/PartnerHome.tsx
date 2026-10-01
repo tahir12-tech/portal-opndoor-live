@@ -392,7 +392,7 @@ export function PartnerHome() {
       )}
 
       {tab === 'commission' && (
-      <div className="ph-grid">
+      <div className="ph-grid ph-grid--one">
         {/* ONE WAY TO SET COMMISSION, AND THIS IS IT.
 
             Matt, 2026-10-01: "Supplier Commission tab: one way to set
