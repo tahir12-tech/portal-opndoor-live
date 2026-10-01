@@ -195,6 +195,14 @@ one the product ships -- which is exactly what the setting was built
 for, and is why the handover check tells Balal to look at the value on
 live rather than trust the default.
 
+## AGENCY APPLICATIONS: WHO REFERRED IT (instruction, 2026-10-01, verbatim). todo.
+
+> Agency Applications: add a "Referred by" column for Directors and Managers.
+
+- A Negotiator sees only their own referrals, so the column would be
+  their own name on every row -- which is the test `viewerShape`
+  already applies to the Agency and Branch columns on that page.
+
 ## AN AGENCY DIRECTOR'S REPORTING, SIX THINGS (instruction, 2026-10-01, verbatim). todo.
 
 > Agency Director's Reporting (signed in as a Regent Director):
