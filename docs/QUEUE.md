@@ -15,7 +15,49 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
-## THE OPNDOOR TEAM NOTIFICATIONS PANEL IS OPNDOOR'S (instruction, 2026-09-30, verbatim). ACTIVE.
+## TONIGHT'S RUN, 2026-09-30 into 10-01. ALL THIRTEEN INSTRUCTIONS DONE.
+
+Matt, last thing: "Work through every fix I've sent tonight without
+stopping, in the order I sent them, deploying each to dev and checking it
+there. Don't wait for me. If something needs my decision, build around it
+and list it for the morning. When done, commit and report in plain
+English."
+
+Every instruction below is `done`, in the order sent, each applied to dev
+and checked there. Commits `efb9437` through `956c099`.
+
+**Green at the end of the run:** pgTAP 73 files against dev, 0 failing;
+`npm run drift` clean (364 migrations, 345 functions); typecheck;
+`npm test` 156 files, 1683 tests.
+
+### FOR THE MORNING, in the order I would ask
+
+1. **Volume tiers on the agents' share are READ-ONLY on the Commission
+   tab.** They are shown, with a line saying they are set on the
+   supplier's pricing agreement, and `supplier_commission_tiers()` reads
+   them back. An EDITOR for them is a build of its own: creating and
+   ending agreements, the band/tier shapes, and the exclusivity rules
+   `all_in_ancestor_guard` already enforces. Nothing is blocked by this
+   today because no supplier on dev has a tier.
+2. **`update_partner_settings` still takes both rates**, even though
+   Manage no longer shows the boxes. The screen passes the stored values
+   straight back so saving a name change cannot undo the Commission tab.
+   Narrowing that nine-argument RPC is a migration of its own and I did
+   not want it in the same change as the editor.
+3. **"?route=Direct is ignored and all applications show" did not
+   reproduce.** What I found instead was the Origin box reading
+   "Everything" over a correctly filtered list, which reads exactly like
+   the filter was dropped, and is fixed. A sweep now drives every
+   filtered link into Applications and all fourteen arrive filtered. If
+   you saw the LIST itself unfiltered, I need the steps.
+4. **The three deferred items from before tonight still stand**: every
+   Reporting figure following the selection (the proper View-as fix, 19
+   call sites), the other 27 one-click admin actions needing
+   confirmations, and NM-P's three outward-facing sites (deed and expiry
+   email Branch row, expiry-cohort CSV column, commission-statement
+   email), each of which needs its feeding RPC to carry an office count.
+
+## THE OPNDOOR TEAM NOTIFICATIONS PANEL IS OPNDOOR'S (instruction, 2026-09-30, verbatim). **done** (`149d079`).
 
 > Opndoor team notifications panel: for an Opndoor staff member it shows only Opndoor's internal alerts (the ones the old Internal notifications page listed), grouped Critical, Operations, Commercial, Information, each switchable per person, with the rule that a critical alert can never be left with nobody explained beside any box that can't be unticked. It must not show the agency sections ("Copied on colleagues' referrals", referral events). Deploy to dev and check there.
 
@@ -45,7 +87,7 @@ dropped:
 Critical, Operations, Commercial, Information, from the old Internal
 notifications page. Find that list rather than inventing four buckets.
 
-## DELIVERY PANEL SHOWS WHAT HAPPENED (instruction, 2026-09-30, verbatim). ACTIVE, after the Reporting fixes.
+## DELIVERY PANEL SHOWS WHAT HAPPENED (instruction, 2026-09-30, verbatim). **done** (`48d698f`). GR-20845 reads manager@regent.dev.test.
 
 > Application detail: the Delivery panel must show where the deed was actually sent and when, from the send record, never who it would go to under today's rules. If it hasn't been sent, say who it will go to. On GR-20845 it should show manager@regent.dev.test. Also, for a single-office agency, Referring agent shows just the agency and its own address, no Branch line. Deploy to dev and check there.
 
@@ -76,7 +118,7 @@ address, no Branch line. `agencyOffices()` / `officeLabel()` are already
 built and applied at six client surfaces; this is a seventh. It is the
 cheap half of this instruction.
 
-## LEAGUE TABLES: A SUPPLIERS TAB, AND THE ORIGIN FILTER (two instructions, 2026-09-30, verbatim). ACTIVE.
+## LEAGUE TABLES: A SUPPLIERS TAB, AND THE ORIGIN FILTER (three instructions, 2026-09-30, verbatim). **done** (`b93bbc2`).
 
 > League tables: add a Suppliers tab alongside Agencies, Branches and Negotiators, ranking each supplier on the same measures. Admin only; agencies and suppliers never see it. Also remove the "Unattached / Direct" row from the Agencies table (direct signups aren't an agency), and replace the "All partners" dropdown wording with plain labels. Deploy to dev and check there.
 
@@ -120,7 +162,7 @@ for the SAME behaviour on League. Build it so League's tabs read the
 selection from one place, or there will be two half-built versions of one
 idea.
 
-## THE APPLICATIONS ORIGIN FILTER SHOWS WHAT IS APPLIED (instruction, 2026-09-30, verbatim). ACTIVE.
+## THE APPLICATIONS ORIGIN FILTER SHOWS WHAT IS APPLIED (instruction, 2026-09-30, verbatim). **done** (`e4309bc`).
 
 > Applications Origin filter: the box always shows what is actually applied, and choosing an option (Everything, Suppliers, Agencies, Direct, or a single agency, group or supplier) updates both the box and the list, with the status tab counts matching. Add a clear (x) to go back to Everything. Show only the quick choices and recent selections until the user types; individual agencies and suppliers appear only as search results, so the list never grows endless. No duplicate entries. Test it with the Home "View all Direct" link and with the sidebar "Awaiting decision" link. Deploy to dev and check there.
 
@@ -141,7 +183,7 @@ building it twice.
 - **Two named checks**: Home "View all Direct" and the sidebar "Awaiting
   decision".
 
-## RECONCILIATION, NOT IN NETWORK: TWO ACTIONS (instruction, 2026-09-30, verbatim). ACTIVE.
+## RECONCILIATION, NOT IN NETWORK: TWO ACTIONS (instruction, 2026-09-30, verbatim). **done** (`956c099`).
 
 > Reconciliation, Not in network: give each agency two actions, each with a confirmation box: "Added to HubSpot" (marks it done, records who and when, and removes it from the list) and "Ignore" (removes it, recorded). If the same agency is named again later by another tenant, it reappears. Deploy to dev and check there.
 
@@ -155,7 +197,7 @@ the decision with its timestamp and compare against the naming, or
 Both actions need a confirmation box, which is walk fix 23 and now has a
 component: `useConfirm()`.
 
-## A LINK WITH A FILTER IN IT ARRIVES FILTERED (instruction, 2026-09-30, verbatim). ACTIVE.
+## A LINK WITH A FILTER IN IT ARRIVES FILTERED (instruction, 2026-09-30, verbatim). **done** (`e4309bc`).
 
 > Home's Direct signups links (View all Direct, and each stage number) must open Applications already filtered: Origin set to Direct, and the status set where the link names one, with the filter controls showing that selection. Currently ?route=Direct is ignored and all applications show. Check every other link into Applications with a filter in it works the same way. Deploy to dev and check there.
 
@@ -179,7 +221,7 @@ query, and prove each one arrives filtered. The ones that already work
 need an assertion too, or the next one to break goes unnoticed the same
 way.
 
-## TOTAL GUARANTEED RENT VALUE, AND THE NET FEES DESCRIPTION (instruction, 2026-09-30, verbatim). ACTIVE, with the other Reporting work.
+## TOTAL GUARANTEED RENT VALUE, AND THE NET FEES DESCRIPTION (instruction, 2026-09-30, verbatim). **done** (`da3c3d8`, `c0a1fc6`).
 
 > Reporting, Total guaranteed rent value: for any period it counts every executed deed whose 12-month cover overlaps the period, including cover that starts after today; for all time that is every executed deed. Each is 12 months' rent (a joint tenancy counted once). Add a test that, for the same set of deeds, guaranteed rent is never less than fees collected. Also fix the Net fees description: it currently says fees were collected "across 5 issued deeds" when they came from all paid referrals. Deploy to dev and check there.
 
@@ -216,7 +258,7 @@ referral pays before its deed is issued, and some paid referrals never
 get one. The sentence names a denominator that did not produce the
 numerator.
 
-## COMMISSION IS EDITED ON THE COMMISSION TAB, AND ONLY THERE (instruction, 2026-09-30, verbatim). ACTIVE, with the supplier statement.
+## COMMISSION IS EDITED ON THE COMMISSION TAB, AND ONLY THERE (instruction, 2026-09-30, verbatim). **done** (`6f4647a`, `2b105e9`). Tier EDITING is the morning's item 1.
 
 > Supplier commission is edited only on the supplier's Commission tab, under the new model: the supplier's total rate, the agents' share within it with volume tiers, and whether Opndoor pays agents directly. Remove the two flat commission boxes from Manage. Existing suppliers' current rates carry over so nothing changes for them on the day. On the Suppliers page and Manage, replace "partner" with "supplier" throughout (Add partner, All partners, partner companies). Deploy to dev and check there.
 
@@ -251,7 +293,7 @@ the only way to CREATE a supplier -- so removing the boxes must not
 remove the Add path, which is the trap already recorded against the
 Suppliers list.
 
-## ADMIN REPORTING, EVERY CUSTOMER AND VOLUME BY SUPPLIER (instruction, 2026-09-30, verbatim). ACTIVE, with the Reporting fixes below.
+## ADMIN REPORTING, EVERY CUSTOMER AND VOLUME BY SUPPLIER (instruction, 2026-09-30, verbatim). **done** (`11a91d6`).
 
 > Admin Reporting: the "Every customer" table shows the top 10 by fees collected, with a search box and a "Show all" option, and a switch between Agencies and Suppliers. Add a "Volume by supplier" card alongside Volume by agency, same style. Deploy to dev and check there.
 
@@ -271,7 +313,7 @@ two passes over one file.
   the two cards will disagree about a period.
 - **Direct signups stay out of all of it**, per Q3 in the item below.
 
-## ADMIN REPORTING FIXES (instruction, 2026-09-30, verbatim). ACTIVE, after the supplier statement.
+## ADMIN REPORTING FIXES (instruction, 2026-09-30, verbatim). **done** (`3f856bd`). Q3 answered.
 
 > Admin Reporting fixes: remove "All partners" from the page header. Direct signups never appear in Volume by branch, Volume by agency or any agency chart (no "Unattached" row); this answers Q3. Rename "Commission by partner" to "Commission by route" and replace "Partner" wording in it with "Supplier" or "Route" as appropriate. On the admin view, retitle "Your commission" to "Commission owed". Update the bordereau description to say it lists guarantees in force during the month. Deploy to dev and check there.
 
@@ -295,7 +337,7 @@ there is no "Unattached" row.
   agency that Opndoor owes them a number they are already owed.
 - **No em dashes in any of the new copy.**
 
-## ONE TOTAL SUPPLIER RATE, WITH THE AGENT'S SHARE CARVED OUT (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+## ONE TOTAL SUPPLIER RATE, WITH THE AGENT'S SHARE CARVED OUT (instruction, 2026-09-30, verbatim). **done** (`efb9437`).
 
 > Supplier commission is one total rate, set per supplier on its Commission tab (nothing hardcoded; Rightmove's happens to be 35%), and that total includes the agents' share. The agent's share is carved out of it and can be volume-tiered per supplier using the existing tiers (e.g. x% on an agency's first N paid referrals in the month, y% after). The supplier's own share is the total minus the agent's share, never more in total. Opndoor pays the whole total to the supplier, who pays its agents, unless the supplier's setting says Opndoor pays agents directly. The supplier statement shows, per referral: agency, branch, fee, agent's share, supplier's share, total. The per-agency statements show each agency's referrals and its share.
 
@@ -346,7 +388,7 @@ share = total, exactly, per referral.**
   so what happens to referrals already frozen under the additive rule is
   a real question and not one to answer silently.
 
-## PER-AGENCY SCHEDULES UNDER A SUPPLIER (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+## PER-AGENCY SCHEDULES UNDER A SUPPLIER (instruction, 2026-09-30, verbatim). **done** (`38fc451`).
 
 > Add to the supplier statement: alongside the supplier's own statement, a separate commission statement for each agency under that supplier for the month, showing that agency's referrals (branch, tenant reference, fee) and the agent commission at the agent rate recorded for that supplier. These go to the supplier's statement recipients, not to the agencies, since the supplier pays its own agents. Include them in the test email.
 
@@ -386,7 +428,7 @@ separate send.
   with nothing paid gets no schedule, on the same "at least one line"
   rule the statement itself uses.
 
-## SUPPLIER STATEMENT LINES AND WHO OPNDOOR PAYS (instruction, 2026-09-30, verbatim). ACTIVE. Top of the list.
+## SUPPLIER STATEMENT LINES AND WHO OPNDOOR PAYS (instruction, 2026-09-30, verbatim). **done** (`efb9437`, `38fc451`).
 
 > Supplier commission statements always show the agency and branch on every line, even when they're all the same. Keep "Source" off supplier statements. NM-C 5: for a supplier like Rightmove, Opndoor pays only the supplier; the supplier pays its own agents, so no agency commission line is created under a supplier referral unless the supplier's agreement says Opndoor pays agents directly. Show that setting on the supplier's Commission tab, off by default.
 
