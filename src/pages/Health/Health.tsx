@@ -32,6 +32,7 @@ import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Card, CardHead } from '@/components/ui/Card';
+import { InvoiceEmailCard } from './InvoiceEmailCard';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 import '@/components/ui/opbar.css';
@@ -121,6 +122,11 @@ export function Health() {
   // #108 A visible "snapshot" time so Refresh has an observable effect even when the
   // underlying cron figures are unchanged.
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+  /* UNDEFINED UNTIL THE CARD HAS READ IT, and the warning tests for
+     `=== false` rather than falsiness: a page that flashed "the invoice
+     email is not set" for the half second before the read came back
+     would be the most alarming thing on the screen and wrong. */
+  const [invoiceSet, setInvoiceSet] = useState<boolean | undefined>(undefined);
 
   const reload = useCallback(async () => {
     if (!SUPABASE_ENABLED) { setLoading(false); return; }
@@ -225,6 +231,36 @@ export function Health() {
         </div>
       )}
 
+      {/* THE OTHER STATE THIS PAGE MUST NOT BE QUIET ABOUT, and it is the
+          same shape as the one above: a thing that is unset, a scheduled
+          job that therefore does nothing, and no other screen that would
+          say so. Matt, 2026-10-01: "Until it's set, don't send
+          statements; show a clear warning on Home and Health saying the
+          invoice email needs setting."
+
+          "No warning needed while it's set", from his second message, is
+          why this is conditional rather than a standing note: the setting
+          is seeded with accounts@opndoor.co, so on a healthy estate this
+          block never renders. */}
+      {invoiceSet === false && (
+        <div className="halert" role="alert">
+          <Icon name="alert" />
+          <div>
+            <div className="halert__title">
+              The invoice email is not set, so no commission statement can be posted
+            </div>
+            <div className="halert__sub">
+              Every statement tells the payee where to send their invoice. With no address the
+              monthly run refuses rather than sending a statement that cannot say where to
+              invoice, so nothing goes out to any agency or supplier.
+              <br />
+              <b>What to do:</b> set it under <b>Settings</b> below, then re-run the statement
+              job in test mode and confirm it reports payees rather than skipping.
+            </div>
+          </div>
+        </div>
+      )}
+
       {showAlert && (
         <div className="halert" role="alert">
           <Icon name="alert" />
@@ -237,6 +273,8 @@ export function Health() {
           </div>
         </div>
       )}
+
+      <InvoiceEmailCard onChanged={setInvoiceSet} />
 
       <Card style={{ marginBottom: 18 }}>
         <CardHead title="Scheduled jobs" sub="The last run of each cron, and the real HTTP status of its call." />

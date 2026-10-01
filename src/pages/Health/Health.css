@@ -172,3 +172,13 @@ details.hresp-group > summary::-webkit-details-marker { display: none; }
 .hstat__card--link:hover { border-color: var(--heliotrope-deep); }
 /* Off on purpose reads as a state, not as a failure. */
 .hresp__off { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-mute); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+
+/* THE INVOICE ADDRESS SETTING. One field, its Save, and the sentence it
+   fills in on every commission statement. Scoped rather than reusing
+   .sr-add from PartnerHome: that file is a partner page's stylesheet and
+   Health has no business importing it. */
+.ie-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+.ie-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+.ie-row input { flex: 0 1 320px; min-width: 0; }
+.ie-note { font-size: 12.5px; line-height: 1.6; margin: 10px 0 0; }
+.ie-by { font-size: 12px; margin: 6px 0 0; }

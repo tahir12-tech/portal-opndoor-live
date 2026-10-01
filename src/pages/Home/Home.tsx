@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import {
   awaitingDecisionCount, reconciliationPendingCount, loadAgencyMatchQueue, countByStatus,
-  getApplications, ALL_PARTNERS,
+  getApplications, ALL_PARTNERS, canPostStatements,
 } from '@/data';
 import { channelOf, ROUTE_LABEL, type Channel } from '@/data/channel';
 import { getPartner } from '@/data/partnersService';
@@ -38,6 +38,30 @@ export function Home() {
   const awaiting = awaitingDecisionCount();
   const recon = reconciliationPendingCount();
   const deliveryFailed = countByStatus(scopeOpts).deliveryFailed;
+
+  /* THE INVOICE ADDRESS, and whether a statement could be posted at all.
+     Matt, 2026-10-01: "Until it's set, don't send statements; show a
+     clear warning on Home and Health saying the invoice email needs
+     setting." His second message added the seeded default and "no
+     warning needed while it's set", so on a healthy estate this is true
+     and nothing renders.
+
+     ASKED THROUGH statements_can_be_posted(), not by reading
+     app_settings: that table is readable only by an admin at aal2, so a
+     direct read would answer "empty" for everyone else and put a warning
+     about Opndoor's own finance inbox on a page an agency manager reads.
+     The gate below is `isOpndoorStaff`, which is who can act on it. */
+  const [canPost, setCanPost] = useState<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (!isOpndoorStaff) { setCanPost(undefined); return; }
+    let cancelled = false;
+    void canPostStatements()
+      .then((ok) => { if (!cancelled) setCanPost(ok); })
+      // A failed read is not an unset setting: say nothing rather than
+      // raise an alarm about a question we could not ask.
+      .catch(() => { if (!cancelled) setCanPost(undefined); });
+    return () => { cancelled = true; };
+  }, [dataVersion, isOpndoorStaff]);
 
   // The direct-match backlog is an async, superadmin-scoped RPC (see Sidebar).
   const [matches, setMatches] = useState(0);
@@ -115,6 +139,22 @@ export function Home() {
           <p className="page-head__sub">Across every route. Settlements and the bordereau are on Reporting.</p>
         </div>
       </div>
+
+      {/* NOTHING CAN BE POSTED AT ALL, which outranks every queue below it:
+          the tiles say what needs a person today, and this says the
+          monthly run will do nothing on the 1st. Linked to where the
+          setting lives rather than described, so it is one click to fix. */}
+      {canPost === false && (
+        <Link to="/health" className="home-stop" role="alert">
+          <Icon name="alert" />
+          <span>
+            <b>The invoice email is not set, so no commission statement can be posted.</b>{' '}
+            Every statement tells the payee where to send their invoice, and the monthly run
+            refuses rather than sending one that cannot. Set it on Health, under Settings.
+          </span>
+          <Icon name="arrowRight" size={13} />
+        </Link>
+      )}
 
       <div className="home-queues">
         {/* A QUEUE WITH NOTHING IN IT IS DONE, not a link. It rendered as a

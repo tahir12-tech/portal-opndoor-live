@@ -78,3 +78,16 @@
   font-size: 11.5px; font-weight: 600; color: var(--ink-mute);
 }
 .home-q--empty { cursor: default; }
+
+/* THE ONE THING THAT OUTRANKS THE QUEUES. Not a tile: a tile says how much
+   work is waiting, and this says a scheduled job will do nothing at all.
+   Danger colours, full width, and the whole band is the link. */
+.home-stop {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 0 0 16px; padding: 12px 14px; border-radius: 10px;
+  background: var(--danger-bg); color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 24%, transparent);
+  font-size: 13px; line-height: 1.6; text-decoration: none;
+}
+.home-stop:hover { background: color-mix(in srgb, var(--danger) 12%, var(--danger-bg)); }
+.home-stop span { flex: 1 1 auto; }
