@@ -27,7 +27,10 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader) return json({ ok: false, error: "Not authenticated." }, 401);
 
-    const { ref, recipientEmail, saveContact } = await req.json();
+    /* `resend` is the caller saying they have read when this deed last went
+       and mean to send it again. The RPC refuses a second send without it:
+       one delivery per signed deed, and a resend is a decision. */
+    const { ref, recipientEmail, saveContact, resend } = await req.json();
     if (!ref) return json({ ok: false, error: "Missing application reference." }, 400);
 
     const userClient = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
@@ -45,6 +48,7 @@ Deno.serve(async (req) => {
       p_app: app.id,
       p_recipient_email: recipientEmail ?? null,
       p_save_contact: saveContact ?? false,
+      p_resend: resend === true,
     });
     if (rpcErr) return json({ ok: false, error: rpcErr.message }, 400);
     const sentTo = resolved?.sent_to as string | undefined;
@@ -100,8 +104,13 @@ Deno.serve(async (req) => {
     // actually went, the question asked far more often than why it did not,
     // and clears awaiting_staff_send itself, which is why the update below is
     // gone rather than kept alongside it.
+    const everyone = [sentTo, ...(((resolved?.recipients as string[] | undefined) ?? [])
+      .filter((e) => e !== sentTo))].filter(Boolean);
     await service.rpc("record_delivery_attempt", {
       p_app: app.id, p_ok: out.ok, p_to: sentTo,
+      // EVERYONE THE EMAIL ADDRESSED, not just the first of them: the deed
+      // goes to the referrer and their copies in one message.
+      p_recipients: everyone.join(", "),
       // The rung is only knowable here when the sender overrode it. Null leaves
       // whatever the automatic path last recorded, rather than inventing a rung.
       p_source: recipientEmail ? "explicit" : null,

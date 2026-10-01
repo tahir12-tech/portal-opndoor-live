@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       }
 
       const { data: app, error: appErr } = await service.from("applications")
-        .select("id, guarantee_ref, branch_id, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, tenancy_start, livemode, agency:agencies(name)")
+        .select("id, guarantee_ref, branch_id, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, tenancy_start, livemode, deed_delivered_at, deed_delivered_to, agency:agencies(name)")
         .eq("pandadoc_document_id", docId).maybeSingle();
       /* "COULD NOT LOOK IT UP" IS NOT "IT IS NOT OURS", and conflating the two
          loses signed deeds. The error was discarded, so a transient read failure
@@ -310,6 +310,21 @@ Deno.serve(async (req) => {
               p_type: "deed_delivery_target_unreadable",
               p_detail: `Application ${app.id} (${app.guarantee_ref}): the deed is executed but deed_delivery_target failed (${targetErr.message}), so it could not be delivered and is queued for a staff send.`,
             }).then(() => {}, () => {});
+          } else if (deliverable && mayEmail && app.deed_delivered_at) {
+            /* ALREADY DELIVERED, SO NOT AGAIN. Matt, 2026-10-01: "one
+               delivery per signed deed unless someone presses Resend."
+
+               PandaDoc can redeliver a completion, and the dedup row only
+               covers the webhook's own retries of the same delivery id. A
+               second copy of a deed somebody already has is not harmless:
+               it is the agency wondering which one is current. A person
+               can still resend from the screen, which says so. */
+            await service.from("activity_log").insert({
+              application_id: app.id,
+              kind: "deed_delivered",
+              message: `Completion replayed; the signed deed already went to ${app.deed_delivered_to ?? "the agent"}, so it was not sent again.`,
+              actor: "System", visibility: "internal",
+            });
           } else if (deliverable && mayEmail) {
             const agencyName = (Array.isArray(app.agency) ? app.agency[0]?.name : (app.agency as { name?: string } | null)?.name) ?? "";
             const sent = await deliverDeedToAgent(service, {
@@ -339,6 +354,9 @@ Deno.serve(async (req) => {
             // and who can press Resend, so it is written down as a failure here.
             await service.rpc("record_delivery_attempt", {
               p_app: app.id, p_ok: sent.ok, p_to: dest.email,
+              // Everyone the one email addressed, which is what the panel
+              // shows under "Sent to".
+              p_recipients: [dest.email, ...alsoTo].filter(Boolean).join(", "),
               p_source: dest.source ?? null,
               p_reason: sent.ok ? null : (sent.error ?? "The email provider refused the send."),
             }).then(() => {}, () => {});

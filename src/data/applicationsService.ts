@@ -858,10 +858,23 @@ export async function amendTenancyStartDb(ref: string, newStart: Date, confirmRe
  * and then delivers the same branded deed email the automatic path sends on
  * execution. This is the manual / recovery-resend path. No-op in mock mode.
  */
-export async function sendDeedToAgent(ref: string, recipientEmail?: string, saveContact?: boolean): Promise<{ sentTo?: string }> {
+/**
+ * Send the signed deed to the agent.
+ *
+ * `resend` is the caller saying they have read when it last went and mean to
+ * send it again. Without it the server refuses a second send to the resolved
+ * contact: one delivery per signed deed, which is the rule a duplicate on
+ * GR-20846 was written against (20261007320000).
+ */
+export async function sendDeedToAgent(
+  ref: string, recipientEmail?: string, saveContact?: boolean, resend?: boolean,
+): Promise<{ sentTo?: string }> {
   if (!SUPABASE_ENABLED) return {};
   const { data, error } = await sb().functions.invoke('send-deed-to-agent', {
-    body: { ref, recipientEmail: recipientEmail ?? null, saveContact: saveContact ?? false },
+    body: {
+      ref, recipientEmail: recipientEmail ?? null,
+      saveContact: saveContact ?? false, resend: resend === true,
+    },
   });
   if (error) {
     let msg = error.message as string;

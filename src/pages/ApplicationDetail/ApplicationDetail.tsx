@@ -36,6 +36,7 @@ import { showsOffices, officeLabel, isPlaceholderOrg } from '@/data/agencyOffice
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedCardState, deedDownloadUrl, deedIsOverdue, mayGenerateDeed, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import { isOpndoorStaff } from '@/data/types';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { maySeeDeliveryState, type DeliveryState } from '@/data/deliveryState';
@@ -116,9 +117,15 @@ interface DeliveryInfo {
   attemptedSource: string | null;
   failedAt: string | null;
   reason: string | null;
+  /** When the deed went to the TENANT to be signed. Not a delivery. */
   sentAt: string | null;
   /** Queued for a staff send (awaiting_staff_send). */
   held: boolean;
+  /** When the SIGNED deed was first emailed to the agent, and to whom. */
+  deliveredAt: string | null;
+  deliveredTo: string | null;
+  /** The most recent send after that one, when there has been one. */
+  resentAt: string | null;
 }
 
 /** The ladder's rungs in plain words. The column stores our internal names;
@@ -157,6 +164,9 @@ async function loadDelivery(ref: string): Promise<DeliveryInfo | null> {
     reason: str('reason'),
     sentAt: str('sent_at'),
     held: row.held === true,
+    deliveredAt: str('delivered_at'),
+    deliveredTo: str('delivered_to'),
+    resentAt: str('resent_at'),
   };
 }
 
@@ -219,6 +229,8 @@ const REASON_LABEL: Record<WithdrawReason, string> = {
 export function ApplicationDetail() {
   const { ref } = useParams();
   const { role, partnerScope, viewingAs, refresh, dataVersion } = useSession();
+  /* Used by the deed resend, which has to say what it is repeating. */
+  const { ask, confirmEl } = useConfirm();
   const toast = useToast();
   // #10 dataVersion is a memo dep so `d` recomputes after a mutation + refresh()
   // re-hydrates the working copies — the single source of truth for every surface.
@@ -602,10 +614,35 @@ export function ApplicationDetail() {
      No recipient is passed: send_deed_to_agent resolves the same target the
      automatic path does, which is the whole point of a Resend after a failure.
      Choosing a different address is the "Send deed to agent" modal's job. */
-  const doResendDelivery = async () => {
+  const doResendDelivery = async (confirmed = false) => {
+    /* A SECOND COPY IS NOT A RETRY. Matt, 2026-10-01: "one delivery per
+       signed deed unless someone presses Resend." On GR-20846 the deed went
+       automatically at 16:49 and again at 16:51, two minutes later, because
+       the panel was showing 16:45 -- the signature request -- and so looked
+       as though the delivery had not happened. The time is right now; this
+       is the other half, which says out loud what is about to be repeated.
+       The server refuses it without the flag either way. */
+    if (!confirmed && delivery?.deliveredAt) {
+      ask({
+        title: 'Send this deed again?',
+        body: (
+          <>
+            <p>
+              The signed deed already went to <b>{delivery.deliveredTo ?? delivery.attemptedTo ?? 'the agent'}</b>
+              {' '}on <b>{fmtStamp(new Date(delivery.deliveredAt))}</b>
+              {delivery.resentAt && <> and was resent on <b>{fmtStamp(new Date(delivery.resentAt))}</b></>}.
+            </p>
+            <p>They will get a second copy of the same deed.</p>
+          </>
+        ),
+        confirmLabel: 'Send it again',
+        run: () => doResendDelivery(true),
+      });
+      return;
+    }
     setDlvBusy(true);
     try {
-      const r = await sendDeedToAgent(d.ref);
+      const r = await sendDeedToAgent(d.ref, undefined, false, confirmed);
       toast(r.sentTo ? `Deed sent to ${r.sentTo}.` : 'Deed sent.');
       await reloadDelivery();
       void loadPayment();
@@ -1448,13 +1485,24 @@ export function ApplicationDetail() {
               20261005100000 writes the address down, and the three dev
               rows that predated it were recovered from the activity log
               by 20261007110000. */}
-          <div className="drow"><span className="drow__k">Sent to</span><span className="drow__v pay-mono">{delivery.attemptedTo ?? 'Not recorded'}</span></div>
+          {/* EVERYONE IT WENT TO, which is what the email addressed: the
+              referrer and their copies get one message, so naming the
+              first of four was a quarter of an answer. */}
+          <div className="drow"><span className="drow__k">Sent to</span><span className="drow__v pay-mono">{delivery.deliveredTo ?? delivery.attemptedTo ?? 'Not recorded'}</span></div>
           {/* AND THE RUNG IS THE ATTEMPT'S, or nothing. `?? delivery.source`
               was the same substitution one line down: it would explain
               where today's address comes from beside an address from
               months ago. */}
           {delivery.attemptedSource && <div className="drow"><span className="drow__k">Address from</span><span className="drow__v">{rungLabel(delivery.attemptedSource)}</span></div>}
-          <div className="drow"><span className="drow__k">Sent</span><span className="drow__v">{delivery.sentAt ? fmtStamp(new Date(delivery.sentAt)) : '-'}</span></div>
+          {/* THE SIGNED-DEED EMAIL, NOT THE SIGNATURE REQUEST. Matt,
+              2026-10-01: the panel "says the deed was sent at 16:45, before
+              the tenant signed at 16:49". It was reading deed_sent_at,
+              which is when the deed went to the TENANT to be signed, so it
+              claimed a delivery four minutes before the signature. */}
+          <div className="drow"><span className="drow__k">Sent</span><span className="drow__v">{delivery.deliveredAt ? fmtStamp(new Date(delivery.deliveredAt)) : '-'}</span></div>
+          {delivery.resentAt && (
+            <div className="drow"><span className="drow__k">Resent</span><span className="drow__v">{fmtStamp(new Date(delivery.resentAt))}</span></div>
+          )}
           {!delivery.attemptedTo && (
             <div className="pay-note">This deed was sent before we started recording the address, so we cannot say where from this screen. The activity feed below has it.</div>
           )}
@@ -2081,6 +2129,7 @@ export function ApplicationDetail() {
         )}
         <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '14px 0 0' }}>Guarantee_Deed_{d.ref}.pdf will be attached.</p>
       </Modal>
+      {confirmEl}
     </>
   );
 }
