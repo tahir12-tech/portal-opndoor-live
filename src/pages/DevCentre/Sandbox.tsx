@@ -30,6 +30,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Modal } from '@/components/ui/Modal';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
+import { plural } from '@/lib/plural';
 
 function fmtMoney(n: number | null): string {
   return n === null || n === undefined ? '-' : `£${Number(n).toLocaleString('en-GB')}`;
@@ -120,8 +121,8 @@ export function Sandbox({ partnerId, readOnly = false }: {
     try {
       const r = await purgeSandbox(partnerId);
       toast(
-        `Deleted ${r.applications} application${r.applications === 1 ? '' : 's'}, ` +
-        `${r.branches} branch${r.branches === 1 ? '' : 'es'} and ${r.agencies} agenc${r.agencies === 1 ? 'y' : 'ies'}.`,
+        `Deleted ${r.applications} ${plural(r.applications, 'application')}, ` +
+        `${r.branches} ${plural(r.branches, 'branch')} and ${r.agencies} ${plural(r.agencies, 'agency')}.`,
       );
       setPurgeOpen(false);
       await load();
@@ -328,7 +329,7 @@ export function Sandbox({ partnerId, readOnly = false }: {
             >
               {busy
                 ? 'Deleting…'
-                : `Delete ${counts?.total ?? 0} application${counts?.total === 1 ? '' : 's'}`}
+                : `Delete ${counts?.total ?? 0} ${plural(counts?.total ?? 0, 'application')}`}
             </Button>
           </>
         }
@@ -344,7 +345,7 @@ export function Sandbox({ partnerId, readOnly = false }: {
             <p>Deleting now removes:</p>
             <ul className="sbxpurge">
               <li>
-                <strong>{counts.total}</strong> sandbox application{counts.total === 1 ? '' : 's'}
+                <strong>{counts.total}</strong> sandbox {plural(counts.total, 'application')}
                 {counts.deed > 0 && (
                   <span className="soft">
                     {' '}including {counts.deed} with a deed issued

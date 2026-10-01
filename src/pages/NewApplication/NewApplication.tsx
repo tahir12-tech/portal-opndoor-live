@@ -42,6 +42,7 @@ import { useToast } from '@/components/ui/Toast';
 import { AgentBranchPicker } from '@/components/AgentBranchPicker';
 import { getPartners } from '@/data/partnersService';
 import './NewApplication.css';
+import { plural, countOf } from '@/lib/plural';
 
 const Req = () => <span className="req" aria-hidden="true">*</span>;
 
@@ -451,8 +452,8 @@ export function NewApplication() {
       if (res.tenancy?.length) {
         const sent = res.tenancy.filter((t) => t.emailSent).length;
         toast(sent === res.tenancy.length
-          ? `Tenancy created. All ${res.tenancy.length} tenants have been emailed.`
-          : `Tenancy created. ${sent} of ${res.tenancy.length} tenants were emailed${res.emailError ? ': ' + res.emailError : '.'}`);
+          ? `Tenancy created. All ${countOf(res.tenancy.length, 'tenant')} have been emailed.`
+          : `Tenancy created. ${sent} of ${countOf(res.tenancy.length, 'tenant')} were emailed${res.emailError ? ': ' + res.emailError : '.'}`);
       } else {
         toast(res.emailSent
           ? 'Application sent. The tenant payment email was delivered to the review address.'
@@ -641,7 +642,7 @@ export function NewApplication() {
             style={referredByDone ? undefined : { opacity: 0.45, pointerEvents: 'none' }}>
             <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div>
               <div className="sec__title">{joint ? 'Tenants' : 'Tenant'}</div>
-              <div className="sec__sub">{joint ? `${tenantCount} tenants on one tenancy, one guarantee` : 'The tenant being referred'}</div>
+              <div className="sec__sub">{joint ? `${countOf(tenantCount, 'tenant')} on one tenancy, one guarantee` : 'The tenant being referred'}</div>
             </div></div>
             <CardBody>
               {joint && <div className="tn-label">Tenant 1</div>}
@@ -825,7 +826,7 @@ export function NewApplication() {
                     <strong>{money(fee.feeAmount)}</strong>
                   </div>
                   <div className="feebox__basis">
-                    {feeBasisLabel(fee)}{fee.isStandard ? '' : ` · agreed terms at ${tenantCount} tenant${tenantCount === 1 ? '' : 's'}`}
+                    {feeBasisLabel(fee)}{fee.isStandard ? '' : ` · agreed terms at ${tenantCount} ${plural(tenantCount, 'tenant')}`}
                   </div>
                   {joint && (
                     <div className="feebox__rows">

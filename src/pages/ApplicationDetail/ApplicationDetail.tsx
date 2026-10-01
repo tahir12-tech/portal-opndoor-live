@@ -54,6 +54,7 @@ import { buildAgentJourney, getApplicationJourney, AGENT_JOURNEY_BANDS, type App
 import { useToast } from '@/components/ui/Toast';
 import { ROUTE_LABEL, preReferencedJourney, type Channel } from '@/data/channel';
 import './ApplicationDetail.css';
+import { countOf } from '@/lib/plural';
 
 
 
@@ -1674,7 +1675,7 @@ export function ApplicationDetail() {
               {siblings.length > 1 && tenancyGroup && (
                 <div className="jt-panel">
                   <div className="jt-panel__head">
-                    <span>Joint tenancy · {siblings.length} tenants</span>
+                    <span>Joint tenancy · {countOf(siblings.length, 'tenant')}</span>
                     <span className="jt-panel__prog">
                       <span>{tenancyProgress(tenancyGroup)}</span>
                       <span>{tenancyDeedProgress(tenancyGroup)}</span>
@@ -1706,7 +1707,7 @@ export function ApplicationDetail() {
                   })}
                   <p className="jt-panel__deed">
                     Each tenant signs their own Deed of Guarantee. It covers their share of the
-                    rent and names all {siblings.length} tenants, and it is generated as soon as
+                    rent and names all {countOf(siblings.length, 'tenant')}, and it is generated as soon as
                     that tenant has paid, so nobody waits on a co-tenant.
                   </p>
                 </div>

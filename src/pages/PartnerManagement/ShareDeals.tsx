@@ -43,6 +43,7 @@ import { Icon } from '@/components/ui/Icon';
 import { TypeAhead, highlightMatch, type TypeAheadOption } from '@/components/ui/TypeAhead';
 import { useToast } from '@/components/ui/Toast';
 import './PartnerHome.css';
+import { plural } from '@/lib/plural';
 
 export interface ShareDealAgency { id: string; name: string }
 
@@ -134,7 +135,7 @@ function DealCard({
           ) : (
             <>
               <p className="ph-note muted">
-                {onDefault.length} {onDefault.length === 1 ? 'agency' : 'agencies'}, being
+                {onDefault.length} {plural(onDefault.length, 'agency')}, being
                 everyone not named on a deal below.
               </p>
               <ul className="sd-memberlist">

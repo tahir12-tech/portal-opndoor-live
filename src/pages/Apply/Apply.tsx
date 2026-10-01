@@ -46,6 +46,7 @@ import { useTenantDocumentTitle } from '@/hooks/useDocumentTitle';
 import { formatLongDate } from '@/lib/format';
 import { Field } from '@/components/ui/Field';
 import './Apply.css';
+import { plural } from '@/lib/plural';
 
 type Tab = 'details' | 'id' | 'financials' | 'guarantee';
 type Step = 'property' | 'about' | 'fee' | 'address' | 'income' | 'nationality' | 'declaration';
@@ -643,7 +644,7 @@ export function Apply() {
     fee: 'The fee unlocks the rest of the form.',
     address: !allAddrsComplete
       ? `Finish your ${firstIncompleteAddrIdx === 0 ? 'current' : 'previous'} address: ${incompleteAddrMissing ?? 'a required field'} is still needed.`
-      : `We need three years. You have given us ${months} month${months === 1 ? '' : 's'}, so add where you lived before this one.`,
+      : `We need three years. You have given us ${months} ${plural(months, 'month')}, so add where you lived before this one.`,
     income: incomes.length === 0 || !incomes.some((i) => !i.is_additional)
       ? 'Tell us how you will be paying the rent and the amounts for your main source.'
       : incompleteIncome && !incompleteIncome.income_type
@@ -945,7 +946,7 @@ export function Apply() {
                       ? <>Finish this address first. We work out the coverage once it is complete.</>
                       : months >= REQUIRED_HISTORY_MONTHS
                         ? <>That is the full three years. Thank you.</>
-                        : <>We need three years. You have given us <strong>{months} month{months === 1 ? '' : 's'}</strong>, so add
+                        : <>We need three years. You have given us <strong>{months} {plural(months, 'month')}</strong>, so add
                            where you lived before this one.</>}
                   </p>
                 </div>

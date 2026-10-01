@@ -28,6 +28,7 @@ import type { CustomerRow } from '@/data/liveAnalytics';
 import { Card, CardHead } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import './CustomersTable.css';
+import { plural } from '@/lib/plural';
 
 /* TOP TEN, AND THE REST BEHIND A CHOICE. Matt, 2026-09-30: "the 'Every
    customer' table shows the top 10 by fees collected, with a search box
@@ -158,14 +159,14 @@ export function CustomersTable({ rows, seesCommission }: {
         ) : hidden > 0 ? (
           <>
             <span className="muted">
-              Top {shown.length} by fees collected. {hidden} more {hidden === 1 ? 'customer' : 'customers'}.
+              Top {shown.length} by fees collected. {hidden} more {plural(hidden, 'customer')}.
             </span>
             <Button variant="quiet" size="sm" onClick={() => setShowAll(true)}>Show all</Button>
           </>
         ) : (
           <span className="muted">
             {searching
-              ? `${matching.length} ${matching.length === 1 ? 'match' : 'matches'}.`
+              ? `${matching.length} ${plural(matching.length, 'match')}.`
               : `All ${matching.length}, biggest first by fees collected.`}
             {showAll && !searching && matching.length > TOP_N && (
               <> <button type="button" className="custtab__link" onClick={() => setShowAll(false)}>Show top {TOP_N}</button></>

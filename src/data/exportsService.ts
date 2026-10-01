@@ -39,6 +39,7 @@ import { liveAvailable, liveAggregate, liveVolume, liveMonths, getCommissionSett
 import type { BrandedDoc, ColType, Column, KeyValue, TableRow } from './xlsxTemplate';
 import { feeBaseFor, totalRate, linesFor, agentRailApp } from './commissionSplit';
 import { gbpPence } from '@/lib/format';
+import { plural } from '@/lib/plural';
 
 /** A named branded sheet + the download filename (the xlsx-free document spec). */
 export interface BrandedExport {
@@ -1726,7 +1727,7 @@ export async function buildCommissionStatementDoc(
          cell in a money column as £0.00 and in a percentage column as 0%, so a
          total row with nothing in those two would state a fee of nothing at a
          rate of nothing. Under the table there is no row to fill. */
-      { kind: 'keyvalue', items: [moneyKv(`Total commission (${st.lines.length} application${st.lines.length === 1 ? '' : 's'})`, st.total)] },
+      { kind: 'keyvalue', items: [moneyKv(`Total commission (${st.lines.length} ${plural(st.lines.length, 'application')})`, st.total)] },
     );
   }
   const metaLine = `${st.monthLabel} · ${st.payeeName} · Commission earned · Reference ${ref} · Generated ${generated} · GBP`;

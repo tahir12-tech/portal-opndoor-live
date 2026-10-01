@@ -32,6 +32,7 @@ import { fmtRatePct } from '@/lib/format';
    stylesheet. They were arriving only when some other route had already
    pulled AgencyHome.css in. A component imports the CSS it needs. */
 import './AgencyHome.css';
+import { plural } from '@/lib/plural';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const HOUSE = 'opndoor-agents';
@@ -108,12 +109,12 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
     if (shape === 'independent') {
       const n = drafts[0]?.name.trim() || 'a new agency';
       const bs = 1 + (drafts[0]?.extra.filter((b) => b.trim()).length ?? 0);
-      return `You're creating ${n} as an independent agency with ${bs} ${bs === 1 ? 'office' : 'offices'}. No group sits above it.`;
+      return `You're creating ${n} as an independent agency with ${bs} ${plural(bs, 'office')}. No group sits above it.`;
     }
     if (shape === 'group') {
       const n = groupName.trim() || 'a new group';
       const count = drafts.filter((d) => d.name.trim()).length;
-      return `You're creating the group ${n} with ${count} ${count === 1 ? 'agency' : 'agencies'} inside it.`;
+      return `You're creating the group ${n} with ${count} ${plural(count, 'agency')} inside it.`;
     }
     if (shape === 'join') {
       const n = drafts[0]?.name.trim() || 'a new agency';

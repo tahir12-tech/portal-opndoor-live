@@ -64,6 +64,7 @@ import { AgreementEditor, agreementSummary } from './AgreementEditor';
 import { CommissionStatement } from '@/components/CommissionStatement';
 import { showsOffices } from '@/data/agencyOffices';
 import './AgencyHome.css';
+import { plural } from '@/lib/plural';
 
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
 const STATUS_ST: Partial<Record<Status, string>> = { referencing: 'st-wait', sent: 'st-live', paid: 'st-live', deed: 'st-ok' };
@@ -972,7 +973,7 @@ export function AgencyHome() {
     }
     const pct = (r: number | null) => (r == null ? 'standard' : pctLabel(r));
     const band = (b: AgreementView['bands'][number]) =>
-      `${b.min}${b.max == null ? '+' : b.max > b.min ? `-${b.max}` : ''} tenant${b.max === 1 ? '' : 's'}`;
+      `${b.min}${b.max == null ? '+' : b.max > b.min ? `-${b.max}` : ''} ${plural(b.max ?? 0, 'tenant')}`;
     return (
       <Card>
         <CardHead
@@ -1071,7 +1072,7 @@ export function AgencyHome() {
           <CardHead
             title="Rates set"
             sub={set.length
-              ? `${set.length} ${set.length === 1 ? 'rate' : 'rates'} explicitly set`
+              ? `${set.length} ${plural(set.length, 'rate')} explicitly set`
               : negotiated
                 ? 'No explicit rate is set: this agency is priced by its agreement'
                 : 'No rate is set anywhere; every branch earns the Opndoor standard'}
@@ -1181,7 +1182,7 @@ export function AgencyHome() {
               {org.kind === 'group' && (
                 <>
                   <button className="ah-fig" onClick={() => setTab('overview')}>
-                    <b>{agencies.length}</b> {agencies.length === 1 ? 'agency' : 'agencies'}
+                    <b>{agencies.length}</b> {plural(agencies.length, 'agency')}
                   </button>
                   <span className="ah-fig-sep">·</span>
                 </>
@@ -1194,13 +1195,13 @@ export function AgencyHome() {
               {showsOffices(title) && (
                 <>
                   <button className="ah-fig" onClick={() => setTab('overview')}>
-                    <b>{branchCount}</b> {branchCount === 1 ? 'branch' : 'branches'}
+                    <b>{branchCount}</b> {plural(branchCount, 'branch')}
                   </button>
                   <span className="ah-fig-sep">·</span>
                 </>
               )}
               <button className="ah-fig" onClick={() => setTab('people')}>
-                <b>{people.total}</b> {people.total === 1 ? 'person' : 'people'}
+                <b>{people.total}</b> {plural(people.total, 'person')}
               </button>
               <span className="ah-fig-sep">·</span>
               <button className="ah-fig" onClick={() => setTab('referrals')}>
@@ -1324,8 +1325,8 @@ export function AgencyHome() {
                       )}
                       {!open && (
                         <span className="ah-node-meta">
-                          {peopleCount} {peopleCount === 1 ? 'person' : 'people'}
-                          {soleOffice ? '' : ` · ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'}`} · {agencyRefs} referrals
+                          {peopleCount} {plural(peopleCount, 'person')}
+                          {soleOffice ? '' : ` · ${branchCount} ${plural(branchCount, 'branch')}`} · {agencyRefs} referrals
                         </span>
                       )}
                     </div>
@@ -1406,7 +1407,7 @@ export function AgencyHome() {
                           <span className="ah-node-level">Branch</span>
                           {RateLine({ level: 'branch', id: b.id, name: b.name, own: b.agentRate })}
                           <span className="ah-node-meta">
-                            {bPeople.length} {bPeople.length === 1 ? 'person' : 'people'} · {b.referrals} referrals
+                            {bPeople.length} {plural(bPeople.length, 'person')} · {b.referrals} referrals
                             {recipientId ? '' : ' · no deed recipient'}
                           </span>
                         </div>

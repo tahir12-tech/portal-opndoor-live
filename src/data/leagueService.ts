@@ -28,6 +28,7 @@ import { AVG_RENT, LEAGUE_REFERRER_NAMES, convFor } from './mock/analyticsModel'
 import type { Agency, Branch } from './types';
 import { HOME_PARTNER } from './mock/partners';
 import { sb } from '@/lib/supabase';
+import { countOf } from '@/lib/plural';
 
 const DAY = 86_400_000;
 
@@ -100,7 +101,7 @@ export function getLeague(view: LeagueView, opts: LeagueOpts): LeagueRow[] {
           const fees = feesOf(a);
           const [sp, pd] = convFor('agency', a.name);
           const cv = sp * pd;
-          const sub = `${a.branches ? a.branches.length : 0} branches`;
+          const sub = countOf(a.branches ? a.branches.length : 0, 'branch');
           rows.push({ name: a.name, sub, partner: partnerName(a.partner || HOME_PARTNER), refs, fees, paid: Math.round(refs * sp), deed: Math.round(refs * cv), sp, conv: cv, partnerComm: 0, agentComm: 0, movement: mockMove(a.name) });
         } else {
           (a.branches || []).forEach((b) => {

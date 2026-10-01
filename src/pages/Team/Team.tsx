@@ -73,6 +73,7 @@ import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 import '@/pages/UserManagement/UserManagement.css';
 import './Team.css';
+import { plural, countOf } from '@/lib/plural';
 
 /* THE TWO ROLES AN AGENCY HAS. Described in the words of the business the
    reader is in, not the portal's internals: no "partner", no "estate", no
@@ -487,7 +488,7 @@ export function Team() {
   const clearFilters = () => { setFilter(NO_TEAM_FILTER); setPlace(''); };
 
   const headerName = multiAgency
-    ? (groups[0]?.name ?? `${agencies.length} agencies`)
+    ? (groups[0]?.name ?? countOf(agencies.length, 'agency'))
     : (agencies[0]?.name ?? 'Your team');
 
   /* ---- WHO RECEIVES THE MONTHLY COMMISSION STATEMENT --------------------
@@ -799,7 +800,7 @@ export function Team() {
         )}
         {filtering && (
           <div className="tm-filters__state">
-            <span className="soft">{matchCount} {matchCount === 1 ? 'person' : 'people'}</span>
+            <span className="soft">{matchCount} {plural(matchCount, 'person')}</span>
             <Button variant="quiet" size="sm" onClick={clearFilters}>Clear</Button>
           </div>
         )}

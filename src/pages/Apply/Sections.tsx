@@ -18,6 +18,7 @@ import { Icon } from '@/components/ui/Icon';
 import * as api from '@/tenant/tenantApi';
 import { REQUIRED_BANK_STATEMENTS } from '@/tenant/formSpec';
 import { RevealMissingContext } from './reveal';
+import { countOf } from '@/lib/plural';
 
 export function StepFooter({
   done, nextLabel, onNext, onBack, outstanding, isLast, busy, saveError, onBlocked,
@@ -167,7 +168,7 @@ export function FinancialsPanel({
           {connected
             ? <>Your bank is connected. Nothing else needed here.</>
             : enough
-              ? <>You have uploaded {statements.length} statements. That is the three months we need.</>
+              ? <>You have uploaded {countOf(statements.length, 'statement')}. That is the three months we need.</>
               : <>You have uploaded {statements.length} of {REQUIRED_BANK_STATEMENTS}. Add a bank statement for each of the last three months, or connect your bank when it is on.</>}
         </div>
         {statements.length > 0 && (

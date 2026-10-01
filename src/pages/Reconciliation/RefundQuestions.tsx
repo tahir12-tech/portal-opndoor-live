@@ -40,6 +40,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { Button } from '@/components/ui/Button';
 import './NotInNetwork.css';
+import { plural } from '@/lib/plural';
 
 /** The payee's kind, in the reader's words. A payee_key level is a
     machine word and "partner" in particular is the wrong one on screen:
@@ -121,7 +122,7 @@ export function RefundQuestions({ onChanged }: { onChanged?: () => void }) {
         const res = await reissueCorrectedStatement(r.id);
         await after();
         if (res.ok) {
-          toast(`Corrected statement ${res.reference} sent to ${res.recipients} recipient${res.recipients === 1 ? '' : 's'}.`);
+          toast(`Corrected statement ${res.reference} sent to ${res.recipients} ${plural(res.recipients ?? 0, 'recipient')}.`);
         } else {
           /* THE DECISION STUCK AND THE DOCUMENT DID NOT. Said plainly,
              because the half-done state is the one a person has to act

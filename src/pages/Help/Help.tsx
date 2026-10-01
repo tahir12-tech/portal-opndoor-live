@@ -20,6 +20,7 @@ import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import './Help.css';
+import { plural } from '@/lib/plural';
 
 const RES_IC: Record<string, IconName> = { doc: 'file', video: 'video', deed: 'file', users: 'users', image: 'image' };
 
@@ -469,7 +470,7 @@ export function Help() {
           <section id="faqs">
             <div className="section-title">
               <h2>Frequently asked questions</h2>
-              <span className="count">{faqs.length} {faqs.length === 1 ? 'answer' : 'answers'}</span>
+              <span className="count">{faqs.length} {plural(faqs.length, 'answer')}</span>
               {isAdmin && <Button variant="primary" size="sm" className="addbtn" onClick={() => setFaqDraft({ id: null, q: '', a: '' })}><Icon name="plus" /> Add FAQ</Button>}
             </div>
             <div>

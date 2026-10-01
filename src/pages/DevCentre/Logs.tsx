@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { PeriodSelect } from '@/components/ui/Select';
+import { plural } from '@/lib/plural';
 
 const when = (s: string) => new Date(s).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'medium' });
 
@@ -62,7 +63,7 @@ export function Logs({ partnerId }: { partnerId: string | null }) {
     <Card>
       <CardHead
         title="API requests"
-        sub={`${rows.length} request${rows.length === 1 ? '' : 's'}${loadedAt ? ` · updated ${loadedAt.toLocaleTimeString('en-GB')}` : ''}`}
+        sub={`${rows.length} ${plural(rows.length, 'request')}${loadedAt ? ` · updated ${loadedAt.toLocaleTimeString('en-GB')}` : ''}`}
         actions={
           <div className="devfilters">
             {/* The app's search pattern: .toolbar__search with a leading icon,

@@ -14,6 +14,7 @@
    ===================================================================== */
 import { SUPABASE_ENABLED, supabase } from '@/lib/supabase';
 import { NON_PRODUCTION_REFS } from '@/config/environment.generated';
+import { plural } from '@/lib/plural';
 
 function sb() {
   if (!supabase) throw new Error('Supabase is not configured.');
@@ -501,7 +502,7 @@ export function keyDeleteBlockedReason(k: DevApiKey): string | null {
 
 export function endpointDeleteBlockedReason(e: DevWebhookEndpoint): string | null {
   if (e.delivery_count > 0) {
-    return `This endpoint has ${e.delivery_count} deliver${e.delivery_count === 1 ? 'y' : 'ies'} on record, so deleting it would remove the history of what was sent and whether it arrived. Disable it instead.`;
+    return `This endpoint has ${e.delivery_count} ${plural(e.delivery_count, 'delivery')} on record, so deleting it would remove the history of what was sent and whether it arrived. Disable it instead.`;
   }
   return null;
 }

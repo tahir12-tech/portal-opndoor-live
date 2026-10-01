@@ -24,6 +24,7 @@ import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { Pager } from '@/components/ui/Pager';
 import { useToast } from '@/components/ui/Toast';
 import './Activity.css';
+import { plural, countOf } from '@/lib/plural';
 
 const FEED_PAGE_SIZE = 20;
 const dmy = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
@@ -72,7 +73,7 @@ interface FeedRow { id: string; ref: string; dot: string; text: ReactNode; meta:
 function untilText(daysUntil: number): string {
   if (daysUntil <= 0) return 'expires today';
   if (daysUntil === 1) return 'expires tomorrow';
-  return `expires in ${daysUntil} days`;
+  return `expires in ${countOf(daysUntil, 'day')}`;
 }
 
 export function Activity() {
@@ -175,7 +176,7 @@ export function Activity() {
                   <div className="lbl">Expires</div>
                   <div className="val">{dmy(e.expiry)}</div>
                 </div>
-                <div className="exp-row__reminders" title={e.remindersSent > 0 ? `${e.remindersSent} expiry reminder${e.remindersSent === 1 ? '' : 's'} sent` : 'No expiry reminders sent yet'}>
+                <div className="exp-row__reminders" title={e.remindersSent > 0 ? `${e.remindersSent} expiry ${plural(e.remindersSent, 'reminder')} sent` : 'No expiry reminders sent yet'}>
                   <Icon name="bell" strokeWidth={1.9} />
                   <span>{e.remindersSent > 0 ? `${e.remindersSent} sent` : 'None sent'}</span>
                 </div>
@@ -210,7 +211,7 @@ export function Activity() {
                   <div className="lbl">Viewed</div>
                   <div className="val">{s.viewedAt ? dmy(s.viewedAt) : 'Not viewed'}</div>
                 </div>
-                <div className="exp-row__pill"><Pill variant={s.viewedAt ? 'warn' : 'danger'}>{s.days} days waiting</Pill></div>
+                <div className="exp-row__pill"><Pill variant={s.viewedAt ? 'warn' : 'danger'}>{countOf(s.days, 'day')} waiting</Pill></div>
               </Link>
             ))}
           </CardBody>

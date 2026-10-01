@@ -37,6 +37,7 @@
    nothing is written.
    ===================================================================== */
 import type { ApplicationSummary, Status } from './types';
+import { countOf } from '@/lib/plural';
 
 /**
  * One member's deed, reduced to what a row has to print.
@@ -298,10 +299,10 @@ export function pageWithoutSplitting(
 /** A one-line summary of where the tenancy has got to, for a group heading. */
 export function tenancyProgress(g: TenancyGroup): string {
   const n = g.members.length;
-  if (g.fullyPaid) return `All ${n} tenants have paid`;
+  if (g.fullyPaid) return `All ${countOf(n, 'tenant')} have paid`;
   const paid = n - g.unpaidCount;
   if (paid === 0) return `No tenant has paid yet`;
-  return `${paid} of ${n} tenants have paid`;
+  return `${paid} of ${countOf(n, 'tenant')} have paid`;
 }
 
 /**

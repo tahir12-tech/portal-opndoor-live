@@ -37,6 +37,7 @@ import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 import '@/components/ui/opbar.css';
 import './Health.css';
+import { plural } from '@/lib/plural';
 
 /** dd/mm/yyyy HH:MM in local time; 'Never' when there is no timestamp. */
 function fmtDateTime(iso: string | null): string {
@@ -354,7 +355,7 @@ export function Health() {
           {failures.length > 0 && (
             <div className="hresp-group">
               <div className="hresp-group__head">
-                <b>{failures.length}</b> failing {failures.length === 1 ? 'response' : 'responses'} in the last 24 hours
+                <b>{failures.length}</b> failing {plural(failures.length, 'response')} in the last 24 hours
               </div>
               {failures.map((r) => <ResponseRow key={r.id} r={r} />)}
             </div>
@@ -371,7 +372,7 @@ export function Health() {
               <summary className="hresp-group__head">
                 <span className="hresp__job">{g.job ?? 'unattributed'}</span>
                 <span className="muted">
-                  {g.total} {g.total === 1 ? 'response' : 'responses'}
+                  {g.total} {plural(g.total, 'response')}
                   {g.errors > 0 && (g.disabled_here
                     ? <>, {g.errors} expected while off</>
                     : <>, <b className="hresp__errs">{g.errors} failing</b></>)}

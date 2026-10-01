@@ -17,6 +17,7 @@ import { LEAST_PRIVILEGED_ROLE,
 import type { AppRecord } from '@/data/mock/applications';
 import type { UpcomingGuaranteeSeed } from '@/data/mock/guarantees';
 import { isDirectRail, isHousePartner } from '@/data/channel';
+import { plural, countOf } from '@/lib/plural';
 
 const DAY = 86400000;
 
@@ -57,14 +58,15 @@ function relTime(ts: string | null, status: string): string {
   const diff = Date.now() - new Date(ts).getTime();
   const mins = Math.round(diff / 60000);
   if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+  if (mins < 60) return `${mins} ${plural(mins, 'minute')} ago`;
   const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+  if (hrs < 24) return `${hrs} ${plural(hrs, 'hour')} ago`;
   const days = Math.round(hrs / 24);
   if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days} days ago`;
+  // See activityService: guarded above, routed through the helper anyway.
+  if (days < 7) return `${countOf(days, 'day')} ago`;
   const wks = Math.round(days / 7);
-  return `${wks} week${wks === 1 ? '' : 's'} ago`;
+  return `${wks} ${plural(wks, 'week')} ago`;
 }
 
 function toContact(c: any): AgentContact {

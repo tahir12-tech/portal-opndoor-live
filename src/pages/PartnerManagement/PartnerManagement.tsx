@@ -26,6 +26,7 @@ import { Tag } from '@/components/ui/Tag';
 import { useToast } from '@/components/ui/Toast';
 import '@/components/ui/opbar.css';
 import './PartnerManagement.css';
+import { plural } from '@/lib/plural';
 
 const STATUS_PILL: Record<PartnerStatus, [string, PillVariant]> = {
   active: ['Active', 'deed'],
@@ -152,7 +153,7 @@ export function PartnerManagement() {
           to: apiOn
             ? 'On'
             : activeKeys > 0
-              ? `Off. ${activeKeys} active key${activeKeys === 1 ? '' : 's'} stop working immediately`
+              ? `Off. ${activeKeys} active ${plural(activeKeys, 'key')} stop working immediately`
               : 'Off',
         });
       }
@@ -205,7 +206,7 @@ export function PartnerManagement() {
       <Card>
         <CardHead
           title="All suppliers"
-          sub={`${partners.length} ${partners.length === 1 ? 'supplier' : 'suppliers'}`}
+          sub={`${partners.length} ${plural(partners.length, 'supplier')}`}
           actions={<Button variant="quiet" size="sm" to="/users" arrow>All users · all suppliers</Button>}
         />
         <div className="table-wrap">
@@ -345,7 +346,7 @@ export function PartnerManagement() {
                 developers.{' '}
                 {!apiOn && activeKeys > 0 ? (
                   <b>
-                    Turning this off stops {activeKeys} active key{activeKeys === 1 ? '' : 's'} working
+                    Turning this off stops {activeKeys} active {plural(activeKeys, 'key')} working
                     immediately, not just new ones. A live integration will start failing as soon as you save.
                   </b>
                 ) : (

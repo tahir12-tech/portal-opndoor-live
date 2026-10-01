@@ -25,6 +25,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { useToast } from '@/components/ui/Toast';
+import { plural } from '@/lib/plural';
 
 export function ApiAccessSwitch({ slug, canEdit, onChanged }: {
   slug: string;
@@ -85,7 +86,7 @@ export function ApiAccessSwitch({ slug, canEdit, onChanged }: {
         title: 'Turn off API access',
         body: n > 0 ? (
           <>
-            <b>{n} active API key{n === 1 ? '' : 's'}</b> stop{n === 1 ? 's' : ''} working
+            <b>{n} active API {plural(n, 'key')}</b> stop{n === 1 ? 's' : ''} working
             immediately, not just new ones. Any live integration {p.name} has will start failing as
             soon as this is saved.
             {' '}Their developer keeps the keys and they work again if access is turned back on.
@@ -126,7 +127,7 @@ export function ApiAccessSwitch({ slug, canEdit, onChanged }: {
           <span>API access <b>{on ? 'enabled' : 'disabled'}</b></span>
           {on && (
             <span className="apisw__keys">
-              {keys == null ? 'active keys unknown' : `${keys} active key${keys === 1 ? '' : 's'}`}
+              {keys == null ? 'active keys unknown' : `${keys} active ${plural(keys, 'key')}`}
             </span>
           )}
         </div>

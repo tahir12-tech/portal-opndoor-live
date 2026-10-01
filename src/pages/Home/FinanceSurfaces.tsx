@@ -32,6 +32,7 @@ import { Eyebrow } from '@/components/ui/Eyebrow';
 import { useToast } from '@/components/ui/Toast';
 import { SettlementBlocks } from '@/components/SettlementBlocks';
 import '@/pages/Dashboard/Dashboard.css';
+import { plural, countOf } from '@/lib/plural';
 
 type FinanceProps = { role: Role; partnerScope: PartnerScope };
 
@@ -213,13 +214,13 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
             sub={<>Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each payee on <b>{agentSettleDate}</b>.</>}
           />
           <div className="settle__row settle__row--agg">
-            <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.payees.length}</b> {agentSettlement.payees.length === 1 ? 'payee' : 'payees'}</span>
+            <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.payees.length}</b> {plural(agentSettlement.payees.length, 'payee')}</span>
             <span className="settle__amt">{gbpPence(agentDue)}</span>
           </div>
           {agentTop.map(agentAgencyRow)}
           {agentRest.length > 0 && (
             <details className="settle__exp settle__exp--more">
-              <summary>View all {agentSettlement.payees.length} payees</summary>
+              <summary>View all {countOf(agentSettlement.payees.length, 'payee')}</summary>
               {agentRest.map(agentAgencyRow)}
             </details>
           )}

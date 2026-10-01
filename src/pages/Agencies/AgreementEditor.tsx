@@ -39,6 +39,7 @@ import { Modal } from '@/components/ui/Modal';
 import { PeriodSelect } from '@/components/ui/Select';
 import { useToast } from '@/components/ui/Toast';
 import './AgreementEditor.css';
+import { plural } from '@/lib/plural';
 
 export type PricingModel = 'standard' | 'flat' | 'bands' | 'tiered';
 
@@ -117,7 +118,7 @@ export function tenantsWords(min: number, max: number | null): string {
   /* OPEN-ENDED FROM ONE IS EVERY TENANCY, and saying "1 or more" there
      would invite the reader to look for the band above it. */
   if (max == null) return lo <= 1 ? 'any number of tenants' : `${lo} or more`;
-  if (max === lo) return `${lo} tenant${lo === 1 ? '' : 's'}`;
+  if (max === lo) return `${lo} ${plural(lo, 'tenant')}`;
   return `${lo} to ${max} tenants`;
 }
 

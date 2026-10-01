@@ -34,6 +34,7 @@ import { useConfirm } from '@/components/ui/ConfirmModal';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import './NotInNetwork.css';
+import { plural } from '@/lib/plural';
 
 /** A contact's name, from however much of it we were given. */
 function contactName(c: { title: string | null; firstName: string | null; lastName: string | null }): string {
@@ -125,7 +126,7 @@ export function NotInNetwork() {
                 {/* The count decides whether the row is worth typing in, so
                     it leads. Singular matters: "1 tenants" on a prospect
                     list reads as a bug in the list. */}
-                <b>{r.tenants}</b> {r.tenants === 1 ? 'tenant' : 'tenants'} named it
+                <b>{r.tenants}</b> {plural(r.tenants, 'tenant')} named it
                 {r.lastNamedAt && <> · last on {r.lastNamedAt}</>}
               </div>
             </div>

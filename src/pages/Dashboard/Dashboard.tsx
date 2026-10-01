@@ -62,6 +62,7 @@ type Measure = 'value' | 'count' | 'conv';
 /* WALK FIX 17: the type lives with the option list in liveAnalytics, so the
    measures on offer and the measures the data carries cannot drift. */
 import { trendMeasuresFor, type TrendMeasure } from '@/data/liveAnalytics';
+import { plural, countOf } from '@/lib/plural';
 type TrendView = 'month' | 'branch' | 'agency' | 'referrer';
 
 const TOP_N = 10;
@@ -588,14 +589,14 @@ export function Dashboard() {
             {naNoContact && (
               <Link className="na-stat na-stat--warn" to="/applications?deed=delivery-failed" title="Deeds issued but not delivered to the agent (no reachable claim contact). Open the list to add a contact, then resend the deed.">
                 <span className="na-stat__n">{d.deedsNoContact}</span>
-                <span className="na-stat__l">deed{d.deedsNoContact === 1 ? '' : 's'} issued · delivery failed, view and resend</span>
+                <span className="na-stat__l">{plural(d.deedsNoContact, 'deed')} issued · delivery failed, view and resend</span>
                 <Icon name="arrowRight" className="na-stat__go" />
               </Link>
             )}
             {naLapsing && (
               <Link className="na-stat na-stat--warn" to="/activity" title="In-force guarantees expiring within 14 days. Arrange a renewal or a fresh referral so cover stays in place.">
                 <span className="na-stat__n">{d.lapsing14}</span>
-                <span className="na-stat__l">guarantee{d.lapsing14 === 1 ? '' : 's'} lapsing within 14 days</span>
+                <span className="na-stat__l">{plural(d.lapsing14, 'guarantee')} lapsing within 14 days</span>
                 <Icon name="arrowRight" className="na-stat__go" />
               </Link>
             )}
@@ -727,7 +728,7 @@ export function Dashboard() {
                     number) rather than paid (the display string): a first
                     referral read "across 1 paid referrals" under the old
                     idiom, which is the bug this one was written to avoid. */}
-                Guarantor fees collected across {d.paid} paid referral{d.paidCount === 1 ? '' : 's'}{d.feeBasisCopy ? `, ${d.feeBasisCopy}` : ''}, net of any refunds.
+                Guarantor fees collected across {d.paid} paid {plural(d.paidCount, 'referral')}{d.feeBasisCopy ? `, ${d.feeBasisCopy}` : ''}, net of any refunds.
               </p>
               {d.live && (
                 <div className="hero-kpi__split">
@@ -1121,13 +1122,13 @@ export function Dashboard() {
                 sub={<>Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each payee on <b>{agentSettleDate}</b>.</>}
               />
               <div className="settle__row settle__row--agg">
-                <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.payees.length}</b> {agentSettlement.payees.length === 1 ? 'payee' : 'payees'}</span>
+                <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.payees.length}</b> {plural(agentSettlement.payees.length, 'payee')}</span>
                 <span className="settle__amt">{gbpPence(agentDue)}</span>
               </div>
               {agentTop.map(agentAgencyRow)}
               {agentRest.length > 0 && (
                 <details className="settle__exp settle__exp--more">
-                  <summary>View all {agentSettlement.payees.length} payees</summary>
+                  <summary>View all {countOf(agentSettlement.payees.length, 'payee')}</summary>
                   {agentRest.map(agentAgencyRow)}
                 </details>
               )}

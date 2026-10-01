@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { PeriodSelect } from '@/components/ui/Select';
+import { plural } from '@/lib/plural';
 
 export interface SupplierStatementsProps {
   /** The supplier, as a slug or a uuid: the endpoint resolves either. */
@@ -122,7 +123,7 @@ export function SupplierStatements({ partner, supplierName, months }: SupplierSt
         {!busy && state?.ok && (
           <>
             <div className="stmt__level" style={{ marginBottom: 12 }}>
-              {state.monthLabel} · {state.applications} application{state.applications === 1 ? '' : 's'} ·{' '}
+              {state.monthLabel} · {state.applications} {plural(state.applications ?? 0, 'application')} ·{' '}
               {gbpPence(state.total ?? 0)} · <span className="stmt__ref">{state.reference}</span>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

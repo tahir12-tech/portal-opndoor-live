@@ -16,6 +16,7 @@ import { UPCOMING_GUARANTEES, type UpcomingGuaranteeSeed } from './mock/guarante
 import { allSummaries, guaranteeExpiry } from './applicationsService';
 import { KEYS, loadJSON, saveJSON } from './storage';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import { plural, countOf } from '@/lib/plural';
 
 const DAY = 86400000;
 
@@ -170,13 +171,15 @@ const NOTIF_KINDS = ['referral_created', 'payment_received', 'deed_sent', 'deed_
 function relTime(at: Date): string {
   const mins = Math.round((Date.now() - at.getTime()) / 60000);
   if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+  if (mins < 60) return `${mins} ${plural(mins, 'minute')} ago`;
   const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+  if (hrs < 24) return `${hrs} ${plural(hrs, 'hour')} ago`;
   const days = Math.round(hrs / 24);
   if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days} days ago`;
-  return `${Math.round(days / 7)} week${Math.round(days / 7) === 1 ? '' : 's'} ago`;
+  // Guarded by the `=== 1` above, so always plural -- through the helper
+  // anyway, so the guard is not the only thing keeping it right.
+  if (days < 7) return `${countOf(days, 'day')} ago`;
+  return `${Math.round(days / 7)} ${plural(Math.round(days / 7), 'week')} ago`;
 }
 
 function notifLabel(kind: string, tenant: string): { text: string; dot: NotificationItem['dot'] } {

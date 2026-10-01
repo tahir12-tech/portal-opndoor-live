@@ -12,6 +12,7 @@ import { PayFrame } from './PayFrame';
 import { getPayPage, startCheckout, declineApplication, type PayPageData } from './paymentPageApi';
 import { Icon } from '@/components/ui/Icon';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { countOf } from '@/lib/plural';
 
 type Phase = 'loading' | 'ready' | 'paid' | 'closed' | 'invalid' | 'declined';
 
@@ -229,7 +230,7 @@ export function PayLanding() {
         <div className="pay__fee-s">
           {d.feeBasis
             ? (joint
-                ? `The fee is ${d.feeBasis}, split between ${d.tenantCount} tenants. `
+                ? `The fee is ${d.feeBasis}, split between ${countOf(d.tenantCount ?? 0, 'tenant')}. `
                 : `${d.feeBasis}. `)
             : ''}One-off payment. Reference {d.ref}.
         </div>

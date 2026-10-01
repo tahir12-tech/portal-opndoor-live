@@ -64,6 +64,7 @@ import { ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFly, findAgency, g
 import { useSession } from '@/session/SessionContext';
 import { Icon } from '@/components/ui/Icon';
 import { TypeAhead, highlightMatch, type TypeAheadOption } from '@/components/ui/TypeAhead';
+import { plural } from '@/lib/plural';
 
 const DEFAULT_BRANCH = 'Head office';
 
@@ -376,7 +377,7 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
     id: `${a.partner}:${a.name}`,
     icon: <Icon name="building" />,
     main: highlightMatch(a.name, agentQuery),
-    sub: `${a.branches.length} branch${a.branches.length === 1 ? '' : 'es'}${isAdmin ? ` · ${partnerName(a.partner)}` : ''}`,
+    sub: `${a.branches.length} ${plural(a.branches.length, 'branch')}${isAdmin ? ` · ${partnerName(a.partner)}` : ''}`,
     onSelect: () => chooseAgency(a.name, false, a.partner),
   }));
   // Only a supplier invents an agency mid-referral. For an agent a new agency

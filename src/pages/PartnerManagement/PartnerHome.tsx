@@ -112,7 +112,7 @@ function AgencyContactLine({ agency }: { agency: Agency }) {
       className="ph-contact ph-contact--none"
       title="An executed deed for these branches has nowhere to go until a contact is set."
     >
-      No agent contact on {bare.length} of {branches.length} {branches.length === 1 ? 'branch' : 'branches'}
+      No agent contact on {bare.length} of {branches.length} {plural(branches.length, 'branch')}
     </span>
   );
 }
@@ -138,6 +138,7 @@ import { PersonNotifications } from '@/components/people/PersonNotifications';
 import { StatementRecipients } from '@/components/StatementRecipients';
 import { ViewAsButton } from '@/components/ViewAsButton';
 import './PartnerHome.css';
+import { plural, countOf } from '@/lib/plural';
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
   active: ['Active', 'deed'],
@@ -495,7 +496,7 @@ export function PartnerHome() {
       <Card>
         <CardHead
           title="Structure"
-          sub={`${agencies.length} ${agencies.length === 1 ? 'agency' : 'agencies'} · ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'}`}
+          sub={`${agencies.length} ${plural(agencies.length, 'agency')} · ${branchCount} ${plural(branchCount, 'branch')}`}
         />
         <CardBody style={{ padding: agencies.length === 0 ? undefined : 0 }}>
           {agencies.length === 0 ? (
@@ -508,7 +509,7 @@ export function PartnerHome() {
                     <span className="ph-tree__ic"><Icon name="org" size={16} /></span>
                     <Link className="ph-tree__name" to={`/agencies/${encodeURIComponent(agencyKey(a))}`}>{a.name}</Link>
                     {a.unreviewed && <span className="ph-tag">unreviewed</span>}
-                    <span className="ph-tree__meta">{a.branches.length} {a.branches.length === 1 ? 'branch' : 'branches'} · {a.referrals} referrals</span>
+                    <span className="ph-tree__meta">{countOf(a.branches.length, 'branch')} · {countOf(a.referrals, 'referral')}</span>
                   </div>
                   {/* WHO THE DEED GOES TO. Q-06 item A asks the Overview to
                       show "agent contacts and deed recipients". On the
@@ -527,7 +528,7 @@ export function PartnerHome() {
                           <Link className="ph-tree__bname" to={`/applications?branch=${encodeURIComponent(b.name)}`}>{b.name}</Link>
                           {b.area && <span className="ph-tree__barea">{b.area}</span>}
                           {b.unreviewed && <span className="ph-tag">unreviewed</span>}
-                          <span className="ph-tree__meta">{b.referrals} referrals</span>
+                          <span className="ph-tree__meta">{countOf(b.referrals, 'referral')}</span>
                           <ContactLine agency={a} branch={b} />
                         </div>
                       ))}
@@ -584,7 +585,7 @@ export function PartnerHome() {
       <Card>
         <CardHead
           title="Users"
-          sub={`${users.length} ${users.length === 1 ? 'person' : 'people'}`}
+          sub={`${users.length} ${plural(users.length, 'person')}`}
           /* NO LINK OFF TO THE ESTATE-WIDE LIST. Matt, 2026-10-01: "Its
              people are on the People tab only" and "Anything that linked
              to /users?partner=… now goes to that supplier's People tab."

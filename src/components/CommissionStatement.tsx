@@ -37,6 +37,7 @@ import { Card, CardBody, CardFoot, CardHead } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { PeriodSelect } from '@/components/ui/Select';
 import './CommissionStatement.css';
+import { plural } from '@/lib/plural';
 
 const money = gbpPence;
 const pct = (n: number) => `${Number((n * 100).toFixed(2))}%`;
@@ -263,7 +264,7 @@ function StatementPanel({
                 aria-label="Search payee" value={q} onChange={(e) => setQ(e.target.value)}
               />
               <span className="muted" style={{ fontSize: 12.5 }}>
-                {listed.length} of {statements.length} {statements.length === 1 ? 'payee' : 'payees'}
+                {listed.length} of {statements.length} {plural(statements.length, 'payee')}
               </span>
             </div>
             {listed.length === 0 ? (
@@ -371,7 +372,7 @@ function StatementPanel({
                     ))}
                     <tr className="stmt__total">
                       {/* Every column but the money one, however many that is today. */}
-                      <td colSpan={heads.length - 1}>Total · {st.lines.length} application{st.lines.length === 1 ? '' : 's'}</td>
+                      <td colSpan={heads.length - 1}>Total · {st.lines.length} {plural(st.lines.length, 'application')}</td>
                       <td className="num">{money(st.total)}</td>
                     </tr>
                   </tbody>

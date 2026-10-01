@@ -426,7 +426,7 @@ import { showsOffices } from '@/data/agencyOffices';
 //           const id = agencyId(a);
 //           const open = q ? true : openSet.has(id);
 //           const fees = feesOf(a, true);
-//           const meta = `${a.group ? `${a.group} · ` : ''}${a.branches.length} ${a.branches.length === 1 ? 'branch' : 'branches'}`;
+//           const meta = `${a.group ? `${a.group} · ` : ''}${a.branches.length} ${plural(a.branches.length, 'branch')}`;
 //           return (
 //             <div className={`agency${open ? ' is-open' : ''}`} key={id}>
 //               <div className="agency__head" onClick={(e) => onHeadClick(e, id)}>
@@ -642,6 +642,7 @@ import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { AgencyCreate } from '@/pages/Agencies/AgencyCreate';
 import './OrgManagement.css';
+import { plural } from '@/lib/plural';
 
 const agencyId = (a: Agency) => `${a.partner || 'northwind'}:${a.name}`;
 /** Expand-state keys. Prefixed so a group id can never collide with an agency key. */
@@ -1289,7 +1290,7 @@ function requestCloseContacts() {
        no office is a real state this screen exists to surface. */
     const namesOffices = showsOffices(a.name);
     const meta = namesOffices
-      ? `${a.branches.length} ${a.branches.length === 1 ? 'branch' : 'branches'}`
+      ? `${a.branches.length} ${plural(a.branches.length, 'branch')}`
       : '';
     return (
       <div className={`agency${open ? ' is-open' : ''}`} key={id}>
@@ -1376,7 +1377,7 @@ function requestCloseContacts() {
           <Icon name="alert" />
           <div>
             <strong>
-              {deedBlocked.length} branch{deedBlocked.length === 1 ? '' : 'es'} cannot issue a deed
+              {deedBlocked.length} {plural(deedBlocked.length, 'branch')} cannot issue a deed
             </strong>
             <p>
               No agent contact resolves for them. An application against one of these will be accepted,
@@ -1421,8 +1422,8 @@ function requestCloseContacts() {
       {topNodes.length > 0 && (
         <div className="org-tools">
           <div className="org-tools__count">
-            Showing <b>{Math.min(shownCount, topNodes.length)}</b> of {topNodes.length} {topNodes.length === 1 ? 'row' : 'rows'}
-            {' · '}{shownAgencies.length} {shownAgencies.length === 1 ? 'agency' : 'agencies'}
+            Showing <b>{Math.min(shownCount, topNodes.length)}</b> of {topNodes.length} {plural(topNodes.length, 'row')}
+            {' · '}{shownAgencies.length} {plural(shownAgencies.length, 'agency')}
           </div>
           {/* While searching, expansion follows the match, so these would be dead. */}
           {!q && (
@@ -1452,7 +1453,7 @@ function requestCloseContacts() {
                 <span className="orggroup__tick">G</span>
                 <div className="orggroup__txt">
                   <Link className="orggroup__name" to={`/agencies/${encodeURIComponent(group.id)}`} data-stop title={`Open ${group.name}`}>{highlight(group.name, q)}</Link>
-                  <div className="orggroup__meta">{brandCount} {brandCount === 1 ? 'agency' : 'agencies'} · {branchCount} {branchCount === 1 ? 'branch' : 'branches'}</div>
+                  <div className="orggroup__meta">{brandCount} {plural(brandCount, 'agency')} · {branchCount} {plural(branchCount, 'branch')}</div>
                 </div>
                 <div className="orggroup__stats">
                   <div className="agency__stat"><div className="n">{groupRefs}</div><div className="l">Referrals</div></div>

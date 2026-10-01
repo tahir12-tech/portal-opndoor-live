@@ -20,6 +20,7 @@ import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 import '@/components/ui/opbar.css';
 import './Reconciliation.css';
+import { plural } from '@/lib/plural';
 
 type Filter = 'all' | 'agency' | 'branch' | 'dupes' | 'matches' | 'notinnetwork' | 'refunds';
 
@@ -201,7 +202,7 @@ export function Reconciliation() {
                   <span className="rqitem__name">{item.name}</span>
                   {item.type === 'agency' ? <span className="tag tag--admin">New agency</span> : <span className="tag">New branch</span>}
                 </div>
-                <div className="rqitem__meta">{parent}created by <b>{item.by}</b> · {item.when} · {item.refs} referral{item.refs === 1 ? '' : 's'} attached</div>
+                <div className="rqitem__meta">{parent}created by <b>{item.by}</b> · {item.when} · {item.refs} {plural(item.refs, 'referral')} attached</div>
                 {item.foldedHeadOffice && (
                   <div className="rqitem__meta" style={{ color: 'var(--ink-mute)' }}>Includes its “Head office” branch. Confirming the agency confirms both.</div>
                 )}
