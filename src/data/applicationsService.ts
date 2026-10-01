@@ -11,7 +11,7 @@
    amendTenancyStartDb -> amend-tenancy-start (deed-state-aware reissue),
    sendDeedToAgent -> send_deed_to_agent RPC. Mock/test mode uses the seed.
    ===================================================================== */
-import { gbpPence } from '@/lib/format';
+import { gbpPence, formatDate, formatLongDate } from '@/lib/format';
 import type { CommissionLine, ApplicationDetail, ApplicationSummary, DeedState, PartnerScope, Role, Status, WithdrawReason } from './types';
 import { ALL_PARTNERS } from './types';
 import { AGENT_ADDR, APPLICATION_RECORDS as RECORDS_SEED, APPLICATIONS_LIST as LIST_SEED, type AppRecord } from './mock/applications';
@@ -469,20 +469,16 @@ export function agencyOfBranch(branch: string): string | '' {
 }
 
 /* ---------- Detail builder (deterministic, ported from portal-apps.js) ---------- */
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAY = 86400000;
 
 function parseISO(s: string): Date {
   const p = s.split('-');
   return new Date(+p[0], +p[1] - 1, +p[2]);
 }
-function fmtShort(d: Date): string {
-  return `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-}
-function fmtLong(d: Date): string {
-  return `${d.getDate()} ${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`;
-}
+// One format, shared. See lib/format: the leading zero goes with it, so
+// "9 Sep 2026" rather than "09 Sep 2026" wherever a date is shown.
+const fmtShort = formatDate;
+const fmtLong = formatLongDate;
 function addDays(d: Date, n: number): Date {
   return new Date(d.getTime() + n * DAY);
 }

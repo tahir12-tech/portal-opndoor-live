@@ -37,6 +37,7 @@ import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 import { changeSentence } from '@/data/changeSentence';
 import { useToast } from '@/components/ui/Toast';
+import { formatDate } from '@/lib/format';
 
 /* MOVED HERE WITH THE REST OF THE SETTINGS. These two lived only inside
    the Manage modal, which no longer exists: deleting the modal without
@@ -55,8 +56,9 @@ const LB_LABEL: Record<LeaderboardMode, string> = {
    LB_SHORT went with them -- it was a second, shorter set of words for the
    leaderboard modes, and a change list that words a value differently from
    the control that sets it is how two screens come to disagree. */
-const dmy = (d: Date) =>
-  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+/* ONE FORMAT, SHARED. See lib/format: dd/mm/yyyy is ambiguous and this
+   product has an API with American integrators. */
+const dmy = formatDate;
 
 export interface SupplierDraft {
   name: string;

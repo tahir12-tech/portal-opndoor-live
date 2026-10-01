@@ -25,7 +25,7 @@ import {
   getBordereauRate, getBordereauRateMeta, setBordereauRate,
   type PartnerScope, type Role,
 } from '@/data';
-import { formatLondonDate, gbpPence } from '@/lib/format';
+import { formatLondonDate, gbpPence, formatDate } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Eyebrow } from '@/components/ui/Eyebrow';
@@ -76,11 +76,14 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
 
   // Money-reconciliation surface: pence on every row and total so rows always sum.
   const dmyShort = (x: Date) => formatLondonDate(x);
-  const settleDate = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${settlement.settlementDate.getFullYear()}`;
-  const agentSettleDate = `${agentSettlement.settlementDate.getDate()} ${agentSettlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${agentSettlement.settlementDate.getFullYear()}`;
+  const settleDate = formatDate(settlement.settlementDate);
+  const agentSettleDate = formatDate(agentSettlement.settlementDate);
   // The two summary totals moved into SettlementBlocks with the blocks that
   // print them; what is left here is the per-payee paperwork below.
-  const settleDayMonth = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })}`;
+  /* THE SAME SHAPE AS EVERY OTHER DATE, year included. It used to drop
+     the year to keep a needs-attention line short; a settlement date with
+     no year is the one date on the page a reader has to be sure about. */
+  const settleDayMonth = formatDate(settlement.settlementDate);
   const agentDue = agentSettlement.total;
 
   // Branded, self-footing statements — read the same settlement data as the rows below.

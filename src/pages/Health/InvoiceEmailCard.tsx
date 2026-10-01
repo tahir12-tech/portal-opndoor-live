@@ -27,6 +27,7 @@ import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
+import { formatDate } from '@/lib/format';
 
 export function InvoiceEmailCard({ onChanged }: { onChanged?: (set: boolean) => void }) {
   const toast = useToast();
@@ -132,7 +133,7 @@ export function InvoiceEmailCard({ onChanged }: { onChanged?: (set: boolean) => 
             {setting.changedBy && (
               <p className="ie-by muted">
                 Last changed by {setting.changedBy}
-                {setting.changedAt && <> on {setting.changedAt.toLocaleDateString('en-GB')}</>}.
+                {setting.changedAt && <> on {formatDate(setting.changedAt)}</>}.
               </p>
             )}
           </>

@@ -44,6 +44,7 @@ import { TypeAhead, highlightMatch, type TypeAheadOption } from '@/components/ui
 import { useToast } from '@/components/ui/Toast';
 import './PartnerHome.css';
 import { plural } from '@/lib/plural';
+import { formatDate } from '@/lib/format';
 
 export interface ShareDealAgency { id: string; name: string }
 
@@ -60,10 +61,7 @@ const words = (d: ShareDealView) =>
 
 const whenWho = (m: { addedAt: string | null; addedBy: string | null }) => {
   if (!m.addedAt) return null;
-  const d = new Date(m.addedAt);
-  const when = Number.isNaN(d.getTime())
-    ? null
-    : `${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'short' })} ${d.getFullYear()}`;
+  const when = formatDate(m.addedAt) || null;
   if (!when) return null;
   return m.addedBy ? `moved here ${when} by ${m.addedBy}` : `moved here ${when}`;
 };

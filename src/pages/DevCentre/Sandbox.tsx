@@ -31,13 +31,14 @@ import { Modal } from '@/components/ui/Modal';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 import { plural } from '@/lib/plural';
+import { formatDate } from '@/lib/format';
 
 function fmtMoney(n: number | null): string {
   return n === null || n === undefined ? '-' : `£${Number(n).toLocaleString('en-GB')}`;
 }
 
 function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+  return iso ? formatDate(iso) : '-';
 }
 
 /**

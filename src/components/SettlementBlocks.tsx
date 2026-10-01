@@ -21,14 +21,15 @@
    MODULE SCOPE with explicit props, and no hook: mounted normally by both
    callers, so there is no remount trap to fall into.
    ===================================================================== */
-import { gbpPence } from '@/lib/format';
+import { gbpPence, formatDate } from '@/lib/format';
 import {
   getAgentCommissionSettlement, getCommissionSettlement, liveAvailable, maySeeCommission,
   type PartnerScope, type Role,
 } from '@/data';
 
 /** Money-reconciliation surface: pence on every row and total, so rows sum. */
-const dayMonth = (d: Date) => `${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'long' })}`;
+// One format, shared. See lib/format.
+const dayMonth = (d: Date) => formatDate(d);
 const fullDate = (d: Date) => `${dayMonth(d)} ${d.getFullYear()}`;
 
 interface SplitRow { key: string; name: string; amount: number }

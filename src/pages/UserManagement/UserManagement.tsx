@@ -12,7 +12,7 @@
    + Management (route guard).
    ===================================================================== */
 // Walk fix 19: the possessive is formed in one place.
-import { possessive } from '@/lib/format';
+import { possessive, formatDate } from '@/lib/format';
 import { LEVEL_PILL, holdsAgencyLevel, personLevelLabel } from '@/data/levelLabel';
 import { ChangeLevelModal } from '@/components/people/ChangeLevelModal';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -55,8 +55,8 @@ const STATUS_PILL: Record<string, [string, PillVariant]> = {
   deactivated: ['Deactivated', 'muted'],
 };
 
-const dmy = (d: Date) =>
-  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+// One format, shared. See lib/format.
+const dmy = formatDate;
 
 interface RoleOption {
   id: Role;

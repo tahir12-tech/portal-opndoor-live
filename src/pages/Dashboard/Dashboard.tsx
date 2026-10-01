@@ -28,7 +28,7 @@ import {
   statementMonths,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
-import { formatLondonDate, gbpPence, possessive } from '@/lib/format';
+import { formatLondonDate, gbpPence, possessive, formatDate } from '@/lib/format';
 import { BASIS_META, type ExportBasis } from '@/data';
 import { getAgentRailFunnel, viewerRunsEligibilityJourney, type AgentRailFunnel } from '@/data/agentFunnel';
 import { isAgencyUser, partyIsSupplier } from '@/data/capabilities';
@@ -190,8 +190,8 @@ export function Dashboard() {
   // Settlement is a money-reconciliation surface: show pence on every row and the
   // total so the rows always sum to the stated total (commission is rent x rate,
   // which is frequently a half-pound).
-  const settleDate = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${settlement.settlementDate.getFullYear()}`;
-  const agentSettleDate = `${agentSettlement.settlementDate.getDate()} ${agentSettlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${agentSettlement.settlementDate.getFullYear()}`;
+  const settleDate = formatDate(settlement.settlementDate);
+  const agentSettleDate = formatDate(agentSettlement.settlementDate);
  const dmyShort = (x: Date) => formatLondonDate(x);
 
   // #6 Per-payee commission statements: a branded, self-footing statement for one
@@ -209,7 +209,10 @@ export function Dashboard() {
   // AUTHORITATIVE total: the sum of every payee line. The agencies rollup holds
   // agency-level lines only, so summing it would miss group and branch payees.
   const agentDue = agentSettlement.total;
-  const settleDayMonth = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })}`;
+  /* THE SAME SHAPE AS EVERY OTHER DATE, year included. It used to drop
+     the year to keep a needs-attention line short; a settlement date with
+     no year is the one date on the page a reader has to be sure about. */
+  const settleDayMonth = formatDate(settlement.settlementDate);
   // #81 Tenancy-start corrections now apply automatically from the agent's link
   // (no opndoor review), so the "corrections to review" needs-attention line and
   // its count are gone.

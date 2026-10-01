@@ -43,6 +43,7 @@ import { RoleOnly } from '@/components/ui/RoleOnly';
 import { RoleNote } from '@/components/ui/RoleNote';
 import { Pager } from '@/components/ui/Pager';
 import './Applications.css';
+import { formatDate } from '@/lib/format';
 
 const PAGE_SIZE = 20;
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Awaiting decision', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
@@ -63,11 +64,8 @@ const SUB_ORIGIN = 'Every referral from sent through to deed issued. Filter by s
 const SUB_ONE_AGENCY = 'Every referral from sent through to deed issued. Filter by status or referrer, or search by tenant.';
 const SUB_OWN_ONLY = 'Every referral from sent through to deed issued. Filter by status, or search by tenant.';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-}
+// One format, shared. See lib/format.
+const fmtDate = formatDate;
 function initials(name: string): string {
   return name.split(' ').map((p) => p[0]).slice(0, 2).join('');
 }

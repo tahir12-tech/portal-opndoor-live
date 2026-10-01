@@ -140,6 +140,7 @@ import { StatementRecipients } from '@/components/StatementRecipients';
 import { ViewAsButton } from '@/components/ViewAsButton';
 import './PartnerHome.css';
 import { plural, countOf } from '@/lib/plural';
+import { formatDate, formatMonth } from '@/lib/format';
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
   active: ['Active', 'deed'],
@@ -294,7 +295,7 @@ export function PartnerHome() {
           </h1>
           <p className="page-head__sub ph-sub">
             <Pill variant={sp[1]}>{sp[0]}</Pill>
-            <span>Live from {partner.since || '-'}</span>
+            <span>Live from {formatMonth(partner.since) || '-'}</span>
             <span><Icon name="reconcile" size={14} /> {modeLabel(partner.referencingMode)}</span>
           </p>
         </div>
@@ -571,7 +572,7 @@ export function PartnerHome() {
                       <td>{r.tenant}</td>
                       <td className="soft">{r.prop}</td>
                       <td><span className={`ph-st ${PH_STATUS_ST[r.status] ?? 'st-neutral'}`}>{PH_STATUS_LABEL[r.status]}</span></td>
-                      <td className="soft">{r.date}</td>
+                      <td className="soft">{formatDate(r.date)}</td>
                     </tr>
                   ))}
                 </tbody>

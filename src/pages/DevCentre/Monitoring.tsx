@@ -21,9 +21,10 @@ import {
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { BarChart } from '@/components/ui/BarChart';
 import { PeriodSelect } from '@/components/ui/Select';
+import { formatDate } from '@/lib/format';
 
 const ms = (v: number | null) => (v == null ? '--' : v >= 1000 ? `${(v / 1000).toFixed(1)}s` : `${Math.round(v)}ms`);
-const day = (s: string) => new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+const day = (s: string) => formatDate(s);
 
 function Counter({ label, value, tone, sub }: { label: string; value: string; tone?: 'bad'; sub?: string }) {
   return (

@@ -15,6 +15,7 @@ import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { functionErrorMessage } from './paymentService';
 import { getAgencies } from './orgService';
 import { ALL_PARTNERS } from './types';
+import { formatDateTime } from '@/lib/format';
 
 export interface ReconRow {
   /** Composite key `${type}:${entityId}` for React lists. */
@@ -36,8 +37,7 @@ export interface ReconRow {
 
 function fmtWhen(ts: string): string {
   const d = new Date(ts);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} · ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return formatDateTime(d);
 }
 
 // Mock/demo queue (mock mode only). Illustrative pending entities.

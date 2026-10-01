@@ -61,14 +61,119 @@ export function fmtRatePct(rate: number | null | undefined): string {
  * timezone (handles the GMT/BST shift consistently, regardless of the
  * viewer's own device timezone). Returns '' for a null/invalid input.
  */
-/** A long, human date in Europe/London: "23 September 2026". '' for null/invalid. */
+/** A long, human date in Europe/London: "23 September 2026". '' for
+    null/invalid. The prose shape; `formatDate` is the one every table,
+    cell and label uses. */
 export function formatLongDate(input: string | number | Date | null | undefined): string {
+  if (!input) return '';
+  /* A BARE 'YYYY-MM-DD' IS A CALENDAR DAY, as in formatDate: parsed as an
+     instant it is midnight UTC, which is the day before once the clocks
+     go back. */
+  if (typeof input === 'string') {
+    const m = input.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return `${Number(m[3])} ${MONTH_LONG[Number(m[2]) - 1]} ${m[1]}`;
+  }
+  const ymd = londonParts(input);
+  return ymd ? `${ymd.d} ${MONTH_LONG[ymd.m - 1]} ${ymd.y}` : '';
+}
+
+/* =====================================================================
+   ONE DATE FORMAT, EVERYWHERE ON SCREEN.
+
+   Matt, 2026-10-01, verbatim: "Show dates the same way everywhere on
+   screen ('29 Sep 2026'), including the supplier Referrals tab and
+   'Live from' (e.g. 'Live from Aug 2026'), with one shared date
+   formatter."
+
+   WHAT WAS THERE. Eight spellings, counted: `dd/mm/yyyy` hand-rolled in
+   four files, `formatLondonDate` (also dd/mm/yyyy) in three, a
+   `toLocaleDateString('en-GB')` with no options, two with different
+   options, a bare ISO string printed as-is on the supplier Referrals
+   tab, and `YYYY-MM` printed as-is under "Live from". A reader moving
+   between two tabs of the same page saw "2026-08" and "20/08/2026".
+
+   WHY "29 Sep 2026" IS THE RIGHT ONE and dd/mm/yyyy is not: 03/04/2026
+   is the third of April to half the world and the fourth of March to
+   the other half, and this product has an API with American
+   integrators. A named month cannot be read two ways.
+
+   TWO SHAPES, because Matt's own example needs both: a day date and a
+   month date. "Live from Aug 2026" has no day to show -- the column is
+   a month and the control that edits it is `<input type="month">` -- so
+   printing one would be inventing precision.
+
+   AND `formatLondonDate` STAYS, dd/mm/yyyy and all. It is not a
+   leftover: ApplicationDetail's tenancy-start amendment puts its output
+   INTO a text input and parses it back, so that one is a wire format
+   between the screen and itself, not something being read as a date.
+   Changing it would have broken the parse quietly.
+   ===================================================================== */
+/* OUR OWN ABBREVIATIONS, not Intl's. Node's en-GB gives "Sept" for
+   September and some ICU builds add a full stop, so the same date would
+   print differently depending on which Node the page was built with --
+   which is precisely the thing this file exists to stop. Only the
+   TIMEZONE is left to Intl, because that part is a calendar calculation
+   and not a matter of taste. */
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_LONG = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** The London year, month and day of an instant. Null for a bad input. */
+function londonParts(input: string | number | Date): { y: string; m: number; d: number } | null {
+  const date = new Date(input);
+  if (isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: 'numeric',
+  }).formatToParts(date);
+  const get = (t: string) => parts.find((x) => x.type === t)?.value ?? '';
+  const m = Number(get('month'));
+  if (!m) return null;
+  return { y: get('year'), m, d: Number(get('day')) };
+}
+
+/** A date as every screen shows it: "29 Sep 2026". '' for nothing. */
+export function formatDate(input: string | number | Date | null | undefined): string {
+  if (!input) return '';
+  /* A BARE 'YYYY-MM-DD' IS A CALENDAR DAY, not an instant, and `new Date`
+     reads it as midnight UTC -- which is the previous day once the clocks
+     go back. Taken apart rather than parsed, so a date somebody typed is
+     the date they typed. */
+  if (typeof input === 'string') {
+    const m = input.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return `${Number(m[3])} ${MONTH_SHORT[Number(m[2]) - 1]} ${m[1]}`;
+  }
+  const ymd = londonParts(input);
+  return ymd ? `${ymd.d} ${MONTH_SHORT[ymd.m - 1]} ${ymd.y}` : '';
+}
+
+/** A month as every screen shows it: "Aug 2026". '' for nothing. */
+export function formatMonth(input: string | number | Date | null | undefined): string {
+  if (!input) return '';
+  if (typeof input === 'string') {
+    const m = input.trim().match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+    if (m) {
+      const i = Number(m[2]) - 1;
+      if (i >= 0 && i <= 11) return `${MONTH_SHORT[i]} ${m[1]}`;
+    }
+  }
+  const ymd = londonParts(input);
+  return ymd ? `${MONTH_SHORT[ymd.m - 1]} ${ymd.y}` : '';
+}
+
+/** A moment: "29 Sep 2026 · 14:30", London. The date half is the one every
+    other date on screen uses, so a timestamp and a date agree. */
+export function formatDateTime(input: string | number | Date | null | undefined): string {
   if (!input) return '';
   const d = new Date(input);
   if (isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/London', day: 'numeric', month: 'long', year: 'numeric',
-  }).format(d);
+  const day = formatDate(d);
+  if (!day) return '';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((x) => x.type === t)?.value ?? '';
+  return `${day} \u00b7 ${get('hour')}:${get('minute')}`;
 }
 
 export function formatLondonDate(input: string | number | Date | null | undefined): string {

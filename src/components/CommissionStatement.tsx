@@ -20,7 +20,7 @@
    asks maySeeCommission itself rather than trusting the two callers to ask for
    it. See the gate on CommissionStatement below.
    ===================================================================== */
-import { gbpPence, possessive } from '@/lib/format';
+import { gbpPence, possessive, formatDate } from '@/lib/format';
 import { useEffect, useMemo, useState } from 'react';
 import {
   buildAllStatementsCsv, buildCommissionStatementDoc, downloadCsv, exportBranded,
@@ -41,7 +41,8 @@ import { plural } from '@/lib/plural';
 
 const money = gbpPence;
 const pct = (n: number) => `${Number((n * 100).toFixed(2))}%`;
-const dmy = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+// One format, shared. See lib/format.
+const dmy = formatDate;
 /** A frozen line's source in the reader's words. Falls back to the stored code
     rather than to a blank, so a source we stop labelling is still legible. */
 const sourceWord = (s: string) => SOURCE_LABEL[s as CommissionSource] ?? s;

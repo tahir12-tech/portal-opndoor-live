@@ -127,10 +127,13 @@ describe('which agencies are on which deal', () => {
   });
 
   /* "RECORDED WITH WHO AND WHEN", against the agency it is about. */
+  /* "Sep", exactly, not Node's "Sept": the shared formatter carries its
+     own month table so the same date cannot print differently depending
+     on which Node built the page. */
   it('and says when each agency was moved and by whom', async () => {
     const v = await open();
     expect(cardWith(v, 'A deal for named agencies').textContent)
-      .toMatch(/moved here 14 Sept\\? 2026 by Rosa Vance/);
+      .toMatch(/moved here 14 Sep 2026 by Rosa Vance/);
   });
 });
 

@@ -39,7 +39,7 @@ import { useSession } from '@/session/SessionContext';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { maySeeDeliveryState, type DeliveryState } from '@/data/deliveryState';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
-import { titleCaseAddress, formatLondonDate, formatLondonDateTime } from '@/lib/format';
+import { titleCaseAddress, formatLondonDate, formatDate, formatLongDate, formatDateTime } from '@/lib/format';
 import { isAgencyUser } from '@/data/capabilities';
 import { viewerShape } from '@/data/viewerShape';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -58,8 +58,6 @@ import { countOf } from '@/lib/plural';
 
 
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const NOW = new Date(2026, 5, 26);
 
 // Route badge palette, matching the Applications list (portal status variants).
@@ -70,11 +68,12 @@ const ROUTE_PILL: Record<Channel, PillVariant> = {
   'Provider hand-over': 'warn',
 };
 
-const fmtLong = (x: Date) => `${x.getDate()} ${MONTHS_LONG[x.getMonth()]} ${x.getFullYear()}`;
-const fmtShort = (x: Date) => `${String(x.getDate()).padStart(2, '0')} ${MONTHS[x.getMonth()]} ${x.getFullYear()}`;
+// One format, shared. See lib/format.
+const fmtLong = formatLongDate;
+const fmtShort = formatDate;
 const fmtInput = (x: Date) => formatLondonDate(x);
 // Canonical activity timestamp: dd/mm/yyyy · HH:mm (Europe/London).
-const fmtStamp = (x: Date) => formatLondonDateTime(x).replace(' - ', ' · ');
+const fmtStamp = (x: Date) => formatDateTime(x);
 // #103 Accept dd/mm/yyyy as before, plus pasted ISO and month-name formats.
 const parseInput = (s: string): Date | null => parseFlexibleDate(s);
 

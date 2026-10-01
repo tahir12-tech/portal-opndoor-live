@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { addPartner, getPartner, getPartners, orgCounts, updatePartnerSettings, type PartnerSettingsInput, type PartnerStatus, REFERENCING_MODES, type ReferencingMode } from '@/data';
 import { useSession } from '@/session/SessionContext';
-import { fmtRatePct } from '@/lib/format';
+import { fmtRatePct, formatMonth } from '@/lib/format';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
@@ -256,7 +256,7 @@ export function PartnerManagement() {
                               read as adding up. Same two columns, different sentence,
                               because the model changed and the old wording said the
                               wrong thing about the same numbers. */}
-                          <div className="pco__since">Live from {p.since || '-'} · Total {fmtRatePct(p.partnerRate ?? 0.25)}, agents' share {fmtRatePct(p.agentRate ?? 0.1)}</div>
+                          <div className="pco__since">Live from {formatMonth(p.since) || '-'} · Total {fmtRatePct(p.partnerRate ?? 0.25)}, agents' share {fmtRatePct(p.agentRate ?? 0.1)}</div>
                         </div>
                       </div>
                     </td>

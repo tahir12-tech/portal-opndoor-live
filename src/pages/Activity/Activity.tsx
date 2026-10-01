@@ -25,9 +25,11 @@ import { Pager } from '@/components/ui/Pager';
 import { useToast } from '@/components/ui/Toast';
 import './Activity.css';
 import { plural, countOf } from '@/lib/plural';
+import { formatDate } from '@/lib/format';
 
 const FEED_PAGE_SIZE = 20;
-const dmy = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+// One format, shared. See lib/format.
+const dmy = formatDate;
 // dd/mm/yyyy · HH:mm — used for real, activity_log-sourced events.
 const dmyTime = (d: Date) => `${dmy(d)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 

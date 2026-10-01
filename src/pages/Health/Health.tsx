@@ -38,14 +38,14 @@ import { useToast } from '@/components/ui/Toast';
 import '@/components/ui/opbar.css';
 import './Health.css';
 import { plural } from '@/lib/plural';
+import { formatDateTime } from '@/lib/format';
 
 /** dd/mm/yyyy HH:MM in local time; 'Never' when there is no timestamp. */
 function fmtDateTime(iso: string | null): string {
   if (!iso) return 'Never';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return 'Never';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return formatDateTime(d);
 }
 
 /** A short label for a run status, plus the pill colour to show it in. */

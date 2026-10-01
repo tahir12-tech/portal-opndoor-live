@@ -21,9 +21,10 @@ import { Icon } from '@/components/ui/Icon';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
+import { formatDate } from '@/lib/format';
 
 const dt = (s: string | null | undefined) =>
-  s ? new Date(s).toLocaleDateString('en-GB', { dateStyle: 'medium' }) : '--';
+  s ? formatDate(s) : '--';
 
 export function Configuration(props: {
   keys: DevApiKey[];
