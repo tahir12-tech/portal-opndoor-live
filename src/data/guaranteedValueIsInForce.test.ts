@@ -101,9 +101,41 @@ describe('in force in the period, not issued inside it', () => {
     expect(guaranteed()).toBe(0);
   });
 
-  it('nor one whose cover has not started', () => {
+  /* AND THIS ONE TURNED ROUND ON 2026-10-01, deliberately.
+     Matt: "Total guaranteed rent value shows GBP 0 with five paid
+     tenancies; fix it to show their guaranteed rent."
+
+     It used to assert nought for a deed signed for a tenancy that has not
+     started, which is what "in force in the period" means and is still
+     what the BORDEREAU asks -- inForceDuring is unchanged and
+     inForce.test.ts still pins it, because an underwriter is told what was
+     on risk in the month.
+
+     It is the wrong question for this tile. Measured on dev: all four of
+     Regent's executed deeds are for tenancies starting next month, so the
+     headline read GBP 0 while four tenants had signed. The tile now counts
+     what the book HOLDS and names the part that has not started, which is
+     the only way to say both true things at once. */
+  it('counts one signed for a tenancy that has not started yet', () => {
     hydrateFull([app({
       deedAt: D(2026, 5, 15), tenancyStart: D(2026, 5, 20), expiry: D(2027, 5, 19),
+    })]);
+    expect(guaranteed()).toBe(2000 * 12);
+  });
+
+  it('and says how much of the total that is, rather than folding it in', () => {
+    hydrateFull([
+      app({ ref: 'GR-RUNNING', deedAt: D(2026, 0, 20), tenancyStart: D(2026, 0, 24), expiry: D(2027, 0, 23) }),
+      app({ ref: 'GR-LATER', rent: 3000, deedAt: D(2026, 5, 15), tenancyStart: D(2026, 5, 20), expiry: D(2027, 5, 19) }),
+    ]);
+    const a = liveAggregate('superadmin', ALL_PARTNERS, MAY);
+    expect(a.guaranteed).toBe(2000 * 12 + 3000 * 12);
+    expect(a.guaranteedNotStarted, 'the later one, named on its own').toBe(3000 * 12);
+  });
+
+  it('but still not one whose cover was over before the period', () => {
+    hydrateFull([app({
+      deedAt: D(2025, 2, 20), tenancyStart: D(2025, 3, 1), expiry: D(2026, 2, 31),
     })]);
     expect(guaranteed()).toBe(0);
   });

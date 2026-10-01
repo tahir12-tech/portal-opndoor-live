@@ -202,6 +202,16 @@
   color: #fff;
   margin-left: auto;
 }
+/* The part of the guaranteed total that has not started yet. Under the
+   figure rather than beside it: it qualifies the number, and a second
+   number on the same line would read as another measure. */
+.hero-kpi__note {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.62);
+  position: relative;
+}
 
 /* Folded gross / less refunds / net presentation on the dark hero KPI (live mode). */
 .hero-kpi__split {

@@ -77,6 +77,11 @@ export interface DashboardModel {
   pd: string;
   overall: string;
   guaranteed: string;
+  /** The part of it whose cover has not started yet, said in words, or ''.
+      "GBP 0 with five paid tenancies" was the fault; "GBP 230.4k, GBP 230.4k
+      of it not started yet" is the truth, and both halves have to be on the
+      tile or the second reading is as misleading as the first. */
+  guaranteedNote: string;
   deedcount: string;
   /** The same count as a NUMBER. deedcount is already grouped for display
       ("1,284"), and copy that has to agree with its noun cannot be written
@@ -378,6 +383,9 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     pd: pct(a.deed, a.paid),
     overall: pct(a.deed, a.sent),
     guaranteed: fmtBig(a.guaranteed),
+    guaranteedNote: a.guaranteedNotStarted > 0
+      ? `${fmtBig(a.guaranteedNotStarted)} of it on tenancies that have not started yet`
+      : '',
     deedcount: a.deed.toLocaleString('en-GB'),
     deedsIssued: a.deed,
     fees: fmtMoney(a.feesGross),
@@ -511,6 +519,7 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
     pd: pct(deed, paid),
     overall: pct(deed, sent),
     guaranteed: fmtBig(deed * ANNUAL),
+    guaranteedNote: '',
     deedcount: deed.toLocaleString('en-GB'),
     deedsIssued: deed,
     fees: fmtMoney(feesNum),

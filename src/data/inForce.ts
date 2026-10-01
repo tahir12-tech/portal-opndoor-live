@@ -125,3 +125,50 @@ export function guaranteedInForce(book: InForceRow[], start: Date, end: Date): n
   }
   return total;
 }
+
+/* =====================================================================
+   AND WHAT THE BOOK HOLDS, WHICH IS A DIFFERENT QUESTION.
+
+   Matt, 2026-10-01: "Total guaranteed rent value shows GBP 0 with five
+   paid tenancies; fix it to show their guaranteed rent."
+
+   Measured on dev: Regent holds four executed deeds, and every one of
+   them is for a tenancy that starts later -- 16 Oct, 23 Oct, 20 Nov, 21
+   Nov, read on 1 Oct. `inForceDuring` asks whether cover was running
+   AT SOME POINT IN THE PERIOD, so all four answered no, and the tile
+   read GBP 0 while four tenants had signed.
+
+   The rule is not wrong. It is the right question for the bordereau,
+   which tells an underwriter what was on risk in the month and must not
+   include cover that had not begun. It is the wrong question for an
+   agency Director asking what their book is worth: a deed signed
+   yesterday for a tenancy starting in six weeks is guaranteed rent, and
+   reporting it as nothing is how a real figure reads as a broken one.
+
+   So the headline gets its own clause and keeps every other one. Both
+   rules agree about what a guarantee IS -- executed, not cancelled, a
+   known tenancy start, the same expiry -- and differ only on the one
+   boundary they are actually asking about. The tile names the part that
+   has not started yet rather than quietly folding it in.
+   ===================================================================== */
+
+/**
+ * Is this guarantee one the book holds, for a period?
+ *
+ * Executed, not cancelled, and its cover has not already ended before the
+ * period. Cover that starts after the period ends still counts, which is
+ * the whole difference from `inForceDuring`.
+ */
+export function coverHeldDuring(a: InForceRow, start: Date, _end: Date): boolean {
+  if (a.deedState !== 'executed') return false;
+  if (a.refunded || a.withdrawn) return false;
+  if (!a.tenancyStart) return false;
+  const ends = coverEnds(a);
+  if (!ends) return false;
+  return ends.getTime() >= start.getTime();
+}
+
+/** Has this guarantee's cover not started by the end of the period? */
+export function coverStartsLater(a: InForceRow, end: Date): boolean {
+  return !!a.tenancyStart && a.tenancyStart.getTime() > end.getTime();
+}

@@ -743,6 +743,14 @@ export function Dashboard() {
                 <span className="lbl">Total guaranteed rent value</span>
                 <span className="val">{d.guaranteed}</span>
               </div>
+              {/* AND HOW MUCH OF IT HAS NOT STARTED. The figure read GBP 0
+                  for an agency holding four signed deeds, because every one
+                  of their tenancies starts next month; it now counts them
+                  and says so, rather than choosing between a nought that is
+                  wrong and a total that implies cover is running. */}
+              {d.guaranteedNote && (
+                <div className="hero-kpi__note">{d.guaranteedNote}</div>
+              )}
             </div>
           </RoleOnly>
 

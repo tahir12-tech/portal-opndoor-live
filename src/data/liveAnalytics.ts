@@ -45,7 +45,8 @@ import { deliveryStateOf } from './deliveryState';
 // Walk fix 21: one rule for the line under a referrer's name.
 import { whereTheyWork, type WhereReader } from './whereTheyWork';
 // Walk fixes 8 and 16 share one rule for what is under guarantee, and when.
-import { inForceDuring } from './inForce';
+import { partyIsAgency } from './capabilities';
+import { coverHeldDuring, coverStartsLater } from './inForce';
 import { isDirectRail, isHousePartner } from './channel';
 // Walk fixes 15 and 20: the CUSTOMER is the origin, not the route partner.
 import { ORIGIN_ALL, originOf, originValue, type OriginScope } from './origin';
@@ -111,7 +112,15 @@ export interface LiveAgg {
   refundValue: number;
   refundCount: number;
   feesNet: number;
-  guaranteed: number; // annualised rent over deeds issued in the period
+  /** Twelve months' rent for every guarantee the book HOLDS in the period:
+      executed, not cancelled, cover not already over. Includes cover that
+      has not started yet, which `guaranteedNotStarted` names separately. */
+  guaranteed: number;
+  /** The part of `guaranteed` whose tenancy starts after the period ends.
+      Named rather than folded in, because "nothing is running yet" and
+      "nothing is signed" are different answers and the tile must not give
+      the second when the first is true. */
+  guaranteedNotStarted: number;
   partnerCommNet: number;
   /* COMMISSION PAYABLE TO A REAL SUPPLIER, which is not the same as the
      partner cut. On the agent rail the "partner" is the house route
@@ -163,7 +172,7 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
   const set = scopeFull(allFull(), role, scope).filter((x) => !x.withdrawn && !x.expired);
   const a: LiveAgg = {
     sent: 0, paid: 0, deed: 0, feesGross: 0, refundValue: 0, refundCount: 0, feesNet: 0,
-    guaranteed: 0, partnerCommNet: 0, supplierCommNet: 0, agentCommNet: 0, partnerCommExcl: 0, agentCommExcl: 0,
+    guaranteed: 0, guaranteedNotStarted: 0, partnerCommNet: 0, supplierCommNet: 0, agentCommNet: 0, partnerCommExcl: 0, agentCommExcl: 0,
     stuckSent: 0, stuckPaid: 0, awaiting: 0, awaitingAged: 0, avgRent: 0,
     avgSentToPaidDays: null, avgPaidToDeedDays: null, bookSize: set.length,
     sentTenancies: 0, paidTenancies: 0,
@@ -273,7 +282,17 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
        about which guarantees exist. "Counting a joint tenancy once" needs
        no dedupe and never did -- guaranteedAnnual returns the SHARE and the
        shares sum to the rent. */
-    if (inForceDuring(app, start, end)) a.guaranteed += guaranteedAnnual(app);
+    /* WHAT THE BOOK HOLDS, not what was running. Matt, 2026-10-01: "Total
+       guaranteed rent value shows GBP 0 with five paid tenancies; fix it to
+       show their guaranteed rent." Every one of Regent's four executed deeds
+       is for a tenancy that starts later, so `inForceDuring` -- still the
+       bordereau's rule, and still right for an underwriter -- answered no to
+       all four. coverHeldDuring keeps every other clause and drops the one
+       boundary this tile is not asking about. */
+    if (coverHeldDuring(app, start, end)) {
+      a.guaranteed += guaranteedAnnual(app);
+      if (coverStartsLater(app, end)) a.guaranteedNotStarted += guaranteedAnnual(app);
+    }
     // Current-state operational metrics (not period-filtered).
     if (app.status === 'sent') a.stuckSent += 1;
     if (app.status === 'paid' && !app.deedAt && !app.refunded) a.stuckPaid += 1;
@@ -838,6 +857,12 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
   // first sight of Reporting was twelve months of the agency's earnings. The months
   // themselves, the referrals and the fees collected are theirs and are untouched.
   const seesComm = maySeeCommission(role);
+  /* THE PARTY, NOT THE READER. partyIsAgency rather than isAgencyUser, for
+     the reason the supplier Reporting fix turned on: an Opndoor admin
+     reading Regent's page under View as is not an agency user, but the
+     figures on the page are Regent's and must be the ones Regent is paid.
+     Asked once, outside the loop. */
+  const agencySide = partyIsAgency(scope);
   const end = nowRef();
   const start = new Date(end.getFullYear(), end.getMonth() - 11, 1);
   const months: (MonthRow & { key: number })[] = [];
@@ -860,7 +885,33 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
          supplier settlement. :220 already draws the line this way. */
       if (m) {
         m.fees += feeBaseFor(app);
-        if (!app.refunded && seesComm) m.comm += feeBaseFor(app) * (isHousePartner(app.partner) ? 0 : app.partnerRate);
+        /* THE READER'S OWN COMMISSION, WHICH FOR AN AGENCY IS NOT THE
+           PARTNER CUT. Matt, 2026-10-01: "Monthly trend: September 2026
+           shows GBP 0 commission earned, but the statement shows GBP
+           1,601.54 paid in September. Make the trend use the same figures
+           as the statement."
+
+           This read the PARTNER rate and zeroed it on a house partner --
+           correct, because a house route's partner cut is opndoor's own
+           margin. But every agency Opndoor onboards is on the house
+           partner, so for an agency reader the measure was structurally
+           zero: twelve months of GBP 0 under "Commission earned", beside a
+           statement that paid them.
+
+           For them the money is the agency-side lines, and it is taken
+           from `payeesFor`, which is where the statement's own figures
+           come from: the frozen amount wins, so a joint tenancy's pennies
+           land exactly as commission_statement_lines has them. A supplier
+           reader keeps the partner cut, which is what THEY are paid.
+
+           Only ever read by those two: trendMeasuresFor offers
+           "Commission earned" on the non-Opndoor arm alone, and Opndoor's
+           own measure is `payable` below. */
+        if (!app.refunded && seesComm) {
+          m.comm += agencySide
+            ? payeesFor(app, feeBaseFor(app)).reduce((t, p) => t + p.amount, 0)
+            : feeBaseFor(app) * (isHousePartner(app.partner) ? 0 : app.partnerRate);
+        }
         /* WALK FIX 17. What Opndoor owes out on this fee: the agency's cut
            (totalRate, always) plus a real supplier's (never a house route's,
            which is Opndoor's own margin). The same two terms the tile's
