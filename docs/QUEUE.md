@@ -195,6 +195,24 @@ one the product ships -- which is exactly what the setting was built
 for, and is why the handover check tells Balal to look at the value on
 live rather than trust the default.
 
+## THE AGENCY PEOPLE TAB MATCHES THE SUPPLIER'S, AND CLEAN UP AFTER YOURSELF (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Agency People tab: use the same layout as the supplier People tab: initials on the left, name with the email on the line below, and the Level, Sees, Status and Last active columns. Search and filters styled like the rest of the portal. Also remove the test accounts you created on dev (the "Probe" users on Regent's Lettings and anywhere else), and clean up after yourself in future tests. Deploy to dev and check there.
+
+### THE SECOND HALF IS A CORRECTION AND IT IS FAIR
+
+I left "Dir Probe", "Mgr Probe", "Neg Probe" and "PROBE Opndoor Admin"
+on dev. Dev is a shared environment Matt reads: a fake Director on
+Regent's Lettings is a row he has to recognise as mine every time he
+looks at the people list, and a test account with a real position is
+one more thing that could be invited, emailed or counted.
+
+**THE STANDING RULE FROM HERE:** a test fixture lives inside a
+transaction that is rolled back (which is what every pgTAP file in
+this repo already does), or it is deleted in the same turn that
+created it. Nothing with a `zzz`, `probe` or `test` name is left on
+dev at the end of a turn.
+
 ## REBUILD THE SUPPLIER COMMISSION TAB, PLAIN ENGLISH ONLY (instruction, 2026-10-01, verbatim). ACTIVE.
 
 > Rebuild the supplier Commission tab, plain English only (no "shapes", "deals underneath", "frozen", "carved", "Standard terms"):
