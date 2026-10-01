@@ -15,6 +15,41 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## SUPPLIER COMMISSION USES THE AGENCY DEAL EDITOR (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Supplier Commission tab: use the same commission deal editor agencies have, with all its options (flat rate, volume tiers, bands by number of tenants, and per-agency overrides), for both the supplier's total commission and the agents' share within it. Both can be set independently per supplier. The agents' share can never exceed the supplier's total on any referral, checked on save. The summary line explains the resulting deal in plain English. Changes apply to new referrals only, recorded with who and when. Deploy to dev and check there.
+
+- This is the morning item 1 ("tier EDITING is a build of its own")
+  answered: reuse the agency editor rather than build a second one.
+- "Never exceed on ANY referral" is stronger than comparing two flat
+  rates: with tiers and bands on both sides it has to hold for every
+  combination a referral could land in.
+
+## SUPPLIER INTEGRATION TAB: THE API SWITCH AND READ-ONLY DEV CENTRE (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Supplier Integration tab: add the API access on/off switch here (moved from Settings), with a confirmation that says how many active API keys will stop working if it's turned off. Below it, read-only for Opndoor admin: their sandbox activity (sandbox applications and their status), recent API requests and errors, and webhook delivery history, same data as their Dev Centre. Keys show by prefix only, with the existing Revoke; admin still can't see full keys or create them. Deploy to dev and check there.
+
+- The key-visibility rule is unchanged and is the line not to cross:
+  prefix only, revoke yes, create and reveal no.
+
+## SUPPLIERS LIST AND THE SUPPLIER PAGE (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Suppliers list: remove the Users and Manage buttons; clicking a supplier opens its page. On the supplier's page, its settings (name, live from, status, referencing mode, capabilities) move into a Settings tab, with the same fields as Manage. Its people are on the People tab only. Keep "Add supplier" working with its own create form. Anything that linked to /users?partner=… now goes to that supplier's People tab. On supplier people lists, show supplier levels (Management, Referrer), and Management sees "Everything" not "Own referrals". Deploy to dev and check there.
+
+- "Anything that linked to /users?partner=…" is a sweep, and the same
+  kind that just caught me out: grep for the link, do not guess the list.
+
+## EVERY BARE TEXT BOX IN ADMIN GETS THE PORTAL'S INPUT (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Every bare text box in the admin screens (the supplier "Monthly statement addresses" inputs, the Origin filter on Applications and League, and any others) gets the same styled input as the rest of the portal: rounded border, padding, label above, matching the commission fields on the same page. Sweep the whole admin for unstyled inputs and fix them all. Deploy to dev and check there.
+
+- Confirmed by eye on a browser screenshot taken while chasing the
+  route=Direct bug: the Origin control renders as a plain rectangle
+  between the "Period: All time" and "Branch: All" pills.
+- This OVERLAPS the instruction below (the Origin box becoming a button
+  that opens a picker). Doing that one first removes the Origin case
+  from this sweep entirely, so they are worked in that order.
+
 ## THE ORIGIN BOX LOOKS LIKE A FILTER, AND THE DEFAULT PERIOD (instruction, 2026-10-01, verbatim). ACTIVE, after the route=Direct bug.
 
 > The Origin filter box on League and Applications: style it to match the other filter buttons (like "Period: All time"), reading "Origin: Everything" with a dropdown arrow, opening the search and list when clicked. No bare text box. Also default League and Reporting to "Last 30 days" instead of "This calendar month", so they aren't empty on the 1st of the month. Deploy to dev and check there.
@@ -27,7 +62,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
   Applications, and the reason is stated in the instruction. Today is the
   1st, which is exactly when it bites.
 
-## ?route=Direct IS IGNORED, AGAIN (bug, 2026-10-01, verbatim). ACTIVE, in hand.
+## ?route=Direct IS IGNORED, AGAIN (bug, 2026-10-01, verbatim). **done** (`9f84df1`). A first-run ref is not a guard under StrictMode.
 
 > Steps: signed in as Opndoor admin on dev, on Home I click "View all Direct". It opens /applications?route=Direct, but the Origin box doesn't show Direct and the list shows every application, not just direct ones. Same after a hard refresh. Reproduce this through the browser path, fix it, deploy to dev and check there.
 
