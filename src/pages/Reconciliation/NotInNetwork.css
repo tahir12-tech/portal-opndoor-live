@@ -44,3 +44,7 @@
   .nin__contact { grid-template-columns: 1fr; gap: 2px; }
   .nin__contact dd { margin-bottom: 6px; }
 }
+
+/* The two actions, on the card's head row beside the name. */
+.nin__acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+@media (max-width: 520px) { .nin__acts { width: 100%; } }

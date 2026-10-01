@@ -27,9 +27,11 @@
    not return them. Item 24: "Only the agency and agent contact go across,
    never the tenant's details."
    ===================================================================== */
-import { useEffect, useState } from 'react';
-import { loadNotInNetworkAgencies, type NotInNetworkAgency } from '@/data';
+import { useCallback, useEffect, useState } from 'react';
+import { decideNotInNetwork, loadNotInNetworkAgencies, type NotInNetworkAgency } from '@/data';
 import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmModal';
+import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import './NotInNetwork.css';
 
@@ -40,17 +42,56 @@ function contactName(c: { title: string | null; firstName: string | null; lastNa
 
 export function NotInNetwork() {
   const toast = useToast();
+  const { ask, confirmEl } = useConfirm();
   const [rows, setRows] = useState<NotInNetworkAgency[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let live = true;
-    loadNotInNetworkAgencies()
-      .then((r) => { if (live) setRows(r); })
-      .catch((e) => toast(e instanceof Error ? e.message : 'Could not load the not-in-network list.', 'error'))
-      .finally(() => { if (live) setLoading(false); });
-    return () => { live = false; };
+  const load = useCallback(async () => {
+    try {
+      setRows(await loadNotInNetworkAgencies());
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not load the not-in-network list.', 'error');
+    } finally {
+      setLoading(false);
+    }
   }, [toast]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  /* RELOADED RATHER THAN SPLICED. The list is grouped and ordered by the
+     server, and a row removed here would leave the rest describing a
+     state the server no longer agrees with -- including the case that
+     matters, where a tenant named the same agency again between the read
+     and the click. */
+  const decide = (r: NotInNetworkAgency, decision: 'added' | 'ignored') => ask({
+    title: decision === 'added' ? 'Mark as added to HubSpot' : 'Ignore this agency',
+    /* WALK FIX 23: the sentence names the record. And it says the one
+       thing a reader needs to know about a list that forgets: this is
+       not permanent. */
+    body: decision === 'added'
+      ? (<>
+          Take <b>{r.typedName}</b> off the list, recorded as added to HubSpot by hand?
+          {' '}If another direct tenant names them later, they come back.
+        </>)
+      : (<>
+          Take <b>{r.typedName}</b> off the list without adding them, recorded as ignored?
+          {' '}If another direct tenant names them later, they come back.
+        </>),
+    confirmLabel: decision === 'added' ? 'Mark as added' : 'Ignore',
+    run: async () => {
+      setBusy(true);
+      try {
+        await decideNotInNetwork(r.nameKey, decision, r.typedName);
+        await load();
+        toast(decision === 'added'
+          ? `${r.typedName} marked as added to HubSpot.`
+          : `${r.typedName} ignored.`);
+      } catch (e) {
+        toast(e instanceof Error ? e.message : 'Could not record that.', 'error');
+      } finally { setBusy(false); }
+    },
+  });
 
   /* `empty is-shown`, NOT `empty`. The shared rule is `.empty { display:
      none }` with `.empty.is-shown { display: block }`, so the class alone
@@ -88,6 +129,19 @@ export function NotInNetwork() {
                 {r.lastNamedAt && <> · last on {r.lastNamedAt}</>}
               </div>
             </div>
+            {/* TWO ACTIONS, EACH BEHIND A CONFIRMATION. Matt, 2026-09-30.
+                Neither is destructive in the usual sense -- the row comes
+                back the moment another tenant names the agency -- so
+                neither is styled as a danger, and both say so in the
+                box. */}
+            <div className="nin__acts">
+              <Button variant="dark" size="sm" disabled={busy} onClick={() => decide(r, 'added')}>
+                Added to HubSpot
+              </Button>
+              <Button variant="quiet" size="sm" disabled={busy} onClick={() => decide(r, 'ignored')}>
+                Ignore
+              </Button>
+            </div>
           </div>
 
           {r.contacts.length === 0 ? (
@@ -113,6 +167,7 @@ export function NotInNetwork() {
           )}
         </section>
       ))}
+      {confirmEl}
     </div>
   );
 }

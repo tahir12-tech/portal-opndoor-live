@@ -75,16 +75,26 @@ values
 -- is about the RAIL and not about a number somebody can edit on a screen.
 update public.partners set agent_rate = 0.10 where slug = 'opndoor-direct';
 
+/* THE MONTH OF THE FIXTURE, NOT THE MONTH OF THE CLOCK. These three
+   assertions asked for `date_trunc('month', now())` while the fixture
+   pays `now() - interval '2 days'`, which is the same month for
+   twenty-eight or so days out of thirty and a different one for the
+   other two. It went red at 00:01 on the 1st of October against code
+   that had not changed: every paid row was in September and the
+   statement was asked for October.
+
+   A test that passes because of the date is not passing. Both halves now
+   read from the same instant. */
 -- ===========================================================================
 -- M5. A DIRECT TENANT IS NOT AN AGENCY'S PAYEE
 -- ===========================================================================
 select is(
-  (select count(*)::int from public.commission_statement_lines(date_trunc('month', now())::date)
+  (select count(*)::int from public.commission_statement_lines(date_trunc('month', now() - interval '2 days')::date)
     where guarantee_ref = 'ZZZ-RAIL-DI'), 0,
   'a matched direct application is not a statement line for the agency it was matched to');
 
 select is(
-  (select count(*)::int from public.commission_statement_lines(date_trunc('month', now())::date)
+  (select count(*)::int from public.commission_statement_lines(date_trunc('month', now() - interval '2 days')::date)
     where guarantee_ref = 'ZZZ-RAIL-AG'), 1,
   'while the agency''s own referral still is');
 
@@ -110,7 +120,7 @@ select is(
    setting is asserted in a_supplier_gets_its_own_statement, which owns
    its own supplier. */
 select bag_eq(
-  $$select level from public.commission_statement_lines(date_trunc('month', now())::date)
+  $$select level from public.commission_statement_lines(date_trunc('month', now() - interval '2 days')::date)
      where guarantee_ref = 'ZZZ-RAIL-SU'$$,
   $$values ('partner')$$,
   'and the supplier''s referral is not excluded either -- one line, the supplier''s own, because Opndoor pays only the supplier');

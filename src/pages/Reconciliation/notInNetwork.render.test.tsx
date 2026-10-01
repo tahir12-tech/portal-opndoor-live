@@ -24,6 +24,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { ToastProvider } from '@/components/ui/Toast';
 import { PageMetaProvider } from '@/components/layout/pageMeta';
 import { Reconciliation } from './Reconciliation';
@@ -104,14 +106,38 @@ describe('what the list says', () => {
 });
 
 describe('what the list must not do', () => {
-  /* MATT'S FIRST CLAUSE, HELD ON THE SURFACE. */
-  it('offers nothing that writes to HubSpot', async () => {
+  /* MATT'S FIRST CLAUSE, HELD WHERE IT ACTUALLY LIVES, 2026-09-30.
+
+     This used to refuse any control whose LABEL mentioned HubSpot, on
+     the reasoning that NM-N says "don't create companies in HubSpot
+     automatically" and the page therefore had no buttons at all.
+
+     It has two now, and one of them is called "Added to HubSpot",
+     because Matt asked for exactly that: "'Added to HubSpot' (marks it
+     done, records who and when, and removes it from the list) and
+     'Ignore' (removes it, recorded)." That button RECORDS something a
+     person did by hand. It is the opposite of an automatic write, and a
+     label test cannot tell the difference.
+
+     So the rule moves to where it can be checked: the page's code must
+     call nothing that writes to a CRM. `decideNotInNetwork` writes one
+     row to our own table and an audit line, and that is all this screen
+     reaches for. */
+  it('calls nothing that writes to HubSpot', async () => {
+    const src = readFileSync(
+      resolve(process.cwd(), 'src/pages/Reconciliation/NotInNetwork.tsx'), 'utf8',
+    ).replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/[^\n]*$/gm, ' ');
+    // The CRM write paths in this codebase, by name.
+    expect(src).not.toMatch(/triggerCrmSync|hubspot_sync|crm_sync|hubspotUpsert/i);
+  });
+
+  /* AND THE TWO BUTTONS IT DOES HAVE ARE THE TWO HE ASKED FOR. */
+  it('and offers exactly the two actions, each behind a confirmation', async () => {
     const v = await open('notinnetwork');
-    const controls = [...v.container.querySelectorAll('.nin button, .nin a')]
+    const labels = [...v.container.querySelectorAll('.nin__acts button')]
       .map((b) => (b.textContent ?? '').trim());
-    for (const c of controls) {
-      expect(c, `"${c}" reads like a CRM write`).not.toMatch(/hubspot|crm|sync|add to|create|push/i);
-    }
+    expect(labels).toContain('Added to HubSpot');
+    expect(labels).toContain('Ignore');
   });
 
   /* AND NOTHING OF THE TENANT'S. Written against the tenant data that is

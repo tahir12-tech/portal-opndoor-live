@@ -261,6 +261,24 @@ export interface NotInNetworkAgency {
   contacts: NotInNetworkContact[];
 }
 
+/* WHAT SOMEBODY DID ABOUT A NOT-IN-NETWORK AGENCY. Matt, 2026-09-30:
+   "'Added to HubSpot' (marks it done, records who and when, and removes
+   it from the list) and 'Ignore' (removes it, recorded)."
+
+   ONE CALL FOR BOTH, because the difference between them is what the
+   person did next and not how the list behaves. Both record who and
+   when, and both take the row off until a tenant names that agency
+   again -- which is the half a done-flag cannot do. */
+export async function decideNotInNetwork(
+  nameKey: string, decision: 'added' | 'ignored', typedName?: string,
+): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  const { error } = await sb().rpc('decide_not_in_network', {
+    p_name_key: nameKey, p_decision: decision, p_typed_name: typedName ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function loadNotInNetworkAgencies(): Promise<NotInNetworkAgency[]> {
   if (SUPABASE_ENABLED) {
     const { data, error } = await sb().rpc('not_in_network_agencies');

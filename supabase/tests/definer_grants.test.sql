@@ -108,6 +108,7 @@ insert into allowed(name) values
   ('create_referral'),
   ('create_referral_target'),
   ('cron_health'),
+  ('decide_not_in_network'),
   ('decline_application'),
   ('dev_api_errors_by_method'),
   ('dev_api_keys'),

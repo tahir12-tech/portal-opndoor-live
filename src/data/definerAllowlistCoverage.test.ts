@@ -166,8 +166,13 @@ describe('the definer allowlist', () => {
      FUNCTIONS. `set_supplier_commission` and `supplier_commission_tiers`
      are the supplier Commission tab's write and read. Both are exercised
      by name in commission_is_set_in_one_place.test.sql. 2026-09-30. */
-  it('is 138 functions wide, and does not widen by accident', () => {
-    expect(allowlist.length).toBeLessThanOrEqual(138);
+  /* 138 -> 139, RAISED DELIBERATELY AND IN THE SAME COMMIT AS THE
+     FUNCTION. `decide_not_in_network` is the Reconciliation page's two
+     buttons: called from the browser, guarded inside with is_aal2 +
+     is_opndoor_staff. Exercised by name in
+     a_decision_is_a_moment_not_a_flag.test.sql. 2026-09-30. */
+  it('is 139 functions wide, and does not widen by accident', () => {
+    expect(allowlist.length).toBeLessThanOrEqual(139);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {
