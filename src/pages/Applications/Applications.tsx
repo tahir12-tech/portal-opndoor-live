@@ -340,6 +340,18 @@ export function Applications() {
      chip stays: it is the drill INTO the party the origin names. */
   const showAgencyChip = showAgency && !showOrigin;
 
+  /* WHO SENT IT. Matt, 2026-10-01: "Agency Applications: add a 'Referred
+     by' column for Directors and Managers."
+
+     Not for a Negotiator, whose book is their own referrals, so the column
+     would be their own name on every row -- the same measurement the Agency
+     and Branch columns already come off on, and the reason `showReferrer`
+     (the FILTER) is gated the same way -- and keeping the column on the
+     same test as the filter is the honest pairing: a page that can filter
+     by referrer and will not show you who sent a row is asking somebody to
+     filter blind. */
+  const showReferredBy = showReferrer;
+
   /* A control that is not on screen must not still be filtering. A ?route= or
      ?partner= deep-link into a one-rail book would otherwise leave the list
      filtered to a party nothing matches, with nothing on screen to clear it. */
@@ -522,6 +534,7 @@ export function Applications() {
                 {showOrigin && <th>Origin</th>}
                 <th>Property</th>
                 {showOrgCol && <th>{showBranch ? 'Branch' : 'Agency'}</th>}
+                {showReferredBy && <th>Referred by</th>}
                 <th style={{ textAlign: 'right' }}>Monthly rent</th>
                 <th>Status</th>
                 {/* NOT "Date". The cell is the row's MOST RECENT event,
@@ -549,10 +562,10 @@ export function Applications() {
                 const me = g?.members.find((m) => m.ref === r.ref);
                 const shown = g ? pagedRows.filter((x) => x.tenancyId === r.tenancyId).length : 0;
                 /* Tenant, Property, rent, Status, Last activity and the chevron are always
-                   drawn; the other three come and go with the viewer's shape.
+                   drawn; the other four come and go with the viewer's shape.
                    Keep this in step with the header row above, or the tenancy
                    heading runs short of the table it sits in. */
-                const cols = 6 + (showOrigin ? 1 : 0) + (showOrgCol ? 1 : 0);
+                const cols = 6 + (showOrigin ? 1 : 0) + (showOrgCol ? 1 : 0) + (showReferredBy ? 1 : 0);
                 /* DID THIS TENANT'S DEED GET THERE? deliveryBadge owns both the
                    wording and who is shown which state; the state itself is read
                    again only to pick the tone, which is not its business. */
@@ -652,6 +665,11 @@ export function Applications() {
                             agency's own name for a single-office agency -- that
                             would print the same words twice. */}
                         {showBranch && showAgency && showsOffices(r.agency) && r.agency !== o.name && !isPlaceholderOrg(r.agency) && <div className="dt__sub">{r.agency}</div>}
+                      </td>
+                    )}
+                    {showReferredBy && (
+                      <td className="soft">
+                        {r.referrer || <span className="dt__sub">Not recorded</span>}
                       </td>
                     )}
                     {/* The rent is the PROPERTY's and is the same on every sibling,
