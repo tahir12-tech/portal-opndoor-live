@@ -150,12 +150,27 @@ their deed.
 Matt, 2026-10-01: "on live, emails must send from a verified opndoor.co
 address, not onboarding@resend.dev, checked before go-live."
 
-This is a configuration check, not a code one. The code already defaults
-to the right thing: `supabase/functions/_shared/mailer.ts` reads
-`EMAIL_FROM` and falls back to `opndoor <noreply@opndoor.co>`. The risk
-is the live project having `EMAIL_FROM` unset or still pointed at
-Resend's shared sandbox sender, which is what you get before a domain is
-verified.
+**UPDATED 2026-10-01.** Matt: "Every email is sent from
+no-reply@opndoor.co (display name 'opndoor'), with no Reply-To ... The
+sender address is a setting, not hardcoded. Add to HANDOVER-BALAL.md:
+verify opndoor.co in Resend and set the sender to no-reply@opndoor.co
+before go-live, with a check."
+
+**The sender is now a SETTING, not an environment variable.** It lives
+in `app_settings` under the key `email_from`, is read by
+`public.email_from()`, and an Opndoor admin can change it without a
+deploy. `mailer.ts` takes the first of these that is present:
+
+| order | source | why it exists |
+|---|---|---|
+| 1 | `app_settings.email_from` | what an admin changes, audited |
+| 2 | `EMAIL_FROM` | so a deployment can send before anybody can sign in to set it |
+| 3 | `opndoor <no-reply@opndoor.co>` | so an email is never unsendable for want of configuration |
+
+Each is a fallback for the one before being ABSENT, never for it being
+wrong. **There is no Reply-To on any email** as of 2026-10-01: the
+sender is a no-reply mailbox and the footer carries a mailto link to
+support@opndoor.co.
 
 **What to check, on the live project, before the first real send:**
 
@@ -163,17 +178,52 @@ verified.
    records live. An unverified domain is why `onboarding@resend.dev`
    exists, and Resend will refuse or rewrite a from-address on a domain
    it cannot verify.
-2. `EMAIL_FROM` is set to an address on that domain, and is NOT
-   `onboarding@resend.dev`.
-3. `EMAIL_REPLY_TO` is `support@opndoor.co`, or unset, which now falls
-   back to the same thing. The footer of every email prints that address
-   and the Reply button must reach it.
-4. `EMAIL_REVIEW_ADDRESS` is **unset** on live. It redirects every email
+2. The mailbox `no-reply@opndoor.co` exists on that domain. Note the
+   HYPHEN: the old default was `noreply@`, which is a different mailbox.
+3. `app_settings.email_from` reads `opndoor <no-reply@opndoor.co>`.
+4. `EMAIL_FROM` is **unset** on live, so the setting is what is in
+   force. If it is set it WINS, and an admin changing the setting will
+   appear to do nothing.
+5. `EMAIL_REVIEW_ADDRESS` is **unset** on live. It redirects every email
    to one inbox, which is right on dev and would mean no customer ever
    receives anything on production.
 
-Point 4 is the one that is silent: everything succeeds, the logs say
+Point 5 is the one that is silent: everything succeeds, the logs say
 sent, and the mail is all in one mailbox.
+
+#### The check
+
+Run this against LIVE. It answers 3 and 4 together, and prints what
+every email will actually be sent from.
+
+```sql
+select
+  coalesce(public.email_from(), '(setting unset)')        as setting,
+  coalesce(current_setting('app.email_from_env', true),
+           '(check the dashboard: EMAIL_FROM)')           as env_var_note,
+  case
+    when public.email_from() is null
+      then 'FAIL: no setting; the function falls back to its built-in default'
+    when public.email_from() not like '%no-reply@opndoor.co%'
+      then 'FAIL: not the no-reply@opndoor.co mailbox'
+    when public.email_from() !~ '^[^<>]+<[^<>@[:space:]]+@[^<>@[:space:]]+\.[^<>@[:space:]]+>$'
+      then 'FAIL: not in the "Name <address>" shape Resend parses'
+    else 'OK'
+  end                                                      as verdict;
+```
+
+`env_var_note` cannot be read from SQL -- an edge function's environment
+is not visible to Postgres -- so check `EMAIL_FROM` in the Supabase
+dashboard under Edge Functions → Secrets and confirm it is **not set**.
+
+And one live send, to yourself, from the invite flow. Confirm:
+
+- it arrives from **opndoor &lt;no-reply@opndoor.co&gt;**;
+- the footer reads **Questions? Email support@opndoor.co** and the
+  address is a working mailto link;
+- pressing **Reply** offers no-reply@opndoor.co and not a support
+  address -- that is correct now, and is why the footer carries the
+  mailto.
 
 ---
 

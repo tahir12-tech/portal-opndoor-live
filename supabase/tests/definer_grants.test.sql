@@ -139,6 +139,7 @@ insert into allowed(name) values
   ('dev_webhook_endpoints'),
   ('dev_webhook_stats'),
   ('dismiss_agency_match'),
+  ('email_from'),
   ('end_agreement'),
   ('is_admin'),
   ('is_house_partner_id'),

@@ -256,7 +256,11 @@ export function submissionReceivedEmail(p: {
       { p: `${hi} Your application for an opndoor guarantee on ${p.propertyAddr} is in, and there is nothing for you to do right now.` },
       // The sentence above already names the property. See the sweep note.
       { rows: [["Reference", p.guaranteeRef]] },
-      { p: "If anything comes up, just reply to this email. You may also be asked for another document or two before it is finished." },
+      /* NOT "reply to this email": since 2026-10-01 every email is sent
+         from no-reply@opndoor.co, so a reply goes nowhere. The footer
+         carries the support address; the body now points at it too,
+         because this sentence is the one inviting a reply. */
+      { p: "If anything comes up, email support@opndoor.co. You may also be asked for another document or two before it is finished." },
       { h: "What happens next" },
       { list: [
         "We confirm your eligibility. This usually does not take long.",
@@ -638,7 +642,7 @@ export function renewalNoticeEmail(p: { tenantName: string; propertyAddr: string
     subject: `The opndoor guarantee for ${p.tenantName} ends on ${p.endDate}`,
     heading: "The guarantee is ending soon",
     blocks: [
-      { p: `The guarantee for ${p.tenantName} at ${p.propertyAddr} ends on ${p.endDate}. If the tenancy is continuing and you would like cover to continue, reply to this email.` },
+      { p: `The guarantee for ${p.tenantName} at ${p.propertyAddr} ends on ${p.endDate}. If the tenancy is continuing and you would like cover to continue, email support@opndoor.co.` },
     ],
   };
 }

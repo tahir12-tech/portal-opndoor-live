@@ -14,20 +14,69 @@ import { resolveRecipients, type Recipients } from "./emailRecipients.ts";
 import { renderHtml, renderText, type Message } from "./emailLayout.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-// One default, not fourteen. Nine modules said noreply and six said payments,
-// so an unset EMAIL_FROM sent from two addresses depending on the email.
-const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <noreply@opndoor.co>";
-/* REPLY GOES WHERE THE FOOTER SAYS. Matt, 2026-10-01: "Set the
-   Reply-To header on every email to support@opndoor.co, so pressing
-   Reply also reaches support."
+/* =====================================================================
+   WHO EVERY EMAIL COMES FROM, AND WHY IT IS A SETTING.
 
-   The default was hello@opndoor.co, the general contact address, so
-   the footer told a reader one thing and the Reply button did
-   another the moment EMAIL_REPLY_TO was unset -- which it is. The
-   env var still wins, because a live environment may route support
-   somewhere else, but the fallback is now the address the email
-   itself prints. */
-const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "support@opndoor.co";
+   Matt, 2026-10-01: "Every email is sent from no-reply@opndoor.co
+   (display name 'opndoor'), with no Reply-To ... The sender address is
+   a setting, not hardcoded."
+
+   THREE SOURCES, IN THIS ORDER, each a fallback for the one before
+   being ABSENT and never for it being wrong:
+
+     app_settings.email_from   what an admin can change, from Health,
+                               without a deploy and with an audit row.
+     EMAIL_FROM                the environment, for a deployment that
+                               must send before anybody can sign in to
+                               set the setting.
+     the literal below         so an email is never unsendable for
+                               want of configuration.
+
+   An env var alone was not a setting: changing it means a secret
+   change and a redeploy of every edge function, by somebody with
+   Supabase access. Nobody running the business could do it, or even
+   see what it was.
+
+   THE HYPHEN IS NOT A TYPO. The old default was noreply@opndoor.co;
+   Matt's is no-reply@opndoor.co. Different mailbox.
+   ===================================================================== */
+const EMAIL_FROM_ENV = Deno.env.get("EMAIL_FROM");
+const EMAIL_FROM_FALLBACK = "opndoor <no-reply@opndoor.co>";
+
+/* READ ONCE PER COLD START, not per email: a statement run sends
+   hundreds in a loop and each would otherwise cost a round trip to
+   answer a question whose answer changes about once a year. A setting
+   change reaches the functions at their next cold start, which is the
+   same latency every other app setting has. */
+let cachedFrom: string | null = null;
+async function senderAddress(): Promise<string> {
+  if (cachedFrom) return cachedFrom;
+  if (EMAIL_FROM_ENV) { cachedFrom = EMAIL_FROM_ENV; return cachedFrom; }
+  try {
+    const url = Deno.env.get("SUPABASE_URL");
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (url && key) {
+      const res = await fetch(`${url}/rest/v1/rpc/email_from`, {
+        method: "POST",
+        headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (res.ok) {
+        const v = await res.json();
+        if (typeof v === "string" && v.trim()) { cachedFrom = v.trim(); return cachedFrom; }
+      }
+    }
+  } catch { /* the fallback below is the point of having one */ }
+  cachedFrom = EMAIL_FROM_FALLBACK;
+  return cachedFrom;
+}
+
+/* NO REPLY-TO AT ALL. Matt, 2026-10-01, revising his own instruction of
+   the same day: the footer carries a mailto to support@opndoor.co and
+   the sender is a no-reply mailbox, so a Reply-To would be a third
+   answer to "where does a reply go" and a contradiction of the address
+   it was sent from. A reader who presses Reply should be stopped by
+   their own mail client, not quietly redirected. */
 
 export interface SendResult {
   ok: boolean;
@@ -64,9 +113,8 @@ export async function sendMessage(opts: {
   if (!routed.to.length) return { ok: false, error: "No recipient email provided." };
 
   const body: Record<string, unknown> = {
-    from: EMAIL_FROM,
+    from: await senderAddress(),
     to: routed.to,
-    reply_to: REPLY_TO,
     subject: opts.message.subject,
     // BOTH parts, always. A message with no text/plain scores as spam and is
     // unreadable on a watch, and the text is derived from the same blocks so it

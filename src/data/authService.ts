@@ -128,9 +128,23 @@ export async function enrolTotp(): Promise<EnrolResult> {
   // name '' already exists") whenever a stale factor lingers, which previously
   // stranded invitees at the two-factor step. On failure we surface the real
   // GoTrue message rather than a blanket one.
+  /* UNVERIFIED ONLY, WHICH THE COMMENT ABOVE ALWAYS ASSUMED AND THE CODE
+     DID NOT. This looped every TOTP factor and unenrolled it, verified
+     ones included, on the strength of "enrolTotp is only reached when the
+     user has NO verified factor". Both callers do check that first -- so
+     it has never fired on a live factor -- but a guard that holds only
+     while every caller remembers is the kind this codebase keeps having
+     to fix. A third caller, or a stale read of `hasVerifiedFactor`,
+     would have had this silently destroy somebody's working
+     authenticator and lock them out of their own account.
+
+     Raised while reading this path for Matt's reset-two-factor report,
+     2026-10-01. It is not that bug -- see the queue -- but it is the
+     same shape of hazard and a line to fix while it is in front of me. */
   try {
     const { data } = await sb().auth.mfa.listFactors();
     for (const f of (data?.totp ?? [])) {
+      if (f.status === 'verified') continue;
       try { await sb().auth.mfa.unenroll({ factorId: f.id }); } catch { /* best effort */ }
     }
   } catch { /* best effort */ }
