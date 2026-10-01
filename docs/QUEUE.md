@@ -63,6 +63,37 @@ already edited.
 Total and reference both already exist on every statement, agency and
 supplier, in the PDF, the CSV and the email. Nothing new to compute.
 
+## THE SUPPLIER'S SCHEDULES GO IN A ZIP (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Supplier statement emails: attach the supplier's own statement (PDF and CSV) directly, plus one zip file containing the per-agency statements, laid out as the supplier's statement at the top level and an "Agents" folder with one PDF and CSV per agency, named by agency. If the zip would be over 10MB, don't attach it; instead the email links to download it from the supplier's Reporting page, where it's always available. Send me a TEST version, only to mdwyer@opndoor.co.
+
+### WHY THIS IS MORE THAN A ZIP
+
+Tonight's TEST supplier email carried SIX attachments, which is already
+awkward at two agencies and unreadable at twenty. The zip fixes that.
+But the second half -- "where it's always available" -- is the larger
+half: the Reporting page has to offer the same download whether or not
+an email ever carried it, which means the zip cannot be a thing that
+only exists inside the monthly run.
+
+### WHAT TO GET RIGHT
+
+- **No zip dependency.** This repo writes its own PDF rather than take
+  one, for stated reasons. A STORE-only zip (no compression) is a few
+  dozen lines: local headers, a central directory, an end record, and
+  CRC32. PDFs are already compressed-ish and CSVs are tiny, so deflate
+  would buy little.
+- **ONE zip implementation**, or the email and the page will disagree
+  about what is in the file. `supplier_statement_lines` is service_role
+  only, so the browser cannot build it: the page must ask the Edge
+  Function for the bytes.
+- **"Over 10MB" is about the zip, not the attachments**, and the email
+  changes shape when it happens: no attachment, and a sentence with the
+  link instead. Both shapes need a test; the big one will never occur on
+  dev, so it has to be forced.
+- **Named by agency**, so a human extracting it can find one. The
+  schedule filenames already slug the agency name.
+
 ## A REFUND AFTER THE STATEMENT WENT OUT (instruction, 2026-10-01, verbatim). ACTIVE, next.
 
 > Refund after a commission statement has been sent: when a refund lands on an application whose commission was already on a sent statement, raise an internal alert to Opndoor naming the payee, the statement reference and the commission affected. On that alert, Opndoor admin chooses, with a confirmation box: (a) reissue a corrected statement to the payee, or (b) carry the amount as a deduction line on the payee's next statement. Nothing happens automatically. Record who chose what and when. Deploy to dev and check there.
