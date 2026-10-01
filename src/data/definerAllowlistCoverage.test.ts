@@ -181,7 +181,7 @@ describe('the definer allowlist', () => {
      `set_app_setting_text` is Health's field, `statement_invoice_email`
      is what it reads back, and `statements_can_be_posted` is the
      boolean Home and Health both warn on. 2026-10-01. */
-  it('is 151 functions wide, and does not widen by accident', () => {
+  it('is 152 functions wide, and does not widen by accident', () => {
     /* 142 -> 144, 2026-10-01: refund_questions_open and
        decide_refund_question, the list and the answer for a refund that
        landed on commission already sent on a statement. Both are staff
@@ -210,7 +210,15 @@ describe('the definer allowlist', () => {
        authorise_password_reset. It judges the same ladder and returns the
        address to tell that their two-factor was reset, so the browser
        never nominates where that email goes. It writes nothing. */
-    expect(allowlist.length).toBeLessThanOrEqual(151);
+    /* 151 -> 152, 2026-10-01: save_share_deal, which writes one of a
+       supplier's agents' share deals together with the agencies it
+       applies to. It exists because create_agreement takes no agencies
+       and therefore cannot tell the supplier's default deal from a deal
+       for three named ones -- and that difference decides which other
+       deals it is allowed to end. Admin only, behind MFA, and it refuses
+       an agency belonging to another supplier. Covered by name in
+       one_save_for_a_share_deal.test.sql. */
+    expect(allowlist.length).toBeLessThanOrEqual(152);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

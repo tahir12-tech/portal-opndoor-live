@@ -185,6 +185,14 @@ insert into allowed(name) values
   ('refund_questions_open'),
   ('remove_partner_statement_recipient'),
   ('resolve_agency_match'),
+  /* ONE SAVE WRITES A SHARE DEAL AND THE AGENCIES IT APPLIES TO
+     (20261007300000). The Commission tab's only way to write a supplier's
+     agents' share deals: create_agreement takes no agencies, so it could
+     not tell the default deal from a deal for named agencies, and asked
+     for a second one it ended every share deal at the scope. Admin and
+     MFA are checked inside, and an agency of another supplier is refused.
+     Covered by one_save_for_a_share_deal. */
+  ('save_share_deal'),
   ('send_deed_to_agent'),
   ('send_deed_to_landlord'),
   ('set_agency_group'),
