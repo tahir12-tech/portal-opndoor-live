@@ -167,7 +167,7 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
-## THE AGENCY PAGE GETS ITS OWN RECENT CHANGES (instruction, 2026-10-01, verbatim). ACTIVE.
+## THE AGENCY PAGE GETS ITS OWN RECENT CHANGES (instruction, 2026-10-01, verbatim). **done** (`d5501f6`).
 
 > Agency page: add a "Recent changes" list like the supplier's, showing every change to the agency's details, branches, people's levels and commission deals in plain English, with who and when, using the shared builder.
 
@@ -181,6 +181,18 @@ Two things worth knowing for whoever picks the next one up:
   getting them into one shape as about listing them.
 - "using the shared builder" means `changeSentence`, so whatever is
   gathered has to arrive as a (field, old, new) triple.
+
+### WHAT WAS LEFT, and why
+
+- **A GROUP'S PAGE SHOWS NO LIST.** AgencyHome renders a group as
+  several agencies, and one list mixing three histories under one
+  heading would need a fourth chip to say which agency each row is
+  about -- a different screen from the one asked for. The reader
+  takes one agency id and would serve a group page fine if the
+  design question were answered.
+- The builder now takes an EVENT as well as a triple, because
+  `org_audit` records actions and not before-and-afters. That is
+  still one builder; it is not one shape.
 
 ## THE TAB COUNTS FOLLOW THE FILTERS (instruction, 2026-10-01, verbatim). **done** (`3149c88`).
 
