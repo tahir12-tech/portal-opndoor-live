@@ -137,13 +137,40 @@ describe('what a statement line says', () => {
     expect(p2(j1.fee + j2.fee)).toBe(2769.23);
   });
 
-  it('names the tenancy and the applicant’s place in it', () => {
+  /* CHANGED 2026-10-01, and the old assertion is why the change was
+     asked for. It pinned "1 of 2" and, for a solo let, the EMPTY
+     STRING: the column answered "which tenant is this" and said nothing
+     at all for the common case.
+
+     Matt: 'The Tenancy column shows "Single" for one tenant, or "Joint
+     (2)", "Joint (3)" and so on with the number of tenants on that
+     tenancy, instead of "1 of 2" and "-".' On a commission statement the
+     payee is reconciling money: what they need is whether this fee is a
+     whole let or a share of a joint one. The position made them work
+     out that two more lines exist somewhere.
+
+     AND IT IS NEVER EMPTY NOW, which is the half worth asserting
+     separately: the drop-empty-column rule would otherwise remove the
+     column on any statement of solo lets. */
+  it('says what KIND of let each line is', () => {
     const j1 = agency.lines.find((l) => l.ref === 'J1')!;
     expect(j1.tenancyId).toBe('ten-1');
-    expect(j1.tenancyPlace).toBe('1 of 2');
+    expect(j1.tenancyPlace).toBe('Joint (2)');
     expect(j1.sharePercent).toBe(50);
-    // A tenancy of one says nothing rather than "1 of 1".
-    expect(agency.lines.find((l) => l.ref === 'S1')!.tenancyPlace).toBe('');
+    // A solo let says so, rather than saying nothing.
+    expect(agency.lines.find((l) => l.ref === 'S1')!.tenancyPlace).toBe('Single');
+  });
+
+  it('and the other half of the joint tenancy says the same thing, not its own position', () => {
+    // "1 of 2" and "2 of 2" differed; both lines are the same KIND of let.
+    expect(agency.lines.find((l) => l.ref === 'J2')!.tenancyPlace).toBe('Joint (2)');
+  });
+
+  /* GUARANTEE REFERENCE ORDER, LOWEST FIRST. Matt, same message. The
+     screen and the attachments listed one month two ways. */
+  it('and the lines read in guarantee reference order', () => {
+    const refs = agency.lines.map((l) => l.ref);
+    expect(refs).toEqual([...refs].sort((a, b) => a.localeCompare(b)));
   });
 
   it('names the rate AND where it came from, off the frozen line', () => {

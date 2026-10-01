@@ -1119,7 +1119,12 @@ export interface StatementLine {
   tenant: string;
   /** Set when this applicant is one of a joint tenancy; null for a tenancy of one. */
   tenancyId: string | null;
-  /** "2 of 2" — this applicant's place in the tenancy. '' when there is no tenancy. */
+  /** WHAT KIND OF LET: "Single", or "Joint (3)" with the number of
+   *  tenants on the tenancy. Matt, 2026-10-01. It used to be "2 of 2",
+   *  this applicant's POSITION, which on a commission statement answers
+   *  a question nobody is asking: the payee is reconciling money and
+   *  needs to know whether the fee is a whole let or a share of a joint
+   *  one. Never empty now, so the drop-empty column rule keeps it. */
   tenancyPlace: string;
   branch: string;
   paidAt: Date;
@@ -1184,7 +1189,12 @@ function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
         // loaded falls back to its reference rather than to a blank cell.
         tenant: findRecord(a.ref)?.name || a.ref,
         tenancyId: a.tenancyId ?? null,
-        tenancyPlace: a.tenancyId && a.tenancyPosition ? `${a.tenancyPosition} of ${mates || a.tenancyPosition}` : '',
+        /* THE SAME WORDS THE SQL PRODUCES, because the screen and the
+           attachment are one statement read two ways. `mates` is the
+           count of applications sharing the tenancy; no tenancy row at
+           all is a solo let, which is the common case and used to print
+           a hyphen. */
+        tenancyPlace: a.tenancyId && (mates || 0) > 1 ? `Joint (${mates})` : 'Single',
         branch: a.branch,
         paidAt: a.paidAt!,
         fee,
@@ -1260,7 +1270,11 @@ export function getCommissionStatements(role: Role, scope: PartnerScope, monthKe
     .map((r) => ({
       monthKey, monthLabel: label, payeeKey: r.key, level: r.level, orgId: r.orgId,
       payeeName: r.orgName,
-      lines: r.lines.sort((x, y) => x.paidAt.getTime() - y.paidAt.getTime() || x.ref.localeCompare(y.ref)),
+      /* GUARANTEE REFERENCE ORDER, LOWEST FIRST, the same as the PDF and
+         the CSV. Matt, 2026-10-01. It was paid date first with the
+         reference only as a tiebreak, so the screen and the attachment
+         listed one month two ways. */
+      lines: r.lines.sort((x, y) => x.ref.localeCompare(y.ref)),
       total: r.commission,
     }))
     .sort((x, y) => y.total - x.total);
