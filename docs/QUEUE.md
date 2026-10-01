@@ -48,7 +48,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
   rates: with tiers and bands on both sides it has to hold for every
   combination a referral could land in.
 
-## SUPPLIER INTEGRATION TAB: THE API SWITCH AND READ-ONLY DEV CENTRE (instruction, 2026-10-01, verbatim). **part done** (`6540fcc`): the switch and its confirmation. The read-only Dev Centre panels are NOT built.
+## SUPPLIER INTEGRATION TAB: THE API SWITCH AND READ-ONLY DEV CENTRE (instruction, 2026-10-01, verbatim). **done** (`6540fcc`, `d5655f4`). No migration needed: every reader already admitted an admin.
 
 > Supplier Integration tab: add the API access on/off switch here (moved from Settings), with a confirmation that says how many active API keys will stop working if it's turned off. Below it, read-only for Opndoor admin: their sandbox activity (sandbox applications and their status), recent API requests and errors, and webhook delivery history, same data as their Dev Centre. Keys show by prefix only, with the existing Revoke; admin still can't see full keys or create them. Deploy to dev and check there.
 
@@ -105,17 +105,23 @@ tell that correction from a seat change.
 
 ## STILL OPEN AFTER 2026-10-01
 
-**The supplier Integration tab's read-only Dev Centre panels.** The
-instruction has two halves and only the first is built. Done: the API
-access switch, moved off Settings, with a confirmation naming the live
-keys it would stop. Not done: "read-only for Opndoor admin: their
-sandbox activity (sandbox applications and their status), recent API
-requests and errors, and webhook delivery history, same data as their
-Dev Centre." The data already exists behind `dev_api_logs`,
-`dev_api_errors_by_method` and the sandbox readers, which the Dev Centre
-itself uses; what is missing is the admin-side panels and whatever
-scoping they need to read ANOTHER party's. The key rule is unchanged and
-must stay: prefix only, revoke yes, create and reveal no.
+Nothing from the 2026-10-01 instructions. Every one is marked done
+above, with the commit that closed it.
+
+Two things worth knowing for whoever picks the next one up:
+
+- **Dev has no API traffic at all.** Not one partner has an API call or
+  a sandbox application, so every Dev Centre reader answers nought for
+  everybody and a wrong partner scope is indistinguishable from a right
+  one. `an_admin_watches_one_suppliers_integration.test.sql` carries its
+  own two-supplier fixture for exactly that reason, and anything else
+  reading that data will need to as well.
+- **The admin-only screens cannot be checked in headless Chrome**, which
+  has no session: it lands on Reporting. The deal editor, the supplier
+  Commission tab, the Integration tab and the Add agency form were
+  checked by rendering them and reading the text back, which is weaker
+  than a screenshot and did catch two wording faults a screenshot would
+  not have.
 
 ## DECISIONS TAKEN, 2026-10-01
 
