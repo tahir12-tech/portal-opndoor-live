@@ -15,7 +15,29 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
-## THE PAYMENT TERMS BECOME AN INVOICING INSTRUCTION (instruction, 2026-10-01, verbatim). ACTIVE.
+## FOR MATT, 2026-10-01: ONE DECISION WAITING
+
+**The first fee email still repeats the property address, and I left it
+alone on purpose.** `paymentLinkEmail` names the address in its opening
+sentence and again in its Property row, which is exactly the repetition
+the reminder instruction asked me to remove. It is also APPROVED COPY:
+`tenantFeeEmails.test.ts` pins the supplier rail's version byte for
+byte, on the stated grounds that "Rightmove's wording is approved and
+their volume is the reason this service exists". The row cannot go for
+the agency rail and stay for the supplier rail without giving one email
+two different tables for no reason a reader could state. Say the word
+and it is a two-line change plus a snapshot update.
+
+Two other things, unchanged from the last report:
+
+- **Supplier volume-tier editing is still read-only**, as you asked.
+- **The authorised paths of the supplier zip download** (admin reads any
+  supplier, a supplier reads its own, a supplier is refused another's)
+  are pinned in the suite but have not been exercised against dev:
+  doing that needs a session minted for another user, which this
+  environment refuses. Two minutes in the browser on dev would close it.
+
+## THE PAYMENT TERMS BECOME AN INVOICING INSTRUCTION (instruction, 2026-10-01, verbatim). **done** (`81e262f`, `b2da2ec`). The setting lives on Health, under Settings.
 
 > Commission statements (agency and supplier, email and PDF): replace "Paid by the 15th of the following month" with: "Please send an invoice to opndoor for [total], quoting statement reference [reference], to [invoice email], including your bank details. Invoices received by the 8th are paid by the 15th." The total and reference come from each statement; the invoice email is a setting Opndoor admin can change. Set it to [EMAIL].
 
@@ -63,7 +85,7 @@ already edited.
 Total and reference both already exist on every statement, agency and
 supplier, in the PDF, the CSV and the email. Nothing new to compute.
 
-## STATEMENT LINES IN REFERENCE ORDER, AND THE TENANCY COLUMN (instruction, 2026-10-01, verbatim). ACTIVE.
+## STATEMENT LINES IN REFERENCE ORDER, AND THE TENANCY COLUMN (instruction, 2026-10-01, verbatim). **done** (`07e581f`).
 
 > Commission statements (PDF, CSV and on screen, agency and supplier): list lines in guarantee reference order, lowest first.
 
@@ -101,7 +123,7 @@ GR-20845 and GR-9 are both real shapes and a numeric parse would have to
 invent a rule for the prefix. Plain ascending, which is what the existing
 `localeCompare` tiebreak already does.
 
-## NO EM DASHES, AND THE BUILD SAYS SO (instruction, 2026-10-01, verbatim). ACTIVE.
+## NO EM DASHES, AND THE BUILD SAYS SO (instruction, 2026-10-01, verbatim). **done** (`4da73fb`). The check found six more en dashes, all ranges.
 
 > No em dashes anywhere in emails, PDFs, CSV headers or screen text, including TEST subject lines. Replace any with a comma, colon or full stop. Add a check that fails the build if an em dash appears in any customer-facing text.
 
@@ -124,7 +146,7 @@ at STRINGS and JSX text, not at files.
 - documents: the PDF and CSV builders, including column headers
 - screen: `src/pages` and `src/components` JSX text and string literals
 
-## THE FOOTER AND THE REPLY-TO (instruction, 2026-10-01, verbatim). ACTIVE.
+## THE FOOTER AND THE REPLY-TO (instruction, 2026-10-01, verbatim). **done** (`0f0f8c2`).
 
 > Every email footer: replace "Questions? Reply to this email." with "Questions? Email support@opndoor.co" with the address as a mailto link. Set the Reply-To header on every email to support@opndoor.co, so pressing Reply also reaches support. Add to HANDOVER-BALAL.md: on live, emails must send from a verified opndoor.co address, not onboarding@resend.dev, checked before go-live.
 
@@ -141,7 +163,7 @@ Three things, and the third is the one that bites on the day:
    `opndoor <noreply@opndoor.co>`, so this is about what is actually
    configured in the live project rather than about the code.
 
-## THE SUPPLIER'S SCHEDULES GO IN A ZIP (instruction, 2026-10-01, verbatim). ACTIVE.
+## THE SUPPLIER'S SCHEDULES GO IN A ZIP (instruction, 2026-10-01, verbatim). **done** (`5d2ae67`). TEST email sent; the Reporting page download is built.
 
 > Supplier statement emails: attach the supplier's own statement (PDF and CSV) directly, plus one zip file containing the per-agency statements, laid out as the supplier's statement at the top level and an "Agents" folder with one PDF and CSV per agency, named by agency. If the zip would be over 10MB, don't attach it; instead the email links to download it from the supplier's Reporting page, where it's always available. Send me a TEST version, only to mdwyer@opndoor.co.
 
@@ -172,7 +194,7 @@ only exists inside the monthly run.
 - **Named by agency**, so a human extracting it can find one. The
   schedule filenames already slug the agency name.
 
-## A REFUND AFTER THE STATEMENT WENT OUT (instruction, 2026-10-01, verbatim). ACTIVE, next.
+## A REFUND AFTER THE STATEMENT WENT OUT (instruction, 2026-10-01, verbatim). **done** (`d7f6695`).
 
 > Refund after a commission statement has been sent: when a refund lands on an application whose commission was already on a sent statement, raise an internal alert to Opndoor naming the payee, the statement reference and the commission affected. On that alert, Opndoor admin chooses, with a confirmation box: (a) reissue a corrected statement to the payee, or (b) carry the amount as a deduction line on the payee's next statement. Nothing happens automatically. Record who chose what and when. Deploy to dev and check there.
 
@@ -209,7 +231,7 @@ raises a QUESTION, and a person answers it.
   documents share one number and reconciliation breaks on the thing it
   is keyed by.
 
-## BRANDED STATEMENT PDFs, EMPTY COLUMNS, AND THE BUTTON (instructions, 2026-10-01, verbatim). ACTIVE.
+## BRANDED STATEMENT PDFs, EMPTY COLUMNS, AND THE BUTTON (instructions, 2026-10-01, verbatim). **done** (`81e262f`, `5d2ae67`).
 
 > Commission statement PDFs should use the same branded design as the portal's existing branded statements and exports. Find that design and reuse it; don't invent a new one. If there isn't one, tell me before building anything. Also drop any column that is empty on every line (e.g. Tenancy and Share). Then send me one agency and one supplier statement, marked TEST, only to mdwyer@opndoor.co.
 
@@ -243,7 +265,7 @@ colour the anchor itself as well, and add the `bgcolor` attribute, so no
 single stripped declaration makes it invisible. To be confirmed against
 the rendered HTML rather than assumed.
 
-## TENANT PAYMENT REMINDER WORDING (instruction, 2026-10-01, verbatim). ACTIVE, after the statements.
+## TENANT PAYMENT REMINDER WORDING (instruction, 2026-10-01, verbatim). **done** (`cd591d4`). The sweep left paymentLinkEmail alone: see below.
 
 > Tenant payment reminder email: don't repeat the property address. Reword the opening to "[agency name] has arranged an opndoor guarantee for your tenancy at [property address]. To put it in place, pay the guarantee fee of [fee] ([fee basis, e.g. 3 weeks of rent or one month's rent])." Every bracketed part comes from that application; nothing is hardcoded. Where there's no agency (a direct signup), leave out the "[agency name] has arranged" part. Check the other tenant emails for the same repetition.
 
