@@ -17,7 +17,7 @@ Agency League headings, the office chosen first on New application, and
 one support address and one name for the fee on the tenant side, and the
 signed-deed email saying the insurance sentence once, and a corrected deed
 saying that it is a correction, and two decimal places with the payment
-link on joint applications.
+link on joint applications, and the fee paid email counting the tenants.
 
 
 The single source of truth for outstanding work on this branch.
@@ -34,6 +34,13 @@ anything it is under a heading that says so.
 Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
+
+## THE FEE PAID EMAIL COUNTS THE TENANTS (instruction, 2026-10-01, verbatim). todo.
+
+> Agent "fee paid" email for a joint tenancy: add how many have paid, e.g. "1 of 2 tenants have paid."
+
+- Only on a joint tenancy. A single pays once and "1 of 1" says nothing.
+- The count has to come from the payment rows, not from the tenancy shape.
 
 ## TWO DECIMAL PLACES, THE LINK ON JOINTS, AND HOW MANY TENANTS (instruction, 2026-10-01, verbatim). todo.
 
