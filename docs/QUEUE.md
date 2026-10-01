@@ -195,7 +195,36 @@ one the product ships -- which is exactly what the setting was built
 for, and is why the handover check tells Balal to look at the value on
 live rather than trust the default.
 
-## THE AGENCY PEOPLE TAB MATCHES THE SUPPLIER'S, AND CLEAN UP AFTER YOURSELF (instruction, 2026-10-01, verbatim). ACTIVE.
+## ONE SHARED PEOPLE TABLE, EVERYWHERE (instructions, 2026-10-01, verbatim). ACTIVE.
+
+The first:
+
+> Agency People tab: use the same layout as the supplier People tab: initials on the left, name with the email on the line below, and the Level, Sees, Status and Last active columns. Search and filters styled like the rest of the portal. Also remove the test accounts you created on dev (the "Probe" users on Regent's Lettings and anywhere else), and clean up after yourself in future tests. Deploy to dev and check there.
+
+And the second, which widens it to every people screen and adds two more things:
+
+> Use one shared people table on every people screen (agency Team as a Director sees it, admin agency People, supplier People, opndoor team): fixed aligned columns Name (initials, name, email below), Level, Office, Status, Last active, and actions right-aligned, so every row lines up. Search and level/status filters styled like the rest of the portal. When someone has no name yet, show the email once with "Name not set" beneath, not the email twice. I invited barb@barb.com with the name "barb barb" but she shows by email: check invite names are saved on every invite form and fix it. Remove the Probe test accounts on dev. Deploy to dev and check each screen in the browser, including signed in as a Regent Director.
+
+- **The Probe accounts are GONE** as of this turn: 8 with profiles and
+  12 orphaned auth rows, all `probe`-named, all removed. The real
+  fixtures (Regent's three, Kestrel's director, joe@bloggs.com) are
+  untouched. The standing rule is recorded below.
+- **"barb@barb.com shows by email" is a REAL BUG with a cause to
+  find**, not a display question: her `full_name` is null, so every
+  screen falls through to the address. The invite form took a first
+  and last name. Find where it is lost.
+- FOUR SCREENS share this table, and the second instruction names a
+  column the first did not (Office) and drops one it did (Sees). The
+  second wins.
+
+### THE STANDING RULE ABOUT TEST DATA
+
+A test fixture lives inside a transaction that is rolled back (which
+is what every pgTAP file here already does), or it is deleted in the
+same turn that created it. Nothing named `zzz`, `probe` or `test` is
+left on dev at the end of a turn.
+
+
 
 > Agency People tab: use the same layout as the supplier People tab: initials on the left, name with the email on the line below, and the Level, Sees, Status and Last active columns. Search and filters styled like the rest of the portal. Also remove the test accounts you created on dev (the "Probe" users on Regent's Lettings and anywhere else), and clean up after yourself in future tests. Deploy to dev and check there.
 
