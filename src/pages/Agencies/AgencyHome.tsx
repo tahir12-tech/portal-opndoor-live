@@ -51,6 +51,7 @@ import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
+import { PeopleTable } from '@/components/people/PeopleTable';
 import { PersonNotifications } from '@/components/people/PersonNotifications';
 // Walk fix 15: this customer's report, on this customer's page.
 import { CustomerReport } from '@/components/CustomerReport';
@@ -66,7 +67,6 @@ import { showsOffices } from '@/data/agencyOffices';
 import './AgencyHome.css';
 import { plural } from '@/lib/plural';
 import { AgencyChanges } from './AgencyChanges';
-import { personInitials, personLabel } from '@/data/personLabel';
 
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
 const STATUS_ST: Partial<Record<Status, string>> = { referencing: 'st-wait', sent: 'st-live', paid: 'st-live', deed: 'st-ok' };
@@ -744,51 +744,36 @@ export function AgencyHome() {
               <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setPFilter({ level: '', position: '', agency: '', branch: '', status: '', q: '' })}>Clear filters</button>
             )}
           </div>
-          {peopleShown.length === 0 ? (
-            <div className="ah-empty">Nobody matches those filters.</div>
-          ) : (
-            <table className="dt ah-table">
-              <thead><tr>
-                <th>Name</th><th>Level</th>
-                {manyAgencies && <th>Agency</th>}
-                {manyOffices && <th>Office</th>}
-                <th>Status</th>
-                <th />
-              </tr></thead>
-              <tbody>
-                {peopleShown.map((r) => (
-                  <tr key={r.userId}>
-                    <td><span className="who__av">{personInitials(personLabel(r.name, r.email))}</span> <span className="dt__name">{personLabel(r.name, r.email).title}</span><span className="dt__sub">{personLabel(r.name, r.email).sub}</span></td>
-                    <td>{r.agencyLevel}</td>
-                    {manyAgencies && <td className="soft">{r.agency}</td>}
-                    {manyOffices && <td className="soft">{r.branch}</td>}
-                    {/* Three states, not two. This read "Active" for a
-                        deactivated person, because the ternary treated anything
-                        that was not pending as active, which is the same
-                        catch-all shape the deed card had. */}
-                    <td>{r.status === 'pending'
-                      ? <Pill variant="sent">Pending</Pill>
-                      : r.status === 'deactivated'
-                        ? <Pill variant="muted">Deactivated</Pill>
-                        : <Pill variant="paid">Active</Pill>}</td>
-                    <td className="num">
-                      <PersonActions
-                        person={r}
-                        isAdmin={isAdmin}
-                        manyOffices={manyOffices}
-                        onAction={(what, id, who) => void doPersonAction(what, id, who)}
-                        onCancelInvite={(id, who) => void doCancelInvite(id, who)}
-                        onChangeLevel={(p) => { setLevelPick(null); setLevelFor(p); }}
-                        onPosition={setPosFor}
-                        onNotifications={setNotifFor}
-                        mayNotify={mayNotify(r)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          {/* THE SHARED TABLE, same columns as every other people screen.
+              Matt, 2026-10-01. Agency and Office were two columns here and
+              one everywhere else; the office is the column, with the agency
+              under it when several are in view, so the rows line up with
+              the supplier tab and the opndoor team page. */}
+          <PeopleTable
+            showFilters={false}
+            rows={peopleShown.map((r) => ({
+              id: r.userId,
+              name: r.name,
+              email: r.email,
+              level: r.agencyLevel,
+              office: manyOffices ? r.branch : null,
+              officeSub: manyAgencies ? r.agency : null,
+              status: r.status,
+              actions: (
+                <PersonActions
+                  person={r}
+                  isAdmin={isAdmin}
+                  manyOffices={manyOffices}
+                  onAction={(what, id, who) => void doPersonAction(what, id, who)}
+                  onCancelInvite={(id, who) => void doCancelInvite(id, who)}
+                  onChangeLevel={(p) => { setLevelPick(null); setLevelFor(p); }}
+                  onPosition={setPosFor}
+                  onNotifications={setNotifFor}
+                  mayNotify={mayNotify(r)}
+                />
+              ),
+            }))}
+          />
         </CardBody>
       </Card>
     );
@@ -879,35 +864,33 @@ export function AgencyHome() {
               {!isBranch && ' People placed at an office appear on that office.'}
             </div>
           ) : (
-            <table className="dt ah-table">
-              <thead><tr><th>Name</th><th>Level</th><th>Status</th><th /></tr></thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.userId}>
-                    <td><span className="who__av">{personInitials(personLabel(r.name, r.email))}</span> <span className="dt__name">{personLabel(r.name, r.email).title}</span><span className="dt__sub">{personLabel(r.name, r.email).sub}</span></td>
-                    <td>{r.agencyLevel}</td>
-                    <td>{r.status === 'pending'
-                      ? <Pill variant="sent">Pending</Pill>
-                      : r.status === 'deactivated'
-                        ? <Pill variant="muted">Deactivated</Pill>
-                        : <Pill variant="paid">Active</Pill>}</td>
-                    <td className="num">
-                      <PersonActions
-                        person={r}
-                        isAdmin={isAdmin}
-                        manyOffices={manyOffices}
-                        onAction={(what, id, who) => void doPersonAction(what, id, who)}
-                        onCancelInvite={(id, who) => void doCancelInvite(id, who)}
-                        onChangeLevel={(p) => { setLevelPick(null); setLevelFor(p); }}
-                        onPosition={setPosFor}
-                        onNotifications={setNotifFor}
-                        mayNotify={mayNotify(r)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            /* The node view's people, on the same shared table as the
+               People tab above it: this one lists who sits at the office or
+               agency in focus, which is a narrower question and not a
+               different layout. */
+            <PeopleTable
+              showFilters={false}
+              rows={rows.map((r) => ({
+                id: r.userId,
+                name: r.name,
+                email: r.email,
+                level: r.agencyLevel,
+                status: r.status,
+                actions: (
+                  <PersonActions
+                    person={r}
+                    isAdmin={isAdmin}
+                    manyOffices={manyOffices}
+                    onAction={(what, id, who) => void doPersonAction(what, id, who)}
+                    onCancelInvite={(id, who) => void doCancelInvite(id, who)}
+                    onChangeLevel={(p) => { setLevelPick(null); setLevelFor(p); }}
+                    onPosition={setPosFor}
+                    onNotifications={setNotifFor}
+                    mayNotify={mayNotify(r)}
+                  />
+                ),
+              }))}
+            />
           )}
           {isAdmin && (
             <div className="ah-nv-invite">

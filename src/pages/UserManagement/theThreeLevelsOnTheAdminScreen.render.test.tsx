@@ -70,7 +70,10 @@ const rowFor = (v: View, name: string) =>
   [...v.container.querySelectorAll<HTMLElement>('table.dt tbody tr')]
     .find((tr) => (tr.textContent ?? '').includes(name));
 const levelOf = (v: View, name: string) =>
-  rowFor(v, name)?.querySelector('.role-tag')?.textContent ?? '';
+  /* The level is a cell on the shared people table since 2026-10-01, not a
+     pill of this page's own: `.ppl-level`, drawn the same way on all four
+     people screens. The claims below are unchanged. */
+  rowFor(v, name)?.querySelector('.ppl-level')?.textContent ?? '';
 
 describe('the level column on /users', () => {
   it('calls an agency Director a Director, not "Management"', async () => {

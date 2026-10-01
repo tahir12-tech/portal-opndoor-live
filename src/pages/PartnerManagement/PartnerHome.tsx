@@ -143,7 +143,7 @@ import { ViewAsButton } from '@/components/ViewAsButton';
 import './PartnerHome.css';
 import { plural, countOf } from '@/lib/plural';
 import { formatDate, formatMonth } from '@/lib/format';
-import { personInitials, personLabel } from '@/data/personLabel';
+import { PeopleTable } from '@/components/people/PeopleTable';
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
   active: ['Active', 'deed'],
@@ -179,17 +179,8 @@ const supplierSees = (role: string): string =>
     : role === 'developer' ? DEVELOPER_SEES
     : '-');
 
-/* THE SAME WORDS TEAM USES. Matt, 2026-10-01: 'People: show status as
-   "Active", capitalised, like elsewhere.' This printed `u.status`, the stored
-   value, so the supplier's People tab read "active" and "pending" in a column
-   that reads "Active" and "Invited" on every other people list -- and
-   "pending" is not even the word, since what is pending is an invitation.
-   Label and pill colour together, as Team has them. */
-const USER_STATUS_PILL: Record<string, [string, PillVariant]> = {
-  active: ['Active', 'deed'],
-  pending: ['Invited', 'warn'],
-  deactivated: ['Deactivated', 'muted'],
-};
+/* USER_STATUS_PILL moved into PeopleTable with the table itself: one
+   place decides what Active, Invited and Deactivated look like. */
 const modeLabel = (m: ReferencingMode | undefined) => REFERENCING_MODES.find((x) => x.id === m)?.label ?? 'Screened referral';
 
 export function PartnerHome() {
@@ -652,65 +643,44 @@ export function PartnerHome() {
           )}
         />
         <CardBody style={{ padding: users.length === 0 ? undefined : 0 }}>
-          {users.length === 0 ? (
-            <div className="ph-empty">No users for this partner.</div>
-          ) : (
-            <table className="dt ph-table">
-              <thead><tr><th>Name</th><th>Level</th><th>Sees</th><th>Status</th><th>Last active</th>{isAdmin && <th />}</tr></thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id}>
-                    <td>
-                      <span className="ph-user">
-                        <span className="who__av">{personInitials(personLabel(u.name, u.email))}</span>
-                        <span>
-                          <span className="dt__name">{personLabel(u.name, u.email).title}</span>
-                          <span className="dt__sub">{personLabel(u.name, u.email).sub}</span>
-                        </span>
-                      </span>
-                    </td>
-                    <td>{ROLE_LABEL[u.role] ?? u.role}</td>
-                    <td className="soft">{supplierSees(u.role)}</td>
-                    <td>{(() => {
-                      const [label, variant] = USER_STATUS_PILL[u.status] ?? [u.status, 'muted' as PillVariant];
-                      return <Pill variant={variant}>{label}</Pill>;
-                    })()}</td>
-                    <td className="soft">{u.lastActive}</td>
-                    {/* THE SAME ROW ACTIONS THE AGENCY PAGE HAS. Q-06 item A:
-                        "their staff with the same row actions". The table was
-                        read-only, so an admin looking at a supplier had to
-                        leave for /users to resend an invitation. Position is
-                        suppressed because positions are an agency-estate
-                        thing and this rail has none; the level button says
-                        "Change role" for the same reason (D11). */}
-                    {isAdmin && (
-                      <td style={{ textAlign: 'right' }}>
-                        <PersonActions
-                          person={{ userId: u.id, name: u.name, email: u.email, status: u.status, agencyLevel: ROLE_LABEL[u.role] ?? u.role }}
-                          isAdmin
-                          manyOffices={false}
-                          changeLevelLabel="Change role"
-                          onAction={(what, userId, who) => void runPerson(what, userId, who)}
-                          onCancelInvite={(userId, who) => void runPerson('cancel', userId, who)}
-                          onChangeLevel={(pr) => setRoleFor({ userId: pr.userId, name: pr.name, current: u.role })}
-                          /* UNREACHABLE, and left as a no-op rather than
-                             wired to something: `manyOffices={false}` above
-                             means PersonActions never draws the Position
-                             button here, because a supplier's staff hold no
-                             position -- partner_id IS the company boundary
-                             on this rail and there is no ladder to stand
-                             on. If that ever changes, this is the line that
-                             has to change with it. */
-                          onPosition={() => {}}
-                          onNotifications={setNotifFor}
-                        />
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          {/* THE SHARED TABLE. Matt, 2026-10-01: "Use one shared people
+              table on every people screen ... fixed aligned columns Name
+              (initials, name, email below), Level, Office, Status, Last
+              active, and actions right-aligned, so every row lines up."
+
+              Sees rides in the `extra` column, which is its own
+              instruction from the same day and is about what a Developer
+              can reach. Office is dropped by the table itself, because a
+              supplier's staff hold no position: partner_id IS the company
+              boundary on this rail, and a column of dashes is the thing
+              this table exists to stop. */}
+          <PeopleTable
+            emptyText="No users for this partner."
+            extraHeader="Sees"
+            rows={users.map((u) => ({
+              id: u.id,
+              name: u.name,
+              email: u.email,
+              level: ROLE_LABEL[u.role] ?? u.role,
+              status: u.status,
+              lastActive: u.lastActive,
+              extra: supplierSees(u.role),
+              actions: isAdmin ? (
+                <PersonActions
+                  person={{ userId: u.id, name: u.name, email: u.email, status: u.status, agencyLevel: ROLE_LABEL[u.role] ?? u.role }}
+                  isAdmin
+                  manyOffices={false}
+                  changeLevelLabel="Change role"
+                  onAction={(what, userId, who) => void runPerson(what, userId, who)}
+                  onCancelInvite={(userId, who) => void runPerson('cancel', userId, who)}
+                  onChangeLevel={(pr) => setRoleFor({ userId: pr.userId, name: pr.name, current: u.role })}
+                  onPosition={() => {}}
+                  onNotifications={(pr) => setNotifFor(pr)}
+                  mayNotify
+                />
+              ) : undefined,
+            }))}
+          />
         </CardBody>
       </Card>
       {/* The "Who is told what" grid stood here, one set of switches for the

@@ -1,0 +1,25 @@
+/* The shared people table. Styled off the portal's own table and filter
+   bar rather than inventing a third look: .dt is the table every list on
+   the site uses, and the filter row matches the Applications page's. */
+.ppl-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.ppl-filters__q { flex: 1 1 240px; min-width: 200px; }
+.ppl-filters select { min-width: 140px; }
+
+.ppl-empty {
+  padding: 18px 2px;
+  font-size: 13.5px;
+  color: var(--ink-mute);
+}
+
+/* FIXED AND ALIGNED, which is the whole instruction: every row lines up
+   because every screen draws the same columns in the same order. */
+.ppl-table { width: 100%; }
+.ppl-who { display: flex; align-items: center; gap: 10px; }
+.ppl-who__txt { display: flex; flex-direction: column; min-width: 0; }
+.ppl-acts { text-align: right; white-space: nowrap; }

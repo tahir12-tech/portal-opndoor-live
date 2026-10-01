@@ -69,25 +69,12 @@ import { Eyebrow } from '@/components/ui/Eyebrow';
 import { Icon } from '@/components/ui/Icon';
 import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
-import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 import '@/pages/UserManagement/UserManagement.css';
 import './Team.css';
 import { plural, countOf } from '@/lib/plural';
-import { personInitials, personLabel } from '@/data/personLabel';
+import { PeopleTable, type PeopleTableRow } from '@/components/people/PeopleTable';
 
-/* THE TWO ROLES AN AGENCY HAS. Described in the words of the business the
-   reader is in, not the portal's internals: no "partner", no "estate", no
-   "full visibility of all tracking and analytics". Matches the role pills. */
-/* THREE LEVELS, from the one list in types.ts, so the invite dialog, the admin
-   people table and this page cannot describe the same level differently. The
-   copy is the client's own wording. */
-const ROLE_PILL: Record<string, string> = {
-  Director: 'role-tag--mgmt',
-  Manager: 'role-tag--mgmt',
-  Negotiator: 'role-tag--ref',
-  Developer: 'role-tag--dev',
-};
 
 /** What to call this person. Opndoor's own roles keep their own names; an
     agency person is one of the three levels. */
@@ -95,11 +82,6 @@ function levelLabel(u: ManagedUser): string {
   return agencyLevelOf(u.role, u.seesCommission === true) ?? 'Developer';
 }
 
-const STATUS_PILL: Record<string, [string, PillVariant]> = {
-  active: ['Active', 'deed'],
-  pending: ['Invited', 'warn'],
-  deactivated: ['Deactivated', 'muted'],
-};
 
 
 /** One node of the structure, and the people who sit at it. */
@@ -563,10 +545,11 @@ export function Team() {
     }, `Invitation sent to ${email}.`);
   }
 
-  function PersonRow({ u }: { u: ManagedUser }) {
+  function personRow(u: ManagedUser): PeopleTableRow {
     const pillLabel = levelLabel(u);
-    const pillCls = ROLE_PILL[pillLabel] ?? 'role-tag--ref';
-    const [statusLabel, statusVariant] = STATUS_PILL[u.status] ?? ['Active', 'deed' as PillVariant];
+    /* ROLE_PILL and STATUS_PILL went with the card: the shared table owns
+       what a level and a status look like now, so every people screen
+       colours them the same. */
     const held = positionsByUser[u.id] ?? [];
     const isSelf = u.id === currentUserId;
     const may = canInvite && mayActOn(actor, { id: u.id, role: u.role, seesCommission: u.seesCommission === true });
@@ -577,18 +560,27 @@ export function Team() {
        own row, while SQL would have accepted the change. */
     const mayTick = canInvite
       && mayActOnOrEqual(actor, { id: u.id, role: u.role, seesCommission: u.seesCommission === true });
-    return (
-      <div className="tm-person">
-        <span className="tm-person__avatar">{personInitials(personLabel(u.name, userEmail(u)))}</span>
-        <div className="tm-person__id">
-          {/* The email once, with what is missing under it. */}
-          <div className="tm-person__name">{personLabel(u.name, userEmail(u)).title}{isSelf && <span className="tm-you">You</span>}</div>
-          <div className="tm-person__email">{personLabel(u.name, userEmail(u)).sub}</div>
-        </div>
-        <span className={`role-tag ${pillCls}`}>{pillLabel}</span>
-        <Pill variant={statusVariant}>{statusLabel}</Pill>
-        <span className="tm-person__pos">{positionsService.describePosition(held, showLevel, u.role)}</span>
-        <div className="tm-person__acts">
+    /* A ROW FOR THE SHARED TABLE, not a card of its own. Matt, 2026-10-01:
+       "Use one shared people table on every people screen (agency Team as
+       a Director sees it, ...) ... so every row lines up."
+
+       Team drew people as cards while the other three drew tables, so a
+       Director moving between their own Team and the admin view of the
+       same agency read the same facts in two layouts. Everything this
+       function decided -- the level word, the status, the position, who
+       may do what to whom -- is unchanged; only the wrapper is gone, and
+       the controls move into the row's actions cell. */
+    return {
+      id: u.id,
+      name: u.name,
+      email: userEmail(u),
+      level: pillLabel,
+      office: positionsService.describePosition(held, showLevel, u.role),
+      status: u.status,
+      lastActive: u.lastActive,
+      tag: isSelf ? <span className="tm-you">You</span> : undefined,
+      actions: (
+        <>
           {/* NOTIFICATIONS, ON THE PERSON. A loose "Receives notifications"
               tickbox stood in its own column here. It was one of three
               places the same subject was split across, which is what walk
@@ -683,9 +675,9 @@ export function Team() {
               Restore access
             </Button>
           )}
-        </div>
-      </div>
-    );
+        </>
+      ),
+    };
   }
 
   /* A GROUP: collapsed by default, counted in its heading, paged at fifty.
@@ -727,7 +719,10 @@ export function Team() {
           <div className="tm-list">
             {list.length === 0
               ? <div className="tm-empty">{filtering ? 'Nobody here matches.' : 'Nobody here yet.'}</div>
-              : page.map((u) => <PersonRow key={u.id} u={u} />)}
+              /* The page's own search and filters sit above every group, so
+                 the table's are off: two filter bars over one list is two
+                 answers to one question. */
+              : <PeopleTable showFilters={false} rows={page.map(personRow)} />}
             {rest > 0 && (
               <div className="tm-more">
                 <Button variant="quiet" size="sm"
@@ -825,7 +820,8 @@ export function Team() {
             <div className="tm-list">
               {layout.flat.length === 0
                 ? <div className="tm-empty">Nobody here yet.</div>
-                : layout.flat.slice(0, shown.flat ?? TEAM_PAGE_SIZE).map((u) => <PersonRow key={u.id} u={u} />)}
+                : <PeopleTable showFilters={false}
+                    rows={layout.flat.slice(0, shown.flat ?? TEAM_PAGE_SIZE).map(personRow)} />}
               {layout.flat.length > (shown.flat ?? TEAM_PAGE_SIZE) && (
                 <div className="tm-more">
                   <Button variant="quiet" size="sm"

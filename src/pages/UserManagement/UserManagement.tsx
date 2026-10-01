@@ -36,11 +36,10 @@ import { Icon } from '@/components/ui/Icon';
 import { Card, CardHead } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
-import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 import './UserManagement.css';
 import { changeSentence } from '@/data/changeSentence';
-import { personInitials, personLabel } from '@/data/personLabel';
+import { PeopleTable } from '@/components/people/PeopleTable';
 
 const ROLE_META: Record<Role, [string, string]> = {
   superadmin: ['opndoor admin', 'role-tag--super'],
@@ -50,11 +49,7 @@ const ROLE_META: Record<Role, [string, string]> = {
   developer: ['Developer', 'role-tag--dev'],
 };
 
-const STATUS_PILL: Record<string, [string, PillVariant]> = {
-  active: ['Active', 'deed'],
-  pending: ['Pending', 'warn'],
-  deactivated: ['Deactivated', 'muted'],
-};
+/* STATUS_PILL lives in PeopleTable now, with the table that draws it. */
 
 // One format, shared. See lib/format.
 const dmy = formatDate;
@@ -720,67 +715,48 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
             </div>
           }
         />
+        {/* THE SHARED TABLE, which this page is the fourth of four to use.
+            Matt, 2026-10-01: "Use one shared people table on every people
+            screen (agency Team as a Director sees it, admin agency People,
+            supplier People, opndoor team): fixed aligned columns Name
+            (initials, name, email below), Level, Office, Status, Last
+            active, and actions right-aligned, so every row lines up."
+
+            The Partner column is this page's own: it is the only people
+            screen that lists both rails at once, so it rides in the extra
+            slot the supplier tab uses for Sees. The position goes in
+            Office, which is what it is.
+
+            The page keeps its own search box in the card head, so the
+            table's filters are off: two searches over one list is two
+            answers to one question. */}
         <div className="table-wrap">
-          <table className="dt">
-            <thead>
-              <tr>
-                <th>User</th>
-                {showPartner && <th>Partner</th>}
-                <th>Role</th>
-                <th>Sees</th>
-                <th>Last active</th>
-                <th>Status</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => {
-                const rm = ROLE_META[u.role];
-                const sp = STATUS_PILL[u.status] ?? STATUS_PILL.pending;
-                return (
-                  <tr key={u.id}>
-                    <td>
-                      {/* A PERSON WITH NO NAME IS NOT CALLED BY THEIR
-                          ADDRESS. Matt, 2026-10-01: "show the email once
-                          with 'Name not set' beneath, not the email
-                          twice." The same helper on every people list. */}
-                      <div className="who">
-                        <span className="who__av">{personInitials(personLabel(u.name, userEmail(u)))}</span>
-                        <div>
-                          <div className="dt__name">{personLabel(u.name, userEmail(u)).title}</div>
-                          <div className="dt__sub">{personLabel(u.name, userEmail(u)).sub}</div>
-                        </div>
-                      </div>
-                    </td>
-                    {showPartner && <td className="soft">{userPartnerName(u.partner)}</td>}
-                    {/* THE LEVEL, NOT THE ROLE. This screen lists both rails
-                        side by side, so the word has to follow the rail:
-                        Director / Manager / Negotiator on our estate, and the
-                        role's own word on the supplier rail, where those
-                        levels do not exist (D11). */}
-                    <td><span className={`role-tag ${LEVEL_PILL[personLevelLabel(u)] ?? rm[1]}`}>{personLevelLabel(u)}</span></td>
-                    <td className="soft">{positionsService.describePosition(positionsByUser[u.id] ?? [], true, u.role)}</td>
-                    <td className="soft">{u.lastActive}</td>
-                    <td><Pill variant={sp[1]}>{sp[0]}</Pill></td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div className="rowmenu">
-                        <button
-                          className="rowmenu__btn"
-                          aria-label="User actions"
-                          onClick={(e) => { e.stopPropagation(); toggleMenu(u.id, e.currentTarget); }}
-                        >
-                          <Icon name="dots" size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {users.length === 0 && (
-                <tr><td colSpan={showPartner ? 7 : 6} className="soft" style={{ textAlign: 'center', padding: '28px 0' }}>{q ? `No users match “${query.trim()}”.` : 'No users to show yet.'}</td></tr>
-              )}
-            </tbody>
-          </table>
+          <PeopleTable
+            showFilters={false}
+            extraHeader={showPartner ? 'Partner' : undefined}
+            emptyText={q ? `No users match “${query.trim()}”.` : 'No users to show yet.'}
+            rows={users.map((u) => ({
+              id: u.id,
+              name: u.name,
+              email: userEmail(u),
+              level: personLevelLabel(u),
+              extra: showPartner ? userPartnerName(u.partner) : undefined,
+              office: positionsService.describePosition(positionsByUser[u.id] ?? [], true, u.role),
+              status: u.status,
+              lastActive: u.lastActive,
+              actions: (
+                <div className="rowmenu">
+                  <button
+                    className="rowmenu__btn"
+                    aria-label="User actions"
+                    onClick={(e) => { e.stopPropagation(); toggleMenu(u.id, e.currentTarget); }}
+                  >
+                    <Icon name="dots" size={16} />
+                  </button>
+                </div>
+              ),
+            }))}
+          />
         </div>
       </Card>
 

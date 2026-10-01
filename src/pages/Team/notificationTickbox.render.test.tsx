@@ -36,6 +36,9 @@
  * supabase/tests/the_ticked_user_gets_the_deed.test.sql, where a real ladder
  * is resolved against a real application.
  */
+/* TEAM DRAWS THE SHARED PEOPLE TABLE SINCE 2026-10-01, so a person is a
+   row rather than a `.tm-person` card. The selectors moved with it; every
+   claim in this file is unchanged. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -72,7 +75,7 @@ async function openTeam(role: 'management' | 'referrer', director = true) {
 
 /** Every Notifications control on the page. */
 const controls = (v: { container: HTMLElement }) =>
-  [...v.container.querySelectorAll('.tm-person button')]
+  [...v.container.querySelectorAll('.ppl-table tbody tr button')]
     .filter((el) => el.textContent === 'Notifications');
 
 describe('the Notifications control on Team', () => {
@@ -92,7 +95,7 @@ describe('the Notifications control on Team', () => {
      second rule the SQL does not share. */
   it('is not drawn on a row the viewer may not act on', async () => {
     const v = await openTeam('management', false);
-    const rows = [...v.container.querySelectorAll('.tm-person')];
+    const rows = [...v.container.querySelectorAll('.ppl-table tbody tr')];
     const withControl = rows.filter((r) =>
       [...r.querySelectorAll('button')].some((b) => b.textContent === 'Notifications'));
     // A Manager cannot act on a Director, so at least one row must be bare.
@@ -113,8 +116,8 @@ describe('the Notifications control on Team', () => {
     const v = await openTeam('management', true);
     const has = (r: Element) =>
       [...r.querySelectorAll('button')].some((b) => b.textContent === 'Notifications');
-    const negRows = [...v.container.querySelectorAll('.tm-person')]
-      .filter((r) => r.querySelector('.role-tag')?.textContent === 'Negotiator');
+    const negRows = [...v.container.querySelectorAll('.ppl-table tbody tr')]
+      .filter((r) => r.querySelector('.ppl-level')?.textContent === 'Negotiator');
     const active = negRows.filter((r) => r.querySelector('.pill')?.textContent === 'Active');
     const invited = negRows.filter((r) => r.querySelector('.pill')?.textContent === 'Invited');
     // If the fixture ever stops containing either, this must fail rather than
@@ -134,9 +137,9 @@ describe('the Notifications control on Team', () => {
      then writes is asserted in its own tests and in SQL. */
   it('opens the panel for the person on that row', async () => {
     const v = await openTeam('management', true);
-    const row = [...v.container.querySelectorAll('.tm-person')]
+    const row = [...v.container.querySelectorAll('.ppl-table tbody tr')]
       .find((r) => [...r.querySelectorAll('button')].some((b) => b.textContent === 'Notifications'))!;
-    const name = row.querySelector('.tm-person__name')?.textContent?.replace(/You$/, '').trim();
+    const name = row.querySelector('.dt__name')?.textContent?.replace(/You$/, '').trim();
     expect(name).toBeTruthy();
     const btn = [...row.querySelectorAll('button')].find((b) => b.textContent === 'Notifications')!;
     await act(async () => { btn.click(); });
