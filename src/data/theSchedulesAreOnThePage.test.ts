@@ -34,10 +34,18 @@ const src = readFileSync(FN, 'utf8');
    and a comment that mentions commission_statement_ref would otherwise
    satisfy the test that the code does not call it. */
 const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/[^\n]*$/gm, ' ');
-const endpoint = code.slice(
-  code.indexOf('async function serveSupplierBundle'),
-  code.indexOf('Deno.serve(async (req)'),
-);
+/* SLICED TO THIS FUNCTION ONLY, and the end anchor is its own closing
+   rather than `Deno.serve`: a second endpoint (serveReissue) was added
+   between the two later, and the slice silently swallowed it. Every
+   "the download must not do X" assertion below then read a function
+   that legitimately does X, which is the failure mode of anchoring a
+   slice on something that is not the thing's own edge. */
+const endpoint = (() => {
+  const from = code.indexOf('async function serveSupplierBundle');
+  const next = code.indexOf('async function serveReissue');
+  const end = next > from ? next : code.indexOf('Deno.serve(async (req)');
+  return code.slice(from, end);
+})();
 
 describe('the supplier can fetch the month again', () => {
   it('there is an endpoint for it, and the page calls that one', () => {

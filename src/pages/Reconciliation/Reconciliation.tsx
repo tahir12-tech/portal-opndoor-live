@@ -8,9 +8,10 @@
    2-minute cron also runs the sync). Merge is not built yet (disabled).
    ===================================================================== */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { confirmReconEntity, loadReconciliationQueue, loadAgencyMatchQueue, loadNotInNetworkAgencies, triggerCrmSync, type ReconRow } from '@/data';
+import { confirmReconEntity, loadReconciliationQueue, loadAgencyMatchQueue, loadNotInNetworkAgencies, loadRefundQuestions, triggerCrmSync, type ReconRow } from '@/data';
 import { AgencyMatchQueue } from './AgencyMatchQueue';
 import { NotInNetwork } from './NotInNetwork';
+import { RefundQuestions } from './RefundQuestions';
 import { useSearchParams } from 'react-router-dom';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -20,7 +21,7 @@ import { useToast } from '@/components/ui/Toast';
 import '@/components/ui/opbar.css';
 import './Reconciliation.css';
 
-type Filter = 'all' | 'agency' | 'branch' | 'dupes' | 'matches' | 'notinnetwork';
+type Filter = 'all' | 'agency' | 'branch' | 'dupes' | 'matches' | 'notinnetwork' | 'refunds';
 
 export function Reconciliation() {
   usePageMeta('reconcile', 'Reconciliation', ['Home', 'opndoor', 'Reconciliation']);
@@ -39,10 +40,12 @@ export function Reconciliation() {
        deep-linkable. Miss it and the page opens on All: the reader arrives
        at a number they just clicked and a list that does not contain it,
        which is the exact defect the comment above records. */
-    return t === 'agency' || t === 'branch' || t === 'dupes' || t === 'matches' || t === 'notinnetwork' ? t : 'all';
+    return t === 'agency' || t === 'branch' || t === 'dupes' || t === 'matches' || t === 'notinnetwork'
+      || t === 'refunds' ? t : 'all';
   });
   const [matchCount, setMatchCount] = useState(0);
   const [notInCount, setNotInCount] = useState(0);
+  const [refundCount, setRefundCount] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
@@ -52,12 +55,14 @@ export function Reconciliation() {
          without a mock-mode branch rejects the whole Promise.all in test
          mode and takes the other counts down with it, so the not-in-network
          reader has one -- see reconciliationService. */
-      const [q, matches, notIn] = await Promise.all([
+      const [q, matches, notIn, refunds] = await Promise.all([
         loadReconciliationQueue(), loadAgencyMatchQueue(), loadNotInNetworkAgencies(),
+        loadRefundQuestions(),
       ]);
       setQueue(q);
       setMatchCount(matches.length);
       setNotInCount(notIn.length);
+      setRefundCount(refunds.length);
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not load the reconciliation queue.', 'error');
     } finally {
@@ -81,6 +86,10 @@ export function Reconciliation() {
        ?tab=matches and the whitelist keys on that literal, so renaming
        the id would break a link from another page. */
     { id: 'matches', label: 'Agents named by tenants', count: matchCount },
+    /* ABOVE "Not in network" because it IS work, and money: a refund on
+       commission already sent is waiting on a decision only a person can
+       make, and nothing moves until they make it. */
+    { id: 'refunds', label: 'Refunds on sent statements', count: refundCount },
     /* NM-N. Last, because it is the only tab that is not WORK: nothing on
        it can be actioned here, it is a list to retype into HubSpot. */
     { id: 'notinnetwork', label: 'Not in network', count: notInCount },
@@ -176,6 +185,8 @@ export function Reconciliation() {
         <AgencyMatchQueue onChanged={reload} />
       ) : filter === 'notinnetwork' ? (
         <NotInNetwork />
+      ) : filter === 'refunds' ? (
+        <RefundQuestions onChanged={reload} />
       ) : (
       <div className="rq">
         {visible.map((item) => {

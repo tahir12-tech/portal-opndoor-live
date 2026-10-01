@@ -157,6 +157,29 @@ describe('what the email says about them', () => {
     expect(tooBig.slice(0, 260)).toMatch(/always available/);
   });
 
+  /* ONCE ONLY. Matt, 2026-10-01: "mention the Reporting page once only.
+     Keep 'The same figures are on your Reporting page, where you can pick
+     any month and download it again.' and drop 'They are also always
+     available on your Reporting page.' from the zip sentence."
+
+     The sentence that was dropped is the one for the case where the zip
+     IS attached, so the attached branch now names the Agents folder and
+     stops. The too-big branch keeps its pointer, asserted above, because
+     there the schedules are not in the email at all. */
+  it('and the attached-zip sentence does not repeat where the page is', () => {
+    const attached = message.slice(
+      message.indexOf('The zip holds this statement again'),
+      message.indexOf('paymentTermsLine('),
+    );
+    expect(attached).toMatch(/Agents folder/);
+    expect(attached).not.toMatch(/Reporting page/);
+  });
+
+  it('and the closing line still says it, which is the one mention Matt kept', () => {
+    expect(message).toContain(
+      'The same figures are on your Reporting page, where you can pick any month and download it again.');
+  });
+
   /* AND AN AGENCY PAYEE IS NOT TOLD ABOUT AGENCIES. `schedules` is
      absent for them, and the sentence is conditional on it. */
   it('and says none of it to an agency payee', () => {

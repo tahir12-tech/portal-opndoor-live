@@ -51,6 +51,13 @@ const LABELS: Record<string, string> = {
   refund_email_failed: "Refund confirmation email failed to send",
   refund_anomaly: "Refund policy anomaly (review required)",
   payment_anomaly: "Payment received on a withdrawn application (review + refund)",
+  /* A REFUND ON COMMISSION WE HAD ALREADY STATEMENTED. Without an entry
+     here the fan-out still routes it -- routing reads
+     ops_notification_types, which has it -- but the email subject reads
+     the raw type, and an ops alert that says
+     "commission_refunded_after_statement" is one somebody has to decode
+     before they can act on it. */
+  commission_refunded_after_statement: "Refund on commission already sent on a statement",
   cron_error: "Scheduled job error",
   webhook_error: "Webhook processing error",
 };

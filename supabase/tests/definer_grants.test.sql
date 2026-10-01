@@ -109,6 +109,11 @@ insert into allowed(name) values
   ('create_referral_target'),
   ('cron_health'),
   ('decide_not_in_network'),
+  /* A refund that landed on commission already sent on a statement. Staff
+     only, and MFA, because answering it either sends a payee a corrected
+     document or changes what their next one says. Covered by
+     a_refund_after_a_statement_is_a_question.test.sql. */
+  ('decide_refund_question'),
   ('decline_application'),
   ('dev_api_errors_by_method'),
   ('dev_api_keys'),
@@ -171,6 +176,9 @@ insert into allowed(name) values
   ('reconciliation_queue'),
   ('referral_fee_preview'),
   ('referrer_league'),
+  /* The open questions themselves. Opndoor staff only: they are other
+     companies' commission figures on documents already sent. */
+  ('refund_questions_open'),
   ('remove_partner_statement_recipient'),
   ('resolve_agency_match'),
   ('send_deed_to_agent'),

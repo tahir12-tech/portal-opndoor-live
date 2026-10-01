@@ -362,6 +362,76 @@ interface LineRow {
 }
 interface RecipientRow { email: string; full_name: string | null; source: string }
 
+/* =====================================================================
+   A DEDUCTION CARRIED FROM A REFUND ON A STATEMENT ALREADY SENT.
+
+   Matt, 2026-10-01: a refund that lands on commission already statemented
+   is a question, and one of the two answers is "carry the amount as a
+   deduction line on the payee's next statement".
+
+   THE DEDUCTION HAS TO BE ON THE PAPER, or the choice is a note to
+   nobody. It is NOT a statement line: it has no tenancy, no rate and no
+   payment date, and putting it in the table as a row with those columns
+   blank would read as a referral that earned nothing. It goes in the
+   key-value block, where "Refund on GR-20845, was on STMT-2026-08-0012"
+   against a negative amount says exactly what happened, and the table's
+   closing figure becomes what Opndoor will actually pay.
+   ===================================================================== */
+interface DeductionRow {
+  payee_key: string;
+  question_id: string;
+  guarantee_ref: string;
+  statement_reference: string | null;
+  statement_month: string;
+  commission: number | string;
+}
+
+/* WHAT TO CALL THE MONTH'S OWN COMMISSION. "Total commission" is right
+   when it is the total; with a deduction carried it is not, and a
+   document whose table sums to £1,200 under a heading of "Total
+   commission" and a footing of "Total payable £750.00" invites the
+   reader to think one of the three is wrong. Naming the first figure for
+   what it is makes the three lines read as a subtraction. */
+const grossLabel = (ds: readonly DeductionRow[]): string =>
+  (ds.length ? "Commission this month" : "Total commission");
+
+const deductedTotal = (ds: readonly DeductionRow[]): number =>
+  ds.reduce((t, d) => t + num(d.commission), 0);
+
+/** The deduction pairs for the key-value block, and the two totals around
+    them. `gross` is the month's own commission; what comes back is what
+    goes under it. */
+function deductionMeta(gross: number, ds: readonly DeductionRow[]): Array<[string, string]> {
+  if (!ds.length) return [];
+  /* CAPPED, because the block is a header and not a second table. Eight is
+     where it starts crowding the page; the CSV carries every one of them
+     and the sentence says so, so nothing is hidden, only moved. */
+  const SHOWN = 8;
+  const out: Array<[string, string]> = ds.slice(0, SHOWN).map((d) => [
+    `Refund on ${d.guarantee_ref}, was on ${d.statement_reference ?? `the ${d.statement_month} statement`}`,
+    "-" + gbp(num(d.commission)),
+  ]);
+  if (ds.length > SHOWN) {
+    out.push([`and ${ds.length - SHOWN} more refunds, listed in full in the CSV`,
+              "-" + gbp(deductedTotal(ds.slice(SHOWN)))]);
+  }
+  out.push(["Total payable", gbp(gross - deductedTotal(ds))]);
+  return out;
+}
+
+/** Every deduction as its own CSV row, under a heading. The PDF caps its
+    list; a spreadsheet is the place that must hold all of them. */
+function deductionCsvRows(ds: readonly DeductionRow[]): (string | number)[][] {
+  if (!ds.length) return [];
+  return [
+    [],
+    ["Refunds carried from statements already sent"],
+    ["Guarantee", "Was on statement", "Month", "Deducted"],
+    ...ds.map((d) => [d.guarantee_ref, d.statement_reference ?? "", d.statement_month,
+                      "-" + gbp(num(d.commission))]),
+  ];
+}
+
 const num = (v: number | string | null | undefined): number => (v == null ? 0 : Number(v));
 
 /* ---------------------------------------------------------------------
@@ -734,9 +804,11 @@ function supplierRow(l: SupplierLineRow): string[] {
 /** The supplier's own statement: every referral, decomposed. */
 export function supplierStatementPdf(
   payee: PayeeRow, lines: SupplierLineRow[], label: string, reference: string, invoiceEmail: string,
+  deductions: readonly DeductionRow[] = [],
 ): Uint8Array {
   const total = lines.reduce((s, l) => s + num(l.total_amount), 0);
   const agents = lines.reduce((s, l) => s + num(l.agent_amount), 0);
+  const net = total - deductedTotal(deductions);
   const { columns, rows } = dropEmptyColumns(SUPPLIER_STATEMENT_COLUMNS, lines.map(supplierRow), EMPTY_CELL);
   return renderTablePdf({
     /* THE BRANDED DOCUMENT'S OWN SHAPE: report name, then a meta line of
@@ -754,22 +826,25 @@ export function supplierStatementPdf(
       /* THE THREE NUMBERS IN THE HEADER, because the decomposition is the
          point of the document and a reader should not have to add a
          column up to find what they owe their own agents. */
-      ["Total commission", gbp(total)],
+      [grossLabel(deductions), gbp(total)],
       ["Of which agents' share", gbp(agents)],
       ["Your share", gbp(total - agents)],
+      ...deductionMeta(total, deductions),
     ],
     columns,
     rows,
-    total: { label: "Total", value: gbp(total) },
-    footer: paymentTermsLine(gbp(total), reference, invoiceEmail),
+    total: { label: deductions.length ? "Total payable" : "Total", value: gbp(net) },
+    footer: paymentTermsLine(gbp(net), reference, invoiceEmail),
   });
 }
 
 export function supplierStatementCsv(
   payee: PayeeRow, lines: SupplierLineRow[], label: string, reference: string, invoiceEmail: string,
+  deductions: readonly DeductionRow[] = [],
 ): string {
   const total = lines.reduce((s, l) => s + num(l.total_amount), 0);
   const agents = lines.reduce((s, l) => s + num(l.agent_amount), 0);
+  const net = total - deductedTotal(deductions);
   /* THE SAME COLUMNS THE PDF DROPPED. Asked of the same rendered rows,
      so the two documents of one statement cannot disagree about which
      columns exist. */
@@ -781,10 +856,14 @@ export function supplierStatementCsv(
     ["Statement reference", reference],
     ["Basis", "Commission on fees paid in the month, refunds excluded"],
     ["Applications", lines.length],
-    ["Total commission", gbp(total)],
+    [grossLabel(deductions), gbp(total)],
     ["Of which agents' share", gbp(agents)],
     ["Your share", gbp(total - agents)],
-    [paymentTermsLine(gbp(total), reference, invoiceEmail)],
+    ...(deductions.length
+      ? [["Less refunds already statemented", "-" + gbp(deductedTotal(deductions))],
+         ["Total payable", gbp(net)]]
+      : []),
+    [paymentTermsLine(gbp(net), reference, invoiceEmail)],
     [],
     columns.map((c) => c.header),
     ...rows,
@@ -795,6 +874,10 @@ export function supplierStatementCsv(
     columns.map((c) => (c.header === "Agents' share" ? gbp(agents)
       : c.header === "Your share" ? gbp(total - agents)
         : c.header === "Total" ? gbp(total) : "")),
+    ...deductionCsvRows(deductions),
+    ...(deductions.length
+      ? [[], [...Array.from({ length: Math.max(columns.length - 2, 0) }, () => ""), "Total payable", gbp(net)]]
+      : []),
   ]);
 }
 
@@ -911,6 +994,11 @@ export async function buildSupplierBundle(
   service: any,
   p: PayeeRow, monthStart: string, monthKey: string, label: string,
   reference: string, invoiceEmail: string,
+  /* THE SUPPLIER'S OWN STATEMENT TAKES THE DEDUCTION; the per-agency
+     schedules do not. A schedule is the supplier's working for what IT
+     owes one of ITS agents, and a refund Opndoor is recovering from the
+     supplier is none of that agency's business. */
+  deductions: readonly DeductionRow[] = [],
 ): Promise<SupplierBundle | null> {
   const { data, error } = await service.rpc("supplier_statement_lines", {
     p_partner: p.org_id, p_month: monthStart,
@@ -919,8 +1007,8 @@ export async function buildSupplierBundle(
   const sl = (data ?? []) as SupplierLineRow[];
   if (!sl.length) return null;
 
-  const ownPdf = supplierStatementPdf(p, sl, label, reference, invoiceEmail);
-  const ownCsv = supplierStatementCsv(p, sl, label, reference, invoiceEmail);
+  const ownPdf = supplierStatementPdf(p, sl, label, reference, invoiceEmail, deductions);
+  const ownCsv = supplierStatementCsv(p, sl, label, reference, invoiceEmail, deductions);
   const ownPdfName = `opndoor-commission-${monthKey}.pdf`;
   const ownCsvName = `opndoor-commission-${monthKey}.csv`;
 
@@ -978,7 +1066,10 @@ export function scheduleSlug(name: string, fallback: string): string {
 
 export function statementPdf(
   payee: PayeeRow, lines: LineRow[], label: string, reference: string, invoiceEmail: string,
+  deductions: readonly DeductionRow[] = [],
 ): Uint8Array {
+  const gross = num(payee.total);
+  const net = gross - deductedTotal(deductions);
   const shape = shapeOf(lines);
   /* TWO RULES, IN ORDER, AND BOTH ARE WANTED. keepColumns first: drop a
      dimension whose every line shares one value, which is a statement
@@ -1008,14 +1099,18 @@ export function statementPdf(
       ["Statement reference", reference],
       ["Basis", "Commission on fees paid in the month, refunds excluded"],
       ["Applications", String(lines.length)],
-      ["Total commission", gbp(num(payee.total))],
+      [grossLabel(deductions), gbp(gross)],
+      ...deductionMeta(gross, deductions),
     ],
     columns,
     rows,
-    total: { label: "Total", value: gbp(num(payee.total)) },
+    /* THE CLOSING FIGURE IS WHAT WE WILL PAY. With a deduction carried it
+       is not the table's own sum, and the key-values above show the
+       subtraction that gets from one to the other. */
+    total: { label: deductions.length ? "Total payable" : "Total", value: gbp(net) },
     // Along the bottom of every page, which is where a statement carries its
     // terms, and where a multi-page one still carries them on page three.
-    footer: paymentTermsLine(gbp(num(payee.total)), reference, invoiceEmail),
+    footer: paymentTermsLine(gbp(net), reference, invoiceEmail),
   });
 }
 
@@ -1052,7 +1147,10 @@ function settlementPdf(payees: PayeeRow[], label: string, grand: number): Uint8A
  */
 export function statementCsv(
   payee: PayeeRow, lines: LineRow[], label: string, reference: string, invoiceEmail: string,
+  deductions: readonly DeductionRow[] = [],
 ): string {
+  const gross = num(payee.total);
+  const net = gross - deductedTotal(deductions);
   const shape = shapeOf(lines);
   const { columns, rows } = dropEmptyColumns(
     keepColumns(STATEMENT_COLUMNS, shape),
@@ -1073,8 +1171,12 @@ export function statementCsv(
     ["Statement reference", reference],
     ["Basis", "Commission on fees paid in the month, refunds excluded"],
     ["Applications", lines.length],
-    ["Total commission", gbp(num(payee.total))],
-    [paymentTermsLine(gbp(num(payee.total)), reference, invoiceEmail)],
+    [grossLabel(deductions), gbp(gross)],
+    ...(deductions.length
+      ? [["Less refunds already statemented", "-" + gbp(deductedTotal(deductions))],
+         ["Total payable", gbp(net)]]
+      : []),
+    [paymentTermsLine(gbp(net), reference, invoiceEmail)],
     [],
     columns.map((c) => c.header),
     ...rows,
@@ -1082,7 +1184,14 @@ export function statementCsv(
     // Padded from the surviving columns, not from ten: a dropped column moves
     // the Total label left, and a hard-coded row would leave it stranded in the
     // middle of the table.
-    [...Array.from({ length: Math.max(columns.length - 2, 0) }, () => ""), "Total", gbp(num(payee.total))],
+    [...Array.from({ length: Math.max(columns.length - 2, 0) }, () => ""),
+     deductions.length ? "Commission this month" : "Total", gbp(gross)],
+    /* EVERY DEDUCTION, not the PDF's capped list. A spreadsheet is where
+       a finance team reconciles line by line. */
+    ...deductionCsvRows(deductions),
+    ...(deductions.length
+      ? [[], [...Array.from({ length: Math.max(columns.length - 2, 0) }, () => ""), "Total payable", gbp(net)]]
+      : []),
   ]);
 }
 
@@ -1110,14 +1219,32 @@ export function statementMessage(opts: {
       was too big to attach. Absent for an agency payee, which has
       none. */
   schedules?: { count: number; tooBig: boolean };
+  /** Refunds on statements already sent, which Opndoor chose to carry here
+      rather than reissue. Absent when there are none, which is almost
+      always. */
+  deductions?: readonly DeductionRow[];
 }): Message {
+  const deductions = opts.deductions ?? [];
+  const taken = deductedTotal(deductions);
+  const net = opts.total - taken;
   const blocks: Block[] = [
     /* NOT esc() HERE ANY MORE. emailLayout's blockHtml escapes p, small and
        list content itself now (it did not, which is how a caller-supplied
        note reached a deed email raw), and escaping twice turns "Smith & Co"
        into "Smith &amp;amp; Co" on the page. The <b> survives, because the
        layout re-permits an inline allowlist after escaping. */
-    { p: `Your commission statement for <b>${opts.label}</b> is attached. It comes to <b>${gbp(opts.total)}</b>.` },
+    /* TWO NUMBERS WHEN THERE ARE TWO NUMBERS. The heading carries the
+       NET, because that is what the payee will be paid; an opening line
+       that then said "it comes to £1,200.00" under a heading of £750.00
+       read as a contradiction in the first two lines of the email. It
+       said exactly that until this was caught in a rehearsal. */
+    {
+      p: deductions.length
+        ? `Your commission statement for <b>${opts.label}</b> is attached. Commission for the month `
+          + `comes to <b>${gbp(opts.total)}</b>, and after the refunds carried onto it the amount `
+          + `payable is <b>${gbp(net)}</b>.`
+        : `Your commission statement for <b>${opts.label}</b> is attached. It comes to <b>${gbp(opts.total)}</b>.`,
+    },
     {
       rows: [
         ["Month", opts.label],
@@ -1125,10 +1252,28 @@ export function statementMessage(opts: {
         // email about one statement can quote its number without opening a PDF.
         ["Statement reference", opts.reference],
         ["Applications", String(opts.applications)],
-        ["Total commission", gbp(opts.total)],
+        [grossLabel(deductions), gbp(opts.total)],
+        ...(deductions.length ? [
+          ["Less refunds already statemented", "-" + gbp(taken)] as [string, string],
+          ["Total payable", gbp(net)] as [string, string],
+        ] : []),
       ],
     },
     { p: "It covers every application that paid in the month, and the commission each one earned. Refunded applications are excluded." },
+    /* SAID IN WORDS, NOT ONLY AS A NUMBER. A payee whose total is lower
+       than their own figures predict will query it, and the one thing
+       that stops that is a sentence naming the guarantee and the
+       statement the money was originally paid on. Matt: the alert
+       "naming the payee, the statement reference and the commission
+       affected" -- the payee gets the same three facts. */
+    ...(deductions.length ? [{
+      p: `This statement also carries ${deductions.length === 1 ? "a refund" : `${deductions.length} refunds`} `
+        + `on commission paid to you on `
+        + `${Array.from(new Set(deductions.map((d) => d.statement_reference ?? `the ${d.statement_month} statement`))).join(", ")}. `
+        + `The ${deductions.length === 1 ? "guarantee was" : "guarantees were"} `
+        + `${deductions.map((d) => d.guarantee_ref).join(", ")}, and the fee has been refunded to the tenant. `
+        + `${gbp(taken)} has been deducted here rather than by correcting the earlier statement.`,
+    }] : []),
     /* THE SCHEDULES, AND WHERE THEY ARE. Matt, 2026-10-01: the zip
        holds "the supplier's statement at the top level and an 'Agents'
        folder with one PDF and CSV per agency", and over 10MB "the email
@@ -1143,19 +1288,32 @@ export function statementMessage(opts: {
       opts.schedules.tooBig
         ? { p: `A statement for each of your ${opts.schedules.count} agencies is too large to attach this month. `
             + `Download them from your Reporting page, where they are always available.` }
+        /* ONE MENTION OF THE REPORTING PAGE, not two. Matt, 2026-10-01:
+           "mention the Reporting page once only. Keep 'The same figures
+           are on your Reporting page, where you can pick any month and
+           download it again.' and drop 'They are also always available
+           on your Reporting page.' from the zip sentence." The closing
+           line below already says it, and saying it twice in four
+           paragraphs reads as a template rather than a letter.
+
+           THE TOO-BIG BRANCH KEEPS ITS POINTER, because there the zip is
+           not attached at all and that sentence is the only thing telling
+           the reader where the schedules went. */
         : { p: `The zip holds this statement again plus an Agents folder, with a statement for each of your `
-            + `${opts.schedules.count} ${opts.schedules.count === 1 ? "agency" : "agencies"}. `
-            + `They are also always available on your Reporting page.` },
+            + `${opts.schedules.count} ${opts.schedules.count === 1 ? "agency" : "agencies"}.` },
     ] : []),
     /* THE SAME SENTENCE AS THE ATTACHMENT, built by the same function,
        so the email and the PDF cannot name two different totals, two
        references or two addresses. Matt asked for it on both. */
-    { p: paymentTermsLine(gbp(opts.total), opts.reference, opts.invoiceEmail) },
+    { p: paymentTermsLine(gbp(net), opts.reference, opts.invoiceEmail) },
     { small: "The same figures are on your Reporting page, where you can pick any month and download it again." },
   ];
   return {
-    subject: `Commission statement for ${opts.label}: ${gbp(opts.total)}`,
-    heading: `${opts.payeeName}: ${gbp(opts.total)}`,
+    /* THE SUBJECT AND THE HEADING CARRY THE NET, because that is the
+       number the reader is going to be paid and the one they will look
+       for on a remittance. */
+    subject: `Commission statement for ${opts.label}: ${gbp(net)}`,
+    heading: `${opts.payeeName}: ${gbp(net)}`,
     blocks,
     ...(opts.appUrl ? { action: { label: "Open your statement", href: `${opts.appUrl}/dashboard` } } : {}),
   };
@@ -1347,6 +1505,168 @@ async function serveSupplierBundle(
   });
 }
 
+/* =====================================================================
+   THE OTHER ANSWER: REISSUE A CORRECTED STATEMENT.
+
+   Matt, 2026-10-01: Opndoor admin chooses "(a) reissue a corrected
+   statement to the payee, or (b) carry the amount as a deduction line on
+   the payee's next statement."
+
+   (b) happens by itself, on the next run, because the deduction is in a
+   table the run reads. (a) has to be sent, and this is what sends it.
+
+   A REISSUED STATEMENT NEEDS ITS OWN REFERENCE, which is the one thing
+   the queue called out and the one thing that is easy to get wrong. Two
+   documents sharing a number breaks reconciliation on the exact field a
+   finance team keys by, and the payee has both pieces of paper. So the
+   reference is minted against a DIFFERENT payee key -- the real one with
+   a "#reissue" tail -- which gives the month's next sequence number from
+   the same counter, so the two documents are STMT-2026-08-0012 and
+   STMT-2026-08-0031 rather than one number twice.
+
+   THE CORRECTED FIGURES ARE JUST TODAY'S. commission_statement_lines
+   excludes refunded applications, so recomputing the month now produces
+   exactly the statement that should have gone out: no subtraction to get
+   wrong, because the refund has already removed the line.
+
+   NOT POSTED TO commission_statement_sends. That table is the run's
+   idempotency key -- one row per (month, payee) -- and writing a second
+   row for a month would either collide or make next month's run think it
+   had already posted. What records the reissue is the question row.
+   ===================================================================== */
+async function serveReissue(
+  req: Request,
+  // deno-lint-ignore no-explicit-any
+  body: any,
+  // deno-lint-ignore no-explicit-any
+  service: any,
+  supabaseUrl: string, anon: string, appUrl: string,
+): Promise<Response> {
+  const questionId = typeof body.question === "string" ? body.question.trim() : "";
+  if (!questionId) return json({ ok: false, error: "Which question?" }, 400);
+
+  /* OPNDOOR STAFF ONLY, established before anything is read, and the same
+     shape as the download endpoint beside it. No supplier or agency path
+     here at all: a payee does not reissue their own statement. */
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!authHeader) return json({ ok: false, error: "Not authorised." }, 401);
+  const userClient = createClient(supabaseUrl, anon, { global: { headers: { Authorization: authHeader } } });
+  const { data: u } = await userClient.auth.getUser();
+  if (!u.user?.id) return json({ ok: false, error: "Not authorised." }, 401);
+  const { data: prof } = await userClient.from("users").select("role").eq("id", u.user.id).maybeSingle();
+  if (prof?.role !== "superadmin" && prof?.role !== "opndoor_manager") {
+    return json({ ok: false, error: "Only Opndoor reissues a statement." }, 403);
+  }
+
+  const { data: q } = await service.from("statement_refund_questions")
+    .select("id, payee_key, payee_name, statement_month, statement_reference, decision, reissued_at")
+    .eq("id", questionId).maybeSingle();
+  if (!q?.id) return json({ ok: false, error: "No such question." }, 404);
+  /* THE DECISION IS THE AUTHORITY FOR THE SEND. An undecided question has
+     not been answered by anybody, and "nothing happens automatically" means
+     this endpoint refuses rather than treats the call itself as the choice. */
+  if (q.decision !== "reissue") {
+    return json({ ok: false, error: "That refund was not marked for a reissued statement." }, 409);
+  }
+  if (q.reissued_at) {
+    return json({ ok: false, error: "A corrected statement has already been sent for that refund." }, 409);
+  }
+
+  const { data: invoiceTo } = await service.rpc("statement_invoice_email");
+  const invoiceEmail = typeof invoiceTo === "string" ? invoiceTo.trim() : "";
+  if (!invoiceEmail) {
+    return json({ ok: false, error: "The invoice email is not set yet, so a statement cannot say where to send an invoice." }, 409);
+  }
+
+  const monthKey = q.statement_month as string;
+  const monthStart = `${monthKey}-01`;
+  const label = monthLabel(monthKey);
+
+  const { data: payeeData, error: payeeErr } = await service.rpc("commission_statement_payees", { p_month: monthStart });
+  if (payeeErr) return json({ ok: false, error: payeeErr.message }, 500);
+  const p = ((payeeData ?? []) as PayeeRow[]).find((x) => x.payee_key === q.payee_key);
+  /* NOTHING LEFT AT ALL is a real outcome: a payee whose only business that
+     month was the refunded application. A corrected statement for nought is
+     not a document, so this says so instead of sending one. */
+  if (!p || num(p.total) <= 0) {
+    return json({
+      ok: false,
+      error: `After the refund, ${q.payee_name} has no commission left for ${label}. There is nothing to reissue; the earlier statement should be withdrawn by hand.`,
+    }, 409);
+  }
+
+  const { data: lineData, error: lineErr } = await service.rpc("commission_statement_lines", { p_month: monthStart });
+  if (lineErr) return json({ ok: false, error: lineErr.message }, 500);
+  const lines = ((lineData ?? []) as LineRow[])
+    .filter((l) => l.payee_key === q.payee_key)
+    .sort((a, b) => a.guarantee_ref.localeCompare(b.guarantee_ref));
+  if (!lines.length) {
+    return json({ ok: false, error: `No lines left for ${q.payee_name} in ${label}.` }, 409);
+  }
+
+  const { data: recData, error: recErr } = await service.rpc("commission_statement_recipients", {
+    p_level: p.level, p_org_id: p.org_id,
+  });
+  if (recErr) return json({ ok: false, error: recErr.message }, 500);
+  const to = ((recData ?? []) as RecipientRow[]).map((r) => r.email).filter(Boolean);
+  if (!to.length) {
+    return json({ ok: false, error: `${q.payee_name} has nobody to send a statement to.` }, 409);
+  }
+
+  /* ITS OWN NUMBER, from the month's own counter, under a key that cannot
+     collide with the original. Minted BEFORE the send and after the
+     recipient check, exactly as the run does it and for the same reason. */
+  const { data: refData, error: refErr } = await service.rpc("commission_statement_ref", {
+    p_month: monthKey, p_payee_key: `${q.payee_key}#reissue`,
+  });
+  if (refErr || typeof refData !== "string" || !refData) {
+    return json({ ok: false, error: "Could not take a reference for the corrected statement." }, 500);
+  }
+  const reference = refData;
+
+  const bundle = p.level === "partner"
+    ? await buildSupplierBundle(service, p, monthStart, monthKey, label, reference, invoiceEmail)
+    : null;
+
+  const message = statementMessage({
+    payeeName: p.org_name, label, total: num(p.total), applications: lines.length,
+    reference, appUrl, invoiceEmail,
+    ...(bundle ? { schedules: { count: bundle.agencies, tooBig: bundle.tooBig } } : {}),
+  });
+  /* THE CORRECTION SAYS IT IS ONE, at the top, and names the document it
+     replaces. A payee who receives a second statement for a month they have
+     already invoiced for needs to know which of the two is live before they
+     read a single figure. */
+  message.subject = `Corrected commission statement for ${label}: ${gbp(num(p.total))}`;
+  message.blocks = [
+    { p: `This replaces the statement we sent you for <b>${label}</b>`
+      + `${q.statement_reference ? `, reference ${q.statement_reference}` : ""}. `
+      + `A fee that statement included has since been refunded to the tenant, so the commission on it `
+      + `is no longer due. Please use this document, reference ${reference}, and disregard the earlier one.` },
+    ...message.blocks,
+  ];
+
+  const res = await sendMessage({
+    to,
+    message,
+    attachments: bundle?.attachments ?? [{
+      filename: `opndoor-commission-${monthKey}-corrected.pdf`,
+      content: bytesToBase64(statementPdf(p, lines, label, reference, invoiceEmail)),
+    }, {
+      filename: `opndoor-commission-${monthKey}-corrected.csv`,
+      content: textToBase64(statementCsv(p, lines, label, reference, invoiceEmail)),
+    }],
+  });
+  if (!res.ok) return json({ ok: false, error: res.error ?? "Could not send the corrected statement." }, 502);
+
+  await service.rpc("mark_refund_question_reissued", { p_id: q.id, p_reference: reference });
+  return json({
+    ok: true, payee: p.org_name, month: monthKey, label,
+    reference, replaces: q.statement_reference, recipients: to.length,
+    total: num(p.total), applications: lines.length,
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -1371,6 +1691,11 @@ Deno.serve(async (req) => {
        matters: a supplier may take their own and nobody else's. */
     if (body.action === "supplier_bundle") {
       return await serveSupplierBundle(req, body, service, SUPABASE_URL, ANON);
+    }
+    /* THE REISSUE, likewise before the gate: it is a correction a person
+       asked for on the day they asked for it, not a scheduled run. */
+    if (body.action === "reissue") {
+      return await serveReissue(req, body, service, SUPABASE_URL, ANON, APP_URL);
     }
 
     // Cron auth: x-reminders-secret must match the edge env OR the ops_secrets
@@ -1485,19 +1810,43 @@ Deno.serve(async (req) => {
       list.sort((a, b) => a.guarantee_ref.localeCompare(b.guarantee_ref));
     }
 
+    /* REFUNDS CARRIED FROM STATEMENTS ALREADY SENT. Matt, 2026-10-01: one of
+       the two answers to a refund on statemented commission is "carry the
+       amount as a deduction line on the payee's next statement", and this is
+       where it stops being a note and becomes money.
+
+       ONE CALL FOR THE MONTH, grouped here, like the lines above. Not
+       filtered to payees who have business this month: a payee with a
+       deduction and no referrals is handled below, where "nothing due" has
+       to mean nothing NET. */
+    const { data: dedData, error: dedErr } = await service.rpc("statement_deductions", { p_month: monthStart });
+    if (dedErr) return json({ ok: false, error: dedErr.message }, 500);
+    const deductionsByPayee = new Map<string, DeductionRow[]>();
+    for (const d of (dedData ?? []) as DeductionRow[]) {
+      const list = deductionsByPayee.get(d.payee_key) ?? [];
+      list.push(d);
+      deductionsByPayee.set(d.payee_key, list);
+    }
+
     // Already posted (idempotency). A dry run reads this too, so it can tell you
     // it would post nothing rather than pretending it would post everything.
     const { data: sentRows } = await service.from("commission_statement_sends")
       .select("payee_key").eq("statement_month", monthKey);
     const alreadyPosted = new Set((sentRows ?? []).map((s: { payee_key: string }) => s.payee_key));
 
-    const grand = payees.reduce((s, p) => s + num(p.total), 0);
+    /* NET OF EVERY CARRIED REFUND, because this is what the staff settlement
+       email calls "what opndoor owes out for the month" and it has to be the
+       money actually leaving the bank. A grand total of the gross would be
+       larger than the sum of the statements that make it up. */
+    const grand = payees.reduce(
+      (s, p) => s + num(p.total) - deductedTotal(deductionsByPayee.get(p.payee_key) ?? []), 0);
 
     let posted = 0, alreadySent = 0, failed = 0, nothingDue = 0;
     const unaddressed: string[] = [];
     const would: Array<{
       payee: string; level: string; total: number; applications: number; to: string[];
       columns: string[]; reference: string;
+      grossTotal?: number; deducted?: number; deductions?: number;
       attachments: { filename: string; mediaType: string; bytes: number }[];
     }> = [];
 
@@ -1522,10 +1871,18 @@ Deno.serve(async (req) => {
       if (alreadyPosted.has(p.payee_key)) { alreadySent += 1; continue; }
       const lines = linesByPayee.get(p.payee_key) ?? [];
       const total = num(p.total);
+      const deductions = deductionsByPayee.get(p.payee_key) ?? [];
+      const netTotal = total - deductedTotal(deductions);
       // "At least one line" is the ruling's test. A payee whose lines all came to
       // nothing is not owed anything, and an email reading "your commission is
       // £0.00" is noise rather than a statement.
       if (!lines.length || total <= 0) { nothingDue += 1; continue; }
+      /* AND A MONTH WHOSE DEDUCTION SWALLOWS IT IS ALSO NOTHING DUE, but it
+         must NOT be settled: the deduction is still owed and waits for a month
+         with enough in it. Sending a statement for nought or for a negative
+         number would be asking the payee to invoice us for money they owe,
+         which is a conversation to have rather than a document to post. */
+      if (netTotal <= 0 && deductions.length) { nothingDue += 1; continue; }
 
       const { data: recData, error: recErr } = await service.rpc("commission_statement_recipients", {
         p_level: p.level, p_org_id: p.org_id,
@@ -1566,12 +1923,19 @@ Deno.serve(async (req) => {
            noticed by a supplier on the 1st. There are more of them to go
            wrong now, one per agency. */
         const supplierSet = p.level === "partner"
-          ? (await buildSupplierBundle(service, p, monthStart, monthKey, label, reference, invoiceEmail))?.attachments ?? null
+          ? (await buildSupplierBundle(service, p, monthStart, monthKey, label, reference, invoiceEmail, deductions))?.attachments ?? null
           : null;
-        const pdf = statementPdf(p, lines, label, reference, invoiceEmail);
-        const csv = statementCsv(p, lines, label, reference, invoiceEmail);
+        const pdf = statementPdf(p, lines, label, reference, invoiceEmail, deductions);
+        const csv = statementCsv(p, lines, label, reference, invoiceEmail, deductions);
         would.push({
-          payee: p.org_name, level: p.level, total, applications: lines.length, to, reference,
+          payee: p.org_name, level: p.level, total: netTotal, applications: lines.length, to, reference,
+          /* REPORTED SEPARATELY, so a rehearsal shows the subtraction rather
+             than only its result. A total that is quietly lower than the
+             month's commission is the one thing a reader of a dry run would
+             otherwise have to work out. */
+          ...(deductions.length
+            ? { grossTotal: total, deducted: deductedTotal(deductions), deductions: deductions.length }
+            : {}),
           // Which columns this payee's statement came out with. Reading it off
           // the response is the only way to check the column rule without
           // opening the PDF, and the PDF is the one thing a rehearsal cannot
@@ -1596,7 +1960,7 @@ Deno.serve(async (req) => {
       /* BUILT ONCE PER PAYEE, so the message and the attachments cannot
          disagree about whether the zip is there. */
       const bundle = p.level === "partner"
-        ? await buildSupplierBundle(service, p, monthStart, monthKey, label, reference, invoiceEmail)
+        ? await buildSupplierBundle(service, p, monthStart, monthKey, label, reference, invoiceEmail, deductions)
         : null;
       const res = await sendMessage({
         to,
@@ -1604,6 +1968,7 @@ Deno.serve(async (req) => {
           payeeName: p.org_name, label, total, applications: lines.length, reference,
           appUrl: APP_URL, invoiceEmail,
           ...(bundle ? { schedules: { count: bundle.agencies, tooBig: bundle.tooBig } } : {}),
+          ...(deductions.length ? { deductions } : {}),
         }),
         // PDF FIRST. A mail client shows the first attachment as the document,
         // so the order is the only signal of which is the statement and which
@@ -1612,16 +1977,27 @@ Deno.serve(async (req) => {
           filename: `opndoor-commission-${monthKey}.pdf`,
           // Bytes, so the chunked encoder, never the text path's
           // btoa(unescape(encodeURIComponent(...))), which corrupts binary.
-          content: bytesToBase64(statementPdf(p, lines, label, reference, invoiceEmail)),
+          content: bytesToBase64(statementPdf(p, lines, label, reference, invoiceEmail, deductions)),
         }, {
           filename: `opndoor-commission-${monthKey}.csv`,
-          content: textToBase64(statementCsv(p, lines, label, reference, invoiceEmail)),
+          content: textToBase64(statementCsv(p, lines, label, reference, invoiceEmail, deductions)),
         }],
       });
       if (!res.ok) { failed += 1; continue; }
       await service.from("commission_statement_sends").insert({
-        statement_month: monthKey, payee_key: p.payee_key, recipients: to.length, total,
+        /* THE NET, because this column is what the settlement email totals and
+           what Opndoor actually pays out. Recording the gross would make the
+           month's settlement larger than the money leaving the bank. */
+        statement_month: monthKey, payee_key: p.payee_key, recipients: to.length, total: netTotal,
       });
+      /* SETTLED ONLY NOW, after the send succeeded and the row is in. A
+         deduction marked carried on a statement that failed to send would be
+         money quietly forgiven: it would never appear on another statement
+         and nothing would say so. */
+      if (deductions.length) {
+        await service.rpc("settle_statement_deductions", { p_month: monthKey, p_payee_key: p.payee_key })
+          .then(() => {}, () => {});
+      }
       posted += 1;
     }
 

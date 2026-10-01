@@ -12,6 +12,7 @@
    Mock/test mode keeps an in-memory demo queue.
    ===================================================================== */
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import { functionErrorMessage } from './paymentService';
 import { getAgencies } from './orgService';
 import { ALL_PARTNERS } from './types';
 
@@ -326,3 +327,88 @@ const MOCK_MATCH_BRANCHES: Record<string, MatchBranch[]> = {
   'ag-meridian': [{ id: 'br-m-city', name: 'City Centre', area: 'LS1' }, { id: 'br-m-hq', name: 'Head office', area: null }],
   'ag-barnard': [{ id: 'br-b-1', name: 'Sheffield', area: 'S1' }],
 };
+
+/* =====================================================================
+   REFUNDS THAT LANDED ON COMMISSION ALREADY SENT ON A STATEMENT.
+
+   Matt, 2026-10-01, verbatim: "Refund after a commission statement has
+   been sent: when a refund lands on an application whose commission was
+   already on a sent statement, raise an internal alert to Opndoor naming
+   the payee, the statement reference and the commission affected. On that
+   alert, Opndoor admin chooses, with a confirmation box: (a) reissue a
+   corrected statement to the payee, or (b) carry the amount as a
+   deduction line on the payee's next statement. Nothing happens
+   automatically. Record who chose what and when."
+
+   THE ALERT GOES OUT BY EMAIL, through the existing ops machinery. What
+   lives here is the QUESTION it raises, which needs a surface because it
+   needs an answer. Reconciliation is where Opndoor already works through
+   queues of exactly this kind.
+   ===================================================================== */
+
+export interface RefundQuestion {
+  id: string;
+  guaranteeRef: string;
+  tenantName: string;
+  payeeName: string;
+  /** 'agency' | 'group' | 'branch' | 'partner', in the payee's own words. */
+  payeeLevel: string;
+  statementMonth: string;
+  statementReference: string;
+  commission: number;
+  raisedAt: string;
+  refundedAt: string;
+}
+
+export async function loadRefundQuestions(): Promise<RefundQuestion[]> {
+  if (!SUPABASE_ENABLED) return [];
+  const { data, error } = await sb().rpc('refund_questions_open');
+  if (error) throw new Error(error.message);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    guaranteeRef: r.guarantee_ref,
+    tenantName: (r.tenant_name || '').trim(),
+    payeeName: r.payee_name,
+    payeeLevel: r.payee_level,
+    statementMonth: r.statement_month,
+    /* A QUESTION ALWAYS HAS ONE in practice, because a month that was
+       posted has a stored reference by definition. Left as a fallback
+       rather than an assertion: a blank cell where a document number
+       should be is the one thing a reader would not know how to act on. */
+    statementReference: r.statement_reference || `the ${r.statement_month} statement`,
+    commission: Number(r.commission) || 0,
+    raisedAt: r.raised_at ? fmtWhen(r.raised_at) : '',
+    refundedAt: r.refunded_at ? fmtWhen(r.refunded_at) : '',
+  }));
+}
+
+export async function decideRefundQuestion(
+  id: string, decision: 'reissue' | 'deduct',
+): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  const { error } = await sb().rpc('decide_refund_question', { p_id: id, p_decision: decision });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Send the corrected statement for a question already marked 'reissue'.
+ *
+ * TWO STEPS, NOT ONE, and deliberately: the decision is recorded by the
+ * database and the document is sent by the edge function, and the first
+ * must survive the second failing. A send that falls over leaves a
+ * decided question with no reissue against it, which the screen can
+ * offer again; one call that did both would either lose the decision or
+ * send twice.
+ */
+export async function reissueCorrectedStatement(
+  questionId: string,
+): Promise<{ ok: boolean; reference?: string; recipients?: number; error?: string }> {
+  if (!SUPABASE_ENABLED) return { ok: false, error: 'Not connected.' };
+  const { data, error } = await sb().functions.invoke('commission-statements', {
+    body: { action: 'reissue', question: questionId },
+  });
+  if (error) return { ok: false, error: await functionErrorMessage(error, 'Could not send the corrected statement.') };
+  if (!data?.ok) return { ok: false, error: data?.error || 'Could not send the corrected statement.' };
+  return { ok: true, reference: data.reference, recipients: data.recipients };
+}
