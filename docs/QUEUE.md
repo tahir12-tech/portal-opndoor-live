@@ -63,6 +63,46 @@ already edited.
 Total and reference both already exist on every statement, agency and
 supplier, in the PDF, the CSV and the email. Nothing new to compute.
 
+## NO EM DASHES, AND THE BUILD SAYS SO (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> No em dashes anywhere in emails, PDFs, CSV headers or screen text, including TEST subject lines. Replace any with a comma, colon or full stop. Add a check that fails the build if an em dash appears in any customer-facing text.
+
+**"including TEST subject lines" is pointed at me.** Both statements I
+sent minutes ago were subjected "[TEST] Agency statement, branded EM
+DASH Commission statement for ...". The rule was already in CLAUDE.md
+("No em dashes in product copy") and I broke it in the one piece of copy
+I wrote myself rather than generated. That is why he wants a check
+rather than a reminder.
+
+### WHAT "CUSTOMER-FACING" HAS TO MEAN FOR A CHECK TO WORK
+
+Source COMMENTS are full of em dashes, deliberately, and always will be:
+they are prose for whoever reads the code. A check that fails on those
+fails on every file and gets switched off in a week. So it has to look
+at STRINGS and JSX text, not at files.
+
+- emails: `_shared/emailTemplates.ts`, `emailLayout.ts`, `deedEmail.ts`,
+  and the message builders in each function
+- documents: the PDF and CSV builders, including column headers
+- screen: `src/pages` and `src/components` JSX text and string literals
+
+## THE FOOTER AND THE REPLY-TO (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Every email footer: replace "Questions? Reply to this email." with "Questions? Email support@opndoor.co" with the address as a mailto link. Set the Reply-To header on every email to support@opndoor.co, so pressing Reply also reaches support. Add to HANDOVER-BALAL.md: on live, emails must send from a verified opndoor.co address, not onboarding@resend.dev, checked before go-live.
+
+Three things, and the third is the one that bites on the day:
+
+1. The footer line, with a real mailto link.
+2. `Reply-To: support@opndoor.co` on EVERY email, so the footer and the
+   Reply button agree. `_shared/mailer.ts` already has a REPLY_TO, which
+   defaults to `hello@opndoor.co`; this changes where it points and
+   stops it depending on an env var nobody has set.
+3. **HANDOVER-BALAL.md**: on live, emails must send from a verified
+   opndoor.co address, not `onboarding@resend.dev`. Checked before
+   go-live. The mailer's EMAIL_FROM default is already
+   `opndoor <noreply@opndoor.co>`, so this is about what is actually
+   configured in the live project rather than about the code.
+
 ## THE SUPPLIER'S SCHEDULES GO IN A ZIP (instruction, 2026-10-01, verbatim). ACTIVE.
 
 > Supplier statement emails: attach the supplier's own statement (PDF and CSV) directly, plus one zip file containing the per-agency statements, laid out as the supplier's statement at the top level and an "Agents" folder with one PDF and CSV per agency, named by agency. If the zip would be over 10MB, don't attach it; instead the email links to download it from the supplier's Reporting page, where it's always available. Send me a TEST version, only to mdwyer@opndoor.co.
