@@ -167,6 +167,21 @@ Two things worth knowing for whoever picks the next one up:
   Integration tab's switch, which is the same `apiAccessEnabled` the
   Dev Centre panels are gated on.
 
+## THE AGENCY PAGE GETS ITS OWN RECENT CHANGES (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Agency page: add a "Recent changes" list like the supplier's, showing every change to the agency's details, branches, people's levels and commission deals in plain English, with who and when, using the shared builder.
+
+- This is the "same for agencies" half of the previous instruction,
+  which I reported as having nothing to apply to because the agency
+  page had no such list. It has one now because Matt has asked for it.
+- FOUR SOURCES, not one: the agency's own details, its branches, its
+  people's levels and its deals. They are recorded in different
+  tables today (`org_audit` is action+detail; `user_audit` and
+  `partner_audit` are field+old+new), so the work is as much about
+  getting them into one shape as about listing them.
+- "using the shared builder" means `changeSentence`, so whatever is
+  gathered has to arrive as a (field, old, new) triple.
+
 ## THE TAB COUNTS FOLLOW THE FILTERS (instruction, 2026-10-01, verbatim). **done** (`3149c88`).
 
 > Applications: every status tab count follows the current filters (origin, period, branch, referrer, search), so with Origin set to Direct, In progress and Fee unpaid count only direct applications. For a direct signup with no agency, the Branch column shows "-" instead of "Unattached Unattached", everywhere that label appears. Deploy to dev and check there.
