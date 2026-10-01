@@ -18,8 +18,12 @@ const ALL = [tab('agency', 'Agencies'), tab('branch', 'Branches'), tab('referrer
 describe('the league intro', () => {
   /* REGENT: one agency, one office, so one board. The sentence a Director reads
      on the morning of go-live. */
+  /* "EVERYONE WHO HAS REFERRED", changed 2026-10-01 on Matt's word: a
+     Director and a Manager refer too and are on this board, so naming it
+     after the junior level described the wrong set, and left out the
+     people most likely to be reading it. */
   it('names one board when there is one', () => {
-    expect(introFor([tab('referrer', 'Negotiators')])).toBe('Every negotiator ranked in full.');
+    expect(introFor([tab('referrer', 'Negotiators')])).toBe('Everyone who has referred, ranked in full.');
   });
 
   it('names all three for a group that has all three', () => {

@@ -54,19 +54,29 @@ const PAGE = 15;
 type SortKey = keyof Pick<LeagueRow, 'name' | 'refs' | 'fees' | 'paid' | 'deed' | 'sp' | 'conv' | 'partnerComm' | 'agentComm'>;
 type Col = [SortKey, string, boolean]; // [key, label, sortable]
 
+/* THE MOVEMENT COLUMN, SAID IN WORDS. Matt, 2026-10-01: 'rename the "7d"
+   column to "Change this week" with a tooltip explaining "new" and "-"'.
+
+   "7d" is how the figure was computed, not what it tells you, and the two
+   things the column prints most often are a word and a dash that it never
+   explained anywhere. */
+const MOVEMENT_TITLE = 'Change in rank since the same table seven days ago. '
+  + '"new" means this row was not on the board a week ago. '
+  + '"-" means its position has not changed.';
+
 const COLS: Record<LeagueView, Col[]> = {
-  agency: [['name', 'Agency', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true], ['partnerComm', 'Partner comm.', true], ['agentComm', 'Agent comm.', true]],
+  agency: [['name', 'Agency', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Partner comm.', true], ['agentComm', 'Agent comm.', true]],
   /* A BRANCH generates fees; it only EARNS commission when it holds a rate of its
      own, because under the additive model the agency (or group) is the payee
      otherwise. So the branch board leads on fees generated, and the commission
      column shows a dash wherever the branch is not itself a payee — rather than
      repeating its agency's earnings against every branch name. */
-  branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees generated', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true], ['partnerComm', 'Partner comm.', true], ['agentComm', 'Own commission', true]],
-  referrer: [['name', 'Negotiator', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true]],
+  branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees generated', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Partner comm.', true], ['agentComm', 'Own commission', true]],
+  referrer: [['name', 'Negotiator', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true]],
   /* THE SAME MEASURES AS THE OTHERS, which is what Matt asked for, and
      the same two commission columns: a supplier IS a payee, so its own
      cut is the figure the board is most often read for. */
-  supplier: [['name', 'Supplier', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to Paid', true], ['conv', 'Sent to Deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Agent comm.', true]],
+  supplier: [['name', 'Supplier', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Agent comm.', true]],
 };
 
 /* THE TWO COLUMNS A MANAGER MAY NOT HAVE, and why only these two.
@@ -121,8 +131,13 @@ function RANK_OPTIONS(view: LeagueView): { value: string; label: string }[] {
     in full." and three read "Every agency, branch and negotiator ranked in
     full." */
 export function introFor(tabs: { id: LeagueView; label: string }[]): string {
+  /* "EVERYONE WHO HAS REFERRED", not "every negotiator". Matt,
+     2026-10-01. A Director and a Manager refer too and are both on this
+     board, so naming it after the junior level described the wrong set --
+     and the people it left out are the ones most likely to be reading. */
   const words = tabs.map((t) => ({ agency: 'agency', branch: 'branch', referrer: 'negotiator', supplier: 'supplier' }[t.id] ?? t.label.toLowerCase()));
   if (!words.length) return 'Nothing to rank in this scope yet.';
+  if (words.length === 1 && words[0] === 'negotiator') return 'Everyone who has referred, ranked in full.';
   const list = words.length === 1
     ? words[0]
     : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
@@ -301,7 +316,7 @@ function ReferrerLeagueView() {
                       column was a header over a full column of the word "new": it
                       says nothing and takes the width of something that does. It
                       appears once at least one row has a comparison to make. */}
-                  {showMovement && <th style={{ width: 56 }} title="Movement since the same table 7 days ago">7d</th>}
+                  {showMovement && <th style={{ width: 120 }} title={MOVEMENT_TITLE}>Change this week</th>}
                   <th>Referrer</th>
                   <th className="num">Referrals</th>
                   {showFees && <th className="num">Fees collected</th>}
@@ -491,7 +506,13 @@ function FullLeagueView() {
               them. The admin's in-page selector arm (`partner`) and a supplier
               reading their own partner name both keep it, which is what #100 was
               about. */}
-          <Eyebrow>Performance · {period.label}{partner ? ` · ${partnerName(partner)}` : (!agencyViewer && partnerScope !== ALL_PARTNERS) ? ` · ${partnerName(partnerScope)}` : ''}{myScope.hasToggle && shape.branches > 1 ? ` · ${scope === 'mine' ? myScope.label : 'Whole company'}` : ''}</Eyebrow>
+          {/* AND THE RAIL'S NAME IS OFF BOTH ARMS, not one. The guard was on
+              the scope arm only, so a Regent Director with the in-page
+              partner selector set still read "Performance · This month ·
+              Agency referral" -- the name of the house route their agency
+              sits on, which is opndoor plumbing. Matt, 2026-10-01: "remove
+              'Agency referral' from the header line." */}
+          <Eyebrow>Performance · {period.label}{!agencyViewer && partner ? ` · ${partnerName(partner)}` : ''}{!agencyViewer && !partner && partnerScope !== ALL_PARTNERS ? ` · ${partnerName(partnerScope)}` : ''}{myScope.hasToggle && shape.branches > 1 ? ` · ${scope === 'mine' ? myScope.label : 'Whole company'}` : ''}</Eyebrow>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>League tables</h1>
           {/* BUILT FROM THE TABS ACTUALLY SHOWN. This was hardcoded to "Every
               agency, branch and referrer", which promised a Regent Director three
@@ -578,7 +599,7 @@ function FullLeagueView() {
             <thead>
               <tr>
                 <th className="num" style={{ width: 44 }}>#</th>
-                {showMovement && <th style={{ width: 56 }} title="Movement since the same table 7 days ago">7d</th>}
+                {showMovement && <th style={{ width: 120 }} title={MOVEMENT_TITLE}>Change this week</th>}
                 {cols.map((c) => {
                   const [key, label, sortable] = c;
                   const isSort = sort === key;
