@@ -16,7 +16,8 @@ Three more arrived while item 1 was in flight, so they join the back of item
 Agency League headings, the office chosen first on New application, and
 one support address and one name for the fee on the tenant side, and the
 signed-deed email saying the insurance sentence once, and a corrected deed
-saying that it is a correction.
+saying that it is a correction, and two decimal places with the payment
+link on joint applications.
 
 
 The single source of truth for outstanding work on this branch.
@@ -33,6 +34,14 @@ anything it is under a heading that says so.
 Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
+
+## TWO DECIMAL PLACES, THE LINK ON JOINTS, AND HOW MANY TENANTS (instruction, 2026-10-01, verbatim). todo.
+
+> Application detail: money always shows two decimal places (£34,545.60, not £34,545.6), everywhere. Show the payment link next to Copy on joint tenancy applications as on singles. Say "both tenants" for two, "all 3 tenants" for three or more.
+
+- "everywhere" is the money formatter, not this page: find what is printing a
+  bare number and route it through the one formatter.
+- `oneMoneyFormatter.test.ts` is the check that already exists for this.
 
 ## A CORRECTED DEED SAYS IT IS A CORRECTION (instruction, 2026-10-01, verbatim). todo.
 
