@@ -123,6 +123,18 @@ Two things worth knowing for whoever picks the next one up:
   than a screenshot and did catch two wording faults a screenshot would
   not have.
 
+## RECENT CHANGES IN PLAIN ENGLISH (instruction, 2026-10-01, verbatim). todo.
+
+> Supplier Recent changes: show every change in plain English (e.g. "API access turned on", "Live from changed from August to September 2026"), never raw field names. Only record a change when a value actually changed. Same for agencies and anywhere else changes are listed. Deploy to dev and check there.
+
+- Two halves again, and the second is the one with teeth: "only
+  record a change when a value actually changed" is a WRITE-side rule,
+  so it is about what the audit function stores, not about how the
+  list reads. A no-op save that writes a row is a false record, and
+  no amount of wording fixes it.
+- "Same for agencies and anywhere else changes are listed" means the
+  wording belongs in one place both lists read.
+
 ## SINGULAR AND PLURAL EVERYWHERE A COUNT IS SHOWN (instruction, 2026-10-01, verbatim). todo.
 
 > Use singular and plural correctly everywhere counts are shown (1 referral, 2 referrals; 1 branch, 2 branches; 1 person, 2 people), with a shared helper and a check.
