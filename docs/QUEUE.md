@@ -15,7 +15,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
-## THE ADD AGENCY FORM MUST NEVER DO NOTHING (instruction, 2026-10-01, verbatim). ACTIVE.
+## THE ADD AGENCY FORM MUST NEVER DO NOTHING (instruction, 2026-10-01, verbatim). **done** (`8ff9b71`).
 
 > Add agency form: Create must never do nothing. If anything is missing or the save fails, show the reason next to the field or at the top of the form. Don't ask for a branch to create an agency: ask for the agency's name and address; that becomes its office behind the scenes, never shown separately. "Add another branch" stays available for agencies with several offices. The first invite is created with the agency in one step. Reproduce the silent failure first, then fix it. Deploy to dev and check there.
 
@@ -26,7 +26,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 - The office is created behind the agency and never shown separately,
   which is NM-P's rule arriving in the create form.
 
-## THE COMMISSION DEAL EDITOR SPEAKS ENGLISH (instruction, 2026-10-01, verbatim). ACTIVE.
+## THE COMMISSION DEAL EDITOR SPEAKS ENGLISH (instruction, 2026-10-01, verbatim). **done** (`275e5ce`, `ecb2e53`).
 
 > Commission deal editor: rewrite every heading and description in plain English for someone agreeing a commercial deal, with a short example where it helps. No internal terms ("party", "additive", "own line", "coverage", "fee basis", "lands at"). For example: "Fee: what the tenant pays, e.g. one month's rent or 5 weeks' rent"; "Commission: the % of that fee paid to this agency"; "Pricing by number of tenants: e.g. 1 tenant pays one month's rent, 2 tenants pay 5 weeks' rent". Show bands as "1 tenant", "2 tenants", "3 or more", and tiers as "Referrals 1 to 50: 20%, 51 and over: 25%". Replace "The next referral lands at" with a plain summary of the whole deal. Explain "Additive" in one sentence, or hide it if it isn't needed. Deploy to dev and check there.
 
@@ -38,7 +38,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
   deal" is the same summary line the supplier instruction asks for, so
   it is one piece of work serving both.
 
-## SUPPLIER COMMISSION USES THE AGENCY DEAL EDITOR (instruction, 2026-10-01, verbatim). ACTIVE.
+## SUPPLIER COMMISSION USES THE AGENCY DEAL EDITOR (instruction, 2026-10-01, verbatim). **done** (`77b7724`, `026529c`, `8bbcdf7`).
 
 > Supplier Commission tab: use the same commission deal editor agencies have, with all its options (flat rate, volume tiers, bands by number of tenants, and per-agency overrides), for both the supplier's total commission and the agents' share within it. Both can be set independently per supplier. The agents' share can never exceed the supplier's total on any referral, checked on save. The summary line explains the resulting deal in plain English. Changes apply to new referrals only, recorded with who and when. Deploy to dev and check there.
 
@@ -48,21 +48,21 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
   rates: with tiers and bands on both sides it has to hold for every
   combination a referral could land in.
 
-## SUPPLIER INTEGRATION TAB: THE API SWITCH AND READ-ONLY DEV CENTRE (instruction, 2026-10-01, verbatim). ACTIVE.
+## SUPPLIER INTEGRATION TAB: THE API SWITCH AND READ-ONLY DEV CENTRE (instruction, 2026-10-01, verbatim). **part done** (`6540fcc`): the switch and its confirmation. The read-only Dev Centre panels are NOT built.
 
 > Supplier Integration tab: add the API access on/off switch here (moved from Settings), with a confirmation that says how many active API keys will stop working if it's turned off. Below it, read-only for Opndoor admin: their sandbox activity (sandbox applications and their status), recent API requests and errors, and webhook delivery history, same data as their Dev Centre. Keys show by prefix only, with the existing Revoke; admin still can't see full keys or create them. Deploy to dev and check there.
 
 - The key-visibility rule is unchanged and is the line not to cross:
   prefix only, revoke yes, create and reveal no.
 
-## SUPPLIERS LIST AND THE SUPPLIER PAGE (instruction, 2026-10-01, verbatim). ACTIVE.
+## SUPPLIERS LIST AND THE SUPPLIER PAGE (instruction, 2026-10-01, verbatim). **done** (`6540fcc`).
 
 > Suppliers list: remove the Users and Manage buttons; clicking a supplier opens its page. On the supplier's page, its settings (name, live from, status, referencing mode, capabilities) move into a Settings tab, with the same fields as Manage. Its people are on the People tab only. Keep "Add supplier" working with its own create form. Anything that linked to /users?partner=… now goes to that supplier's People tab. On supplier people lists, show supplier levels (Management, Referrer), and Management sees "Everything" not "Own referrals". Deploy to dev and check there.
 
 - "Anything that linked to /users?partner=…" is a sweep, and the same
   kind that just caught me out: grep for the link, do not guess the list.
 
-## EVERY BARE TEXT BOX IN ADMIN GETS THE PORTAL'S INPUT (instruction, 2026-10-01, verbatim). ACTIVE.
+## EVERY BARE TEXT BOX IN ADMIN GETS THE PORTAL'S INPUT (instruction, 2026-10-01, verbatim). **done** (`fc921b4`). Five real places; a build check stops new ones.
 
 > Every bare text box in the admin screens (the supplier "Monthly statement addresses" inputs, the Origin filter on Applications and League, and any others) gets the same styled input as the rest of the portal: rounded border, padding, label above, matching the commission fields on the same page. Sweep the whole admin for unstyled inputs and fix them all. Deploy to dev and check there.
 
@@ -73,7 +73,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
   that opens a picker). Doing that one first removes the Origin case
   from this sweep entirely, so they are worked in that order.
 
-## THE ORIGIN BOX LOOKS LIKE A FILTER, AND THE DEFAULT PERIOD (instruction, 2026-10-01, verbatim). ACTIVE, after the route=Direct bug.
+## THE ORIGIN BOX LOOKS LIKE A FILTER, AND THE DEFAULT PERIOD (instruction, 2026-10-01, verbatim). **done** (`a2d487d`, `a65cec4`).
 
 > The Origin filter box on League and Applications: style it to match the other filter buttons (like "Period: All time"), reading "Origin: Everything" with a dropdown arrow, opening the search and list when clicked. No bare text box. Also default League and Reporting to "Last 30 days" instead of "This calendar month", so they aren't empty on the 1st of the month. Deploy to dev and check there.
 
@@ -102,6 +102,20 @@ reset effect in Applications. In live mode the session boots on the
 cached or least-privileged role and corrects it to the profile's once
 that resolves, which is after the page has mounted. The reset cannot
 tell that correction from a seat change.
+
+## STILL OPEN AFTER 2026-10-01
+
+**The supplier Integration tab's read-only Dev Centre panels.** The
+instruction has two halves and only the first is built. Done: the API
+access switch, moved off Settings, with a confirmation naming the live
+keys it would stop. Not done: "read-only for Opndoor admin: their
+sandbox activity (sandbox applications and their status), recent API
+requests and errors, and webhook delivery history, same data as their
+Dev Centre." The data already exists behind `dev_api_logs`,
+`dev_api_errors_by_method` and the sandbox readers, which the Dev Centre
+itself uses; what is missing is the admin-side panels and whatever
+scoping they need to read ANOTHER party's. The key rule is unchanged and
+must stay: prefix only, revoke yes, create and reveal no.
 
 ## DECISIONS TAKEN, 2026-10-01
 
