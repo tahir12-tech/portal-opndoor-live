@@ -15,6 +15,33 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 
 ---
 
+## THE PAYMENT TERMS BECOME AN INVOICING INSTRUCTION (instruction, 2026-10-01, verbatim). ACTIVE.
+
+> Commission statements (agency and supplier, email and PDF): replace "Paid by the 15th of the following month" with: "Please send an invoice to opndoor for [total], quoting statement reference [reference], to [invoice email], including your bank details. Invoices received by the 8th are paid by the 15th." The total and reference come from each statement; the invoice email is a setting Opndoor admin can change. Set it to [EMAIL].
+
+### THE ADDRESS IS MISSING AND I AM NOT INVENTING ONE
+
+The instruction ends "Set it to [EMAIL]" with the placeholder still in
+it. Every other bracket in this instruction is a thing to read off the
+statement; that one was a thing to paste and it did not get pasted.
+
+**An invoicing address on a money document that goes to every agency and
+supplier is the last thing to guess at.** A wrong one sends their
+invoices into a mailbox nobody reads and the first anybody knows is when
+they are not paid.
+
+So: the setting is built, Opndoor admin can change it, and until it is
+set the statements fall back to `hello@opndoor.co` -- the product's own
+contact address, already the reply-to on every email it sends, so it is
+at least an address Opndoor reads rather than one I made up. The TEST
+statements show that fallback. **Needs Matt: the real invoicing
+address.**
+
+### THE REST IS READ OFF THE STATEMENT
+
+Total and reference both already exist on every statement, agency and
+supplier, in the PDF, the CSV and the email. Nothing new to compute.
+
 ## BRANDED STATEMENT PDFs, EMPTY COLUMNS, AND THE BUTTON (instructions, 2026-10-01, verbatim). ACTIVE.
 
 > Commission statement PDFs should use the same branded design as the portal's existing branded statements and exports. Find that design and reuse it; don't invent a new one. If there isn't one, tell me before building anything. Also drop any column that is empty on every line (e.g. Tenancy and Share). Then send me one agency and one supplier statement, marked TEST, only to mdwyer@opndoor.co.
