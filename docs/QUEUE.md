@@ -866,7 +866,7 @@ you asked for. Say the word and the tenant gets their own wording.
   tab, the All count, the three tiles, Home's tile and the sidebar badge
   are one number now, so the row disappearing has to move all of them.
 
-## A TILE THAT IGNORES THE PERIOD SAYS SO (instruction, 2026-10-02, verbatim).
+## A TILE THAT IGNORES THE PERIOD SAYS SO (instruction, 2026-10-02, verbatim). **done** (`d181e0e`). The sweep's answer: the Needs-attention block is the page's only other period-blind figure set, and it now says so once for the section.
 
 > Reporting: "Total guaranteed rent value" doesn't change with the period, because it's everything currently guaranteed. Label it "Guaranteed rent in force (whole book, not affected by the period)" so it isn't read as this period's figure. Check any other tile that ignores the period and label it the same way.
 
@@ -877,7 +877,7 @@ you asked for. Say the word and the tenant gets their own wording.
   the whole defect: the figure is right and the reader is wrong, and
   the label is what made them wrong.
 
-## THE PERFORMANCE EXPORT'S WORDING SWEEP, FINISHED (instruction, 2026-10-02, verbatim).
+## THE PERFORMANCE EXPORT'S WORDING SWEEP, FINISHED (instruction, 2026-10-02, verbatim). **done** (`d181e0e`).
 
 > Performance export: finish the wording sweep. Replace every remaining "Partner"/"partner" with "Supplier"/"supplier" (header "All suppliers (combined)", "Commission by supplier", "Supplier commission (gross/net)", "Attributed supplier commission", the settlement's "Supplier" column), and "Guarantor fee" with "Guarantee fee". This file is for Opndoor only, so its column headings can change. Label "Total guaranteed rent value" as in force across the whole book, not the period, as on screen. Deploy to dev and check there.
 
@@ -893,7 +893,7 @@ you asked for. Say the word and the tenant gets their own wording.
 - The last sentence is the same subject as the instruction above it, so
   the two are built together.
 
-## THE APPLICATION EXPORT'S WORDING SWEEP (instruction, 2026-10-02, verbatim).
+## THE APPLICATION EXPORT'S WORDING SWEEP (instruction, 2026-10-02, verbatim). **PART DONE** (`d181e0e`): the headings moved. The via-supplier labels and the blank rents are NOT done.
 
 > Application export: same wording sweep as the Performance export. Replace every remaining "Partner"/"partner" with "Supplier"/"supplier" (the first column, "Partner commission", "All suppliers (combined)" in the header) and "Guarantor fee" with "Guarantee fee", including the notes; this file is for Opndoor only, so its headings can change. Label supplier-estate agencies and branches "(via [supplier])" as on screen. Leave Monthly rent and Share of rent blank where the tenant hasn't given a rent yet. Deploy to dev and check there.
 
@@ -905,7 +905,7 @@ you asked for. Say the word and the tenant gets their own wording.
   given a rent yet" is the same subject as "Not given yet" on the
   Applications list, on the export.
 
-## THE EXPIRIES EXPORT ON DEV IS STALE (bug, 2026-10-02, verbatim).
+## THE EXPIRIES EXPORT ON DEV IS STALE (bug, 2026-10-02, verbatim). **answered, and every function deployed** (16:35, all 35). ONE QUESTION BACK FOR MATT, below.
 
 > The Expiries export on dev still produces the old file (no "Joint with", old "Annualised rent" and "Guarantor fee" headings) after your fix in fec2309. If it's built by an edge function such as expiry-cohorts, deploy it to dev with the npx command, and check every function changed today has been deployed. Then download it yourself on dev and confirm the new headings.
 
@@ -918,6 +918,28 @@ you asked for. Say the word and the tenant gets their own wording.
   was committed at 09:17 against a bundle deployed at 09:16, so dev ran
   the old code for a day. "Nothing about the repo was wrong. The deploy
   was."
+
+### WHAT THE DEPLOY CHECK FOUND
+
+- **Every function was on the 10:06 bundle.** `_shared/emailTemplates.ts`
+  changed at 14:0x and again at 15:41, and a shared file is bundled into
+  every function that imports it, so ELEVEN were behind: approve-
+  application, create-referral, expiry-reminders, invite-user, ops-alert,
+  payment-page, resend-payment-email, send-mfa-reset-notice,
+  send-password-reset, tenant-auth, weekly-digest. (payment-reminders,
+  tenant-portal and renewal-notices had been redeployed with their own
+  changes.) All 35 are now deployed at 16:35 and none is older.
+- **The expiries file was never one of them.** The Reporting download is
+  built in the client by `buildExpiriesCsv`, not by an edge function,
+  and both dev servers serve the fixed module -- checked by fetching it.
+  So the old headings came from a page loaded before the change, or from
+  the other file.
+- **THE OTHER FILE, which is the question back.** `expiry-cohorts` emails
+  a MONTHLY COHORT CSV to each agency, with its own shorter column set:
+  no "Joint with", no fee column at all, and a bare "Annualised rent".
+  It is agency-facing, so the "Opndoor only" exception does not cover
+  it, and fec2309 never touched it. Say the word and it gets the same
+  three labels.
 
 ## ADMIN LEAGUE, THREE THINGS (instruction, 2026-10-02, verbatim).
 
@@ -971,9 +993,20 @@ you asked for. Say the word and the tenant gets their own wording.
 
 > Supplier Overview, "Needs attention": the warning icon renders at full card size and squashes the text into a narrow column. Size the icon like every other warning icon in the portal (small, beside the text). Check every place this component is used. Also: Recent changes shows "Who pays the agents" switched to "the supplier pays its own agents" on 2 Oct by Nicholas Dwyer. Tell me if you changed that while testing; if so, say what you changed and put it back. Deploy to dev and check there.
 
-- **The question is answered before anything is built.** It is about
-  whether I changed dev's data while testing, and it is owed a straight
-  answer either way.
+- **ANSWERED: no.** `partner_audit` holds the row -- 2 Oct 09:33:06 UTC,
+  Kestrel Lettings, `opndoor_pays_agents` from "opndoor pays the agents"
+  to "the supplier pays its own agents", actor Nicholas Dwyer -- and an
+  earlier flip the other way on 1 Oct 15:52. Both are app writes through
+  `update_partner_settings`, which is admin + AAL2 and only reachable
+  from the browser. I have never signed into the dev app; every write I
+  have made is SQL as the service role or an edge function invoked with
+  the cron secret, and neither can set `actor` to a person's name. The
+  rows around it are three suppliers created at 09:28-09:29 and an
+  agents'-share deal at 09:32: somebody walking the admin screens.
+- NOTHING PUT BACK, deliberately: nothing of mine moved it, and which
+  way it should sit is a commercial setting. Kestrel currently reads
+  "the supplier pays its own agents".
+- The ICON is still to do.
 
 ## THE ADMIN WALK, SIX (instruction, 2026-10-02, verbatim).
 
@@ -1026,9 +1059,22 @@ you asked for. Say the word and the tenant gets their own wording.
   estate where the reader can see both, and nowhere else. Charts yes;
   League no (it has a Supplier column); a SUPPLIER's own view no (every
   row is theirs). The rule is about the reader as well as the surface.
-- **Item 3 is a question about whether a document reached the wrong
-  party**, and it is the serious one. Answer it from the ledger before
-  anything is built.
+- **ITEM 3 ANSWERED: nothing was sent.** `commission_statement_refs` has
+  STMT-2026-09-0004 as `kestrel-lettings|agency:f005...a002`, which is
+  Frost Partnership in Kestrel's estate, reference minted 2026-10-02
+  15:38:48. `commission_statement_sends` has NO row for it: the only
+  sends are the 1 Oct 07:00 cron run, three opndoor-agents agencies and
+  the settlement summary. So the reference exists and the document was
+  never posted or emailed.
+- THE GUARD ALREADY HOLDS for the run: `commission_statement_lines`
+  excludes payees where `supplier_settles_its_own_agents`, so Kestrel's
+  agencies are not in Opndoor's statement run. What is NOT guarded is
+  that the reference was minted at all -- something built that agency's
+  statement document at 15:38, the same minute the supplier Reporting
+  tab was sitting on "Building September 2026...". That ties items 2 and
+  3 to the spinner bug: the tab builds the wrong document, the build
+  mints a reference, and then it hangs.
+- Items 1 and 2 are still to build.
 
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
