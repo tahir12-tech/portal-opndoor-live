@@ -659,7 +659,7 @@ screens an admin can no longer open as of item 2.
   none, Regent's gains one and the two screens match. Say the word and
   it goes back to "more than one office".
 
-## UNFINISHED DIRECT APPLICATIONS (instruction, 2026-10-02, verbatim). **all four done** (`6a42b0a`).
+## UNFINISHED DIRECT APPLICATIONS (instruction, 2026-10-02, verbatim). **all four done** (`4bb4f41`).
 
 > Unfinished direct applications:
 > 1. List every reminder email a tenant can receive today (what triggers it, when, and the wording), so I can see the full set.
