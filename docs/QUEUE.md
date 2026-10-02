@@ -317,6 +317,27 @@ labels and hints -- while the CSV column headings still read "Guarantor
 fee" and `application.paid` is untouched, which the test asserts on
 purpose so nobody tidies them later.
 
+## THE CONTACT EMAIL RULE, CORRECTED (correction, 2026-10-02, verbatim). THIS REPLACES DECISION 2.
+
+> Correction to the contact email rule:
+> - Supplier side (agencies in a supplier's estate): an agency email is required at creation and is the default for all its branches; a branch's own email, if set, overrides it for that branch. Signed deeds go there.
+> - Opndoor's own agencies (like Regent): no email required. Signed deeds go to whoever sent the referral (plus the people already ticked to receive them, as now). The agency or a branch can optionally add an email that also receives the deed; leave it blank and nothing is missing.
+> For supplier-estate agencies with no agency email, show a clear warning on the supplier's Agencies tab and list them on Reconciliation so Opndoor can add one. No warnings for Opndoor's own agencies without an email. Don't invent or copy addresses. Deploy to dev and check there.
+
+- This narrows what I built an hour ago: the requirement was "in any
+  estate", and it is now the SUPPLIER estate only. Regent and the rest of
+  Opndoor's own agencies go back to needing nothing, which also answers
+  the two rows I listed on dev as missing one -- they are not missing
+  anything.
+- And it widens one thing: on OUR estate an agency or branch email, where
+  somebody has set one, now ALSO receives the deed. Today it does not:
+  `deed_delivery_target` resolves the referrer and the ticked people on
+  that rail and never looks at `agent_contacts`. GR-FROST-OURS proves it
+  -- its branch has a mailbox and the deed resolves to the referrer only.
+- "Don't invent or copy addresses" rules out the obvious shortcut of
+  backfilling an agency email from a branch's, or from the first person
+  on the org.
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
