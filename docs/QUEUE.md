@@ -628,7 +628,7 @@ screens an admin can no longer open as of item 2.
   nulls on `agencies.referencing_mode` become "Opndoor checks
   eligibility", and he has said there is no real agency data to protect.
 
-## THE OFFICE COLUMN SAYS WHAT IT MEANS (instruction, 2026-10-02, verbatim).
+## THE OFFICE COLUMN SAYS WHAT IT MEANS (instruction, 2026-10-02, verbatim). **done** (`27d6bd1`).
 
 > Office column on every people screen: show the branch name for someone positioned at a branch, and "Whole agency" for someone positioned at the agency (or "Whole group" at a group level). Same wording on the agency Team page and the admin views. Deploy to dev and check there.
 
@@ -640,6 +640,24 @@ screens an admin can no longer open as of item 2.
 - It is about the WORDING of the cell, not about when the column appears.
   The rule from earlier today stands: the column is dropped when no row
   fills it, which is the single-office case he named on New Independent.
+- **done `27d6bd1`.** `officeLabel`/`officeOf` in positionsService;
+  `describePosition` deleted, its two test files turned over onto
+  `agencySees` and `officeLabel`. Verified on dev against the real
+  `user_scopes`: 7 branch positions read their office name, 7 agency
+  positions read "Whole agency", Dara Whitfield at Meridian Property
+  Group reads "Whole group", the 6 unpositioned read nothing.
+- **ONE JUDGEMENT CALL, FOR MATT TO OVERRULE IN A WORD.** This morning's
+  rule was "show the Office column only when the agency has more than
+  one office", and his reason was that it carried nothing on New
+  Independent. The new wording changes that on **Regent's**: one office,
+  but three people at the agency ("Whole agency") and two at the branch
+  ("Regent's Park"). Under the old gate the admin view of Regent's would
+  have had NO Office column while its own Team page showed one, which is
+  the opposite of "same wording on the agency Team page and the admin
+  views". So the table now draws the column **when the rows differ**,
+  which is his reason rather than his proxy: New Independent still has
+  none, Regent's gains one and the two screens match. Say the word and
+  it goes back to "more than one office".
 
 ## UNFINISHED DIRECT APPLICATIONS (instruction, 2026-10-02, verbatim).
 
