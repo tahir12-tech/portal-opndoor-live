@@ -34,9 +34,9 @@ select plan(9);
 -- ===========================================================================
 -- FIXTURES. A supplier with an agency and a branch of its own.
 -- ===========================================================================
-insert into public.partners (id, slug, name, referencing_mode, is_house_route, status)
+insert into public.partners (id, slug, name, referencing_mode, is_house_route, status, partner_kind)
 values ('e5000000-0000-0000-0000-00000000f001','zzz-joint-supplier','ZZZ Joint Supplier',
-        'pre_referenced_open', false, 'active');
+        'pre_referenced_open', false, 'active', 'supplier');
 insert into public.agencies (id, partner_id, name) values
   ('e5000000-0000-0000-0000-00000000a001','e5000000-0000-0000-0000-00000000f001','ZZZ Joint Agency');
 insert into public.branches (id, agency_id, partner_id, name) values

@@ -22,9 +22,9 @@
 begin;
 select plan(11);
 
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values ('95000000-0000-0000-0000-000000000001', 'zzz-prices', 'ZZZ Prices', 'pre_referenced_open', 0.35, 0.15, false),
-       ('95000000-0000-0000-0000-000000000009', 'zzz-prices-flat', 'ZZZ Prices Flat', 'pre_referenced_open', 0.30, 0.12, false);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, partner_kind)
+values ('95000000-0000-0000-0000-000000000001', 'zzz-prices', 'ZZZ Prices', 'pre_referenced_open', 0.35, 0.15, false, 'supplier'),
+       ('95000000-0000-0000-0000-000000000009', 'zzz-prices-flat', 'ZZZ Prices Flat', 'pre_referenced_open', 0.30, 0.12, false, 'supplier');
 insert into public.agencies (id, partner_id, name)
 values ('95000000-0000-0000-0000-000000000002', '95000000-0000-0000-0000-000000000001', 'ZZZ Prices Agency'),
        ('95000000-0000-0000-0000-00000000000a', '95000000-0000-0000-0000-000000000009', 'ZZZ Flat Agency');

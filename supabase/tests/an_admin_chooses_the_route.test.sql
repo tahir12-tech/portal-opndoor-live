@@ -29,12 +29,11 @@ select plan(5);
 -- supplier; a second supplier has never met it.
 -- ===========================================================================
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
-                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled)
-values
-  ('a4000000-0000-0000-0000-0000000000d1','zzz-route-supplier','ZZZ Route Supplier',
-   'pre_referenced_open', 0.30, 0.10, false, false, true, true),
+                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled, partner_kind)
+values ('a4000000-0000-0000-0000-0000000000d1','zzz-route-supplier','ZZZ Route Supplier',
+   'pre_referenced_open', 0.30, 0.10, false, false, true, true, 'supplier'),
   ('a4000000-0000-0000-0000-0000000000d2','zzz-route-stranger','ZZZ Route Stranger',
-   'pre_referenced_open', 0.25, 0.10, false, false, true, true);
+   'pre_referenced_open', 0.25, 0.10, false, false, true, true, 'supplier');
 
 insert into public.agencies (id, partner_id, name) values
   ('a4000000-0000-0000-0000-0000000000a1',

@@ -29,9 +29,9 @@ select plan(24);
 -- FIXTURE. One supplier with a total and a default share deal, four agencies
 -- under it, one agency under somebody else, one admin with MFA.
 -- ---------------------------------------------------------------------------
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, opndoor_pays_agents)
-values ('98000000-0000-0000-0000-0000000000f1', 'zzz-onesave', 'ZZZ One Save', 'pre_referenced_open', 0.35, 0.10, false, false),
-       ('98000000-0000-0000-0000-0000000000f2', 'zzz-onesave-other', 'ZZZ One Save Other', 'pre_referenced_open', 0.30, 0.10, false, false);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, opndoor_pays_agents, partner_kind)
+values ('98000000-0000-0000-0000-0000000000f1', 'zzz-onesave', 'ZZZ One Save', 'pre_referenced_open', 0.35, 0.10, false, false, 'supplier'),
+       ('98000000-0000-0000-0000-0000000000f2', 'zzz-onesave-other', 'ZZZ One Save Other', 'pre_referenced_open', 0.30, 0.10, false, false, 'supplier');
 
 insert into public.agencies (id, partner_id, name) values
   ('98000000-0000-0000-0000-0000000000a1', '98000000-0000-0000-0000-0000000000f1', 'ZZZ Frost Partnership'),

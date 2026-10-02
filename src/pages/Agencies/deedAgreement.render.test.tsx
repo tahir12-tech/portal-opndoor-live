@@ -44,7 +44,7 @@ vi.mock('@/data/positionsService', async () => {
 // Partner is keyed by `id`, which carries the slug.
 const PARTNERS: Partner[] = [
   { id: HOUSE, name: 'Opndoor Agents', status: 'active', since: '2024-09', weight: 1,
-    isHouse: true, referencingMode: 'opndoor_referenced' } as Partner,
+    isHouse: true, referencingMode: 'opndoor_referenced', kind: 'agency' } as Partner,
 ];
 const GROUPS: AgencyGroup[] = [{ id: 'gr-meridian', partner: HOUSE, name: 'Meridian Property Group' }];
 const AGENCIES: Agency[] = [

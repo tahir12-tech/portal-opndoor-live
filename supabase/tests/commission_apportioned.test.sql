@@ -50,8 +50,8 @@ select is(
 -- END TO END, through create_joint_referral, because the arithmetic being right
 -- is not the same as the create path passing it the tenancy's numbers.
 -- ---------------------------------------------------------------------------
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock, portal_referrals_enabled)
-values ('97000000-0000-0000-0000-000000000001', 'zzz-comm', 'ZZZ Comm Estate', 'opndoor_referenced', 0.25, 0.10, true, true, true);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock, portal_referrals_enabled, partner_kind)
+values ('97000000-0000-0000-0000-000000000001', 'zzz-comm', 'ZZZ Comm Estate', 'opndoor_referenced', 0.25, 0.10, true, true, true, 'agency');
 insert into public.agencies (id, partner_id, name)
 values ('97000000-0000-0000-0000-00000000000a', '97000000-0000-0000-0000-000000000001', 'ZZZ Comm Lettings');
 insert into public.branches (id, agency_id, partner_id, name)

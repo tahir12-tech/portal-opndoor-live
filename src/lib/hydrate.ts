@@ -114,7 +114,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // Same list for every role now. There is nothing left to narrow, which is
     // the point: a select that cannot leak does not need a conditional.
     client.from('partners').select(
-      'id, slug, name, status, live_from, is_primary, referrer_leaderboard_mode, referencing_mode, portal_referrals_enabled, api_access_enabled, opndoor_pays_agents',
+      'id, slug, name, status, live_from, is_primary, referrer_leaderboard_mode, referencing_mode, partner_kind, portal_referrals_enabled, api_access_enabled, opndoor_pays_agents',
     ),
     // The partner rates, for the roles entitled to them. Called unconditionally
     // and refused in the function rather than skipped here, because a client
@@ -298,6 +298,11 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     opndoorPaysAgents: p.opndoor_pays_agents === true,
     referrerLeaderboard: (p.referrer_leaderboard_mode ?? 'full') as Partner['referrerLeaderboard'],
     referencingMode: (p.referencing_mode ?? 'pre_referenced_screened') as Partner['referencingMode'],
+    /* WHAT THIS PARTNER IS. No coalesce and no fall back to the mode
+       beside it: an unresolved column must read as "unknown", because
+       the whole point of the column is that the mode is not the answer.
+       A partner row without it is a row the migration did not reach. */
+    ...(p.partner_kind ? { kind: p.partner_kind as Partner['kind'] } : {}),
     // === true, not a coalesce to true. A missing column or an unresolved select
     // must not read as "this partner may hold API keys": the whole point of the
     // default being false is that enabling the API is deliberate.

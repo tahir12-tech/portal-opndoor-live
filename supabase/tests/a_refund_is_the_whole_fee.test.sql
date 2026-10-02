@@ -32,9 +32,9 @@ begin;
 select plan(9);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
-                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled)
+                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled, partner_kind)
 values ('d1000000-0000-0000-0000-0000000000d1','zzz-rf-supplier','ZZZ RF Supplier',
-        'pre_referenced_open', 0.30, 0.10, false, false, true, true);
+        'pre_referenced_open', 0.30, 0.10, false, false, true, true, 'supplier');
 insert into public.agencies (id, partner_id, name) values
   ('d1000000-0000-0000-0000-0000000000a1','d1000000-0000-0000-0000-0000000000d1','ZZZ RF Agency');
 insert into public.branches (id, agency_id, partner_id, name) values

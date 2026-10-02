@@ -16,8 +16,8 @@ begin;
 select plan(15);
 
 -- One partner, the house rail that carries our agencies.
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values ('95000000-0000-0000-0000-000000000001', 'zzz-team-estate', 'Team Estate', 'opndoor_referenced', 0.25, 0.10, true);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, partner_kind)
+values ('95000000-0000-0000-0000-000000000001', 'zzz-team-estate', 'Team Estate', 'opndoor_referenced', 0.25, 0.10, true, 'agency');
 
 -- Two agencies of ours under it. THEIRS and THE OTHER ONE.
 insert into public.agencies (id, partner_id, name) values

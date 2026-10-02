@@ -39,9 +39,9 @@ select plan(16);
 -- ONE AGENCY ON THE HOUSE PARTNER, A SUPPLIER, AND A DIRECT TENANT
 -- ===========================================================================
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
-                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled)
+                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled, partner_kind)
 values ('94000000-0000-0000-0000-0000000000d1', 'zzz-tick-supplier', 'ZZZ Tick Supplier',
-        'pre_referenced_open', 0.25, 0.10, false, false, true, true);
+        'pre_referenced_open', 0.25, 0.10, false, false, true, true, 'supplier');
 
 insert into public.agencies (id, partner_id, name) values
   ('94000000-0000-0000-0000-0000000000a1',(select id from public.partners where slug='opndoor-agents'),'ZZZ Tick Agency'),

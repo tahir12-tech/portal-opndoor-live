@@ -48,8 +48,8 @@ select is(public.fee_from_basis(2000, 3, null), public.fee_from_basis(2000, 3, '
 -- THROUGH AN AGREEMENT, because the arithmetic being right is not the same as
 -- the band carrying the unit to it.
 -- ---------------------------------------------------------------------------
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock, portal_referrals_enabled)
-values ('98000000-0000-0000-0000-000000000001', 'zzz-unit', 'ZZZ Unit Estate', 'opndoor_referenced', 0.25, 0.10, true, true, true);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock, portal_referrals_enabled, partner_kind)
+values ('98000000-0000-0000-0000-000000000001', 'zzz-unit', 'ZZZ Unit Estate', 'opndoor_referenced', 0.25, 0.10, true, true, true, 'agency');
 insert into public.agencies (id, partner_id, name)
 values ('98000000-0000-0000-0000-00000000000a', '98000000-0000-0000-0000-000000000001', 'ZZZ Unit Lettings');
 insert into public.branches (id, agency_id, partner_id, name)

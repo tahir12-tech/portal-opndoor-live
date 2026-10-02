@@ -81,9 +81,9 @@ const BOOK = [
 
 const PARTNERS = [
   { id: 'opndoor-agents', name: 'Opndoor Agents', status: 'active', since: '2024-01', weight: 1,
-    isHouse: true, referencingMode: 'opndoor_referenced', users: 1, apps: 1, rates: { partner: 0.25, agent: 0.25 } },
+    isHouse: true, referencingMode: 'opndoor_referenced', users: 1, apps: 1, rates: { partner: 0.25, agent: 0.25 }, kind: 'agency' },
   { id: 'kestrel-lettings', name: 'Kestrel Lettings', status: 'active', since: '2024-01', weight: 1,
-    referencingMode: 'partner_referenced', users: 1, apps: 1, rates: { partner: 0.25, agent: 0.25 } },
+    referencingMode: 'partner_referenced', users: 1, apps: 1, rates: { partner: 0.25, agent: 0.25 }, kind: 'supplier' },
 ] as never;
 
 beforeEach(() => {

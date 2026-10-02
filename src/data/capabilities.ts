@@ -13,7 +13,7 @@
 import type { PartnerScope, Role } from './types';
 import { ALL_PARTNERS } from './types';
 import { getPartner } from './partnersService';
-import { isHousePartner } from './channel';
+import { isDirectRail, isHousePartner } from './channel';
 
 /**
  * Is this a CUSTOMER of ours on the agent rail — one of our agencies' own
@@ -66,7 +66,46 @@ export function isAgencyUser(role: Role, scope: PartnerScope): boolean {
  */
 export function partyIsAgency(scope: PartnerScope): boolean {
   if (scope === ALL_PARTNERS) return false;
-  return getPartner(scope)?.referencingMode === 'opndoor_referenced';
+  /* THE PARTNER'S OWN SETTING, since 2026-10-02. This read
+     `referencingMode === 'opndoor_referenced'`, which made identity a
+     function of the journey: a supplier switched to "opndoor referenced"
+     left the Suppliers list, folded into "Agency referral", lost its
+     via-labels, dropped off Reconciliation and vanished from the
+     supplier settlement -- while SQL went on billing it. Measured on
+     dev before the column existed; see the migration.
+
+     `opndoor-agents` is kind `agency`, so the agency rail still answers
+     true here. It is also a house partner, which is a different axis
+     and is still asked separately by `isHousePartner`. */
+  return getPartner(scope)?.kind === 'agency';
+}
+
+/* =====================================================================
+   AN ESTATE OPNDOOR ITSELF RUNS, which is a wider question than
+   "is this party one of our agencies" and is the one the MONEY asks.
+
+   The exact mirror of `is_our_estate_partner` in SQL: an agency-kind
+   partner, or the direct rail, whose applications are Opndoor's own.
+
+   WHY THE DIRECT RAIL IS IN IT. There is no supplier on a direct
+   application, so `applications.partner_rate` -- which resolve_rates
+   fills on every row regardless -- is not a payable there either. The
+   three commission accumulators zero the rate on this answer, and
+   before the kind column existed they got it from the direct rail's
+   referencing mode happening to be `opndoor_referenced`. Reading the
+   kind alone would have made `partner_kind = 'house'` turn that guard
+   off and invent a partner share on every direct signup. So the
+   predicate names the rail, exactly as the SQL one does, and the two
+   cannot drift.
+
+   NOT THE SAME AS `partyIsAgency`. That one is the AGENCY question --
+   whose page to draw, who is an agency user -- and the direct rail is
+   not an agency. These were one predicate while the only fact to hand
+   answered both, which is how they came to disagree with origin.ts.
+   ===================================================================== */
+export function partyIsOurEstate(scope: PartnerScope): boolean {
+  if (scope === ALL_PARTNERS) return false;
+  return getPartner(scope)?.kind === 'agency' || isDirectRail(scope);
 }
 
 /**
@@ -98,7 +137,14 @@ export function partyIsAgency(scope: PartnerScope): boolean {
 export function partyIsSupplier(scope: PartnerScope): boolean {
   if (scope === ALL_PARTNERS) return false;
   if (isHousePartner(scope)) return false;
-  return !partyIsAgency(scope);
+  /* THE PARTNER'S OWN SETTING, and not `!partyIsAgency` any more.
+     "Not an agency" was the best available answer while the only fact
+     to hand was the referencing mode, and it carried that fact's fault:
+     a supplier set to "opndoor referenced" stopped being one. It also
+     made every partner whose kind we cannot resolve a supplier by
+     default, which is how an unhydrated row got onto the Suppliers
+     list. Unknown now reads as unknown. */
+  return getPartner(scope)?.kind === 'supplier';
 }
 
 /**
@@ -202,7 +248,8 @@ export function mayUseDevCentre(role: Role, scope: PartnerScope): boolean {
   const p = getPartner(scope);
   if (!p) return false;
   // The estate. An agency of ours is not a party with an API, whoever
-  // references its tenants.
-  if (p.referencingMode === 'opndoor_referenced') return false;
+  // references its tenants -- which is now said with the fact that means
+  // it rather than with the mode that used to stand in for it.
+  if (p.kind === 'agency') return false;
   return p.apiAccessEnabled === true;
 }

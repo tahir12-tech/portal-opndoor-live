@@ -632,14 +632,15 @@ export async function originIsAgentEstate(
     if (error) return false;
     return data === true;
   }
-  // Mock mode resolves the same way: the ESTATE is the partner's, never the
-  // agency's own referencing choice.
+  // Mock mode resolves the same way: the ESTATE is the partner's KIND,
+  // never the agency's own referencing choice and never the partner's
+  // referencing mode, which is_our_estate_partner stopped reading too.
   const within = partnerSlug
     ? AGENCIES.find((a) => a.name === agencyName && partnerOf(a) === partnerSlug)
     : undefined;
   const a = within ?? AGENCIES.find((x) => x.name === agencyName);
   const slug = a ? partnerOf(a) : (partnerSlug ?? '');
-  return getPartner(slug)?.referencingMode === 'opndoor_referenced';
+  return getPartner(slug)?.kind === 'agency';
 }
 
 /** Set or clear an agency's own referencing route. Admin only. */

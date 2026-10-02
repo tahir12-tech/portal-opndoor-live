@@ -15,10 +15,16 @@ begin;
 select plan(20);
 
 -- THE ESTATE: a partner whose agencies are ours.
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values ('94000000-0000-0000-0000-000000000001', 'zzz-estate', 'Our Estate', 'opndoor_referenced', 0.25, 0.10, true),
+/* `partner_kind` SAYS WHICH IS WHICH, since 20261007600000. Before it, the
+   referencing_mode column beside it decided, which is the inference that
+   migration removed: an agency that references its own tenants is still ours,
+   and a supplier that lets us reference its tenants is still a supplier. The
+   two rows below are exactly that pair, so this fixture would read backwards
+   without the kind. */
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, partner_kind)
+values ('94000000-0000-0000-0000-000000000001', 'zzz-estate', 'Our Estate', 'opndoor_referenced', 0.25, 0.10, true, 'agency'),
 -- A SUPPLIER: hands us finished referrals, one tenant at a time.
-       ('94000000-0000-0000-0000-000000000009', 'zzz-supplier', 'A Supplier', 'pre_referenced_open', 0.25, 0.10, true);
+       ('94000000-0000-0000-0000-000000000009', 'zzz-supplier', 'A Supplier', 'pre_referenced_open', 0.25, 0.10, true, 'supplier');
 
 insert into public.agencies (id, partner_id, name, referencing_mode) values
   -- REGENT'S SHAPE: ours, references its own tenants.

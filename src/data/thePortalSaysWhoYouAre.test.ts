@@ -27,8 +27,8 @@ import { portalLabel } from './capabilities';
    sits on is opndoor_referenced, a real supplier is not. */
 beforeEach(() => {
   hydratePartners([
-    { id: 'opndoor-agents', name: 'Opndoor Agents', referencingMode: 'opndoor_referenced' },
-    { id: 'kestrel-lettings', name: 'Kestrel Lettings', referencingMode: 'pre_referenced_open' },
+    { id: 'opndoor-agents', name: 'Opndoor Agents', referencingMode: 'opndoor_referenced', kind: 'agency' },
+    { id: 'kestrel-lettings', name: 'Kestrel Lettings', referencingMode: 'pre_referenced_open', kind: 'supplier' },
   ] as never[]);
 });
 

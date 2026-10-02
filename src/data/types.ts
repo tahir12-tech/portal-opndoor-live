@@ -316,14 +316,38 @@ export interface Partner {
       own performance only. Commission is never shown to referrers. Default full. */
   referrerLeaderboard?: LeaderboardMode;
   /** What happens to an application after it arrives. Snapshotted onto each
-      application at creation, so changing this never rewrites work in flight. */
+      application at creation, so changing this never rewrites work in flight.
+
+      NOT WHAT THIS PARTNER IS. See `kind`. Three predicates used to decide
+      supplier-vs-agency from this field, which meant an admin changing one
+      supplier's journey moved it into Opndoor's own estate. */
   referencingMode?: ReferencingMode;
+  /** What this partner IS, fixed when it is created and never inferred.
+      Absent in mock fixtures that predate it, which reads as "unknown" and
+      is deliberately NOT a fall back to referencingMode. */
+  kind?: PartnerKind;
   /** Capabilities. Two flags rather than one partner "type": an agency is portal
       only, a CRM is API only, and some partners are both, so a type would need a
       value per combination. */
   portalReferralsEnabled?: boolean;
   apiAccessEnabled?: boolean;
 }
+
+/* =====================================================================
+   WHAT A PARTNER IS, as opposed to what happens to its applications.
+
+   Matt, 2026-10-02: "Every partner gets a fixed 'supplier or agency'
+   setting of its own, decided when it's created ... and never inferred
+   from referencing mode. Referencing mode becomes independent: a
+   supplier can use any referencing mode and stays a supplier."
+
+   `house` is Opndoor's own plumbing: `opndoor-direct` and
+   `referencing-partner`. `opndoor-agents` is a house partner by SLUG --
+   isHousePartner still catches it -- and its kind is `agency`, because
+   it is the rail every agency Opndoor onboards shares and an agency
+   Director's own partner scope IS that slug.
+   ===================================================================== */
+export type PartnerKind = 'supplier' | 'agency' | 'house';
 
 export type ReferencingMode = 'pre_referenced_open' | 'pre_referenced_screened' | 'opndoor_referenced';
 

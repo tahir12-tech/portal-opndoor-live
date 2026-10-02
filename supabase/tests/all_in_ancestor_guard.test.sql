@@ -17,9 +17,9 @@
 begin;
 select plan(22);
 
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values ('93000000-0000-0000-0000-000000000001', 'zzz-guard-rail', 'Guard Rail', 'opndoor_referenced', 0.25, 0.10, true),
-       ('93000000-0000-0000-0000-000000000009', 'zzz-guard-supplier', 'Guard Supplier', 'pre_referenced_open', 0.25, 0.10, true);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, partner_kind)
+values ('93000000-0000-0000-0000-000000000001', 'zzz-guard-rail', 'Guard Rail', 'opndoor_referenced', 0.25, 0.10, true, 'agency'),
+       ('93000000-0000-0000-0000-000000000009', 'zzz-guard-supplier', 'Guard Supplier', 'pre_referenced_open', 0.25, 0.10, true, 'supplier');
 insert into public.agency_groups (id, partner_id, name)
 values ('93000000-0000-0000-0000-000000000002', '93000000-0000-0000-0000-000000000001', 'Guard Group');
 /* referencing_mode IS STATED, not left to the column default. Until

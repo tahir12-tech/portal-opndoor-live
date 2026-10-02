@@ -30,8 +30,8 @@
 begin;
 select plan(14);
 
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values ('97000000-0000-0000-0000-000000000001', 'zzz-levels', 'Levels Estate', 'opndoor_referenced', 0.25, 0.10, true);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, partner_kind)
+values ('97000000-0000-0000-0000-000000000001', 'zzz-levels', 'Levels Estate', 'opndoor_referenced', 0.25, 0.10, true, 'agency');
 insert into public.agencies (id, partner_id, name)
 values ('97000000-0000-0000-0000-000000000002', '97000000-0000-0000-0000-000000000001', 'Levels Lettings');
 insert into public.branches (id, agency_id, partner_id, name)

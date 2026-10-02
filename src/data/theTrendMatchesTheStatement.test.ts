@@ -45,13 +45,11 @@ const PARTNERS = [
   {
     id: 'opndoor-agents', name: 'Opndoor Agents', status: 'active', since: '2025-01-01',
     weight: 1, users: 0, apps: 0, referencingMode: 'opndoor_referenced',
-    partnerRate: 0.25, agentRate: 0.1, primary: false,
-  },
+    partnerRate: 0.25, agentRate: 0.1, primary: false, kind: 'agency' },
   {
     id: 'zzz-supplier', name: 'ZZZ Supplier', status: 'active', since: '2025-01-01',
     weight: 1, users: 0, apps: 0, referencingMode: 'pre_referenced_open',
-    partnerRate: 0.25, agentRate: 0.1, primary: false,
-  },
+    partnerRate: 0.25, agentRate: 0.1, primary: false, kind: 'supplier' },
 ] as unknown as Partner[];
 
 /* Test mode's clock is fixed at 2026-06-26, so the trailing twelve months

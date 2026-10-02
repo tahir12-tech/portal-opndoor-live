@@ -21,9 +21,9 @@ select plan(6);
 -- The rail is pre_referenced_open and the attribution guard allows a NULL
 -- referrer only on a house route, which is what this function relies on.
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
-                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled)
+                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled, partner_kind)
 values ('97000000-0000-0000-0000-0000000000d1','zzz-inbound','ZZZ Inbound Partner',
-        'pre_referenced_open', 0.25, 0.10, true, false, true, true);
+        'pre_referenced_open', 0.25, 0.10, true, false, true, true, 'supplier');
 
 insert into public.agencies (id, partner_id, name) values
   ('97000000-0000-0000-0000-0000000000a1','97000000-0000-0000-0000-0000000000d1','ZZZ Inbound Agency');

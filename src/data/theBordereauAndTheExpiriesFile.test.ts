@@ -30,7 +30,7 @@ const SRC = readFileSync('src/data/exportsService.ts', 'utf8');
 
 describe('a placeholder org', () => {
   hydratePartners([
-    { id: 'opndoor-direct', name: 'Opndoor Direct', status: 'active', referencingMode: 'opndoor_referenced', isHouse: true },
+    { id: 'opndoor-direct', name: 'Opndoor Direct', status: 'active', referencingMode: 'opndoor_referenced', isHouse: true, kind: 'house' },
   ] as unknown as Partner[]);
   hydrateOrg([
     {

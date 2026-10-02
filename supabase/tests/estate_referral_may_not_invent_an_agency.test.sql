@@ -28,10 +28,9 @@ select plan(8);
 -- (is_our_estate_partner: referencing_mode = 'opndoor_referenced'), so the two
 -- fixtures differ in exactly that column and in nothing else.
 -- ---------------------------------------------------------------------------
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values
-  ('96000000-0000-0000-0000-000000000001', 'zzz-estate',   'ZZZ House Route', 'opndoor_referenced', 0.25, 0.10, true),
-  ('96000000-0000-0000-0000-000000000002', 'zzz-supplier', 'ZZZ Supplier',    'pre_referenced_open', 0.25, 0.10, false);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, partner_kind)
+values ('96000000-0000-0000-0000-000000000001', 'zzz-estate',   'ZZZ House Route', 'opndoor_referenced', 0.25, 0.10, true, 'agency'),
+  ('96000000-0000-0000-0000-000000000002', 'zzz-supplier', 'ZZZ Supplier',    'pre_referenced_open', 0.25, 0.10, false, 'supplier');
 
 insert into public.agencies (id, partner_id, name) values
   ('96000000-0000-0000-0000-00000000000a', '96000000-0000-0000-0000-000000000001', 'ZZZ Estate Lettings');

@@ -27,8 +27,8 @@ select plan(26);
 -- ---------------------------------------------------------------------------
 -- FIXTURE: one supplier, one agency under it, one branch, one admin.
 -- ---------------------------------------------------------------------------
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values ('94000000-0000-0000-0000-000000000001', 'zzz-two-deals', 'ZZZ Two Deals', 'pre_referenced_open', 0.35, 0.15, false);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, partner_kind)
+values ('94000000-0000-0000-0000-000000000001', 'zzz-two-deals', 'ZZZ Two Deals', 'pre_referenced_open', 0.35, 0.15, false, 'supplier');
 insert into public.agencies (id, partner_id, name)
 values ('94000000-0000-0000-0000-000000000002', '94000000-0000-0000-0000-000000000001', 'ZZZ Two Deals Agency');
 insert into public.branches (id, agency_id, partner_id, name)

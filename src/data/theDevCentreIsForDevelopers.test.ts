@@ -29,11 +29,11 @@ const OURS = 'zzz-agency-rail';
 beforeEach(() => {
   hydratePartners([
     { id: SUPPLIER, name: 'ZZZ API Co', status: 'active', since: '2026-01', weight: 1, users: 1, apps: 0,
-      referencingMode: 'pre_referenced_open', apiAccessEnabled: true },
+      referencingMode: 'pre_referenced_open', apiAccessEnabled: true, kind: 'supplier' },
     { id: NO_API, name: 'ZZZ No API', status: 'active', since: '2026-01', weight: 1, users: 1, apps: 0,
-      referencingMode: 'pre_referenced_open', apiAccessEnabled: false },
+      referencingMode: 'pre_referenced_open', apiAccessEnabled: false, kind: 'supplier' },
     { id: OURS, name: 'ZZZ Our Agency Rail', status: 'active', since: '2026-01', weight: 1, users: 1, apps: 0,
-      referencingMode: 'opndoor_referenced', apiAccessEnabled: true },
+      referencingMode: 'opndoor_referenced', apiAccessEnabled: true, kind: 'agency' },
   ] as unknown as Partner[]);
 });
 afterEach(() => { hydratePartners([]); });

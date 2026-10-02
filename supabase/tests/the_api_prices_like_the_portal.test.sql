@@ -34,9 +34,9 @@ begin;
 select plan(9);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
-                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled)
+                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled, partner_kind)
 values ('cf000000-0000-0000-0000-0000000000d1','zzz-r7-supplier','ZZZ R7 Supplier',
-        'pre_referenced_open', 0.30, 0.10, false, false, true, true);
+        'pre_referenced_open', 0.30, 0.10, false, false, true, true, 'supplier');
 
 -- An agency priced by AGREEMENT, which is precisely what the API ignored.
 insert into public.agencies (id, partner_id, name, agent_rate) values

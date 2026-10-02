@@ -77,8 +77,8 @@ select is(
 -- And the mechanism behind it, so the fix is a trigger rather than a one-off
 -- backfill that the next partner walks straight back out of.
 -- ---------------------------------------------------------------------------
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock)
-values ('92000000-0000-0000-0000-000000000001', 'zzz-hubspot', 'ZZZ HubSpot', 'pre_referenced_open', 0.25, 0.10, true, true);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock, partner_kind)
+values ('92000000-0000-0000-0000-000000000001', 'zzz-hubspot', 'ZZZ HubSpot', 'pre_referenced_open', 0.25, 0.10, true, true, 'supplier');
 
 select ok(
   exists (select 1 from public.hubspot_sync_cursor_partner where partner_id = '92000000-0000-0000-0000-000000000001'),

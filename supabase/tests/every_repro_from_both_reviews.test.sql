@@ -285,8 +285,8 @@ select lives_ok(
 -- The supplier rail keeps its unpositioned management, because there the
 -- partner IS the company and a position would be ceremony.
 select lives_ok(
-  $$insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate)
-    values ('96000000-0000-0000-0000-00000000ac09','zzz-repro-supplier','ZZZ Repro Supplier','pre_referenced_open',0.25,0.10);
+  $$insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, partner_kind)
+values ('96000000-0000-0000-0000-00000000ac09','zzz-repro-supplier','ZZZ Repro Supplier','pre_referenced_open',0.25,0.10, 'supplier');
     set constraints all immediate$$,
   'and the supplier rail is untouched by any of it');
 

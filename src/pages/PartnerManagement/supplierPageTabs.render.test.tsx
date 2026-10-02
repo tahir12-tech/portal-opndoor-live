@@ -35,8 +35,7 @@ const PARTNERS = [{
   id: SUPPLIER, name: 'ZZZ Supplier Co', status: 'active', since: '2026-01-01',
   weight: 1, users: 1, apps: 3,
   referencingMode: 'pre_referenced_open', partnerRate: 0.25, agentRate: 0.1,
-  apiAccessEnabled: true, portalReferralsEnabled: true, primary: false,
-}] as unknown as Partner[];
+  apiAccessEnabled: true, portalReferralsEnabled: true, primary: false, kind: 'supplier' }] as unknown as Partner[];
 
 /* One agency WITH a contact and one WITHOUT, because the useful half of the
    Overview change is the second: a supplier agency with nowhere to send an

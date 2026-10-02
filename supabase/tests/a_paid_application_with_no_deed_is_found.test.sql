@@ -16,8 +16,8 @@
 begin;
 select plan(15);
 
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock)
-values ('96000000-0000-0000-0000-000000000001', 'zzz-sweep', 'ZZZ Sweep Estate', 'opndoor_referenced', 0.25, 0.10, true, true);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock, partner_kind)
+values ('96000000-0000-0000-0000-000000000001', 'zzz-sweep', 'ZZZ Sweep Estate', 'opndoor_referenced', 0.25, 0.10, true, true, 'agency');
 insert into public.agencies (id, partner_id, name)
 values ('96000000-0000-0000-0000-00000000000a', '96000000-0000-0000-0000-000000000001', 'ZZZ Sweep Lettings');
 insert into public.branches (id, agency_id, partner_id, name)

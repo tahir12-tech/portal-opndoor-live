@@ -17,9 +17,9 @@ select plan(7);
 
 -- ---------- fixtures (rolled back). Fixed ids so every call is explicit. ----------
 -- Two partners: one agent rail (opndoor_referenced), one supplier rail.
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate) values
-  ('10000000-0000-0000-0000-000000000001', 'zzz-scope-agent',    'Scope Agent Rail Co', 'opndoor_referenced',  0.25, 0.10),
-  ('10000000-0000-0000-0000-000000000002', 'zzz-scope-supplier', 'Scope Supplier Co',   'pre_referenced_open', 0.25, 0.10);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, partner_kind)
+values ('10000000-0000-0000-0000-000000000001', 'zzz-scope-agent',    'Scope Agent Rail Co', 'opndoor_referenced',  0.25, 0.10, 'agency'),
+  ('10000000-0000-0000-0000-000000000002', 'zzz-scope-supplier', 'Scope Supplier Co',   'pre_referenced_open', 0.25, 0.10, 'supplier');
 
 -- Agent-rail org: one group, two agencies, three branches (B1/B2 under A1, B3 under A2).
 insert into public.agency_groups (id, partner_id, name) values

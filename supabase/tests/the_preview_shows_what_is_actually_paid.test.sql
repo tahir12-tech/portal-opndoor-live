@@ -33,9 +33,9 @@ begin;
 select plan(6);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
-                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled)
+                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled, partner_kind)
 values ('cb000000-0000-0000-0000-0000000000d1','zzz-r3-supplier','ZZZ R3 Supplier',
-        'pre_referenced_open', 0.30, 0.10, false, false, true, true);
+        'pre_referenced_open', 0.30, 0.10, false, false, true, true, 'supplier');
 
 -- NO agent_rate on the agency: it is priced by agreement, and a party holds
 -- one or the other, never both.

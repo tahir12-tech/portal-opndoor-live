@@ -21,7 +21,12 @@ export const PARTNERS_SEED: Partner[] = [
   // references its own tenants, which is a DIFFERENT question and is set on the
   // agency, not here. Harbourside and Meridian have no mode: they introduce
   // referrals one tenant at a time, the way a supplier does.
-  { id: 'northwind', name: 'Northwind Property', weight: 1.0, primary: true, status: 'active', users: 11, apps: 342, since: '2024-09', partnerRate: 0.25, agentRate: 0.1, referencingMode: 'opndoor_referenced' },
-  { id: 'harbourside', name: 'Harbourside Homes', weight: 0.34, status: 'active', users: 4, apps: 54, since: '2025-11', partnerRate: 0.25, agentRate: 0.1 },
-  { id: 'meridian', name: 'Meridian Lettings', weight: 0.16, status: 'active', users: 3, apps: 26, since: '2026-02', partnerRate: 0.25, agentRate: 0.1 },
+  //
+  // AND SINCE 2026-10-02 EACH SAYS WHICH IT IS. `kind` is the fact the portal
+  // reads for supplier-vs-agency; the mode above is only the journey.
+  // Harbourside and Meridian were suppliers by the ABSENCE of a mode, which is
+  // exactly the inference that had to go.
+  { id: 'northwind', name: 'Northwind Property', weight: 1.0, primary: true, status: 'active', users: 11, apps: 342, since: '2024-09', partnerRate: 0.25, agentRate: 0.1, referencingMode: 'opndoor_referenced', kind: 'agency' },
+  { id: 'harbourside', name: 'Harbourside Homes', weight: 0.34, status: 'active', users: 4, apps: 54, since: '2025-11', partnerRate: 0.25, agentRate: 0.1, kind: 'supplier' },
+  { id: 'meridian', name: 'Meridian Lettings', weight: 0.16, status: 'active', users: 3, apps: 26, since: '2026-02', partnerRate: 0.25, agentRate: 0.1, kind: 'supplier' },
 ];

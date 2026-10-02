@@ -96,7 +96,7 @@ vi.mock('@/data/orgService', async (importOriginal) => {
 
 const PARTNERS: Partner[] = [
   { id: HOUSE, name: 'Opndoor Agents', status: 'active', since: '2024-09', weight: 1,
-    isHouse: true, referencingMode: 'opndoor_referenced' } as Partner,
+    isHouse: true, referencingMode: 'opndoor_referenced', kind: 'agency' } as Partner,
 ];
 const GROUPS: AgencyGroup[] = [{ id: 'gr-test', partner: HOUSE, name: 'Test Group' }];
 const AGENCIES: Agency[] = [

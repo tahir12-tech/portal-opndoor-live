@@ -38,14 +38,14 @@ import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types'
 import { ALL_PARTNERS, agencyLevelOf, maySeeCommission } from './types';
 import { showsOffices } from './agencyOffices';
 import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp, guaranteedAnnual } from './applicationsService';
-import { getPartner, getPartners, partnerName } from './partnersService';
+import { getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
 import { payeesFor, orgAmountOf, agentAmountOf, supplierAmountOf, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
 import { deliveryStateOf } from './deliveryState';
 // Walk fix 21: one rule for the line under a referrer's name.
 import { whereTheyWork, type WhereReader } from './whereTheyWork';
 // Walk fixes 8 and 16 share one rule for what is under guarantee, and when.
-import { partyIsAgency } from './capabilities';
+import { partyIsAgency, partyIsOurEstate } from './capabilities';
 import { coverHeldDuring, coverStartsLater } from './inForce';
 import { isDirectRail, isHousePartner } from './channel';
 import { viaSupplier } from './viaSupplier';
@@ -67,7 +67,11 @@ import type { CommissionSource } from './types';
  */
 export function agentRailScope(scope: PartnerScope): boolean {
   if (scope === ALL_PARTNERS) return false;
-  return getPartner(scope)?.referencingMode === 'opndoor_referenced';
+  // The partner's own kind, not its referencing mode. A supplier that
+  // references through us is still the supplier rail. `partyIsOurEstate`
+  // rather than `partyIsAgency`, so the direct rail keeps the answer it
+  // had: there is no supplier there to show a share for.
+  return partyIsOurEstate(scope);
 }
 
 const DAY = 86_400_000;

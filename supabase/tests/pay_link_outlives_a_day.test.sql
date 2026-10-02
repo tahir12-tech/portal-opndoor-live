@@ -28,8 +28,8 @@
 begin;
 select plan(12);
 
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock)
-values ('91000000-0000-0000-0000-000000000001', 'zzz-paylink', 'ZZZ Paylink', 'pre_referenced_open', 0.25, 0.10, true, true);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock, partner_kind)
+values ('91000000-0000-0000-0000-000000000001', 'zzz-paylink', 'ZZZ Paylink', 'pre_referenced_open', 0.25, 0.10, true, true, 'supplier');
 insert into public.agencies (id, partner_id, name)
 values ('91000000-0000-0000-0000-00000000000a', '91000000-0000-0000-0000-000000000001', 'ZZZ Paylink Lettings');
 insert into public.branches (id, agency_id, partner_id, name)

@@ -23,10 +23,9 @@
 begin;
 select plan(16);
 
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock)
-values
-  ('8a000000-0000-0000-0000-000000000001', 'zzz-retry-agency', 'ZZZ Retry Estate', 'opndoor_referenced', 0.25, 0.10, true, true),
-  ('8a000000-0000-0000-0000-000000000002', 'zzz-retry-supp', 'ZZZ Retry Supplier', 'pre_referenced_screened', 0.25, 0.10, false, false);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock, partner_kind)
+values ('8a000000-0000-0000-0000-000000000001', 'zzz-retry-agency', 'ZZZ Retry Estate', 'opndoor_referenced', 0.25, 0.10, true, true, 'agency'),
+  ('8a000000-0000-0000-0000-000000000002', 'zzz-retry-supp', 'ZZZ Retry Supplier', 'pre_referenced_screened', 0.25, 0.10, false, false, 'supplier');
 insert into public.agencies (id, partner_id, name) values
   ('8a000000-0000-0000-0000-00000000000a', '8a000000-0000-0000-0000-000000000001', 'ZZZ Retry Lettings'),
   ('8a000000-0000-0000-0000-00000000000b', '8a000000-0000-0000-0000-000000000002', 'ZZZ Supplier Agent');

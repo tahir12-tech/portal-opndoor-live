@@ -17,8 +17,8 @@
    ===================================================================== */
 import type { CommissionLine, CommissionSource } from './types';
 import type { FullApp } from './applicationsService';
-import { getPartner } from './partnersService';
 import { isDirectRail } from './channel';
+import { partyIsOurEstate } from './capabilities';
 import { plural } from '@/lib/plural';
 
 /**
@@ -26,9 +26,12 @@ import { plural } from '@/lib/plural';
  * commission themselves — or the supplier rail, where the partner does?
  *
  * The ESTATE, read off the route partner, exactly as is_agent_estate does in
- * SQL. Never the application's own referencing_mode: Regent are one of ours and
- * reference their own tenants, and keying this on the journey would pay their
- * commission to a partner that does not exist.
+ * SQL. Never a referencing_mode -- not the application's, and since 2026-10-02
+ * not the partner's either. Regent are one of ours and reference their own
+ * tenants, and keying this on the journey would pay their commission to a
+ * partner that does not exist; keying it on the PARTNER's journey had the
+ * mirror fault, moving a supplier onto the agent rail the moment an admin
+ * changed its mode, which stopped the settlement listing it.
  *
  * This is why the dashboard shows an agency no partner commission. On the agent
  * rail there is no supplier to pass a cut to; applications.partner_rate is still
@@ -36,7 +39,7 @@ import { plural } from '@/lib/plural';
  * a payable that nobody owes and nobody will ever be invoiced for.
  */
 export function agentRailApp(app: FullApp): boolean {
-  return getPartner(app.partner)?.referencingMode === 'opndoor_referenced';
+  return partyIsOurEstate(app.partner);
 }
 
 /** How a source reads on screen. One map, so the agency page, the dashboard and

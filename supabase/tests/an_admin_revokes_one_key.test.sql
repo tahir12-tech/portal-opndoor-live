@@ -25,9 +25,9 @@ begin;
 select plan(14);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
-                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled)
+                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled, partner_kind)
 values ('93000000-0000-0000-0000-0000000ca001','zzz-key-supplier','ZZZ Key Supplier',
-        'pre_referenced_open', 0.25, 0.10, false, false, true, true);
+        'pre_referenced_open', 0.25, 0.10, false, false, true, true, 'supplier');
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values

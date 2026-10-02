@@ -53,8 +53,7 @@ function partners(apiOn: boolean): Partner[] {
     since: '2026-01-01', weight: 1, users: 0, apps: 0,
     referencingMode: 'pre_referenced_open', partnerRate: 0.35, agentRate: 0.15,
     apiAccessEnabled: apiOn, portalReferralsEnabled: true, primary: false,
-    opndoorPaysAgents: false,
-  }] as unknown as Partner[];
+    opndoorPaysAgents: false, kind: 'supplier' }] as unknown as Partner[];
 }
 
 beforeEach(() => {

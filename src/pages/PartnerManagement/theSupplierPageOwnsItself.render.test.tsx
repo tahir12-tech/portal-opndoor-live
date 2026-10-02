@@ -44,12 +44,11 @@ const PARTNERS = [{
   weight: 1, users: 0, apps: 0, referencingMode: 'pre_referenced_open',
   partnerRate: 0.35, agentRate: 0.15,
   apiAccessEnabled: false, portalReferralsEnabled: true, primary: false,
-  opndoorPaysAgents: false,
-}] as unknown as Partner[];
+  opndoorPaysAgents: false, kind: 'supplier' }] as unknown as Partner[];
 
 const PEOPLE = [
-  { id: 'u1', name: 'Mo Management', email: 'mo@zzz.test', role: 'management', status: 'active', lastActive: 'today' },
-  { id: 'u2', name: 'Rae Referrer', email: 'rae@zzz.test', role: 'referrer', status: 'active', lastActive: 'today' },
+  { id: 'u1', name: 'Mo Management', email: 'mo@zzz.test', role: 'management', status: 'active', lastActive: 'today', kind: 'supplier' },
+  { id: 'u2', name: 'Rae Referrer', email: 'rae@zzz.test', role: 'referrer', status: 'active', lastActive: 'today', kind: 'supplier' },
 ];
 
 beforeEach(() => {

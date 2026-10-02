@@ -112,6 +112,10 @@ export async function addPartner(input: AddPartnerInput): Promise<Partner> {
       partnerRate: Number(row.partner_rate),
       agentRate: Number(row.agent_rate),
       referencingMode: row.referencing_mode,
+      // What the server says it was born as, not what this client asked
+      // for. create_partner stamps 'supplier' and this is the button that
+      // calls it; reading it back keeps the one source.
+      kind: (row.partner_kind ?? 'supplier') as Partner['kind'],
       portalReferralsEnabled: row.portal_referrals_enabled !== false,
       apiAccessEnabled: row.api_access_enabled === true,
     };
@@ -142,6 +146,8 @@ function addPartnerLocal(input: AddPartnerInput): Partner {
     since: input.since || new Date().toISOString().slice(0, 7),
     partnerRate: input.partnerRate != null ? input.partnerRate : DEFAULT_PARTNER_RATE,
     agentRate: input.agentRate != null ? input.agentRate : DEFAULT_AGENT_RATE,
+    // "Add supplier" makes a supplier, in both modes.
+    kind: 'supplier',
   };
   PARTNERS.push(rec);
   persist();

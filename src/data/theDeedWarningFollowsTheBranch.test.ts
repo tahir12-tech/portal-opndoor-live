@@ -18,9 +18,31 @@
  * The fixture is Kestrel as dev actually holds it: no contact on the
  * agency, one on each branch.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { agenciesNeedingAnEmail, agencyContactState, agencyNeedsEmail, branchCanReceiveDeed, branchesWithNoDeedContact } from './deedContact';
-import type { Agency, AgentContact } from './types';
+import { hydratePartners } from './partnersService';
+import type { Agency, AgentContact, Partner } from './types';
+
+/* =====================================================================
+   THE ESTATE IS NOW A STATED FACT, 2026-10-02.
+
+   This file used to hydrate no partners at all and still get the right
+   answers, because `partyIsSupplier` was "not an agency" and an
+   unresolved partner fell through to supplier. That default is gone: a
+   partner Opndoor has not loaded is a partner whose kind is unknown, and
+   unknown is not an answer. So the two estates this file contrasts have
+   to be on the books for it to contrast them -- which is a better
+   fixture anyway, since the thing under test is precisely "which estate
+   is this agency in".
+   ===================================================================== */
+const PARTNERS = [
+  { id: 'kestrel-lettings', name: 'Kestrel Lettings', kind: 'supplier' },
+  { id: 'opndoor-agents', name: 'Opndoor Agents', kind: 'agency', isHouse: true },
+].map((p) => ({ ...p, status: 'active', since: '2026-01-01', weight: 1, users: 0, apps: 0,
+  partnerRate: 0.25, agentRate: 0.1, primary: false })) as unknown as Partner[];
+
+beforeEach(() => { hydratePartners(PARTNERS); });
+afterEach(() => { hydratePartners([]); });
 
 const contact = (email: string): AgentContact =>
   ({ name: '', email, isPrimary: true } as unknown as AgentContact);

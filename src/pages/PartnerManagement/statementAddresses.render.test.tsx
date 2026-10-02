@@ -38,8 +38,7 @@ function partners(slug: string): Partner[] {
     id: slug, name: 'ZZZ Statement Co', status: 'active', since: '2026-01-01',
     weight: 1, users: 0, apps: 0,
     referencingMode: 'pre_referenced_open', partnerRate: 0.25, agentRate: 0.1,
-    apiAccessEnabled: false, portalReferralsEnabled: true, primary: false,
-  }] as unknown as Partner[];
+    apiAccessEnabled: false, portalReferralsEnabled: true, primary: false, kind: 'supplier' }] as unknown as Partner[];
 }
 
 beforeEach(() => {

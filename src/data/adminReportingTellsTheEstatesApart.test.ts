@@ -32,11 +32,11 @@ import type { Partner } from './types';
 
 /** Dev's partners, in the shape hydrate produces. */
 const PARTNERS = [
-  { id: 'opndoor-agents', name: 'Opndoor Agents', status: 'active', referencingMode: 'opndoor_referenced', isHouse: true },
-  { id: 'opndoor-direct', name: 'Opndoor Direct', status: 'active', referencingMode: 'opndoor_referenced', isHouse: true },
-  { id: 'referencing-partner', name: 'Referencing Partner', status: 'active', referencingMode: 'pre_referenced_open', isHouse: true },
-  { id: 'kestrel-lettings', name: 'Kestrel Lettings', status: 'active', referencingMode: 'pre_referenced_open', isHouse: false },
-  { id: 'harbour-lets', name: 'Harbour Lets', status: 'active', referencingMode: 'opndoor_referenced', isHouse: false },
+  { id: 'opndoor-agents', name: 'Opndoor Agents', status: 'active', referencingMode: 'opndoor_referenced', isHouse: true, kind: 'agency' },
+  { id: 'opndoor-direct', name: 'Opndoor Direct', status: 'active', referencingMode: 'opndoor_referenced', isHouse: true, kind: 'house' },
+  { id: 'referencing-partner', name: 'Referencing Partner', status: 'active', referencingMode: 'pre_referenced_open', isHouse: true, kind: 'house' },
+  { id: 'kestrel-lettings', name: 'Kestrel Lettings', status: 'active', referencingMode: 'pre_referenced_open', isHouse: false, kind: 'supplier' },
+  { id: 'harbour-lets', name: 'Harbour Lets', status: 'active', referencingMode: 'opndoor_referenced', isHouse: false, kind: 'agency' },
 ] as unknown as Partner[];
 
 beforeEach(() => hydratePartners(PARTNERS));

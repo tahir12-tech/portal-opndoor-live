@@ -38,7 +38,7 @@ const SUPPLIER = 'zzz-rightmove';
 const PARTNERS = [
   { id: SUPPLIER, name: 'ZZZ Rightmove', status: 'active', since: '2026-01-01',
     weight: 1, users: 1, apps: 2, referencingMode: 'pre_referenced_open',
-    partnerRate: 0.25, agentRate: 0.1, primary: false },
+    partnerRate: 0.25, agentRate: 0.1, primary: false, kind: 'supplier' },
 ] as unknown as Partner[];
 
 const contact = (email: string) => ({ id: `c-${email}`, name: 'Desk', email, primary: true });

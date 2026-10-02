@@ -32,9 +32,9 @@ select plan(17);
 -- ---------------------------------------------------------------------------
 -- The pair. Same rates, opposite switches.
 -- ---------------------------------------------------------------------------
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, opndoor_pays_agents)
-values ('96000000-0000-0000-0000-0000000000f1', 'zzz-shape-off', 'ZZZ Shape Off', 'pre_referenced_open', 0.35, 0.15, false, false),
-       ('96000000-0000-0000-0000-0000000000f2', 'zzz-shape-on',  'ZZZ Shape On',  'pre_referenced_open', 0.35, 0.15, false, true);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, opndoor_pays_agents, partner_kind)
+values ('96000000-0000-0000-0000-0000000000f1', 'zzz-shape-off', 'ZZZ Shape Off', 'pre_referenced_open', 0.35, 0.15, false, false, 'supplier'),
+       ('96000000-0000-0000-0000-0000000000f2', 'zzz-shape-on',  'ZZZ Shape On',  'pre_referenced_open', 0.35, 0.15, false, true, 'supplier');
 
 insert into public.agencies (id, partner_id, name) values
   ('96000000-0000-0000-0000-0000000000a1', '96000000-0000-0000-0000-0000000000f1', 'ZZZ Shape Off Agency'),

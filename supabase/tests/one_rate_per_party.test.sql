@@ -13,8 +13,8 @@
 begin;
 select plan(17);
 
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate)
-values ('91000000-0000-0000-0000-000000000001', 'zzz-rate-rail', 'One Rate Rail', 'opndoor_referenced', 0.25, 0.10);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, partner_kind)
+values ('91000000-0000-0000-0000-000000000001', 'zzz-rate-rail', 'One Rate Rail', 'opndoor_referenced', 0.25, 0.10, 'agency');
 insert into public.agency_groups (id, partner_id, name)
 values ('91000000-0000-0000-0000-000000000002', '91000000-0000-0000-0000-000000000001', 'One Rate Group');
 insert into public.agencies (id, partner_id, name, group_id)

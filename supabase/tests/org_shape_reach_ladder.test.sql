@@ -27,8 +27,8 @@ begin;
 select plan(8);
 
 -- OUR ESTATE: two agencies, one office each.
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock)
-values ('92000000-0000-0000-0000-000000000001', 'zzz-ladder', 'ZZZ Ladder Route', 'opndoor_referenced', 0.25, 0.10, true, true);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock, partner_kind)
+values ('92000000-0000-0000-0000-000000000001', 'zzz-ladder', 'ZZZ Ladder Route', 'opndoor_referenced', 0.25, 0.10, true, true, 'agency');
 insert into public.agencies (id, partner_id, name) values
   ('92000000-0000-0000-0000-00000000000a', '92000000-0000-0000-0000-000000000001', 'ZZZ Ladder Ours'),
   ('92000000-0000-0000-0000-00000000000b', '92000000-0000-0000-0000-000000000001', 'ZZZ Ladder Theirs');
@@ -37,8 +37,8 @@ insert into public.branches (id, agency_id, partner_id, name) values
   ('92000000-0000-0000-0000-0000000000b1', '92000000-0000-0000-0000-00000000000b', '92000000-0000-0000-0000-000000000001', 'Theirs Park');
 
 -- A SUPPLIER: two agencies, one office each, same shape, different rail.
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock)
-values ('92000000-0000-0000-0000-000000000002', 'zzz-supp', 'ZZZ Ladder Supplier', 'pre_referenced_open', 0.25, 0.10, false, false);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, refers_own_stock, partner_kind)
+values ('92000000-0000-0000-0000-000000000002', 'zzz-supp', 'ZZZ Ladder Supplier', 'pre_referenced_open', 0.25, 0.10, false, false, 'supplier');
 insert into public.agencies (id, partner_id, name) values
   ('92000000-0000-0000-0000-00000000000c', '92000000-0000-0000-0000-000000000002', 'ZZZ Supp One'),
   ('92000000-0000-0000-0000-00000000000d', '92000000-0000-0000-0000-000000000002', 'ZZZ Supp Two');

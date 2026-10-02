@@ -265,7 +265,7 @@ export function selectionIsAgency(sel: OriginScope): boolean {
   if (!sel.startsWith('partner:')) return false;
   const slug = sel.slice('partner:'.length);
   if (isHousePartner(slug)) return houseRouteLabel(slug) === 'Agent referral';
-  return getPartner(slug)?.referencingMode === 'opndoor_referenced';
+  return getPartner(slug)?.kind === 'agency';
 }
 
 /**

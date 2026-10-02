@@ -20,9 +20,9 @@ select plan(14);
 -- A SUPPLIER WITH A BRANCH DESK, AND AN AGENCY WITH A LADDER
 -- ===========================================================================
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
-                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled)
+                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled, partner_kind)
 values ('90000000-0000-0000-0000-0000000000d1','zzz-door-supplier','ZZZ Door Supplier',
-        'pre_referenced_open', 0.25, 0.10, false, false, true, true);
+        'pre_referenced_open', 0.25, 0.10, false, false, true, true, 'supplier');
 
 insert into public.agencies (id, partner_id, name) values
   ('90000000-0000-0000-0000-0000000000f1','90000000-0000-0000-0000-0000000000d1','ZZZ Door Supplier Agency'),

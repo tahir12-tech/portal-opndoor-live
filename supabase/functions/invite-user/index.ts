@@ -133,9 +133,14 @@ Deno.serve(async (req) => {
          developer created there would be a developer for all of them.
          20261006270000 refuses the endpoint and the key at the database, and
          this refuses the account, so the route is shut at both ends. */
+      /* THE PARTNER'S KIND, NOT ITS REFERENCING MODE, since 20261007600000.
+         This read `referencing_mode === "opndoor_referenced"`, so a supplier
+         whose journey an admin changed lost the ability to create its own
+         developer -- the account half of the same fault that took it off the
+         Suppliers list. The question here is what the partner IS. */
       const { data: myPartner } = await userClient
-        .from("partners").select("referencing_mode").eq("id", caller.partner_id).maybeSingle();
-      const onOurEstate = myPartner?.referencing_mode === "opndoor_referenced";
+        .from("partners").select("partner_kind").eq("id", caller.partner_id).maybeSingle();
+      const onOurEstate = myPartner?.partner_kind === "agency";
 
       const allowed = isBranchOnly
         // A branch manager staffs their branches. They cannot create another
@@ -200,8 +205,8 @@ Deno.serve(async (req) => {
        partner, not the caller's, because an admin invites into partners that
        are not their own. It decides whether a position is optional. */
     const { data: inviteePartner } = await service
-      .from("partners").select("referencing_mode").eq("id", inviteePartnerId).maybeSingle();
-    const inviteeOnOurEstate = inviteePartner?.referencing_mode === "opndoor_referenced";
+      .from("partners").select("partner_kind").eq("id", inviteePartnerId).maybeSingle();
+    const inviteeOnOurEstate = inviteePartner?.partner_kind === "agency";
 
     /* WHO THIS IS, BEFORE ANY REQUIREMENT IS PUT ON THEM. Round 6, H1. The
        position requirement was moved below this lookup when round 5's H3 was

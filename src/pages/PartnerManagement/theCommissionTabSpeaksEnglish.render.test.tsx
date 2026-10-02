@@ -44,8 +44,7 @@ const carves = [{
   weight: 1, users: 0, apps: 0, referencingMode: 'pre_referenced_open',
   partnerRate: 0.25, agentRate: 0.1,
   apiAccessEnabled: false, portalReferralsEnabled: true, primary: false,
-  opndoorPaysAgents: false,
-}] as unknown as Partner[];
+  opndoorPaysAgents: false, kind: 'supplier' }] as unknown as Partner[];
 
 /** opndoor pays the supplier AND each agency, separately. */
 const siblings = [{ ...carves[0], opndoorPaysAgents: true }] as unknown as Partner[];

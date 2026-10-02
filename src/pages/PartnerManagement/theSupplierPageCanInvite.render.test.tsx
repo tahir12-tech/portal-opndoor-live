@@ -26,8 +26,7 @@ const SUPPLIER = 'zzz-invite';
 const base = {
   id: SUPPLIER, name: 'ZZZ Invite Co', status: 'active', since: '2026-01-01',
   weight: 1, users: 1, apps: 0, referencingMode: 'pre_referenced_open',
-  partnerRate: 0.3, agentRate: 0.1, portalReferralsEnabled: true, primary: false,
-};
+  partnerRate: 0.3, agentRate: 0.1, portalReferralsEnabled: true, primary: false, kind: 'supplier' };
 const withApi = (on: boolean) => [{ ...base, apiAccessEnabled: on }] as unknown as Partner[];
 
 const PEOPLE: ManagedUser[] = [

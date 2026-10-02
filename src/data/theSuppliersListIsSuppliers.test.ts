@@ -39,13 +39,13 @@ import type { AgreementView, Partner } from './types';
 /* DEV'S OWN PARTNER LIST, which is what Matt was looking at. Three
    kinds, so the filter has something of each to get right. */
 const PARTNERS = [
-  { id: 'letly', name: 'Letly', referencingMode: 'pre_referenced_screened' },
-  { id: 'opndoor-direct', name: 'Opndoor Direct', referencingMode: 'opndoor_referenced' },
-  { id: 'referencing-partner', name: 'Referencing Partner', referencingMode: 'pre_referenced_open' },
-  { id: 'harbour-lets', name: 'Harbour Lets', referencingMode: 'opndoor_referenced' },
-  { id: 'kestrel-lettings', name: 'Kestrel Lettings', referencingMode: 'pre_referenced_open' },
-  { id: 'opndoor-agents', name: 'Opndoor Agents', referencingMode: 'opndoor_referenced' },
-  { id: 'test-supplier', name: 'Test Supplier', referencingMode: 'pre_referenced_screened' },
+  { id: 'letly', name: 'Letly', referencingMode: 'pre_referenced_screened', kind: 'supplier' },
+  { id: 'opndoor-direct', name: 'Opndoor Direct', referencingMode: 'opndoor_referenced', kind: 'house' },
+  { id: 'referencing-partner', name: 'Referencing Partner', referencingMode: 'pre_referenced_open', kind: 'house' },
+  { id: 'harbour-lets', name: 'Harbour Lets', referencingMode: 'opndoor_referenced', kind: 'agency' },
+  { id: 'kestrel-lettings', name: 'Kestrel Lettings', referencingMode: 'pre_referenced_open', kind: 'supplier' },
+  { id: 'opndoor-agents', name: 'Opndoor Agents', referencingMode: 'opndoor_referenced', kind: 'agency' },
+  { id: 'test-supplier', name: 'Test Supplier', referencingMode: 'pre_referenced_screened', kind: 'supplier' },
 ].map((p) => ({ ...p, status: 'active', since: '2026-01-01', weight: 1, users: 0, apps: 0,
   partnerRate: 0.25, agentRate: 0.1, primary: false })) as unknown as Partner[];
 

@@ -19,8 +19,8 @@
 begin;
 select plan(9);
 
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, status, live_from, portal_referrals_enabled, api_access_enabled)
-values ('98000000-0000-0000-0000-0000000000f1', 'zzz-nochange', 'ZZZ No Change', 'pre_referenced_open', 0.25, 0.10, false, 'active', '2026-08-20', true, false);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, status, live_from, portal_referrals_enabled, api_access_enabled, partner_kind)
+values ('98000000-0000-0000-0000-0000000000f1', 'zzz-nochange', 'ZZZ No Change', 'pre_referenced_open', 0.25, 0.10, false, 'active', '2026-08-20', true, false, 'supplier');
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 values ('98000000-0000-0000-0000-00000000c001','00000000-0000-0000-0000-000000000000','authenticated','authenticated',

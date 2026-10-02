@@ -27,9 +27,9 @@
 begin;
 select plan(30);
 
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, opndoor_pays_agents)
-values ('97000000-0000-0000-0000-0000000000f1', 'zzz-many', 'ZZZ Many Deals', 'pre_referenced_open', 0.35, 0.10, false, false),
-       ('97000000-0000-0000-0000-0000000000f2', 'zzz-other', 'ZZZ Other Supplier', 'pre_referenced_open', 0.30, 0.10, false, false);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, opndoor_pays_agents, partner_kind)
+values ('97000000-0000-0000-0000-0000000000f1', 'zzz-many', 'ZZZ Many Deals', 'pre_referenced_open', 0.35, 0.10, false, false, 'supplier'),
+       ('97000000-0000-0000-0000-0000000000f2', 'zzz-other', 'ZZZ Other Supplier', 'pre_referenced_open', 0.30, 0.10, false, false, 'supplier');
 
 insert into public.agencies (id, partner_id, name) values
   ('97000000-0000-0000-0000-0000000000a1', '97000000-0000-0000-0000-0000000000f1', 'ZZZ Alpha'),
@@ -222,8 +222,8 @@ select throws_ok(
 update public.pricing_agreement_bands set agent_rate = 0.20
  where agreement_id = '97000000-0000-0000-0000-0000000000d1';
 
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values ('97000000-0000-0000-0000-0000000000f3', 'zzz-unmarked', 'ZZZ Unmarked', 'pre_referenced_open', 0.30, 0.08, false);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, partner_kind)
+values ('97000000-0000-0000-0000-0000000000f3', 'zzz-unmarked', 'ZZZ Unmarked', 'pre_referenced_open', 0.30, 0.08, false, 'supplier');
 insert into public.agencies (id, partner_id, name)
 values ('97000000-0000-0000-0000-0000000000a5', '97000000-0000-0000-0000-0000000000f3', 'ZZZ Unmarked Agency');
 insert into public.branches (id, agency_id, partner_id, name)

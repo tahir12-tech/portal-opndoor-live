@@ -15,8 +15,8 @@
 begin;
 select plan(8);
 
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values ('ad000000-0000-0000-0000-00000000000b','zzz-notice','ZZZ Notice Partner','pre_referenced_open',0.25,0.1,false);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, partner_kind)
+values ('ad000000-0000-0000-0000-00000000000b','zzz-notice','ZZZ Notice Partner','pre_referenced_open',0.25,0.1,false, 'supplier');
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
 select x.id,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',x.email,'',now(),now(),now()

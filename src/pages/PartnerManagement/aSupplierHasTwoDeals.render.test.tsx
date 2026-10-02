@@ -54,8 +54,7 @@ const PARTNERS = [{
   weight: 1, users: 0, apps: 0, referencingMode: 'pre_referenced_open',
   partnerRate: 0.35, agentRate: 0.15,
   apiAccessEnabled: false, portalReferralsEnabled: true, primary: false,
-  opndoorPaysAgents: false,
-}] as unknown as Partner[];
+  opndoorPaysAgents: false, kind: 'supplier' }] as unknown as Partner[];
 
 const view = (o: Partial<AgreementView>): AgreementView => ({
   agreementId: 'a1', scopeLevel: 'partner', coverage: 'additive', period: 'year',

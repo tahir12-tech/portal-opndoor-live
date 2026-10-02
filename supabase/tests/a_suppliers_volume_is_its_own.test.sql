@@ -26,9 +26,9 @@ select plan(8);
 -- A SUPPLIER WITH A NEGOTIATED AGREEMENT, AND AN AGENCY WITH ONE
 -- ===========================================================================
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
-                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled)
+                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled, partner_kind)
 values ('93000000-0000-0000-0000-0000000000f1','zzz-vol-supplier','ZZZ Volume Supplier',
-        'pre_referenced_open', 0.25, 0.10, false, false, true, true);
+        'pre_referenced_open', 0.25, 0.10, false, false, true, true, 'supplier');
 
 insert into public.agencies (id, partner_id, name) values
   ('93000000-0000-0000-0000-0000000000f2','93000000-0000-0000-0000-0000000000f1','ZZZ Volume Supplier Agency'),

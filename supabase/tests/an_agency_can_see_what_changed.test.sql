@@ -20,8 +20,8 @@
 begin;
 select plan(14);
 
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values ('99000000-0000-0000-0000-00000000000e', 'zzz-chg', 'ZZZ Changes Partner', 'opndoor_referenced', 0.25, 0.10, false);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, partner_kind)
+values ('99000000-0000-0000-0000-00000000000e', 'zzz-chg', 'ZZZ Changes Partner', 'opndoor_referenced', 0.25, 0.10, false, 'agency');
 
 insert into public.agency_groups (id, partner_id, name)
 values ('99000000-0000-0000-0000-00000000009c', '99000000-0000-0000-0000-00000000000e', 'ZZZ Changes Group');

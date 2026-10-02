@@ -45,12 +45,11 @@ select plan(10);
 -- THE WORLD. Two suppliers and one agency each, plus one shared agency.
 -- ===========================================================================
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
-                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled)
-values
-  ('c8000000-0000-0000-0000-0000000000d1','zzz-r1-victim','ZZZ R1 Victim Supplier',
-   'pre_referenced_open', 0.30, 0.10, false, false, true, true),
+                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled, partner_kind)
+values ('c8000000-0000-0000-0000-0000000000d1','zzz-r1-victim','ZZZ R1 Victim Supplier',
+   'pre_referenced_open', 0.30, 0.10, false, false, true, true, 'supplier'),
   ('c8000000-0000-0000-0000-0000000000d2','zzz-r1-other','ZZZ R1 Other Supplier',
-   'pre_referenced_open', 0.25, 0.10, false, false, true, true);
+   'pre_referenced_open', 0.25, 0.10, false, false, true, true, 'supplier');
 
 -- The victim: a supplier's own agency and branch, with NO contact of its own,
 -- which is the state the supplier page already calls "No agent contact".

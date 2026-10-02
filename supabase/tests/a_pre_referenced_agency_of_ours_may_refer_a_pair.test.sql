@@ -57,15 +57,18 @@ select plan(12);
 -- TWO ESTATES, IDENTICAL IN EVERY WAY EXCEPT WHOSE THEY ARE
 -- ===========================================================================
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
-                             is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled)
+                             is_house_route, refers_own_stock, portal_referrals_enabled,
+                             api_access_enabled, partner_kind)
 values
   -- The house route: this is what makes is_agent_estate true. Stands in for
-  -- opndoor-agents so the test does not depend on seed data.
+  -- opndoor-agents so the test does not depend on seed data. `partner_kind`
+  -- is what makes it true since 20261007600000; the mode beside it no
+  -- longer decides, which is the point of this file read one layer up.
   ('97000000-0000-0000-0000-0000000000d1','zzz-regent-estate','ZZZ Regent Estate',
-   'opndoor_referenced', 0.25, 0.10, true,  true,  true, false),
+   'opndoor_referenced', 0.25, 0.10, true,  true,  true, false, 'agency'),
   -- The control: a supplier, which is the shape the old documents assumed.
   ('97000000-0000-0000-0000-0000000000d2','zzz-regent-supplier','ZZZ Regent Supplier',
-   'pre_referenced_open', 0.25, 0.10, false, false, true, true);
+   'pre_referenced_open', 0.25, 0.10, false, false, true, true, 'supplier');
 
 -- THE AGENCY THAT IS BOTH. On our estate, and pre-referenced. This one column
 -- is the whole point of the file: if it were null the test would prove

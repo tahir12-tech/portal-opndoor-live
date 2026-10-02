@@ -31,8 +31,8 @@ select plan(17);
 -- is_house_route, because these fixtures are inserted directly and carry no
 -- referrer: assert_application_attributed refuses an unattributed application on
 -- any other kind of partner, which is exactly the guard it exists to be.
-insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
-values ('92000000-0000-0000-0000-000000000001', 'zzz-tenancy-rail', 'Tenancy Rail', 'opndoor_referenced', 0.25, 0.10, true);
+insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route, partner_kind)
+values ('92000000-0000-0000-0000-000000000001', 'zzz-tenancy-rail', 'Tenancy Rail', 'opndoor_referenced', 0.25, 0.10, true, 'agency');
 insert into public.agencies (id, partner_id, name)
 values ('92000000-0000-0000-0000-000000000003', '92000000-0000-0000-0000-000000000001', 'Tenancy Agency');
 insert into public.branches (id, agency_id, partner_id, name)

@@ -39,7 +39,7 @@ const SUPPLIER = 'zzz-kestrel-lettings';
 const PARTNERS = [
   { id: SUPPLIER, name: 'Kestrel Lettings', status: 'active', since: '2026-01-01',
     weight: 1, users: 1, apps: 2, referencingMode: 'pre_referenced_open',
-    partnerRate: 0.25, agentRate: 0.1, primary: false },
+    partnerRate: 0.25, agentRate: 0.1, primary: false, kind: 'supplier' },
 ] as unknown as Partner[];
 
 const AGENCIES = [
