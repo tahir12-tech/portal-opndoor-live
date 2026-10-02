@@ -78,3 +78,18 @@
 .stmt__back { display: inline-flex; align-items: center; gap: 5px; border: none; background: none; padding: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--ink-mute); cursor: pointer; }
 .stmt__back:hover { color: var(--heliotrope-deep); }
 .stmt__ref { font-variant-numeric: tabular-nums; }
+
+/* A STATEMENT THAT COULD NOT BE BUILT SAYS SO LIKE A PROBLEM. It used
+   `muted`, the colour of an aside, so the one outcome a reader has to
+   act on looked like a footnote -- and, beside a card that had been
+   saying "Building..." indefinitely, was indistinguishable from the
+   thing still working. */
+.stmt__err {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--warn-ink, var(--ink));
+}
+.stmt__err svg { flex: none; margin-top: 2px; color: var(--warn); }

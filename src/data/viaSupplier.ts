@@ -64,3 +64,29 @@ export function isSupplierEstate(partnerSlug: string | null | undefined): boolea
   const slug = (partnerSlug ?? '').trim();
   return !!slug && partyIsSupplier(slug);
 }
+
+/* =====================================================================
+   AND WHERE THE ROW ALREADY SAYS IT, TAKE IT OFF AGAIN.
+
+   Matt, 2026-10-02: "where a row already shows its supplier (the tag on
+   screen, the Detail column in exports), drop '(via …)' from the name so
+   it isn't said twice."
+
+   THE RULE IS ABOUT THE SURFACE, NOT THE NAME. `viaSupplier` was written
+   for the charts, where a bar has nothing but a label and the estate has
+   nowhere else to live. League has a Supplier column, its export has a
+   Detail column, and a supplier reading their own Reporting has an
+   entire page of their own rows -- on all three the label is the same
+   fact twice on one line.
+
+   SO THE LABEL IS APPLIED BY THE SURFACE AND REMOVED BY THE SURFACE,
+   rather than every caller deciding whether to ask for it: the rows are
+   built once, in `groupRows`, and the two screens that already state the
+   estate strip it here. One function to grep for, and the shape of the
+   suffix is written down once.
+   ===================================================================== */
+
+/** `viaSupplier`'s suffix, removed. Leaves a name with no suffix alone. */
+export function withoutVia(name: string | null | undefined): string {
+  return (name ?? '').replace(/\s*\(via [^)]*\)\s*$/, '').trim();
+}

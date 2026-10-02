@@ -239,3 +239,18 @@
    shown, so without this the only sign of which one the order follows is a small
    arrow at the top of a table that may be fifty rows long. */
 .dt td.is-ranked { font-weight: 700; color: var(--ink); }
+
+/* THE PERIOD-THROUGHPUT NOTE, the same sentence the dashboard's funnel
+   carries, because this board's two conversion columns are the same
+   measure and a rate over 100% reads as a bug until somebody explains
+   it. Styled as the funnel's note is: quiet, one line, under the thing
+   it is about. */
+.lt-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px 0;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+.lt-note svg { flex: none; margin-top: 2px; }

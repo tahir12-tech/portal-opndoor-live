@@ -45,6 +45,7 @@ import { liveScopeShape } from '@/data/liveAnalytics';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
+import { withoutVia } from '@/data/viaSupplier';
 import { Icon } from '@/components/ui/Icon';
 import { Card, CardFoot } from '@/components/ui/Card';
 import { Eyebrow } from '@/components/ui/Eyebrow';
@@ -52,7 +53,12 @@ import { RoleOnly } from '@/components/ui/RoleOnly';
 import './League.css';
 
 const PAGE = 15;
-type SortKey = keyof Pick<LeagueRow, 'name' | 'refs' | 'fees' | 'paid' | 'deed' | 'sp' | 'conv' | 'partnerComm' | 'agentComm'>;
+/* `sub` IS IN HERE AND IS NOT SORTABLE. It is the referrer board's
+   "Agency or supplier" column, added 2026-10-02, and it is the row's
+   existing sub-line -- where somebody works, which groupRows already
+   fills -- promoted to a column of its own rather than a second
+   lookup. */
+type SortKey = keyof Pick<LeagueRow, 'name' | 'sub' | 'refs' | 'fees' | 'paid' | 'deed' | 'sp' | 'conv' | 'partnerComm' | 'agentComm'>;
 type Col = [SortKey, string, boolean]; // [key, label, sortable]
 
 /* THE MOVEMENT COLUMN, SAID IN WORDS. Matt, 2026-10-01: 'rename the "7d"
@@ -66,14 +72,26 @@ const MOVEMENT_TITLE = 'Change in rank since the same table seven days ago. '
   + '"-" means its position has not changed.';
 
 const COLS: Record<LeagueView, Col[]> = {
-  agency: [['name', 'Agency', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Partner comm.', true], ['agentComm', 'Agent comm.', true]],
+  agency: [['name', 'Agency', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Agent comm.', true]],
   /* A BRANCH generates fees; it only EARNS commission when it holds a rate of its
      own, because under the additive model the agency (or group) is the payee
      otherwise. So the branch board leads on fees generated, and the commission
      column shows a dash wherever the branch is not itself a payee — rather than
      repeating its agency's earnings against every branch name. */
-  branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees generated', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Partner comm.', true], ['agentComm', 'Own commission', true]],
-  referrer: [['name', 'Negotiator', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true]],
+  branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees generated', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Own commission', true]],
+  /* "REFERRERS", NOT "NEGOTIATORS". Matt, 2026-10-02: "call it
+     'Referrers' on screen and in the export, since it includes Directors
+     and supplier staff". Negotiator is one LEVEL on our estate's ladder,
+     and this board ranks everybody who sent a referral -- a Director who
+     typed one in, and a supplier's own staff, neither of whom is a
+     Negotiator. The tab named the smallest of the three populations it
+     holds.
+
+     AND WHERE THEY WORK, which the board could not say: two people of
+     one name at two companies read as one person with a strange total,
+     and a supplier's referrer sitting among our agencies' looked like
+     one of ours. */
+  referrer: [['name', 'Referrer', false], ['sub', 'Agency or supplier', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true]],
   /* THE SAME MEASURES AS THE OTHERS, which is what Matt asked for, and
      the same two commission columns: a supplier IS a payee, so its own
      cut is the figure the board is most often read for. */
@@ -103,7 +121,7 @@ const COMMISSION_COLS = new Set<SortKey>(['partnerComm', 'agentComm']);
 const TABS: { id: LeagueView; label: string }[] = [
   { id: 'agency', label: 'Agencies' },
   { id: 'branch', label: 'Branches' },
-  { id: 'referrer', label: 'Negotiators' },
+  { id: 'referrer', label: 'Referrers' },
   /* SUPPLIERS, LAST AND OPNDOOR-ONLY. Matt, 2026-09-30: "Admin only;
      agencies and suppliers never see it." A league of Opndoor's
      customers ranked against each other is not a thing a customer may
@@ -677,16 +695,36 @@ function FullLeagueView() {
                   : view === 'branch'
                     ? (one ? `/applications?branchId=${encodeURIComponent(one)}` : `/applications?branch=${encodeURIComponent(r.name)}`)
                     : `/applications?referrer=${encodeURIComponent(r.name)}`;
+                const hasSubCol = cols.some((c) => c[0] === 'sub');
                 return (
                   <tr key={`${r.name}-${r.sub}`} onClick={() => navigate(drill)} style={{ cursor: 'pointer' }} title={`View applications for ${r.name}`}>
                     <td className="num"><span className={`rank${rank <= 3 ? ' top' : ''}`}>{rank}</span></td>
                     {showMovement && <td><Movement m={r.movement ?? null} /></td>}
                     {cols.map((c, ci) =>
                       ci === 0 ? (
+                        /* THE SUPPLIER IS SAID ONCE. Matt, 2026-10-02:
+                           "where a row already shows its supplier (the
+                           tag on screen ...), drop '(via …)' from the
+                           name so it isn't said twice." `showPartner` is
+                           exactly the condition that the tag is drawn,
+                           so it is also exactly the condition that the
+                           suffix is redundant.
+
+                           AND THE SUB LINE MOVES OUT where the board has
+                           a column for it: the referrer board gained
+                           "Agency or supplier", and leaving the same
+                           text stacked under the name would be the
+                           duplication this instruction is about in a
+                           second form. */
                         <td key={c[0]}>
-                          <div className="lt-name">{r.name}{showPartner && r.partner ? <span className="lt-partner">{r.partner}</span> : null}</div>
-                          <div className="lt-sub">{r.sub}</div>
+                          <div className="lt-name">
+                            {showPartner ? withoutVia(r.name) : r.name}
+                            {showPartner && r.partner ? <span className="lt-partner">{r.partner}</span> : null}
+                          </div>
+                          {!hasSubCol && <div className="lt-sub">{r.sub}</div>}
                         </td>
+                      ) : c[0] === 'sub' ? (
+                        <td key={c[0]} className="soft">{showPartner ? withoutVia(r.sub) : r.sub}</td>
                       ) : (
                         /* THE RANKED COLUMN IS BOLD, in every row and not only
                            in its heading. Both columns are always shown, so
@@ -702,6 +740,24 @@ function FullLeagueView() {
           </table>
         </div>
         <div className={`lt-empty${total ? '' : ' is-shown'}`}>No matches.</div>
+        {/* THE SAME NOTE THE DASHBOARD'S FUNNEL CARRIES, because this
+            board's two conversion columns are the same measure. Matt,
+            2026-10-02: "add the dashboard's one-line note that a rate can
+            exceed 100% when payments land this period for referrals sent
+            earlier."
+
+            A RATE OVER 100% READS AS A BUG and is not one: each column
+            counts the events that happened INSIDE the period, so a
+            referral sent in August and paid in September is a payment
+            with no sent to divide by. The dashboard explained that and
+            League, which ranks people on those very columns, did not. */}
+        <div className="lt-note">
+          <Icon name="info" strokeWidth={2} />
+          <span>
+            Conversion is <b>period throughput</b>: each column counts the events that occurred within the
+            period, so a rate can exceed 100% when payments or deeds land this period for referrals sent earlier.
+          </span>
+        </div>
         <CardFoot>
           <div className="pager" style={{ width: '100%' }}>
             <span className="pager__info">Page {safePage + 1} of {pages}</span>

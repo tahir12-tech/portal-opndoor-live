@@ -39,6 +39,7 @@ import { liveAvailable, liveAggregate, liveVolume, liveMonths, getCommissionSett
 import type { BrandedDoc, ColType, Column, KeyValue, TableRow } from './xlsxTemplate';
 import { feeBaseFor, totalRate, agentAmountOf, supplierAmountOf, feeBasisCell, linesFor, agentRailApp } from './commissionSplit';
 import { orgCell } from './agencyOffices';
+import { withoutVia } from './viaSupplier';
 import { gbpPence } from '@/lib/format';
 import { plural } from '@/lib/plural';
 
@@ -1382,8 +1383,28 @@ function leaguePartnerLabel(scope: PartnerScope, partner: string): string {
    rule applies to it: no partner column, no estate. Its commission attribution
    is already per-org (liveVolume/groupRows use orgRate), so only the headings
    and the meta line change. */
+/* WHAT EACH BOARD IS A BOARD OF, in one place. Matt, 2026-10-02:
+   "League Suppliers tab export: it's titled 'League table: Referrers'
+   with a 'Referrer' column ... check every League tab's export is
+   titled after its own tab."
+
+   THE OLD SHAPE WAS A TERNARY WITH NO ELSE WORTH THE NAME: agency,
+   branch, and "Referrer" for everything else. That was true while there
+   were three boards. The Suppliers board was added as a fourth and fell
+   into the else, so a whole tab's workbook was titled and headed after
+   another tab -- and would have stayed that way for a fifth. A map has
+   to be extended to compile. */
+const LEAGUE_NOUN: Record<LeagueView, { sheet: string; column: string }> = {
+  agency: { sheet: 'Agencies', column: 'Agency' },
+  branch: { sheet: 'Branches', column: 'Branch' },
+  // "Referrers", not "Negotiators": the board holds Directors who typed a
+  // referral in and a supplier's own staff, neither of whom is a Negotiator.
+  referrer: { sheet: 'Referrers', column: 'Referrer' },
+  supplier: { sheet: 'Suppliers', column: 'Supplier' },
+};
+
 function leagueColumns(view: LeagueView, agency: boolean, showComm: boolean): Column[] {
-  const first: Column = { header: view === 'agency' ? 'Agency' : view === 'branch' ? 'Branch' : 'Referrer', type: 'text' };
+  const first: Column = { header: LEAGUE_NOUN[view].column, type: 'text' };
   const core: Column[] = [
     { header: 'Referrals', type: 'int' },
     moneyCol('Fees collected'),
@@ -1392,7 +1413,11 @@ function leagueColumns(view: LeagueView, agency: boolean, showComm: boolean): Co
     { header: 'Sent to Paid', type: 'pct' },
     { header: 'Sent to Deed', type: 'pct' },
   ];
-  if (view === 'referrer') return [first, ...core];
+  /* AND THE REFERRER BOARD GAINS ITS "Agency or supplier", 2026-10-02,
+     which is the Detail column every other board already had and this
+     one dropped: two people of one name at two companies read as one
+     person with a strange total. It carries no commission, as before. */
+  if (view === 'referrer') return [first, { header: 'Agency or supplier', type: 'text' }, ...core];
   /* A MANAGER READS THE BOARD, NOT THE PAYOUT. The referrer view never carried
      commission and the other two do, as the last column or two; a Manager is
      supposed to see who is performing across every branch and keeps all of that,
@@ -1410,9 +1435,16 @@ function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, a
   return rows.map((r) => {
     // Keep per-row partner attribution in the export when viewing across
     // partners (the on-screen Partner tag's export twin, #52).
-    const detail = showPartner && r.partner ? `${r.sub}${r.sub ? ' · ' : ''}${r.partner}` : r.sub;
-    if (view === 'referrer') return [r.name, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
-    const base = [r.name, detail, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
+    /* THE SUPPLIER IS SAID ONCE. Matt, 2026-10-02: "where a row already
+       shows its supplier (... the Detail column in exports), drop
+       '(via …)' from the name". `showPartner` is exactly the condition
+       that the Detail column carries the partner, so it is exactly the
+       condition that the suffix on the name is the same fact twice. */
+    const name = showPartner ? withoutVia(r.name) : r.name;
+    const sub = showPartner ? withoutVia(r.sub) : r.sub;
+    const detail = showPartner && r.partner ? `${sub}${sub ? ' · ' : ''}${r.partner}` : sub;
+    if (view === 'referrer') return [name, detail, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
+    const base = [name, detail, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
     if (!showComm) return base;
     return agency ? [...base, money(r.agentComm)] : [...base, money(r.partnerComm), money(r.agentComm)];
   });
@@ -1445,12 +1477,8 @@ export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string,
   if (!seesEveryReferral(role)) return emptyExport('League');
   const showComm = maySeeCommission(role);
   const views: { view: LeagueView; name: string }[] = view
-    ? [{ view, name: view === 'agency' ? 'Agencies' : view === 'branch' ? 'Branches' : 'Referrers' }]
-    : [
-        { view: 'agency', name: 'Agencies' },
-        { view: 'branch', name: 'Branches' },
-        { view: 'referrer', name: 'Referrers' },
-      ];
+    ? [{ view, name: LEAGUE_NOUN[view].sheet }]
+    : (['agency', 'branch', 'referrer'] as LeagueView[]).map((v) => ({ view: v, name: LEAGUE_NOUN[v].sheet }));
   // The caller passes the scope here rather than leaving it to scopeFor, so both
   // questions are asked of the scope this workbook was actually built over.
   const agency = isAgencyUser(role, scope);

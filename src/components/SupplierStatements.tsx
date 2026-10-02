@@ -71,10 +71,50 @@ export function SupplierStatements({ partner, supplierName, months }: SupplierSt
     setBusy(true);
     setState(null);
     void (async () => {
-      const r = await getSupplierBundle(partner, monthKey);
-      if (ignore) return;
-      setBusy(false);
-      setState(r);
+      /* THE SPINNER CANNOT BE PERMANENT. Matt, 2026-10-02: "'Commission
+         statements' stays on 'Building September 2026...' and never shows
+         the statement or downloads. Find why ... and show a clear error
+         if building ever fails."
+
+         `getSupplierBundle` already turns every failure it can see into a
+         sentence, including thrown ones. What it cannot turn into a
+         sentence is a request that never answers -- and this bundle is
+         the heaviest thing the product builds, a PDF and a CSV for the
+         supplier plus one of each per agency, zipped. If that takes
+         longer than the platform allows, or the connection is dropped,
+         the promise never settles, `setBusy(false)` never runs, and the
+         card sits on "Building..." with nothing to read and nothing to
+         press.
+
+         SO THE WAIT IS BOUNDED AND THE FINALLY IS UNCONDITIONAL. Sixty
+         seconds is long for a document and short for a dead end. The
+         timeout does not cancel the build, which may still be running
+         on the other side; it ends the WAIT, which is the thing the
+         reader is stuck in. */
+      const TIMEOUT_MS = 60_000;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const r = await Promise.race([
+          getSupplierBundle(partner, monthKey),
+          new Promise<SupplierBundleResult>((resolve) => {
+            timer = setTimeout(() => resolve({
+              ok: false,
+              error: 'Building this statement is taking longer than a minute. It may still be building; try again in a moment, and tell opndoor if it keeps happening.',
+            }), TIMEOUT_MS);
+          }),
+        ]);
+        if (!ignore) setState(r);
+      } catch (e) {
+        /* BELT AND BRACES. The service catches its own throws today, and
+           this is here so a future edit to it cannot bring the hang
+           back: an error that reaches here is shown rather than lost. */
+        if (!ignore) {
+          setState({ ok: false, error: e instanceof Error ? e.message : 'Could not build the statement.' });
+        }
+      } finally {
+        if (timer) clearTimeout(timer);
+        if (!ignore) setBusy(false);
+      }
     })();
     return () => { ignore = true; };
   }, [partner, monthKey]);
@@ -115,9 +155,21 @@ export function SupplierStatements({ partner, supplierName, months }: SupplierSt
         {/* THE REFUSALS ARE SHOWN AS SENTENCES, not as a missing card. The
             two that matter both have an answer the reader can act on: a
             month with nothing in it, and the invoice email not being set,
-            which stops a statement being issued at all. */}
+            which stops a statement being issued at all.
+
+            AND THEY ARE SHOWN AS A PROBLEM, 2026-10-02. This was `muted`,
+            which is the colour the page uses for asides, so the one
+            outcome the reader has to act on looked like a footnote --
+            and, next to a card that had been saying "Building..."
+            indefinitely, was indistinguishable from the thing still
+            working. Matt: "show a clear error if building ever fails."
+            The icon and the colour are the ones every other warning on
+            the estate uses. */}
         {!!months.length && !busy && state && !state.ok && (
-          <p className="muted" style={{ fontSize: 13.5, margin: 0 }}>{state.error}</p>
+          <p className="stmt__err">
+            <Icon name="alert" size={14} />
+            <span>{state.error}</span>
+          </p>
         )}
 
         {!busy && state?.ok && (
