@@ -10,11 +10,13 @@
    database's and survives in column names, RPC arguments and types; the
    screen says supplier.
    ===================================================================== */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { addPartner, getPartner, getPartners, orgCounts, updatePartnerSettings, type PartnerSettingsInput, type PartnerStatus, REFERENCING_MODES, type ReferencingMode } from '@/data';
+import { addPartner, getPartner, getPartners, getSupplierDeal, orgCounts, updatePartnerSettings, type AgreementView, type PartnerSettingsInput, type PartnerStatus, REFERENCING_MODES, type ReferencingMode } from '@/data';
+import { partyIsSupplier } from '@/data/capabilities';
+import { supplierDealLine } from '@/data/supplierDealLine';
 import { useSession } from '@/session/SessionContext';
-import { fmtRatePct, formatMonth } from '@/lib/format';
+import { formatMonth } from '@/lib/format';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
@@ -43,7 +45,7 @@ export function PartnerManagement() {
   usePageMeta('partners', 'Suppliers', ['Home', 'Relationships', 'Suppliers']);
   const navigate = useNavigate();
   const toast = useToast();
-  const { refresh: refreshData } = useSession();
+  const { refresh: refreshData, dataVersion } = useSession();
   const [, setVersion] = useState(0);
   const refresh = () => setVersion((v) => v + 1);
 
@@ -65,7 +67,54 @@ export function PartnerManagement() {
   const [confirm, setConfirm] = useState<{ input: PartnerSettingsInput; changes: RateChange[] } | null>(null);
   // #114 Referrer-leaderboard change awaiting confirmation (Manage partner is the single lever).
 
-  const partners = getPartners();
+  /* ONLY REAL SUPPLIERS. Matt, 2026-10-02: "Harbour Lets shows as a
+     supplier, but it's an agency (Opndoor-referenced). Only real
+     suppliers appear here; agencies appear under Agencies."
+
+     THE SAME THREE-WAY SPLIT AS THE ESTATES WORK, and the same
+     predicate. This page asked a two-way question -- every row in
+     `partners` is a supplier -- and `partners` holds three kinds:
+     Opndoor's own house rails, suppliers, and partners of ours on the
+     AGENCY rail. Harbour Lets is the third: referencing_mode is
+     'opndoor_referenced', so it is one of our agencies that happens to
+     carry its own partner record.
+
+     WHERE IT GOES INSTEAD: nowhere new. The agency "Harbour Lets" is
+     already on the Agencies screen, under its own partner, because that
+     screen lists AGENCY rows. Nothing is hidden by this filter -- the
+     company is in exactly one place now rather than two.
+
+     `partyIsSupplier` also refuses the house partners, which never
+     belonged on a customer-facing list either. */
+  const partners = getPartners().filter((p) => partyIsSupplier(p.id));
+
+  /* EACH SUPPLIER'S DEAL, FOR THE LINE UNDER ITS NAME. Matt, 2026-10-02:
+     "replace 'Total 25.0%, agents' share 10.0%' with the plain one-line
+     summary of its current deal from its Commission tab ... so it never
+     shows a rate that isn't in force."
+
+     ONE ROUND OF PARALLEL CALLS, not one per render. `supplier_deal` is
+     scope-exact and takes a slug, so a list needs one call per supplier
+     per kind; they go out together and the line falls back to the
+     standard columns until they land, which is what it said before and
+     is never wrong for a supplier on standard terms.
+
+     Keyed on the slug list and dataVersion, so adding a supplier or
+     saving a deal re-reads rather than leaving a stale rate on screen. */
+  const slugs = partners.map((p) => p.id).join(',');
+  const [deals, setDeals] = useState<Record<string, { commission: AgreementView | null; agentShare: AgreementView | null }>>({});
+  useEffect(() => {
+    let alive = true;
+    const ids = slugs ? slugs.split(',') : [];
+    void Promise.all(ids.map(async (slug) => {
+      const [commission, agentShare] = await Promise.all([
+        getSupplierDeal(slug, 'commission').catch(() => null),
+        getSupplierDeal(slug, 'agent_share').catch(() => null),
+      ]);
+      return [slug, { commission, agentShare }] as const;
+    })).then((pairs) => { if (alive) setDeals(Object.fromEntries(pairs)); });
+    return () => { alive = false; };
+  }, [slugs, dataVersion]);
 
   function openAdd() {
     setEditingId(null);
@@ -207,7 +256,12 @@ export function PartnerManagement() {
         <CardHead
           title="All suppliers"
           sub={`${partners.length} ${plural(partners.length, 'supplier')}`}
-          actions={<Button variant="quiet" size="sm" to="/users" arrow>All users · all suppliers</Button>}
+          /* NO "ALL USERS" LINK. Matt, 2026-10-02: "Remove the 'All users
+             · all suppliers' link if it leads to the old Users page;
+             each supplier's people are on its People tab." It did: /users
+             is the estate-wide list this page's own buttons were taken
+             off for on 2026-10-01, and leaving one link to it at the top
+             kept the screen it was replaced by one click away. */
         />
         <div className="table-wrap">
           <table className="dt ptable">
@@ -252,11 +306,24 @@ export function PartnerManagement() {
                         <span className="pco__logo">{initials(p.name)}</span>
                         <div>
                           <div className="pco__name"><Link className="pco__namelink" to={`/partners/${encodeURIComponent(p.id)}`} title={`Open ${p.name}`}>{p.name}</Link>{p.primary && <> <Tag variant="primary">Primary</Tag></>}</div>
-                          {/* THE TOTAL, AND WHAT IS CARVED OUT OF IT, rather than two rates
-                              read as adding up. Same two columns, different sentence,
-                              because the model changed and the old wording said the
-                              wrong thing about the same numbers. */}
-                          <div className="pco__since">Live from {formatMonth(p.since) || '-'} · Total {fmtRatePct(p.partnerRate ?? 0.25)}, agents' share {fmtRatePct(p.agentRate ?? 0.1)}</div>
+                          {/* THE DEAL THAT IS ACTUALLY IN FORCE. This read the
+                              partner_rate and agent_rate COLUMNS, which are the
+                              standard terms -- what a supplier would be charged
+                              with no deal of their own -- so a supplier on a
+                              negotiated agreement was shown a pair of percentages
+                              that appear in no agreement and match no statement
+                              line. `supplierDealLine` prefers the agreement and
+                              falls back to the columns only where nothing else is
+                              in force. */}
+                          <div className="pco__since">
+                            Live from {formatMonth(p.since) || '-'} ·{' '}
+                            {supplierDealLine({
+                              commission: deals[p.id]?.commission ?? null,
+                              agentShare: deals[p.id]?.agentShare ?? null,
+                              standardTotal: p.partnerRate ?? null,
+                              standardShare: p.agentRate ?? null,
+                            })}
+                          </div>
                         </div>
                       </div>
                     </td>
