@@ -429,6 +429,14 @@ export interface CreateAgencyFlowInput {
   /** Commission overrides as fractions (null = inherit the Opndoor standard). */
   partnerRate?: number | null;
   agentRate?: number | null;
+  /** REQUIRED since 2026-10-02. Matt: "A contact email is required when any
+      agency or branch is created, in any estate, so one always exists."
+      The RPC refuses without it; the form asks for it. The first office
+      inherits it, which is what makes "one always exists" true for the
+      office too. */
+  contactEmail: string;
+  contactName?: string;
+  contactPhone?: string;
 }
 
 /** Admin onboarding: create an independent agent-rail agency + its first branch in
@@ -443,12 +451,28 @@ export async function createAgencyWithBranch(input: CreateAgencyFlowInput): Prom
       p_partner_rate: input.partnerRate ?? null,
       p_agent_rate: input.agentRate ?? null,
       p_group_id: input.groupId ?? null,
+      p_agency_email: input.contactEmail.trim(),
+      p_agency_contact_name: input.contactName?.trim() || null,
+      p_agency_phone: input.contactPhone?.trim() || null,
     });
     if (error) throw new Error(cleanRpcError(error.message));
     const row = Array.isArray(data) ? data[0] : data;
     return { agencyId: String(row?.agency_id ?? ''), branchId: String(row?.branch_id ?? '') };
   }
+  /* MOCK MODE REFUSES IT TOO. admin_create_agency_and_branch raises
+     without a contact email, and a mock path that quietly accepted one
+     would make every test of this flow pass against a rule the product
+     does not have. */
+  if (!input.contactEmail?.trim()) {
+    throw new Error('A contact email is required, so a deed issued for this agency has somewhere to go.');
+  }
   const ag = addAgency({ name: input.agencyName }, 'opndoor-agents');
+  // Mock mode makes the same contact the RPC does, or the two modes
+  // disagree about whether a new agency can be sent a deed.
+  addContact(ag.name, null, {
+    name: input.contactName?.trim() || '', email: input.contactEmail.trim(),
+    phone: input.contactPhone?.trim() || '', role: '', primary: true,
+  });
   if (input.partnerRate != null) ag.partnerRate = input.partnerRate;
   if (input.agentRate != null) ag.agentRate = input.agentRate;
   if (input.groupId) ag.groupId = input.groupId;

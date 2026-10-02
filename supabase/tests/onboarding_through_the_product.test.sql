@@ -75,10 +75,17 @@ select ok(
 -- ---------------------------------------------------------------------------
 -- AN AGENCY, IN ALL THREE SHAPES.
 -- ---------------------------------------------------------------------------
+-- THE EIGHTH ARGUMENT IS THE CONTACT EMAIL, required since 2026-10-02.
+-- Matt: "A contact email is required when any agency or branch is
+-- created, in any estate, so one always exists." The office created
+-- beside the agency inherits it, which is why only one address appears
+-- in each call below.
+--
 -- 1. Independent: an agency and its first office, under no group.
 set local role authenticated;
 select lives_ok(
-  $$select public.admin_create_agency_and_branch('ZZZ Onboard Independent','Onboard High Street',null,null,null,'opndoor-agents',null)$$,
+  $$select public.admin_create_agency_and_branch('ZZZ Onboard Independent','Onboard High Street',null,null,null,'opndoor-agents',null,
+      'lettings@onboard-independent.test')$$,
   'shape one: an independent agency with its first office');
 reset role;
 select is((select group_id from public.agencies where name = 'ZZZ Onboard Independent'), null,
@@ -94,7 +101,8 @@ select lives_ok(
   'shape two: a group');
 select lives_ok(
   $$select public.admin_create_agency_and_branch('ZZZ Onboard InGroup','Onboard Group Office',null,null,null,'opndoor-agents',
-      (select id from public.agency_groups where name = 'ZZZ Onboard Group'))$$,
+      (select id from public.agency_groups where name = 'ZZZ Onboard Group'),
+      'lettings@onboard-ingroup.test')$$,
   'with an agency and an office created inside it');
 reset role;
 select is(

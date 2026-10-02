@@ -38,13 +38,14 @@ describe('the creation flow and the grow path agree', () => {
     await createOrgShape({
       partner: HOUSE,
       groupName: 'Harbour Group',
-      agencies: [{ name: 'Alpha Lettings', agentRate: 0.12, branches: [{ name: 'Alpha Central' }, { name: 'Alpha West' }] }],
+      agencies: [{ name: 'Alpha Lettings', agentRate: 0.12, contactEmail: 'alpha@agency.test', branches: [{ name: 'Alpha Central' }, { name: 'Alpha West' }] }],
     });
     const viaFlow = shapeOf('Alpha Lettings');
 
     // ROUTE B — the grow path: independent agency, then a group above it.
     const { agencyId } = await createAgencyWithBranch({
       agencyName: 'Beta Lettings', branchName: 'Beta Central', agentRate: 0.12, partnerRate: null,
+      contactEmail: 'beta@agency.test',
     });
     const beta = findAgency('Beta Lettings')!;
     await createBranchLive(beta, { name: 'Beta West' });
@@ -64,11 +65,11 @@ describe('the creation flow and the grow path agree', () => {
 
   it('an agency joining an EXISTING group lands where re-parenting would put it', async () => {
     const g = await createAgencyGroup(HOUSE, 'Existing Group');
-    await createOrgShape({ partner: HOUSE, groupId: g.id, agencies: [{ name: 'Joiner Lettings', branches: [{ name: 'Joiner Central' }] }] });
+    await createOrgShape({ partner: HOUSE, groupId: g.id, agencies: [{ name: 'Joiner Lettings', contactEmail: 'joiner@agency.test', branches: [{ name: 'Joiner Central' }] }] });
     const joined = shapeOf('Joiner Lettings');
 
     // Re-parenting the long way round must reach the same place.
-    const { agencyId } = await createAgencyWithBranch({ agencyName: 'Mover Lettings', branchName: 'Mover Central' });
+    const { agencyId } = await createAgencyWithBranch({ agencyName: 'Mover Lettings', branchName: 'Mover Central', contactEmail: 'mover@agency.test' });
     await setAgencyGroup(agencyId, g.id);
     const moved = shapeOf('Mover Lettings');
 
@@ -83,8 +84,8 @@ describe('the creation flow and the grow path agree', () => {
       partner: HOUSE,
       groupName: 'Skeleton Group',
       agencies: [
-        { name: 'Has Branch', branches: [{ name: 'Only Branch' }] },
-        { name: 'No Branch Yet', branches: [] },
+        { name: 'Has Branch', contactEmail: 'has@agency.test', branches: [{ name: 'Only Branch' }] },
+        { name: 'No Branch Yet', contactEmail: 'none@agency.test', branches: [] },
       ],
     });
     expect(shapeOf('No Branch Yet')!.branches).toEqual([]);
@@ -94,7 +95,7 @@ describe('the creation flow and the grow path agree', () => {
   });
 
   it('an independent agency has no group above it', async () => {
-    await createOrgShape({ partner: HOUSE, agencies: [{ name: 'Solo Lettings', branches: [{ name: 'Solo Central' }] }] });
+    await createOrgShape({ partner: HOUSE, agencies: [{ name: 'Solo Lettings', contactEmail: 'solo@agency.test', branches: [{ name: 'Solo Central' }] }] });
     expect(shapeOf('Solo Lettings')!.groupName).toBeNull();
     expect(getAgencies(ALL_PARTNERS).filter((a) => a.name === 'Solo Lettings')).toHaveLength(1);
   });

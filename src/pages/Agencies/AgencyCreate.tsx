@@ -55,8 +55,13 @@ type Shape = 'independent' | 'group' | 'join';
    `extra` is the offices BEYOND that one, for an agency with several. It is
    empty for almost every agency, which is why it starts empty rather than
    with a blank row demanding to be filled in. */
-interface DraftAgency { name: string; address: string; ratePct: string; extra: string[] }
-const emptyAgency = (): DraftAgency => ({ name: '', address: '', ratePct: '', extra: [] });
+/* `contactEmail` is required of every agency since 2026-10-02. Matt: "A
+   contact email is required when any agency or branch is created, in any
+   estate, so one always exists." The offices below it inherit it, which is
+   why they do not each carry one: see admin_add_branch, which refuses an
+   office only when its agency has nothing to fall back on. */
+interface DraftAgency { name: string; address: string; contactEmail: string; contactName: string; ratePct: string; extra: string[] }
+const emptyAgency = (): DraftAgency => ({ name: '', address: '', contactEmail: '', contactName: '', ratePct: '', extra: [] });
 
 export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => void }) {
   const toast = useToast();
@@ -161,6 +166,13 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
     if ((d.name.trim() || i === 0) && !d.address.trim()) {
       problems.push({ field: `ac-addr-${i}`, why: 'Give the agency an address. It becomes its office.' });
     }
+    /* AND SOMEWHERE TO SEND A DEED. The RPC refuses without it, so asking
+       here is what turns a server error into a field the reader can see. */
+    if ((d.name.trim() || i === 0) && !d.contactEmail.trim()) {
+      problems.push({ field: `ac-email-${i}`, why: 'Give the agency a contact email. A signed deed goes there.' });
+    } else if (d.contactEmail.trim() && !EMAIL_RE.test(d.contactEmail.trim())) {
+      problems.push({ field: `ac-email-${i}`, why: 'That is not an email address.' });
+    }
   });
   if (!emailOk) {
     problems.push({ field: 'ac-inv-email', why: 'That is not an email address.' });
@@ -180,6 +192,8 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
       const specs: AgencySpec[] = namedAgencies.map((d) => ({
         name: d.name.trim(),
         agentRate: pctToFrac(d.ratePct),
+        contactEmail: d.contactEmail.trim(),
+        contactName: d.contactName.trim() || undefined,
         /* THE OFFICE IS MADE BEHIND THE AGENCY, named after it and carrying
            the address that was typed. Matt: "that becomes its office behind
            the scenes, never shown separately." A single-office agency
@@ -230,6 +244,16 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
         hint="Where they work from. This becomes their office."
         error={showProblems ? problemFor(`ac-addr-${i}`) : undefined}>
         <input id={`ac-addr-${i}`} type="text" autoComplete="off" placeholder="e.g. 14 Northgate, Chester CH1 2EX" value={d.address} onChange={(e) => setDraft(i, { address: e.target.value })} />
+      </Field>
+      {/* WHERE A SIGNED DEED GOES. Required, and required here rather than
+          discovered as a server error on the last step of the wizard. */}
+      <Field label="Contact email" htmlFor={`ac-email-${i}`}
+        hint="Where a signed deed goes. Every office of theirs uses it unless it has its own."
+        error={showProblems ? problemFor(`ac-email-${i}`) : undefined}>
+        <input id={`ac-email-${i}`} type="email" autoComplete="off" placeholder="lettings@northgate.co.uk" value={d.contactEmail} onChange={(e) => setDraft(i, { contactEmail: e.target.value })} />
+      </Field>
+      <Field label="Contact name" htmlFor={`ac-cname-${i}`} hint="Optional.">
+        <input id={`ac-cname-${i}`} type="text" autoComplete="off" placeholder="e.g. Priya Shah" value={d.contactName} onChange={(e) => setDraft(i, { contactName: e.target.value })} />
       </Field>
       <Field label="Agency commission %" htmlFor={`ac-rate-${i}`} hint={`Blank earns the Opndoor standard (${fmtRatePct(base.agent)}).`}>
         <input id={`ac-rate-${i}`} inputMode="decimal" placeholder="standard" value={d.ratePct} onChange={(e) => setDraft(i, { ratePct: e.target.value })} />

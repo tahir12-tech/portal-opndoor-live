@@ -23,6 +23,14 @@ export interface AgencySpec {
   /** Empty is allowed: a skeleton agency whose manager adds branches on first login. */
   branches: BranchSpec[];
   agentRate?: number | null;
+  /** REQUIRED since 2026-10-02. Matt: "A contact email is required when any
+      agency or branch is created, in any estate, so one always exists."
+      Every office under the agency inherits it, so the offices in
+      `branches` do not each carry one: see admin_add_branch, which refuses
+      an office only when its agency has nothing to fall back on. */
+  contactEmail: string;
+  contactName?: string;
+  contactPhone?: string;
 }
 export interface InviteSpec {
   email: string;
@@ -83,6 +91,9 @@ export async function createOrgShape(input: {
         partnerRate: null,
         agentRate: spec.agentRate ?? null,
         groupId: made.groupId,
+        contactEmail: spec.contactEmail,
+        contactName: spec.contactName,
+        contactPhone: spec.contactPhone,
       });
       if (agencyId) made.agencyIds.push(agencyId);
       if (branchId) made.branchIds.push(branchId);

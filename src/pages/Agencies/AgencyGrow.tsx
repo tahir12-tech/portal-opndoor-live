@@ -43,6 +43,19 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
   const [newAgency, setNewAgency] = useState('');
   const [newBranch, setNewBranch] = useState('');
 
+  /* THE CONTACT EMAIL. Matt, 2026-10-02: "A contact email is required when
+     any agency or branch is created, in any estate, so one always exists;
+     creating one without it is refused with a clear message."
+
+     A NEW AGENCY ALWAYS NEEDS ONE. A new BRANCH needs one only when its
+     agency has nothing for it to inherit, which is the same condition
+     admin_add_branch applies: a branch with no contacts of its own uses
+     the agency's, and that is what the deed panel prints as "agency
+     default". Asking here for an address the server would not insist on
+     would make the form stricter than the rule. */
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactName, setContactName] = useState('');
+
   const findAddress = async () => {
     if (!postcode.trim()) return;
     setLooking(true);
@@ -62,8 +75,19 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
       ? `You're adding an agency to ${group.name}.`
       : `You're creating the group ${groupName.trim() || '…'} above ${agencies[0]?.name ?? 'this agency'}, moving it in, and adding a second agency alongside it.`;
 
-  const canBranch = mode === 'branch' && !!branchName.trim() && !!branchAgencyId && !busy;
-  const canAgency = mode === 'agency' && !!newAgency.trim() && !!newBranch.trim() && (group ? true : !!groupName.trim()) && !busy;
+  const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  const emailGiven = !!contactEmail.trim();
+  const emailOk = emailGiven && EMAIL_RE.test(contactEmail.trim());
+  /* Does the agency this branch is going under already have somewhere to
+     send a deed? Its own contact, or one on any of its branches. */
+  const agencyHasContact = (a?: Agency) =>
+    !!a && ((a.contacts?.length ?? 0) > 0 || (a.branches ?? []).some((b) => (b.contacts?.length ?? 0) > 0));
+  const branchNeedsEmail = !agencyHasContact(targetAgency);
+
+  const canBranch = mode === 'branch' && !!branchName.trim() && !!branchAgencyId && !busy
+    && (!branchNeedsEmail || emailOk);
+  const canAgency = mode === 'agency' && !!newAgency.trim() && !!newBranch.trim()
+    && (group ? true : !!groupName.trim()) && !busy && emailOk;
 
   const saveBranch = async () => {
     if (!canBranch) return;
@@ -71,7 +95,10 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
     if (!agency) return;
     setBusy(true);
     try {
-      await createBranchLive(agency, { name: branchName.trim(), area: addrLine.trim() || postcode.trim() || undefined });
+      await createBranchLive(agency, {
+        name: branchName.trim(), area: addrLine.trim() || postcode.trim() || undefined,
+        contactEmail: contactEmail.trim() || undefined, contactName: contactName.trim() || undefined,
+      });
       await refresh();
       toast('Branch added.', 'ok');
       onDone();
@@ -93,7 +120,10 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
         groupId = g.id;
         if (existing?.id) await setAgencyGroup(existing.id, groupId);
       }
-      const { agencyId } = await createAgencyWithBranch({ agencyName: newAgency.trim(), branchName: newBranch.trim() });
+      const { agencyId } = await createAgencyWithBranch({
+        agencyName: newAgency.trim(), branchName: newBranch.trim(),
+        contactEmail: contactEmail.trim(), contactName: contactName.trim() || undefined,
+      });
       if (agencyId && groupId) await setAgencyGroup(agencyId, groupId);
       await refresh();
       toast('Agency added to the group.', 'ok');
@@ -138,6 +168,18 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
             </Field>
           )}
           <Field label="Address (as stored)" htmlFor="ag-addrline" hint="Editable."><input id="ag-addrline" type="text" autoComplete="off" value={addrLine} onChange={(e) => setAddrLine(e.target.value)} /></Field>
+          <Field
+            label={branchNeedsEmail ? 'Contact email' : 'Contact email (optional)'}
+            htmlFor="ag-branch-email"
+            hint={branchNeedsEmail
+              ? `${targetAgency?.name ?? 'This agency'} has no contact yet, so this branch needs one. The deed goes here.`
+              : `Leave it blank to use ${targetAgency?.name ?? 'the agency'}'s contact.`}
+            error={emailGiven && !emailOk ? 'That is not an email address.' : undefined}>
+            <input id="ag-branch-email" type="email" autoComplete="off" placeholder="lettings@agency.co.uk" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
+          </Field>
+          <Field label="Contact name (optional)" htmlFor="ag-branch-cname">
+            <input id="ag-branch-cname" type="text" autoComplete="off" placeholder="e.g. Priya Shah" value={contactName} onChange={(e) => setContactName(e.target.value)} />
+          </Field>
         </>
       ) : (
         <>
@@ -146,6 +188,14 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
           )}
           <Field label="New agency name" htmlFor="ag-newagency"><input id="ag-newagency" type="text" autoComplete="off" placeholder="e.g. Southbank Residential" value={newAgency} onChange={(e) => setNewAgency(e.target.value)} /></Field>
           <Field label="Its first branch" htmlFor="ag-newbranch"><input id="ag-newbranch" type="text" autoComplete="off" placeholder="e.g. City Centre" value={newBranch} onChange={(e) => setNewBranch(e.target.value)} /></Field>
+          <Field label="Contact email" htmlFor="ag-agency-email"
+            hint="Where a signed deed goes. The first branch uses it too."
+            error={emailGiven && !emailOk ? 'That is not an email address.' : undefined}>
+            <input id="ag-agency-email" type="email" autoComplete="off" placeholder="lettings@agency.co.uk" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
+          </Field>
+          <Field label="Contact name (optional)" htmlFor="ag-agency-cname">
+            <input id="ag-agency-cname" type="text" autoComplete="off" placeholder="e.g. Priya Shah" value={contactName} onChange={(e) => setContactName(e.target.value)} />
+          </Field>
         </>
       )}
     </Modal>

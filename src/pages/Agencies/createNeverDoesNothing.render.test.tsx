@@ -80,7 +80,11 @@ describe('Create is never a dead button', () => {
        should not make the reader discover them one at a time. */
     expect(summary!.textContent).toMatch(/Give the agency a name/);
     expect(summary!.textContent).toMatch(/Give the agency an address/);
-    expect(summary!.textContent).toMatch(/2 things are missing/);
+    /* THREE SINCE 2026-10-02, not two: Matt required a contact email on
+       every agency at creation ("so one always exists"), so an empty form
+       is now short of a name, an address and somewhere to send a deed. */
+    expect(summary!.textContent).toMatch(/3 things are missing/);
+    expect(summary!.textContent).toMatch(/contact email/i);
   });
 
   /* THE REPORTED CASE, which used to be a dead button and silence. */
@@ -136,6 +140,7 @@ describe('it asks for an address, not a branch', () => {
     await independentForm();
     await type('ac-name-0', 'Northgate Lettings');
     await type('ac-addr-0', '14 Northgate, Chester CH1 2EX');
+    await type('ac-email-0', 'lettings@northgate.test');
     await act(async () => { fireEvent.click(btn('Create')!); });
     expect(spy).toHaveBeenCalled();
     const arg = spy.mock.calls[0][0];
@@ -151,6 +156,7 @@ describe('it asks for an address, not a branch', () => {
     await independentForm();
     await type('ac-name-0', 'Northgate Lettings');
     await type('ac-addr-0', '14 Northgate, Chester');
+    await type('ac-email-0', 'lettings@northgate.test');
     await act(async () => { fireEvent.click(btn('Add another branch')!); });
     await type('ac-br-0-0', 'Northgate Wrexham');
     await act(async () => { fireEvent.click(btn('Create')!); });
@@ -165,6 +171,7 @@ describe('the first invite goes with the agency', () => {
     await independentForm();
     await type('ac-name-0', 'Northgate Lettings');
     await type('ac-addr-0', '14 Northgate, Chester');
+    await type('ac-email-0', 'lettings@northgate.test');
     await type('ac-inv-email', 'manager@northgate.test');
     await act(async () => { fireEvent.click(btn('Create')!); });
     expect(spy.mock.calls[0][0].invite?.email).toBe('manager@northgate.test');
@@ -192,6 +199,7 @@ describe('a save that fails', () => {
     await independentForm();
     await type('ac-name-0', 'Northgate Lettings');
     await type('ac-addr-0', '14 Northgate, Chester');
+    await type('ac-email-0', 'lettings@northgate.test');
     await act(async () => { fireEvent.click(btn('Create')!); });
     await waitFor(() => {
       if (!/already taken/.test(document.body.textContent ?? '')) throw new Error('no message');
