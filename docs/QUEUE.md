@@ -658,6 +658,28 @@ screens an admin can no longer open as of item 2.
   row -- same reference, back to In progress -- and not a new
   application.
 
+## ADMIN REPORTING, THREE THINGS (instruction, 2026-10-02, verbatim).
+
+> Admin Reporting:
+> 1. Wherever an agency or branch from a supplier's estate appears alongside Opndoor's (branch and agency charts, referrer list, settlements, payees, statements), label it with its supplier, e.g. "Frost Partnership (via Kestrel Lettings)", so two same-named companies can always be told apart.
+> 2. "Commission by route": Harbour Lets is an agency, so it belongs in "Agency referral", not listed as its own route. Only real suppliers appear as routes.
+> 3. Use "guarantee fee" on every screen, not "guarantor fee" (e.g. "Guarantee fee paid", "Guarantee fees collected"), matching the emails. API field names and CSV column headings stay as they are.
+> Deploy to dev and check there.
+
+- Item 1 is the consequence of separate estates arriving on a screen that
+  mixes them: two Frosts, one per estate, side by side in one chart. The
+  label belongs in ONE helper, or it will be written six ways across the
+  six surfaces he lists.
+- Item 2 is the same fault as "Harbour Lets shows as a supplier" on the
+  Suppliers list (`05fee8e`), on a different screen: something is
+  deciding "route" by partner rather than by whether the partner is a
+  supplier.
+- Item 3 is the rest of the sweep I said was about twenty minutes and did
+  not do on a guess, now authorised, and with the same caveat he gave
+  before: the API field names and the CSV column headings do not move.
+  The activity feed writes its rows from stripe-webhook, so old rows keep
+  the old words whatever the sender says next.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
