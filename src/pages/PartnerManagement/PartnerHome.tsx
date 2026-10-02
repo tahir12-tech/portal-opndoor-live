@@ -560,7 +560,7 @@ export function PartnerHome() {
                 sub="Every call this supplier has made to the partner API, newest first, with the ones that failed and why."
               />
               <CardBody>
-                <Logs partnerId={partner.dbId ?? null} />
+                <Logs partnerId={partner.dbId ?? null} readOnly />
               </CardBody>
             </Card>
 

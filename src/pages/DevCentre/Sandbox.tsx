@@ -138,7 +138,16 @@ export function Sandbox({ partnerId, readOnly = false }: {
     <>
       {/* The standing warning. Not dismissable: PandaDoc's sandbox really sends,
           so this is true every time somebody uses the tab, and a notice that can
-          be dismissed is one that will be. */}
+          be dismissed is one that will be.
+
+          AND IT IS THE DEVELOPER'S WARNING, not an admin's. Matt,
+          2026-10-02: "Remove the PandaDoc sandbox email warning ... from
+          the admin view; they stay in the developer's own Dev Centre."
+          It is advice about what happens when YOU send a sandbox
+          application, and an admin cannot: this panel is read-only for
+          them. A caution about an act you cannot perform is noise that
+          teaches people to skip the cautions that apply. */}
+      {!readOnly && (
       <div className="sbxwarn">
         <Icon name="alert" />
         <div>
@@ -152,6 +161,7 @@ export function Sandbox({ partnerId, readOnly = false }: {
           </p>
         </div>
       </div>
+      )}
 
       <div className="sbxhead">
         <div className="sbxcounts">
@@ -204,11 +214,23 @@ export function Sandbox({ partnerId, readOnly = false }: {
         />
         {rows.length === 0 ? (
           <CardBody>
-            <p className="soft">
-              Nothing here yet. POST to <code>/v1/applications</code> with a key whose prefix is{' '}
-              <code>opnd_test_</code> and it will appear. A sandbox key is the only thing that creates one:
-              there is no toggle, and nothing in the request body changes the mode.
-            </p>
+            {/* TWO READERS, TWO SENTENCES. Matt, 2026-10-02: the admin
+                view reads "No sandbox applications yet", and the "POST
+                to /v1/applications" line stays in the developer's own
+                Dev Centre. It is an instruction for the person who can
+                follow it; an admin reading a supplier's tab cannot, and
+                telling them how to do something they are not here to do
+                is the developer-instructions-as-admin-copy fault he is
+                pointing at. */}
+            {readOnly ? (
+              <p className="soft">No sandbox applications yet.</p>
+            ) : (
+              <p className="soft">
+                Nothing here yet. POST to <code>/v1/applications</code> with a key whose prefix is{' '}
+                <code>opnd_test_</code> and it will appear. A sandbox key is the only thing that creates one:
+                there is no toggle, and nothing in the request body changes the mode.
+              </p>
+            )}
           </CardBody>
         ) : (
           <table className="dt">

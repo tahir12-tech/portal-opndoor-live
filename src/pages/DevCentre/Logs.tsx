@@ -30,7 +30,12 @@ function statusTone(code: number): string {
   return 'devstatus--ok';
 }
 
-export function Logs({ partnerId }: { partnerId: string | null }) {
+export function Logs({ partnerId, readOnly = false }: {
+  partnerId: string | null;
+  /** The supplier's Integration tab, read by Opndoor admin. It changes
+      the empty state only: the panel has never had a control on it. */
+  readOnly?: boolean;
+}) {
   const [rows, setRows] = useState<ApiLogRow[]>([]);
   const [search, setSearch] = useState('');
   const [days, setDays] = useState(7);
@@ -151,10 +156,20 @@ export function Logs({ partnerId }: { partnerId: string | null }) {
             </Fragment>
             );
           })}
+          {/* TWO READERS, TWO SENTENCES. Matt, 2026-10-02: the admin view
+              reads "No API requests in this period". The developer's
+              line explains where requests come from, which is what they
+              are here to arrange; an admin is here to see whether a
+              supplier is using the API, and the answer to that is the
+              sentence, not the explanation. */}
           {!rows.length && !busy && (
             <tr><td colSpan={8} className="soft">
-              No requests match. Requests appear here as soon as they are made, including ones that failed
-              authentication, which show as unauthenticated with no key.
+              {readOnly ? 'No API requests in this period.' : (
+                <>
+                  No requests match. Requests appear here as soon as they are made, including ones that failed
+                  authentication, which show as unauthenticated with no key.
+                </>
+              )}
             </td></tr>
           )}
         </tbody>

@@ -204,10 +204,20 @@ export function WebhookHistory({ partnerId, readOnly = false }: {
               </tr>
             );
           })}
+          {/* TWO READERS, TWO SENTENCES. Matt, 2026-10-02: the admin view
+              reads "No webhook deliveries in this period", and "check on
+              Configuration" stays in the developer's own Dev Centre.
+              Configuration is a screen an admin cannot open since the
+              Dev Centre became developers-only the same day, so the old
+              line would have sent them to a locked door. */}
           {!shown.length && !busy && (
             <tr><td colSpan={readOnly ? 7 : 8} className="soft">
-              No deliveries match. If you expected some, check on Configuration that an endpoint is enabled and
-              subscribed to that event.
+              {readOnly ? 'No webhook deliveries in this period.' : (
+                <>
+                  No deliveries match. If you expected some, check on Configuration that an endpoint is enabled and
+                  subscribed to that event.
+                </>
+              )}
             </td></tr>
           )}
         </tbody>
