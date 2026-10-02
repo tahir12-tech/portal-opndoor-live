@@ -78,6 +78,12 @@ type PanelProps = {
       Commission tab, which is looking at one agency out of many. */
   orgId?: string | null;
   title?: string;
+  /** What this card is, when it is not the headline. On a supplier's own
+      Reporting page it is the per-agency breakdown BENEATH the supplier's
+      own statement, which is a different thing from the default sentence
+      and has to say so. Matt, 2026-10-02: "show Kestrel's own statement
+      first ..., with its agencies' schedules beneath it". */
+  sub?: string;
 };
 
 /* =====================================================================
@@ -140,6 +146,7 @@ export function CommissionStatement(props: PanelProps) {
    other, instead of changing how many hooks this one calls between renders. */
 function StatementPanel({
   role, scope, orgId, title = 'Commission statement',
+  sub = 'Every application that paid in the month, what it was charged, and the commission it earned. Net of refunds, and the same figures as settlement.',
 }: PanelProps) {
   const months = useMemo(() => statementMonths(role, scope), [role, scope]);
   const [monthKey, setMonthKey] = useState('');
@@ -226,7 +233,7 @@ function StatementPanel({
     <Card>
       <CardHead
         title={title}
-        sub="Every application that paid in the month, what it was charged, and the commission it earned. Net of refunds, and the same figures as settlement."
+        sub={sub}
         actions={
           <span className="stmt__tools">
             {/* ONE FILE FOR THE MONTH. Per-payee Export sends a payee their own

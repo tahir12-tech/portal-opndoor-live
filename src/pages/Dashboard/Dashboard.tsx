@@ -38,7 +38,6 @@ import type { Role } from '@/data';
 import { liveByCustomer, liveScopeShape } from '@/data/liveAnalytics';
 import { CommissionStatement } from '@/components/CommissionStatement';
 import { SupplierStatements } from '@/components/SupplierStatements';
-import { isHousePartner } from '@/data/channel';
 // Walk fixes 15 and 20: every customer, side by side.
 import { CustomersTable } from '@/components/CustomersTable';
 import { useSession } from '@/session/SessionContext';
@@ -208,6 +207,19 @@ export function Dashboard() {
      statement instead. Asked of the PARTY so the answer is the same for their
      director and for an admin under View as. */
   const supplierFacing = partyIsSupplier(partnerScope);
+  /* THE SUPPLIER'S OWN PAGE, as opposed to one of its agencies'. Matt,
+     2026-10-02: "'Kestrel Lettings' commission': show Kestrel's own
+     statement first (its total, reference and downloads), with its
+     agencies' schedules beneath it, not a single agency's statement as
+     the headline."
+
+     `supplierFacing` alone is not the test. Under View as an AGENCY in
+     Kestrel's estate the scope is still Kestrel, so the page would
+     headline the supplier's own statement while the reader is looking at
+     one agency. That clause was already on the statements card below;
+     naming the condition once is what stops the two mounts disagreeing
+     about whose page this is. */
+  const supplierOwnPage = supplierFacing && (viewingAs === null || !selectionIsAgency(viewingAs));
   const customers = useMemo(
     () => (opndoorStaff ? liveByCustomer(role, ALL_PARTNERS, period) : []),
     [opndoorStaff, role, period],
@@ -1096,7 +1108,42 @@ export function Dashboard() {
                   : isOpndoorStaff(role) ? 'Commission owed' : 'Your commission'}
               </Eyebrow>
             </div>
-            <CommissionStatement role={role} scope={partnerScope} />
+            {/* THE SUPPLIER'S OWN STATEMENT IS THE HEADLINE, 2026-10-02.
+                Under "Kestrel Lettings' commission" the panel below used
+                to come first, and it lists the payees in Kestrel's
+                ESTATE -- its agencies -- biggest first. So the heading
+                said "Kestrel Lettings' commission" and the figure under
+                it was one agency's, which is a different company's money
+                and a smaller number than the one Kestrel is paid.
+
+                KESTREL'S OWN STATEMENT IS A DIFFERENT ACCUMULATOR. The
+                supplier's three-way split is built server-side (see
+                SupplierStatements), which is why it was never going to
+                appear in the panel below however that panel was sorted.
+                It was already on the page, several sections further
+                down, under a heading of its own. Moving it here is the
+                whole fix: same component, same data, read in the order
+                the heading promises. */}
+            {supplierOwnPage && (
+              <SupplierStatements
+                partner={partnerScope}
+                supplierName={partnerName(partnerScope)}
+                months={statementMonths(role, partnerScope)}
+              />
+            )}
+            {/* AND THE AGENCIES BENEATH IT, SAYING WHAT THEY ARE. The
+                default title and sentence describe a headline statement;
+                here the card is the per-agency breakdown behind the one
+                above, and a reader who is not told that reads two
+                statements of the same month and asks which is right. */}
+            <CommissionStatement
+              role={role}
+              scope={partnerScope}
+              {...(supplierOwnPage ? {
+                title: 'Agency schedules',
+                sub: `One schedule for each of ${possessive(partnerName(partnerScope))} agencies, behind the statement above. Commission on fees paid in the month, net of refunds.`,
+              } : {})}
+            />
             {/* ONE LINE, INSTEAD OF THE SETTLEMENT BLOCKS. Matt,
                 2026-10-01: "Under the statement, one line: 'Opndoor pays
                 this on 15 Oct 2026.' Keep the Download statement button."
@@ -1112,26 +1159,14 @@ export function Dashboard() {
           </RoleOnly>
         )}
 
-        {/* THE SUPPLIER'S OWN STATEMENTS. Matt, 2026-10-01: the supplier
-            statement email says the per-agency schedules are "always
-            available" on the supplier's Reporting page, so they are here.
-
-            A SUPPLIER IS A PARTNER THAT IS NOT ONE OF OURS, which is the
-            whole of the test: the three house slugs carry the agency and
-            direct rails, where there is no supplier and no three-way
-            split, and a card about "your agencies' schedules" over the
-            house partner would be a card about every agency Opndoor has
-            onboarded. Under View as, an agency selection is not a
-            supplier and does not get it. */}
-        {d.live && seesCommission
-          && partnerScope !== ALL_PARTNERS && !isHousePartner(partnerScope)
-          && (viewingAs === null || !selectionIsAgency(viewingAs)) && (
-          <SupplierStatements
-            partner={partnerScope}
-            supplierName={partnerName(partnerScope)}
-            months={statementMonths(role, partnerScope)}
-          />
-        )}
+        {/* THE SUPPLIER'S STATEMENTS CARD USED TO BE HERE. Matt,
+            2026-10-01, had it on the page because the supplier statement
+            email says the per-agency schedules are "always available" on
+            Reporting. It still is, and it is now the FIRST thing under
+            the supplier's own commission heading rather than several
+            sections below the agency statements: see the mount above and
+            the reason with it. ONE mount, because two would be two cards
+            building the same bundle twice. */}
 
         {/* SETTLEMENTS (below performance) — payable totals; applications collapsed.
             All three blocks are money owed to the agency or to the supplier above

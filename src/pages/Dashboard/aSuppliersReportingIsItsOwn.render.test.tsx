@@ -43,7 +43,10 @@ vi.mock('@/lib/supabase', async (importOriginal) => ({
   SUPABASE_ENABLED: true,
 }));
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
+import { selectionIsAgency } from '@/data/origin';
 import { MemoryRouter } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -77,6 +80,12 @@ const app = (over: Partial<FullApp>): FullApp => ({
 const BOOK = [
   app({ ref: 'A-1', partner: 'opndoor-agents', agency: 'Regent’s Lettings' }),
   app({ ref: 'K-1', partner: 'kestrel-lettings', agency: 'Kestrel Lettings', branch: 'Kestrel Central' }),
+  /* AND AN AGENCY IN KESTREL'S ESTATE WITH A NAME OF ITS OWN, added
+     2026-10-02 for the via-label rule below. Frost Partnership is the
+     real case: dev holds one in Opndoor's estate and one in Kestrel's,
+     which is why the label exists at all, and it is the name that must
+     NOT be labelled on Kestrel's own page. */
+  app({ ref: 'K-2', partner: 'kestrel-lettings', agency: 'Frost Partnership', branch: 'Frost Central' }),
 ];
 
 const PARTNERS = [
@@ -273,5 +282,99 @@ describe('a name that ends in s', () => {
     const t = text(await asAdminViewingThem());
     expect(t).not.toContain("Kestrel Lettings's");
     expect(t).not.toContain('Kestrel Lettings’s');
+  });
+});
+
+/* ===========================================================================
+   KESTREL'S OWN REPORTING, 2026-10-02.
+
+   Matt, reading it:
+     1. "Don't add '(via Kestrel Lettings)' to agency and branch names in
+        the supplier's own view; it's only needed where Opndoor sees both
+        estates."
+     2. "'Kestrel Lettings' commission': show Kestrel's own statement
+        first (its total, reference and downloads), with its agencies'
+        schedules beneath it, not a single agency's statement as the
+        headline."
+
+   WHY THE HEADLINE WAS WRONG, which is what the second test pins. The
+   panel under that heading lists the payees in Kestrel's ESTATE -- its
+   agencies -- biggest first. So the heading named the supplier and the
+   figure beneath it was one agency's: a different company's money, and a
+   smaller number than the one Kestrel is paid. Kestrel's own statement
+   is a different accumulator (built server-side, see SupplierStatements)
+   and was on the page several sections further down, under a heading of
+   its own, which is why no amount of re-sorting the panel would have
+   fixed it.
+   =========================================================================== */
+describe('the supplier’s own Reporting', () => {
+  /* ONE SEARCH OVER THE WHOLE PAGE, for the same reason the Regent's
+     assertion above is one: the label is a suffix on a name and it can
+     appear in a chart, a table, a subtitle or a payee row. Asking each
+     surface separately is how one of them keeps it. */
+  it('does not label its own agencies with itself', async () => {
+    expect(text(await asTheSupplier())).not.toContain('(via Kestrel Lettings)');
+  });
+
+  it('and neither does View as of them, which is the same page', async () => {
+    expect(text(await asAdminViewingThem())).not.toContain('(via Kestrel Lettings)');
+  });
+
+  /* THE HALF THAT MUST NOT MOVE. The label is the only thing telling the
+     two Frost Partnerships apart on a screen that shows both, so an
+     admin across the estate still gets it. A fix that simply deleted the
+     label would pass the two tests above and lose the reason for them. */
+  it('while an admin across both estates still gets it', async () => {
+    const v = await openReporting({ role: 'superadmin', partner: ALL_PARTNERS });
+    expect(text(v)).toContain('(via Kestrel Lettings)');
+  });
+
+  /* THE ORDER, read off the DOM rather than off the text: two cards, and
+     the question is which comes first. `.stmt__ref` and the "Commission
+     statements" head belong to the supplier's own card; "Agency
+     schedules" is the title the per-agency panel takes on this page. */
+  it('shows the supplier’s own statement above its agencies’ schedules', async () => {
+    const v = await asTheSupplier();
+    const heads = [...v.container.querySelectorAll('.card__head, .card-head, h2, h3')]
+      .map((e) => (e.textContent ?? '').trim());
+    const own = heads.findIndex((h) => h.includes('Commission statements'));
+    const agencies = heads.findIndex((h) => h.includes('Agency schedules'));
+    expect(own, 'the supplier’s own statements card is not on the page').toBeGreaterThan(-1);
+    expect(agencies, 'the agency schedules card is not on the page').toBeGreaterThan(-1);
+    expect(own).toBeLessThan(agencies);
+  });
+
+  /* AND IT IS DRAWN ONCE. It used to be mounted lower down; moving it
+     without removing the old mount would build the same bundle twice and
+     show the same figure twice under one heading. */
+  it('and the supplier’s own statements card is drawn exactly once', async () => {
+    const v = await asTheSupplier();
+    const heads = [...v.container.querySelectorAll('.card__head, .card-head, h2, h3')]
+      .map((e) => (e.textContent ?? '').trim())
+      .filter((h) => h.includes('Commission statements'));
+    expect(heads.length).toBe(1);
+  });
+
+  /* AN AGENCY IN THE SUPPLIER'S ESTATE IS NOT THE SUPPLIER. Under View as
+     of one of Kestrel's agencies the scope is STILL Kestrel -- every
+     agency in its estate hangs off that partner -- so `partyIsSupplier`
+     alone would headline the supplier's own statement while the reader is
+     looking at one agency's page.
+
+     ASSERTED ON THE GATE, not by mounting it. Resolving an `agency:`
+     selection needs the org tree hydrated, and this file deliberately
+     hydrates only a book: its whole method is handing the client more
+     applications than it may draw. Adding an org here to reach one
+     clause would change the fixture every other test in the file reads.
+     So the two halves are asked where each one lives: the predicate
+     answers for the selection, and the page is asked whether it consults
+     it. */
+  it('and an agency selection is not the supplier’s own page', () => {
+    expect(selectionIsAgency('agency:Frost Partnership')).toBe(true);
+    expect(selectionIsAgency('partner:kestrel-lettings')).toBe(false);
+    const src = readFileSync(join(process.cwd(), 'src/pages/Dashboard/Dashboard.tsx'), 'utf8');
+    expect(src).toContain(
+      'const supplierOwnPage = supplierFacing && (viewingAs === null || !selectionIsAgency(viewingAs));',
+    );
   });
 });

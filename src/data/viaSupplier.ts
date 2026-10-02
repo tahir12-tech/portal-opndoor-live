@@ -39,18 +39,48 @@
    ===================================================================== */
 import { partyIsSupplier } from './capabilities';
 import { partnerName } from './partnersService';
+import { ALL_PARTNERS, type PartnerScope } from './types';
+
+/* =====================================================================
+   AND ONLY WHERE BOTH ESTATES ARE IN VIEW, 2026-10-02.
+
+   Matt, reading Kestrel's own Reporting: "Don't add '(via Kestrel
+   Lettings)' to agency and branch names in the supplier's own view;
+   it's only needed where Opndoor sees both estates."
+
+   WHICH IS THE LABEL'S OWN REASON, APPLIED TO ITSELF. It exists so that
+   two companies called Frost Partnership can be told apart. In Kestrel's
+   view there is only ever one of them, so the label distinguishes
+   nothing and the reader is told their own supplier's name on every row
+   of their own page.
+
+   ASKED OF THE SCOPE, NOT THE ROLE, so an admin under View as Kestrel
+   and Kestrel's own director get the same page -- the rule the whole
+   supplier-Reporting fix turned on. `ALL_PARTNERS` is the only scope
+   that holds more than one estate: every other scope is one partner,
+   whoever is reading it.
+
+   REQUIRED RATHER THAN DEFAULTED. A default would be a surface that
+   silently got the old answer, which is exactly how this label reached
+   the supplier's own page.
+   ===================================================================== */
+export function bothEstatesInView(scope: PartnerScope): boolean {
+  return scope === ALL_PARTNERS;
+}
 
 /**
  * A party's name, with its supplier named after it when it has one.
  *
  * `name` is the agency or branch as it is stored; `partnerSlug` is the
- * estate it belongs to. Returns the name unchanged for our own estate and
- * for the house rails, so a caller can apply it unconditionally.
+ * estate it belongs to; `scope` is who is reading. Returns the name
+ * unchanged for our own estate, for the house rails and for any reader
+ * narrowed to one estate, so a caller can apply it unconditionally.
  */
-export function viaSupplier(name: string | null | undefined, partnerSlug: string | null | undefined): string {
+export function viaSupplier(scope: PartnerScope, name: string | null | undefined, partnerSlug: string | null | undefined): string {
   const n = (name ?? '').trim();
   const slug = (partnerSlug ?? '').trim();
   if (!n || !slug) return n;
+  if (!bothEstatesInView(scope)) return n;
   if (!partyIsSupplier(slug)) return n;
   const supplier = partnerName(slug);
   // A supplier whose name we cannot resolve is worse labelled than not:

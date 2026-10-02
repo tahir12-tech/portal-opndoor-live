@@ -208,9 +208,14 @@ describe('the application export, finished', () => {
      column of their own, and saying it twice is the thing Matt had
      taken off there an hour earlier. The rule is about whether the
      surface states the estate some other way. */
+  /* AND IT SAYS SO, rather than getting the admin's answer by omission.
+     `viaSupplier` takes the reader's scope since Matt's note on Kestrel's
+     own Reporting ("it's only needed where Opndoor sees both estates"),
+     and this document is Opndoor-only, so ALL_PARTNERS is the truth here
+     and is written down. */
   it('names the supplier behind a supplier-estate agency', () => {
-    expect(SRC).toContain('viaSupplier(orgCell(a.agency), a.partner)');
-    expect(SRC).toContain('viaSupplier(orgCell(a.branch), a.partner)');
+    expect(SRC).toContain('viaSupplier(ALL_PARTNERS, orgCell(a.agency), a.partner)');
+    expect(SRC).toContain('viaSupplier(ALL_PARTNERS, orgCell(a.branch), a.partner)');
   });
 
   /* AND THE PLACEHOLDER IS STILL NOTHING. `orgCell` runs first, so an

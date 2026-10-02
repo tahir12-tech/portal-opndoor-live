@@ -439,7 +439,7 @@ type GroupKey = 'agency' | 'branch' | 'referrer' | 'month' | 'supplier';
 
 /** A stable identity for the group (so distinct entities that share a display
     name — e.g. a "High Street" branch under two agencies — are never merged). */
-function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { id: string; name: string; sub: string; partner: string } | null {
+function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string, scope: PartnerScope): { id: string; name: string; sub: string; partner: string } | null {
   /* A separator that cannot occur in an agency or branch name, so two
      distinct orgs can never collide on one key. Written as an ESCAPE, not
      as the raw byte it used to be: a literal NUL makes the whole file
@@ -493,7 +493,7 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
      that deliberately puts the estates side by side. The ID is untouched:
      it is the grouping key and it already carries the partner, so the two
      were always two rows. Only what the reader sees changes. */
-  if (key === 'agency') return { id: `${app.partner}${S}${app.agency}`, name: viaSupplier(app.agency, app.partner) || '(unknown agency)', sub: '', partner: pn };
+  if (key === 'agency') return { id: `${app.partner}${S}${app.agency}`, name: viaSupplier(scope, app.agency, app.partner) || '(unknown agency)', sub: '', partner: pn };
   /* NM-P. A SINGLE-OFFICE AGENCY IS NAMED BY THE AGENCY, and its subtitle
      goes with it -- the sub is the agency, so leaving it would print the
      same words on both lines of the row.
@@ -511,8 +511,8 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
        would print the supplier twice in one cell. */
     return {
       id: `${app.partner}${S}${app.agency}${S}${app.branch}`,
-      name: names ? (app.branch || '(unknown branch)') : (viaSupplier(app.agency, app.partner) || '(unknown agency)'),
-      sub: names ? viaSupplier(app.agency, app.partner) : '',
+      name: names ? (app.branch || '(unknown branch)') : (viaSupplier(scope, app.agency, app.partner) || '(unknown agency)'),
+      sub: names ? viaSupplier(scope, app.agency, app.partner) : '',
       partner: pn,
     };
   }
@@ -566,6 +566,9 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
     commission ranking (fees, then refs, then name). */
 function groupRows(
   set: FullApp[], key: GroupKey, start: Date, end: Date, seesComm: boolean,
+  /* THE READER'S SCOPE, for the via-label and nothing else. Required, so
+     a new chart cannot get the admin's labels by omission. */
+  scope: PartnerScope,
   reader: WhereReader = 'opndoor',
 ): LeagueRow[] {
   const monthLabel = (d: Date) => `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`;
@@ -579,7 +582,7 @@ function groupRows(
     // #2/#13 Withdrawn and Expired are terminal and excluded from every league/
     // volume figure (refs, conversion, fees), matching liveAggregate's exclusion.
     if (app.withdrawn || app.expired) continue;
-    const k = keyOf(app, key, monthLabel);
+    const k = keyOf(app, key, monthLabel, scope);
     if (!k) continue;
     // PER-ORG ATTRIBUTION. An agency/branch row earns its OWN lines; a referrer or
     // month row is not an org, so it carries the whole payout. partnerRate is the
@@ -631,7 +634,7 @@ function groupRows(
     /* AND WHERE A REFERRER WORKS NAMES THE SUPPLIER TOO, on the agency
        and not on the branch: the sub reads "Camden, Frost Partnership"
        and the company is the half that can collide. */
-    if (key === 'referrer') { g.agencies.add(viaSupplier(app.agency, app.partner)); g.branches.add(app.branch ?? ''); }
+    if (key === 'referrer') { g.agencies.add(viaSupplier(scope, app.agency, app.partner)); g.branches.add(app.branch ?? ''); }
     const letId = app.tenancyId ?? `solo:${app.ref}`;
     if (sentIn) { g.refs += 1; g.refLets.add(letId); }
     if (paidIn) {
@@ -842,13 +845,13 @@ export function liveVolume(role: Role, scope: PartnerScope, period: Period): { b
   const isRef = role === 'referrer';
   const seesComm = maySeeCommission(role);
   return {
-    branches: groupRows(set, 'branch', start, end, seesComm),
-    agencies: groupRows(set, 'agency', start, end, seesComm),
+    branches: groupRows(set, 'branch', start, end, seesComm, scope),
+    agencies: groupRows(set, 'agency', start, end, seesComm, scope),
     /* A FOURTH LIST FROM THE SAME FUNCTION, not a new one, so the two
        cards cannot disagree about a period or a measure. */
-    suppliers: groupRows(set, 'supplier', start, end, seesComm),
+    suppliers: groupRows(set, 'supplier', start, end, seesComm, scope),
     // A referrer's own third chart is their monthly volume; everyone else's is by referrer.
-    referrers: groupRows(set, isRef ? 'month' : 'referrer', start, end, seesComm, readerFor(role, set)),
+    referrers: groupRows(set, isRef ? 'month' : 'referrer', start, end, seesComm, scope, readerFor(role, set)),
   };
 }
 
@@ -887,13 +890,13 @@ export function liveLeague(view: LeagueView, role: Role, scope: PartnerScope, pa
   // Walk fix 21: "Same rule anywhere else referrers are listed (League,
   // exports)." Ignored by groupRows for the agency, branch and month views.
   const reader = readerFor(role, set);
-  const cur = groupRows(set, view, start, end, seesComm, reader);
+  const cur = groupRows(set, view, start, end, seesComm, effScope, reader);
   // #107 Week-over-week movement: rank the SAME table as it stood 7 days ago (the
   // window pulled back a week) and diff positions by entity (on the fly, no store).
   // A period shorter than a week has no comparable prior table, so movement is null.
   const prevEnd = new Date(end.getTime() - 7 * DAY);
   const priorRank = new Map<string, number>();
-  if (prevEnd > start) groupRows(set, view, start, prevEnd, seesComm, reader).forEach((r, i) => priorRank.set(leagueKey(r), i));
+  if (prevEnd > start) groupRows(set, view, start, prevEnd, seesComm, effScope, reader).forEach((r, i) => priorRank.set(leagueKey(r), i));
   return cur.map((r, i) => {
     const pr = priorRank.get(leagueKey(r));
     return { ...r, movement: pr == null ? null : pr - i };
@@ -1378,7 +1381,7 @@ export function getAgentCommissionSettlement(role: Role, scope: PartnerScope, wi
      looks a payee up by. Both sides of that lookup read this same field,
      so the labelled name matches itself. */
   const payees: AgentSettlementPayee[] = [...acc.values()]
-    .map((r) => ({ key: r.key, level: r.level, orgId: r.orgId, agency: viaSupplier(r.orgName, r.partner),
+    .map((r) => ({ key: r.key, level: r.level, orgId: r.orgId, agency: viaSupplier(scope, r.orgName, r.partner),
       partner: r.partner, partnerName: partnerName(r.partner), commission: r.commission, apps: r.apps }))
     .sort((x, y) => y.commission - x.commission);
   payees.forEach((p) => p.apps.sort((x, y) => y.commission - x.commission));
@@ -1455,7 +1458,7 @@ export function liveTrend(view: 'month' | 'branch' | 'agency' | 'referrer', role
   const end = nowRef();
   const start = new Date(end.getFullYear(), end.getMonth() - 11, 1);
   // Unrounded, for the same reason as liveMonths above.
-  return groupRows(set, view, start, end, maySeeCommission(role), readerFor(role, set))
+  return groupRows(set, view, start, end, maySeeCommission(role), scope, readerFor(role, set))
     .map((r) => ({
       label: r.name, count: r.refs, fees: r.fees, comm: r.partnerComm,
       deeds: r.deed,

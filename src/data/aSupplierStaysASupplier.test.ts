@@ -46,7 +46,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { hydrateFull } from './applicationsService';
 import { hydratePartners } from './partnersService';
-import { hydrateCommissionVisibility } from './types';
+import { ALL_PARTNERS, hydrateCommissionVisibility } from './types';
 import { partyIsAgency, partyIsOurEstate, partyIsSupplier, portalLabel } from './capabilities';
 import { agentRailApp } from './commissionSplit';
 import { routeOf } from './route';
@@ -131,7 +131,7 @@ describe('switched to “opndoor referenced”, a supplier is still a supplier',
      row is. */
   it('so its agencies are still labelled with it', () => {
     bothWays((mode) => {
-      expect(viaSupplier('Frost Partnership', KESTREL), mode)
+      expect(viaSupplier(ALL_PARTNERS, 'Frost Partnership', KESTREL), mode)
         .toBe('Frost Partnership (via Kestrel Lettings)');
       expect(isSupplierEstate(KESTREL), mode).toBe(true);
     });

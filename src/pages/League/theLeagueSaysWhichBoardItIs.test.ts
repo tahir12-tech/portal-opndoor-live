@@ -19,6 +19,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { withoutVia, viaSupplier } from '@/data/viaSupplier';
+import { ALL_PARTNERS } from '@/data/types';
 
 const LEAGUE = readFileSync('src/pages/League/League.tsx', 'utf8');
 const EXPORTS = readFileSync('src/data/exportsService.ts', 'utf8');
@@ -40,7 +41,7 @@ describe('the supplier is said once', () => {
      surfaces take off, which is the whole point of both living in one
      file: a change to the suffix cannot break only one of them. */
   it('and it is exactly the suffix viaSupplier adds', () => {
-    expect(withoutVia(viaSupplier('Frost Partnership', 'kestrel-lettings'))).toBe('Frost Partnership');
+    expect(withoutVia(viaSupplier(ALL_PARTNERS, 'Frost Partnership', 'kestrel-lettings'))).toBe('Frost Partnership');
   });
 
   /* A NAME WITH A BRACKET OF ITS OWN keeps it: the pattern is anchored

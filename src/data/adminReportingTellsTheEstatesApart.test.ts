@@ -26,8 +26,9 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { hydratePartners } from './partnersService';
-import { viaSupplier, isSupplierEstate } from './viaSupplier';
+import { viaSupplier, isSupplierEstate, bothEstatesInView } from './viaSupplier';
 import { routeOf } from './route';
+import { ALL_PARTNERS } from './types';
 import type { Partner } from './types';
 
 /** Dev's partners, in the shape hydrate produces. */
@@ -43,26 +44,26 @@ beforeEach(() => hydratePartners(PARTNERS));
 
 describe('an agency in a supplier estate', () => {
   it('names its supplier', () => {
-    expect(viaSupplier('Frost Partnership', 'kestrel-lettings'))
+    expect(viaSupplier(ALL_PARTNERS, 'Frost Partnership', 'kestrel-lettings'))
       .toBe('Frost Partnership (via Kestrel Lettings)');
   });
 
   /* OUR OWN ESTATE IS THE UNLABELLED ONE, which is worth having as the
      default: on an Opndoor screen a bare name means one of ours. */
   it('and ours does not', () => {
-    expect(viaSupplier('Frost Partnership', 'opndoor-agents')).toBe('Frost Partnership');
+    expect(viaSupplier(ALL_PARTNERS, 'Frost Partnership', 'opndoor-agents')).toBe('Frost Partnership');
   });
 
   it('so the two Frosts on dev read as two different companies', () => {
-    expect(viaSupplier('Frost Partnership', 'opndoor-agents'))
-      .not.toBe(viaSupplier('Frost Partnership', 'kestrel-lettings'));
+    expect(viaSupplier(ALL_PARTNERS, 'Frost Partnership', 'opndoor-agents'))
+      .not.toBe(viaSupplier(ALL_PARTNERS, 'Frost Partnership', 'kestrel-lettings'));
   });
 
   /* HARBOUR LETS IS NOT A SUPPLIER, so there is no supplier to name. It
      is `opndoor_referenced`, which is the predicate the Suppliers list
      was fixed onto the same day. */
   it('and a partner that is really an agency names nobody', () => {
-    expect(viaSupplier('Harbour Lets', 'harbour-lets')).toBe('Harbour Lets');
+    expect(viaSupplier(ALL_PARTNERS, 'Harbour Lets', 'harbour-lets')).toBe('Harbour Lets');
     expect(isSupplierEstate('harbour-lets')).toBe(false);
     expect(isSupplierEstate('kestrel-lettings')).toBe(true);
   });
@@ -70,15 +71,65 @@ describe('an agency in a supplier estate', () => {
   /* NOR DO THE HOUSE RAILS, which are plumbing and must never be named
      on a customer's screen at all. */
   it('and neither do the house rails', () => {
-    expect(viaSupplier('Unattached', 'opndoor-direct')).toBe('Unattached');
+    expect(viaSupplier(ALL_PARTNERS, 'Unattached', 'opndoor-direct')).toBe('Unattached');
     expect(isSupplierEstate('opndoor-agents')).toBe(false);
   });
 
   /* A LABEL WITH A BLANK IN IT IS WORSE THAN NO LABEL: "Frost
      Partnership (via )" reads as broken rather than as unlabelled. */
   it('and says nothing rather than something empty', () => {
-    expect(viaSupplier('Frost Partnership', '')).toBe('Frost Partnership');
-    expect(viaSupplier('', 'kestrel-lettings')).toBe('');
+    expect(viaSupplier(ALL_PARTNERS, 'Frost Partnership', '')).toBe('Frost Partnership');
+    expect(viaSupplier(ALL_PARTNERS, '', 'kestrel-lettings')).toBe('');
+  });
+});
+
+/* =====================================================================
+   AND NOT ON THE SUPPLIER'S OWN PAGE, 2026-10-02.
+
+   Matt, reading Kestrel's own Reporting: "Don't add '(via Kestrel
+   Lettings)' to agency and branch names in the supplier's own view;
+   it's only needed where Opndoor sees both estates."
+
+   THE LABEL'S OWN REASON, TURNED ON ITSELF. Everything above is true of
+   a screen that shows both Frost Partnerships at once. Kestrel's page
+   shows one, so there is nothing to tell apart and the reader is told
+   their own name on every row of their own page.
+
+   ASKED OF THE SCOPE, so an admin under View as Kestrel and Kestrel's
+   own director get the same page. That equivalence is the rule the
+   whole supplier-Reporting fix turned on, and a role test would have
+   broken it: an admin under View as is still a superadmin.
+   ===================================================================== */
+describe('the supplier’s own view', () => {
+  it('does not name the supplier on its own agencies', () => {
+    expect(viaSupplier('kestrel-lettings', 'Frost Partnership', 'kestrel-lettings'))
+      .toBe('Frost Partnership');
+  });
+
+  it('and the admin and the supplier’s own director see the same thing', () => {
+    // One scope, two readers. The function is given no role at all, which
+    // is how it cannot answer them differently.
+    expect(viaSupplier('kestrel-lettings', 'Frost Partnership', 'kestrel-lettings'))
+      .toBe(viaSupplier('kestrel-lettings', 'Frost Partnership', 'kestrel-lettings'));
+  });
+
+  /* ONLY ALL_PARTNERS HOLDS TWO ESTATES. Every other scope is one
+     partner, whoever is reading it, so the question has one answer and
+     it is the scope's. */
+  it('and only the all-partners scope sees both estates', () => {
+    expect(bothEstatesInView(ALL_PARTNERS)).toBe(true);
+    for (const s of ['kestrel-lettings', 'opndoor-agents', 'harbour-lets', 'opndoor-direct']) {
+      expect(bothEstatesInView(s), s).toBe(false);
+    }
+  });
+
+  /* AND AN AGENCY READER WAS NEVER SHOWN ONE EITHER, which is the half
+     that must not move: our own estate is the unlabelled one, so an
+     agency's page looked right by accident. It now looks right on
+     purpose, for both reasons at once. */
+  it('and our own agencies are still unlabelled, for both reasons', () => {
+    expect(viaSupplier('opndoor-agents', 'Frost Partnership', 'opndoor-agents'))
+      .toBe('Frost Partnership');
   });
 });
 

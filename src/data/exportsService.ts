@@ -1247,9 +1247,16 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
          Kestrel's -- were two columns of identical names. The label is
          added here and NOT on League, whose rows already carry the
          supplier in a column of their own; the rule is about whether
-         the surface states the estate some other way. */
-      ...(showAgency ? [viaSupplier(orgCell(a.agency), a.partner)] : []),
-      ...(showBranch ? [viaSupplier(orgCell(a.branch), a.partner)] : []),
+         the surface states the estate some other way.
+
+         ALL_PARTNERS BY CONSTRUCTION, not by omission. The label is
+         only wanted where both estates are in view (Matt, on Kestrel's
+         own Reporting), and this document is Opndoor-only -- an
+         agency-facing reader gets an empty export from this service --
+         so every estate is always in it. Said explicitly because
+         `viaSupplier` now requires the answer. */
+      ...(showAgency ? [viaSupplier(ALL_PARTNERS, orgCell(a.agency), a.partner)] : []),
+      ...(showBranch ? [viaSupplier(ALL_PARTNERS, orgCell(a.branch), a.partner)] : []),
       a.referrer, STATUS[a.status], payState,
       a.sentAt ? dmy(a.sentAt) : '', a.paidAt ? dmy(a.paidAt) : '', a.deedAt ? dmy(a.deedAt) : '',
       a.refundedAt ? dmy(a.refundedAt) : '', a.refundedAmount != null ? moneyText(a.refundedAmount) : '',
