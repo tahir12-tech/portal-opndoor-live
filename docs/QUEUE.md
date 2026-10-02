@@ -384,7 +384,7 @@ Lettings and Harborview Lettings were reported as having no contact
 anywhere. They are Opndoor's own, so under the corrected rule they are
 not missing anything and nothing warns about them.
 
-## HOME'S RECONCILIATION COUNT MISSES THE NEW TAB (bug, 2026-10-02, verbatim).
+## HOME'S RECONCILIATION COUNT MISSES THE NEW TAB (bug, 2026-10-02, verbatim). **done** (`f1f98e1`).
 
 > Home's Reconciliation count shows 0 while the "Supplier agencies with no email" tab lists two. Include those in the Home count and say what they are, e.g. "2 supplier agencies need an email".
 
@@ -441,11 +441,11 @@ Matt's words, and the PandaDoc warning, the POST line and "check on
 Configuration" behind the developer arm. Two of those three pointed at
 screens an admin can no longer open as of item 2.
 
-## LINKS SET THE FILTERS THEY NAME (instruction, 2026-10-02, verbatim).
+## LINKS SET THE FILTERS THEY NAME (instruction, 2026-10-02, verbatim). **done** (`ac3c466`).
 
 > Also: Home's "View all applications" link opens /applications still filtered to Origin: Direct, remembered from the previous visit. Any link that opens Applications sets exactly the filters it names and clears the rest; "View all applications" clears them all. Filters chosen on the page itself can still be remembered while you stay on it. Deploy to dev and check there.
 
-## AND FILTERS DO NOT CARRY BETWEEN PAGES (instruction, 2026-10-02, verbatim).
+## AND FILTERS DO NOT CARRY BETWEEN PAGES (instruction, 2026-10-02, verbatim). **done** (`ac3c466`), with the three above, as one subject.
 
 > League has also picked up Origin: Direct from Applications, so the Agencies table shows "No matches". Filters must not carry between pages: League, Applications and Reporting each open with their own defaults (Origin: Everything) unless a link sets a filter. Check every page with an Origin filter. Deploy to dev and check there.
 
@@ -461,7 +461,7 @@ screens an admin can no longer open as of item 2.
   all three are the same remembered selection leaking -- into a tab
   count, into a link, and into another page.
 
-## THE SUPPLIERS LIST, THREE THINGS (instruction, 2026-10-02, verbatim).
+## THE SUPPLIERS LIST, THREE THINGS (instruction, 2026-10-02, verbatim). **all three done** (`05fee8e`).
 
 > Suppliers list (admin):
 > 1. Harbour Lets shows as a supplier, but it's an agency (Opndoor-referenced). Only real suppliers appear here; agencies appear under Agencies. Check every partner is listed in the right place.
@@ -479,7 +479,7 @@ screens an admin can no longer open as of item 2.
   columns. Those columns are what make it show a rate that is not in
   force when a negotiated deal is.
 
-## THE SUPPLIER PAGE, FOUR THINGS (instruction, 2026-10-02, verbatim).
+## THE SUPPLIER PAGE, FOUR THINGS (instruction, 2026-10-02, verbatim). **all four done** (`e7dadd3`).
 
 > Supplier page (admin, e.g. Kestrel Lettings):
 > 1. Overview tab is blank. Give it a short summary: the commission deal in one line (as on the Commission tab), who gets the statements, any warnings (e.g. an agency with no agency email, linking to it), and the supplier's Recent changes.
@@ -501,7 +501,7 @@ screens an admin can no longer open as of item 2.
 - Item 4 is `orgLabel`'s "-" being printed for an address rather than for
   a name. An empty address is not a placeholder org.
 
-## ADD AGENCY AND ADD BRANCH ON THE SUPPLIER'S TAB (instruction, 2026-10-02, verbatim).
+## ADD AGENCY AND ADD BRANCH ON THE SUPPLIER'S TAB (instruction, 2026-10-02, verbatim). **done** (`0bbabce`).
 
 > Also on the supplier's Agencies tab: an "Add agency" button (name, address, agency email required) and, on each agency, "Add branch" (name, address, email optional; it uses the agency email if blank). Both create the agency or branch in this supplier's estate, never in Opndoor's. Deploy to dev and check there.
 
@@ -512,7 +512,7 @@ screens an admin can no longer open as of item 2.
   `p_partner_slug` and this must pass the supplier's, not fall back to
   `app_partner()`.
 
-## THE SUPPLIER SETTINGS TAB, THREE THINGS (instruction, 2026-10-02, verbatim).
+## THE SUPPLIER SETTINGS TAB, THREE THINGS (instruction, 2026-10-02, verbatim). **all three done** (`9eafeec`).
 
 > Supplier Settings tab (admin):
 > 1. Capabilities: replace "an agency is portal only, a CRM is API only, and some are both" with "Some suppliers refer through the portal, some through the API, and some use both."
@@ -524,7 +524,7 @@ screens an admin can no longer open as of item 2.
   recorded as a change. Hiding them is what he asked for; whatever still
   writes them has to stop too, or the list refills.
 
-## THE SUPPLIER COMMISSION TAB, WORDING (instruction, 2026-10-02, verbatim).
+## THE SUPPLIER COMMISSION TAB, WORDING (instruction, 2026-10-02, verbatim). **done** (`09d9170`).
 
 > Supplier Commission tab: under "Kestrel Lettings and each agency, separately", replace "Each agency gets its own statement from opndoor, and Kestrel Lettings gets its own" with "opndoor pays each agency its share directly. All statements still go to Kestrel Lettings." Check the confirmation dialog for this switch says the same. In "Who gets the statements", replace "On this rail only Opndoor can change that" with "Only Opndoor can change that." Deploy to dev and check there.
 
@@ -532,11 +532,11 @@ screens an admin can no longer open as of item 2.
   to change: 20261007410000 stopped sending a statement to a
   supplier-estate agency at all. The new wording is the behaviour.
 
-## THE AGENCIES' % EDITOR NEEDS THE SAME WARNING (bug, 2026-10-02, verbatim).
+## THE AGENCIES' % EDITOR NEEDS THE SAME WARNING (bug, 2026-10-02, verbatim). **done** (`7724710`).
 
 > The agencies' % editor (supplier Commission tab, default and bespoke deals) saved a tenant step of "1 to 10 tenants" with no warning. Add the same warning the main deal editor has: before saving any tenant step above 4 tenants, ask "Did you mean referrals sent? A tenancy rarely has more than 4 tenants." with options to switch to "% grows with referrals sent" or save anyway. Deploy to dev and check there.
 
-## THE ADMIN AGENCIES PAGE, THREE THINGS (instruction, 2026-10-02, verbatim).
+## THE ADMIN AGENCIES PAGE, THREE THINGS (instruction, 2026-10-02, verbatim). **all three answered or done** (`e66ff68`); 1 and 3 are answers, under "For Matt in the morning".
 
 > Admin Agencies page:
 > 1. It says "6 agencies" but only shows Frost Partnership, Regent's Lettings, Harbour Lets and Harborview Lettings, even with Expand all. Northgate Lettings and Southbank Residential are missing. Find out why and fix it, or tell me if they've been moved to a supplier's estate.
@@ -553,7 +553,7 @@ screens an admin can no longer open as of item 2.
 - Item 3: the Frost fixture did not set a group. Something else put it in
   one, and that is worth knowing before moving it.
 
-## THE AGENCY PAGE, THREE THINGS (instruction, 2026-10-02, verbatim).
+## THE AGENCY PAGE, THREE THINGS (instruction, 2026-10-02, verbatim). **all three done** (`7b206a4`).
 
 > Agency page (admin, e.g. New Independent):
 > 1. When the only person who could receive the deed has a pending invite, say "Independent Director hasn't accepted their invite yet; deeds will reach them once they do" instead of "No one at this agency can receive the deed".
@@ -561,7 +561,7 @@ screens an admin can no longer open as of item 2.
 > 3. The "Set rate" button beside the agency name: if commission is set on the Commission tab, remove it so there's one place to set commission.
 > Deploy to dev and check there.
 
-## HOW ARE THIS AGENCY'S TENANTS CHECKED? (instruction, 2026-10-02, verbatim).
+## HOW ARE THIS AGENCY'S TENANTS CHECKED? (instruction, 2026-10-02, verbatim). **done** (`0c62295`).
 
 > Agency page, the "Referrals from this agency" dropdown: replace it with a clear choice titled "How are this agency's tenants checked?" with two options:
 > - "Opndoor checks eligibility" (the tenant completes eligibility before paying)
@@ -582,7 +582,7 @@ screens an admin can no longer open as of item 2.
   moves. Three pgTAP fixtures used null as a fixture value and now state
   the mode they were inheriting.
 
-## THE AGENCY PEOPLE TAB USES THE SHARED TABLE TOO (instruction, 2026-10-02, verbatim).
+## THE AGENCY PEOPLE TAB USES THE SHARED TABLE TOO (instruction, 2026-10-02, verbatim). **done** (`65551ef`).
 
 > The agency People tab (admin view, e.g. New Independent) only shows Name, Level and Status. Use the same shared people table as every other people screen, with Sees and Last active (or "Invited [date]" for pending invites). Show the Office column only when the agency has more than one office; for a single-office agency like New Independent, leave it out. Check every people screen uses the shared table and list any that don't. Deploy to dev and check there.
 
@@ -609,7 +609,7 @@ screens an admin can no longer open as of item 2.
   own Team sees "Agency: Regent's Lettings" under a header that means
   the branch name on the admin view of the same people. For Matt.
 
-## "ALL" MEANS ALL (instruction, 2026-10-02, verbatim).
+## "ALL" MEANS ALL (instruction, 2026-10-02, verbatim). **done** (`d357fa9`).
 
 > Applications: the "All" tab counts and shows every application in the current filters, including In progress, Fee unpaid and Expired, so "All" equals the sum of the other tabs. "Showing X of Y" counts the same set. Deploy to dev and check there. Yes to defaulting agencies on "Follow the default" to "Opndoor checks eligibility". There are no real agencies yet, only dev test data.
 
@@ -635,6 +635,11 @@ screens an admin can no longer open as of item 2.
 - Everything recorded above and not yet done, in the order it was sent,
   without stopping to report between items. The same standing rule as the
   overnight run: commit each separately, full tests and drift after each.
+- **The queue is clear, 2026-10-02.** Every instruction recorded above
+  carries a commit. The last two were the tenants-checked choice
+  (`0c62295`) and the agency People tab (`65551ef`). What is left below
+  is NOT work: it is the decisions waiting on Matt, in "For Matt in the
+  morning", and the history of everything already shipped.
 
 ### For Matt in the morning
 
