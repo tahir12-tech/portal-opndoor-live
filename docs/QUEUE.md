@@ -919,6 +919,19 @@ you asked for. Say the word and the tenant gets their own wording.
   the old code for a day. "Nothing about the repo was wrong. The deploy
   was."
 
+## ADMIN LEAGUE, THREE THINGS (instruction, 2026-10-02, verbatim).
+
+> Admin League: rename "Partner comm." to "Supplier comm." on every tab. Where a row already carries its supplier's tag (e.g. "Kestrel Lettings"), drop the "(via …)" from the name so it isn't said twice. Add the dashboard's one-line note that a rate can exceed 100% when payments land this period for referrals sent earlier. Deploy to dev and check there.
+
+- The second item is the cost of `viaSupplier` (`2ea5f13`) meeting a
+  table that already has a Supplier column. The label was written for
+  the charts, where there is no such column; on League it says the same
+  thing twice on one row.
+- So the rule is about the SURFACE, not the name: label it where the
+  estate is not already stated, and not where it is.
+- The third is the funnel note on the dashboard, which League needs for
+  the same reason: its conversion is period throughput too.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
