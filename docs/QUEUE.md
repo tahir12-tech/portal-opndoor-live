@@ -591,6 +591,23 @@ screens an admin can no longer open as of item 2.
   need nothing. The AGENCY People tab is the one screen that was not
   moved onto it, and "list any that don't" is a sweep with an answer owed
   either way.
+- **done `65551ef`.** The tab WAS on the shared table already; what it
+  passed was three of its columns. It now passes `extraHeader="Sees"`
+  with `agencySees(role, level)` and `lastActive`. Both Sees sentences
+  (ours and the supplier's) moved into `positionsService`.
+  `20261007480000` adds `invited_at` to `list_managed_users`, so a
+  pending row reads "Invited 2 Oct 2026" instead of repeating its own
+  pill. The Office rule needed no code and is asserted.
+- **The sweep, which was asked for either way.** All four people screens
+  draw `<PeopleTable>`: agency Team, admin agency People, supplier
+  People, the opndoor team page. None of them hand-draws people columns.
+  `PositionModal` lists one person's positions and is not a people list;
+  the only other `<th>Name</th>` in `src` is the Dev Centre's webhooks
+  table. **Nothing to report as missing.**
+- **Not fixed, not reported: one header, two meanings.** Team puts
+  `describePosition` in the Office column, so a Director reading their
+  own Team sees "Agency: Regent's Lettings" under a header that means
+  the branch name on the admin view of the same people. For Matt.
 
 ## "ALL" MEANS ALL (instruction, 2026-10-02, verbatim).
 
