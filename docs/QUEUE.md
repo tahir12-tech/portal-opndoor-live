@@ -641,6 +641,23 @@ screens an admin can no longer open as of item 2.
   The rule from earlier today stands: the column is dropped when no row
   fills it, which is the single-office case he named on New Independent.
 
+## UNFINISHED DIRECT APPLICATIONS (instruction, 2026-10-02, verbatim).
+
+> Unfinished direct applications:
+> 1. List every reminder email a tenant can receive today (what triggers it, when, and the wording), so I can see the full set.
+> 2. An unfinished direct application expires after 30 days with no activity. Expiry loses nothing: if the tenant signs in again, it reopens where they left off, back to In progress, same reference.
+> 3. At 25 days with no activity, email the tenant: their application will close in 5 days, with a link to carry on.
+> 4. In the Applications list, an unfinished application with no rent yet shows "Not given yet" instead of "£0 per month".
+> Deploy to dev and check there.
+
+- Item 1 is a REPORT, not a build, and it comes first for a reason: 2 and
+  3 add a reminder to a set nobody has seen whole. It has to be the set
+  as it actually is, read out of the senders, not out of the docs.
+- "Expiry loses nothing" is the whole of item 2. There is already an
+  expiry on the direct rail; what matters is that reopening is the same
+  row -- same reference, back to In progress -- and not a new
+  application.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
