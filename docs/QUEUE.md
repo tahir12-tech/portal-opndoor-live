@@ -223,7 +223,7 @@ path and the statement run call). Screens 1 and 2 are also rendered, with
 the same two-Frost fixture, in
 `src/pages/Agencies/twoFrostsOnTwoScreens.render.test.tsx`.
 
-## FOUR DECISIONS, 2026-10-02 (instruction, verbatim). THIS IS THE CURRENT PLAN.
+## FOUR DECISIONS, 2026-10-02 (instruction, verbatim). **all four done** (`bf6a505`, `a0b25c9`, `3dbd2c1`, `45e8797`).
 
 > Decisions:
 > 1. Nobody is ever positioned at an agency or branch in a supplier's estate. A supplier's own staff sit at the supplier level only (they choose the agency and branch on each referral, but are never positioned there), and supplier-estate agencies never get logins. Enforce it: refuse any position or invite that would place someone at a supplier-estate agency or branch, and rewrite the two tests that modelled a supplier's referrer sitting at a branch to match.
@@ -244,44 +244,108 @@ the same two-Frost fixture, in
 - Item 4's second half has teeth: "do not rename any API field or CSV
   column a partner's code may read". The wording changes; the keys do not.
 
+### WHAT EACH ONE CAME TO
+
+**1. Nobody is ever placed in a supplier's estate** (`bf6a505`). Three
+doors shut: a trigger on `user_scopes`, the same test inside
+`assert_may_grant_position` so the INVITE refuses before it creates an
+account, and a trigger on `users.home_branch_id`, which is the other half
+of being placed and is what the people lists print under somebody's name.
+All three raise 22023, not 42501: the rule fires for an Opndoor admin and
+for postgres exactly as it fires for anybody, and 42501 is reserved for
+authorisation. Nothing on dev had to move: 0 positions and 0 home
+branches were in a supplier estate. The two fixtures were rewritten, not
+worked around, and every assertion in both still passes at the same count
+(112 and 12), because what isolates a supplier's own staff was always
+`partner_id`.
+
+**2. A contact email is required at creation** (`a0b25c9`). Four doors
+create an agency or a branch and only `admin_add_agency` asked. All four
+refuse now, and the forms ask rather than letting the server refuse.
+
+> **THE BRANCH READING, which is the one judgement in it.** A branch with
+> no contacts of its own uses its agency's: `effectiveContacts` has
+> always done that, and the deed panel prints it as "agency default for
+> X". The governing clause is "so one always exists", and under an agency
+> that has a contact, one does. So a branch is refused only when its
+> agency has nothing to fall back on, which is the case that actually
+> leaves a deed stranded. Requiring a second address per office would
+> undo the agency default rather than add to it. **If you want the
+> stricter reading it is one condition in two functions, say the word.**
+
+**What is on dev without a contact anywhere**, as asked. Two, and neither
+is in a supplier estate:
+
+| Estate | Agency | Offices | Contact |
+|---|---|---|---|
+| opndoor-agents | **Regent's Lettings** | Regent's Park | none, anywhere |
+| opndoor-agents | **Harborview Lettings** | Brighton Marina | none, anywhere |
+
+Every other agency has one on each of its offices: Northgate (both),
+Southbank, both Frosts, Kestrel (both) and Harbour Lets. No agency
+anywhere on dev has an AGENCY-level contact; every contact that exists
+today sits on a branch. Nothing was backfilled: the instruction was about
+creation, and Regent's is the go-live agency, so what goes in its record
+is yours to say. Regent is on the agency rail, where a deed goes to the
+org's own PEOPLE through `deed_people_target` rather than to a mailbox,
+so nothing is broken today by its having none.
+
+**3. A supplier's agencies are never written to** (`3dbd2c1`).
+`commission_statement_recipients` answers nobody for any party in a
+supplier's estate, on the whole function rather than one arm. The PAYEE
+stays, because where "Opndoor pays the agents directly" is on, Opndoor
+really does owe that agency the money and the settlement PDF is what
+Opndoor owes out; dropping the row would make that figure disagree with
+the ledger. The run skips them by a new `supplier_estate` flag and
+reports them under "Went to the supplier instead", apart from "Nobody to
+send to", because one is the rule working and the other is a gap to fix.
+Dry run on dev for September: Kestrel gets three attachments (its own PDF
+and CSV plus the zip holding Frost's schedule), Opndoor's own Frost gets
+its statement, and Kestrel's Frost is listed at £240 and written to by
+nobody.
+
+**4. The three older items** (`45e8797`). The tenant's reminder STAYS,
+and the "unless" is why: I raised it believing the tenant was on no lapse
+list, which is true of `notification_recipients` and is not the whole
+answer. `renewal-notices` adds the tenant itself, on every rail, within
+30 days of the end, and both its cron jobs are active on dev. The
+duplicate "not insurance" sentences are gone, keeping on the deed-to-sign
+email only the half the footer does not say. "Guarantee fee" now in the
+activity feed (the browser's wording and what stripe-webhook writes), the
+webhook-event descriptions in both doc generators, and the export summary
+labels and hints -- while the CSV column headings still read "Guarantor
+fee" and `application.paid` is untouched, which the test asserts on
+purpose so nobody tidies them later.
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
 
-- **"They never have logins": how far does that reach?** I read it as the
-  AGENCIES in a supplier's estate not having logins, and enforced the part
-  you spelled out in money terms: a supplier-estate agency's statement now
-  reaches its finance address and no login, ever. I first wrote the
-  stronger version, refusing any position on an agency or branch in a
-  supplier's estate, and backed it out: it broke two existing tests
-  (`tenant_isolation`, `a_pre_referenced_agency_of_ours_may_refer_a_pair`)
-  that model a SUPPLIER'S OWN referrer positioned at a branch in the
-  supplier's estate and assert they are isolated to it. That is not an
-  agency having a login, and your sentence does not obviously forbid it.
-  Say which and I will make the trigger match, in either direction. Dev
-  has no such position today: all 14 are under opndoor-agents.
-- **A supplier-estate agency with no finance email has nowhere to send a
-  statement.** You said it "goes to that agency's contact email". There
-  are two things that could be: `finance_email`, which is what the
-  statement run uses and what I tested, and the branch's agent contact,
-  which is where the DEED goes. If an admin sets only the deed contact,
-  the statement run reports a payee it could not address and nothing is
-  sent. Want the deed contact used as the fallback? One line, but it
-  changes who receives money, so I have not guessed.
-
-- **The TENANT's signed-deed email promises the same reminder.** "We will
+- *(The two estate questions here were answered on 2026-10-02 and are
+  built; see "WHAT EACH ONE CAME TO" above. One reading remains mine
+  rather than Matt's and is called out there: a new BRANCH needs a
+  contact email only when its agency has none for it to inherit.)*
+- **The TENANT's signed-deed email promises the same reminder.** RESOLVED
+  2026-10-02, and the answer was the opposite of what I expected: they
+  really do get it, so the sentence stays. `renewal-notices` adds the
+  tenant itself. The note below is kept because the reasoning in it was
+  wrong in an instructive way -- it read one recipient resolver and
+  concluded for the whole product. "We will
   email you a month before the guarantee ends" is in the tenant copy too,
   and the tenant is on no lapse list either: `notification_recipients`
   resolves portal users and the agent contact, and has no tenant arm. I
   took the sentence off the LANDLORD copy because that is what the
   instruction named. Say the word and the tenant's goes too, or say the
   tenant should start getting one and I will add them to the list.
-- **The same "not insurance" duplication is in two more emails.** The
+- **The same "not insurance" duplication is in two more emails.** DONE
+  2026-10-02 (`45e8797`). The
   footer carries it on every email; `deedToSignEmail` and the PandaDoc
   signing email repeat it in their own small print, exactly as the signed
   deed one did. Same argument, same one-line fix, not done because the
   instruction named the signed-deed email.
-- **"guarantor fee" off the tenant side only.** Tonight's sweep covered the
+- **"guarantor fee" off the tenant side only.** DONE 2026-10-02
+  (`45e8797`), with the caveat Matt added: the wording changed, the CSV
+  column headings and `application.paid` did not. Tonight's sweep covered the
   tenant journey, the payment page and the two functions behind them. Three
   places still say it and I did not change them on a guess: the CSV exports
   (a column heading partners reconcile against), the staff activity feed
