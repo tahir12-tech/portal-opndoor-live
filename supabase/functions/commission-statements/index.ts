@@ -346,6 +346,17 @@ interface PayeeRow {
   partner_id: string | null;
   line_count: number;
   total: number | string;
+  /* AN AGENCY INSIDE A SUPPLIER'S ESTATE (2026-10-02). Matt: "all
+     commission statements for a supplier's agencies go to the supplier
+     (its statement plus the per-agency schedules), never to the
+     agencies, whatever the 'Opndoor pays the agents directly' setting."
+
+     They stay a PAYEE, because where that switch is on Opndoor really
+     does owe them the money and the settlement figure is what Opndoor
+     owes out. They are simply never posted to: the loop skips them by
+     this flag, and the schedule for that money is already an attachment
+     on the supplier's own email. */
+  supplier_estate?: boolean;
 }
 interface LineRow {
   payee_key: string;
@@ -1327,6 +1338,7 @@ export function statementMessage(opts: {
     rehearsal" banner here would be a line of copy that never renders. */
 function settlementMessage(opts: {
   label: string; grand: number; payees: PayeeRow[]; unaddressed: string[];
+  withSupplier?: string[];
   posted: number; alreadySent: number; failed: number; appUrl: string;
 }): Message {
   const LIST_CAP = 25;
@@ -1353,6 +1365,11 @@ function settlementMessage(opts: {
     if (opts.payees.length > top.length) {
       blocks.push({ small: `${opts.payees.length - top.length} more are in the attached file.` });
     }
+  }
+  if (opts.withSupplier?.length) {
+    blocks.push({ h: "Went to the supplier instead" });
+    blocks.push({ p: "These are agencies that came through a supplier. Their commission is owed and is in the total above; the paperwork went to the supplier, as a schedule inside the supplier's own statement email." });
+    blocks.push({ list: opts.withSupplier });
   }
   if (opts.unaddressed.length) {
     blocks.push({ h: "Nobody to send to" });
@@ -1843,6 +1860,9 @@ Deno.serve(async (req) => {
 
     let posted = 0, alreadySent = 0, failed = 0, nothingDue = 0;
     const unaddressed: string[] = [];
+    /* Counted apart from `unaddressed`, because they are two different
+       facts: one is a gap to fix, the other is the rule working. */
+    const withSupplier: string[] = [];
     const would: Array<{
       payee: string; level: string; total: number; applications: number; to: string[];
       columns: string[]; reference: string;
@@ -1883,6 +1903,14 @@ Deno.serve(async (req) => {
          number would be asking the payee to invoice us for money they owe,
          which is a conversation to have rather than a document to post. */
       if (netTotal <= 0 && deductions.length) { nothingDue += 1; continue; }
+
+      /* THE SUPPLIER'S AGENCIES ARE NOT WRITTEN TO, and this is checked
+         BEFORE the recipient lookup so it is a decision and not an
+         accident. commission_statement_recipients already answers nobody
+         for one, so without this they would land in "Nobody to send to"
+         every month -- a list that means "somebody forgot to set this
+         up", reported for a party nobody is meant to write to. */
+      if (p.supplier_estate) { withSupplier.push(`${p.org_name} (${gbp(total)})`); continue; }
 
       const { data: recData, error: recErr } = await service.rpc("commission_statement_recipients", {
         p_level: p.level, p_org_id: p.org_id,
@@ -2016,7 +2044,7 @@ Deno.serve(async (req) => {
       const res = await sendMessage({
         to: staffTo,
         message: settlementMessage({
-          label, grand, payees, unaddressed, posted, alreadySent, failed, appUrl: APP_URL,
+          label, grand, payees, unaddressed, withSupplier, posted, alreadySent, failed, appUrl: APP_URL,
         }),
         attachments: [{
           filename: `opndoor-settlement-${monthKey}.pdf`,
@@ -2057,6 +2085,7 @@ Deno.serve(async (req) => {
       nothingDue,
       failed,
       unaddressed,
+      withSupplier,
       settlement: {
         recipients: staffTo.length,
         sent: settlementSent,
