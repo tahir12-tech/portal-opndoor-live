@@ -451,6 +451,28 @@ not missing anything and nothing warns about them.
   columns. Those columns are what make it show a rate that is not in
   force when a negotiated deal is.
 
+## THE SUPPLIER PAGE, FOUR THINGS (instruction, 2026-10-02, verbatim).
+
+> Supplier page (admin, e.g. Kestrel Lettings):
+> 1. Overview tab is blank. Give it a short summary: the commission deal in one line (as on the Commission tab), who gets the statements, any warnings (e.g. an agency with no agency email, linking to it), and the supplier's Recent changes.
+> 2. Agencies tab: fix "Kestrel Lettings's agencies" to "Kestrel Lettings' agencies" (use the shared possessive helper everywhere).
+> 3. Agencies tab: next to "No agency email", an "Add email" button that sets the agency's email in place, with a confirmation, recorded in Recent changes. Each branch's email can be added or changed the same way.
+> 4. Agencies tab: the "-" after each branch name is an empty address. Show the branch address when there is one, and nothing when there isn't.
+> Deploy to dev and check there.
+
+- Item 1's "the commission deal in one line (as on the Commission tab)"
+  is the same reader the Suppliers list needs for its own item 2. One
+  summary, two callers.
+- Item 2: `src/lib/possessive.ts` exists and the heading was built by
+  hand. The instruction says "everywhere", so it is a sweep and not one
+  string.
+- Item 3 contradicts nothing in the Reconciliation list: that is where
+  Opndoor SEES the gap, and this is where they close it. It wants the
+  write in place, a confirmation, and an org_audit entry so Recent
+  changes carries it.
+- Item 4 is `orgLabel`'s "-" being printed for an address rather than for
+  a name. An empty address is not a placeholder org.
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
