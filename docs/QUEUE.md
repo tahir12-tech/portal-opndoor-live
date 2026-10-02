@@ -545,6 +545,16 @@ not missing anything and nothing warns about them.
   and null means inherit. Two options means it stops being nullable, and
   the existing nulls have to become something.
 
+## THE AGENCY PEOPLE TAB USES THE SHARED TABLE TOO (instruction, 2026-10-02, verbatim).
+
+> The agency People tab (admin view, e.g. New Independent) only shows Name, Level and Status. Use the same shared people table as every other people screen, with Sees and Last active (or "Invited [date]" for pending invites). Show the Office column only when the agency has more than one office; for a single-office agency like New Independent, leave it out. Check every people screen uses the shared table and list any that don't. Deploy to dev and check there.
+
+- `PeopleTable` already drops the Office column when no row has one
+  (`e2cd4c7`), which is the single-office case, so the column rule may
+  need nothing. The AGENCY People tab is the one screen that was not
+  moved onto it, and "list any that don't" is a sweep with an answer owed
+  either way.
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
