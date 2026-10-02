@@ -877,6 +877,22 @@ you asked for. Say the word and the tenant gets their own wording.
   the whole defect: the figure is right and the reader is wrong, and
   the label is what made them wrong.
 
+## THE PERFORMANCE EXPORT'S WORDING SWEEP, FINISHED (instruction, 2026-10-02, verbatim).
+
+> Performance export: finish the wording sweep. Replace every remaining "Partner"/"partner" with "Supplier"/"supplier" (header "All suppliers (combined)", "Commission by supplier", "Supplier commission (gross/net)", "Attributed supplier commission", the settlement's "Supplier" column), and "Guarantor fee" with "Guarantee fee". This file is for Opndoor only, so its column headings can change. Label "Total guaranteed rent value" as in force across the whole book, not the period, as on screen. Deploy to dev and check there.
+
+- **This lifts the exception I have been holding twice.** "Column
+  headings a partner's code may read can stay" was Matt's own caveat on
+  the summary export and on the fee rename, and I asserted it in two
+  tests so a later sweep could not quietly finish the job. He is now
+  saying this file is Opndoor's own, so its headings move. The
+  assertions have to be turned over rather than deleted, or the next
+  reader restores them.
+- It does NOT lift the caveat on the APPLICATION export or the expiries
+  file, which partners do read. Only this one.
+- The last sentence is the same subject as the instruction above it, so
+  the two are built together.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
