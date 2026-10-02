@@ -602,6 +602,14 @@ screens an admin can no longer open as of item 2.
   nulls on `agencies.referencing_mode` become "Opndoor checks
   eligibility", and he has said there is no real agency data to protect.
 
+## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
+
+> just clear the queue
+
+- Everything recorded above and not yet done, in the order it was sent,
+  without stopping to report between items. The same standing rule as the
+  overnight run: commit each separately, full tests and drift after each.
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
