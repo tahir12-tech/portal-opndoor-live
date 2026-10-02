@@ -30,6 +30,16 @@
   color: var(--ink-mute);
   margin-top: 2px;
 }
+/* THE GRAIN, under the label. Two of the three tiles count a slice of the
+   review queue while the first counts the whole page, and a part that does
+   not add up to the whole beside it needs to say so rather than leave the
+   reader to work it out. */
+.qstat__s {
+  font-size: 11.5px;
+  color: var(--ink-faint, var(--ink-mute));
+  opacity: 0.8;
+  margin-top: 2px;
+}
 
 /* filter tabs */
 .rtabs {
@@ -280,4 +290,16 @@
 }
 .empty.is-shown {
   display: block;
+}
+
+/* A SECTION HEADING ON THE "ALL" TAB. All shows every other tab's items
+   under their own names, so the reader can tell a refund question from an
+   agency with no email without reading the rows. The tabs themselves draw
+   one section each and need no heading: the tab is the heading. */
+.rec-sec {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  margin: 26px 0 10px;
 }

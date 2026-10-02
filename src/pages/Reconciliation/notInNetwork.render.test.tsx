@@ -175,9 +175,21 @@ describe('the four tabs that were already there', () => {
   it('still open their own lists', async () => {
     const v = await open('matches');
     expect(v.container.querySelector('.nin')).toBeNull();
-    cleanup();
+  });
+
+  /* AND "ALL" NOW CARRIES IT, which is the opposite of what this asserted
+     until 2026-10-02. Matt: "The 'All' tab must include every item from
+     every tab; it currently says 'Nothing to check' while 'Supplier
+     agencies with no email' has 2 and 'Not in network' has 1." The point
+     of the control above is that a tab shows ITS OWN list and not a
+     sibling's; All's own list is now everything, so finding the
+     not-in-network section there is the rule working rather than a
+     sibling leaking. */
+  it('and All carries every one of them, under its own heading', async () => {
     const w = await open();
-    expect(w.container.querySelector('.nin')).toBeNull();
+    expect(w.container.querySelector('.nin')).not.toBeNull();
     expect(tabLabels(w).join(' | ')).toMatch(/All/);
+    const headings = [...w.container.querySelectorAll('.rec-sec')].map((h) => h.textContent);
+    expect(headings).toContain('Not in network');
   });
 });

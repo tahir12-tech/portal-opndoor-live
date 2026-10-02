@@ -24,6 +24,7 @@ import { SessionProvider } from '@/session/SessionContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { PageMetaProvider } from '@/components/layout/pageMeta';
 import { Home, reconMeta } from './Home';
+import { NO_RECONCILIATION_WORK, type ReconciliationTotals } from '@/data';
 import { hydrateApplications } from '@/data';
 import { hydrateOrg, hydrateGroups } from '@/data/orgService';
 import { hydratePartners } from '@/data/partnersService';
@@ -99,24 +100,54 @@ describe('the Reconciliation tile', () => {
 });
 
 /* THE SENTENCE ON ITS OWN, because the tile can only show one combination
-   at a time and the awkward ones are the singular and the both-at-once. */
+   at a time and the awkward ones are the singular and the both-at-once.
+
+   FIVE KINDS SINCE 2026-10-02, not two. The tile counted the review
+   queue plus the agencies needing an email, which was the morning's fix
+   and left out refunds, agent matches and not-in-network. Matt: "Home's
+   Reconciliation count and the sidebar badge must equal the 'All' count,
+   including 'Not in network'." So the function takes the page's own
+   totals object rather than two numbers, which is also what stops a
+   sixth kind being added to the page and not to the sentence. */
+const T = (over: Partial<ReconciliationTotals> = {}): ReconciliationTotals => ({
+  ...NO_RECONCILIATION_WORK, ...over,
+});
+
 describe('the sentence under the number', () => {
   it('names only what is there', () => {
-    expect(reconMeta(0, 2)).toBe('waiting now: 2 supplier agencies need an email');
-    expect(reconMeta(3, 0)).toBe('waiting now: 3 to review');
+    expect(reconMeta(T({ noEmail: 2 }))).toBe('waiting now: 2 supplier agencies need an email');
+    expect(reconMeta(T({ review: 3 }))).toBe('waiting now: 3 to review');
   });
 
   it('and both when both are', () => {
-    expect(reconMeta(3, 2)).toBe('waiting now: 3 to review, 2 supplier agencies need an email');
+    expect(reconMeta(T({ review: 3, noEmail: 2 })))
+      .toBe('waiting now: 3 to review, 2 supplier agencies need an email');
   });
 
   it('with the verb and the noun agreeing on one', () => {
-    expect(reconMeta(1, 1)).toBe('waiting now: 1 to review, 1 supplier agency needs an email');
+    expect(reconMeta(T({ review: 1, noEmail: 1 })))
+      .toBe('waiting now: 1 to review, 1 supplier agency needs an email');
+  });
+
+  /* THE THREE IT DID NOT KNOW ABOUT, each named in the page's own words
+     so a reader clicking the tile knows which tab they are going to. */
+  it('and the three kinds it used to leave out', () => {
+    expect(reconMeta(T({ matches: 2 }))).toBe('waiting now: 2 agents named by tenants');
+    expect(reconMeta(T({ refunds: 1 }))).toBe('waiting now: 1 refund question');
+    expect(reconMeta(T({ notInNetwork: 4 }))).toBe('waiting now: 4 not in network');
+  });
+
+  /* DEV'S OWN STATE, which is what Matt was looking at: two supplier
+     agencies with no email and one agency not in network, under a tile
+     that said 0. */
+  it('and dev, where the tile said nothing was waiting', () => {
+    expect(reconMeta(T({ noEmail: 2, notInNetwork: 1 })))
+      .toBe('waiting now: 2 supplier agencies need an email, 1 not in network');
   });
 
   /* AND AN EMPTY QUEUE STILL SAYS WHAT THE 0 WOULD BE A COUNT OF, which
      is walk fix 25's rule for every tile on this page. */
   it('and an empty queue still says what it would count', () => {
-    expect(reconMeta(0, 0)).toBe('waiting now: agencies and branches to review');
+    expect(reconMeta(T())).toBe('waiting now: agencies and branches to review');
   });
 });

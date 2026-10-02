@@ -466,3 +466,110 @@ export async function reissueCorrectedStatement(
   if (!data?.ok) return { ok: false, error: data?.error || 'Could not send the corrected statement.' };
   return { ok: true, reference: data.reference, recipients: data.recipients };
 }
+
+/* =====================================================================
+   HOW MUCH IS WAITING ON RECONCILIATION, COUNTED ONCE.
+
+   Matt, 2026-10-02, verbatim:
+
+     "1. The 'All' tab must include every item from every tab; it
+         currently says 'Nothing to check' while 'Supplier agencies with
+         no email' has 2 and 'Not in network' has 1. The top three tiles
+         must also count what's actually waiting.
+      2. Home's Reconciliation count and the sidebar badge must equal the
+         'All' count, including 'Not in network'.
+      3. Home's Reconciliation link opens on whichever tab has items (or
+         All)."
+
+   FOUR SURFACES STATED THE SAME NUMBER AND THREE OF THEM WERE WRONG,
+   each in its own way: the All tab counted the review queue alone, the
+   tiles above it counted the review queue alone, and Home and the
+   sidebar counted the review queue plus matches plus the no-email
+   agencies -- which was this morning's fix (`f1f98e1`) and still left
+   out refunds and not-in-network. Three different subsets of one page,
+   on four screens, is how the tile said 0 beside three rows of work.
+
+   SO IT IS COUNTED HERE, ONCE. Every caller reads the same object, and
+   `all` is a field rather than something each of them adds up: the sum
+   is the part that was wrong four times, so it is the part that must
+   not be written four times.
+
+   THE SUBSET TABS ARE NOT IN THE SUM. Agencies, Branches and "Might
+   already exist" are slices of the review queue, exactly as Fee unpaid
+   and Invited are slices of In progress on Applications -- the same
+   trap Matt named there on the same day. Adding them would double-count
+   every new record.
+
+   "NOT IN NETWORK" IS IN THE SUM because he said so, in those words. It
+   is the one tab that is not work in the sense the others are: nothing
+   on it can be actioned on the page, it is a list to retype into
+   HubSpot. It is still something waiting for a person, which is what
+   the number counts.
+   ===================================================================== */
+export interface ReconciliationTotals {
+  /** New agencies and branches awaiting review. The tabs All, Agencies,
+      Branches and "Might already exist" are all views of these. */
+  review: number;
+  matches: number;
+  refunds: number;
+  noEmail: number;
+  notInNetwork: number;
+  /** Every item on the page, which is what the All tab shows. */
+  all: number;
+}
+
+/** The empty answer, for a reader who is not opndoor staff and for the
+    moment before the first load returns. */
+export const NO_RECONCILIATION_WORK: ReconciliationTotals = {
+  review: 0, matches: 0, refunds: 0, noEmail: 0, notInNetwork: 0, all: 0,
+};
+
+/* THE ARITHMETIC, SEPARATE FROM THE FETCH, because the Reconciliation
+   page already has all five lists in hand -- it draws their rows -- and
+   fetching them again to count them would be a second round trip that
+   could disagree with the first. Home and the sidebar want only the
+   numbers, so they take the loader below. One function decides what
+   counts and what adds up; two decide where the rows come from. */
+export function reconciliationTotals(input: {
+  review: { length: number };
+  matches: { state?: string }[];
+  refunds: { length: number };
+  noEmail: { length: number };
+  notInNetwork: { length: number };
+}): ReconciliationTotals {
+  /* NEEDS REVIEW, not every row the match queue holds. Home counted it
+     this way and the page's own tab counted every row, so the two
+     disagreed about the same queue before this; a badge counting
+     resolved matches sends somebody to a page with nothing to do on it. */
+  const m = input.matches.filter((r) => r.state === 'needs_review').length;
+  const t = {
+    review: input.review.length,
+    matches: m,
+    refunds: input.refunds.length,
+    noEmail: input.noEmail.length,
+    notInNetwork: input.notInNetwork.length,
+  };
+  return { ...t, all: t.review + t.matches + t.refunds + t.noEmail + t.notInNetwork };
+}
+
+export async function loadReconciliationTotals(): Promise<ReconciliationTotals> {
+  const [review, matches, notInNetwork, refunds, noEmail] = await Promise.all([
+    loadReconciliationQueue(), loadAgencyMatchQueue(), loadNotInNetworkAgencies(),
+    loadRefundQuestions(), loadSupplierAgenciesWithoutAnEmail(),
+  ]);
+  return reconciliationTotals({ review, matches, refunds, noEmail, notInNetwork });
+}
+
+/** Which tab a reader should land on: the only one with items, or All
+    when several have them and All is where they can see them together.
+    Matt, 2026-10-02: "opens on whichever tab has items (or All)." */
+export function reconciliationLandingTab(t: ReconciliationTotals): string {
+  const withWork = ([
+    ['review', t.review], ['matches', t.matches], ['refunds', t.refunds],
+    ['noemail', t.noEmail], ['notinnetwork', t.notInNetwork],
+  ] as const).filter(([, n]) => n > 0);
+  if (withWork.length !== 1) return 'all';
+  // The review queue IS the All tab's own list, so there is no tab to
+  // name for it beyond All.
+  return withWork[0][0] === 'review' ? 'all' : withWork[0][0];
+}

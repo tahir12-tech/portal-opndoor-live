@@ -5,8 +5,7 @@
    ===================================================================== */
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { reconciliationPendingCount, awaitingDecisionCount, loadAgencyMatchQueue, getAgencies, ALL_PARTNERS } from '@/data';
-import { agenciesNeedingAnEmail } from '@/data/deedContact';
+import { awaitingDecisionCount, loadReconciliationTotals, NO_RECONCILIATION_WORK, type ReconciliationTotals } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { NAV, NAV_CAPABILITY } from '@/constants/nav';
 import { portalLabel } from '@/data/capabilities';
@@ -24,31 +23,26 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   // in App.tsx from the same map, so nothing is hidden that is not also closed.
   const navigate = useNavigate();
   const { active } = usePageMetaValue();
-  // The direct-signup agency-match backlog is a separate, async queue (superadmin
-  // RPC); it lived on the Reconciliation page with no badge, so it could silently
-  // back up. Fold its needs-action count into the Reconciliation badge, refreshing
-  // on dataVersion so a match resolved on a record clears it here too.
-  const [matchCount, setMatchCount] = useState(0);
+  /* THE BADGE IS THE PAGE'S OWN "All" COUNT. Matt, 2026-10-02: "Home's
+     Reconciliation count and the sidebar badge must equal the 'All'
+     count, including 'Not in network'."
+
+     IT WAS A THIRD SUBSET. This file added the review queue, the match
+     queue and the agencies needing an email -- which was this morning's
+     fix and still left out refunds and not-in-network, so the badge
+     disagreed with the page it points at. `loadReconciliationTotals`
+     counts all five in one place; nothing here adds anything up. */
+  const [recon, setRecon] = useState<ReconciliationTotals>(NO_RECONCILIATION_WORK);
   useEffect(() => {
-    if (role !== 'superadmin') { setMatchCount(0); return; }
+    if (role !== 'superadmin') { setRecon(NO_RECONCILIATION_WORK); return; }
     let cancelled = false;
-    void loadAgencyMatchQueue()
-      .then((rows) => { if (!cancelled) setMatchCount(rows.filter((r) => r.state === 'needs_review').length); })
-      .catch(() => { if (!cancelled) setMatchCount(0); });
+    void loadReconciliationTotals()
+      .then((t) => { if (!cancelled) setRecon(t); })
+      .catch(() => { if (!cancelled) setRecon(NO_RECONCILIATION_WORK); });
     return () => { cancelled = true; };
   }, [role, dataVersion]);
-  /* AND THE AGENCIES THAT NEED AN EMAIL, which are the third kind of work
-     on that page. Matt, 2026-10-02, about the tile on Home: "Include
-     those in the Home count and say what they are." The badge is the
-     same count one surface over, and a badge that disagrees with the
-     tile beside it is worse than either being wrong alone -- it was 7
-     against the tile's 8 the moment Home was fixed.
 
-     One predicate, `agenciesNeedingAnEmail`, shared with Home, the
-     Agencies screen, the supplier's page and the SQL reader behind the
-     Reconciliation tab, so the four cannot count different rows. */
-  const reconcileBadge = reconciliationPendingCount() + matchCount
-    + agenciesNeedingAnEmail(getAgencies(ALL_PARTNERS)).length;
+  const reconcileBadge = recon.all;
   const decisionsBadge = awaitingDecisionCount();
   const [menuOpen, setMenuOpen] = useState(false);
   const footRef = useRef<HTMLDivElement>(null);

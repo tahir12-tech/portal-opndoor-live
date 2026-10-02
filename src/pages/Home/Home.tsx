@@ -8,10 +8,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import {
-  awaitingDecisionCount, reconciliationPendingCount, loadAgencyMatchQueue, countByStatus,
-  getApplications, getAgencies, ALL_PARTNERS, canPostStatements,
+  awaitingDecisionCount, loadAgencyMatchQueue, countByStatus,
+  getApplications, ALL_PARTNERS, canPostStatements,
+  loadReconciliationTotals, reconciliationLandingTab, NO_RECONCILIATION_WORK,
+  type ReconciliationTotals,
 } from '@/data';
-import { agenciesNeedingAnEmail } from '@/data/deedContact';
 import { plural } from '@/lib/plural';
 import { channelOf, ROUTE_LABEL, type Channel } from '@/data/channel';
 import { getPartner } from '@/data/partnersService';
@@ -43,16 +44,29 @@ const initials = (n: string) => n.split(' ').map((p) => p[0]).slice(0, 2).join('
  * an email" is a sentence about nothing, and the reason the older meta
  * said one thing was that there was only one thing to say.
  */
-export function reconMeta(review: number, needEmail: number): string {
+/* ALL FIVE KINDS, SINCE 2026-10-02. It named two -- the review queue and
+   the agencies needing an email -- because those were the two in the
+   count. Matt: "Home's Reconciliation count and the sidebar badge must
+   equal the 'All' count, including 'Not in network'." A tile counting
+   five kinds and describing two sends the reader to a page looking for
+   rows that are on another tab, which is the defect the older note
+   below is already about.
+
+   STILL NAMES ONLY WHAT IS THERE. "and 0 refund questions" is a
+   sentence about nothing. */
+export function reconMeta(t: ReconciliationTotals): string {
   const parts: string[] = [];
   /* "3 to review" rather than "3 agencies and branches to review": the
      queue holds both kinds and the count is of the two together, so
      naming them would need "1 agency and branch", which is not English.
      The tile is labelled Reconciliation and the page says the rest. */
-  if (review > 0) parts.push(`${review} to review`);
-  if (needEmail > 0) {
-    parts.push(`${needEmail} supplier ${plural(needEmail, 'agency')} ${needEmail === 1 ? 'needs' : 'need'} an email`);
+  if (t.review > 0) parts.push(`${t.review} to review`);
+  if (t.matches > 0) parts.push(`${t.matches} ${plural(t.matches, 'agent')} named by tenants`);
+  if (t.refunds > 0) parts.push(`${t.refunds} refund ${plural(t.refunds, 'question')}`);
+  if (t.noEmail > 0) {
+    parts.push(`${t.noEmail} supplier ${plural(t.noEmail, 'agency')} ${t.noEmail === 1 ? 'needs' : 'need'} an email`);
   }
+  if (t.notInNetwork > 0) parts.push(`${t.notInNetwork} not in network`);
   // Nothing waiting: the tile shows 0 and the line says what it would count.
   if (!parts.length) return 'waiting now: agencies and branches to review';
   return `waiting now: ${parts.join(', ')}`;
@@ -65,19 +79,29 @@ export function Home() {
   const scopeOpts = { role, scope: ALL_PARTNERS as string };
 
   const awaiting = awaitingDecisionCount();
-  const recon = reconciliationPendingCount();
-  /* AND THE AGENCIES THAT NEED AN EMAIL, which are on the same page and
-     were not in the same number. Matt, 2026-10-02: "Home's Reconciliation
-     count shows 0 while the 'Supplier agencies with no email' tab lists
-     two. Include those in the Home count and say what they are."
+  /* THE WHOLE OF RECONCILIATION, from the page's own count. Matt,
+     2026-10-02: "Home's Reconciliation count and the sidebar badge must
+     equal the 'All' count, including 'Not in network'."
 
-     COUNTED HERE FROM THE HYDRATED ORG, not fetched. The tile is
-     synchronous and the Reconciliation tab's own reader is an RPC; asking
-     the server here would make Home wait on a round trip to draw a
-     number. `agenciesNeedingAnEmail` is the same predicate the Agencies
-     screen and the supplier's page use, and the SQL reader applies the
-     same three tests, so the tile and the tab count the same rows. */
-  const needEmail = agenciesNeedingAnEmail(getAgencies(ALL_PARTNERS)).length;
+     IT WAS COUNTED HERE, and that was the problem. The tile added the
+     review queue to the agencies needing an email -- a fix from earlier
+     the same day, which got the two kinds it knew about and left out
+     refunds and not-in-network -- and the sidebar added a third subset
+     of its own. Three screens arithmetically disagreeing about one page.
+
+     FETCHED, NOT DERIVED, which is the cost and is worth it: two of the
+     five are RPC-only and cannot be read off the hydrated org at all, so
+     the choice was a round trip or a number that is wrong. The tile
+     draws 0 until it lands, which is what every async tile here does. */
+  const [recon, setRecon] = useState<ReconciliationTotals>(NO_RECONCILIATION_WORK);
+  useEffect(() => {
+    if (!isOpndoorStaff) { setRecon(NO_RECONCILIATION_WORK); return; }
+    let cancelled = false;
+    void loadReconciliationTotals()
+      .then((t) => { if (!cancelled) setRecon(t); })
+      .catch(() => { if (!cancelled) setRecon(NO_RECONCILIATION_WORK); });
+    return () => { cancelled = true; };
+  }, [dataVersion, isOpndoorStaff]);
   const deliveryFailed = countByStatus(scopeOpts).deliveryFailed;
 
   /* THE INVOICE ADDRESS, and whether a statement could be posted at all.
@@ -138,7 +162,12 @@ export function Home() {
     /* ONE TILE, TWO KINDS OF WORK, and the meta names whichever is there.
        A tile that counts both and describes one sends the reader to a
        page looking for rows that are on another tab. */
-    { label: 'Reconciliation', n: recon + needEmail, meta: reconMeta(recon, needEmail), to: '/reconciliation', tone: 'accent' as const },
+    /* ONE TILE, FIVE KINDS OF WORK, and the meta names whichever are
+       there. The link lands on the tab that has them, or on All where
+       several do: `reconciliationLandingTab` is the same function the
+       page itself uses to decide, so the tile and the page cannot send
+       a reader to different places. */
+    { label: 'Reconciliation', n: recon.all, meta: reconMeta(recon), to: `/reconciliation?tab=${reconciliationLandingTab(recon)}`, tone: 'accent' as const },
     { label: 'Delivery failed', n: deliveryFailed, meta: 'waiting now: deed not delivered', to: '/applications?deed=delivery-failed', tone: 'danger' as const },
   ];
 

@@ -8,7 +8,7 @@
    2-minute cron also runs the sync). Merge is not built yet (disabled).
    ===================================================================== */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { confirmReconEntity, loadReconciliationQueue, loadAgencyMatchQueue, loadNotInNetworkAgencies, loadRefundQuestions, loadSupplierAgenciesWithoutAnEmail, triggerCrmSync, type ReconRow } from '@/data';
+import { confirmReconEntity, loadReconciliationQueue, loadAgencyMatchQueue, loadNotInNetworkAgencies, loadRefundQuestions, loadSupplierAgenciesWithoutAnEmail, triggerCrmSync, reconciliationLandingTab, reconciliationTotals, NO_RECONCILIATION_WORK, type ReconRow, type ReconciliationTotals } from '@/data';
 import { AgencyMatchQueue } from './AgencyMatchQueue';
 import { NotInNetwork } from './NotInNetwork';
 import { NoAgencyEmail } from './NoAgencyEmail';
@@ -45,10 +45,7 @@ export function Reconciliation() {
     return t === 'agency' || t === 'branch' || t === 'dupes' || t === 'matches' || t === 'notinnetwork'
       || t === 'refunds' || t === 'noemail' ? t : 'all';
   });
-  const [matchCount, setMatchCount] = useState(0);
-  const [notInCount, setNotInCount] = useState(0);
-  const [refundCount, setRefundCount] = useState(0);
-  const [noEmailCount, setNoEmailCount] = useState(0);
+  const [totals, setTotals] = useState<ReconciliationTotals>(NO_RECONCILIATION_WORK);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
@@ -63,10 +60,13 @@ export function Reconciliation() {
         loadRefundQuestions(), loadSupplierAgenciesWithoutAnEmail(),
       ]);
       setQueue(q);
-      setMatchCount(matches.length);
-      setNotInCount(notIn.length);
-      setRefundCount(refunds.length);
-      setNoEmailCount(noEmail.length);
+      /* THE COUNTS COME FROM THE SHARED FUNCTION, not from five
+         `.length`s here. Matt, 2026-10-02: the All tab, the tiles, Home
+         and the sidebar all state this page's total, and they were
+         three different subsets. The matches count in particular was
+         `matches.length` here and needs-review-only on Home, so the two
+         disagreed about one queue. */
+      setTotals(reconciliationTotals({ review: q, matches, refunds, noEmail, notInNetwork: notIn }));
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not load the reconciliation queue.', 'error');
     } finally {
@@ -82,42 +82,54 @@ export function Reconciliation() {
   const branchCount = queue.filter((i) => i.type === 'branch').length;
 
   const tabs: { id: Filter; label: string; count: number }[] = [
-    { id: 'all', label: 'All', count: queue.length },
+    /* AND THE SUBSET TABS ARE NOT IN IT. Agencies, Branches and "Might
+       already exist" below are slices of the review queue, so adding
+       them would count every new record three times. */
+    { id: 'all', label: 'All', count: totals.all },
     { id: 'agency', label: 'Agencies', count: agencyCount },
     { id: 'branch', label: 'Branches', count: branchCount },
     { id: 'dupes', label: 'Might already exist', count: dupes },
     /* The LABEL changes and the id does NOT. Home links here with
        ?tab=matches and the whitelist keys on that literal, so renaming
        the id would break a link from another page. */
-    { id: 'matches', label: 'Agents named by tenants', count: matchCount },
+    { id: 'matches', label: 'Agents named by tenants', count: totals.matches },
     /* ABOVE "Not in network" because it IS work, and money: a refund on
        commission already sent is waiting on a decision only a person can
        make, and nothing moves until they make it. */
-    { id: 'refunds', label: 'Refunds on sent statements', count: refundCount },
+    { id: 'refunds', label: 'Refunds on sent statements', count: totals.refunds },
     /* AFTER the refunds, which are money waiting on a decision, and BEFORE
        "Not in network", which is the only tab that is not work. This one is
        work: open the agency and add a contact. Matt, 2026-10-02: "list them
        on Reconciliation so Opndoor can add one." */
-    { id: 'noemail', label: 'Supplier agencies with no email', count: noEmailCount },
+    { id: 'noemail', label: 'Supplier agencies with no email', count: totals.noEmail },
     /* NM-N. Last, because it is the only tab that is not WORK: nothing on
        it can be actioned here, it is a list to retype into HubSpot. */
-    { id: 'notinnetwork', label: 'Not in network', count: notInCount },
+    { id: 'notinnetwork', label: 'Not in network', count: totals.notInNetwork },
   ];
 
-  /* OPEN ON A TAB THAT HAS WORK. "All" counts the review queue only, so a page
-     whose only outstanding work is a direct match opened on an empty list under
-     a heading that said there was nothing to do, with the count sitting on a
-     tab one click away. Applied ONCE, on the first load that produces counts,
-     and never again: re-deciding on every render would drag the reader off a
-     tab they had chosen the moment they cleared its last row. */
+  /* OPEN ON A TAB THAT HAS WORK. This was written when "All" counted the
+     review queue alone, so a page whose only outstanding work was a direct
+     match opened on an empty list under a heading saying there was nothing
+     to do. All holds everything now, so the rule it needs is Matt's:
+     "opens on whichever tab has items (or All)" -- the one tab when there
+     is exactly one, and All when there are several, because All is where
+     they can be seen together.
+
+     `reconciliationLandingTab` decides, shared with Home's link so the two
+     cannot send a reader to different places. Applied ONCE, on the first
+     load that produces counts, and never again: re-deciding on every
+     render would drag the reader off a tab they had chosen the moment they
+     cleared its last row. */
   const landed = useRef(false);
   useEffect(() => {
     if (landed.current || loading) return;
     landed.current = true;
-    // Only when the reader did not ask for a tab and the default is empty.
-    if (params.get('tab') || queue.length > 0) return;
-    if (matchCount > 0) setFilter('matches');
-  }, [loading, queue.length, matchCount, params]);
+    // Only when the reader did not ask for a tab.
+    if (params.get('tab')) return;
+    const land = reconciliationLandingTab(totals);
+    if (land !== 'all') setFilter(land as Filter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, params]);
 
   const passes = (item: ReconRow) => (filter === 'all' ? true : filter === 'dupes' ? !!item.match : item.type === filter);
   const visible = queue.filter(passes);
@@ -176,10 +188,29 @@ export function Reconciliation() {
         <span>Visible to <b>opndoor admins</b> only. Supplier and agency users never see this reconciliation view.</span>
       </div>
 
+      {/* THE TILES COUNT WHAT IS ACTUALLY WAITING. Matt, same instruction.
+          The first said "Awaiting review" and counted the review queue
+          alone, so on dev it read 0 above a tab strip holding three rows
+          of work. It is the page's total now, and the two beside it say
+          out loud that they are of the new records, because a part that
+          does not add up to the whole beside it is the "two numbers that
+          cannot both be a total" Matt named on Applications. */}
       <div className="qstat">
-        <div className="qstat__card"><div className="qstat__n">{queue.length}</div><div className="qstat__l">Awaiting review</div></div>
-        <div className="qstat__card"><div className="qstat__n" style={{ color: 'var(--warn)' }}>{dupes}</div><div className="qstat__l">Possible duplicates</div></div>
-        <div className="qstat__card"><div className="qstat__n" style={{ color: 'var(--heliotrope-deep)' }}>{newOnes}</div><div className="qstat__l">Nothing similar found</div></div>
+        <div className="qstat__card">
+          <div className="qstat__n">{totals.all}</div>
+          <div className="qstat__l">Waiting</div>
+          <div className="qstat__s">everything on this page</div>
+        </div>
+        <div className="qstat__card">
+          <div className="qstat__n" style={{ color: 'var(--warn)' }}>{dupes}</div>
+          <div className="qstat__l">Possible duplicates</div>
+          <div className="qstat__s">of the {queue.length} new {plural(queue.length, 'record')}</div>
+        </div>
+        <div className="qstat__card">
+          <div className="qstat__n" style={{ color: 'var(--heliotrope-deep)' }}>{newOnes}</div>
+          <div className="qstat__l">Nothing similar found</div>
+          <div className="qstat__s">of the {queue.length} new {plural(queue.length, 'record')}</div>
+        </div>
       </div>
 
       <div className="rtabs">
@@ -247,13 +278,47 @@ export function Reconciliation() {
         })}
       </div>
       )}
-      {/* THE REVIEW QUEUE'S OWN EMPTY STATE, and it speaks for that queue
-          alone: "nothing left to reconcile" under a not-in-network list with
-          four agencies on it would be a flat contradiction. Each sibling
-          section carries its own. */}
-      {filter !== 'matches' && filter !== 'notinnetwork' && (
-        <div className={`empty${!loading && queue.length === 0 ? ' is-shown' : ''}`}>Nothing to check. Every agency and branch on file has been confirmed.</div>
+
+      {/* AND ON "ALL", EVERY OTHER TAB'S ITEMS, UNDER THEIR OWN HEADINGS.
+          Matt, 2026-10-02: "The 'All' tab must include every item from
+          every tab." It showed the review queue alone, so on dev it said
+          "Nothing to check" with two agencies needing an email and one
+          not in network a click away.
+
+          THE SECTIONS ARE THE SAME COMPONENTS the tabs render, not a
+          second rendering of the same rows: one list of agencies without
+          an email, read in two places, cannot disagree with itself.
+
+          AND ONLY WHERE THERE IS SOMETHING. A heading over an empty
+          section is the "Nothing to check" problem again, four times. */}
+      {filter === 'all' && (
+        <>
+          {totals.matches > 0 && (
+            <><h2 className="rec-sec">Agents named by tenants</h2><AgencyMatchQueue onChanged={reload} /></>
+          )}
+          {totals.refunds > 0 && (
+            <><h2 className="rec-sec">Refunds on sent statements</h2><RefundQuestions onChanged={reload} /></>
+          )}
+          {totals.noEmail > 0 && (
+            <><h2 className="rec-sec">Supplier agencies with no email</h2><NoAgencyEmail /></>
+          )}
+          {totals.notInNetwork > 0 && (
+            <><h2 className="rec-sec">Not in network</h2><NotInNetwork /></>
+          )}
+        </>
       )}
+
+      {/* THE EMPTY STATE NOW SPEAKS FOR WHAT THE TAB SHOWS. It said
+          "nothing to check" whenever the REVIEW QUEUE was empty, which on
+          All is a flat contradiction of the sections above it. On All it
+          waits until the whole page is empty; on the three slices of the
+          review queue it still speaks for that queue, which is all they
+          show. */}
+      {filter === 'all' ? (
+        <div className={`empty${!loading && totals.all === 0 ? ' is-shown' : ''}`}>Nothing to check. Every agency and branch on file has been confirmed, and nothing else is waiting.</div>
+      ) : filter !== 'matches' && filter !== 'notinnetwork' && filter !== 'refunds' && filter !== 'noemail' ? (
+        <div className={`empty${!loading && queue.length === 0 ? ' is-shown' : ''}`}>Nothing to check. Every agency and branch on file has been confirmed.</div>
+      ) : null}
     </>
   );
 }
