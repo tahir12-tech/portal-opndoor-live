@@ -718,6 +718,31 @@ screens an admin can no longer open as of item 2.
   stay"). This one says to replace it, and it is adding a column as well
   as renaming, so it is a deliberate exception rather than a conflict.
 
+## THE BORDEREAU NEVER SHOWS A PLACEHOLDER (instruction, 2026-10-02, verbatim).
+
+> Underwriter bordereau: "Landlord Name" shows "Unattached" for a direct signup. Never show the placeholder: show the landlord's name where we hold it, otherwise leave it blank. Check every column of the bordereau for "Unattached" or any other internal placeholder. Deploy to dev and check there.
+
+- "Unattached" is the house rails' placeholder agency, which exists so an
+  application's NOT NULL agency_id resolves. It is an internal row and it
+  has now surfaced on three documents: the application export (item 2 of
+  that instruction), this one, and whatever the sweep finds. The fix is
+  one rule -- a placeholder renders as nothing -- applied everywhere a
+  name is printed, not three separate blanks.
+- The landlord's name is a different question from the agency's: this
+  column was reading the agency because a direct signup has no agent, and
+  `landlord_name` is the column that answers it.
+
+## THE EXPIRIES EXPORT, THREE LABELS (instruction, 2026-10-02, verbatim).
+
+> Expiries export: label "Annualised rent" as "Annualised rent (this tenant's share)"; say "Guarantee fee (whole tenancy)" not "Guarantor fee"; replace the Tenancy ID code with "Joint with" listing the other tenants' guarantee references (blank for single tenancies). Deploy to dev and check there.
+
+- The third is not a label: "Joint with" has to resolve the other tenants
+  on the tenancy and print THEIR references, which the export does not
+  currently carry.
+- The first two are the same subject as item 3 of "ADMIN REPORTING" and
+  of the application export: one fee name, and a figure that says whose
+  share it is.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
