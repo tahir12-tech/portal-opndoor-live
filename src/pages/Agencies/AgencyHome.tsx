@@ -588,7 +588,15 @@ export function AgencyHome() {
   const manyAgencies = agencies.length > 1;
   const statusBadge = org.kind === 'group' ? 'Group' : 'Agency';
 
-  const goApplications = (agencyName: string) => `/applications?agency=${encodeURIComponent(agencyName)}`;
+  /* BY ID, since 2026-10-02. A name is not an identity across estates,
+     and this page is looking at one agency ROW, which knows its own id.
+     The name is the fallback for a row that has none yet. */
+  const goApplications = (agencyName: string) => {
+    const a = agencies.find((x) => x.name === agencyName);
+    return a?.id
+      ? `/applications?agencyId=${encodeURIComponent(a.id)}`
+      : `/applications?agency=${encodeURIComponent(agencyName)}`;
+  };
 
   /* The worst branch total a pending edit would produce, answered by SQL
      (commission_preview) with the draft substituted into the same rule that will

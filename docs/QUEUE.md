@@ -614,6 +614,35 @@ screens an admin can no longer open as of item 2.
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
 
+- **Two answers on the admin Agencies page, 2026-10-02.**
+
+  **Nothing was missing.** Northgate Lettings and Southbank Residential
+  are both inside **Meridian Property Group**, which is collapsed by
+  default and renders its children only when open. I reproduced dev's
+  exact shape in a render test: it reads "Showing 5 of 5 rows · 6
+  agencies", the group row is there, and Expand all does open it and
+  reveal both. What misled you is real though: the count says 6 while
+  four agency NAMES are on screen, and the group row answered "2
+  agencies" without saying which two. It names them now, so the
+  collapsed state is honest.
+
+  **Frost Partnership is already standing alone.** It has no group at
+  all. The two agencies in Meridian Property Group are Northgate and
+  Southbank — which looks like seed data rather than anything you set
+  up. Say the word and I will take them out of the group; I have not,
+  because you asked about Frost and Frost needs nothing.
+
+- **An application summary carries its agency as a NAME, not an id.**
+  Found while making every link filter by id. Four of the five surfaces
+  have a real row to link from and now pass `?agencyId=`/`?branchId=`.
+  The League cannot: its rows are aggregates built from application
+  summaries, and there is no agency id anywhere in that data. It
+  resolves the name to an id where the name is unique and REFUSES where
+  it is two agencies, falling back to the name rather than picking one.
+  Fixing it properly means carrying `agency_id` on the application
+  summary, which is a change to the hydration every screen reads. Worth
+  doing, not worth doing quietly inside a link change.
+
 - **The Applications tab counts already follow the filters, and "All" is
   the word that is wrong.** Measured on dev before changing anything.
   Every application there, by partner and status:

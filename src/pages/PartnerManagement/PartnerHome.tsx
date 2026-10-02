@@ -676,7 +676,10 @@ export function PartnerHome() {
                       {a.branches.map((b) => (
                         <div className="ph-tree__branch" key={b.id ?? b.name}>
                           <span className="ph-tree__bic"><Icon name="home" size={13} /></span>
-                          <Link className="ph-tree__bname" to={`/applications?branch=${encodeURIComponent(b.name)}`}>{b.name}</Link>
+                          {/* BY ID: this page is a SUPPLIER's estate, which is
+                              precisely where a name collides with one of
+                              Opndoor's own. */}
+                          <Link className="ph-tree__bname" to={b.id ? `/applications?branchId=${encodeURIComponent(b.id)}` : `/applications?branch=${encodeURIComponent(b.name)}`}>{b.name}</Link>
                           {b.area && <span className="ph-tree__barea">{b.area}</span>}
                           {b.unreviewed && <span className="ph-tag">unreviewed</span>}
                           <span className="ph-tree__meta">{countOf(b.referrals, 'referral')}</span>

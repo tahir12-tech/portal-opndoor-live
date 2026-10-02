@@ -1402,7 +1402,12 @@ function requestCloseContacts() {
             {meta && <div className="agency__meta">{meta}</div>}
             <ContactSummary agency={a} branch={null} canManage={canManageContacts} onManage={() => openContacts(a.name, null)} ready={a.id ? readiness?.agencies.get(a.id) : undefined} />
           </div>
-          <Link className="statlink statlink--agency" to={`/applications?agency=${encodeURIComponent(a.name)}`} title={`View all applications for ${a.name}`}>
+          {/* BY ID. Matt, 2026-10-02: "Links must filter by the agency's
+              or branch's id, everywhere." A name stopped being an identity
+              when the two estates landed. The fallback keeps a row with no
+              id yet working -- mock mode, and the moment between creating
+              an agency and re-hydrating. */}
+          <Link className="statlink statlink--agency" to={a.id ? `/applications?agencyId=${encodeURIComponent(a.id)}` : `/applications?agency=${encodeURIComponent(a.name)}`} title={`View all applications for ${a.name}`}>
             <div className="agency__stat"><div className="n">{a.referrals}</div><div className="l">Referrals</div></div>
             <div className="agency__stat"><div className="n">{fmtK(fees)}</div><div className="l">Fees collected</div></div>
             {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * rates.agent)}</div><div className="l">Agency commission</div></div>}
@@ -1447,7 +1452,7 @@ function requestCloseContacts() {
                   <div className="branch__meta">{b.area}</div>
                   <ContactSummary agency={a} branch={b} canManage={canManageContacts} onManage={() => openContacts(a.name, b.name)} ready={b.id ? readiness?.branches.get(b.id) : undefined} />
                 </div>
-                <Link className="statlink statlink--branch" to={`/applications?branch=${encodeURIComponent(b.name)}`} title={`View applications for ${b.name}`}>
+                <Link className="statlink statlink--branch" to={b.id ? `/applications?branchId=${encodeURIComponent(b.id)}` : `/applications?branch=${encodeURIComponent(b.name)}`} title={`View applications for ${b.name}`}>
                   <div className="branch__stat"><b>{b.referrals}</b>referrals</div>
                   <div className="branch__stat"><b>{fmtK(bFees)}</b>fees collected</div>
                   {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * rates.agent)}</b>agency comm.</div>}
@@ -1572,7 +1577,32 @@ function requestCloseContacts() {
                 <span className="orggroup__tick">G</span>
                 <div className="orggroup__txt">
                   <Link className="orggroup__name" to={`/agencies/${encodeURIComponent(group.id)}`} data-stop title={`Open ${group.name}`}>{highlight(group.name, q)}</Link>
-                  <div className="orggroup__meta">{brandCount} {plural(brandCount, 'agency')} · {branchCount} {plural(branchCount, 'branch')}</div>
+                  {/* AND WHICH AGENCIES, not only how many. Matt,
+                      2026-10-02: "It says '6 agencies' but only shows
+                      Frost Partnership, Regent's Lettings, Harbour Lets
+                      and Harborview Lettings, even with Expand all.
+                      Northgate Lettings and Southbank Residential are
+                      missing."
+
+                      THEY WERE NOT MISSING. Both are inside Meridian
+                      Property Group, which is collapsed by default and
+                      renders its children only when open -- reproduced
+                      with dev's exact shape, where Expand all does open
+                      it. What was wrong is that the count line says "6
+                      agencies" while four names are on screen, and the
+                      group row answered "2 agencies" without saying
+                      which two. A reader counting names against the
+                      total is right to conclude something is lost.
+
+                      Naming them costs one line and makes the
+                      collapsed state honest: nothing is hidden, it is
+                      only folded. */}
+                  <div className="orggroup__meta">
+                    {brandCount} {plural(brandCount, 'agency')} · {branchCount} {plural(branchCount, 'branch')}
+                    {!gOpen && brandCount > 0 && (
+                      <> · {items.map((it) => it.a.name).join(', ')}</>
+                    )}
+                  </div>
                 </div>
                 <div className="orggroup__stats">
                   <div className="agency__stat"><div className="n">{groupRefs}</div><div className="l">Referrals</div></div>

@@ -21,7 +21,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type 
 import { officeLabel, showsOffices, isPlaceholderOrg } from '@/data/agencyOffices';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications,
+  agencyNamesForScope, agencyOfBranch, agencyRefById, branchNamesForScope, branchRefById, countByStatus, getApplications,
   referrerNamesForScope, getPeriods, periodRange, ALL_PARTNERS, type Status, type Period,
   collateTenancies, groupTenancies, pageWithoutSplitting, scopedSummaries, tenancyDeedTally, tenancyPaidTally,
   originOf, originOptions, originToFilter, originFromParams, ORIGIN_KIND_LABEL,
@@ -163,11 +163,31 @@ export function Applications() {
   const origin = scopeSel;
   const setOrigin = setScopeSel;
   useEffect(() => {
-    const fromLink = originFromParams({
-      origin: params.get('origin'),
-      partner: params.get('partner'),
-      route: params.get('route'),
-    });
+    /* AN ID NAMES ITS ESTATE, which a name does not. Matt, 2026-10-02:
+       "Every link from an agency or branch to Applications filters by
+       name ... so with two Frosts in different estates it can show the
+       other one's applications. Links must filter by the agency's or
+       branch's id, everywhere."
+
+       The id is resolved to the pair this list can actually filter on
+       -- the NAME, which is what a summary row carries, and the ESTATE,
+       which is what tells the two Frosts apart -- and the estate is
+       applied as the ORIGIN, because `agency:<estate>:<name>` is
+       already the selection that means exactly that. So an id-bearing
+       link narrows by both and a name-bearing one still works as it
+       did, which keeps every saved link alive. */
+    const byId = params.get('agencyId')
+      ? agencyRefById(params.get('agencyId')!)
+      : params.get('branchId')
+        ? branchRefById(params.get('branchId')!)
+        : null;
+    const fromLink = byId
+      ? `agency:${byId.partner}:${'agency' in byId ? byId.agency : byId.name}`
+      : originFromParams({
+        origin: params.get('origin'),
+        partner: params.get('partner'),
+        route: params.get('route'),
+      });
     // `fromLink` is ORIGIN_ALL ('') when the link names nothing, which is
     // the clearing case and the reason this is not `if (fromLink)`.
     if (fromLink !== scopeSel) setScopeSel(fromLink);
@@ -201,9 +221,19 @@ export function Applications() {
      reason: nothing on this page writes the URL, so it cannot fight the
      chips. */
   useEffect(() => {
-    const linkBranch = params.get('branch') || '';
-    setBranch(linkBranch);
-    setAgency(params.get('agency') || (linkBranch ? agencyOfBranch(linkBranch) : ''));
+    /* AN ID WINS OVER A NAME, and fills both chips from one parameter:
+       a branch id knows its agency, which a `?branch=` never did -- it
+       had to be looked up by name, and a name is ambiguous across
+       estates in exactly the way this change is about. */
+    const byBranch = params.get('branchId') ? branchRefById(params.get('branchId')!) : null;
+    const byAgency = params.get('agencyId') ? agencyRefById(params.get('agencyId')!) : null;
+    if (byBranch) { setBranch(byBranch.name); setAgency(byBranch.agency); }
+    else if (byAgency) { setBranch(''); setAgency(byAgency.name); }
+    else {
+      const linkBranch = params.get('branch') || '';
+      setBranch(linkBranch);
+      setAgency(params.get('agency') || (linkBranch ? agencyOfBranch(linkBranch) : ''));
+    }
     setReferrer(role !== 'referrer' ? params.get('referrer') || '' : '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.toString()]);

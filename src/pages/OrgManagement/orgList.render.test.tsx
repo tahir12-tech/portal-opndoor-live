@@ -71,9 +71,37 @@ describe('Agencies list: collapse and scale', () => {
     expect(shows(container, 'Meridian Property Group')).toBe(true);
     expect(shows(container, '1 agency')).toBe(true);
     expect(shows(container, '2 branches')).toBe(true);
-    // ...and nothing underneath it is rendered. Not hidden: absent.
-    expect(shows(container, 'Northgate Lettings')).toBe(false);
+    /* ...and nothing underneath it is RENDERED. Not hidden: absent.
+       That is the property, and it is about cost: a collapsed group is
+       one row however many agencies are in it.
+
+       THE NAMES ARE NOW ON THE GROUP ROW ITSELF, since 2026-10-02, and
+       that is not the same thing. Matt read "6 agencies" above four
+       visible names and concluded two were lost; they were folded into
+       a group whose row said "2 agencies" without saying which. So the
+       row lists them, and the assertion moves from "the name is absent"
+       to "the agency's own row and its branches are" -- which is what
+       the collapse was ever for. */
     expect(container.querySelector('.orggroup__brands')).toBeNull();
+    // Inside the GROUP: the independent agency beside it draws its own head.
+    expect(container.querySelector('.orggroup .agency__head')).toBeNull();
+    expect(shows(container, 'Northgate Central')).toBe(false);
+  });
+
+  it('and names them there, so the count and the screen agree', async () => {
+    const { container } = renderList();
+    await waitFor(() => { if (!shows(container, 'Meridian Property Group')) throw new Error('not ready'); });
+    expect(container.querySelector('.orggroup__meta')?.textContent)
+      .toContain('Northgate Lettings');
+  });
+
+  it('and stops naming them once it is open, where the rows say it', async () => {
+    const { container } = renderList();
+    await waitFor(() => { if (!shows(container, 'Meridian Property Group')) throw new Error('not ready'); });
+    fireEvent.click(container.querySelector('.orggroup__head')!);
+    expect(container.querySelector('.orggroup__meta')?.textContent)
+      .not.toContain('Northgate Lettings');
+    expect(container.querySelector('.orggroup__brands')).not.toBeNull();
   });
 
   it('an independent agency is a single collapsed row, its branches absent', async () => {
@@ -122,7 +150,12 @@ describe('Agencies list: collapse and scale', () => {
     expect(shows(container, 'Brighton Marina')).toBe(false);
 
     fireEvent.click(btn('Collapse all'));
-    expect(shows(container, 'Northgate Lettings')).toBe(false);
+    /* COLLAPSED MEANS THE ROWS ARE GONE, not the name. Since 2026-10-02
+       a collapsed group names its agencies on its own row, so the
+       closed state is read off the rows rather than off the text: see
+       the two cases at the top of this file. */
+    expect(container.querySelector('.orggroup__brands')).toBeNull();
+    expect(shows(container, 'Northgate Central')).toBe(false);
     expect(shows(container, 'Brighton Marina')).toBe(false);
   });
 

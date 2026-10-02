@@ -38,6 +38,7 @@ import { isAgencyUser } from '@/data/capabilities';
 import { ScopePicker } from '@/components/ui/ScopePicker';
 import { recentScopes } from '@/data/scopeRecents';
 import { originFromParams, originOptions } from '@/data/origin';
+import { uniqueAgencyIdByName, uniqueBranchIdByName } from '@/data/orgService';
 import { scopedSummaries } from '@/data/applicationsService';
 import { getPositions, type Position } from '@/data/positionsService';
 import { liveScopeShape } from '@/data/liveAnalytics';
@@ -649,9 +650,33 @@ function FullLeagueView() {
                 // #owner Drill through to the matching Applications filter (management +
                 // opndoor admin view only — this table is the full view). Referrer rows
                 // link to ?referrer=, exactly as agency/branch figures drill elsewhere.
-                const drill = view === 'agency' ? `/applications?agency=${encodeURIComponent(r.name)}`
-                  : view === 'branch' ? `/applications?branch=${encodeURIComponent(r.name)}`
-                  : `/applications?referrer=${encodeURIComponent(r.name)}`;
+                /* BY ID WHERE THE ROW CAN BE RESOLVED TO ONE. Matt,
+                   2026-10-02: "Links must filter by the agency's or
+                   branch's id, everywhere."
+
+                   A LEAGUE ROW IS NOT A RECORD, which is the honest
+                   difficulty here. It is an aggregate keyed on
+                   `${partner}\u0000${name}`, built from application
+                   SUMMARIES, and a summary carries its agency as a
+                   string -- there is no agency id anywhere in the data
+                   this board is made of. So the id is looked up by
+                   name, and where one name is two agencies the lookup
+                   refuses rather than guessing: the link then falls
+                   back to the name, which is what it has always done,
+                   and the row's own sub-line already names the estate.
+
+                   Fixing it properly means carrying agency_id on the
+                   application summary, which is a change to the
+                   hydration every screen reads. It is in docs/QUEUE.md
+                   under "For Matt in the morning" rather than done
+                   quietly as part of a link change. */
+                const one = view === 'agency' ? uniqueAgencyIdByName(r.name)
+                  : view === 'branch' ? uniqueBranchIdByName(r.name) : null;
+                const drill = view === 'agency'
+                  ? (one ? `/applications?agencyId=${encodeURIComponent(one)}` : `/applications?agency=${encodeURIComponent(r.name)}`)
+                  : view === 'branch'
+                    ? (one ? `/applications?branchId=${encodeURIComponent(one)}` : `/applications?branch=${encodeURIComponent(r.name)}`)
+                    : `/applications?referrer=${encodeURIComponent(r.name)}`;
                 return (
                   <tr key={`${r.name}-${r.sub}`} onClick={() => navigate(drill)} style={{ cursor: 'pointer' }} title={`View applications for ${r.name}`}>
                     <td className="num"><span className={`rank${rank <= 3 ? ' top' : ''}`}>{rank}</span></td>

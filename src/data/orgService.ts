@@ -150,6 +150,68 @@ export async function setAgencyGroup(agencyId: string, groupId: string | null): 
 }
 
 /** Same as findAgency but returns null. Internal helper for createBranchOnTheFly. */
+/* =====================================================================
+   BY ID, BECAUSE A NAME IS NOT AN IDENTITY ANY MORE.
+
+   Matt, 2026-10-02: "Every link from an agency or branch to
+   Applications filters by name (e.g. ?agency=Frost Partnership), so
+   with two Frosts in different estates it can show the other one's
+   applications. Links must filter by the agency's or branch's id,
+   everywhere."
+
+   The last piece of the separate-estates work, and the one that was
+   left as a known gap: `agencies.partner_id` has always made two
+   estates two rows, and the links kept addressing them by the one
+   thing the two rows share.
+
+   WHAT A LINK NEEDS BACK is not the row but the pair the applications
+   list can filter on -- the NAME, which is what a summary carries, and
+   the ESTATE, which is what tells the two Frosts apart. So these
+   return both, and the caller turns them into the filter it already
+   understands.
+   ===================================================================== */
+
+/**
+ * The id of the ONE agency with this name, or null if the name is not
+ * unique across the estates.
+ *
+ * FOR A CALLER THAT HAS ONLY A NAME, and there is one: a League row is
+ * an aggregate built from application summaries, which carry their
+ * agency as a string. Resolving it here lets that link be
+ * estate-correct in the ordinary case, and REFUSES rather than guesses
+ * in the case the whole separate-estates change is about. A link that
+ * falls back to the name is no worse than it was; one that picked the
+ * first match would be the bug with a new coat on.
+ */
+export function uniqueAgencyIdByName(name: string): string | null {
+  const hits = AGENCIES.filter((a) => a.name === name);
+  return hits.length === 1 ? hits[0].id ?? null : null;
+}
+
+/** The same, for a branch name across every agency. */
+export function uniqueBranchIdByName(name: string): string | null {
+  const hits: string[] = [];
+  for (const a of AGENCIES) {
+    for (const b of a.branches ?? []) if (b.name === name && b.id) hits.push(b.id);
+  }
+  return hits.length === 1 ? hits[0] : null;
+}
+
+/** An agency by its id, with the estate it belongs to. */
+export function agencyRefById(id: string): { name: string; partner: string } | null {
+  const a = AGENCIES.find((x) => x.id === id);
+  return a ? { name: a.name, partner: a.partner ?? '' } : null;
+}
+
+/** A branch by its id, with its agency and the estate both belong to. */
+export function branchRefById(id: string): { name: string; agency: string; partner: string } | null {
+  for (const a of AGENCIES) {
+    const b = (a.branches ?? []).find((x) => x.id === id);
+    if (b) return { name: b.name, agency: a.name, partner: a.partner ?? '' };
+  }
+  return null;
+}
+
 function findAgencyByName(name: string, estate?: string | null): Agency | null {
   /* THE ESTATE PICKS BETWEEN TWO RECORDS OF ONE NAME. Matt, 2026-10-01:
      "Signed deeds on supplier referrals go to the branch contact in the
