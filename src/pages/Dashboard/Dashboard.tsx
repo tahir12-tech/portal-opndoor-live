@@ -590,6 +590,20 @@ export function Dashboard() {
         {/* NEEDS ATTENTION — compact stat-lines, each linking to the relevant view */}
         {hasNeedsAttention && (
           <section className="needs-attn">
+            {/* AND NOTHING IN HERE IS OF THE PERIOD EITHER. Matt, same
+                instruction: "Check any other tile that ignores the
+                period and label it the same way."
+
+                These are the page's other period-blind figures, and
+                they are blind by construction: every one counts what is
+                in that state NOW -- liveAggregate's own comment calls
+                them "current-state operational metrics (not
+                period-filtered)" -- so a deed awaiting signature is
+                waiting whether or not it was sent this month. Said ONCE
+                for the section rather than appended to each of seven
+                lines, which would be the same sentence seven times over
+                a block whose rows are already one line each. */}
+            <div className="na-note">Waiting now, across the whole book. Not affected by the period.</div>
             {naAwaiting && (
               <Link className="na-stat na-stat--sign" to="/applications?deed=awaiting" title="Applications with a deed out for the tenant's signature">
                 <span className="na-stat__n">{d.awaiting}</span>
@@ -775,8 +789,26 @@ export function Dashboard() {
                   <div><span className="k">Less refunds{d.refundCount ? ` (${d.refundCount})` : ''}</span><span className="v v--neg">{d.refunds}</span></div>
                 </div>
               )}
+              {/* A TILE UNDER A PERIOD PICKER IS READ AS BEING OF THAT
+                  PERIOD, and this one is not. Matt, 2026-10-02: "'Total
+                  guaranteed rent value' doesn't change with the period,
+                  because it's everything currently guaranteed. Label it
+                  'Guaranteed rent in force (whole book, not affected by
+                  the period)' so it isn't read as this period's figure."
+
+                  THE FIGURE IS RIGHT AND THE READER WAS WRONG, which is
+                  what makes it a labelling fault rather than an
+                  arithmetic one. `coverHeldDuring` asks only whether
+                  cover has ended before the period STARTS -- it ignores
+                  the end deliberately, so a deed signed yesterday for a
+                  tenancy starting in six weeks still counts -- and for
+                  any period beginning in the past that admits the whole
+                  live book. Sitting under Net fees, which IS the
+                  period's, it read as a second period figure.
+
+                  HIS WORDS, NOT A PARAPHRASE OF THEM. */}
               <div className="hero-kpi__sub" style={{ marginTop: 14 }}>
-                <span className="lbl">Total guaranteed rent value</span>
+                <span className="lbl">Guaranteed rent in force (whole book, not affected by the period)</span>
                 <span className="val">{d.guaranteed}</span>
               </div>
               {/* AND HOW MUCH OF IT HAS NOT STARTED. The figure read GBP 0

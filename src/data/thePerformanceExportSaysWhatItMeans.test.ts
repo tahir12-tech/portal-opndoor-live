@@ -57,12 +57,16 @@ describe('the commission labels', () => {
     expect(SRC).not.toContain('Partner: ${scopeLabel(role)}');
   });
 
-  /* THE EXCEPTION MATT STATED: a column heading is what a partner's
-     spreadsheet matches on, so the headings do not move. Asserted so a
-     later sweep does not "finish the job". */
-  it('but the column headings a partner reads are left alone', () => {
-    expect(SRC).toContain("{ header: 'Partner', type: 'text' }");
-    expect(SRC).toContain("moneyCol('Partner commission (gross)')");
+  /* AND THEN THE EXCEPTION WAS LIFTED FOR THIS FILE. It was "column
+     headings a partner's code may read can stay", and this asserted it
+     so a later sweep could not quietly finish the job. Matt, the same
+     day: "This file is for Opndoor only, so its column headings can
+     change." Inverted rather than deleted, so which answer is live is
+     readable from the test. */
+  it('and its column headings moved too, because this file is Opndoor\'s own', () => {
+    expect(SRC).not.toContain("{ header: 'Partner', type: 'text' }");
+    expect(SRC).toContain("moneyCol('Supplier commission (gross)')");
+    expect(SRC).toContain("title: 'Commission by supplier (this period)'");
   });
 });
 

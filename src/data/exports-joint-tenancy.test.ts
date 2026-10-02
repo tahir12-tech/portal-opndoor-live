@@ -99,9 +99,9 @@ describe('the application export, for a joint tenancy', () => {
   });
 
   it('charges each applicant their own share, and the shares sum to the tenancy fee', () => {
-    expect(lead['Guarantor fee charged']).toBe(1384.62);
-    expect(second['Guarantor fee charged']).toBe(1384.61);
-    const summed = rows.reduce((s, r) => s + Number(r['Guarantor fee charged']), 0);
+    expect(lead['Guarantee fee charged']).toBe(1384.62);
+    expect(second['Guarantee fee charged']).toBe(1384.61);
+    const summed = rows.reduce((s, r) => s + Number(r['Guarantee fee charged']), 0);
     expect(Math.round(summed * 100) / 100).toBe(2769.23);
     // ...and the total is stated outright on every row, so the two agree.
     expect(lead['Tenancy total fee']).toBe(2769.23);
@@ -159,8 +159,8 @@ describe('the application export, for a joint tenancy', () => {
 
   it('pays no partner commission on the agent rail, whatever partner_rate says', () => {
     // partnerRate is 0.25 on both fixtures: populated, and owed to nobody.
-    expect(lead['Partner commission']).toBe(0);
-    expect(second['Partner commission']).toBe(0);
+    expect(lead['Supplier commission']).toBe(0);
+    expect(second['Supplier commission']).toBe(0);
   });
 });
 

@@ -146,10 +146,28 @@ describe('the fee is called the same thing on every screen', () => {
     expect(readFileSync('src/data/mock/help.ts', 'utf8')).not.toMatch(/guarantor fee/i);
   });
 
-  /* THE EXPORTS KEEP THEIR COLUMN HEADINGS, which is the exception Matt
-     stated twice: a partner's code reads them. Asserted so a later sweep
-     does not "finish the job" and break a reconciliation. */
-  it('but the CSV column headings are deliberately left alone', () => {
-    expect(readFileSync('src/data/exportsService.ts', 'utf8')).toContain("moneyCol('Guarantor fee')");
+  /* THE EXCEPTION WAS REAL AND IS LIFTED, 2026-10-02. It was "do not
+     rename any API field or CSV column a partner's code may read", and
+     this assertion existed so a later sweep could not quietly finish
+     the job. Matt then said, of the performance export, the application
+     export and the league exports: "This file is for Opndoor only, so
+     its column headings can change."
+
+     INVERTED RATHER THAN DELETED, so a reader who finds the old
+     headings in a screenshot can see which answer is live -- and so the
+     three files it does NOT cover stay covered. */
+  it('and the Opndoor-only exports have had their headings changed too', () => {
+    const src = readFileSync('src/data/exportsService.ts', 'utf8');
+    expect(src).not.toContain("moneyCol('Guarantor fee')");
+    expect(src).toContain("moneyCol('Guarantee fee')");
+  });
+
+  /* AND THE FILES A PARTNER READS STILL HAVE NOT MOVED. Nothing has
+     been said about the expiries file or the partner API, so their
+     wording is untouched -- the expiries heading Matt DID name is the
+     one exception, and he named it. */
+  it('but the partner API documentation is untouched', () => {
+    expect(readFileSync('src/pages/DevCentre/partnerDocs.generated.ts', 'utf8'))
+      .toMatch(/guarantor fee/i);
   });
 });

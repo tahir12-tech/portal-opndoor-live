@@ -96,16 +96,29 @@ describe('"guarantee fee" in the prose, and not one field renamed', () => {
     expect(src).toContain("moneyKv('Average guarantee fee'");
   });
 
-  /* THE CAVEAT, WHICH IS THE HALF WITH TEETH. "Do not rename any API
-     field or CSV column a partner's code may read." A column heading is
-     what a partner's spreadsheet or importer matches on; renaming it
-     would break the reconciliation the exports exist for. So the
-     headings still read "Guarantor fee" and this says so on purpose,
-     rather than leaving the next person to tidy them. */
-  it('while the CSV column headings are deliberately NOT renamed', () => {
+  /* THE CAVEAT WAS THE HALF WITH TEETH, AND MATT LIFTED IT FOR THREE
+     FILES. It was "do not rename any API field or CSV column a
+     partner's code may read", because a heading is what a partner's
+     importer matches on. Then, the same day, of the performance export,
+     the application export and the league exports: "This file is for
+     Opndoor only, so its column headings can change."
+
+     SO THE TEST SPLITS WHERE THE CAVEAT NOW SPLITS: those three moved,
+     and the things a partner actually reads did not. Inverted rather
+     than deleted, so a reader who finds "Guarantor fee" in an old
+     spreadsheet can see which answer is live. */
+  it('and the Opndoor-only exports had their headings changed, on his say-so', () => {
     const src = read('src/data/exportsService.ts');
-    expect(src).toContain("moneyCol('Guarantor fee')");
-    expect(src).toContain("moneyCol('Guarantor fee charged')");
+    expect(src).not.toContain("moneyCol('Guarantor fee')");
+    expect(src).not.toContain("moneyCol('Guarantor fee charged')");
+    expect(src).toContain("moneyCol('Guarantee fee charged')");
+  });
+
+  /* AND THE ONES HE HAS SAID NOTHING ABOUT ARE UNTOUCHED. The partner
+     API is read by a partner's code, and nothing in any of today's
+     instructions names it. */
+  it('while the field a partner subscribes to is still the field', () => {
+    expect(read('src/data/devCentreService.ts')).toContain("id: 'application.paid'");
   });
 
   it('nor is the webhook event a partner subscribes to', () => {

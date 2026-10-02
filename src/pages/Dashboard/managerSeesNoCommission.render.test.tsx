@@ -209,7 +209,13 @@ describe('Reporting, read by a Manager', () => {
     expect(fees!.textContent).toMatch(/Net fees/);
     expect(fees!.textContent).toMatch(/£/);
     // Volumes, conversion and the guaranteed value stay with it.
-    expect(fees!.textContent).toMatch(/Total guaranteed rent value/);
+    /* RENAMED 2026-10-02. Matt: "'Total guaranteed rent value' doesn't
+       change with the period, because it's everything currently
+       guaranteed. Label it 'Guaranteed rent in force (whole book, not
+       affected by the period)' so it isn't read as this period's
+       figure." What this test is about -- that a Manager keeps the
+       figure -- is unchanged. */
+    expect(fees!.textContent).toMatch(/Guaranteed rent in force \(whole book, not affected by the period\)/);
     expect(view.container.querySelector('.funnel')).not.toBeNull();
     expect(view.container.querySelectorAll('.chartrow .card').length).toBeGreaterThan(0);
     expect(text(view)).toMatch(/Operational health/);

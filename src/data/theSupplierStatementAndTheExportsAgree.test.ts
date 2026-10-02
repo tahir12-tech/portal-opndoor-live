@@ -76,10 +76,10 @@ afterAll(() => { hydrateFull([]); hydrateApplications([], []); });
 function exportSupplierCommission(): Map<string, number> {
   const doc = buildRealApplicationDoc('superadmin', allTime, 'referred', META).sheets[0].doc;
   const table = doc.blocks.find((b) => b.kind === 'table'
-    && (b.columns ?? []).some((c) => c.header === 'Partner commission'));
+    && (b.columns ?? []).some((c) => c.header === 'Supplier commission'));
   const cols = (table as { columns: { header: string }[] }).columns.map((c) => c.header);
   const refAt = cols.indexOf('Guarantee reference');
-  const commAt = cols.indexOf('Partner commission');
+  const commAt = cols.indexOf('Supplier commission');
   const out = new Map<string, number>();
   for (const row of (table as { rows: unknown[][] }).rows) out.set(String(row[refAt]), Number(row[commAt]));
   return out;

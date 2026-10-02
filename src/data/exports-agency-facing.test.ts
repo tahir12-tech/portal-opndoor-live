@@ -196,12 +196,12 @@ describe('an agency-facing export never says partner or estate', () => {
 
   it('still gives the admin the partner columns, because they are Opndoor', () => {
     const perf = buildLivePerformanceDoc(ADMIN_ROLE, allTime);
-    expect(sections(perf)).toContain('Commission by partner (this period)');
-    expect(columnsOf(perf).map((c) => c.header)).toContain('Partner commission (net)');
+    expect(sections(perf)).toContain('Commission by supplier (this period)');
+    expect(columnsOf(perf).map((c) => c.header)).toContain('Supplier commission (net)');
     const apps = buildRealApplicationDoc(ADMIN_ROLE, allTime, 'referred', BASIS_META.referred);
     const heads = columnsOf(apps).map((c) => c.header);
-    expect(heads).toContain('Partner');
-    expect(heads).toContain('Partner commission');
+    expect(heads).toContain('Supplier');
+    expect(heads).toContain('Supplier commission');
     expect(apps.sheets[0].doc.metaLine).toContain('Whole estate');
   });
 });
@@ -353,7 +353,7 @@ describe('the agency reads their own name where the estate used to be', () => {
     const heads = columnsOf(buildRealApplicationDoc(AGENCY_ROLE, allTime, 'referred', BASIS_META.referred)).map((c) => c.header);
     expect(heads).toContain('Commission');
     expect(heads).not.toContain('Agent commission');
-    expect(heads).not.toContain('Partner commission');
-    expect(heads).not.toContain('Partner');
+    expect(heads).not.toContain('Supplier commission');
+    expect(heads).not.toContain('Supplier');
   });
 });

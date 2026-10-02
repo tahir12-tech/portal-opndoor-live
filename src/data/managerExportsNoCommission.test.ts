@@ -170,12 +170,12 @@ describe('the application export', () => {
     const h = headers(built);
     expect(h).not.toContain('Commission');
     expect(h).not.toContain('Agent commission');
-    expect(h).not.toContain('Partner commission');
+    expect(h).not.toContain('Supplier commission');
     expect(h).not.toContain('Commission rate');
     expect(h).not.toContain('Commission payees');
     expect(mentionsCommission(built)).toBe(false);
     // Still the list of their own referrals, with every fact about them on it.
-    expect(h).toEqual(expect.arrayContaining(['Guarantee reference', 'Status', 'Guarantor fee charged', 'Monthly rent (whole tenancy)']));
+    expect(h).toEqual(expect.arrayContaining(['Guarantee reference', 'Status', 'Guarantee fee charged', 'Monthly rent (whole tenancy)']));
     expect(tableRows(built)).toHaveLength(2);
   });
 
@@ -284,20 +284,20 @@ describe("a supplier's Manager, who is not an agency", () => {
     beManager();
     const built = buildRealApplicationDoc(MANAGEMENT, allTime, 'paid', BASIS_META.paid);
     expect(mentionsCommission(built)).toBe(false);
-    expect(headers(built)).toContain('Partner');
-    expect(headers(built)).toContain('Guarantor fee charged');
+    expect(headers(built)).toContain('Supplier');
+    expect(headers(built)).toContain('Guarantee fee charged');
     expect(tableRows(built)).toHaveLength(2);
   });
 
-  it('loses Commission by partner from the performance export, and their Director keeps it', () => {
+  it('loses Commission by supplier from the performance export, and their Director keeps it', () => {
     beManager();
     const asManager = buildLivePerformanceDoc(MANAGEMENT, allTime);
-    expect(labels(asManager).some((l) => /Commission by partner/i.test(l))).toBe(false);
+    expect(labels(asManager).some((l) => /Commission by supplier/i.test(l))).toBe(false);
     expect(mentionsCommission(asManager)).toBe(false);
 
     beDirector();
     const asDirector = buildLivePerformanceDoc(MANAGEMENT, allTime);
-    expect(labels(asDirector).some((l) => /Commission by partner/i.test(l))).toBe(true);
+    expect(labels(asDirector).some((l) => /Commission by supplier/i.test(l))).toBe(true);
   });
 });
 

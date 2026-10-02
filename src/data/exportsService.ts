@@ -245,7 +245,7 @@ function bands(total: number, shares: [number, number]): [number, number, number
 
 function scopeLabel(role: Role): string {
   const sc = scopeFor(role);
-  return sc === ALL_PARTNERS ? 'All partners (combined)' : partnerName(sc);
+  return sc === ALL_PARTNERS ? 'All suppliers (combined)' : partnerName(sc);
 }
 
 /**
@@ -522,20 +522,28 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
            report a three-person let as 300% converted. */
         { label: 'Conversion: Paid to Deed', value: a.paid ? a.deed / a.paid : 0, type: 'pct' },
         { label: 'Conversion: Sent to Deed', value: a.sent ? a.deed / a.sent : 0, type: 'pct' },
-        moneyKv('Total guaranteed rent value', a.guaranteed),
-        /* "GUARANTEE FEE" IN THE PROSE, "Guarantor fee" IN THE COLUMNS.
+        /* NOT OF THE PERIOD, and the label says so. Matt, 2026-10-02,
+           about the tile this figure also fills: "it's everything
+           currently guaranteed ... so it isn't read as this period's
+           figure". Every other line in this block IS the period's, which
+           is exactly why one that is not has to say it. */
+        moneyKv('Guaranteed rent in force (whole book, not affected by the period)', a.guaranteed),
+        /* AND NOW THE COLUMNS SAY IT TOO, in this file and in the
+           application and league exports.
 
-           Matt, 2026-10-02: "change 'guarantor fee' to 'guarantee fee' in
-           CSV exports, the activity feed and the API docs wording, but do
-           not rename any API field or CSV column a partner's code may
-           read."
+           THE CAVEAT THIS NOTE RECORDED WAS REAL AND IS LIFTED. Matt,
+           2026-10-02, first: "do not rename any API field or CSV column
+           a partner's code may read" -- so the prose said "guarantee
+           fee" and every heading stayed, and that split was asserted in
+           two tests so a later sweep could not quietly finish the job.
+           Then, the same day: "This file is for Opndoor only, so its
+           column headings can change", said of the performance export,
+           and again of the application export and the league exports.
 
-           So the summary labels, the hints and the notes say "guarantee
-           fee", and every `moneyCol('Guarantor fee')` heading stays
-           exactly as it is. A heading is what a partner's spreadsheet or
-           importer matches on, and renaming it would break the
-           reconciliation these exports exist for. The two readings of one
-           word live side by side on purpose; this note is why. */
+           IT IS LIFTED FOR THOSE THREE AND NOTHING ELSE. The expiries
+           file and the partner API are read by people who are not
+           Opndoor, nothing has been said about them, and their headings
+           have not moved. */
         moneyKv('Guarantee fees collected (gross)', a.feesGross),
         ...(showComm ? (agency ? [
           /* ONE LINE, NO BLENDED RATE. An agency is owed commission on terms they
@@ -576,8 +584,15 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
         // let's rent, so averaging over applicants inflated it by the tenant count.
         moneyKv('Average monthly rent (per tenancy)', a.avgRent),
         moneyKv('Average guarantee fee (per applicant)', a.paid ? a.feesGross / a.paid : 0),
+        /* AND "Total value of deeds issued" IS GONE, which was the SAME
+           `a.guaranteed` printed a second time under a second name. Two
+           names for one figure is bad enough; the second name was the
+           worse of the two, because it sat under a "Total deeds issued"
+           count that IS the period's and so read as that period's value
+           of those deeds. It is the book in force, it is already
+           stated above, and a reader dividing one by the other got a
+           figure per deed that is not one. */
         { label: 'Total deeds issued', value: a.deed, type: 'int' },
-        moneyKv('Total value of deeds issued', a.guaranteed),
       ],
     },
     { kind: 'blank' },
@@ -628,15 +643,17 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
   if (maySeeCommission(role) && !agency) {
     const pb = livePartnerBreakdown(role, scope, period);
     blocks.push(
-      { kind: 'section', title: 'Commission by partner (this period)' },
+      { kind: 'section', title: 'Commission by supplier (this period)' },
       {
         kind: 'table',
         columns: [
-          { header: 'Partner', type: 'text' },
+          // The rows are ROUTES since 2ea5f13 -- the three rails plus each
+          // supplier -- and "Supplier" is what the heading above them says.
+          { header: 'Supplier', type: 'text' },
           { header: 'Paid', type: 'int' },
           moneyCol('Fees collected (gross)'),
-          moneyCol('Partner commission (gross)'),
-          moneyCol('Partner commission (net)'),
+          moneyCol('Supplier commission (gross)'),
+          moneyCol('Supplier commission (net)'),
           moneyCol('Agent commission (gross)'),
           moneyCol('Agent commission (net)'),
         ],
@@ -647,8 +664,8 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
   }
   /* The commission headings, per reader. An agency has exactly one commission,
      so it needs no adjective saying whose; everyone else keeps the pair. */
-  const NET_COMM: string[] = agency ? ['Commission (net)'] : ['Partner commission (net)', 'Agent commission (net)'];
-  const ATTR_COMM: string[] = agency ? ['Attributed commission (net)'] : ['Attributed partner commission (net)', 'Attributed agent commission (net)'];
+  const NET_COMM: string[] = agency ? ['Commission (net)'] : ['Supplier commission (net)', 'Agent commission (net)'];
+  const ATTR_COMM: string[] = agency ? ['Attributed commission (net)'] : ['Attributed supplier commission (net)', 'Attributed agent commission (net)'];
   /* BREAKDOWNS APPEAR WHERE THERE IS SOMETHING TO BREAK DOWN. Over a single
      agency, "Breakdown by agency" is one row repeating the header above it, and
      over a single branch the branch table is that same row a third time. The
@@ -727,15 +744,15 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
       blocks.push({
         kind: 'table',
         columns: [
-          { header: 'Partner', type: 'text' },
+          { header: 'Supplier', type: 'text' },
           { header: 'Guarantee reference', type: 'text' },
           { header: 'Branch', type: 'text' },
           { header: 'Agency', type: 'text' },
           { header: 'Paid date', type: 'text' },
-          moneyCol('Guarantor fee'),
-          moneyCol('Partner commission'),
+          moneyCol('Guarantee fee'),
+          moneyCol('Supplier commission'),
         ],
-        // ap.fee, not ap.rent: the column says Guarantor fee and now carries one.
+        // ap.fee, not ap.rent: the column says Guarantee fee and now carries one.
         rows: st.partners.flatMap((p) => p.apps.map((ap) => [p.partnerName, ap.ref, orgCell(ap.branch), orgCell(ap.agency), dmy(ap.paidAt), money(ap.fee), money(ap.commission)] as TableRow)),
       });
     }
@@ -772,7 +789,7 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
           { header: 'Guarantee reference', type: 'text' },
           { header: 'Branch', type: 'text' },
           { header: 'Paid date', type: 'text' },
-          moneyCol('Guarantor fee'),
+          moneyCol('Guarantee fee'),
           moneyCol(agency ? 'Commission' : 'Agent commission'),
         ],
         rows: ag.payees.flatMap((a) => a.apps.map((ap) => [a.agency, a.level, ap.ref, orgCell(ap.branch), dmy(ap.paidAt), money(ap.fee), money(ap.commission)] as TableRow)),
@@ -813,7 +830,7 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
         { label: 'Conversion: Sent to Paid', value: m.sent ? m.paid / m.sent : 0, type: 'pct' },
         { label: 'Conversion: Paid to Deed', value: m.paid ? m.deed / m.paid : 0, type: 'pct' },
         { label: 'Conversion: Sent to Deed', value: m.sent ? m.deed / m.sent : 0, type: 'pct' },
-        moneyKv('Total guaranteed rent value', m.deed * ANNUAL),
+        moneyKv('Guaranteed rent in force (whole book, not affected by the period)', m.deed * ANNUAL),
         moneyKv('Guarantee fees collected', m.fees),
         ...(showComm ? (agency ? [
           // One line, their own, and no rate in the label: see the live builder.
@@ -827,8 +844,8 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
         ]) : []),
         moneyKv('Average monthly rent', AVG_RENT),
         moneyKv('Average guarantee fee', m.paid ? m.fees / m.paid : 0),
+        // Same removal as the live builder: the figure above is this one.
         { label: 'Total deeds issued', value: m.deed, type: 'int' },
-        moneyKv('Total value of deeds issued', m.deed * ANNUAL),
       ],
     },
     { kind: 'blank' },
@@ -1073,7 +1090,12 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
   const manyPayees = showComm && apps.some((a) => linesFor(a).length > 1);
 
   const columns: Column[] = [
-    ...(agency ? [] : [{ header: 'Partner', type: 'text' } as Column]),
+    /* "Supplier", not "Partner". Matt, 2026-10-02: the exception that
+       kept these headings -- "column headings a partner's code may read
+       can stay" -- was about files a PARTNER reads, and he has now said
+       this one is Opndoor's own. The expiries file and the partner API
+       are not covered by that and keep theirs. */
+    ...(agency ? [] : [{ header: 'Supplier', type: 'text' } as Column]),
     { header: 'Guarantee reference', type: 'text' },
     ...(showAgency ? [{ header: 'Agency', type: 'text' } as Column] : []),
     ...(showBranch ? [{ header: 'Branch', type: 'text' } as Column] : []),
@@ -1093,9 +1115,9 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     /* THE TENANCY BLOCK. One row per APPLICATION, as before — a joint tenancy is
        N applicants who each pay and each get a row — but with the columns that
        make those rows readable as one let. Without them two £3,000 rows look
-       like £6,000 of business, and the Guarantor fee column cannot be summed at
+       like £6,000 of business, and the Guarantee fee column cannot be summed at
        all. Tenancy total repeats on each sibling so any single row states the
-       whole let; the reader sums Guarantor fee, or reads the total once, and
+       whole let; the reader sums Guarantee fee, or reads the total once, and
        gets the same number either way.
 
        NO LEAD TENANT COLUMN. There used to be one, reading Yes on position 1 and
@@ -1115,7 +1137,7 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     // WAS `a.rent`. The fee has not been one month's rent since deal-shape
     // pricing: Regent's single tenant is charged three weeks. This column
     // claimed £2,400 where £1,661.54 was taken.
-    moneyCol('Guarantor fee charged'),
+    moneyCol('Guarantee fee charged'),
     /* "(weeks of rent)" WENT WITH THE CELL. Matt, 2026-10-02: "show '1
        month' for one month's rent, and weeks only where the deal is in
        weeks". The column held 4.35 under a heading promising weeks,
@@ -1124,7 +1146,7 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
        states its own unit, so the heading cannot promise the wrong one. */
     { header: 'Fee basis', type: 'text' },
     moneyCol('Tenancy total fee'),
-    ...(agency || !showComm ? [] : [moneyCol('Partner commission')]),
+    ...(agency || !showComm ? [] : [moneyCol('Supplier commission')]),
     /* TWO RATES, NOT ONE. Matt: "Replace 'Commission rate' with two
        columns, 'Supplier commission rate' and 'Agent commission rate'."
        One column headed "Commission rate" beside two commission AMOUNTS
@@ -1270,7 +1292,7 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
           { label: 'Basis', value: `Filtered ${meta.label}` },
           { label: 'Applications', value: `${apps.length} live records` },
           { label: 'Note', value: 'Live records, pseudonymised by guarantee reference. Payment state, refund date and refund amount are included. A refund does not reverse a Paid application.' },
-          { label: 'Joint tenancies', value: 'One row per applicant, each with the tenancy id, their position and their share. Guarantor fee charged is what THAT applicant paid; the shares sum to Tenancy total fee, which is charged once for the whole let. Monthly rent is the whole tenancy\u2019s and repeats on each row: sum Share of rent instead.' },
+          { label: 'Joint tenancies', value: 'One row per applicant, each with the tenancy id, their position and their share. Guarantee fee charged is what THAT applicant paid; the shares sum to Tenancy total fee, which is charged once for the whole let. Monthly rent is the whole tenancy\u2019s and repeats on each row: sum Share of rent instead.' },
         ],
       },
       { kind: 'blank' },
@@ -1310,7 +1332,7 @@ export function buildApplicationDoc(role: Role, period: Period, basis: ExportBas
     { header: 'Paid date', type: 'text' },
     { header: 'Deed issued date', type: 'text' },
     moneyCol('Monthly rent'),
-    moneyCol('Guarantor fee'),
+    moneyCol('Guarantee fee'),
     { header: 'Tenancy start date', type: 'text' },
     // Blank unless the synthetic row has a deed, same rule as expiryOf: the
     // generator already only dates an expiry where it dated a deed.
@@ -1353,7 +1375,7 @@ export function buildApplicationDoc(role: Role, period: Period, basis: ExportBas
 function leaguePartnerLabel(scope: PartnerScope, partner: string): string {
   if (scope !== ALL_PARTNERS) return partnerName(scope);
   if (partner) return partnerName(partner);
-  return 'All partners (combined)';
+  return 'All suppliers (combined)';
 }
 /* The league workbook is not in the performance/application ruling, but it is a
    document an agency downloads from their own League page, and the same house
@@ -1381,7 +1403,7 @@ function leagueColumns(view: LeagueView, agency: boolean, showComm: boolean): Co
     // A branch board row shows the branch's OWN commission, which is nothing
     // where it holds no rate of its own; hence the note on the sheet.
     ? [moneyCol(view === 'branch' ? 'Own commission' : 'Commission')]
-    : [moneyCol('Partner commission'), moneyCol('Agent commission')];
+    : [moneyCol('Supplier commission'), moneyCol('Agent commission')];
   return [first, { header: 'Detail', type: 'text' }, ...core, ...comm];
 }
 function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, agency: boolean, showComm: boolean): TableRow[] {
