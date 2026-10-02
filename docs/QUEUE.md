@@ -384,6 +384,17 @@ Lettings and Harborview Lettings were reported as having no contact
 anywhere. They are Opndoor's own, so under the corrected rule they are
 not missing anything and nothing warns about them.
 
+## HOME'S RECONCILIATION COUNT MISSES THE NEW TAB (bug, 2026-10-02, verbatim).
+
+> Home's Reconciliation count shows 0 while the "Supplier agencies with no email" tab lists two. Include those in the Home count and say what they are, e.g. "2 supplier agencies need an email".
+
+- Reported immediately after the tab shipped, which is the shape of it: a
+  new kind of work was added to Reconciliation and the tile that counts
+  Reconciliation was not told. The tile is the thing that gets somebody to
+  the page at all, so a tab nobody is sent to is a tab nobody opens.
+- Two halves: the NUMBER has to include them, and the SENTENCE has to say
+  what they are, in his words.
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
