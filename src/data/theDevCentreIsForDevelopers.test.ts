@@ -190,13 +190,16 @@ describe('what each screen claims about keys', () => {
      may make: it is the boundary itself. */
   it('every one of them says admin never sees or creates a full key', () => {
     for (const [name, src] of [['Configuration', config], ['DevCentre', devcentre], ['Integration', integration]] as const) {
-      expect(src, `${name} does not say it`).toMatch(/never see.{0,30}create a full key|never see a key, its prefix, or create one/i);
+      expect(src, `${name} does not say it`)
+        .toMatch(/never see.{0,30}create a full key|never see a key, its prefix, or create one|never see a key or create one/i);
     }
   });
 
-  /* AND THE COUNT, WHICH IS THE ONE THEY DISAGREED ABOUT. */
-  it('the Integration tab says the count is there, because it is', () => {
-    expect(integration).toMatch(/You can see how many keys are active/);
+  /* AND THE COUNT, WHICH IS THE ONE THEY DISAGREED ABOUT. The Integration
+     tab now LISTS the keys rather than only counting them, so the
+     sentence it makes is the stronger one. */
+  it('the Integration tab says the keys are there, because they are', () => {
+    expect(integration).toMatch(/Each active key is listed below, with a Revoke beside it/);
   });
 
   it('and the Dev Centre says it is not there, because it is not', () => {
@@ -209,10 +212,49 @@ describe('what each screen claims about keys', () => {
     expect(config).toMatch(/Integration tab/);
   });
 
-  /* THE REVOKE IS ON ONE SCREEN AND ONLY ONE, and the other says so rather
-     than leaving an admin hunting for a button that is not there. */
-  it('and the Integration tab sends you to the Dev Centre to revoke', () => {
-    expect(integration).toMatch(/Break glass in the Dev Centre/);
+  /* THE REVOKE IS HERE NOW, since 2026-10-02. Matt: "Opndoor admin can
+     revoke a single key here ... removing any mention of Break glass or
+     the Dev Centre for admin."
+
+     This case said the opposite yesterday, and it had to: admin's only
+     way to stop one key was Break glass, and a tab that did not say so
+     left them hunting. Both halves moved together -- the button arrived
+     and the direction left -- which is why the assertion is inverted
+     rather than deleted. A direction to a screen admin can no longer
+     open would be worse than the old one. */
+  it('and no longer sends an admin to the Dev Centre, which they cannot open', () => {
+    /* THE SENTENCE ITSELF, not a match over the file. The comments
+       above the copy record why the direction was removed and quote
+       the instruction that removed it, so a whole-file match would make
+       the explanation fail the rule it explains. Naming the removed
+       sentence is also the more honest assertion: it is the exact text
+       a reader used to be sent by. */
+    expect(integration).not.toMatch(/To revoke a single key you need its prefix/);
+    expect(integration).not.toMatch(/under Break glass in the Dev Centre/);
+    // And the sentence that replaced it does not send anybody anywhere.
+    expect(integration).toMatch(/the supplier\u2019s own developer does that\./);
+  });
+
+  it('and offers the revoke itself instead', () => {
+    expect(integration).toMatch(/<SupplierApiKeys /);
+    const keys = readFileSync(join(process.cwd(), 'src/pages/PartnerManagement/SupplierApiKeys.tsx'), 'utf8');
+    // Matt's own confirmation sentence, both halves.
+    expect(keys).toMatch(/This key stops working immediately/);
+    expect(keys).toMatch(/keep working/);
+  });
+
+  /* AND IT LISTS THE THREE THINGS HE NAMED, and not the prefix: "List
+     each active key by its name, when it was created and when it was
+     last used". The prefix is in the security event the revoke writes,
+     where a developer reading the log needs it; it is not on screen,
+     which is what keeps "admin never sees a key" true of the screen as
+     well as of the data. */
+  it('by name, created and last used, and not by prefix', () => {
+    const keys = readFileSync(join(process.cwd(), 'src/pages/PartnerManagement/SupplierApiKeys.tsx'), 'utf8');
+    expect(keys).toMatch(/k\.name/);
+    expect(keys).toMatch(/Created \{formatDate\(k\.created_at\)\}/);
+    expect(keys).toMatch(/last used \$\{formatDate\(k\.last_used_at\)\}|last used \$\{/);
+    expect(keys).not.toMatch(/k\.key_prefix/);
   });
 
   /* THE CLAIM THAT WAS WRONG, pinned so it cannot come back. */

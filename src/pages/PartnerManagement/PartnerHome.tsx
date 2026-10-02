@@ -30,6 +30,7 @@ import { CustomerReport } from '@/components/CustomerReport';
 import { SupplierStatements } from '@/components/SupplierStatements';
 import { SupplierSettings } from './SupplierSettings';
 import { ApiAccessSwitch } from './ApiAccessSwitch';
+import { SupplierApiKeys } from './SupplierApiKeys';
 import { SupplierDeals } from './SupplierDeals';
 import { SupplierInvite } from './SupplierInvite';
 import { SupplierRoleDialog } from './SupplierRoleDialog';
@@ -495,13 +496,41 @@ export function PartnerHome() {
               {/* WHAT THIS SCREEN SHOWS, EXACTLY. It said admin "can see
                   that keys exist", which UNDERSTATES it: the line above
                   prints the live count. Matt, 2026-10-01: no screen should
-                  claim more or less than it shows. */}
+                  claim more or less than it shows.
+
+                  AND IT NO LONGER SENDS ANYONE TO THE DEV CENTRE. Matt,
+                  2026-10-02: "Opndoor admin can revoke a single key here
+                  ... removing any mention of Break glass or the Dev
+                  Centre for admin." Both were in this sentence, and both
+                  were directions to a screen admin can no longer open:
+                  the Dev Centre is for developers only as of the same
+                  day. A line that names a door that is now locked is
+                  worse than no line. */}
               {partner.apiAccessEnabled
-                ? 'You can see how many keys are active, above, and turn API access off, which stops all of them at once. You can never see a key, its prefix, or create one: the supplier’s own developer manages those in the Dev Centre. To revoke a single key you need its prefix, under Break glass in the Dev Centre.'
+                ? 'Each active key is listed below, with a Revoke beside it. You can also turn API access off, which stops every key at once. You can never see a key or create one: the supplier’s own developer does that.'
                 : 'This supplier cannot hold API keys. Turn API access on first.'}
             </p>
           </CardBody>
         </Card>
+
+        {/* THE KEYS THEMSELVES, AND ONE REVOKE EACH. Matt, 2026-10-02:
+            "List each active key by its name, when it was created and
+            when it was last used, each with a Revoke button and a
+            confirmation." Under the switch, because turning access off
+            is the blunt version of the same act and the two belong in
+            one place; above the read-only panels, because this is the
+            only thing on the tab an admin can DO. */}
+        {partner.apiAccessEnabled && (
+          <Card>
+            <CardHead
+              title="API keys"
+              sub="Every key this supplier has live. Revoking one stops it immediately and leaves their others working."
+            />
+            <CardBody style={{ padding: 0 }}>
+              <SupplierApiKeys partnerId={partner.dbId ?? null} canRevoke={isAdmin} />
+            </CardBody>
+          </Card>
+        )}
 
         {/* WHAT THEIR INTEGRATION IS ACTUALLY DOING. Shown only once API
             access is on: before that there is no traffic, no sandbox and

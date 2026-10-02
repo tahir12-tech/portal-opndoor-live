@@ -55,12 +55,19 @@ const NOT_YET_COVERED = [
      exercised by an_admin_watches_one_suppliers_integration.test.sql,
      which the supplier Integration tab's read-only panels needed. Not a
      coverage drive: the panels read another party's data, so the
-     scoping had to be proved, and proving it covers the readers. */
-  'dev_api_keys',
+     scoping had to be proved, and proving it covers the readers.
+
+     AND TWO MORE on 2026-10-02, for the same reason one page over:
+     `dev_api_keys` and `dev_revoke_api_key` are now exercised by
+     an_admin_revokes_one_key.test.sql. Neither is called BY the new
+     feature -- the point of that file is that admin gets nothing from
+     the first and is refused by the second -- which is a better reason
+     to cover them than calling them would have been: the refusals are
+     what make the third function narrow rather than a widening. */
   'dev_api_stats', 'dev_api_timeseries', 'dev_delete_api_key',
   'dev_delete_webhook_endpoint', 'dev_live_application_counts', 'dev_live_applications',
   'dev_partner_options', 'dev_purge_sandbox', 'dev_replay_webhook_delivery',
-  'dev_revoke_api_key', 'dev_sandbox_counts',
+  'dev_sandbox_counts',
   'dev_update_webhook_endpoint', 'dev_webhook_deliveries', 'dev_webhook_endpoint_secret',
   'dev_webhook_endpoints', 'dev_webhook_stats', 'partner_active_key_count',
   // --- opndoor-admin globals, which have no agency to be scoped to --------
@@ -239,7 +246,20 @@ describe('the definer allowlist', () => {
        existing reader because the question is per-estate and none of them
        asks it. Covered by name in
        an_agency_arrives_with_somewhere_to_send.test.sql. */
-    expect(allowlist.length).toBeLessThanOrEqual(152);
+    /* 152 -> 153, 2026-10-02: admin_revoke_partner_api_key, the Revoke
+       beside each key on the supplier's Integration tab. It is the
+       third door onto one act and the narrowest: by the id admin can
+       already read, admin only, MFA'd, and written to security_events.
+       It is not a widening of `dev_revoke_api_key`, whose guard is
+       written for the partner's own developer, nor of break glass,
+       which takes a prefix admin is not shown. Covered by name in
+       an_admin_revokes_one_key.test.sql. */
+    /* 153 -> 154, the same day and the same instruction:
+       admin_supplier_api_keys, which is what the Revoke needs something
+       to sit beside. `dev_api_keys` has no admin arm by design, so the
+       tab had nothing to list; this returns a name, created, last used
+       and the id, and cannot return a prefix, hash or scope. */
+    expect(allowlist.length).toBeLessThanOrEqual(154);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {
@@ -299,8 +319,13 @@ describe('every allowlisted function is exercised by a pgTAP test', () => {
     /* 36 -> 33, 2026-10-01, and the ratchet turned the right way: three
        Dev Centre readers gained a pgTAP test because the supplier
        Integration tab reads another party's data through them and the
-       scoping had to be proved. */
-    expect(NOT_YET_COVERED.length).toBe(33);
+       scoping had to be proved.
+
+       33 -> 31, 2026-10-02: dev_api_keys and dev_revoke_api_key, both
+       covered by an_admin_revokes_one_key.test.sql as the two doors the
+       admin one is NOT -- the first returns an admin nothing, the
+       second refuses them. */
+    expect(NOT_YET_COVERED.length).toBe(31);
   });
 
   /* AND THE SORTED CLAIM IS NOW TRUE OF THE FILE. The literal is `.sort()`ed

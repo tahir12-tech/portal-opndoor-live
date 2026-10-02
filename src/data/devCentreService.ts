@@ -142,6 +142,56 @@ export async function revokeApiKey(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/** What the Integration tab shows about one key: no prefix, no scopes. */
+export interface AdminApiKey {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  expires_at: string | null;
+}
+
+/**
+ * One supplier's keys, for Opndoor admin, on the Integration tab.
+ *
+ * NOT `getApiKeys`. `dev_api_keys` has no admin arm at all -- its own
+ * comment says "an opndoor admin gets zero rows, including with an
+ * explicit p_partner" -- which is why the old copy sent admin to Break
+ * glass with a prefix they had to find elsewhere. This reader returns
+ * the four facts the screen shows and cannot return a prefix, so "admin
+ * never sees a key" holds in SQL rather than by this caller's restraint.
+ */
+export async function adminSupplierApiKeys(partnerId: string): Promise<AdminApiKey[]> {
+  if (!SUPABASE_ENABLED) return [];
+  const { data, error } = await sb().rpc('admin_supplier_api_keys', { p_partner: partnerId });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as AdminApiKey[];
+}
+
+/**
+ * Revoke ONE key as Opndoor admin, from the supplier's Integration tab.
+ *
+ * Matt, 2026-10-02: "Opndoor admin can revoke a single key here ... Admin
+ * still never sees or creates a full key. Record who revoked what and
+ * when."
+ *
+ * A THIRD DOOR AND NOT A WIDENED ONE. `revokeApiKey` above is the
+ * partner's own and refuses an admin in SQL; `breakGlassRevoke` is
+ * admin's, takes a PREFIX -- the thing admin is not shown -- and demands
+ * a ten-character reason, which is right for an incident and wrong for a
+ * button beside the key it acts on. Both are untouched.
+ *
+ * `revoked: false` with a name is "somebody got there first", not a
+ * failure: two admins on one incident is the likely way it happens.
+ */
+export async function adminRevokeApiKey(id: string): Promise<{ revoked: boolean; keyName: string | null }> {
+  const { data, error } = await sb().rpc('admin_revoke_partner_api_key', { p_id: id });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return { revoked: row?.revoked === true, keyName: row?.key_name ?? null };
+}
+
 /** Returns the plaintext key. It is shown once and is not recoverable. */
 export async function mintApiKey(input: {
   partnerId: string; name: string; scopes: string[]; livemode: boolean; expiresAt?: string | null;

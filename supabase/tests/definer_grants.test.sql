@@ -59,7 +59,21 @@ insert into allowed(name) values
   ('admin_create_agency_and_branch'),
   ('admin_delete_org_shape'),
   ('admin_reset_user_mfa'),
+  /* ONE KEY, FROM THE SUPPLIER'S INTEGRATION TAB (20261007440000). Matt,
+     2026-10-02: "Opndoor admin can revoke a single key here." Admin only
+     and MFA'd inside, by the id `dev_api_keys` already shows them, and
+     every call is written to security_events. Distinct from the break
+     glass above it, which takes a prefix and a reason and is for an
+     incident. Covered by an_admin_revokes_one_key.test.sql. */
+  ('admin_revoke_partner_api_key'),
   ('admin_set_user_status'),
+  /* AND SOMETHING FOR ADMIN TO READ, beside it (20261007440000).
+     `dev_api_keys` has no admin arm by design, so the Integration tab
+     had nothing to list. This returns a name, created, last used and
+     the id -- and cannot return a prefix, hash or scope, which is how
+     "admin never sees a key" stays a property of the function rather
+     than of its caller. Covered by an_admin_revokes_one_key.test.sql. */
+  ('admin_supplier_api_keys'),
   ('admin_update_user_name'),
   ('admin_update_user_role'),
   ('agency_branches_for_match'),
