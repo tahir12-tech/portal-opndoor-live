@@ -832,6 +832,26 @@ you asked for. Say the word and the tenant gets their own wording.
   now what he is asking for. It is a migration, a backfill, and then the
   same sweep again on the other side.
 
+## RECONCILIATION COUNTS WHAT IS WAITING (instruction, 2026-10-02, verbatim).
+
+> Reconciliation:
+> 1. The "All" tab must include every item from every tab; it currently says "Nothing to check" while "Supplier agencies with no email" has 2 and "Not in network" has 1. The top three tiles must also count what's actually waiting.
+> 2. Home's Reconciliation count and the sidebar badge must equal the "All" count, including "Not in network".
+> 3. Home's Reconciliation link opens on whichever tab has items (or All).
+> Deploy to dev and check there.
+
+- The same fault as Applications' "All", which Matt reported on
+  2026-10-02 and which was answered with "All means all" (`d357fa9`): a
+  tab called All that holds a subset. This is that rule on a second
+  screen, and the tiles above it are a third place the same count is
+  stated.
+- Item 2 says the Home tile and the sidebar badge are the SAME number as
+  All, which is stronger than the fix I made this morning (`f1f98e1`):
+  that one added the email tab to the Home count and left "Not in
+  network" out of both.
+- One count, read in four places, is the shape this wants: the tiles, the
+  All tab, the Home tile and the badge.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
