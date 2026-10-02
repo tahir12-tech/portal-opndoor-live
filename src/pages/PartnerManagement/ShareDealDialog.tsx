@@ -38,6 +38,7 @@ import { Modal } from '@/components/ui/Modal';
 import { TypeAhead, highlightMatch, type TypeAheadOption } from '@/components/ui/TypeAhead';
 import { useToast } from '@/components/ui/Toast';
 import { plural } from '@/lib/plural';
+import { suspectTenantCounts, TENANT_BAND_WARN_ABOVE } from '@/pages/Agencies/AgreementEditor';
 
 export interface DialogAgency { id: string; name: string }
 
@@ -89,7 +90,10 @@ export function ShareDealDialog({
 
   const title = AgencyPercentEditorTitles.dealFor(picked.map((a) => a.name));
 
-  async function save() {
+  /** Tenant steps that look like a referral volume. Null is the usual answer. */
+  const [tenantWarn, setTenantWarn] = useState<number[] | null>(null);
+
+  async function save(confirmTenants = false) {
     if (busy) return;
     if (picked.length === 0) {
       setRefusal('Pick at least one agency. A deal with nobody on it would price nothing.');
@@ -97,6 +101,18 @@ export function ShareDealDialog({
     }
     const shape = percentShape(d);
     if (!shape.ok) { setRefusal(shape.why); return; }
+
+    /* THE SAME WARNING AS THE DEFAULT DEAL'S EDITOR. Matt, 2026-10-02,
+       named both: "the agencies' % editor (supplier Commission tab,
+       DEFAULT AND BESPOKE DEALS)". The two share `PercentFields` and
+       `percentShape` and not their save, which is why one guard would
+       have covered one of them -- the same way the editor and the
+       agreement editor came apart in the first place. */
+    if (!confirmTenants && d.model === 'tenants') {
+      const odd = suspectTenantCounts(d.bands);
+      if (odd.length) { setTenantWarn(odd); return; }
+    }
+
     setBusy(true);
     setRefusal(null);
     try {
@@ -171,6 +187,33 @@ export function ShareDealDialog({
 
       {refusal && <p className="auth__error" role="alert">{refusal}</p>}
       <p className="ph-note muted">Changes apply to new referrals only.</p>
+      {tenantWarn && (
+        <Modal
+          open
+          onClose={() => setTenantWarn(null)}
+          width={560}
+          title="Did you mean referrals sent?"
+          footer={<>
+            <Button variant="ghost" disabled={busy}
+              onClick={() => { setTenantWarn(null); d.setModel('volume'); }}>
+              Switch to % grows with referrals sent
+            </Button>
+            <Button variant="dark" disabled={busy}
+              onClick={() => { setTenantWarn(null); void save(true); }}>
+              Save anyway
+            </Button>
+          </>}
+        >
+          <p className="agr-confirm">
+            A tenancy rarely has more than {TENANT_BAND_WARN_ABOVE} tenants, and you have entered{' '}
+            <b>{tenantWarn.join(', ')}</b>.
+          </p>
+          <p className="agr-hint">
+            This deal steps by the number of TENANTS on one tenancy. If you meant the number of
+            REFERRALS they send, switch below; if you really do mean a tenancy that size, save it.
+          </p>
+        </Modal>
+      )}
     </Modal>
   );
 }

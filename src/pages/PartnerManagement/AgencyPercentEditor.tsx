@@ -53,6 +53,7 @@ import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { countOf } from '@/lib/plural';
+import { suspectTenantCounts, TENANT_BAND_WARN_ABOVE } from '@/pages/Agencies/AgreementEditor';
 
 export type PercentModel = 'flat' | 'tenants' | 'volume';
 
@@ -330,11 +331,39 @@ export function AgencyPercentEditor({
   const d = usePercentDraft(current);
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
+  /** Tenant steps that look like a referral volume. Null is the usual answer. */
+  const [tenantWarn, setTenantWarn] = useState<number[] | null>(null);
 
-  async function save() {
+  async function save(confirmTenants = false) {
     if (busy) return;
     const shape = percentShape(d);
     if (!shape.ok) { setRefusal(shape.why); return; }
+
+    /* A TENANT STEP THIS HIGH IS ALMOST CERTAINLY A VOLUME, and this
+       editor did not ask. Matt, 2026-10-02: "The agencies' % editor
+       (supplier Commission tab, default and bespoke deals) saved a
+       tenant step of '1 to 10 tenants' with no warning. Add the same
+       warning the main deal editor has."
+
+       THE SAME WARNING MEANS THE SAME PREDICATE, not a second copy of
+       the rule. `suspectTenantCounts` and `TENANT_BAND_WARN_ABOVE` are
+       the agreement editor's, imported rather than re-derived: two
+       editors disagreeing about what counts as suspicious is how one of
+       them ends up silent, which is exactly what happened here.
+
+       WHY IT WAS MISSED. The two editors look alike and are not the
+       same component -- the agreement editor prices a FEE in weeks of
+       rent and this one prices a PERCENTAGE -- so the control was
+       rebuilt and the guard beside it was not.
+
+       A WARNING, NOT A REFUSAL, as there: a five-tenant HMO is real,
+       just rare, and the one thing this must not do is make a true deal
+       impossible to enter. */
+    if (!confirmTenants && d.model === 'tenants') {
+      const odd = suspectTenantCounts(d.bands);
+      if (odd.length) { setTenantWarn(odd); return; }
+    }
+
     setBusy(true);
     setRefusal(null);
     try {
@@ -380,6 +409,44 @@ export function AgencyPercentEditor({
       <PercentFields d={d} />
       {refusal && <p className="auth__error" role="alert">{refusal}</p>}
       <p className="ph-note muted">Changes apply to new referrals only.</p>
+
+      {/* MATT'S OWN QUESTION AND HIS TWO OPTIONS. "Did you mean
+          referrals sent? A tenancy rarely has more than 4 tenants."
+          with options to switch to "% grows with referrals sent" or
+          save anyway.
+
+          THE FIRST OPTION DOES THE SWITCH rather than telling them
+          where to find it. The agreement editor says "go back and
+          choose ..." because its two models are radio buttons on the
+          screen behind; here the fix is one state change and offering
+          it is cheaper for the reader than describing it. */}
+      {tenantWarn && (
+        <Modal
+          open
+          onClose={() => setTenantWarn(null)}
+          width={560}
+          title="Did you mean referrals sent?"
+          footer={<>
+            <Button variant="ghost" disabled={busy}
+              onClick={() => { setTenantWarn(null); d.setModel('volume'); }}>
+              Switch to % grows with referrals sent
+            </Button>
+            <Button variant="dark" disabled={busy}
+              onClick={() => { setTenantWarn(null); void save(true); }}>
+              Save anyway
+            </Button>
+          </>}
+        >
+          <p className="agr-confirm">
+            A tenancy rarely has more than {TENANT_BAND_WARN_ABOVE} tenants, and you have entered{' '}
+            <b>{tenantWarn.join(', ')}</b>.
+          </p>
+          <p className="agr-hint">
+            This deal steps by the number of TENANTS on one tenancy. If you meant the number of
+            REFERRALS they send, switch below; if you really do mean a tenancy that size, save it.
+          </p>
+        </Modal>
+      )}
     </Modal>
   );
 }
