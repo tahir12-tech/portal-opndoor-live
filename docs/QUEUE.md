@@ -932,6 +932,15 @@ you asked for. Say the word and the tenant gets their own wording.
 - The third is the funnel note on the dashboard, which League needs for
   the same reason: its conversion is period throughput too.
 
+## THE LEAGUE EXPORTS (instruction, 2026-10-02, verbatim).
+
+> League exports (every tab): "All suppliers (combined)" in the header and "Supplier commission" instead of "Partner commission". Deploy to dev and check there.
+
+- The third file in the same sweep. The performance export, the
+  application export and now the league exports are all Opndoor's own,
+  so all three lose the column-heading exception. The expiries file and
+  the partner API keep it: nothing has been said about those.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
