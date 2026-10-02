@@ -54,7 +54,7 @@ import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { getApplications } from '@/data/applicationsService';
 import { effectivePrimary } from '@/data/orgService';
-import { DEVELOPER_SEES } from '@/data/positionsService';
+import { supplierSees } from '@/data/positionsService';
 import type { Status, Branch } from '@/data';
 
 /* The same words the agency page and the applications list use. Copied
@@ -186,12 +186,12 @@ const ROLE_LABEL: Record<string, string> = {
    which reads as "sees nothing" for somebody who reads the whole
    supplier's book. Matt, 2026-10-01. The sentence comes from
    positionsService so this list and /users cannot word it differently;
-   the dash stays for a role genuinely outside the three. */
-const supplierSees = (role: string): string =>
-  (role === 'management' ? 'Everything'
-    : role === 'referrer' ? 'Own referrals'
-    : role === 'developer' ? DEVELOPER_SEES
-    : '-');
+   the dash stays for a role genuinely outside the three.
+
+   AND THE SENTENCES THEMSELVES MOVED THERE on 2026-10-02, when the
+   agency People tab gained the same column: two files wording "sees
+   everything" separately is the fault this comment is already about.
+   `supplierSees` and `agencySees` are now side by side. */
 
 /* USER_STATUS_PILL moved into PeopleTable with the table itself: one
    place decides what Active, Invited and Deactivated look like. */

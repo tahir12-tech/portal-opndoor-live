@@ -14,6 +14,7 @@ import { AGENCY_LEVELS, ALL_PARTNERS, agencyLevelOf } from './types';
 import { getSelectedPartner, homePartner, partnerName } from './partnersService';
 import { functionErrorMessage } from './paymentService';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import { formatDate } from '@/lib/format';
 
 // [name, role, lastActive, status, partner] — ported from user-management.html
 const SEED: [string, Role, string, UserStatus, string][] = [
@@ -28,6 +29,8 @@ const SEED: [string, Role, string, UserStatus, string][] = [
   ['Marcus Lin', 'referrer', '1 day ago', 'active', 'northwind'],
   ['Eleanor Voss', 'management', '4 days ago', 'active', 'northwind'],
   ['Oliver Grant', 'referrer', '6 hours ago', 'active', 'northwind'],
+  // Seeded invitations carry no date, so the mock list says what the
+  // real one says when invited_at is missing. See relTime in hydrate.ts.
   ['Naomi Clarke', 'referrer', 'Pending invite', 'pending', 'northwind'],
   ['Greg Mason', 'management', 'Yesterday', 'active', 'harbourside'],
   ['Hannah Pryce', 'referrer', '2 days ago', 'active', 'harbourside'],
@@ -41,6 +44,13 @@ export interface ManagedUser extends User {
       a Negotiator, whose role already withholds commission, and on Opndoor's
       own roles. See agencyLevelOf in types.ts. */
   seesCommission?: boolean;
+}
+
+/* AN INVITATION SENT JUST NOW. The row a screen shows until the next
+   hydration, worded exactly as hydrate.ts will word it once the real
+   invited_at comes back, so the cell does not change under the reader. */
+function invitedToday(): string {
+  return `Invited ${formatDate(new Date())}`;
 }
 
 export function emailOf(name: string): string {
@@ -310,7 +320,7 @@ export function addUser(input: AddUserInput): ManagedUser {
   // A negotiator (referrer) invited to a branch carries it as their home branch, so
   // mock mode shows them on that branch node just as live mode does.
   const homeBranchId = input.role === 'referrer' ? (input.branch ?? null) : null;
-  const rec: ManagedUser = { id: `u${USERS.length}_${Math.round(performance.now())}`, name, email: input.email.trim() || emailOf(name), role: input.role, lastActive: 'Pending invite', status: 'pending', partner, homeBranchId };
+  const rec: ManagedUser = { id: `u${USERS.length}_${Math.round(performance.now())}`, name, email: input.email.trim() || emailOf(name), role: input.role, lastActive: invitedToday(), status: 'pending', partner, homeBranchId };
   USERS.push(rec);
   return rec;
 }
@@ -333,7 +343,7 @@ export async function inviteUser(input: AddUserInput): Promise<ManagedUser> {
        in the name column for as long as the page is open, which is
        exactly what it looks like when it is stored. */
     const name = `${input.firstName} ${input.lastName}`.trim();
-    return { id: `pending_${input.email.trim()}`, name, email: input.email.trim(), role: input.role, lastActive: 'Pending invite', status: 'pending', partner };
+    return { id: `pending_${input.email.trim()}`, name, email: input.email.trim(), role: input.role, lastActive: invitedToday(), status: 'pending', partner };
   }
   return addUser(input);
 }

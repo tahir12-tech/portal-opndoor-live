@@ -18,6 +18,7 @@ import type { AppRecord } from '@/data/mock/applications';
 import type { UpcomingGuaranteeSeed } from '@/data/mock/guarantees';
 import { isDirectRail, isHousePartner } from '@/data/channel';
 import { plural, countOf } from '@/lib/plural';
+import { formatDate } from '@/lib/format';
 
 const DAY = 86400000;
 
@@ -53,8 +54,24 @@ function eventTs(a: any): number {
   return ts ? new Date(ts).getTime() : 0;
 }
 
-function relTime(ts: string | null, status: string): string {
-  if (!ts) return status === 'pending' ? 'Pending invite' : '-';
+/* "INVITED [DATE]", NOT "PENDING INVITE". Matt, 2026-10-02: the Last
+   active column reads "Invited [date]" for a pending invite. A person who
+   has never signed in has no last_sign_in_at, so the cell used to print
+   the status again -- "Invited" in the pill, "Pending invite" in the date
+   column -- and said nothing about how long the invitation had been out,
+   which is the one thing a reader looking at a pending row wants.
+
+   PENDING IS CHECKED BEFORE THE TIMESTAMP, because a pending invite may
+   have a last_sign_in_at: a person deactivated and re-invited keeps the
+   old one, and "3 weeks ago" against an outstanding invitation reads as
+   somebody active. `invitedAt` comes from list_managed_users, which
+   20261007480000 added it to. */
+function relTime(ts: string | null, status: string, invitedAt?: string | null): string {
+  if (status === 'pending') {
+    const on = formatDate(invitedAt);
+    return on ? `Invited ${on}` : 'Pending invite';
+  }
+  if (!ts) return '-';
   const diff = Date.now() - new Date(ts).getTime();
   const mins = Math.round(diff / 60000);
   if (mins < 1) return 'Just now';
@@ -231,7 +248,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     role: u.role,
     // Truthful: relative time since the real last sign-in (auth.users), or a
     // "Pending invite" / "Never signed in" placeholder from status.
-    lastActive: relTime(u.last_sign_in_at, u.status),
+    lastActive: relTime(u.last_sign_in_at, u.status, u.invited_at),
     status: u.status,
     partner: (u.role === 'superadmin' || u.role === 'opndoor_manager') ? 'opndoor' : (u.partner_slug ?? ''),
     homeBranchId: u.home_branch_id ?? null,

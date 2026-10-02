@@ -37,7 +37,7 @@ import {
   type Agency, type AgencyGroup, type ManagedUser, type Status,
 } from '@/data';
 import {
-  getPositionsForUsers, getDeedRecipients, getOrgDeedReadiness,
+  getPositionsForUsers, getDeedRecipients, getOrgDeedReadiness, agencySees,
   type DeedReadiness,
 } from '@/data/positionsService';
 import { setNodeRate, getCommissionSplits, previewNodeRate, setAgencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
@@ -267,6 +267,11 @@ export function AgencyHome() {
          called it Level, which is a different question with the same word, and
          the answer to it was "branch". */
       agencyLevel: string; seesCommission: boolean;
+      /* LAST ACTIVE, which the tab did not carry. Matt, 2026-10-02: the
+         shared table's Sees and Last active columns, and for a pending
+         invite the latter reads "Invited [date]" -- worded once, in
+         hydrate.ts, so every people screen says it the same way. */
+      lastActive: string;
       agencyId?: string; branchId?: string;
     }[] = [];
     const u = (id: string) => usersById[id];
@@ -274,23 +279,26 @@ export function AgencyHome() {
     const levelOf = (id: string, role: string) =>
       agencyLevelOf(role as Role, u(id)?.seesCommission === true) ?? role;
     const sees = (id: string) => u(id)?.seesCommission === true;
+    const activeOf = (id: string) => u(id)?.lastActive ?? EMPTY;
     // EMPTY is a single hyphen, here and in every other cell on this page. A
     // group person has no agency and no branch, which is a fact about the level
     // and not missing data.
     people.group.forEach((p) => rows.push({
       ...p, level: 'group', agency: EMPTY, branch: EMPTY, status: statusOf(p.userId),
       agencyLevel: levelOf(p.userId, p.role), seesCommission: sees(p.userId),
+      lastActive: activeOf(p.userId),
     }));
     agencies.forEach((a) => {
       (a.id ? people.agency[a.id] ?? [] : []).forEach((p) => rows.push({
         ...p, level: 'agency', agency: a.name, branch: EMPTY, status: statusOf(p.userId),
         agencyLevel: levelOf(p.userId, p.role), seesCommission: sees(p.userId), agencyId: a.id,
+        lastActive: activeOf(p.userId),
       }));
       (a.branches ?? []).forEach((b) => {
         (b.id ? people.branch[b.id] ?? [] : []).forEach((p) => rows.push({
           ...p, level: 'branch', agency: a.name, branch: b.name, status: statusOf(p.userId),
           agencyLevel: levelOf(p.userId, p.role), seesCommission: sees(p.userId),
-          agencyId: a.id, branchId: b.id,
+          agencyId: a.id, branchId: b.id, lastActive: activeOf(p.userId),
         }));
       });
     });
@@ -803,17 +811,35 @@ export function AgencyHome() {
               Matt, 2026-10-01. Agency and Office were two columns here and
               one everywhere else; the office is the column, with the agency
               under it when several are in view, so the rows line up with
-              the supplier tab and the opndoor team page. */}
+              the supplier tab and the opndoor team page.
+
+              AND ITS LAST TWO COLUMNS, 2026-10-02: "Use the same shared
+              people table as every other people screen, with Sees and Last
+              active (or 'Invited [date]' for pending invites)." The table
+              had both already -- the supplier tab passes them -- and this
+              tab passed neither, so on a single-office agency like New
+              Independent it drew three columns: Name, Level and Status.
+
+              THE OFFICE COLUMN IS ALREADY CONDITIONAL, and on the right
+              question. `manyOffices` is branchCount > 1 across the org in
+              view, so a single-office agency passes null and the table
+              drops the header too -- which is the rule it applies to every
+              screen, and why the supplier tab has no Office column at
+              all. Nothing to add for "show it only when the agency has
+              more than one office"; it is asserted below instead. */}
           <PeopleTable
             showFilters={false}
+            extraHeader="Sees"
             rows={peopleShown.map((r) => ({
               id: r.userId,
               name: r.name,
               email: r.email,
               level: r.agencyLevel,
+              extra: agencySees(r.role, r.level),
               office: manyOffices ? r.branch : null,
               officeSub: manyAgencies ? r.agency : null,
               status: r.status,
+              lastActive: r.lastActive,
               actions: (
                 <PersonActions
                   person={r}
@@ -925,12 +951,15 @@ export function AgencyHome() {
                different layout. */
             <PeopleTable
               showFilters={false}
+              extraHeader="Sees"
               rows={rows.map((r) => ({
                 id: r.userId,
                 name: r.name,
                 email: r.email,
                 level: r.agencyLevel,
+                extra: agencySees(r.role, r.level),
                 status: r.status,
+                lastActive: r.lastActive,
                 actions: (
                   <PersonActions
                     person={r}

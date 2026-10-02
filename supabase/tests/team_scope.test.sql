@@ -13,7 +13,7 @@
 -- them both.
 
 begin;
-select plan(14);
+select plan(15);
 
 -- One partner, the house rail that carries our agencies.
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate, is_house_route)
@@ -83,6 +83,26 @@ select is(
 select ok(
   not exists (select 1 from public.list_managed_users() u where u.id = '95000000-0000-0000-0000-00000000000c'),
   'the other agency''s manager is not in their team list');
+
+/* AND IT SAYS WHEN EACH OF THEM WAS INVITED. Matt, 2026-10-02: the Last
+   active column reads "Invited [date]" for a pending invite, so
+   20261007480000 added invited_at -- coalesce(auth.users.invited_at,
+   users.created_at) -- to the function's result.
+
+   NAMING THE COLUMN IS HALF THE ASSERTION. A later `create or replace`
+   that rebuilds this function from an older copy drops the column, and
+   the only symptom on screen is the cell going back to repeating its own
+   status pill, which nobody would report. Here it errors by name.
+
+   It sits in THIS file because adding a column to a definer function's
+   result is a change to what a caller may read, and this file is where
+   what this caller may read is measured. The grant pair the drop reset is
+   assertion 1 of definer_grants.test.sql, which is zero for anon. */
+select is(
+  (select count(*)::int from public.list_managed_users() u
+    where u.invited_at is not null
+      and u.id in ('95000000-0000-0000-0000-00000000000a','95000000-0000-0000-0000-00000000000b')),
+  2, 'and says when each of them was invited, which is what a pending row shows');
 
 select is(
   (select count(*)::int from public.user_scopes s where s.user_id = '95000000-0000-0000-0000-00000000000b'),

@@ -78,6 +78,61 @@ export function describePosition(positions: Position[], showLevel = true, role?:
   return 'Own referrals';
 }
 
+/* =====================================================================
+   WHAT A PERSON SEES, ON EITHER RAIL, IN A CELL'S WORTH OF WORDS.
+
+   Matt, 2026-10-02: the agency People tab gets the shared table's "Sees"
+   column, which the supplier tab has had since 2026-10-01.
+
+   BOTH RAILS' SENTENCES LIVE HERE, together, because the supplier's were
+   written in PartnerHome and the agency's would otherwise have been
+   written in AgencyHome: two files deciding separately what "sees
+   everything" is called is exactly how "-" and "Own referrals" came to
+   mean the same thing (see DEVELOPER_SEES above).
+
+   IT IS THE REFERRAL BOOK THEY ARE ABOUT, not the people list: what the
+   applications policy admits. On our estate that is
+   app_may_reach_application_org, which narrows management to
+   app_scoped_agencies and a referrer to their own rows:
+
+     a branch position    reaches the AGENCY the branch belongs to, so a
+                          branch manager sees the whole agency and not
+                          just their office -- the office is a placement,
+                          not a permission
+     a group position     reaches every agency in the group
+     a referrer           reaches referrer_id = auth.uid() and nothing
+                          else, whatever they are positioned at
+
+   WHICH IS WHY IT IS NOT THE OFFICE COLUMN SAID TWICE. Office answers
+   where somebody sits; this answers what they can open. For a Negotiator
+   at a two-office agency the two cells disagree, and that disagreement is
+   the information.
+
+   COMMISSION IS NOT IN IT. Director and Manager differ by commission and
+   by nothing else, and the Level column already says which they are;
+   AGENCY_LEVELS carries the long sentence for the invite dialog.
+   ===================================================================== */
+
+/** What a person on OUR estate sees, given their role and the level they
+    are positioned at. */
+export function agencySees(role: string, kind: ScopeKind | null | undefined): string {
+  if (role === 'superadmin' || role === 'opndoor_manager') return 'Everything';
+  if (role === 'developer') return DEVELOPER_SEES;
+  if (role === 'referrer') return 'Own referrals';
+  if (role !== 'management') return '-';
+  return kind === 'group' ? 'Every agency in the group' : 'The whole agency';
+}
+
+/** And on a supplier's rail, where there are no positions: partner_id IS
+    the company boundary, so management sees the supplier's whole book.
+    Moved here from PartnerHome on 2026-10-02 to sit beside its twin. */
+export function supplierSees(role: string): string {
+  return role === 'management' ? 'Everything'
+    : role === 'referrer' ? 'Own referrals'
+      : role === 'developer' ? DEVELOPER_SEES
+        : '-';
+}
+
 /** How many levels of the ladder a set of positions actually spans. The Team
     page uses it to decide whether naming the level tells the reader anything. */
 export function levelsSpanned(positions: Position[]): number {
