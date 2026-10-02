@@ -1115,6 +1115,23 @@ you asked for. Say the word and the tenant gets their own wording.
 - "no Opndoor-internal columns" is the constraint that stops this being
   a copy of the admin file: it is an agency's document.
 
+## A PARTNER IS A SUPPLIER OR AN AGENCY, AND SAYS SO (instruction, 2026-10-02, verbatim).
+
+> Do the proper fix now. Every partner gets a fixed "supplier or agency" setting of its own, decided when it's created ("Add supplier" makes a supplier; an agency partner is an agency) and never inferred from referencing mode. Referencing mode becomes independent: a supplier can use any referencing mode and stays a supplier.
+> - Set it for every partner on dev from what they really are today (Kestrel, Letly and the test suppliers are suppliers; Harbour Lets is an agency; the house partners stay house partners), and tell me the list before applying.
+> - Replace every place that decides supplier vs agency from referencing mode, on screen and in SQL (Suppliers and Agencies lists, Reporting, routes, Reconciliation, labels, statements, settlement, notes, estates), with the new setting.
+> - Prove it: on dev, switch Kestrel to "opndoor referenced" in a test and show it stays a supplier everywhere, including the settlement, then switch it back.
+> Then finish the two small open items: the Recent-changes filter on the agency page, and Kestrel's own Reporting view (no "(via …)" labels for the supplier itself, and its own statement as the headline). Full tests and drift, deploy to dev, commit separately. Go-live is Wednesday morning, so flag anything risky rather than guessing.
+
+- The answer to the report under TWO ON SUPPLIER SETTINGS, and the same
+  conclusion: the decision needs its own fact.
+- **THE LINE I WILL NOT CROSS WITHOUT HIM.** `is_our_estate_partner` and
+  `is_agent_estate` also read referencing_mode, and they are not the
+  supplier/agency question: they feed `app_may_reach_application_org`,
+  which is AUTHORISATION. Repointing them at the new setting changes who
+  can read what, two days before go-live. Measured and flagged rather
+  than guessed.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
