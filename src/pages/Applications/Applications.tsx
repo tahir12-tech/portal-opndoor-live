@@ -291,9 +291,26 @@ export function Applications() {
      the search had already excluded. */
   const counts = countByStatus({ ...filterOpts, q });
   // #13: the "Showing X of Y" denominator must match the active status tab.
-  // Withdrawn/Expired are terminal and excluded from counts.all, so on those tabs
-  // Y must be the tab's own count, not the operational total.
-  const total = (counts as Record<string, number>)[status] ?? counts.all;
+  /* "SHOWING X OF Y" COUNTS THE SAME SET THE TAB DOES. Matt, 2026-10-02:
+     "the 'All' tab counts and shows every application in the current
+     filters ... 'Showing X of Y' counts the same set."
+
+     Y is the active tab's own count, which for All is now every row.
+
+     THE HYPHENATED TABS NEEDED A MAP, and this is a fault the change
+     above would have made worse rather than one it introduced. Four tab
+     ids are hyphenated -- fee-unpaid, delivery-failed, cannot-deliver --
+     while the count keys are camelCase, so `counts['fee-unpaid']` was
+     undefined and Y silently fell back to `counts.all`. That used to
+     show the funnel total under a draft tab; with All meaning all it
+     would show the whole book. Named here rather than left to the
+     fallback, which now has nothing sensible to fall back to. */
+  const COUNT_KEY: Record<string, keyof typeof counts> = {
+    'fee-unpaid': 'feeUnpaid',
+    'delivery-failed': 'deliveryFailed',
+    'cannot-deliver': 'cannotDeliver',
+  };
+  const total = counts[COUNT_KEY[status] ?? (status as keyof typeof counts)] ?? counts.all;
   const visibleRows = useMemo(
     () => getApplications({ ...filterOpts, status, q, sort }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

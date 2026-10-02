@@ -285,22 +285,36 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
     if (!matchesQuery(r, opts.q)) return false;
     return inPeriod(r, opts.periodRange);
   });
-  // 'refunded' and 'awaiting' overlap 'paid' (both keep status Paid by design), so
-  // they are counted in addition to paid, not instead of it. all = sent+paid+deed.
-  // 'deliveryFailed' is a cross-cut of Deed (issued but no reachable agent contact).
-  // #2/#13 'withdrawn' and 'expired' are terminal and OUT of the funnel: not part of
-  // all/sent/paid/deed, only their own separate counts (surfaced via their chips).
+  /* 'refunded' and 'awaiting' overlap 'paid' (both keep status Paid by
+     design), so they are counted in addition to paid, not instead of it.
+     'deliveryFailed' is a cross-cut of Deed (issued but no reachable
+     agent contact).
+
+     ALL IS EVERY ROW, since 2026-10-02. Matt: "'All' equals the sum of
+     the other tabs. 'Showing X of Y' counts the same set." It used to be
+     sent + paid + deed, with draft, awaiting decision, declined,
+     withdrawn and expired each `return`ing before it was reached -- so
+     the tab called All was the funnel, and said so nowhere.
+
+     THE SUM HOLDS OVER THE EXCLUSIVE TABS: draft + referencing +
+     declined + sent + paid + deed + withdrawn + expired. Invited and
+     feeUnpaid are inside draft, refunded and awaiting are inside paid,
+     and the two delivery counts are inside deed; adding those in as
+     well would double-count rows the reader can see are one row. Matt's
+     own example names Fee unpaid, which is one of the subsets, so the
+     sentence means "All holds everything" rather than "add the chips
+     up". */
   const counts = { all: 0, draft: 0, invited: 0, feeUnpaid: 0, referencing: 0, declined: 0, sent: 0, paid: 0, deed: 0, refunded: 0, awaiting: 0, deliveryFailed: 0, cannotDeliver: 0, withdrawn: 0, expired: 0 };
   set.forEach((r) => {
+    counts.all++;
     if (r.status === 'withdrawn') { counts.withdrawn++; return; }
     if (r.status === 'expired') { counts.expired++; return; }
-    // Awaiting decision is pre-approval, out of the funnel like the terminal states:
-    // its own count and tab, never part of All/Sent/Paid/Deed.
+    // Awaiting decision is pre-approval: its own count and tab, and now
+    // part of All like everything else.
     if (r.status === 'referencing') { counts.referencing++; return; }
     if (r.status === 'declined') { counts.declined++; return; }
     // Agent-rail draft: its own tab, plus the two early sub-states.
     if (r.status === 'draft') { counts.draft++; if (!r.registered) counts.invited++; if (!r.feePaid) counts.feeUnpaid++; return; }
-    counts.all++;
     counts[r.status]++;
     if (r.refunded) counts.refunded++;
     if (r.awaitingSignature) counts.awaiting++;
@@ -353,13 +367,27 @@ export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
   let rows = scopedSet(opts);
   if (opts.partner) rows = rows.filter((r) => r.partner === opts.partner);
   rows = rows.filter((r) => {
-    // #2/#13 Withdrawn and Expired are terminal and out of the default/every-other
-    // view; each appears only when its own chip is selected.
-    // Pre-Sent (draft/referencing/declined) and terminal (withdrawn/expired) are
-    // out of the funnel/default 'all' view; each shows only under its own tab, or
-    // a draft sub-filter (invited = not yet registered, fee-unpaid). Supplier-rail
-    // applications never carry a pre-Sent status, so their view is unchanged.
-    if (r.status === 'draft' || r.status === 'referencing' || r.status === 'declined' || r.status === 'withdrawn' || r.status === 'expired') {
+    /* "ALL" MEANS ALL, since 2026-10-02. Matt: "the 'All' tab counts and
+       shows every application in the current filters, including In
+       progress, Fee unpaid and Expired, so 'All' equals the sum of the
+       other tabs."
+
+       WHAT IT WAS. Pre-Sent (draft, awaiting decision, declined) and
+       terminal (withdrawn, expired) were out of the default view and
+       each appeared only under its own chip, so All was the operational
+       funnel: sent + paid + deed. That read as a contradiction the
+       moment a filter made the funnel small -- "All 1" above "In
+       progress 8" -- because two numbers on one row cannot both be a
+       total.
+
+       WHAT STAYS. The block still runs for every OTHER tab, so choosing
+       Paid does not sweep in drafts, and the two draft sub-filters
+       (Invited, Fee unpaid) keep their own arms. Only 'all' and the
+       no-status case are let through, which is the whole change. */
+    const everything = !opts.status || opts.status === 'all';
+    if (!everything
+        && (r.status === 'draft' || r.status === 'referencing' || r.status === 'declined'
+            || r.status === 'withdrawn' || r.status === 'expired')) {
       const shown = opts.status === r.status
         || (opts.status === 'invited' && r.status === 'draft' && !r.registered)
         || (opts.status === 'fee-unpaid' && r.status === 'draft' && !r.feePaid);

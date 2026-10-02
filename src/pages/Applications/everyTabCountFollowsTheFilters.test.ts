@@ -30,12 +30,13 @@
  * concludes the smaller one is being filtered and the larger one is
  * not.
  *
- * SO THE NUMBERS ARE RIGHT AND THE LABEL IS WRONG, which is a different
- * fix from the one asked for and is Matt's to choose: rename the tab to
- * what it counts, or make All mean all and give the funnel its own. It
- * is in docs/QUEUE.md under "For Matt in the morning". This file pins
- * the half that is not in question, so that whichever he picks cannot
- * quietly take the filtering with it.
+ * SO THE NUMBERS WERE RIGHT AND THE LABEL WAS WRONG, which was a
+ * different fix from the one asked for. Matt chose the wider of the two
+ * the same day: "the 'All' tab counts and shows every application in the
+ * current filters, including In progress, Fee unpaid and Expired, so
+ * 'All' equals the sum of the other tabs. 'Showing X of Y' counts the
+ * same set." The cases below are unchanged except for the two that said
+ * All was the funnel; the filtering they pin is what must survive it.
  */
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { countByStatus, getApplications, hydrateApplications, ALL_PARTNERS } from '@/data';
@@ -76,10 +77,25 @@ afterEach(() => { hydrateApplications([], []); });
 describe('with no origin chosen', () => {
   it('every bucket counts the whole book', () => {
     const c = countByStatus(opts);
-    expect(c.all).toBe(4);      // sent + paid + deed, across both rails
+    /* ALL IS EVERY ROW, since Matt's answer of 2026-10-02 to the
+       question this file raised: "the 'All' tab counts and shows every
+       application in the current filters ... so 'All' equals the sum of
+       the other tabs." It was 4 here, the funnel. */
+    expect(c.all).toBe(BOOK.length);
     expect(c.draft).toBe(5);
     expect(c.feeUnpaid).toBe(5);
     expect(c.expired).toBe(3);
+  });
+
+  /* AND THE SUM HOLDS, over the tabs that are siblings rather than
+     subsets. Invited and feeUnpaid sit inside draft, refunded and
+     awaiting inside paid, and the delivery counts inside deed, so they
+     are left out of the addition exactly as the reader leaves them out
+     when adding up what is on screen. */
+  it('and All is the sum of the exclusive tabs', () => {
+    const c = countByStatus(opts);
+    expect(c.draft + c.referencing + c.declined + c.sent + c.paid + c.deed + c.withdrawn + c.expired)
+      .toBe(c.all);
   });
 });
 
@@ -101,8 +117,10 @@ describe('with Origin: Direct, which is what Home’s link sets', () => {
     expect(countByStatus(direct).expired).toBe(1);
   });
 
-  it('and All counts the direct funnel, which is the one live row', () => {
-    expect(countByStatus(direct).all).toBe(1);
+  it('and All counts every direct row, which is the whole point of the word', () => {
+    const c = countByStatus(direct);
+    expect(c.all).toBe(4);  // 1 deed + 2 drafts + 1 expired
+    expect(c.draft + c.expired + c.deed).toBe(c.all);
   });
 
   /* AND THE ROWS AGREE WITH THE TABS, which is the property underneath
@@ -113,6 +131,28 @@ describe('with Origin: Direct, which is what Home’s link sets', () => {
     expect(getApplications({ ...direct, status: 'draft' })).toHaveLength(c.draft);
     expect(getApplications({ ...direct, status: 'expired' })).toHaveLength(c.expired);
     expect(getApplications({ ...direct, status: 'fee-unpaid' })).toHaveLength(c.feeUnpaid);
+  });
+
+  /* INCLUDING ALL, which is the half the counts alone would not catch:
+     "the 'All' tab COUNTS AND SHOWS every application in the current
+     filters". A count that moved without the list moving would put a
+     number above rows that are not there. */
+  it('and All shows every direct row, not only counts them', () => {
+    const rows = getApplications({ ...direct, status: 'all' });
+    expect(rows).toHaveLength(countByStatus(direct).all);
+    const refs = rows.map((r) => r.ref);
+    expect(refs).toContain('GR-D-DR1');   // In progress
+    expect(refs).toContain('GR-D-EXP');   // Expired
+    expect(refs).toContain('GR-D-DEED');  // and the live one
+    expect(refs).not.toContain('GR-A-DR1');
+  });
+
+  /* AND CHOOSING A TAB STILL NARROWS. The change let draft and terminal
+     rows through on 'all'; it must not have let them through on Paid,
+     which is the way a one-line relaxation usually goes wrong. */
+  it('while choosing Paid still shows only paid rows', () => {
+    const paid = getApplications({ ...opts, status: 'paid' }).map((r) => r.ref);
+    expect(paid).toEqual(['GR-A-PAID']);
   });
 });
 

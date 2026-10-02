@@ -117,10 +117,25 @@ async function pickOrigin(v: View, label: string) {
 }
 
 describe('the tab counts before any filter', () => {
+  /* ALL IS EVERY ROW, since 2026-10-02. Matt: "the 'All' tab counts and
+     shows every application in the current filters, including In
+     progress, Fee unpaid and Expired, so 'All' equals the sum of the
+     other tabs." It was 4 here -- the funnel, sent + paid -- beside an
+     In progress of 4, which is exactly the pair that cannot both be a
+     total and is why he asked. */
   it('count the whole book', async () => {
     expect(tabCounts(await openList())).toMatchObject({
-      All: 4, 'In progress': 4, 'Invited, not registered': 2, 'Fee unpaid': 4, Sent: 2, Paid: 2,
+      All: 8, 'In progress': 4, 'Invited, not registered': 2, 'Fee unpaid': 4, Sent: 2, Paid: 2,
     });
+  });
+
+  it('and All is the sum of the exclusive tabs', async () => {
+    const c = tabCounts(await openList()) as Record<string, number>;
+    // Invited and Fee unpaid sit inside In progress, so they are not
+    // addends; the reader adding up the screen leaves them out too.
+    expect((c['In progress'] ?? 0) + (c.Sent ?? 0) + (c.Paid ?? 0)
+      + (c['Deed Issued'] ?? 0) + (c['Awaiting decision'] ?? 0)
+      + (c.Declined ?? 0) + (c.Withdrawn ?? 0) + (c.Expired ?? 0)).toBe(c.All);
   });
 });
 
@@ -135,7 +150,8 @@ describe('the tab counts follow the Origin filter', () => {
   it('and so does every other tab', async () => {
     const v = await openList();
     await pickOrigin(v, 'Direct');
-    expect(tabCounts(v)).toMatchObject({ All: 2, Sent: 1, Paid: 1, 'Invited, not registered': 1 });
+    // All is 4 now rather than 2: the two direct drafts are in it.
+    expect(tabCounts(v)).toMatchObject({ All: 4, Sent: 1, Paid: 1, 'Invited, not registered': 1 });
   });
 });
 
