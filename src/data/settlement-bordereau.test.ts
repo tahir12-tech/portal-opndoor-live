@@ -120,7 +120,14 @@ describe('buildLiveBordereau (in force during the month, live rows, frozen forma
     expect(g1[3]).toBe('Doe');           // Last Name
     expect(g1[4]).toBe('15/01/1990');    // DOB dd/mm/yyyy (always populated)
     expect(g1[5]).toBe('Tenant');        // Tenant Role
-    expect(g1[11]).toBe('Ag');           // Landlord Name = agency name (#116)
+    /* LANDLORD NAME IS THE LANDLORD, OR NOTHING, since 2026-10-02. It
+       was the AGENCY name, which is right only if you read "landlord"
+       as "whoever we deal with" -- and on a direct signup there is no
+       agency, so the cell took the house rail's "Unattached"
+       placeholder onto a document that goes to an underwriter. Matt:
+       "show the landlord's name where we hold it, otherwise leave it
+       blank." This fixture holds no landlord, so it is blank. */
+    expect(g1[11]).toBe('');             // Landlord Name = landlord_name, or nothing (#116)
     expect(g1[12]).toBe('20/04/2026');   // Issue Date = deedAt
     expect(g1[13]).toBe('10/05/2026');   // Tenancy date
     expect(g1[15]).toBe(1200);           // Monthly Rent (numeric)

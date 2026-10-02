@@ -177,12 +177,24 @@ describe('the expiries CSV', () => {
     // Without a tenant count, someone chasing a two-person expiry rings one of
     // them and stops; the guarantee names both.
     expect(head).toContain('Tenants on the guarantee');
-    expect(head).toContain('Tenancy ID');
+    /* "Joint with" REPLACED "Tenancy ID" on 2026-10-02. The id was a
+       join key printed because it was the only thing saying "this row
+       has siblings"; an operator chasing the right people wants the
+       siblings' references, which is what the column holds now. Matt:
+       'replace the Tenancy ID code with "Joint with" listing the other
+       tenants' guarantee references (blank for single tenancies)'. */
+    expect(head).toContain('Joint with');
+    expect(head).not.toContain('Tenancy ID');
   });
 
   it('names the rent and the fee as the WHOLE tenancy’s, because they are', () => {
     expect(head).toContain('Monthly rent (whole tenancy)');
-    expect(head).toContain('Guarantor fee (whole tenancy)');
+    expect(head).toContain('Guarantee fee (whole tenancy)');
+    /* AND THE COLUMN BESIDE THEM IS THE TENANT'S, which it never said:
+       guaranteedAnnual reads share_amount, so on a joint let the
+       annualised figure is a share sitting next to two whole-tenancy
+       ones with nothing to tell them apart. */
+    expect(head).toContain("Annualised rent (this tenant's share)");
   });
 });
 

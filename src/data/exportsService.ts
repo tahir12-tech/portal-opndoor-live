@@ -736,7 +736,7 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
           moneyCol('Partner commission'),
         ],
         // ap.fee, not ap.rent: the column says Guarantor fee and now carries one.
-        rows: st.partners.flatMap((p) => p.apps.map((ap) => [p.partnerName, ap.ref, ap.branch, ap.agency, dmy(ap.paidAt), money(ap.fee), money(ap.commission)] as TableRow)),
+        rows: st.partners.flatMap((p) => p.apps.map((ap) => [p.partnerName, ap.ref, orgCell(ap.branch), orgCell(ap.agency), dmy(ap.paidAt), money(ap.fee), money(ap.commission)] as TableRow)),
       });
     }
   }
@@ -775,7 +775,7 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
           moneyCol('Guarantor fee'),
           moneyCol(agency ? 'Commission' : 'Agent commission'),
         ],
-        rows: ag.payees.flatMap((a) => a.apps.map((ap) => [a.agency, a.level, ap.ref, ap.branch, dmy(ap.paidAt), money(ap.fee), money(ap.commission)] as TableRow)),
+        rows: ag.payees.flatMap((a) => a.apps.map((ap) => [a.agency, a.level, ap.ref, orgCell(ap.branch), dmy(ap.paidAt), money(ap.fee), money(ap.commission)] as TableRow)),
       });
     }
   }
@@ -1314,7 +1314,7 @@ export function buildApplicationDoc(role: Role, period: Period, basis: ExportBas
   if (basis === 'activity') columns.push({ header: 'Activity in period', type: 'text' });
 
   const rows: TableRow[] = apps.map((a) => {
-    const row: TableRow = [a.ref, a.agency, a.branch, a.referrer, STATUS[a.status], dmy(a.sent), a.paid ? dmy(a.paid) : '', a.deed ? dmy(a.deed) : '', money(a.rent), money(a.rent), dmy(a.tStart), a.expiry ? dmy(a.expiry) : ''];
+    const row: TableRow = [a.ref, orgCell(a.agency), orgCell(a.branch), a.referrer, STATUS[a.status], dmy(a.sent), a.paid ? dmy(a.paid) : '', a.deed ? dmy(a.deed) : '', money(a.rent), money(a.rent), dmy(a.tStart), a.expiry ? dmy(a.expiry) : ''];
     if (basis === 'activity') row.push((a.events || []).join(', '));
     return row;
   });
@@ -1965,7 +1965,20 @@ export function buildLiveBordereau(year: number, m0: number, insuranceRate: numb
     return [
       a.ref, rec?.title ?? '', first, last, dobDmy(rec?.dob), 'Tenant',
       rec?.addr1 ?? '', rec?.addr2 ?? '', rec?.city ?? '', rec?.county ?? '', rec?.postcode ?? '',
-      a.agency, // Landlord Name = the agency name
+      /* THE LANDLORD, OR NOTHING. Matt, 2026-10-02: "'Landlord Name'
+         shows 'Unattached' for a direct signup. Never show the
+         placeholder: show the landlord's name where we hold it,
+         otherwise leave it blank."
+
+         IT WAS THE AGENCY NAME, as the old comment here said outright,
+         which is right only if you read "landlord" as "whoever we deal
+         with". On a direct signup there is no agency, so the cell took
+         the house rail's "Unattached" placeholder -- our own plumbing,
+         on a document that goes to an underwriter. landlord_name is the
+         column that answers the question the header asks; dev holds one
+         today and none of them on a deed-issued row, so this column
+         goes mostly blank, which is the honest state of it. */
+      rec?.landlordName ?? '',
       a.deedAt ? dmy(a.deedAt) : '', a.tenancyStart ? dmy(a.tenancyStart) : '', expiry ? dmy(expiry) : '',
       // THE SHARE, not the tenancy's rent: this deed guarantees this tenant's
       // part of it, and the premium follows what is guaranteed. A tenancy of one
@@ -2006,14 +2019,17 @@ export function buildSyntheticBordereau(year: number, m0: number, insuranceRate:
     const dobYear = 1990 + ((i * 5) % 16);
     const dob = new Date(dobYear, (i * 7) % 12, ((i * 11) % 27) + 1);
     const st = BX_STREETS[(i * 3) % BX_STREETS.length];
-    const b = APP_BRANCHES[i % APP_BRANCHES.length];
     const refNo = 40000 + (year * 12 + m0) * 200 + i;
     const flat = BX_FLATS[i % BX_FLATS.length];
     const rent = APP_RENTS[(i * 7) % APP_RENTS.length];
     rows.push([
       `GR-${refNo}`, BX_TITLES[i % BX_TITLES.length], BX_FIRST[(i * 5) % BX_FIRST.length], BX_LAST[(i * 3) % BX_LAST.length],
       dmy(dob), 'Tenant', (flat ? `${flat}, ` : '') + st[0], '', 'London', 'Greater London', st[1],
-      String(b[0]), // Landlord Name (demo agency stand-in)
+      // THE DEMO BOOK HAS NO LANDLORDS EITHER, and the live file no
+      // longer stands an agency name in for one. Blank, so the two
+      // versions of this document do not disagree about what the column
+      // means.
+      '',
       dmy(issue), dmy(tenancy), dmy(expiry), rent, money(rent * rate), 'On Cover',
     ]);
   }
@@ -2050,7 +2066,25 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
      their own share, so a joint let contributes a row per tenant, each with its
      own expiry. The tenant-count column matters more than ever, not less: it is
      what tells an operator that the name in front of them is one of two. */
-  const colHeader: CsvRow = ['Guarantee reference', 'Tenant name', 'Tenants on the guarantee', 'Tenancy ID', 'Property address', 'Agency', 'Branch', 'Tenancy start', 'Expiry date', 'Days remaining', 'Monthly rent (whole tenancy)', 'Annualised rent', 'Guarantor fee (whole tenancy)', 'Referrer'];
+  /* THREE COLUMNS SAY WHAT THEY MEAN. Matt, 2026-10-02: 'label
+     "Annualised rent" as "Annualised rent (this tenant's share)"; say
+     "Guarantee fee (whole tenancy)" not "Guarantor fee"; replace the
+     Tenancy ID code with "Joint with" listing the other tenants'
+     guarantee references (blank for single tenancies)'.
+
+     TWO OF THE THREE ARE A GRAIN PROBLEM, which is what this file keeps
+     running into: a joint let is one row per tenant, and the columns
+     mix the tenant's figures with the tenancy's. "Monthly rent (whole
+     tenancy)" already said so; "Annualised rent" sat next to it saying
+     nothing and is the SHARE (guaranteedAnnual reads share_amount), so
+     a reader comparing the two had no way to know they were different
+     grains.
+
+     AND THE TENANCY ID WAS A UUID. It is a join key, printed because it
+     was the only thing that said "this row has siblings". "Joint with"
+     answers the question the operator actually has -- which other
+     guarantees -- in the references they can look up. */
+  const colHeader: CsvRow = ['Guarantee reference', 'Tenant name', 'Tenants on the guarantee', 'Joint with', 'Property address', 'Agency', 'Branch', 'Tenancy start', 'Expiry date', 'Days remaining', 'Monthly rent (whole tenancy)', "Annualised rent (this tenant's share)", 'Guarantee fee (whole tenancy)', 'Referrer'];
 
   const dataRows: CsvRow[] = [];
   if (liveAvailable()) {
@@ -2059,10 +2093,15 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
     // Issued and so are not in the filtered set at all.
     const tenancyCount = new Map<string, number>();
     const tenancyFee = new Map<string, number>();
+    // The references on each tenancy, for "Joint with". Gathered from the
+    // WHOLE book for the same reason as the count: a sibling who is not
+    // Deed Issued is not in the filtered set and is still their joint tenant.
+    const tenancyRefs = new Map<string, string[]>();
     for (const x of book) {
       if (!x.tenancyId) continue;
       tenancyCount.set(x.tenancyId, (tenancyCount.get(x.tenancyId) ?? 0) + 1);
       tenancyFee.set(x.tenancyId, (tenancyFee.get(x.tenancyId) ?? 0) + feeBaseFor(x));
+      tenancyRefs.set(x.tenancyId, [...(tenancyRefs.get(x.tenancyId) ?? []), x.ref]);
     }
     /* expiryOf, not `expiry ?? guaranteeExpiry(tenancyStart)`. The old form
        computed a date for every application in the book, including ones with no
@@ -2078,7 +2117,11 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
       const addr = [rec?.addr1, rec?.addr2, rec?.city, rec?.postcode].filter(Boolean).join(', ');
       const n = a.tenancyId ? (tenancyCount.get(a.tenancyId) ?? 1) : 1;
       const fee = a.tenancyId ? (tenancyFee.get(a.tenancyId) ?? feeBaseFor(a)) : feeBaseFor(a);
-      dataRows.push([a.ref, rec?.name ?? '', String(n), a.tenancyId ?? '', addr, a.agency, a.branch, a.tenancyStart ? dmy(a.tenancyStart) : '', dmy(exp!), String(daysLeft(exp!)), moneyText(a.rent), moneyText(guaranteedAnnual(a)), moneyText(fee), a.referrer ?? '']);
+      // THE OTHERS, not this one, and blank where there are none: a
+      // single tenancy has nobody to be joint with, and listing its own
+      // reference back at it would read as a second guarantee.
+      const others = a.tenancyId ? (tenancyRefs.get(a.tenancyId) ?? []).filter((r) => r !== a.ref) : [];
+      dataRows.push([a.ref, rec?.name ?? '', String(n), others.sort().join(', '), addr, orgCell(a.agency), orgCell(a.branch), a.tenancyStart ? dmy(a.tenancyStart) : '', dmy(exp!), String(daysLeft(exp!)), moneyText(a.rent), moneyText(guaranteedAnnual(a)), moneyText(fee), a.referrer ?? '']);
     }
   } else {
     const AG = ['Bracken House Lettings', 'Meridian Residential', 'Crowngate Property'];
