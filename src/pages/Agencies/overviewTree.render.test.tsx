@@ -295,12 +295,30 @@ describe('an agreement replaces Set rate', () => {
     expect(buttons).not.toContain('Change rate');
   });
 
-  it('leaves Set rate where there is no agreement', async () => {
+  /* AND SENDS YOU TO THE COMMISSION TAB WHERE THERE IS NONE, since
+     2026-10-02. Matt: "The 'Set rate' button beside the agency name: if
+     commission is set on the Commission tab, remove it so there's one
+     place to set commission."
+
+     The tree used to carry the editor, and the Commission tab listed
+     only the rates that WERE set -- so the tab could change one and the
+     tree was the only place to set a first. Both halves moved together:
+     the tab now lists every node and keeps the editor, and the tree
+     points at it. Removing the tree's button without the other half
+     would have removed the capability rather than moved it.
+
+     The case is kept and turned over because what it protects is the
+     distinction beside it: an agreement party gets NO rate control at
+     all, and a non-agreement party gets one. That is still true; where
+     the control lives is what changed. */
+  it('offers the Commission tab where there is no agreement', async () => {
     const view = await openGroup();
     const kestrel = nodeNamed(view, '.ah-node--agency', 'Kestrel Lettings')!;
     expect(kestrel.querySelector('.ah-agreement-sum')).toBeNull();
     const buttons = [...kestrel.querySelectorAll('.ah-node-main button')].map((b) => (b.textContent ?? '').trim());
-    expect(buttons).toContain('Set rate');
+    expect(buttons).toContain('Set on Commission');
+    // And the editor is not in the tree any more: one place to set it.
+    expect(buttons).not.toContain('Set rate');
   });
 });
 

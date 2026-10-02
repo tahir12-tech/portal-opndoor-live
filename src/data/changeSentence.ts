@@ -106,6 +106,17 @@ const EVENTS: Record<string, (detail: string) => string> = {
   notifications_on: (d) => d || 'Now receives notifications',
   notifications_off: (d) => d || 'No longer receives notifications',
   invited: () => 'Invited',
+  /* AND WHAT THEY WERE INVITED AS, in agency level names. Matt,
+     2026-10-02: "'invited set to management' should read 'Independent
+     Director invited as Director', using agency level names (Director,
+     Manager, Negotiator) everywhere on agency pages."
+
+     The subject's NAME is already on the row -- `AgencyChanges` draws
+     it beside the sentence -- so this says the half the row does not:
+     what level the invitation was for. `agency_changes` computes it, so
+     the three names arrive here already written and this does not
+     re-derive a level from a role it cannot tell apart. */
+  invited_as: (d) => (d ? `Invited as ${d}` : 'Invited'),
 };
 
 /* "partner 0.25, agent 0.1" is what set_agency_rates stores, and it is

@@ -248,3 +248,8 @@
 }
 .ac-problems svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
 .ac-problems ul { margin: 4px 0 0; padding-left: 18px; }
+
+/* An invitation out is not an empty agency: it resolves itself, so it is
+   said in the informational tone rather than the warning one. */
+.ah-deed-warn--waiting { color: var(--ink-mute); }
+.ah-deed-warn--waiting svg { color: var(--ink-mute); }

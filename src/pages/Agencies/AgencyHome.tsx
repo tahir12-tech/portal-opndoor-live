@@ -79,6 +79,11 @@ const EMPTY = '-';
 type Level = 'group' | 'agency' | 'branch';
 interface Placed {
   userId: string; name: string; email: string; role: string;
+  /** 'pending' while an invitation is out. Carried so the deed warning can
+      tell an agency with nobody in it from one whose only person has not
+      accepted yet: the readiness RPC answers false for both and they are
+      a different job. */
+  status?: string;
   /** Carried so the pill can say the LEVEL. A Director and a Manager are the
       same role and differ only in this bit, so a pill without it can only ever
       describe the node the person was found under. */
@@ -221,7 +226,7 @@ export function AgencyHome() {
         const g: Placed[] = []; const ag: Record<string, Placed[]> = {}; const br: Record<string, Placed[]> = {};
         const seen = new Set<string>();
         for (const u of users) {
-          const put = (bucket: Placed[]) => { bucket.push({ userId: u.id, name: u.name, email: u.email, role: u.role, seesCommission: u.seesCommission }); seen.add(u.id); };
+          const put = (bucket: Placed[]) => { bucket.push({ userId: u.id, name: u.name, email: u.email, role: u.role, seesCommission: u.seesCommission, status: u.status }); seen.add(u.id); };
           for (const p of byUser[u.id] ?? []) {
             if (p.kind === 'group' && groupId && p.targetId === groupId) put(g);
             else if (p.kind === 'agency' && agencyIds.has(p.targetId)) put(ag[p.targetId] ||= []);
@@ -635,7 +640,12 @@ export function AgencyHome() {
      inside one would then be running conditionally. If you add state to one of
      these, hoist it to module scope with explicit props rather than putting the
      angle brackets back. */
-  const RateLine = ({ level, id, name, own, deal }: { level: 'group' | 'agency' | 'branch'; id?: string; name: string; own?: number | null; deal?: AgreementView | null }) => {
+  const RateLine = ({ level, id, name, own, deal, onCommissionTab }: {
+    level: 'group' | 'agency' | 'branch'; id?: string; name: string; own?: number | null;
+    deal?: AgreementView | null;
+    /** Drawn on the Commission tab, which is the one place a rate is set. */
+    onCommissionTab?: boolean;
+  }) => {
     if (!canSeeCommission) return null;
     const rowKey = id ? `${level}:${id}` : undefined;
     const editing = !!rowKey && editRow === rowKey;
@@ -666,8 +676,19 @@ export function AgencyHome() {
             Earns <b>{pctLabel(own)}</b> of the guarantee fee on {on} · paid to {name}
           </span>
         )}
-        {isAdmin && rowKey && !editing && (
+        {/* ONE PLACE TO SET COMMISSION, and it is the Commission tab.
+            Matt, 2026-10-02. `RateLine` is called from both the Overview
+            tree and that tab, so the button is gated on where it is
+            being drawn rather than removed: the tab keeps it, the tree
+            shows the figure and a way to the tab. A second control for
+            one setting is two places for it to be half-changed. */}
+        {isAdmin && rowKey && !editing && onCommissionTab && (
           <button className="ah-linkbtn" onClick={() => openRate(rowKey, own)}>{own != null ? 'Change rate' : 'Set rate'}</button>
+        )}
+        {isAdmin && rowKey && !editing && !onCommissionTab && (
+          <button className="ah-linkbtn" onClick={() => setTab('commission')} title="Open the Commission tab">
+            {own != null ? 'Change on Commission' : 'Set on Commission'}
+          </button>
         )}
         {editing && id && (
           <span className="ah-rate-edit">
@@ -1050,12 +1071,29 @@ export function AgencyHome() {
     // A live negotiated agreement prices this agency, so "no rate set" means
     // something quite different from "earns the standard".
     const negotiated = !!agreement && !agreement.isStandard;
-    const set: { level: 'group' | 'agency' | 'branch'; id?: string; name: string; rate: number }[] = [];
-    if (group?.agentRate != null) set.push({ level: 'group', id: group.id, name: group.name, rate: group.agentRate });
+    /* EVERY NODE, NOT ONLY THE ONES WITH A RATE. Matt, 2026-10-02: "The
+       'Set rate' button beside the agency name: if commission is set on
+       the Commission tab, remove it so there's one place to set
+       commission."
+
+       It was two places, and this tab was the lesser of them: it listed
+       the rates that WERE set, so the only way to set a first one was
+       the button in the Overview tree. Taking that button away without
+       this change would have removed the capability rather than moved
+       it.
+
+       So the table lists the group, the agencies and the branches, each
+       with its own RateLine -- which already says "Set rate" where there
+       is none and "Change rate" where there is one. An inheriting row
+       says so in words rather than showing a figure, because repeating
+       an inherited number on every branch is what made the old page
+       unreadable. */
+    const set: { level: 'group' | 'agency' | 'branch'; id?: string; name: string; rate: number | null }[] = [];
+    if (group) set.push({ level: 'group', id: group.id, name: group.name, rate: group.agentRate ?? null });
     agencies.forEach((a) => {
-      if (a.agentRate != null) set.push({ level: 'agency', id: a.id, name: a.name, rate: a.agentRate });
+      set.push({ level: 'agency', id: a.id, name: a.name, rate: a.agentRate ?? null });
       (a.branches ?? []).forEach((b) => {
-        if (b.agentRate != null) set.push({ level: 'branch', id: b.id, name: b.name, rate: b.agentRate });
+        set.push({ level: 'branch', id: b.id, name: b.name, rate: b.agentRate ?? null });
       });
     });
     return (
@@ -1088,8 +1126,12 @@ export function AgencyHome() {
                     <tr key={`${r.level}:${r.id}`}>
                       <td className="dt__name">{r.name}</td>
                       <td className="soft">{r.level}</td>
-                      <td><b>{pctLabel(r.rate)}</b> of the guarantee fee</td>
-                      <td className="num">{RateLine({ level: r.level, id: r.id, name: r.name, own: r.rate })}</td>
+                      <td>
+                        {r.rate == null
+                          ? <span className="soft">Inherits</span>
+                          : <><b>{pctLabel(r.rate)}</b> of the guarantee fee</>}
+                      </td>
+                      <td className="num">{RateLine({ level: r.level, id: r.id, name: r.name, own: r.rate, onCommissionTab: true })}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1324,7 +1366,43 @@ export function AgencyHome() {
                       )}
                     </div>
                     {agentRailFor(a) && agencyReady === false && branchCount > 0 && (
-                      <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this agency can receive the deed. Invite a manager or nominate a recipient.</div>
+                      /* AN UNACCEPTED INVITE IS NOT AN EMPTY AGENCY. Matt,
+                         2026-10-02: "When the only person who could receive
+                         the deed has a pending invite, say 'Independent
+                         Director hasn't accepted their invite yet; deeds
+                         will reach them once they do' instead of 'No one at
+                         this agency can receive the deed'."
+
+                         The readiness RPC answers false for both, and
+                         rightly: a deed cannot be delivered today either
+                         way. But the two are a different JOB. "Nobody here"
+                         asks an admin to invite somebody, and doing that
+                         for an agency that already has an invitation out
+                         produces a second one. "They have not accepted yet"
+                         asks for nothing and resolves itself.
+
+                         Read off the people the page already has rather
+                         than from a second RPC: a pending row is exactly
+                         what `status === 'pending'` is. */
+                      (() => {
+                        const waiting = agencyPeople.filter((u) => u.status === 'pending');
+                        if (waiting.length && waiting.length === agencyPeople.length) {
+                          const who = waiting.length === 1
+                            ? waiting[0].name
+                            : `${waiting.length} invited people`;
+                          return (
+                            <div className="ah-deed-warn ah-deed-warn--waiting">
+                              <Icon name="info" size={14} />{' '}
+                              {waiting.length === 1
+                                ? `${who} hasn’t accepted their invite yet; deeds will reach them once they do.`
+                                : `${who} haven’t accepted their invites yet; deeds will reach them once they do.`}
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this agency can receive the deed. Invite a manager or nominate a recipient.</div>
+                        );
+                      })()
                     )}
                     {open && PeopleInline({ level: 'agency', list: agencyPeople, ctx: { level: 'brand', partner, agencyId: a.id, name: a.name } })}
                     {open && branchCount === 0 && (
