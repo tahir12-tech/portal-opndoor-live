@@ -953,6 +953,20 @@ you asked for. Say the word and the tenant gets their own wording.
   have no such column and keep it; League, on screen and in its
   exports, has one and does not.
 
+## THE LEAGUE'S PEOPLE TAB (instruction, 2026-10-02, verbatim).
+
+> League, people tab: call it "Referrers" on screen and in the export, since it includes Directors and supplier staff. Add an "Agency or supplier" column (e.g. "Regent's Lettings", "Kestrel Lettings"), on screen and in the export. Deploy to dev and check there.
+
+## EVERY LEAGUE EXPORT IS TITLED AFTER ITS OWN TAB (bug, 2026-10-02, verbatim).
+
+> League Suppliers tab export: it's titled "League table: Referrers" with a "Referrer" column. Title it "League table: Suppliers" with a "Supplier" column. Check every League tab's export is titled after its own tab. Deploy to dev and check there.
+
+- A whole tab's export carrying another tab's title and column heading
+  is the League-export family's own version of the fault the last four
+  instructions are about: a document that does not say what it is.
+- "Check every League tab's export" is the sweep, and the answer is
+  owed for all of them, not just Suppliers.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
