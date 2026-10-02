@@ -19,6 +19,7 @@ import type { CommissionLine, CommissionSource } from './types';
 import type { FullApp } from './applicationsService';
 import { getPartner } from './partnersService';
 import { isDirectRail } from './channel';
+import { plural } from '@/lib/plural';
 
 /**
  * Is this application on the AGENT RAIL — one of our agencies, who earn the
@@ -84,6 +85,62 @@ export interface PayeeAmount {
     and an agency of the same name never merge. */
 export function payeeKey(level: CommissionLine['level'], orgId: string | null, orgName: string): string {
   return `${level}:${orgId ?? `name/${orgName.trim().toLowerCase()}`}`;
+}
+
+/* =====================================================================
+   READ THE AMOUNT. DO NOT RECOMPUTE IT.
+
+   Matt, 2026-10-02: "GR-20846 shows agent commission £265.39 here and
+   £265.38 on Regent's commission statement. Every export, statement and
+   screen must take commission from the same stored amount, never
+   recalculate and round differently."
+
+   GR-20846 ON DEV, exactly: fee £1,061.54, agency rate 0.25, and a
+   frozen line whose stored amount is £265.38. 1061.54 x 0.25 is
+   265.385, which rounds UP to 265.39 the moment anything multiplies it
+   out. The statement reads the stored line; the export multiplied. One
+   penny, on every half-penny, on a document a payee reconciles against.
+
+   THE STORED AMOUNT IS NOT fee x rate ROUNDED, which is why no rounding
+   rule here could have fixed it. A tenancy is priced once and the
+   commission apportioned across its tenants with the last line taking
+   the remainder, so GR-20845 and GR-20846 sum to the tenancy's £576.92
+   and not to the £576.93 two independently-rounded lines produce. The
+   server did that arithmetic and wrote the answer down; the only way to
+   agree with it is to read it.
+
+   `payeesFor` has preferred the frozen amount since that apportionment
+   landed. These two are the readers for the callers that were still
+   multiplying a rate -- the aggregate, the rankings, the trend and the
+   application export -- so there is one answer to "what did this earn"
+   and not five.
+
+   THE SUPPLIER CUT IS NOT IN HERE, and cannot be: application_commission
+   _lines carries agency, group and branch levels only. A supplier's
+   share has no stored line to read, so it stays fee x partner_rate at
+   every caller, which is what it has always been. Worth stating, because
+   "take commission from the stored amount" reads as universal and is
+   not.
+   ===================================================================== */
+
+/** What the agency side earns on this application, read from the frozen
+    lines. The fee base is the application's own, so no caller can pass a
+    different one and get a different answer. */
+export function agentAmountOf(app: FullApp): number {
+  return payeesFor(app, feeBaseFor(app)).reduce((s, p) => s + p.amount, 0);
+}
+
+/** The same question asked of ONE org's lines, for a ranking that
+    attributes an application to the agency or office that earned it. */
+export function orgAmountOf(
+  app: FullApp,
+  level: CommissionLine['level'],
+  orgId?: string | null,
+  orgName?: string,
+): number {
+  const base = feeBaseFor(app);
+  return orgLines(app, level, orgId, orgName)
+    .reduce((s, l) => s + (l.amount == null ? base * (l.rate || 0) : l.amount), 0);
 }
 
 /**
@@ -221,6 +278,34 @@ export function feeBasisOf(apps: FullApp[]): FeeBasis {
   // to the penny, not a genuinely different basis.
   if (Math.abs(w - 52 / 12) < 0.02) return { kind: 'uniform', phrase: "one month's rent" };
   return { kind: 'uniform', phrase: `${Number(w.toFixed(2))} weeks of rent` };
+}
+
+/**
+ * The fee basis of ONE application, as a spreadsheet cell.
+ *
+ * Matt, 2026-10-02, about the application export: "Fee basis: show
+ * '1 month' for one month's rent, and weeks only where the deal is in
+ * weeks (e.g. '5 weeks')."
+ *
+ * THE COLUMN HELD A NUMBER AND A UNIT IN ITS HEADING: "Fee basis (weeks
+ * of rent)" over a cell reading 4.35. That is one month, written as the
+ * number of weeks in one, and nobody reconciling a spreadsheet reads
+ * 4.35 as a month. The two bases a deal is actually written in are weeks
+ * and months, so the cell says which.
+ *
+ * SAME 52/12 TEST `feeBasisOf` USES, and the same tolerance, because the
+ * fee is stored to the penny and the division never lands exactly. Two
+ * answers to "is this a month" would be worse than the heading was.
+ */
+export function feeBasisCell(app: FullApp): string {
+  const fee = feeBaseFor(app);
+  const share = app.sharePercent != null && app.sharePercent > 0 ? app.sharePercent / 100 : 1;
+  const base = (app.rent || 0) * share;
+  if (base <= 0 || fee <= 0) return '';
+  const w = (fee * 52) / (base * 12);
+  if (Math.abs(w - 52 / 12) < 0.02) return '1 month';
+  const n = Number(w.toFixed(2));
+  return `${n} ${plural(n, 'week')}`;
 }
 
 /** Accumulator for "sum commission per payee across many applications". */

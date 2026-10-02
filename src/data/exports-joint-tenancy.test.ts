@@ -108,8 +108,15 @@ describe('the application export, for a joint tenancy', () => {
     expect(second['Tenancy total fee']).toBe(2769.23);
   });
 
+  /* THE COLUMN AND THE CELL BOTH CHANGED ON 2026-10-02. It was "Fee
+     basis (weeks of rent)" over a bare number, which printed 4.35 for a
+     one-month deal -- one month written as the number of weeks in one,
+     which nobody reading a spreadsheet takes for a month. Matt: "show '1
+     month' for one month's rent, and weeks only where the deal is in
+     weeks (e.g. '5 weeks')." The cell states its unit and the heading
+     stops promising one. Five weeks is still five weeks. */
   it('says the fee basis, so a reader can see WHY it is not a month', () => {
-    expect(lead['Fee basis (weeks of rent)']).toBe('5');
+    expect(lead['Fee basis']).toBe('5 weeks');
     expect(lead['Share of tenancy']).toBe('50%');
   });
 
@@ -127,7 +134,12 @@ describe('the application export, for a joint tenancy', () => {
     // cell in every export is rounded once, by the one formatter, because a
     // column of half-pennies foots to a payment nobody can make.
     expect(lead['Agent commission']).toBe(346.16);
-    expect(lead['Commission rate']).toBe(0.25);
+    /* TWO RATE COLUMNS SINCE 2026-10-02, and this is the agent's. One
+       column headed "Commission rate" sat beside two commission AMOUNTS
+       and could only ever be one of them, so a reader checking the
+       supplier figure against it was dividing by the wrong number. */
+    expect(lead['Agent commission rate']).toBe(0.25);
+    expect(lead['Supplier commission rate']).toBe(0);
   });
 
   it('leaves out the payees column while every line has one payee', () => {

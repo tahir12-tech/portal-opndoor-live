@@ -37,7 +37,8 @@ import { liveAvailable, liveAggregate, liveVolume, liveMonths, getCommissionSett
 // heavy xlsx library is not pulled into the main bundle. It is dynamically
 // imported in exportBranded, on demand, when an export is actually run.
 import type { BrandedDoc, ColType, Column, KeyValue, TableRow } from './xlsxTemplate';
-import { feeBaseFor, totalRate, linesFor, agentRailApp } from './commissionSplit';
+import { feeBaseFor, totalRate, agentAmountOf, feeBasisCell, linesFor, agentRailApp } from './commissionSplit';
+import { orgCell } from './agencyOffices';
 import { gbpPence } from '@/lib/format';
 import { plural } from '@/lib/plural';
 
@@ -1115,12 +1116,26 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     // pricing: Regent's single tenant is charged three weeks. This column
     // claimed £2,400 where £1,661.54 was taken.
     moneyCol('Guarantor fee charged'),
-    { header: 'Fee basis (weeks of rent)', type: 'text' },
+    /* "(weeks of rent)" WENT WITH THE CELL. Matt, 2026-10-02: "show '1
+       month' for one month's rent, and weeks only where the deal is in
+       weeks". The column held 4.35 under a heading promising weeks,
+       which is one month written as the number of weeks in one, and
+       nobody reading a spreadsheet takes 4.35 for a month. The cell now
+       states its own unit, so the heading cannot promise the wrong one. */
+    { header: 'Fee basis', type: 'text' },
     moneyCol('Tenancy total fee'),
     ...(agency || !showComm ? [] : [moneyCol('Partner commission')]),
+    /* TWO RATES, NOT ONE. Matt: "Replace 'Commission rate' with two
+       columns, 'Supplier commission rate' and 'Agent commission rate'."
+       One column headed "Commission rate" beside two commission AMOUNTS
+       could only ever be one of them, and it was the agent's -- so a
+       reader checking the supplier column against the rate beside it was
+       dividing by the wrong number. The supplier rate is dropped on an
+       agency-facing document exactly as its amount already is. */
     ...(showComm ? [
+      ...(agency ? [] : [{ header: 'Supplier commission rate', type: 'pct' } as Column]),
       moneyCol(agency ? 'Commission' : 'Agent commission'),
-      { header: 'Commission rate', type: 'pct' } as Column,
+      { header: agency ? 'Commission rate' : 'Agent commission rate', type: 'pct' } as Column,
     ] : []),
     ...(manyPayees ? [{ header: 'Commission payees', type: 'text' } as Column] : []),
     { header: 'Tenancy start date', type: 'text' },
@@ -1151,7 +1166,17 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     if (inRange(a.sentAt, start, end)) ev.push('Sent');
     if (inRange(a.paidAt, start, end)) ev.push('Paid');
     if (inRange(a.deedAt, start, end)) ev.push('Deed Issued');
-    const payState = a.refunded ? 'Refunded' : a.paidAt ? 'Paid' : 'Awaiting payment';
+    /* AN UNFINISHED APPLICATION IS NOT AWAITING PAYMENT. Matt,
+       2026-10-02: "Unfinished applications: leave 'Guarantor fee
+       charged' blank and Payment state 'Not yet at payment' until the
+       tenant actually reaches payment." A direct application is born
+       empty and filled step by step, so "Awaiting payment" against a
+       form somebody is still typing reads as a tenant sitting on an
+       invoice. 'sent' IS waiting for the tenant to pay, and keeps the
+       old words. */
+    const unfinished = a.status === 'draft';
+    const payState = unfinished ? 'Not yet at payment'
+      : a.refunded ? 'Refunded' : a.paidAt ? 'Paid' : 'Awaiting payment';
     // Commission is only earned once the guarantor fee is actually collected, so
     // it is zero until Paid and zero again if refunded (never-paid and refunded
     // rows both read £0, not earned-looking money). Rates are the application's
@@ -1162,33 +1187,60 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     // agencies invented a payable nobody owes. Same rule as liveAggregate, so the
     // export foots to the dashboard.
     const partnerComm = earned && !agentRailApp(a) ? feeBaseFor(a) * a.partnerRate : 0;
-    // The LINES, not the scalar. Equal today — agent_rate is written as their
-    // total — but the lines are the authority and can name their payees.
-    const agentComm = earned ? feeBaseFor(a) * totalRate(a) : 0;
+    /* THE STORED AMOUNT, not the rate multiplied out. Matt, 2026-10-02:
+       "GR-20846 shows agent commission £265.39 here and £265.38 on
+       Regent's commission statement. Every export, statement and screen
+       must take commission from the same stored amount, never recalculate
+       and round differently."
+
+       This line WAS the £265.39. Fee £1,061.54 at 0.25 is 265.385, which
+       rounds up the moment anything multiplies it; the frozen line says
+       265.38 because the server apportioned the tenancy's commission and
+       wrote the answer down. Reading it is the only way to agree with the
+       statement, and no rounding rule here could have done it: GR-20845
+       and GR-20846 have to sum to the tenancy's £576.92, which two
+       independently-rounded halves never will. */
+    const agentComm = earned ? agentAmountOf(a) : 0;
     const payees = linesFor(a).map((l) => `${l.orgName} ${Math.round(l.rate * 10000) / 100}%`).join(' + ');
     const exp = expiryOf(a);
     const row: TableRow = [
       ...(agency ? [] : [partnerName(a.partner)]),
       a.ref,
-      ...(showAgency ? [a.agency] : []),
-      ...(showBranch ? [a.branch] : []),
+      /* NEVER THE PLACEHOLDER. Matt: "Direct signups show 'Unattached'
+         for Agency and Branch; show blank, as on screen." Each house
+         rail carries an "Unattached" agency and branch so an
+         application's NOT NULL agency_id resolves; it is our own
+         plumbing and not a company. `orgCell` is the document form of
+         the rule the screens already apply. */
+      ...(showAgency ? [orgCell(a.agency)] : []),
+      ...(showBranch ? [orgCell(a.branch)] : []),
       a.referrer, STATUS[a.status], payState,
       a.sentAt ? dmy(a.sentAt) : '', a.paidAt ? dmy(a.paidAt) : '', a.deedAt ? dmy(a.deedAt) : '',
       a.refundedAt ? dmy(a.refundedAt) : '', a.refundedAmount != null ? moneyText(a.refundedAmount) : '',
       a.tenancyId ?? '',
       a.tenancyId && a.tenancyPosition ? `${a.tenancyPosition} of ${tenancySize.get(a.tenancyId) ?? a.tenancyPosition}` : '',
-      a.sharePercent == null ? '' : `${a.sharePercent}%`,
+      /* 100%, NEVER BLANK. Matt: "Share of tenancy: show 100% for every
+         single-tenant application, never blank." A sole tenant has no
+         recorded share because their share is all of it, which the
+         statement has said in these exact words since it was written;
+         this column was the one that still read as missing data. */
+      a.sharePercent == null ? '100%' : `${a.sharePercent}%`,
       money(a.rent),
       /* A TENANCY OF ONE HAS NO RECORDED SHARE BECAUSE THEIR SHARE IS ALL OF IT.
          This was `a.shareAmount ?? ''`, and a blank in a numeric column renders
          as £0.00: the file told the reader to sum this column instead of the
          repeated rent, and the sum then left out every single-tenant let. */
       money(a.shareAmount ?? a.rent),
-      money(feeBaseFor(a)),
-      a.feeBasisWeeks == null ? '' : String(Number(Number(a.feeBasisWeeks).toFixed(2))),
-      money(a.tenancyId ? (tenancyFee.get(a.tenancyId) ?? feeBaseFor(a)) : feeBaseFor(a)),
+      // Blank, not £0.00, while the tenant is still filling the form in: a
+      // fee nobody has been charged is not a fee of nothing.
+      unfinished ? '' : money(feeBaseFor(a)),
+      unfinished ? '' : feeBasisCell(a),
+      unfinished ? '' : money(a.tenancyId ? (tenancyFee.get(a.tenancyId) ?? feeBaseFor(a)) : feeBaseFor(a)),
       ...(agency || !showComm ? [] : [money(partnerComm)]),
-      ...(showComm ? [money(agentComm), totalRate(a)] : []),
+      ...(showComm ? [
+        ...(agency ? [] : [agentRailApp(a) ? 0 : a.partnerRate]),
+        money(agentComm), totalRate(a),
+      ] : []),
       ...(manyPayees ? [payees] : []),
       // WAS `a.expiry`, which is right by accident and wrong by intent: it is
       // blank on an unissued row only while nothing has written a date to it.

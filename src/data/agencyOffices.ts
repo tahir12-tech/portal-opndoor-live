@@ -166,6 +166,32 @@ export function orgLabel(name: string | null | undefined): string {
 }
 
 /**
+ * The same question for a DOCUMENT, where the answer is nothing at all.
+ *
+ * Matt, 2026-10-02, about the application export: "Direct signups show
+ * 'Unattached' for Agency and Branch; show blank, as on screen." And again
+ * about the underwriter bordereau: "Never show the placeholder."
+ *
+ * WHY A SECOND FUNCTION AND NOT A PARAMETER. On a screen a hyphen is the
+ * right answer, and `orgLabel` says why: an empty cell in a table of
+ * records reads as a missing record rather than as "there is nobody
+ * here". In a spreadsheet the reader is a person reconciling or an
+ * insurer loading a file, and a hyphen in an Agency column is a value --
+ * it sorts, it groups, it matches nothing. Blank is the honest cell, and
+ * the two readers want different things, so they get different
+ * functions rather than a flag nobody remembers to pass.
+ *
+ * "Unattached" IS OUR OWN PLUMBING. Each house rail carries a placeholder
+ * agency and branch so an application's NOT NULL agency_id resolves. It
+ * is not a company, nobody has heard of it, and it has now surfaced on
+ * two documents.
+ */
+export function orgCell(name: string | null | undefined): string {
+  const n = (name ?? '').trim();
+  return !n || isPlaceholderOrg(n) ? '' : n;
+}
+
+/**
  * THE ONE QUESTION EVERY SURFACE ASKS. May this surface say "branch", show
  * an office name, or count one for this agency?
  *
