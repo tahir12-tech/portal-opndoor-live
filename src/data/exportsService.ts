@@ -39,7 +39,7 @@ import { liveAvailable, liveAggregate, liveVolume, liveMonths, getCommissionSett
 import type { BrandedDoc, ColType, Column, KeyValue, TableRow } from './xlsxTemplate';
 import { feeBaseFor, totalRate, agentAmountOf, supplierAmountOf, feeBasisCell, linesFor, agentRailApp } from './commissionSplit';
 import { orgCell } from './agencyOffices';
-import { withoutVia } from './viaSupplier';
+import { viaSupplier, withoutVia } from './viaSupplier';
 import { gbpPence } from '@/lib/format';
 import { plural } from '@/lib/plural';
 
@@ -1240,8 +1240,16 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
          application's NOT NULL agency_id resolves; it is our own
          plumbing and not a company. `orgCell` is the document form of
          the rule the screens already apply. */
-      ...(showAgency ? [orgCell(a.agency)] : []),
-      ...(showBranch ? [orgCell(a.branch)] : []),
+      /* AND LABELLED WITH THEIR SUPPLIER, as on screen. Matt,
+         2026-10-02: "Label supplier-estate agencies and branches '(via
+         [supplier])' as on screen." This file lists every estate at
+         once, so the two Frost Partnerships on dev -- one ours, one
+         Kestrel's -- were two columns of identical names. The label is
+         added here and NOT on League, whose rows already carry the
+         supplier in a column of their own; the rule is about whether
+         the surface states the estate some other way. */
+      ...(showAgency ? [viaSupplier(orgCell(a.agency), a.partner)] : []),
+      ...(showBranch ? [viaSupplier(orgCell(a.branch), a.partner)] : []),
       a.referrer, STATUS[a.status], payState,
       a.sentAt ? dmy(a.sentAt) : '', a.paidAt ? dmy(a.paidAt) : '', a.deedAt ? dmy(a.deedAt) : '',
       a.refundedAt ? dmy(a.refundedAt) : '', a.refundedAmount != null ? moneyText(a.refundedAmount) : '',
@@ -1253,12 +1261,18 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
          statement has said in these exact words since it was written;
          this column was the one that still read as missing data. */
       a.sharePercent == null ? '100%' : `${a.sharePercent}%`,
-      money(a.rent),
+      /* BLANK UNTIL THERE IS A RENT. Matt, 2026-10-02: "Leave Monthly
+         rent and Share of rent blank where the tenant hasn't given a
+         rent yet." Same subject as "Not given yet" on the Applications
+         list: a direct application is born empty and filled step by
+         step, and £0.00 in a money column is a figure a reader can sum,
+         whereas no rent is not a rent of nothing. */
+      a.rent ? money(a.rent) : '',
       /* A TENANCY OF ONE HAS NO RECORDED SHARE BECAUSE THEIR SHARE IS ALL OF IT.
          This was `a.shareAmount ?? ''`, and a blank in a numeric column renders
          as £0.00: the file told the reader to sum this column instead of the
          repeated rent, and the sum then left out every single-tenant let. */
-      money(a.shareAmount ?? a.rent),
+      a.shareAmount != null ? money(a.shareAmount) : (a.rent ? money(a.rent) : ''),
       // Blank, not £0.00, while the tenant is still filling the form in: a
       // fee nobody has been charged is not a fee of nothing.
       unfinished ? '' : money(feeBaseFor(a)),

@@ -192,3 +192,41 @@ describe('the application export', () => {
     expect(EXPORTS_SRC).toContain("a.sharePercent == null ? '100%'");
   });
 });
+
+/* =====================================================================
+   AND THE LAST TWO OF THE SIX, ASKED FOR SEPARATELY.
+
+   Matt, 2026-10-02: "Label supplier-estate agencies and branches '(via
+   [supplier])' as on screen. Leave Monthly rent and Share of rent
+   blank where the tenant hasn't given a rent yet."
+   ===================================================================== */
+describe('the application export, finished', () => {
+  const SRC = readFileSync('src/data/exportsService.ts', 'utf8');
+
+  /* THIS FILE LISTS EVERY ESTATE AT ONCE, which is why it needs the
+     label and League does not: League's rows carry the supplier in a
+     column of their own, and saying it twice is the thing Matt had
+     taken off there an hour earlier. The rule is about whether the
+     surface states the estate some other way. */
+  it('names the supplier behind a supplier-estate agency', () => {
+    expect(SRC).toContain('viaSupplier(orgCell(a.agency), a.partner)');
+    expect(SRC).toContain('viaSupplier(orgCell(a.branch), a.partner)');
+  });
+
+  /* AND THE PLACEHOLDER IS STILL NOTHING. `orgCell` runs first, so an
+     "Unattached" row does not become "Unattached (via ...)". */
+  it('and still prints nothing at all for the placeholder', () => {
+    expect(SRC).toContain('orgCell(a.agency)');
+  });
+
+  it('leaves the rent blank until the tenant has given one', () => {
+    expect(SRC).toContain("a.rent ? money(a.rent) : ''");
+  });
+
+  /* THE SHARE FOLLOWS IT. A sole tenant's share is the whole rent, so
+     with no rent there is no share either -- and the old form,
+     `money(a.shareAmount ?? a.rent)`, turned both into £0.00. */
+  it('and the share of rent with it', () => {
+    expect(SRC).toContain("a.shareAmount != null ? money(a.shareAmount) : (a.rent ? money(a.rent) : '')");
+  });
+});
