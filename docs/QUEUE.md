@@ -750,7 +750,7 @@ you asked for. Say the word and the tenant gets their own wording.
   The activity feed writes its rows from stripe-webhook, so old rows keep
   the old words whatever the sender says next.
 
-## THE PERFORMANCE EXPORT, FIVE THINGS (instruction, 2026-10-02, verbatim).
+## THE PERFORMANCE EXPORT, FIVE THINGS (instruction, 2026-10-02, verbatim). **all five done** (`cca54fc`).
 
 > Performance export (Export summary, admin):
 > 1. Remove the hard-coded percentages from labels ("Partner commission (2% of…)", "Agent commission (15% of…)"). Rates vary by deal; label them "Supplier commission (net of refunds)" and "Agent commission (net of refunds)".
@@ -766,7 +766,7 @@ you asked for. Say the word and the tenant gets their own wording.
   non-zero agency row means the branch aggregation is not reading the
   commission lines at all, and "add up to the agency row" is the test.
 
-## THE APPLICATION EXPORT, SIX THINGS (instruction, 2026-10-02, verbatim).
+## THE APPLICATION EXPORT, SIX THINGS (instruction, 2026-10-02, verbatim). **all six done** (`c7581ee`).
 
 > Application export (admin):
 > 1. GR-20846 shows agent commission £265.39 here and £265.38 on Regent's commission statement. Every export, statement and screen must take commission from the same stored amount, never recalculate and round differently. Find every place commission is recomputed rather than read, fix them, and add a test that the export and statement agree to the penny for every application.
@@ -788,7 +788,7 @@ you asked for. Say the word and the tenant gets their own wording.
   stay"). This one says to replace it, and it is adding a column as well
   as renaming, so it is a deliberate exception rather than a conflict.
 
-## THE BORDEREAU NEVER SHOWS A PLACEHOLDER (instruction, 2026-10-02, verbatim).
+## THE BORDEREAU NEVER SHOWS A PLACEHOLDER (instruction, 2026-10-02, verbatim). **done** (`fec2309`).
 
 > Underwriter bordereau: "Landlord Name" shows "Unattached" for a direct signup. Never show the placeholder: show the landlord's name where we hold it, otherwise leave it blank. Check every column of the bordereau for "Unattached" or any other internal placeholder. Deploy to dev and check there.
 
@@ -802,7 +802,7 @@ you asked for. Say the word and the tenant gets their own wording.
   column was reading the agency because a direct signup has no agent, and
   `landlord_name` is the column that answers it.
 
-## THE EXPIRIES EXPORT, THREE LABELS (instruction, 2026-10-02, verbatim).
+## THE EXPIRIES EXPORT, THREE LABELS (instruction, 2026-10-02, verbatim). **all three done** (`fec2309`).
 
 > Expiries export: label "Annualised rent" as "Annualised rent (this tenant's share)"; say "Guarantee fee (whole tenancy)" not "Guarantor fee"; replace the Tenancy ID code with "Joint with" listing the other tenants' guarantee references (blank for single tenancies). Deploy to dev and check there.
 
@@ -821,10 +821,14 @@ you asked for. Say the word and the tenant gets their own wording.
   without stopping to report between items. The same standing rule as the
   overnight run: commit each separately, full tests and drift after each.
 - **The queue is clear, 2026-10-02.** Every instruction recorded above
-  carries a commit. The last two were the tenants-checked choice
-  (`0c62295`) and the agency People tab (`65551ef`). What is left below
-  is NOT work: it is the decisions waiting on Matt, in "For Matt in the
-  morning", and the history of everything already shipped.
+  carries a commit. What is left below is NOT work: it is the decisions
+  waiting on Matt, in "For Matt in the morning", and the history of
+  everything already shipped.
+- **The eight sets sent after that, also clear.** The office column
+  (`27d6bd1`), unfinished direct applications (`4bb4f41`), admin
+  Reporting (`2ea5f13`), the performance export (`cca54fc`), the
+  application export (`c7581ee`), and the bordereau and expiries file
+  (`fec2309`).
 
 ### For Matt in the morning
 
