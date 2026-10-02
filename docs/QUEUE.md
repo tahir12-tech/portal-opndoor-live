@@ -813,6 +813,25 @@ you asked for. Say the word and the tenant gets their own wording.
   of the application export: one fee name, and a figure that says whose
   share it is.
 
+## THREE, AFTER THE EXPORTS (instruction, 2026-10-02, verbatim).
+
+> 1. Keep the Office column rule as you built it (shown when rows differ).
+> 2. Renewal notice: send the tenant their own email, worded for them ("Your guarantee for [property] ends on [date]…"), and the agent theirs, as two separate sends.
+> 3. Store supplier commission per application the same way agency commission is stored, and read it everywhere (statements, exports, reporting, settlements) instead of recalculating, with a test that the supplier statement and exports agree to the penny.
+> Deploy to dev and check there.
+
+- Item 1 settles the judgement call recorded under THE OFFICE COLUMN
+  SAYS WHAT IT MEANS: the rule stands, and this is Matt's word on it, not
+  mine. Nothing to build.
+- Item 2 is the thing I flagged rather than changed when he asked for the
+  reminder list. One send carrying tenant and agent means ONE wording,
+  and it was the agent's.
+- Item 3 is the other half of the penny. `agentAmountOf` reads a stored
+  amount because the agency side has one; the supplier side has no line
+  at any level, which is exactly what I said could not be swept and is
+  now what he is asking for. It is a migration, a backfill, and then the
+  same sweep again on the other side.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
