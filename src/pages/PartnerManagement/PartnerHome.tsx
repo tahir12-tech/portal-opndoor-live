@@ -33,6 +33,7 @@ import { ApiAccessSwitch } from './ApiAccessSwitch';
 import { SupplierApiKeys } from './SupplierApiKeys';
 import { AddContactEmail } from './AddContactEmail';
 import { SupplierOverview } from './SupplierOverview';
+import { SupplierAddOrg } from './SupplierAddOrg';
 import { SupplierDeals } from './SupplierDeals';
 import { SupplierInvite } from './SupplierInvite';
 import { SupplierRoleDialog } from './SupplierRoleDialog';
@@ -275,6 +276,8 @@ export function PartnerHome() {
      scrolled past the commission rates to reach the people. */
   type Tab = 'overview' | 'agencies' | 'people' | 'settings' | 'reporting' | 'commission' | 'referrals' | 'integration';
   const [tab, setTab] = useState<Tab>('overview');
+  /** The Add agency / Add branch dialog, and what it is adding to. */
+  const [addOrg, setAddOrg] = useState<{ mode: 'agency' | 'branch'; agency: Agency | null } | null>(null);
   /* THE KEY COUNT MOVED WITH THE SWITCH. ApiAccessSwitch reads it
      itself, and re-reads it at the moment the switch is flipped rather
      than when the page loaded: a key minted in between is a key the
@@ -582,6 +585,17 @@ export function PartnerHome() {
 
       {/* THE OVERVIEW, which had no branch at all: eight tabs and the one
           everybody lands on drew nothing. Matt, 2026-10-02. */}
+      {addOrg && partner && (
+        <SupplierAddOrg
+          mode={addOrg.mode}
+          partnerSlug={partner.id}
+          partnerName={partner.name}
+          agency={addOrg.agency}
+          onClose={() => setAddOrg(null)}
+          onDone={() => { setAddOrg(null); refresh(); }}
+        />
+      )}
+
       {tab === 'overview' && (
         <SupplierOverview
           slug={partner.id}
@@ -597,6 +611,15 @@ export function PartnerHome() {
       {tab === 'agencies' && (
       <Card>
         <CardHead
+          actions={isAdmin ? (
+            /* ADD AN AGENCY, IN THIS SUPPLIER'S ESTATE. Matt,
+               2026-10-02. On the card head rather than at the foot of
+               the tree, so it is reachable without scrolling past
+               however many agencies they have. */
+            <Button variant="quiet" size="sm" onClick={() => setAddOrg({ mode: 'agency', agency: null })}>
+              <Icon name="plus" size={13} /> Add agency
+            </Button>
+          ) : undefined}
           /* THE SHARED HELPER, not an apostrophe-s. Matt, 2026-10-02:
              "fix 'Kestrel Lettings's agencies' to 'Kestrel Lettings''
              agencies' (use the shared possessive helper everywhere)."
@@ -618,6 +641,12 @@ export function PartnerHome() {
                     <Link className="ph-tree__name" to={`/agencies/${encodeURIComponent(agencyKey(a))}`}>{a.name}</Link>
                     {a.unreviewed && <span className="ph-tag">unreviewed</span>}
                     <span className="ph-tree__meta">{countOf(a.branches.length, 'branch')} · {countOf(a.referrals, 'referral')}</span>
+                    {isAdmin && (
+                      <button type="button" className="ph-addemail"
+                        onClick={(e) => { e.stopPropagation(); setAddOrg({ mode: 'branch', agency: a }); }}>
+                        <Icon name="plus" size={12} /> Add branch
+                      </button>
+                    )}
                   </div>
                   {/* WHO THE DEED GOES TO. Q-06 item A asks the Overview to
                       show "agent contacts and deed recipients". On the

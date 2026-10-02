@@ -1,0 +1,127 @@
+/* =====================================================================
+   ADD AN AGENCY, OR A BRANCH, IN THIS SUPPLIER'S ESTATE.
+
+   Matt, 2026-10-02: "an 'Add agency' button (name, address, agency
+   email required) and, on each agency, 'Add branch' (name, address,
+   email optional; it uses the agency email if blank). Both create the
+   agency or branch in this supplier's estate, never in Opndoor's."
+
+   THE ESTATE IS THE SENTENCE WITH TEETH, and it is not enforced here.
+   `admin_create_agency_and_branch` takes the slug and
+   `admin_add_branch` takes the agency, so what lands where is decided
+   by the arguments this dialog passes, and the agency email is required
+   or not by `is_supplier_estate` inside the function rather than by
+   this form. The form asks for it because a server error on the last
+   step is a worse way to learn than a field.
+
+   THE ADDRESS BECOMES THE OFFICE, which is how the Add agency wizard
+   has worked since 2026-10-01: Matt's own "that becomes its office
+   behind the scenes, never shown separately". A new agency gets one
+   office named after it, carrying the address that was typed, so a
+   single-office agency renders as nothing extra.
+   ===================================================================== */
+import { useState } from 'react';
+import { createAgencyWithBranch, createBranchLive, type Agency } from '@/data';
+import { useToast } from '@/components/ui/Toast';
+import { useSession } from '@/session/SessionContext';
+import { Modal } from '@/components/ui/Modal';
+import { Field } from '@/components/ui/Field';
+import { Button } from '@/components/ui/Button';
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+export function SupplierAddOrg({ mode, partnerSlug, partnerName, agency, onClose, onDone }: {
+  mode: 'agency' | 'branch';
+  partnerSlug: string;
+  partnerName: string;
+  /** The agency a branch is going under. Unused when adding an agency. */
+  agency?: Agency | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const toast = useToast();
+  const { refresh } = useSession();
+  const [name, setName] = useState('');
+  const [address, setAddress] = useState('');
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const emailGiven = !!email.trim();
+  const emailShaped = !emailGiven || EMAIL_RE.test(email.trim());
+  // Required for an agency in a supplier's estate; optional for a branch,
+  // which falls back to the agency's.
+  const emailOk = mode === 'agency' ? (emailGiven && emailShaped) : emailShaped;
+  const can = !!name.trim() && !!address.trim() && emailOk && !busy;
+
+  const save = async () => {
+    if (!can) return;
+    setBusy(true);
+    try {
+      if (mode === 'agency') {
+        await createAgencyWithBranch({
+          agencyName: name.trim(),
+          // The office is named after the agency and carries the address.
+          branchName: name.trim(),
+          branchArea: address.trim(),
+          contactEmail: email.trim(),
+          partnerSlug,
+        });
+        toast(`${name.trim()} added to ${partnerName}.`, 'ok');
+      } else {
+        if (!agency) throw new Error('No agency to add a branch to.');
+        await createBranchLive(agency, {
+          name: name.trim(),
+          area: address.trim(),
+          contactEmail: email.trim() || undefined,
+        });
+        toast(`${name.trim()} added to ${agency.name}.`, 'ok');
+      }
+      await refresh();
+      onDone();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not save.', 'error');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={() => { if (!busy) onClose(); }}
+      title={mode === 'agency' ? `Add an agency to ${partnerName}` : `Add a branch to ${agency?.name ?? 'this agency'}`}
+      sub={mode === 'agency'
+        ? `It belongs to ${partnerName}. It will not appear on Opndoor's own Agencies list, and it never has logins.`
+        : `It belongs to ${partnerName}, under ${agency?.name ?? 'this agency'}.`}
+      footer={<>
+        <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button variant="primary" onClick={() => void save()} disabled={!can}>
+          {busy ? 'Saving…' : mode === 'agency' ? 'Add agency' : 'Add branch'}
+        </Button>
+      </>}
+    >
+      <Field label={mode === 'agency' ? 'Agency name' : 'Branch name'} htmlFor="sao-name">
+        <input id="sao-name" type="text" autoComplete="off" autoFocus
+          placeholder={mode === 'agency' ? 'e.g. Frost Partnership' : 'e.g. Mayfair'}
+          value={name} onChange={(e) => setName(e.target.value)} />
+      </Field>
+
+      <Field label="Address" htmlFor="sao-addr"
+        hint={mode === 'agency' ? 'Where they work from. This becomes their office.' : 'Where this office is.'}>
+        <input id="sao-addr" type="text" autoComplete="off"
+          placeholder="e.g. 14 Mount Street, London W1K 3NG"
+          value={address} onChange={(e) => setAddress(e.target.value)} />
+      </Field>
+
+      <Field
+        label={mode === 'agency' ? 'Agency email' : 'Branch email (optional)'}
+        htmlFor="sao-email"
+        hint={mode === 'agency'
+          ? 'Where a signed deed goes. Every office of theirs uses it unless it has its own.'
+          : `Leave it blank to use ${agency?.name ?? 'the agency'}’s address.`}
+        error={emailGiven && !emailShaped ? 'That is not an email address.' : undefined}>
+        <input id="sao-email" type="email" autoComplete="off"
+          placeholder="lettings@agency.co.uk"
+          value={email} onChange={(e) => setEmail(e.target.value)} />
+      </Field>
+    </Modal>
+  );
+}

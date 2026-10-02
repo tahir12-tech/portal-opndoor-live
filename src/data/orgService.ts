@@ -431,16 +431,21 @@ export interface CreateAgencyFlowInput {
   /** Commission overrides as fractions (null = inherit the Opndoor standard). */
   partnerRate?: number | null;
   agentRate?: number | null;
-  /** OPTIONAL, and that is a correction of the same day. Matt, 2026-10-02:
-      "Opndoor's own agencies (like Regent): no email required ... The
-      agency or a branch can optionally add an email that also receives
-      the deed; leave it blank and nothing is missing." This call only
-      ever creates on `opndoor-agents`, so it is always optional here; the
-      RPC still refuses a blank one in a SUPPLIER's estate, which is the
-      other door. */
+  /** OPTIONAL ON OUR OWN ESTATE, REQUIRED IN A SUPPLIER'S. Matt,
+      2026-10-02: "Opndoor's own agencies (like Regent): no email
+      required ... leave it blank and nothing is missing", and, about the
+      supplier's own tab, "name, address, agency email required". The
+      caller does not decide which: `admin_create_agency_and_branch` asks
+      the estate, so a blank one is accepted here and refused there. */
   contactEmail?: string;
   contactName?: string;
   contactPhone?: string;
+  /** WHICH ESTATE THIS LANDS IN. Matt, 2026-10-02, about the supplier's
+      Agencies tab: "Both create the agency or branch in this supplier's
+      estate, never in Opndoor's." Absent means our own, which is what
+      both existing callers want: the Add agency wizard and the grow
+      modal are Opndoor's. */
+  partnerSlug?: string;
 }
 
 /** Admin onboarding: create an independent agent-rail agency + its first branch in
@@ -455,6 +460,7 @@ export async function createAgencyWithBranch(input: CreateAgencyFlowInput): Prom
       p_partner_rate: input.partnerRate ?? null,
       p_agent_rate: input.agentRate ?? null,
       p_group_id: input.groupId ?? null,
+      p_partner_slug: input.partnerSlug ?? 'opndoor-agents',
       p_agency_email: input.contactEmail?.trim() || null,
       p_agency_contact_name: input.contactName?.trim() || null,
       p_agency_phone: input.contactPhone?.trim() || null,
@@ -463,7 +469,7 @@ export async function createAgencyWithBranch(input: CreateAgencyFlowInput): Prom
     const row = Array.isArray(data) ? data[0] : data;
     return { agencyId: String(row?.agency_id ?? ''), branchId: String(row?.branch_id ?? '') };
   }
-  const ag = addAgency({ name: input.agencyName }, 'opndoor-agents');
+  const ag = addAgency({ name: input.agencyName }, input.partnerSlug ?? 'opndoor-agents');
   /* Mock mode makes the same contact the RPC does, and only when there is
      one: an empty contact row is a mailbox with no address in it, and the
      two modes must agree about whether this agency has one. */

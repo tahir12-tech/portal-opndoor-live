@@ -151,6 +151,30 @@ describe('the Agencies tab', () => {
     expect(container.textContent).toContain('12 Example Street, N1 1AA');
   });
 
+  /* ADD AGENCY AND ADD BRANCH, 2026-10-02: "Both create the agency or
+     branch in this supplier's estate, never in Opndoor's." The estate
+     is decided by the arguments the dialog passes, which is asserted in
+     the source rather than by creating a row here -- mock mode has no
+     partner slug to check against. */
+  it('offers Add agency on the tab, and Add branch on each agency', async () => {
+    const { container } = await open('Agencies');
+    const buttons = [...container.querySelectorAll('button')].map((b) => (b.textContent ?? '').trim());
+    expect(buttons).toContain('Add agency');
+    expect(buttons.filter((t) => t === 'Add branch')).toHaveLength(2);
+  });
+
+  it('and both open a form that names this supplier', async () => {
+    const view = await open('Agencies');
+    const add = [...view.container.querySelectorAll<HTMLButtonElement>('button')]
+      .find((b) => (b.textContent ?? '').trim() === 'Add agency')!;
+    await act(async () => { fireEvent.click(add); });
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('Add an agency to Kestrel Lettings');
+    // The sentence that says which estate it lands in.
+    expect(text).toContain('It belongs to Kestrel Lettings');
+    expect(text).toContain('Agency email');
+  });
+
   /* AND NOTHING WHERE THERE IS NOT. Asserted on the row rather than the
      page, because a dash somewhere else would pass a page-wide check. */
   it('and nothing at all where there is not', async () => {
