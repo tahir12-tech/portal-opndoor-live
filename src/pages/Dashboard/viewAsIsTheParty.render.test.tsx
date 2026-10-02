@@ -84,8 +84,19 @@ async function openReporting(role: string, scope?: string) {
     localStorage.setItem('grp_partner', scope);
     localStorage.setItem(KEYS.scopeSel, `partner:${scope}`);
   }
+  /* VIEW AS IS A LINK NOW, so the harness arrives the way a reader does.
+     Matt, 2026-10-02: "League, Applications and Reporting each open with
+     their own defaults (Origin: Everything) unless a link sets a
+     filter." Reporting clears the selection on arrival, so seeding
+     localStorage and rendering at a bare path -- which is what this did
+     -- now opens on Everything and the case under test never happens.
+     `ViewAsButton` navigates to /dashboard?origin=<selection>; this
+     renders at the same address. The stored keys are kept: they are
+     still what the session reads BEFORE the effect runs, and dropping
+     them would leave the first paint narrower than the second. */
+  const at = scope ? `/dashboard?origin=${encodeURIComponent(`partner:${scope}`)}` : '/dashboard';
   const view = render(
-    <MemoryRouter initialEntries={['/']}>
+    <MemoryRouter initialEntries={[at]}>
       <SessionProvider><ToastProvider><PageMetaProvider><Dashboard /></PageMetaProvider></ToastProvider></SessionProvider>
     </MemoryRouter>,
   );

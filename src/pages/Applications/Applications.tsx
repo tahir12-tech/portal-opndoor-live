@@ -125,13 +125,41 @@ export function Applications() {
      translated by originFromParams rather than dropped, and both are validated
      there, so an unknown or stale id opens the whole book rather than an empty
      list labelled with a party that does not exist. */
-  /* ONE SELECTION, SHARED WITH REPORTING. Matt, 2026-09-29: "Reporting and
-     Applications share one remembered scope choice." So this page no longer
-     keeps its own: it reads and writes the session's. A deep link still wins
-     on arrival -- ?origin=, ?partner= and ?route= are live links from other
-     screens -- and writing it into the shared selection is the right
-     behaviour rather than a side effect: following a link to one supplier's
-     applications IS choosing that supplier. */
+  /* THE SELECTION IS THIS VISIT'S, AND A LINK DECIDES IT.
+     ==================================================================
+     Matt, 2026-10-02, reversing his own ruling of 2026-09-29 ("Reporting
+     and Applications share one remembered scope choice"):
+
+       "Any link that opens Applications sets exactly the filters it
+        names and clears the rest; 'View all applications' clears them
+        all. Filters chosen on the page itself can still be remembered
+        while you stay on it."
+
+     and, about the same selection reaching a third page:
+
+       "Filters must not carry between pages: League, Applications and
+        Reporting each open with their own defaults (Origin: Everything)
+        unless a link sets a filter."
+
+     WHAT WENT WRONG. The selection lived on the session and was written
+     to localStorage, so it outlived the page AND the tab. Home's "View
+     all Direct" set Origin: Direct, and "View all applications" -- which
+     names no filter -- then opened the list still narrowed to Direct.
+     Walking on to League carried it a page further, where there are no
+     direct rows at all, so the Agencies table read "No matches".
+
+     THE RULE IS NOW ON ARRIVAL, not on the picker. A link that names an
+     origin sets it; a link that names none clears it. In between, the
+     picker writes the session value as before, which is "remembered
+     while you stay on it" -- and leaving is what ends it, because the
+     next page's own arrival effect runs.
+
+     STILL THE SESSION'S VALUE and not local state, deliberately:
+     `setScopeSel` also moves `partnerScope`, which mirrors the server's
+     isolation rule, and `viewingAs`, which the Reporting banner reads.
+     Splitting those apart would be a change to the isolation plumbing to
+     fix a filter that leaks, and the leak is fixed by deciding the value
+     on arrival. */
   const origin = scopeSel;
   const setOrigin = setScopeSel;
   useEffect(() => {
@@ -140,17 +168,45 @@ export function Applications() {
       partner: params.get('partner'),
       route: params.get('route'),
     });
-    if (fromLink && fromLink !== scopeSel) setScopeSel(fromLink);
-    // Arrival only: re-running this on every scopeSel change would make the
-    // link permanently override the picker.
+    // `fromLink` is ORIGIN_ALL ('') when the link names nothing, which is
+    // the clearing case and the reason this is not `if (fromLink)`.
+    if (fromLink !== scopeSel) setScopeSel(fromLink);
+    /* KEYED ON THE QUERY STRING, not on mount. Two links into this page
+       from a page that IS this page -- an agency chip, a branch chip --
+       do not remount it, so an effect that ran once would leave the
+       previous link's filter in place and prove Matt's complaint again
+       one navigation later. Nothing on this page writes the URL, so this
+       cannot fight the picker: the only thing that changes `params` is
+       arriving. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [params.toString()]);
   const [agency, setAgency] = useState(() => params.get('agency') || (params.get('branch') ? agencyOfBranch(params.get('branch')!) : ''));
   const [branch, setBranch] = useState(() => params.get('branch') || '');
   // #owner Referrer filter (management + opndoor admin only). Referrers only ever
   // see their own applications, so the filter is never offered to them and a
   // ?referrer= they craft is ignored (scopedSet already restricts them to owner rows).
   const [referrer, setReferrer] = useState(() => (role !== 'referrer' ? params.get('referrer') || '' : ''));
+
+  /* AND THE OTHER THREE FILTERS ARE THE LINK'S TOO. Matt, 2026-10-02:
+     "Any link that opens Applications sets exactly the filters it names
+     AND CLEARS THE REST; 'View all applications' clears them all."
+
+     The three above are initialised from the URL, which is the "sets
+     what it names" half, and a `useState` initialiser runs once per
+     MOUNT. Arriving here from a page that is already this page -- an
+     agency chip, a branch chip, the "Clear" on the drill-through banner
+     -- does not remount, so the previous link's agency stayed in the
+     box under the new link's origin. This is the clearing half, keyed on
+     the query string like the origin effect beside it, and for the same
+     reason: nothing on this page writes the URL, so it cannot fight the
+     chips. */
+  useEffect(() => {
+    const linkBranch = params.get('branch') || '';
+    setBranch(linkBranch);
+    setAgency(params.get('agency') || (linkBranch ? agencyOfBranch(linkBranch) : ''));
+    setReferrer(role !== 'referrer' ? params.get('referrer') || '' : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.toString()]);
   // #owner Period filter — the dashboard's options, bucketed on sent date. Defaults
   // to All time so the page's default view (every application) is unchanged.
   const periods = getPeriods();

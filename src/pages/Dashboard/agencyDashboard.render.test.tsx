@@ -111,8 +111,12 @@ async function openDashboard(role: string, scope?: string) {
     localStorage.setItem('grp_partner', scope);
     localStorage.setItem(KEYS.scopeSel, `partner:${scope}`);
   }
+  /* VIEW AS IS A LINK NOW: Reporting clears the selection on arrival
+     (Matt, 2026-10-02) and ViewAsButton navigates to
+     /dashboard?origin=<selection>, so the harness does too. */
+  const at = scope ? `/dashboard?origin=${encodeURIComponent(`partner:${scope}`)}` : '/dashboard';
   const view = render(
-    <MemoryRouter initialEntries={['/']}>
+    <MemoryRouter initialEntries={[at]}>
       <SessionProvider><ToastProvider><PageMetaProvider><Dashboard /></PageMetaProvider></ToastProvider></SessionProvider>
     </MemoryRouter>,
   );

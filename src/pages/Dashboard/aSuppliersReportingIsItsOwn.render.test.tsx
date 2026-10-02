@@ -103,8 +103,14 @@ async function openReporting(opts: { role: string; partner?: string; scopeSel?: 
      localStorage key -- which is the admin's picker, not their position. */
   if (opts.partner && opts.role !== 'superadmin') setHomePartner(opts.partner);
   if (opts.scopeSel) localStorage.setItem(KEYS.scopeSel, opts.scopeSel);
+  /* VIEW AS IS A LINK NOW, so the harness arrives the way a reader does:
+     Reporting clears the selection on arrival (Matt, 2026-10-02) and
+     `ViewAsButton` navigates to /dashboard?origin=<selection>. The
+     stored key is kept, because it is still what the session reads
+     before the effect runs. */
+  const at = opts.scopeSel ? `/dashboard?origin=${encodeURIComponent(opts.scopeSel)}` : '/dashboard';
   const v = render(
-    <MemoryRouter initialEntries={['/dashboard']}>
+    <MemoryRouter initialEntries={[at]}>
       <ToastProvider><SessionProvider><PageMetaProvider><Dashboard /></PageMetaProvider></SessionProvider></ToastProvider>
     </MemoryRouter>,
   );

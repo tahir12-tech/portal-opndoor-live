@@ -150,6 +150,16 @@ function stageSelection(sel: string) {
   localStorage.setItem(KEYS.partner, sel.startsWith('partner:') ? sel.slice('partner:'.length) : ALL_PARTNERS);
 }
 
+/* AND THE ADDRESS THE SELECTION ARRIVES AT. Matt, 2026-10-02: "League,
+   Applications and Reporting each open with their own defaults (Origin:
+   Everything) unless a link sets a filter." Reporting clears the
+   selection on arrival now, so staging it and opening a bare /dashboard
+   measures a state the product no longer produces -- the same mistake
+   this file's header already records about staging `scopeSel` alone.
+   `ViewAsButton` navigates to /dashboard?origin=<selection>, so a test
+   of what View as produces has to arrive the same way. */
+const viewingAsPath = (sel: string) => `/dashboard?origin=${encodeURIComponent(sel)}`;
+
 type View = Awaited<ReturnType<typeof open>>;
 const buttons = (v: View) => [...v.container.querySelectorAll('button, a')].map((b) => (b.textContent ?? '').trim());
 const viewAsButton = (v: View) =>
@@ -265,7 +275,7 @@ describe('and Reporting only names a party whose figures it is actually showing'
     localStorage.clear();
     hydrateFull(BOOK);
     if (sel) stageSelection(sel);
-    const v = await open('superadmin', '/dashboard');
+    const v = await open('superadmin', sel ? viewingAsPath(sel) : '/dashboard');
     const n = funnelSent(v);
     expect(n, 'no funnel on the page, so this measures nothing').toBeGreaterThan(0);
     return n;
@@ -279,7 +289,7 @@ describe('and Reporting only names a party whose figures it is actually showing'
 
   it('and names that supplier while it does', async () => {
     stageSelection(`partner:${SUPPLIER.id}`);
-    const v = await open('superadmin', '/dashboard');
+    const v = await open('superadmin', viewingAsPath(`partner:${SUPPLIER.id}`));
     expect(v.container.textContent).toMatch(/Viewing as/);
     expect(buttons(v)).toContain('Stop viewing as');
   });
@@ -298,7 +308,7 @@ describe('and Reporting only names a party whose figures it is actually showing'
       .toBe(estate);
 
     stageSelection(`agency:${AGENCY.name}`);
-    const v = await open('superadmin', '/dashboard');
+    const v = await open('superadmin', viewingAsPath(`agency:${AGENCY.name}`));
     expect(v.container.textContent).not.toMatch(/Viewing as/);
     expect(buttons(v)).not.toContain('Stop viewing as');
   });
@@ -308,14 +318,14 @@ describe('and Reporting only names a party whose figures it is actually showing'
      rather than leaving it to be rediscovered. */
   it('and the commission heading does not put the estate under an agency’s name', async () => {
     stageSelection(`agency:${AGENCY.name}`);
-    const v = await open('superadmin', '/dashboard');
+    const v = await open('superadmin', viewingAsPath(`agency:${AGENCY.name}`));
     const esc = AGENCY.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     expect(v.container.textContent ?? '').not.toMatch(new RegExp(`${esc}[\u2019']s commission`));
   });
 
   it('and stopping clears the selection, so both screens widen again', async () => {
     stageSelection(`partner:${SUPPLIER.id}`);
-    const v = await open('superadmin', '/dashboard');
+    const v = await open('superadmin', viewingAsPath(`partner:${SUPPLIER.id}`));
     const stop = [...v.container.querySelectorAll<HTMLElement>('button')]
       .find((b) => (b.textContent ?? '').trim() === 'Stop viewing as')!;
     await act(async () => { stop.click(); });

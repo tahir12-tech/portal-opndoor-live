@@ -21,7 +21,7 @@
    and gating them would take away the level rather than protect it.
    ===================================================================== */
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   ALL_PARTNERS, READS_THE_WHOLE_BOOK, isOpndoorStaff, readsTheWholeBook, buildApplicationDoc, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPeriods, getTrend, maySeeCommission, partnerName,
@@ -32,7 +32,7 @@ import { formatLondonDate, gbpPence, possessive, formatDate } from '@/lib/format
 import { BASIS_META, type ExportBasis } from '@/data';
 import { getAgentRailFunnel, viewerRunsEligibilityJourney, type AgentRailFunnel } from '@/data/agentFunnel';
 import { isAgencyUser, partyIsSupplier } from '@/data/capabilities';
-import { ORIGIN_ALL, originLabel, selectionIsAgency } from '@/data/origin';
+import { ORIGIN_ALL, originFromParams, originLabel, selectionIsAgency } from '@/data/origin';
 import { scopedSummaries } from '@/data/applicationsService';
 import type { Role } from '@/data';
 import { liveByCustomer, liveScopeShape } from '@/data/liveAnalytics';
@@ -107,7 +107,32 @@ export function Dashboard() {
      it actually wants, and it is null for everything and for both rails --
      but it still needs the setter, because the banner's "Stop viewing as"
      is the only remaining way to clear a selection that Applications shares. */
-  const { role, partnerScope, viewingAs, setScopeSel, period, setPeriod } = useSession();
+  const { role, partnerScope, viewingAs, scopeSel, setScopeSel, period, setPeriod } = useSession();
+
+  /* AND THIS PAGE OPENS ON ITS OWN DEFAULT TOO. Matt, 2026-10-02:
+     "League, Applications and Reporting each open with their own
+     defaults (Origin: Everything) unless a link sets a filter."
+
+     Reporting had no arrival rule at all: it read whatever `scopeSel`
+     was left holding, so an Origin chosen on Applications was still in
+     force here. The same effect the other two now run -- a link decides,
+     and a link that names nothing clears it.
+
+     VIEW AS IS THE LINK. `ViewAsButton` navigates here with
+     ?origin=<selection>, which is what keeps it working now that
+     arriving bare clears the selection; and the banner's "Stop viewing
+     as" below writes ORIGIN_ALL, which is the same thing by hand. */
+  const [params] = useSearchParams();
+  useEffect(() => {
+    const fromLink = originFromParams({
+      origin: params.get('origin'),
+      partner: params.get('partner'),
+      route: params.get('route'),
+    });
+    if (fromLink !== scopeSel) setScopeSel(fromLink);
+    // Arrival only, as on Applications and League.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* IS THIS ONE OF OUR OWN AGENCIES READING THEIR OWN SCREEN?
      The same question Reporting, League, Applications and the nav already ask,

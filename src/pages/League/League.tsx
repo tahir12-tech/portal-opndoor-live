@@ -37,7 +37,7 @@ import { PeriodSelect, RankSelect } from '@/components/ui/Select';
 import { isAgencyUser } from '@/data/capabilities';
 import { ScopePicker } from '@/components/ui/ScopePicker';
 import { recentScopes } from '@/data/scopeRecents';
-import { originOptions } from '@/data/origin';
+import { originFromParams, originOptions } from '@/data/origin';
 import { scopedSummaries } from '@/data/applicationsService';
 import { getPositions, type Position } from '@/data/positionsService';
 import { liveScopeShape } from '@/data/liveAnalytics';
@@ -364,6 +364,33 @@ function FullLeagueView() {
     getPositions(currentUserId).then((p) => { if (alive) setPositions(p); }).catch(() => { if (alive) setPositions([]); });
     return () => { alive = false; };
   }, [currentUserId]);
+  /* AND THE ORIGIN THIS VISIT OPENS ON. Matt, 2026-10-02: "League has
+     also picked up Origin: Direct from Applications, so the Agencies
+     table shows 'No matches'. Filters must not carry between pages:
+     League, Applications and Reporting each open with their own defaults
+     (Origin: Everything) unless a link sets a filter."
+
+     `scopeSel` is one session value and this page reads it, so a
+     selection made on Applications was still in force here -- and the
+     direct rail has no agencies in it at all, so the Agencies board
+     emptied. The rule is the same one Applications now applies on
+     arrival: a link decides, and a link that names nothing clears it.
+     Written here rather than in SessionContext because "its own default"
+     is the page's to state, and League's happens to be the same as
+     everybody's. */
+  useEffect(() => {
+    const fromLink = originFromParams({
+      origin: params.get('origin'),
+      partner: params.get('partner'),
+      route: params.get('route'),
+    });
+    if (fromLink !== scopeSel) setScopeSel(fromLink);
+    // Arrival only, exactly as on Applications: re-running this whenever
+    // the selection changes would make the link override the picker for
+    // as long as the reader stayed on the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const myScope = useMemo(() => scopeFromPositions(positions), [positions]);
   const [scope, setScope] = useState<LeagueScope>('mine');
 

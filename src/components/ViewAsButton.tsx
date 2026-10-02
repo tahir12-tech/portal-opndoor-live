@@ -59,8 +59,18 @@ export function ViewAsButton({ scope }: Props) {
         /* The button's whole point is the page it takes you to. Setting the
            selection and leaving the reader on the agency page would make
            this a preference control, which is the thing Matt found
-           confusing about the picker. */
-        navigate('/dashboard');
+           confusing about the picker.
+
+           AND IT CARRIES THE SELECTION IN THE LINK, since 2026-10-02.
+           Matt: "League, Applications and Reporting each open with their
+           own defaults (Origin: Everything) UNLESS A LINK SETS A FILTER."
+           Reporting now clears the selection on arrival like the other
+           two, so setting it and navigating bare would have cleared it a
+           moment later. This button IS the link that sets it, and saying
+           so in the URL is what makes it one -- it also makes the
+           resulting view shareable and survive a reload, which the
+           session value never did honestly. */
+        navigate(`/dashboard?origin=${encodeURIComponent(scope)}`);
       }}
     >
       <Icon name="eye" /> View as
