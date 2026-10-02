@@ -250,9 +250,33 @@ describe('the commission headline states the agreed terms, not a blended rate', 
     }
   });
 
-  it('leaves the admin headline, with its effective rate, alone', () => {
+  /* AND SINCE 2026-10-02 THE ADMIN HEADLINE DOES TOO. This asserted the
+     opposite: the admin side kept an EFFECTIVE rate, computed from the
+     snapshotted commission so the label always matched the money under
+     it. That was the right answer to "the label says 2% and the figure
+     says something else" and the wrong answer to the question beneath
+     it, which Matt put plainly: "Rates vary by deal; label them
+     'Supplier commission (net of refunds)' and 'Agent commission (net of
+     refunds)'." The agency rule two tests up is now the only rule.
+
+     INVERTED RATHER THAN DELETED, so a reader who finds the old
+     behaviour in a screenshot can see which one is live. */
+  it('and the admin headline no longer carries an effective rate either', () => {
     const ls = labels(buildLivePerformanceDoc(ADMIN_ROLE, allTime));
-    expect(ls.some((l) => /^Agent commission \(\d+% of /.test(l))).toBe(true);
+    expect(ls.some((l) => /^Agent commission \(\d+% of /.test(l))).toBe(false);
+    expect(ls).toContain('Agent commission (net of refunds)');
+    expect(ls.filter((l) => /commission/i.test(l) && /\d+%/.test(l))).toEqual([]);
+  });
+
+  /* AND IT NEVER SAYS "PARTNER". Same instruction, item 4: a partner is
+     what the schema calls the row and a supplier is what it is. Asserted
+     as an absence because this fixture is the ESTATE, where the supplier
+     line is dropped entirely rather than printed as a structural zero --
+     so there is no positive to assert here, and the positive lives in
+     thePerformanceExportSaysWhatItMeans.test.ts. */
+  it('and never calls the other side a partner', () => {
+    const ls = labels(buildLivePerformanceDoc(ADMIN_ROLE, allTime));
+    expect(ls.filter((l) => /^Partner /.test(l))).toEqual([]);
   });
 });
 

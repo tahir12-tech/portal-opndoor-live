@@ -565,9 +565,33 @@ function groupRows(
     // PER-ORG ATTRIBUTION. An agency/branch row earns its OWN lines; a referrer or
     // month row is not an org, so it carries the whole payout. partnerRate is the
     // supplier rail and is untouched.
-    const agentShare = key === 'agency' ? orgRate(app, 'agency', app.agencyId, app.agency)
-      : key === 'branch' ? orgRate(app, 'branch', app.branchId, app.branch)
-      : totalRate(app);
+    /* THE AGENCY SIDE'S EARNING ON THIS APPLICATION, for both org rows.
+       Matt, 2026-10-02: "Breakdown by branch shows £0 agent commission on
+       every branch while the agency rows have commission. Branch rows must
+       carry the commission earned by their own referrals, and add up to the
+       agency row."
+
+       A branch row asked for BRANCH-level lines only, and a rate is almost
+       never set at a branch -- dev holds twelve commission lines and every
+       one of them is at agency level -- so every branch reported zero
+       beside an agency row with the whole figure. It was not a missing
+       number; it was the wrong question.
+
+       BOTH ROWS NOW ASK THE SAME ONE: what does the agency side earn on
+       this application, which is its agency's line plus any line set at
+       the branch that sent it. An application has one branch, so the two
+       expressions are identical per row and the branch rows sum to their
+       agency's by construction, whether or not a branch rate is ever used.
+
+       THE GROUP'S CUT IS STILL OUT, which is what this calculation was
+       written for: under a group taking 2% of a 14% payout the agency
+       earns 12%, and attributing all 14% to its name would double-count
+       the group against it. `totalRate` is the whole payout and stays
+       where it belongs, on a referrer or month row, which is not an org
+       and carries the lot. */
+    const agencySide = orgRate(app, 'agency', app.agencyId, app.agency)
+      + orgRate(app, 'branch', app.branchId, app.branch);
+    const agentShare = key === 'agency' || key === 'branch' ? agencySide : totalRate(app);
     // Same rule as liveAggregate: an agency of ours has no partner to pay, so it
     // contributes no partner commission to any ranking or breakdown row. And the
     // same rule again for a reader who may not see money: LeagueRow.partnerComm /

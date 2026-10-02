@@ -344,13 +344,59 @@ function expiryOf(a: Pick<FullApp, 'status' | 'deedAt' | 'expiry' | 'tenancyStar
   return a.expiry ?? (a.tenancyStart ? guaranteeExpiry(a.tenancyStart) : null);
 }
 
+/* =====================================================================
+   "ALL TIME" IS NOT A DATE RANGE ENDING IN 2051.
+
+   Matt, 2026-10-02: "For All time, show 'All time' with the date of the
+   first referral to today, not '01/09/2024 to 31/12/2051'."
+
+   WHERE 2051 CAME FROM, and it is not a bug in the range. All time ends
+   in the FUTURE on purpose: `inForceDuring` asks `tenancyStart <= end`,
+   and clamped to today "all time" silently excluded every guarantee
+   whose cover has not started yet -- four of dev's five executed deeds.
+   The range is right; printing it is what is wrong. 01/09/2024 is a
+   constant nobody chose and 31/12/2051 is a date nothing happened on,
+   so the document opened by stating a period that is not the period.
+
+   THE FIRST REFERRAL THIS READER CAN SEE, not the first in the book: an
+   agency-facing export naming the date of somebody else's first
+   referral would be a fact about another customer, however small.
+   ===================================================================== */
+function firstReferralFor(role: Role): Date | null {
+  let first: Date | null = null;
+  for (const a of scopeFull(allFull(), role, scopeFor(role))) {
+    if (!a.sentAt) continue;
+    if (!first || a.sentAt < first) first = a.sentAt;
+  }
+  return first;
+}
+
+/** How a document states the period it covers. */
+function periodWindow(period: Period, start: Date, end: Date, role: Role): string {
+  if (period.id !== 'alltime') return `${period.label} (${dmy(start)} to ${dmy(end)})`;
+  const first = firstReferralFor(role);
+  // Nothing has ever been referred in this scope, so there is no window to
+  // state and "All time" is the whole truth.
+  if (!first) return period.label;
+  return `${period.label} (first referral ${dmy(first)} to ${dmy(today())})`;
+}
+
+/** The same "now" the rest of the file uses: real in Supabase mode, and the
+    suite's fixed day otherwise, so an export never dates itself differently
+    from the figures in it. */
+function today(): Date {
+  return SUPABASE_ENABLED ? new Date() : TODAY;
+}
+
 /** The metadata line under the title: period, scope, partner, generated date.
     A null partnerLabel omits the partner segment entirely rather than printing
     an empty one: on an agency-facing document there is no partner to name. */
-function brandMeta(period: Period, scopeText: string, partnerLabel: string | null): string {
+function brandMeta(period: Period, scopeText: string, partnerLabel: string | null, role: Role): string {
   const rng = periodRange(period);
-  const partnerBit = partnerLabel ? `Partner: ${partnerLabel} · ` : '';
-  return `${period.label} (${dmy(rng[0])} to ${dmy(rng[1])}) · ${scopeText} · ${partnerBit}Generated ${generatedOn()} · GBP`;
+  // "Supplier", not "Partner". Matt, 2026-10-02: a partner is what the
+  // schema calls the row; a supplier is what it is.
+  const supplierBit = partnerLabel ? `Supplier: ${partnerLabel} · ` : '';
+  return `${periodWindow(period, rng[0], rng[1], role)} · ${scopeText} · ${supplierBit}Generated ${generatedOn()} · GBP`;
 }
 function fileStamp(): string {
   return new Date().toISOString().slice(0, 10);
@@ -404,17 +450,23 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
   const shape = viewerShape(role, scope);
   const a = liveAggregate(role, scope, period);
   const vol = liveVolume(role, scope, period);
-  // Header percentages are the EFFECTIVE rate implied by the actual snapshotted
-  // commission (gross commission / gross fees), never a live partner rate, so the
-  // label always matches the money below even after a partner's rate has been
-  // changed and even for an all-partners scope with a mix of snapshotted rates.
-  // Gross/gross (not net/net) keeps it exact regardless of partial refunds.
-  const pPct = a.feesGross ? Math.round(((a.partnerCommNet + a.partnerCommExcl) / a.feesGross) * 100) : 0;
-  const aPct = a.feesGross ? Math.round(((a.agentCommNet + a.agentCommExcl) / a.feesGross) * 100) : 0;
-  // What the period's fees were a basis OF, read off the fees themselves. Every
-  // header that said "of one month rent" now says what was actually charged, or
-  // "the guarantee fee" when the period is mixed or empty.
-  const basisWord = a.feeBasis.phrase || 'the guarantee fee';
+  /* THE HEADER PERCENTAGES ARE GONE, 2026-10-02. They were the EFFECTIVE
+     rate implied by the snapshotted commission (gross commission / gross
+     fees), computed rather than read off a partner so the label always
+     matched the money below it -- which was the right answer to "the
+     label says 2% and the figure says something else" and the wrong
+     answer to the question underneath it.
+
+     Matt: "Rates vary by deal; label them 'Supplier commission (net of
+     refunds)' and 'Agent commission (net of refunds)'." A blended
+     percentage over a period of mixed rates is a number that appears in
+     no agreement and matches no line below it, and the moment a group
+     rate and a branch rate sit in the same period it is nobody's rate at
+     all. The amount is the sum of what the frozen lines actually paid,
+     and the amount is the whole of what the label should say.
+
+     `basisWord` went with them: it existed to finish the sentence "x% of
+     one month rent", and there is no sentence left to finish. */
   /* Live breakdown columns carry net commission per row, so the agency/branch/
      referrer tables reconcile to the summary commission totals.
 
@@ -493,14 +545,31 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
              is the sum of what the frozen lines actually paid. */
           moneyKv('Commission (agreed terms)', a.agentCommNet),
         ] : [
-          /* "of one month rent" was true until deal-shape pricing and is now
-             false of every negotiated party. The basis is stated as it actually
-             was over the period's fees, and the partner line is dropped entirely
-             on the agent rail, where the figure is a structural zero. */
+          /* NO RATE IN THE LABEL AT ALL. Matt, 2026-10-02: "Remove the
+             hard-coded percentages from labels ('Partner commission (2%
+             of…)', 'Agent commission (15% of…)'). Rates vary by deal;
+             label them 'Supplier commission (net of refunds)' and 'Agent
+             commission (net of refunds)'."
+
+             "of one month rent" went first, when deal-shape pricing made
+             it false of every negotiated party, and the basis was stated
+             as it actually was over the period's fees instead. That was
+             the same fault one step less far: a single percentage across
+             a period of mixed rates appears in no agreement and matches
+             no line below it, and the moment a group rate or a branch
+             rate sits in the same period it is nobody's rate. The agency
+             line above this has said so since it was written -- "ONE
+             LINE, NO BLENDED RATE" -- and this is that rule arriving on
+             the admin side.
+
+             AND "SUPPLIER", NOT "PARTNER". Same instruction, item 4: a
+             partner is what the schema calls the row, and a supplier is
+             what it is. The partner line is still dropped entirely on
+             the agent rail, where the figure is a structural zero. */
           ...(a.noPartnerCut ? [] : [
-            moneyKv(`Partner commission (${pPct}% of ${basisWord}, net of refunds)`, a.partnerCommNet),
+            moneyKv('Supplier commission (net of refunds)', a.partnerCommNet),
           ]),
-          moneyKv(`Agent commission (${aPct}% of ${basisWord}, net of refunds)`, a.agentCommNet),
+          moneyKv('Agent commission (net of refunds)', a.agentCommNet),
         ]) : []),
         // Per TENANCY, not per applicant: every sibling row carries the whole
         // let's rent, so averaging over applicants inflated it by the tenant count.
@@ -526,10 +595,10 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
           moneyKv('Commission excluded on refunded fees', a.agentCommExcl),
         ] : [
           ...(a.noPartnerCut ? [] : [
-            moneyKv(`Partner commission (${pPct}%, net of refunds)`, a.partnerCommNet),
+            moneyKv('Supplier commission (net of refunds)', a.partnerCommNet),
           ]),
-          moneyKv(`Agent commission (${aPct}%, net of refunds)`, a.agentCommNet),
-          moneyKv(a.noPartnerCut ? 'Commission excluded on refunded fees' : 'Commission excluded on refunded fees (partner + agent)', a.partnerCommExcl + a.agentCommExcl),
+          moneyKv('Agent commission (net of refunds)', a.agentCommNet),
+          moneyKv(a.noPartnerCut ? 'Commission excluded on refunded fees' : 'Commission excluded on refunded fees (supplier + agent)', a.partnerCommExcl + a.agentCommExcl),
         ]) : []),
       ],
     },
@@ -647,7 +716,7 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
     const settleDay = `${st.settlementDate.getDate()}/${pad(st.settlementDate.getMonth() + 1)}/${st.settlementDate.getFullYear()}`;
     blocks.push({ kind: 'blank' }, { kind: 'section', title: `Commission settlement (${st.monthLabel}, payable ${settleDay})` });
     if (!st.partners.length) {
-      blocks.push({ kind: 'keyvalue', items: [{ label: 'Payable', value: 'No partner commission accrued in the prior calendar month.' }] });
+      blocks.push({ kind: 'keyvalue', items: [{ label: 'Payable', value: 'No supplier commission accrued in the prior calendar month.' }] });
     } else {
       blocks.push({
         kind: 'keyvalue',
@@ -713,7 +782,7 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
   const [ds, de] = realPeriodRange(period);
   // Their own name where the estate used to be, and no partner segment at all.
   const scopeText = role === 'referrer' ? 'Your referrals only' : agency ? agencyScopeLabel(role) : 'Whole estate';
-  const metaLine = `${period.label} (${dmy(ds)} to ${dmy(de)}) · ${scopeText} · ${agency ? '' : `Partner: ${scopeLabel(role)} · `}Generated ${generatedOn()} · GBP · Live records`;
+  const metaLine = `${periodWindow(period, ds, de, role)} · ${scopeText} · ${agency ? '' : `Supplier: ${scopeLabel(role)} · `}Generated ${generatedOn()} · GBP · Live records`;
   const doc: BrandedDoc = { reportName: 'Performance export', metaLine, blocks };
   return { sheets: [{ name: 'Performance', doc }], filename: `opndoor-performance-${period.id}-${fileStamp()}.xlsx` };
 }
@@ -749,8 +818,11 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
           // One line, their own, and no rate in the label: see the live builder.
           moneyKv('Commission (agreed terms)', m.fees * xrates.agent),
         ] : [
-          moneyKv('Partner commission (share of one month rent)', m.fees * xrates.partner),
-          moneyKv('Agent commission (share of one month rent)', m.fees * xrates.agent),
+          // No rate and no basis in the label here either, and "Supplier"
+          // rather than "Partner": the same two rules as the live builder,
+          // so the synthetic document and the real one read the same.
+          moneyKv('Supplier commission (net of refunds)', m.fees * xrates.partner),
+          moneyKv('Agent commission (net of refunds)', m.fees * xrates.agent),
         ]) : []),
         moneyKv('Average monthly rent', AVG_RENT),
         moneyKv('Average guarantee fee', m.paid ? m.fees / m.paid : 0),
@@ -818,6 +890,7 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
       period,
       role === 'referrer' ? 'Your referrals only' : agency ? agencyScopeLabel(role) : 'Whole estate',
       agency ? null : scopeLabel(role),
+      role,
     ),
     blocks,
   };
@@ -1129,7 +1202,7 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
   });
 
   const scopeText = agency ? agencyScopeLabel(role) : 'Whole estate';
-  const metaLine = `${period.label} (${dmy(start)} to ${dmy(end)}) · ${scopeText} (${meta.label}) · ${agency ? '' : `Partner: ${scopeLabel(role)} · `}Generated ${generatedOn()} · GBP`;
+  const metaLine = `${periodWindow(period, start, end, role)} · ${scopeText} (${meta.label}) · ${agency ? '' : `Supplier: ${scopeLabel(role)} · `}Generated ${generatedOn()} · GBP`;
   const doc: BrandedDoc = {
     reportName: 'Application export',
     metaLine,
@@ -1201,6 +1274,7 @@ export function buildApplicationDoc(role: Role, period: Period, basis: ExportBas
       period,
       `${agency ? agencyScopeLabel(role) : 'Whole estate'} (${meta.label})`,
       agency ? null : scopeLabel(role),
+      role,
     ),
     blocks: [
       {
@@ -1306,9 +1380,9 @@ export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string,
   let metaLine: string;
   if (liveAvailable()) {
     const [ds, de] = realPeriodRange(period);
-    metaLine = `${period.label} (${dmy(ds)} to ${dmy(de)}) · ${scopeText} · ${partnerLabel ? `Partner: ${partnerLabel} · ` : ''}Generated ${generatedOn()} · GBP · Live records`;
+    metaLine = `${periodWindow(period, ds, de, role)} · ${scopeText} · ${partnerLabel ? `Supplier: ${partnerLabel} · ` : ''}Generated ${generatedOn()} · GBP · Live records`;
   } else {
-    metaLine = brandMeta(period, scopeText, partnerLabel);
+    metaLine = brandMeta(period, scopeText, partnerLabel, role);
   }
   const showPartner = scope === ALL_PARTNERS && !partner;
   const sheets = views.map(({ view, name }) => ({
@@ -1434,13 +1508,13 @@ function statementRows(apps: SettlementApp[]): { rows: TableRow[]; totalFee: num
 export async function buildPartnerStatementDoc(role: Role, scope: PartnerScope, partnerId: string): Promise<BrandedExport> {
   // A commission statement with a "Total commission payable" figure, previously
   // protected only by a RoleOnly wrapper on a Dashboard button.
-  if (!maySeeCommission(role)) return emptyExport('Partner statement');
+  if (!maySeeCommission(role)) return emptyExport('Supplier statement');
   /* An agency is never the payee of a partner statement: their own money is the
      agent statement. Their route partner is house plumbing, so the only thing
      this could build for them is a document naming it, headed "Payee (partner)",
      for a figure that is a structural zero. It refuses instead, rather than
      trusting that the Dashboard will never list a row that opens it. */
-  if (isAgencyUser(role, scope)) return emptyExport('Partner statement');
+  if (isAgencyUser(role, scope)) return emptyExport('Supplier statement');
   const st = getCommissionSettlement(role, scope);
   const ps = st.partners.find((p) => p.partner === partnerId);
   const payee = ps ? ps.partnerName : partnerName(partnerId);
@@ -1454,8 +1528,8 @@ export async function buildPartnerStatementDoc(role: Role, scope: PartnerScope, 
     {
       kind: 'keyvalue',
       items: [
-        { label: 'Payee (partner)', value: payee },
-        { label: 'Commission type', value: 'Partner commission' },
+        { label: 'Payee (supplier)', value: payee },
+        { label: 'Commission type', value: 'Supplier commission' },
         { label: 'Period (month)', value: st.monthLabel },
         { label: 'Settlement date', value: dmy(st.settlementDate) },
         { label: 'Statement reference', value: ref },
@@ -1466,7 +1540,7 @@ export async function buildPartnerStatementDoc(role: Role, scope: PartnerScope, 
     { kind: 'section', title: 'Applications (net of refunds)' },
   ];
   if (!ps || !ps.apps.length) {
-    blocks.push({ kind: 'keyvalue', items: [{ label: 'Payable', value: 'No partner commission accrued in the prior calendar month.' }] });
+    blocks.push({ kind: 'keyvalue', items: [{ label: 'Payable', value: 'No supplier commission accrued in the prior calendar month.' }] });
   } else {
     const { rows, totalComm } = statementRows(ps.apps);
     // Reconciliation: totalComm equals ps.commission (same per-application sum the
@@ -1477,7 +1551,7 @@ export async function buildPartnerStatementDoc(role: Role, scope: PartnerScope, 
       { kind: 'keyvalue', items: [moneyKv('Total commission payable', totalComm)] },
     );
   }
-  const metaLine = `${st.monthLabel} settlement · Payee: ${payee} · Partner commission · Reference ${ref} · Generated ${generated} · GBP`;
+  const metaLine = `${st.monthLabel} settlement · Payee: ${payee} · Supplier commission · Reference ${ref} · Generated ${generated} · GBP`;
   const doc: BrandedDoc = { reportName: 'Commission statement', metaLine, blocks };
   return { sheets: [{ name: 'Statement', doc }], filename: `opndoor-statement-${ref}.xlsx` };
 }
@@ -1515,7 +1589,7 @@ export async function buildAgentStatementDoc(role: Role, scope: PartnerScope, pa
       kind: 'keyvalue',
       items: [
         { label: 'Payee', value: payee },
-        ...(forAgency ? [] : [{ label: 'Partner', value: partnerLabel }]),
+        ...(forAgency ? [] : [{ label: 'Supplier', value: partnerLabel }]),
         { label: 'Commission type', value: forAgency ? 'Commission earned' : 'Agent commission' },
         { label: 'Period (month)', value: st.monthLabel },
         { label: 'Settlement date', value: dmy(st.settlementDate) },
