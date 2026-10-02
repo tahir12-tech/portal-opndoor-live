@@ -852,6 +852,20 @@ you asked for. Say the word and the tenant gets their own wording.
 - One count, read in four places, is the shape this wants: the tiles, the
   All tab, the Home tile and the badge.
 
+## ADD THE EMAIL WHERE THE ROW IS (instruction, 2026-10-02, verbatim).
+
+> Reconciliation, "Supplier agencies with no email": each row gets an "Add email" button that sets the agency email right there (same as on the supplier's Agencies tab), plus a link to the agency on its supplier's page. Once added, the row disappears and the counts update. Deploy to dev and check there.
+
+- The tab has listed these since `55b981b` and been a list you could only
+  read: the fix was on the supplier's Agencies tab (`e7dadd3`), one
+  navigation away, so the page that tells you about the work could not do
+  it.
+- "Same as on the supplier's Agencies tab" is the instruction and the
+  constraint: the same component, not a second dialog that drifts.
+- "the counts update" is the whole chain from this morning's work -- the
+  tab, the All count, the three tiles, Home's tile and the sidebar badge
+  are one number now, so the row disappearing has to move all of them.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
