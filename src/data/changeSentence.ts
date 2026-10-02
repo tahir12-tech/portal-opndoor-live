@@ -77,6 +77,18 @@ const EVENTS: Record<string, (detail: string) => string> = {
   merged: (d) => d || 'Merged with another agency',
   group_set: (d) => (d ? `Moved into the ${d} group` : 'Moved into a group'),
   position_set: (d) => (d ? `Position set to ${d}` : 'Position set'),
+  /* WHERE THE DEED GOES, which is what a contact is. The detail is the
+     address itself on an add, and "was -> now" on a change, because
+     "the contact was changed" does not answer the question somebody
+     opens this list to ask. */
+  contact_added: (d) => (d ? `Contact email set to ${d}` : 'A contact email was set'),
+  contact_changed: (d) => {
+    const [was, now] = d.split(' -> ');
+    if (!now) return d ? `Contact email changed to ${d}` : 'The contact email was changed';
+    return was === 'none'
+      ? `Contact email set to ${now}`
+      : `Contact email changed from ${was} to ${now}`;
+  },
   commission_set: (d) => `Commission set to ${ratePair(d)}`,
   agreement_created: (d) => `Commission deal agreed${d ? `: ${d}` : ''}`,
   /* A SUPPLIER'S SHARE DEALS, which save_share_deal records with a

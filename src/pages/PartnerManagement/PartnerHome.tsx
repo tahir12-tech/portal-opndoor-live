@@ -31,6 +31,8 @@ import { SupplierStatements } from '@/components/SupplierStatements';
 import { SupplierSettings } from './SupplierSettings';
 import { ApiAccessSwitch } from './ApiAccessSwitch';
 import { SupplierApiKeys } from './SupplierApiKeys';
+import { AddContactEmail } from './AddContactEmail';
+import { SupplierOverview } from './SupplierOverview';
 import { SupplierDeals } from './SupplierDeals';
 import { SupplierInvite } from './SupplierInvite';
 import { SupplierRoleDialog } from './SupplierRoleDialog';
@@ -153,7 +155,7 @@ import { StatementRecipients } from '@/components/StatementRecipients';
 import { ViewAsButton } from '@/components/ViewAsButton';
 import './PartnerHome.css';
 import { plural, countOf } from '@/lib/plural';
-import { formatDate, formatMonth } from '@/lib/format';
+import { formatDate, formatMonth, possessive } from '@/lib/format';
 import { PeopleTable } from '@/components/people/PeopleTable';
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
@@ -578,10 +580,30 @@ export function PartnerHome() {
       </div>
       )}
 
+      {/* THE OVERVIEW, which had no branch at all: eight tabs and the one
+          everybody lands on drew nothing. Matt, 2026-10-02. */}
+      {tab === 'overview' && (
+        <SupplierOverview
+          slug={partner.id}
+          partnerDbId={partner.dbId ?? null}
+          name={partner.name}
+          standardTotal={partner.partnerRate ?? null}
+          standardShare={partner.agentRate ?? null}
+          onOpenAgencies={() => setTab('agencies')}
+          dataVersion={dataVersion}
+        />
+      )}
+
       {tab === 'agencies' && (
       <Card>
         <CardHead
-          title={`${partner.name}'s agencies`}
+          /* THE SHARED HELPER, not an apostrophe-s. Matt, 2026-10-02:
+             "fix 'Kestrel Lettings's agencies' to 'Kestrel Lettings''
+             agencies' (use the shared possessive helper everywhere)."
+             `possessive` has known that a name ending in s takes the
+             apostrophe alone since it was written; this heading was
+             built by hand and did not ask it. */
+          title={`${possessive(partner.name)} agencies`}
           sub={`${agencies.length} ${plural(agencies.length, 'agency')} · ${branchCount} ${plural(branchCount, 'branch')}. These come through ${partner.name} and are theirs: they have no logins, and they are not on Opndoor's own Agencies list.`}
         />
         <CardBody style={{ padding: agencies.length === 0 ? undefined : 0 }}>
@@ -605,7 +627,21 @@ export function PartnerHome() {
                       none. A supplier agency with no contact anywhere has
                       nowhere to send an executed deed, and the page said
                       nothing about it. */}
-                  <AgencyContactLine agency={a} />
+                  <span className="ph-tree__contact">
+                    <AgencyContactLine agency={a} />
+                    {/* AND A WAY TO CLOSE THE GAP IT REPORTS. Matt,
+                        2026-10-02: an "Add email" button next to "No
+                        agency email", setting it in place. A warning
+                        with no action beside it is a screen telling
+                        somebody to go and find another screen. */}
+                    {isAdmin && (
+                      <AddContactEmail
+                        agency={a}
+                        current={(a.contacts ?? []).find((c) => c.primary) ?? (a.contacts ?? [])[0] ?? null}
+                        onSaved={refresh}
+                      />
+                    )}
+                  </span>
                   {a.branches.length > 0 && (
                     <div className="ph-tree__branches">
                       {a.branches.map((b) => (
@@ -616,6 +652,18 @@ export function PartnerHome() {
                           {b.unreviewed && <span className="ph-tag">unreviewed</span>}
                           <span className="ph-tree__meta">{countOf(b.referrals, 'referral')}</span>
                           <ContactLine agency={a} branch={b} />
+                          {/* "Each branch's email can be added or changed
+                              the same way." Its own address overrides the
+                              agency's for that branch, which is what the
+                              confirmation says. */}
+                          {isAdmin && (
+                            <AddContactEmail
+                              agency={a}
+                              branch={b}
+                              current={(b.contacts ?? []).find((c) => c.primary) ?? (b.contacts ?? [])[0] ?? null}
+                              onSaved={refresh}
+                            />
+                          )}
                         </div>
                       ))}
                     </div>

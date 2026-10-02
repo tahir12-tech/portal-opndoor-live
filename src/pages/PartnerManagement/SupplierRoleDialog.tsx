@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { SupplierLevelOptions, supplierLevelsFor } from './SupplierLevels';
+import { possessive } from '@/lib/format';
 
 export function SupplierRoleDialog({
   user, apiAccessEnabled, onClose, onSaved,
@@ -70,7 +71,7 @@ export function SupplierRoleDialog({
       open
       onClose={onClose}
       width={560}
-      title={`Change ${user.name}’s role`}
+      title={`Change ${possessive(user.name)} role`}
       sub="It applies immediately. They see the change the next time the page loads."
       footer={(
         <>

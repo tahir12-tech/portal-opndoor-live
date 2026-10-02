@@ -304,7 +304,9 @@ export interface AddBranchInput {
 export function addBranch(agencyName: string, input: AddBranchInput): Branch | null {
   const agency = findAgency(agencyName);
   if (!agency) return null;
-  const branch: Branch = { name: input.name, area: input.area || '-', referrers: 0, referrals: 0, guaranteed: '£0' };
+  // Empty, not a dash: see the note in hydrate.ts. Mock mode and live
+  // have to agree about what "no address" looks like.
+  const branch: Branch = { name: input.name, area: input.area || '', referrers: 0, referrals: 0, guaranteed: '£0' };
   agency.branches.push(branch);
   agency.open = true;
   persist();

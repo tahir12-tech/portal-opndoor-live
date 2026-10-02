@@ -350,7 +350,19 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         id: b.id,
         name: b.name,
         agentRate: orgRate.get(`branch:${b.id}`)?.agent_rate == null ? null : Number(orgRate.get(`branch:${b.id}`)!.agent_rate),
-        area: b.area || '-',
+        /* AN EMPTY ADDRESS IS EMPTY, not a dash. Matt, 2026-10-02:
+           "the '-' after each branch name is an empty address. Show the
+           branch address when there is one, and nothing when there
+           isn't."
+
+           This mapped null to the literal string "-", so every screen
+           that guards on `b.area &&` printed it: the string is truthy.
+           The dash belonged to one table cell that needed a filler and
+           was applied to the field instead of to that cell. Every
+           reader of `.area` already handles an empty string -- they are
+           all `b.area ? ... : ''` or `b.area || ''` -- so this is the
+           one place the fix belongs. */
+        area: b.area || '',
         referrers: new Set(bApps.map((x) => x.referrer_id)).size,
         referrals: bApps.length,
         guaranteed: money(sum(bApps, (x) => num(x.monthly_rent) * 12)),
