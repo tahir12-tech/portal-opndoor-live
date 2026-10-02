@@ -347,12 +347,28 @@ describe('the two deal shapes', () => {
   /* AND THE CHOICE SAYS WHAT THE STATEMENTS DO, which is the half of the
      instruction that is not arithmetic: "off, one supplier statement plus
      per-agency schedules for them to forward; on, the supplier is paid its
-     own share and each agency gets its own statement from Opndoor." */
+     own share and each agency gets its own statement from Opndoor."
+
+     AND THE SECOND HALF OF THAT STOPPED BEING TRUE on 2026-10-02.
+     20261007410000 stopped sending a statement to an agency in a
+     supplier's estate at all -- "all commission statements for a
+     supplier's agencies go to the supplier ... whatever the 'Opndoor
+     pays the agents directly' setting" -- so the money may go to the
+     agency and the paperwork does not. Matt gave the replacement
+     sentence the same day: "opndoor pays each agency its share
+     directly. All statements still go to Kestrel Lettings."
+
+     The case is kept and turned over, because what it protects is
+     unchanged: the switch has to say what it does to the PAPERWORK, and
+     that is the half no arithmetic on the page states. */
   it('and names the statements each shape produces', async () => {
     expect((await commissionTab()).container.textContent ?? '')
       .toMatch(/per-agency schedules for them to forward on/);
     cleanup();
-    expect((await paysOn()).container.textContent ?? '')
-      .toMatch(/Each agency gets its own statement from opndoor/);
+    const on = (await paysOn()).container.textContent ?? '';
+    expect(on).toMatch(/opndoor pays each agency its share directly/);
+    expect(on).toMatch(/All statements still go to/);
+    // And the promise that is no longer kept is gone.
+    expect(on).not.toMatch(/gets its own statement from opndoor/);
   });
 });

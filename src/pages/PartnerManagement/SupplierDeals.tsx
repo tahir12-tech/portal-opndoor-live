@@ -182,7 +182,10 @@ export function SupplierDeals({
             opndoor will pay {name} its own commission, and each agency its own beside it. What
             opndoor pays in total becomes the two added together.
           </p>
-          <p>Each agency becomes an opndoor payee and gets its own statement from us.</p>
+          {/* THE SAME SENTENCE AS THE SWITCH, which Matt asked to be
+              checked: a confirmation that promises something the line
+              under the control does not is the one somebody acts on. */}
+          <p>Each agency becomes an opndoor payee. All statements still go to {name}.</p>
           <p className="muted">Referrals already sent keep the rates they were given. This applies to new ones.</p>
         </>
       ) : (
@@ -237,9 +240,15 @@ export function SupplierDeals({
               it that is not arithmetic and which nothing else on the page
               says. It used to be the description under the old switch; it
               is still true and still the thing a finance reader needs. */}
+          {/* AND IT WAS FALSE AS WELL AS UNCLEAR, which is why Matt's
+              replacement is the behaviour and not a tidier sentence.
+              20261007410000 stopped sending a statement to an agency in
+              a supplier's estate at all: the money may be paid to the
+              agency, and the paperwork goes to the supplier either way.
+              This line promised each agency a statement from us. */}
           <p className="ph-note muted">
             {paysAgents
-              ? `Each agency gets its own statement from opndoor, and ${name} gets its own.`
+              ? `opndoor pays each agency its share directly. All statements still go to ${name}.`
               : `opndoor sends one statement to ${name}, with per-agency schedules for them to forward on.`}
           </p>
 

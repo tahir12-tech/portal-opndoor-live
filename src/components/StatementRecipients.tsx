@@ -160,7 +160,11 @@ export function StatementRecipients({ partnerKey, supplierName }: Props) {
         {/* THE OTHER HALF, NAMED. An admin reading this card is one click
             from the question it does not answer. */}
         <p className="ph-note muted">
-          Staff who receive it are set person by person, under <b>People</b>. On this rail only Opndoor can change that.
+          {/* "Only Opndoor can change that." Matt, 2026-10-02. "On this
+              rail" named a distinction the reader of this one screen has
+              no way to see: they are on a supplier's page, and there is
+              no other rail in front of them to be told this is not it. */}
+          Staff who receive it are set person by person, under <b>People</b>. Only Opndoor can change that.
         </p>
       </CardBody>
       {confirmEl}
