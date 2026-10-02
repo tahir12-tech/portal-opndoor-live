@@ -20,7 +20,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
-import { feeBasisWeeksOf, paymentReminderEmail, type FeeCopy } from "../_shared/emailTemplates.ts";
+import { draftClosingEmail, feeBasisWeeksOf, paymentReminderEmail, type FeeCopy } from "../_shared/emailTemplates.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
 import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
@@ -31,6 +31,15 @@ const cors = {
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+
+/** 'YYYY-MM-DD' -> '4 October 2026', built from the parts so no timezone
+    moves the day. The same shape renewal-notices uses for the same reason. */
+function dmyLabel(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return iso;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" }).format(d);
+}
 
 function londonNow(): { hour: number; date: string } {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -211,7 +220,67 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ ok: true, test, date: pToday, expired: expiredCount ?? 0, due: due.length, emailed, emailFailed });
+    /* =====================================================================
+       AND THE UNFINISHED APPLICATIONS NOBODY EVER CHASED.
+
+       Matt, 2026-10-02: an unfinished DIRECT application closes after 30
+       quiet days, and at 25 the tenant is told it will. It belongs in this
+       job and not a new one: this is the daily "chase the tenant, then
+       lapse what nobody answered" pass, it already runs expire ->
+       remind in that order, and a second cron would be a second schedule
+       and a second secret for the same subject.
+
+       CLOSE FIRST, WARN SECOND, for the reason the line above gives about
+       the fifteen-day sweep: a draft quiet for 40 days is past both
+       thresholds, and warning first would email "this closes in 5 days"
+       about something the same run is closing. Closed, it is no longer a
+       draft and earns no warning.
+       ===================================================================== */
+    const { data: closedCount } = await service.rpc("expire_stale_drafts", { p_today: pToday });
+    const { data: warnRows, error: warnErr } = await service.rpc("fire_draft_closing_notices", { p_today: pToday });
+    if (warnErr) {
+      // Never fails the run: the payment reminders above have already been
+      // sent, and a broken warning must not make the cron look like it did
+      // nothing. Logged where ops sees it.
+      console.log(JSON.stringify({ event: "draft_closing_notices_failed", message: warnErr.message }));
+    }
+    const warnings = (warnRows ?? []) as Array<{
+      application_id: string; guarantee_ref: string; tenant_email: string | null;
+      prop_addr1: string | null; prop_postcode: string | null;
+      days_quiet: number; closes_on: string;
+    }>;
+    let warned = 0, warnFailed = 0;
+    for (const w of warnings) {
+      const addr = [titleCaseAddress(w.prop_addr1), w.prop_postcode].filter(Boolean).join(", ");
+      const res = await sendMessage({
+        to: w.tenant_email ?? "",
+        message: draftClosingEmail({
+          guaranteeRef: w.guarantee_ref,
+          // From the stored close date rather than 30 minus the threshold:
+          // the first run after this ships meets drafts already quieter than
+          // 25 days, whose real answer is one or two.
+          daysLeft: Math.max(0, Math.round(
+            (Date.parse(`${w.closes_on}T00:00:00Z`) - Date.parse(`${pToday}T00:00:00Z`)) / 86400000)),
+          closesOnLabel: dmyLabel(w.closes_on),
+          propertyAddr: addr || null,
+          applyUrl: `${APP_URL}/apply?utm_source=closing_notice`,
+        }),
+      });
+      if (res.ok) {
+        warned += 1;
+      } else {
+        warnFailed += 1;
+        await service.from("activity_log").insert({
+          application_id: w.application_id, kind: "draft_closing_email_failed",
+          message: `Closing notice not sent: ${res.error}`, actor: "System", visibility: "internal",
+        });
+      }
+    }
+
+    return json({
+      ok: true, test, date: pToday, expired: expiredCount ?? 0, due: due.length, emailed, emailFailed,
+      draftsClosed: closedCount ?? 0, draftsWarned: warned, draftWarnFailed: warnFailed,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unexpected error.";
     // #3 A total cron failure (a crash before it could log anything) still alerts

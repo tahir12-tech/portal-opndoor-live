@@ -512,6 +512,47 @@ export function paymentReminderEmail(p: {
   };
 }
 
+/* AN UNFINISHED APPLICATION IS ABOUT TO CLOSE.
+   Matt, 2026-10-02: "At 25 days with no activity, email the tenant: their
+   application will close in 5 days, with a link to carry on."
+
+   IT STATES THE REAL NUMBER, not five. Five is what the gap between the
+   two thresholds is worth on the day the warning fires; the drafts
+   already sitting on dev when this shipped were 28 and 29 days quiet and
+   had two days and one. A reminder that says five while the thing closes
+   tomorrow is worse than no reminder.
+
+   AND IT SAYS WHAT CLOSING COSTS, which is nothing. That is Matt's own
+   rule for the expiry -- "Expiry loses nothing: if the tenant signs in
+   again, it reopens where they left off" -- and leaving it out would
+   make the email a threat about something that is not a loss. It is the
+   small print rather than the lead, because the ask is still to finish.
+
+   THE PROPERTY IS OPTIONAL because a draft may not have one yet: the
+   address is a later step, and two of dev's unfinished applications have
+   nothing but an email address on them. */
+export function draftClosingEmail(p: {
+  guaranteeRef: string; daysLeft: number; closesOnLabel: string;
+  propertyAddr?: string | null; applyUrl: string;
+}): Message {
+  const where = p.propertyAddr ? ` for ${p.propertyAddr}` : "";
+  const when = p.daysLeft <= 1 ? "tomorrow" : `in ${p.daysLeft} days`;
+  const rows: [string, string][] = [["Reference", p.guaranteeRef], ["Closes", p.closesOnLabel]];
+  return {
+    audience: "tenant",
+    subject: p.daysLeft <= 1
+      ? "Your opndoor application closes tomorrow"
+      : `Your opndoor application closes in ${p.daysLeft} days`,
+    heading: "Your application is still unfinished",
+    blocks: [
+      { p: `You started an application${where} and have not finished it. It closes ${when} if nothing more happens on it.` },
+      { rows },
+      { small: "Closing it loses nothing. Sign in again at any time and it picks up where you left off, with the same reference." },
+    ],
+    action: { label: "Carry on with your application", href: p.applyUrl },
+  };
+}
+
 export function paymentReceiptEmail(p: {
   propertyAddr: string; guaranteeRef: string; amount: string; managedBy: string;
 }): Message {

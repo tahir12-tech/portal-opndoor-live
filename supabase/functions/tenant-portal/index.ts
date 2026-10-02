@@ -98,6 +98,36 @@ Deno.serve(async (req) => {
     if (!applicant) return json({ ok: false, error: "Not permitted." }, 403);
     if (applicant.closed_at) return json({ ok: false, error: "This account is closed." }, 403);
 
+    /* -----------------------------------------------------------------------
+       AND IF THEY LEFT ONE UNFINISHED LONG ENOUGH FOR IT TO CLOSE, IT OPENS
+       AGAIN. Matt, 2026-10-02: "Expiry loses nothing: if the tenant signs in
+       again, it reopens where they left off, back to In progress, same
+       reference."
+
+       HERE, AND NOT IN ONE OF THE ACTIONS BELOW, because "signs in again" is
+       the whole of the condition: every tenant request arrives through this
+       block with a verified token, so one call covers listing, resuming and
+       starting, and a new action added next month cannot forget it. The RPC
+       is a no-op for an applicant with nothing closed, which is almost every
+       request, and it only ever touches an application that expired WITHOUT
+       having been sent -- a lapsed unpaid fee is finished business and
+       reinstating that is somebody's decision, not a side effect of signing
+       in.
+
+       IT MUST RUN BEFORE start_application, whose "one live application"
+       lookup deliberately excludes terminal states so somebody whose
+       application closed can begin again. With the reopen first, there is
+       nothing closed left to skip and they get their own application back
+       rather than a fresh empty one with a new reference.
+       --------------------------------------------------------------------- */
+    const { error: reopenErr } = await service.rpc("reopen_expired_draft", { p_applicant: callerId });
+    if (reopenErr) {
+      // Never refuse the request over this: the worst case is that they see
+      // the application as closed and start another, which is what happened
+      // before it existed.
+      console.log(JSON.stringify({ event: "tenant_reopen_failed", message: reopenErr.message }));
+    }
+
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? "list_applications");
 

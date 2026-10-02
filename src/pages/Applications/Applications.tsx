@@ -777,10 +777,29 @@ export function Applications() {
                     )}
                     {/* The rent is the PROPERTY's and is the same on every sibling,
                         so a joint row says what this tenant's share of it is —
-                        otherwise two rows read as two £3,000 lets. */}
+                        otherwise two rows read as two £3,000 lets.
+
+                        AND A RENT NOBODY HAS TYPED YET IS NOT £0. Matt,
+                        2026-10-02: "an unfinished application with no rent yet
+                        shows 'Not given yet' instead of '£0 per month'". A
+                        direct application is born empty and filled step by
+                        step, so the column held "£0 per month" for four of
+                        dev's eight unfinished rows — a figure, right-aligned
+                        beside real ones, that reads as a let at no rent
+                        rather than as a form half filled in.
+
+                        NO RENT, WHATEVER THE STATUS, and not "draft" alone:
+                        an unfinished application that lapses is still
+                        unfinished, and £0 is not a true thing to say about a
+                        tenancy at any status. On dev only the unfinished rows
+                        have it, which is the case he is looking at. */}
                     <td style={{ textAlign: 'right' }}>
-                      <span className="dt__rent">£{r.rent.toLocaleString('en-GB')}</span>
-                      <div className="dt__sub">{me?.sharePercent != null ? `${me.sharePercent}% share` : 'per month'}</div>
+                      {r.rent
+                        ? <>
+                            <span className="dt__rent">£{r.rent.toLocaleString('en-GB')}</span>
+                            <div className="dt__sub">{me?.sharePercent != null ? `${me.sharePercent}% share` : 'per month'}</div>
+                          </>
+                        : <span className="dt__sub">Not given yet</span>}
                     </td>
                     <td>
                       <span className="status-cell">

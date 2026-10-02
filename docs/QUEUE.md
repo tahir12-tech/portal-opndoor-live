@@ -659,7 +659,7 @@ screens an admin can no longer open as of item 2.
   none, Regent's gains one and the two screens match. Say the word and
   it goes back to "more than one office".
 
-## UNFINISHED DIRECT APPLICATIONS (instruction, 2026-10-02, verbatim).
+## UNFINISHED DIRECT APPLICATIONS (instruction, 2026-10-02, verbatim). **all four done** (`6a42b0a`).
 
 > Unfinished direct applications:
 > 1. List every reminder email a tenant can receive today (what triggers it, when, and the wording), so I can see the full set.
@@ -675,6 +675,58 @@ screens an admin can no longer open as of item 2.
   expiry on the direct rail; what matters is that reopening is the same
   row -- same reference, back to In progress -- and not a new
   application.
+
+### ITEM 1: EVERY REMINDER EMAIL A TENANT CAN RECEIVE, AS AT 2026-10-02
+
+Read out of the senders and the templates, not the docs. There are
+**two** today, and a third from this commit.
+
+**1. The guarantee fee is unpaid.** `payment-reminders`, daily at 08:00
+London (pg_cron fires 07:00 and 08:00 UTC to cover BST; the function
+no-ops on the off hour). Fires at **2, 5 and 9 days** after the
+application was Sent while the fee is still unpaid, once per threshold,
+and only the HIGHEST threshold reached -- an application first seen on
+day 21 gets one email, not a backlog of three. Subject "A reminder about
+your opndoor guarantee", heading "Your guarantee is still waiting". The
+lead escalates and says nothing else: "Just checking this reached you." /
+"This one is still outstanding." / "This is now holding your tenancy
+up." Then one sentence carrying every fact: "[Agency] has arranged an
+opndoor guarantee for your tenancy at [address]. To put it in place, pay
+the guarantee fee of [amount] ([basis])" -- or, on the direct rail,
+"opndoor is acting as guarantor for your tenancy at [address]...". Rows:
+Reference, the fee (labelled "your share" on a joint tenancy), and "Open
+until" where there is one. Button: "Pay the guarantee fee".
+
+**2. The guarantee is ending.** `renewal-notices`, same schedule. ONCE
+per application, when the twelve-month cover ends within 30 days.
+Subject "The opndoor guarantee for [tenant] ends on [date]", heading
+"The guarantee is ending soon", body "The guarantee for [tenant] at
+[address] ends on [date]. If the tenancy is continuing and you would
+like cover to continue, email support@opndoor.co."
+
+**3. The unfinished application is closing.** New in this commit. 25
+quiet days, once, see item 3 below.
+
+**NOT to the tenant, though it reads like it might be.**
+`expiry-reminders` fires at 30 / 14 / 7 days and then daily inside the
+last week, and goes to the owning referrer and partner management. The
+tenant is never on it.
+
+**Manual, so not a reminder:** `resend-payment-email`, which a person
+presses.
+
+**Not reminders at all**, for completeness: the sign-in code, password
+reset, the tenant invite, "submission received", the payment link, the
+direct approval, the payment receipt, a refund, the deed to sign, and
+the executed deed. Each fires once, on an event.
+
+**ONE THING WORTH YOUR EYE, Matt.** Reminder 2 goes to the tenant AND
+the agent or landlord AND the referrer, as ONE send with everybody on
+it, and the wording is written for the agent: a tenant reads "The
+guarantee for Amara Okonjo at 14 Chalcot Square ends on 1 September
+2027", which is a third-person email about themselves, and the only
+action offered is to email support. Not changed, because it is not what
+you asked for. Say the word and the tenant gets their own wording.
 
 ## ADMIN REPORTING, THREE THINGS (instruction, 2026-10-02, verbatim).
 
