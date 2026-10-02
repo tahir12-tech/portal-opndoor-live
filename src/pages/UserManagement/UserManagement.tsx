@@ -741,7 +741,12 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
               email: userEmail(u),
               level: personLevelLabel(u),
               extra: showPartner ? userPartnerName(u.partner) : undefined,
-              office: positionsService.describePosition(positionsByUser[u.id] ?? [], true, u.role),
+              /* WHERE THEY SIT. Opndoor's own staff hold no position, so
+                 this is empty for them and the table drops the column on
+                 ?team=opndoor -- which is right: they have no office. It
+                 used to read "Everything" there, which is what they SEE,
+                 under a header that means where they are. */
+              office: positionsService.officeLabel(positionsByUser[u.id] ?? []),
               status: u.status,
               lastActive: u.lastActive,
               actions: (

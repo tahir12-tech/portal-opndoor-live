@@ -60,14 +60,16 @@ describe('the agency People tab', () => {
     });
   }
 
-  /* THE OFFICE RULE, which needed no new code: `manyOffices` is
-     branchCount > 1 over the org in view, the row passes null below that,
-     and the table drops a header no row fills. Asserted because "leave it
-     out" is a requirement whether or not it is already met, and the next
-     reader is entitled to know it was checked. */
-  it('passes no office at all when there is only one', () => {
-    expect(AGENCY_HOME).toContain('office: manyOffices ? r.branch : null');
-    expect(AGENCY_HOME).toContain('const manyOffices = branchCount > 1;');
+  /* THE OFFICE RULE. It was `manyOffices ? r.branch : null` here, which
+     is this morning's "only when the agency has more than one office";
+     that gate moved into PeopleTable the same day as "show it when the
+     rows differ", so the row now always states where the person sits and
+     the table decides whether to draw the column. New Independent still
+     gets none, which is the case Matt named; the rule and the argument
+     are in theOfficeColumnSaysWhereTheySit.test.tsx. */
+  it('states where each person sits and lets the table decide', () => {
+    expect(AGENCY_HOME).toContain('office: officeOf(r.level, r.branch)');
+    expect(AGENCY_HOME).not.toContain('office: manyOffices ?');
   });
 });
 

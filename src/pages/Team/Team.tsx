@@ -413,10 +413,13 @@ export function Team() {
 
   const branchTargets = useMemo(() => scopeTargets.filter((t) => t.kind === 'branch'), [scopeTargets]);
 
-  /* NAMING THE LEVEL ONLY WHEN IT SAYS SOMETHING. On a single agency every
-     position is at the same level and "Agency: Regent's Lettings" is the page
-     header repeated; on a group it is the information. */
-  const showLevel = multiAgency || groups.length > 0;
+  /* NAMING THE LEVEL ONLY WHEN IT SAYS SOMETHING is no longer a question
+     this page decides. Matt, 2026-10-02: the Office cell reads the branch
+     name at a branch and "Whole agency" or "Whole group" above one, on
+     every people screen and in those words -- so "Agency: Regent's
+     Lettings" is gone, and with it the prefix that `showLevel` existed to
+     switch on. The comment below still refers to the question; it is the
+     same question and the POSITION control still asks it. */
 
   /* WHAT THIS VIEWER HAS MORE THAN ONE OF. The same question Reporting, League
      and Applications ask, asked the same way, so a single-office agency gets
@@ -427,9 +430,9 @@ export function Team() {
      On a one-office agency the modal opened on a list of one, where "covers the
      whole agency" and "covers the one branch" describe the same people: a choice
      with no difference behind it. So the control is not offered at all and the row
-     shows the level and the level actions. This is the same question showLevel
-     already asks two declarations up, and the same question Reporting, League and
-     Applications ask, so a single-office agency gets one answer across the portal. */
+     shows the level and the level actions. This is the same question Reporting,
+     League and Applications ask, so a single-office agency gets one answer
+     across the portal. */
   const posIsAChoice = groups.length > 0 || multiAgency || branchTargets.length > 1;
 
   const layout = useMemo(
@@ -575,7 +578,12 @@ export function Team() {
       name: u.name,
       email: userEmail(u),
       level: pillLabel,
-      office: positionsService.describePosition(held, showLevel, u.role),
+      /* WHERE THEY SIT, in the one wording every people screen uses.
+         It used to call describePosition, passing the held positions, a
+         showLevel flag and the role, and that function also answered
+         "what do they see" -- "Everything", "Own referrals" -- in a
+         column about desks. That half is the Sees column's now. */
+      office: positionsService.officeLabel(held),
       status: u.status,
       lastActive: u.lastActive,
       tag: isSelf ? <span className="tm-you">You</span> : undefined,

@@ -37,7 +37,7 @@ import {
   type Agency, type AgencyGroup, type ManagedUser, type Status,
 } from '@/data';
 import {
-  getPositionsForUsers, getDeedRecipients, getOrgDeedReadiness, agencySees,
+  getPositionsForUsers, getDeedRecipients, getOrgDeedReadiness, agencySees, officeOf,
   type DeedReadiness,
 } from '@/data/positionsService';
 import { setNodeRate, getCommissionSplits, previewNodeRate, setAgencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
@@ -820,13 +820,12 @@ export function AgencyHome() {
               tab passed neither, so on a single-office agency like New
               Independent it drew three columns: Name, Level and Status.
 
-              THE OFFICE COLUMN IS ALREADY CONDITIONAL, and on the right
-              question. `manyOffices` is branchCount > 1 across the org in
-              view, so a single-office agency passes null and the table
-              drops the header too -- which is the rule it applies to every
-              screen, and why the supplier tab has no Office column at
-              all. Nothing to add for "show it only when the agency has
-              more than one office"; it is asserted below instead. */}
+              THE OFFICE COLUMN IS CONDITIONAL, and the condition moved
+              into the table on the same day: it is drawn when the rows
+              differ, which is why a single-office agency like New
+              Independent still has no Office column and why the supplier
+              tab has none at all. The reasoning is beside the rule in
+              PeopleTable. */}
           <PeopleTable
             showFilters={false}
             extraHeader="Sees"
@@ -836,8 +835,26 @@ export function AgencyHome() {
               email: r.email,
               level: r.agencyLevel,
               extra: agencySees(r.role, r.level),
-              office: manyOffices ? r.branch : null,
-              officeSub: manyAgencies ? r.agency : null,
+              /* WHERE THEY SIT, in Matt's words of 2026-10-02: the branch
+                 name at a branch, "Whole agency" at the agency, "Whole
+                 group" above one. It passed `r.branch`, which is a hyphen
+                 for anybody not positioned at a branch -- so on a
+                 two-office agency like Northgate the agency-level manager
+                 read "-" where every colleague read an office name.
+
+                 AND THE manyOffices GATE IS GONE FROM HERE, into
+                 PeopleTable, where it is now "show it when the rows
+                 differ" -- the reason behind this morning's "only when
+                 the agency has more than one office" rather than the
+                 proxy for it. New Independent still gets no Office
+                 column; Regent's, which has one office and people at two
+                 levels, now gets one and matches its own Team page. The
+                 argument is in full beside the rule. */
+              office: officeOf(r.level, r.branch),
+              /* AND THE AGENCY UNDER IT, but only when there is one: a
+                 group-level person belongs to no agency, and `r.agency` is
+                 the same hyphen for them. */
+              officeSub: manyAgencies && r.agency !== EMPTY ? r.agency : null,
               status: r.status,
               lastActive: r.lastActive,
               actions: (

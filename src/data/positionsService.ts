@@ -10,7 +10,6 @@
    button. See 20260813070000.
    ===================================================================== */
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
-import type { Role } from './types';
 
 export type ScopeKind = 'group' | 'agency' | 'branch';
 
@@ -21,62 +20,91 @@ export interface Position {
   targetName: string;
 }
 
-/** The words for each level. GROUP / AGENCY / BRANCH, which is what the schema
-    calls them and what the admin screens call them. "Brand" was a fourth name
-    for the agency level, used here and nowhere else, and on a customer's own
-    screen it read as a marketing term for the company they work for. */
-const LEVEL_ONE: Record<ScopeKind, string> = { group: 'Group', agency: 'Agency', branch: 'Branch' };
-const LEVEL_MANY: Record<ScopeKind, string> = { group: 'groups', agency: 'agencies', branch: 'branches' };
+/* THE WORDS FOR EACH LEVEL WENT WITH describePosition on 2026-10-02.
+   They were the "Group: " / "Agency: " / "Branch: " prefix and its plural,
+   and the Office column no longer names the level: it says the office, or
+   "Whole agency", or "Whole group". OFFICE_MANY below is what is left of
+   the plural. The schema's own words -- group, agency, branch -- are still
+   `ScopeKind` and still what every screen compares against. */
 const LEVELS: ScopeKind[] = ['group', 'agency', 'branch'];
 
+/* =====================================================================
+   THE OFFICE COLUMN SAYS WHERE SOMEBODY IS, AND NOTHING ELSE.
+
+   Matt, 2026-10-02, verbatim: "Office column on every people screen:
+   show the branch name for someone positioned at a branch, and 'Whole
+   agency' for someone positioned at the agency (or 'Whole group' at a
+   group level). Same wording on the agency Team page and the admin
+   views."
+
+   WHAT IT REPLACES, AND WHY THE OLD ONE IS GONE RATHER THAN KEPT.
+   `describePosition` filled this column on Team and /users, and it
+   answered TWO questions in one string:
+
+     where they are     "Agency: Regent's Lettings", "Branch: Camden"
+     what they see      "Everything" for an opndoor admin, "Own
+                        referrals" for anybody with no position,
+                        DEVELOPER_SEES for a Developer
+
+   The second group is not an office. It was in an Office column because
+   until 2026-10-02 there was nowhere else to put it, and it is why an
+   opndoor admin once read "Own referrals" in a column about desks. Those
+   answers now belong to `agencySees` and `supplierSees` below, in a
+   column called Sees, and this function keeps only the first question.
+   Two functions, two columns, one subject each -- which is also why
+   `describePosition` is deleted rather than left beside this one: the
+   next person to change the Office wording would have found both and
+   had to guess.
+
+   NO POSITION MEANS NO OFFICE, so the cell is empty and PeopleTable
+   drops the column when no row fills it. That is the right answer for
+   opndoor's own staff and for a supplier's, who hold no position at all:
+   `partner_id` IS the company boundary on that rail.
+
+   THE PREFIX IS GONE WITH IT. "Agency: Regent's Lettings" named the
+   level because the name alone could not say whether it meant the whole
+   agency or an office inside it. "Whole agency" says it in the words
+   Matt chose, and it no longer matters whether the reader is on a
+   single-agency Team page or an estate-wide admin one -- which is what
+   `showLevel` existed to decide, and why it is gone too.
+   ===================================================================== */
+
+/** The Office cell for ONE position. */
+export function officeOf(kind: ScopeKind, branchName?: string | null): string {
+  if (kind === 'group') return 'Whole group';
+  if (kind === 'agency') return 'Whole agency';
+  return (branchName ?? '').trim();
+}
+
+/** How several of them read. An office is a BRANCH in the schema and an
+    office on every screen, and this column is the one place the two words
+    meet, so the plural follows the column. */
+const OFFICE_MANY: Record<ScopeKind, string> = { group: 'groups', agency: 'agencies', branch: 'offices' };
+
 /**
- * What a person covers, in words, for a table cell.
+ * The Office cell for whatever positions a person holds.
  *
- * `showLevel` names the level as well as the target — "Agency: Regent's
- * Lettings". Worth the words on an admin screen, which shows an estate with
- * groups above agencies above branches and where the level is the information.
- * Noise on a single-agency customer's Team page, where every position is the
- * same level and the prefix only repeats it: there it reads "Regent's Lettings".
+ * HIGHEST LEVEL WINS, as it always did: somebody positioned at a group
+ * and at a branch inside it is covered by the group, and the narrower
+ * position adds nothing. Several at the same level are counted rather
+ * than listed, because a cell that grows with the estate stops being a
+ * cell.
  */
+export function officeLabel(positions: Position[]): string {
+  if (!positions.length) return '';
+  for (const kind of LEVELS) {
+    const at = positions.filter((p) => p.kind === kind);
+    if (!at.length) continue;
+    if (at.length > 1) return `${at.length} ${OFFICE_MANY[kind]}`;
+    return officeOf(kind, at[0].targetName);
+  }
+  return '';
+}
+
 /** What a Developer sees, in one place: the supplier's people list and the
     estate-wide one both print it, and two lists wording one role two ways is
     how "-" and "Own referrals" came to mean the same thing. */
 export const DEVELOPER_SEES = 'Dev Centre and API (no commission)';
-
-export function describePosition(positions: Position[], showLevel = true, role?: Role | null): string {
-  /* WALK FIXES 2 AND 11. AN OPNDOOR ADMIN HOLDS NO POSITION BECAUSE THEIR
-     ROLE ALREADY GRANTS EVERYTHING, so the absence of one means the opposite
-     of what the line below assumes. Reading it as "Own referrals" told Matt
-     his own account, and every Opndoor invite, that it could see the least
-     of anybody in the product.
-
-     The positions alone cannot answer this: the role is the thing that
-     decides. Optional, so the call sites that have not been updated behave
-     exactly as they did rather than silently changing what a screen says. */
-  if (role === 'superadmin' || role === 'opndoor_manager') return 'Everything';
-  /* A DEVELOPER HOLDS NO POSITION EITHER, and for the same reason: their
-     role grants what they see, so the ladder has nothing to say about them.
-     Reading the absence as "Own referrals" was the same mistake made about
-     an Opndoor admin above -- a developer has no referrals of their own at
-     all, since they cannot create one.
-
-     Matt, 2026-10-01: 'People lists: a Developer's "Sees" reads "Dev Centre
-     and API (no commission)" instead of "-".' The supplier list said "-",
-     this one said "Own referrals", and both read as "almost nothing" for a
-     role that sees the whole supplier's book. ROLE_OPTIONS already notes
-     that about its own description: "Sees the Dev Centre only" read as
-     seeing nothing, which made the role look useless and led to it being
-     handed out as management instead. */
-  if (role === 'developer') return DEVELOPER_SEES;
-  if (!positions.length) return 'Own referrals';
-  for (const kind of LEVELS) {
-    const at = positions.filter((p) => p.kind === kind);
-    if (!at.length) continue;
-    if (at.length > 1) return `${at.length} ${LEVEL_MANY[kind]}`;
-    return showLevel ? `${LEVEL_ONE[kind]}: ${at[0].targetName}` : at[0].targetName;
-  }
-  return 'Own referrals';
-}
 
 /* =====================================================================
    WHAT A PERSON SEES, ON EITHER RAIL, IN A CELL'S WORTH OF WORDS.
@@ -120,6 +148,16 @@ export function agencySees(role: string, kind: ScopeKind | null | undefined): st
   if (role === 'developer') return DEVELOPER_SEES;
   if (role === 'referrer') return 'Own referrals';
   if (role !== 'management') return '-';
+  /* AND MANAGEMENT WITH NO POSITION REACHES NOTHING ON THIS RAIL, which is
+     the one answer worth being careful about: app_may_reach_application_org
+     has no partner-wide arm on our estate, so an unpositioned caller gets
+     zero rows, and a constraint trigger refuses the row in the first place.
+     Saying "The whole agency" for a position that does not exist would be
+     the old defect in its newest costume -- a cell that over-states reach
+     reads as working while telling an agency somebody sees more than they
+     do. The dash is "none of the above", as it is for a role off the
+     ladder. */
+  if (!kind) return '-';
   return kind === 'group' ? 'Every agency in the group' : 'The whole agency';
 }
 
