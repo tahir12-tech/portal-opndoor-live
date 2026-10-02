@@ -255,6 +255,12 @@
 /* The Overview's one-line answers and its warning block. */
 .ph-lede { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
 .ph-warn { display: flex; gap: 10px; align-items: flex-start; }
-.ph-warn > :first-child { color: var(--warn); flex: none; margin-top: 2px; }
+/* AND THE ICON CANNOT GROW. `flex: none` stops it being stretched by the
+   flex line and says nothing about its intrinsic size: an <Icon> with no
+   `size` prop renders an SVG with no width or height, and a browser then
+   gives it the default replaced-element box -- which is how one warning
+   icon came to fill the card and squash its text into a column. The call
+   site passes a size; this is so the next one that forgets cannot. */
+.ph-warn > :first-child { color: var(--warn); flex: none; margin-top: 2px; width: 16px; height: 16px; }
 .ph-warn b { display: block; color: var(--ink); font-size: 14px; }
 .ph-warn .ph-note { margin: 4px 0 8px; }

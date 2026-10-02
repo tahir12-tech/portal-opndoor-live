@@ -325,7 +325,14 @@ export function SupplierSettings({ slug, canEdit, onSaved }: {
               the agents' share within it", which is one of the two deal
               shapes rather than the model. */}
           <p className="ss-sect__note ss-sect__note--tight">
-            Set on the <Link to={`/partners/${encodeURIComponent(slug)}`}>Commission tab</Link>.
+            {/* ?tab=commission, not the bare page. Matt, 2026-10-02: "the
+                'Commission tab' link opens Overview; make it open the
+                Commission tab." It could not do otherwise when it was
+                written -- PartnerHome had no deep link and learned one an
+                hour ago, for Reconciliation's rows. A link that names a
+                tab and lands on another is the "click a number, get a
+                different list" fault in its smallest form. */}
+            Set on the <Link to={`/partners/${encodeURIComponent(slug)}?tab=commission`}>Commission tab</Link>.
           </p>
         </div>
 

@@ -34,6 +34,7 @@ import { supplierDealLine } from '@/data/supplierDealLine';
 import { changeSentence } from '@/data/changeSentence';
 import { StatementRecipients } from '@/components/StatementRecipients';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
+import { possessive } from '@/lib/format';
 import { Icon } from '@/components/ui/Icon';
 import { formatDate } from '@/lib/format';
 import { plural } from '@/lib/plural';
@@ -71,7 +72,14 @@ export function SupplierOverview({ slug, partnerDbId, name, standardTotal, stand
   return (
     <div className="ph-grid">
       <Card>
-        <CardHead title="Commission" sub="What opndoor charges on a referral through this supplier." />
+        {/* WHO PAYS WHOM. Matt, 2026-10-02: "'What opndoor charges on a
+            referral through this supplier' should read 'What opndoor pays
+            this supplier on a referral'." The old line had the money
+            flowing the wrong way: the figure under it is the supplier's
+            commission, which Opndoor OWES. "Charges" describes the fee
+            the tenant pays, which is a different number on a different
+            card. */}
+        <CardHead title="Commission" sub="What opndoor pays this supplier on a referral." />
         <CardBody>
           <p className="ph-lede">
             {supplierDealLine({ commission, agentShare, standardTotal, standardShare })}
@@ -81,7 +89,14 @@ export function SupplierOverview({ slug, partnerDbId, name, standardTotal, stand
       </Card>
 
       <Card>
-        <CardHead title="Who gets the statements" sub={`Where ${name}’s monthly commission statement is sent.`} />
+        {/* `possessive`, not `${name}’s`. Matt, 2026-10-02: "'Kestrel
+            Lettings's' should be 'Kestrel Lettings''. Use the shared
+            possessive helper everywhere a name is made possessive." Most
+            letting agency names end in s, so the hand-built form is wrong
+            more often than it is right, and this is the third screen to
+            get it wrong in two days -- which is what the helper exists to
+            stop. */}
+        <CardHead title="Who gets the statements" sub={`Where ${possessive(name)} monthly commission statement is sent.`} />
         <CardBody style={{ padding: 0 }}>
           <StatementRecipients partnerKey={partnerDbId ?? slug} supplierName={name} />
         </CardBody>
@@ -95,7 +110,18 @@ export function SupplierOverview({ slug, partnerDbId, name, standardTotal, stand
           <CardHead title="Needs attention" />
           <CardBody>
             <div className="ph-warn">
-              <Icon name="alert" />
+              {/* SIZED, like every other warning icon on the estate.
+                  Matt, 2026-10-02: "the warning icon renders at full
+                  card size and squashes the text into a narrow column."
+                  An <Icon> with no `size` renders an SVG with no width
+                  or height, which a flex child with `flex: none` is free
+                  to draw at its intrinsic size -- and an SVG that
+                  carries only a viewBox has none, so the browser gives
+                  it the default replaced-element box. Every other
+                  warning in the portal passes a number; this one did
+                  not. The CSS beside it now constrains it too, so the
+                  next unsized icon cannot break the block. */}
+              <Icon name="alert" size={16} />
               <div>
                 <b>
                   {needEmail.length} {needEmail.length === 1 ? 'agency has' : 'agencies have'} no agency email
