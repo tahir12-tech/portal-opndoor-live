@@ -317,7 +317,7 @@ labels and hints -- while the CSV column headings still read "Guarantor
 fee" and `application.paid` is untouched, which the test asserts on
 purpose so nobody tidies them later.
 
-## THE CONTACT EMAIL RULE, CORRECTED (correction, 2026-10-02, verbatim). THIS REPLACES DECISION 2.
+## THE CONTACT EMAIL RULE, CORRECTED (correction, 2026-10-02, verbatim). **done** (`55b981b`). THIS REPLACES DECISION 2.
 
 > Correction to the contact email rule:
 > - Supplier side (agencies in a supplier's estate): an agency email is required at creation and is the default for all its branches; a branch's own email, if set, overrides it for that branch. Signed deeds go there.
@@ -337,6 +337,52 @@ purpose so nobody tidies them later.
 - "Don't invent or copy addresses" rules out the obvious shortcut of
   backfilling an agency email from a branch's, or from the first person
   on the org.
+
+### WHAT IT CAME TO
+
+**Required on the supplier side, optional on ours.** The four creation
+doors ask the estate after resolving the partner. A BRANCH is never asked
+on either side: Matt's own word is "overrides", and an override is
+optional by definition. Both forms keep the field, still check its shape,
+and create on a blank one.
+
+**The deed now reaches an optional mailbox on our estate**, which it did
+not. `deed_delivery_target` returns the ladder on that rail and its
+second arm only runs when the ladder is EMPTY, so an address set on one
+of our agencies was stored, shown and never written to. GR-FROST-OURS is
+the proof: its branch holds mayfair@frost.example and the deed resolved
+to the referrer alone. A third arm adds it beside the ladder, deduped
+against it. The supplier rail is untouched and still one address.
+
+**The warning changed subject, not just scope.** It asked "is any deed
+stranded"; it now asks "has this agency got the default", in a supplier's
+estate only.
+
+> **Worth knowing, because it looks like a regression and is not.**
+> Kestrel Lettings is reported again. It is the shape you complained
+> about yesterday: no agency address, a mailbox on each of its two
+> branches. Under the old rule that was a false alarm, because nothing
+> was stranded. Under yours it is the thing to fix, because the agency
+> email is the default and the next office added under Kestrel would
+> inherit nothing. So the row no longer says "a deed cannot be issued",
+> which was the untrue part. It says **"No agency email · nothing
+> stranded today, but the next office would inherit nothing"**, and the
+> genuinely stranded case says how many branches instead. If you would
+> rather Kestrel stayed quiet until something is actually stranded, it is
+> one condition in `agencyContactState`.
+
+**Where it shows.** The agency row and the page banner on the Agencies
+screen, the same row on the supplier's page under admin, and a new
+Reconciliation tab, "Supplier agencies with no email", reading
+`supplier_agencies_without_an_email` (staff-only). On dev that tab lists
+Kestrel Lettings and Kestrel's Frost Partnership, each with every office
+covered. Nothing of ours appears anywhere, and no address is suggested
+for promotion.
+
+**This also withdraws the list I gave you earlier today.** Regent's
+Lettings and Harborview Lettings were reported as having no contact
+anywhere. They are Opndoor's own, so under the corrected rule they are
+not missing anything and nothing warns about them.
 
 ### For Matt in the morning
 
