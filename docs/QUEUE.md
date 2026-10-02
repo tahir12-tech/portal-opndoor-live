@@ -473,6 +473,78 @@ not missing anything and nothing warns about them.
 - Item 4 is `orgLabel`'s "-" being printed for an address rather than for
   a name. An empty address is not a placeholder org.
 
+## ADD AGENCY AND ADD BRANCH ON THE SUPPLIER'S TAB (instruction, 2026-10-02, verbatim).
+
+> Also on the supplier's Agencies tab: an "Add agency" button (name, address, agency email required) and, on each agency, "Add branch" (name, address, email optional; it uses the agency email if blank). Both create the agency or branch in this supplier's estate, never in Opndoor's. Deploy to dev and check there.
+
+- The RPCs already enforce the half that matters: `admin_add_agency`
+  requires the email in a supplier's estate and `admin_add_branch` does
+  not require one at all. What is missing is the way in from this tab,
+  and the partner it creates under: `admin_add_agency` takes
+  `p_partner_slug` and this must pass the supplier's, not fall back to
+  `app_partner()`.
+
+## THE SUPPLIER SETTINGS TAB, THREE THINGS (instruction, 2026-10-02, verbatim).
+
+> Supplier Settings tab (admin):
+> 1. Capabilities: replace "an agency is portal only, a CRM is API only, and some are both" with "Some suppliers refer through the portal, some through the API, and some use both."
+> 2. Commission section: replace the description with "Set on the Commission tab." and a link.
+> 3. Recent changes: hide old entries where nothing actually changed (e.g. "Live from changed from August to August 2026").
+
+- Item 3 is not a wording fix: those rows exist because the two sides were
+  FORMATTED differently before being compared, so a no-op write was
+  recorded as a change. Hiding them is what he asked for; whatever still
+  writes them has to stop too, or the list refills.
+
+## THE SUPPLIER COMMISSION TAB, WORDING (instruction, 2026-10-02, verbatim).
+
+> Supplier Commission tab: under "Kestrel Lettings and each agency, separately", replace "Each agency gets its own statement from opndoor, and Kestrel Lettings gets its own" with "opndoor pays each agency its share directly. All statements still go to Kestrel Lettings." Check the confirmation dialog for this switch says the same. In "Who gets the statements", replace "On this rail only Opndoor can change that" with "Only Opndoor can change that." Deploy to dev and check there.
+
+- The old sentence is now FALSE as well as unclear, which is why it has
+  to change: 20261007410000 stopped sending a statement to a
+  supplier-estate agency at all. The new wording is the behaviour.
+
+## THE AGENCIES' % EDITOR NEEDS THE SAME WARNING (bug, 2026-10-02, verbatim).
+
+> The agencies' % editor (supplier Commission tab, default and bespoke deals) saved a tenant step of "1 to 10 tenants" with no warning. Add the same warning the main deal editor has: before saving any tenant step above 4 tenants, ask "Did you mean referrals sent? A tenancy rarely has more than 4 tenants." with options to switch to "% grows with referrals sent" or save anyway. Deploy to dev and check there.
+
+## THE ADMIN AGENCIES PAGE, THREE THINGS (instruction, 2026-10-02, verbatim).
+
+> Admin Agencies page:
+> 1. It says "6 agencies" but only shows Frost Partnership, Regent's Lettings, Harbour Lets and Harborview Lettings, even with Expand all. Northgate Lettings and Southbank Residential are missing. Find out why and fix it, or tell me if they've been moved to a supplier's estate.
+> 2. Every link from an agency or branch to Applications filters by name (e.g. ?agency=Frost Partnership), so with two Frosts in different estates it can show the other one's applications. Links must filter by the agency's or branch's id, everywhere.
+> 3. Frost Partnership in Opndoor's estate is inside Meridian Property Group. Tell me if that's just the test setup; if so, move it out so it stands alone.
+> Deploy to dev and check there.
+
+- Item 1 is a question before it is a fix: the count and the tree
+  disagree, so one of them is reading a different set. Neither agency has
+  moved estate -- both are under `opndoor-agents` on dev -- so the answer
+  is in the page.
+- Item 2 is the last piece of separate estates that was left as a known
+  gap: a name is not an identity any more.
+- Item 3: the Frost fixture did not set a group. Something else put it in
+  one, and that is worth knowing before moving it.
+
+## THE AGENCY PAGE, THREE THINGS (instruction, 2026-10-02, verbatim).
+
+> Agency page (admin, e.g. New Independent):
+> 1. When the only person who could receive the deed has a pending invite, say "Independent Director hasn't accepted their invite yet; deeds will reach them once they do" instead of "No one at this agency can receive the deed".
+> 2. Recent changes: "invited set to management" should read "Independent Director invited as Director", using agency level names (Director, Manager, Negotiator) everywhere on agency pages.
+> 3. The "Set rate" button beside the agency name: if commission is set on the Commission tab, remove it so there's one place to set commission.
+> Deploy to dev and check there.
+
+## HOW ARE THIS AGENCY'S TENANTS CHECKED? (instruction, 2026-10-02, verbatim).
+
+> Agency page, the "Referrals from this agency" dropdown: replace it with a clear choice titled "How are this agency's tenants checked?" with two options:
+> - "Opndoor checks eligibility" (the tenant completes eligibility before paying)
+> - "Agency has already referenced them" (the tenant goes straight to payment)
+> Remove the separate "Follow the default" option; new agencies start on "Opndoor checks eligibility". Changing it asks for confirmation and applies to new referrals only, and is recorded in Recent changes. Deploy to dev and check there.
+
+- "Remove the separate 'Follow the default' option" is a DATA change as
+  well as a control change: `agencies.referencing_mode` is nullable today
+  and null means inherit. Two options means it stops being nullable, and
+  the existing nulls have to become something.
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
