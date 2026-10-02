@@ -559,6 +559,35 @@ not missing anything and nothing warns about them.
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
 
+- **The Applications tab counts already follow the filters, and "All" is
+  the word that is wrong.** Measured on dev before changing anything.
+  Every application there, by partner and status:
+
+  | Partner | Statuses |
+  |---|---|
+  | opndoor-direct | 1 deed, **8 draft**, **1 expired** |
+  | opndoor-agents | 5 deed, 14 paid, 2 sent, 7 expired |
+  | kestrel-lettings | 1 paid, 1 sent |
+
+  So under Origin: Direct the numbers you saw are 8 DIRECT drafts, 4 of
+  those unpaid, and 1 DIRECT expired referral. None is another rail's
+  row, and `countByStatus` is given the same `origin` the list is. I
+  pinned that in `everyTabCountFollowsTheFilters.test.ts` (8 assertions,
+  including those three buckets by name) so it cannot quietly stop being
+  true.
+
+  What makes it read wrong is the tab called **All**: it is the
+  operational funnel, sent + paid + deed, and draft, awaiting decision,
+  declined, withdrawn and expired are each counted on their own tab and
+  deliberately left out of it. "All 1" beside "In progress 8" is two
+  numbers that cannot both be a total, so the smaller one looks filtered
+  and the larger one does not.
+
+  **Your call, and I have not guessed:** rename the tab to what it counts
+  (it is the live funnel), or make All mean all and give the funnel its
+  own tab. The second changes what "Showing X of Y" denominates, so it is
+  the bigger of the two.
+
 - *(The two estate questions here were answered on 2026-10-02 and are
   built; see "WHAT EACH ONE CAME TO" above. One reading remains mine
   rather than Matt's and is called out there: a new BRANCH needs a

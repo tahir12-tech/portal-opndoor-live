@@ -5,7 +5,8 @@
    ===================================================================== */
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { reconciliationPendingCount, awaitingDecisionCount, loadAgencyMatchQueue } from '@/data';
+import { reconciliationPendingCount, awaitingDecisionCount, loadAgencyMatchQueue, getAgencies, ALL_PARTNERS } from '@/data';
+import { agenciesNeedingAnEmail } from '@/data/deedContact';
 import { useSession } from '@/session/SessionContext';
 import { NAV, NAV_CAPABILITY } from '@/constants/nav';
 import { portalLabel } from '@/data/capabilities';
@@ -36,7 +37,18 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       .catch(() => { if (!cancelled) setMatchCount(0); });
     return () => { cancelled = true; };
   }, [role, dataVersion]);
-  const reconcileBadge = reconciliationPendingCount() + matchCount;
+  /* AND THE AGENCIES THAT NEED AN EMAIL, which are the third kind of work
+     on that page. Matt, 2026-10-02, about the tile on Home: "Include
+     those in the Home count and say what they are." The badge is the
+     same count one surface over, and a badge that disagrees with the
+     tile beside it is worse than either being wrong alone -- it was 7
+     against the tile's 8 the moment Home was fixed.
+
+     One predicate, `agenciesNeedingAnEmail`, shared with Home, the
+     Agencies screen, the supplier's page and the SQL reader behind the
+     Reconciliation tab, so the four cannot count different rows. */
+  const reconcileBadge = reconciliationPendingCount() + matchCount
+    + agenciesNeedingAnEmail(getAgencies(ALL_PARTNERS)).length;
   const decisionsBadge = awaitingDecisionCount();
   const [menuOpen, setMenuOpen] = useState(false);
   const footRef = useRef<HTMLDivElement>(null);
