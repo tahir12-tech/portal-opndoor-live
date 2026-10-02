@@ -832,7 +832,7 @@ you asked for. Say the word and the tenant gets their own wording.
   now what he is asking for. It is a migration, a backfill, and then the
   same sweep again on the other side.
 
-## RECONCILIATION COUNTS WHAT IS WAITING (instruction, 2026-10-02, verbatim).
+## RECONCILIATION COUNTS WHAT IS WAITING (instruction, 2026-10-02, verbatim). **all three done** (`d6f8422`).
 
 > Reconciliation:
 > 1. The "All" tab must include every item from every tab; it currently says "Nothing to check" while "Supplier agencies with no email" has 2 and "Not in network" has 1. The top three tiles must also count what's actually waiting.
