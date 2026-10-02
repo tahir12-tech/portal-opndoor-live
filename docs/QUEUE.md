@@ -680,6 +680,44 @@ screens an admin can no longer open as of item 2.
   The activity feed writes its rows from stripe-webhook, so old rows keep
   the old words whatever the sender says next.
 
+## THE PERFORMANCE EXPORT, FIVE THINGS (instruction, 2026-10-02, verbatim).
+
+> Performance export (Export summary, admin):
+> 1. Remove the hard-coded percentages from labels ("Partner commission (2% of…)", "Agent commission (15% of…)"). Rates vary by deal; label them "Supplier commission (net of refunds)" and "Agent commission (net of refunds)".
+> 2. For All time, show "All time" with the date of the first referral to today, not "01/09/2024 to 31/12/2051".
+> 3. Breakdown by branch shows £0 agent commission on every branch while the agency rows have commission. Branch rows must carry the commission earned by their own referrals, and add up to the agency row.
+> 4. Say "Supplier", not "Partner", in every heading and label (column headings a partner's code may read can stay).
+> 5. Label supplier-estate agencies and branches with their supplier, e.g. "Frost Partnership (via Kestrel Lettings)", as on screen.
+> Check the other exports (Application export, Expiries, statements) for the same faults. Deploy to dev and check there.
+
+- Item 5 is the same helper as item 1 of "ADMIN REPORTING" above, and the
+  two must share it: "as on screen" is the instruction.
+- Item 3 is the only one that is not wording. £0 on every branch beside a
+  non-zero agency row means the branch aggregation is not reading the
+  commission lines at all, and "add up to the agency row" is the test.
+
+## THE APPLICATION EXPORT, SIX THINGS (instruction, 2026-10-02, verbatim).
+
+> Application export (admin):
+> 1. GR-20846 shows agent commission £265.39 here and £265.38 on Regent's commission statement. Every export, statement and screen must take commission from the same stored amount, never recalculate and round differently. Find every place commission is recomputed rather than read, fix them, and add a test that the export and statement agree to the penny for every application.
+> 2. Direct signups show "Unattached" for Agency and Branch; show blank, as on screen.
+> 3. Unfinished applications: leave "Guarantor fee charged" blank and Payment state "Not yet at payment" until the tenant actually reaches payment.
+> 4. Fee basis: show "1 month" for one month's rent, and weeks only where the deal is in weeks (e.g. "5 weeks").
+> 5. Replace "Commission rate" with two columns, "Supplier commission rate" and "Agent commission rate".
+> 6. Share of tenancy: show 100% for every single-tenant application, never blank.
+> Plus the header fixes from the summary export (no made-up end date, "Supplier" not "Partner"). Deploy to dev and check there.
+
+- Item 1 is the big one and is not an export bug: a penny's disagreement
+  between two surfaces means at least one of them is RECOMPUTING from a
+  rate instead of reading `application_commission_lines`. The instruction
+  is explicit that the sweep is "every place commission is recomputed
+  rather than read", so the fix is a hunt and the test is per
+  application, not per screen.
+- Item 5 renames a COLUMN HEADING, which the other instructions have
+  deliberately protected ("column headings a partner's code may read can
+  stay"). This one says to replace it, and it is adding a column as well
+  as renaming, so it is a deliberate exception rather than a conflict.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
