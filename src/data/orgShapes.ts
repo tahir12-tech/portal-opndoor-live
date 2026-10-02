@@ -23,12 +23,14 @@ export interface AgencySpec {
   /** Empty is allowed: a skeleton agency whose manager adds branches on first login. */
   branches: BranchSpec[];
   agentRate?: number | null;
-  /** REQUIRED since 2026-10-02. Matt: "A contact email is required when any
-      agency or branch is created, in any estate, so one always exists."
-      Every office under the agency inherits it, so the offices in
-      `branches` do not each carry one: see admin_add_branch, which refuses
-      an office only when its agency has nothing to fall back on. */
-  contactEmail: string;
+  /** OPTIONAL. Matt, 2026-10-02, correcting the rule he gave an hour
+      earlier: "Opndoor's own agencies (like Regent): no email required
+      ... leave it blank and nothing is missing." Every office under the
+      agency inherits it where there is one, which is why the offices in
+      `branches` do not each carry one. This builder only creates on our
+      own estate; a SUPPLIER's agency still needs one, and the RPC is what
+      refuses it. */
+  contactEmail?: string;
   contactName?: string;
   contactPhone?: string;
 }

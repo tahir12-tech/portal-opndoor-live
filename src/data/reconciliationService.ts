@@ -159,6 +159,60 @@ export interface AgencyMatchRow {
   resolvedBranchName: string | null;
 }
 
+/* ---------------------------------------------------------------------------
+   AGENCIES IN A SUPPLIER'S ESTATE WITH NO AGENCY EMAIL.
+
+   Matt, 2026-10-02: "For supplier-estate agencies with no agency email,
+   show a clear warning on the supplier's Agencies tab and list them on
+   Reconciliation so Opndoor can add one. No warnings for Opndoor's own
+   agencies without an email."
+
+   THE AGENCY ADDRESS IS THE SUBJECT, not "can a deed reach anybody". The
+   agency email is the default every branch inherits, so an agency without
+   one has no default and the next office added under it inherits nothing.
+   That is why an agency whose branches each hold a mailbox of their own is
+   on this list: nothing is stranded today, and the default is still
+   missing. `branchesCovered` says which case a row is, so the screen can
+   be honest about it rather than shouting at both the same way.
+
+   A LIST, like Not in network: there is no button, because the fix is to
+   open that agency and add a contact, which is a different screen's job.
+   --------------------------------------------------------------------------- */
+export interface AgencyWithoutAnEmail {
+  agencyId: string;
+  agencyName: string;
+  partnerName: string;
+  branches: number;
+  /** How many of those branches hold an address of their own. Equal to
+      `branches` means nothing is stranded today; less means some office
+      has nowhere at all to send a deed. */
+  branchesCovered: number;
+}
+
+/* The mock book carries both shapes, for the same reason the not-in-network
+   one does: one agency fully covered per branch and one genuinely stranded,
+   so the two renderings both ship having been looked at. */
+const MOCK_NO_AGENCY_EMAIL: AgencyWithoutAnEmail[] = [
+  { agencyId: 'mock-ag-1', agencyName: 'Kestrel Lettings', partnerName: 'Kestrel Lettings', branches: 2, branchesCovered: 2 },
+  { agencyId: 'mock-ag-2', agencyName: 'Harbourfoot Residential', partnerName: 'Kestrel Lettings', branches: 2, branchesCovered: 1 },
+];
+
+export async function loadSupplierAgenciesWithoutAnEmail(): Promise<AgencyWithoutAnEmail[]> {
+  if (SUPABASE_ENABLED) {
+    const { data, error } = await sb().rpc('supplier_agencies_without_an_email');
+    if (error) throw new Error(error.message);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((r: any) => ({
+      agencyId: String(r.agency_id),
+      agencyName: r.agency_name || 'An agency',
+      partnerName: r.partner_name || '',
+      branches: Number(r.branches) || 0,
+      branchesCovered: Number(r.branches_covered) || 0,
+    }));
+  }
+  return MOCK_NO_AGENCY_EMAIL.slice();
+}
+
 export interface MatchBranch { id: string; name: string; area: string | null }
 
 export async function loadAgencyMatchQueue(): Promise<AgencyMatchRow[]> {

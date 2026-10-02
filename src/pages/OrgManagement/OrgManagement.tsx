@@ -629,14 +629,14 @@ import { Link } from 'react-router-dom';
 import { getOrgDeedReadiness, type DeedReadiness } from '@/data/positionsService';
 import {
   ALL_PARTNERS, addContactLive, createBranchLive, effectivePrimary, findAgency,
-  getAgencies, getGroups, getPartner, getRatesFor, createAgencyGroup, maySeeCommission, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
+  getAgencies, getGroups, getRatesFor, createAgencyGroup, maySeeCommission, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
   type Agency, type AgencyGroup, type AgentContact, type Branch,
 } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
-import { agencyContactState, branchesWithNoDeedContact } from '@/data/deedContact';
+import { agenciesNeedingAnEmail, agencyContactState, branchesWithNoDeedContact } from '@/data/deedContact';
 import { partyIsSupplier } from '@/data/capabilities';
 import { Icon } from '@/components/ui/Icon';
 import { Eyebrow } from '@/components/ui/Eyebrow';
@@ -731,27 +731,31 @@ function ContactSummary({ agency, branch, canManage, onManage, ready }: { agency
      Measured on dev: that is exactly Kestrel Lettings, which is the screen
      Matt was looking at. `agencyContactState` is the Overview's rule,
      lifted out so the two cannot answer differently again. */
+  /* AND SINCE 2026-10-02 THE SUBJECT IS THE AGENCY ADDRESS. Matt: "an
+     agency email is required at creation and is the default for all its
+     branches ... For supplier-estate agencies with no agency email, show
+     a clear warning on the supplier's Agencies tab ... No warnings for
+     Opndoor's own agencies without an email."
+
+     So this row says nothing at all for one of ours -- `agencyContactState`
+     answers 'quiet' there -- and for a supplier's agency without the
+     default it says what is missing and what to do, rather than the older
+     "a deed has nowhere to go", which is not what is wrong when every
+     branch holds an address of its own. The branch count is kept where it
+     is non-zero, because that IS the sharp end when it happens. */
   if (!branch && ready === undefined) {
     const state = agencyContactState(agency);
-    if (state.kind === 'per-branch') {
-      return (
-        <div className="contact-line contact-line--perbranch">
-          <Icon name="send" />
-          <span>Contacts are set per branch</span>
-          {canManage ? (
-            <button className="contact-manage" onClick={(e) => { e.stopPropagation(); onManage(); }}>Manage</button>
-          ) : null}
-        </div>
-      );
-    }
-    if (state.kind === 'bare') {
+    if (state.kind === 'needs-email') {
       return (
         <div className="contact-line contact-line--none">
           <Icon name="alert" />
           <span className="cl-none">
-            <b>No agent contact on {state.bare} of {state.branches} {plural(state.branches, 'branch')}.</b>
-            {' '}A deed for those branches has nowhere to go, and an application against one will
-            fail after the tenant has paid.
+            <b>No agency email.</b>{' '}
+            {state.bare > 0
+              ? <>A signed deed for {state.bare} of {state.branches} {plural(state.branches, 'branch')} has
+                  nowhere to go, and an application against one will fail after the tenant has paid.</>
+              : <>Its branches each have their own, so nothing is stranded today, but the next office
+                  added here would inherit nothing. Add one.</>}
           </span>
           {canManage ? (
             <button className="contact-manage" onClick={(e) => { e.stopPropagation(); onManage(); }}>Manage</button>
@@ -763,6 +767,14 @@ function ContactSummary({ agency, branch, canManage, onManage, ready }: { agency
   const manageBtn = canManage ? (
     <button className="contact-manage" onClick={(e) => { e.stopPropagation(); onManage(); }}>Manage</button>
   ) : null;
+  /* ON OUR OWN ESTATE A MISSING ADDRESS IS NOT A WARNING, whatever the
+     readiness lookup has or has not answered yet. Matt, 2026-10-02: "No
+     warnings for Opndoor's own agencies without an email." The `ready`
+     branch below already tells the two rails apart when readiness has
+     loaded; this says so from the ESTATE, which is known from the row
+     itself, so a slow or failed lookup cannot show a supplier's warning
+     on one of ours. */
+  const ourOwn = !partyIsSupplier(agency.partner ?? '');
   const contactLine = ep.contact ? (
     <div className="contact-line">
       <Icon name="mail" />
@@ -793,9 +805,13 @@ function ContactSummary({ agency, branch, canManage, onManage, ready }: { agency
   }
 
   if (!ep.contact) {
-    // DEFECTS.md 6. This is not a cosmetic gap: a branch with no resolvable
-    // primary contact CANNOT ISSUE A DEED, and the failure happens after the
-    // tenant has paid. It used to read as a neutral "not filled in yet".
+    // Nothing to say on our own estate: the deed goes to the referrer and
+    // the ticked people, and this address is an optional extra.
+    if (ourOwn) return null;
+    // DEFECTS.md 6. This is not a cosmetic gap: a branch in a SUPPLIER's
+    // estate with no resolvable primary contact CANNOT ISSUE A DEED, and
+    // the failure happens after the tenant has paid. It used to read as a
+    // neutral "not filled in yet".
     return (
       <div className="contact-line contact-line--none">
         <Icon name="alert" />
@@ -977,8 +993,26 @@ export function OrgManagement() {
     // referencing_mode, which was right for an agency opting INTO eligibility and
     // wrong for one opting out: Regent reference their own tenants and are still
     // one of ours, with people to deliver to and no mailbox to warn about.
-    pool.filter((a) => getPartner(a.partner)?.referencingMode !== 'opndoor_referenced'),
+    /* `partyIsSupplier`, not "its partner is not agency-mode". The older
+       test read the partner RECORD, and `opndoor-agents` is a house slug
+       that may not be in the hydrated list at all -- in which case every
+       agency of ours fell through it and was counted. The predicate knows
+       a house slug without needing a record. */
+    pool.filter((a) => partyIsSupplier(a.partner ?? '')),
   ), [pool]);
+
+  /* AND THE AGENCIES WITH NO DEFAULT ADDRESS. Matt, 2026-10-02: "For
+     supplier-estate agencies with no agency email, show a clear warning on
+     the supplier's Agencies tab and list them on Reconciliation so Opndoor
+     can add one. No warnings for Opndoor's own agencies without an email."
+
+     A DIFFERENT SET FROM `deedBlocked`, and the two overlap rather than
+     nest. An agency whose branches each hold their own address strands
+     nothing today and still has no default for the next office; a branch
+     with nothing anywhere is in both. `agenciesNeedingAnEmail` asks the
+     estate itself, so no filter is needed here and an admin looking at
+     Opndoor's own list gets an empty array. */
+  const needEmail = useMemo(() => agenciesNeedingAnEmail(pool), [pool]);
 
   // Resolve the contacts-modal owner fresh each render (reflects mutations + re-hydration).
   const ctAgency = ctOpen ? findAgency(ctAgencyName) ?? null : null;
@@ -1438,6 +1472,25 @@ function requestCloseContacts() {
       {/* DEFECTS.md 6. Visible before an application fails, which is the whole
           point: the condition was previously only discoverable by opening each
           branch, or by a tenant paying for a deed that could not be issued. */}
+      {needEmail.length > 0 && (
+        <div className="org-blocked">
+          <Icon name="alert" />
+          <div>
+            <strong>
+              {needEmail.length} {needEmail.length === 1 ? 'agency has' : 'agencies have'} no agency email
+            </strong>
+            <p>
+              An agency that comes through a supplier needs one: it is the address a signed deed goes to,
+              and the default every office of theirs inherits. Add one on each agency below.
+            </p>
+            <p className="org-blocked__list">
+              {needEmail.slice(0, 8).map((a) => a.name).join(', ')}
+              {needEmail.length > 8 && ` and ${needEmail.length - 8} more`}
+            </p>
+          </div>
+        </div>
+      )}
+
       {deedBlocked.length > 0 && (
         <div className="org-blocked">
           <Icon name="alert" />

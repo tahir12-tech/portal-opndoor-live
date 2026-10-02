@@ -80,11 +80,14 @@ describe('Create is never a dead button', () => {
        should not make the reader discover them one at a time. */
     expect(summary!.textContent).toMatch(/Give the agency a name/);
     expect(summary!.textContent).toMatch(/Give the agency an address/);
-    /* THREE SINCE 2026-10-02, not two: Matt required a contact email on
-       every agency at creation ("so one always exists"), so an empty form
-       is now short of a name, an address and somewhere to send a deed. */
-    expect(summary!.textContent).toMatch(/3 things are missing/);
-    expect(summary!.textContent).toMatch(/contact email/i);
+    /* BACK TO TWO, later the same day. Matt's correction: "Opndoor's own
+       agencies (like Regent): no email required ... leave it blank and
+       nothing is missing." This screen only creates on our own estate, so
+       the contact field is optional and an empty form is short of a name
+       and an address, as it was before. The field is still there and its
+       SHAPE is still checked -- see the two cases below. */
+    expect(summary!.textContent).toMatch(/2 things are missing/);
+    expect(summary!.textContent).not.toMatch(/contact email/i);
   });
 
   /* THE REPORTED CASE, which used to be a dead button and silence. */
@@ -99,6 +102,33 @@ describe('Create is never a dead button', () => {
     /* AND BESIDE THE FIELD TOO. Field renders `error` as .field-error. */
     const errs = [...dialog().querySelectorAll('.field-error')].map((e) => e.textContent);
     expect(errs.some((t) => /address/i.test(t ?? ''))).toBe(true);
+  });
+
+  /* THE OPTIONAL FIELD IS STILL CHECKED. A mistyped address that is saved
+     is worse than one that is refused, so the SHAPE is a problem and an
+     empty one is not. */
+  it('but a mistyped contact email is still a reason, though it is optional', async () => {
+    const spy = vi.spyOn(shapes, 'createOrgShape');
+    await independentForm();
+    await type('ac-name-0', 'Northgate Lettings');
+    await type('ac-addr-0', '14 Northgate, Chester');
+    await type('ac-email-0', 'not-an-email');
+    await act(async () => { fireEvent.click(btn('Create')!); });
+    expect(spy).not.toHaveBeenCalled();
+    expect(dialog().querySelector('.ac-problems')!.textContent).toMatch(/not an email address/i);
+  });
+
+  /* AND A BLANK ONE CREATES, which is "leave it blank and nothing is
+     missing" asserted on the screen that says it. */
+  it('and a blank one creates, because nothing is missing', async () => {
+    const spy = vi.spyOn(shapes, 'createOrgShape')
+      .mockResolvedValue({ agencyIds: ['a1'], branchIds: ['b1'], groupId: undefined } as never);
+    await independentForm();
+    await type('ac-name-0', 'Northgate Lettings');
+    await type('ac-addr-0', '14 Northgate, Chester');
+    await act(async () => { fireEvent.click(btn('Create')!); });
+    expect(spy).toHaveBeenCalled();
+    expect(spy.mock.calls[0][0].agencies[0].contactEmail).toBeUndefined();
   });
 
   it('and says nothing before the reader has pressed anything', async () => {

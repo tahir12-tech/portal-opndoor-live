@@ -95,27 +95,36 @@ function ContactLine({ agency, branch }: { agency: Agency; branch?: Branch }) {
                              warning is to send somebody to fix those.
      none, no branches       warn. There is nothing underneath to cover it.
    =========================================================================== */
+/* WHAT THIS AGENCY'S ROW SAYS ABOUT ITS ADDRESS.
+ *
+ * REWRITTEN 2026-10-02 onto the shared predicate. Matt: "an agency email
+ * is required at creation and is the default for all its branches ... For
+ * supplier-estate agencies with no agency email, show a clear warning on
+ * the supplier's Agencies tab and list them on Reconciliation so Opndoor
+ * can add one."
+ *
+ * So the subject is the AGENCY address, not "is any deed stranded". An
+ * agency whose offices each hold their own is still missing the default,
+ * and the row says which of the two cases it is rather than treating them
+ * alike. `agencyContactState` is the one place that decides, shared with
+ * the Agencies screen, so this page and that one cannot answer
+ * differently -- which is the fault its own history records.
+ */
 function AgencyContactLine({ agency }: { agency: Agency }) {
-  const own = effectivePrimary(agency, null);
-  if (own.contact) return <ContactLine agency={agency} />;
-
-  const branches = agency.branches ?? [];
-  if (branches.length === 0) return <ContactLine agency={agency} />;
-
-  const bare = branches.filter((b) => !effectivePrimary(agency, b).contact);
-  if (bare.length === 0) {
-    return (
-      <span className="ph-contact ph-contact--perbranch" title="Each branch below has its own agent contact.">
-        <Icon name="send" size={12} /> Contacts are set per branch
-      </span>
-    );
-  }
+  const state = agencyContactState(agency);
+  if (state.kind !== 'needs-email') return <ContactLine agency={agency} />;
+  const stranded = state.bare > 0;
   return (
     <span
       className="ph-contact ph-contact--none"
-      title="An executed deed for these branches has nowhere to go until a contact is set."
+      title={stranded
+        ? 'An executed deed for those branches has nowhere to go until a contact is set.'
+        : 'Every branch has its own address, so nothing is stranded. The next one added would inherit nothing.'}
     >
-      No agent contact on {bare.length} of {branches.length} {plural(branches.length, 'branch')}
+      No agency email
+      {stranded
+        ? <> · {state.bare} of {state.branches} {plural(state.branches, 'branch')} cannot be sent a deed</>
+        : <> · nothing stranded today, but the next office would inherit nothing</>}
     </span>
   );
 }
@@ -127,6 +136,7 @@ const PH_STATUS_LABEL: Record<Status, string> = {
 const PH_STATUS_ST: Partial<Record<Status, string>> = {
   referencing: 'st-wait', sent: 'st-live', paid: 'st-live', deed: 'st-ok',
 };
+import { agencyContactState } from '@/data/deedContact';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions } from '@/components/people/PersonActions';
 import { useToast } from '@/components/ui/Toast';

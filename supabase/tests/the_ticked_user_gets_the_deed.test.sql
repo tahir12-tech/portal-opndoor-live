@@ -20,9 +20,20 @@
 -- other two plural: a supplier referral has one branch contact and a direct
 -- tenant has one nominated contact, and inventing a list for them would be
 -- the same mistake in the other direction.
+--
+-- AND SINCE 2026-10-02 THE AGENCY RAIL CARRIES ONE MORE. Matt: "The agency
+-- or a branch can optionally add an email that ALSO receives the deed;
+-- leave it blank and nothing is missing." So on our own estate the deed's
+-- recipients are the ladder PLUS that mailbox where somebody has set one,
+-- which makes the deed a superset of the list every other notification
+-- uses rather than the same list. That is the one place the sentence at
+-- the top of this file is now narrower than it was, and the counts below
+-- are the only thing that changed: this agency's fixture has a mailbox
+-- (`agencydesk@t.test`), so every agency-rail count here is one higher.
+-- The supplier and direct rails are untouched, and still singular.
 
 begin;
-select plan(13);
+select plan(16);
 
 -- ===========================================================================
 -- ONE AGENCY ON THE HOUSE PARTNER, A SUPPLIER, AND A DIRECT TENANT
@@ -101,11 +112,20 @@ values ('94000000-0000-0000-0000-00000000e003','letting_agent','Doras Own Agents
 -- ===========================================================================
 -- BEFORE THE TICK: the referrer, and only the referrer
 -- ===========================================================================
-select is((select count(*)::int from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001')), 1,
-  'with nobody ticked, the agency deed resolves to one person');
-select is((select t.email from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001') t),
+select is((select count(*)::int from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001')), 2,
+  'with nobody ticked, the agency deed resolves to the sender and the agency mailbox');
+select is((select t.email from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001') t
+            where t.source = 'referrer'),
   'zzz.tick.neg@t.test',
-  'and that person is the Negotiator who sent it');
+  'and the person on it is the Negotiator who sent it');
+/* THE SECOND ONE IS THE OPTIONAL MAILBOX, which this agency happens to
+   have. Named here so the count above is not a number somebody has to
+   work out, and so that removing the arm shows up as two failures rather
+   than one off-by-one. */
+select is((select t.email from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001') t
+            where t.source = 'branch_contact'),
+  'agencydesk@t.test',
+  'and the other is the agency''s own address, which also receives it');
 
 -- ===========================================================================
 -- TICK THE DIRECTOR, whose agency position covers the referral
@@ -115,8 +135,9 @@ update public.users set receives_notifications = true
  where id in ('94000000-0000-0000-0000-00000000c001', '94000000-0000-0000-0000-00000000c003');
 select set_config('app.setting_notifications_tick', 'off', true);
 
--- THE ASSERTION THE WHOLE FILE IS FOR. Two rows, not one.
-select is((select count(*)::int from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001')), 2,
+-- THE ASSERTION THE WHOLE FILE IS FOR. More rows, not one. Three now: the
+-- sender, the ticked Director, and the agency mailbox.
+select is((select count(*)::int from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001')), 3,
   'ticking a Director whose position covers the referral puts them on the deed');
 select ok(exists (select 1 from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001') t
                    where t.email = 'zzz.tick.dir@t.test'),
@@ -135,12 +156,22 @@ select ok(not exists (select 1 from public.deed_delivery_target('94000000-0000-0
                        where t.email = 'zzz.tick.other@t.test'),
   'a ticked Director at another agency is not on it, because their position does not cover the referral');
 
--- AND THE SAME LIST THE OTHER NOTIFICATIONS USE. If these two ever disagree,
--- the deed is following a different rule from the reminder again.
+/* AND THE SAME PEOPLE THE OTHER NOTIFICATIONS REACH, PLUS THE MAILBOX.
+   The original claim was equality, and it held until the agency address
+   was allowed to receive the deed as well. Equality is still the right
+   test of the PEOPLE half -- if those two ever disagree the deed is
+   following a different rule from the reminder again -- so it is asked of
+   the ladder rows, and the extra row is named rather than absorbed into a
+   looser comparison. */
 select is(
-  (select count(*)::int from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001')),
+  (select count(*)::int from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001') t
+    where t.source in ('referrer', 'copy')),
   (select count(*)::int from public.agency_notification_recipients('94000000-0000-0000-0000-00000000e001')),
-  'the deed goes to exactly the people every other per-application notification goes to');
+  'the deed reaches exactly the people every other per-application notification reaches');
+select is(
+  (select count(*)::int from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001') t
+    where t.source = 'branch_contact'),
+  1, 'and one address besides, which only the deed goes to');
 
 -- ===========================================================================
 -- THE OTHER TWO RAILS STAY SINGULAR
@@ -159,13 +190,26 @@ select is((select t.email from public.deed_delivery_target('94000000-0000-0000-0
 -- ===========================================================================
 -- THE FALLBACK IS UNCHANGED WHEN THE REFERRER IS DEACTIVATED
 -- ===========================================================================
--- Deactivating the sender must leave the ticked Director on it, not fall past
--- them to the branch mailbox. This is the rung order, unchanged by the fix.
+/* Deactivating the sender must leave the ticked Director on it, not fall
+   PAST them to the branch mailbox. That is the rung order, and it is
+   unchanged.
+
+   WHAT CHANGED IS WHAT "and not to the branch mailbox" MEANT. It meant
+   two things at once: that the mailbox does not REPLACE the ladder, and
+   that it is not on the deed at all. The first is the rung order and
+   still holds; the second stopped being true on 2026-10-02, when Matt
+   made the agency address a recipient as well. So the case is kept and
+   its expectation widened by exactly one row -- the Director is still
+   there, which is the thing that would have broken. */
 update public.users set status = 'deactivated' where id = '94000000-0000-0000-0000-00000000c002';
 select results_eq(
   $$select t.email::text from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001') t order by 1$$,
-  $$values ('zzz.tick.dir@t.test'::text)$$,
-  'with the referrer deactivated the deed goes to the ticked user in scope, and not to the branch mailbox');
+  $$values ('agencydesk@t.test'::text), ('zzz.tick.dir@t.test'::text)$$,
+  'with the referrer deactivated the deed still goes to the ticked user in scope, beside the agency address and not instead of them');
+select is(
+  (select t.source from public.deed_delivery_target('94000000-0000-0000-0000-00000000e001') t
+    where t.email = 'zzz.tick.dir@t.test'),
+  'copy', 'and they are still a copy on the ladder, not the fallback contact');
 
 select * from finish();
 rollback;

@@ -43,16 +43,16 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
   const [newAgency, setNewAgency] = useState('');
   const [newBranch, setNewBranch] = useState('');
 
-  /* THE CONTACT EMAIL. Matt, 2026-10-02: "A contact email is required when
-     any agency or branch is created, in any estate, so one always exists;
-     creating one without it is refused with a clear message."
+  /* THE CONTACT EMAIL, OPTIONAL. Matt, 2026-10-02, correcting himself the
+     same day: "Opndoor's own agencies (like Regent): no email required.
+     Signed deeds go to whoever sent the referral (plus the people already
+     ticked to receive them, as now). The agency or a branch can optionally
+     add an email that also receives the deed; leave it blank and nothing
+     is missing."
 
-     A NEW AGENCY ALWAYS NEEDS ONE. A new BRANCH needs one only when its
-     agency has nothing for it to inherit, which is the same condition
-     admin_add_branch applies: a branch with no contacts of its own uses
-     the agency's, and that is what the deed panel prints as "agency
-     default". Asking here for an address the server would not insist on
-     would make the form stricter than the rule. */
+     This modal only grows OUR OWN estate, so nothing here is required.
+     Its shape is still checked, because a mistyped address that is saved
+     is worse than one that is refused. */
   const [contactEmail, setContactEmail] = useState('');
   const [contactName, setContactName] = useState('');
 
@@ -76,18 +76,12 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
       : `You're creating the group ${groupName.trim() || '…'} above ${agencies[0]?.name ?? 'this agency'}, moving it in, and adding a second agency alongside it.`;
 
   const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-  const emailGiven = !!contactEmail.trim();
-  const emailOk = emailGiven && EMAIL_RE.test(contactEmail.trim());
-  /* Does the agency this branch is going under already have somewhere to
-     send a deed? Its own contact, or one on any of its branches. */
-  const agencyHasContact = (a?: Agency) =>
-    !!a && ((a.contacts?.length ?? 0) > 0 || (a.branches ?? []).some((b) => (b.contacts?.length ?? 0) > 0));
-  const branchNeedsEmail = !agencyHasContact(targetAgency);
+  // Blank is fine; a typo is not.
+  const emailUsable = !contactEmail.trim() || EMAIL_RE.test(contactEmail.trim());
 
-  const canBranch = mode === 'branch' && !!branchName.trim() && !!branchAgencyId && !busy
-    && (!branchNeedsEmail || emailOk);
+  const canBranch = mode === 'branch' && !!branchName.trim() && !!branchAgencyId && !busy && emailUsable;
   const canAgency = mode === 'agency' && !!newAgency.trim() && !!newBranch.trim()
-    && (group ? true : !!groupName.trim()) && !busy && emailOk;
+    && (group ? true : !!groupName.trim()) && !busy && emailUsable;
 
   const saveBranch = async () => {
     if (!canBranch) return;
@@ -122,7 +116,7 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
       }
       const { agencyId } = await createAgencyWithBranch({
         agencyName: newAgency.trim(), branchName: newBranch.trim(),
-        contactEmail: contactEmail.trim(), contactName: contactName.trim() || undefined,
+        contactEmail: contactEmail.trim() || undefined, contactName: contactName.trim() || undefined,
       });
       if (agencyId && groupId) await setAgencyGroup(agencyId, groupId);
       await refresh();
@@ -169,12 +163,10 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
           )}
           <Field label="Address (as stored)" htmlFor="ag-addrline" hint="Editable."><input id="ag-addrline" type="text" autoComplete="off" value={addrLine} onChange={(e) => setAddrLine(e.target.value)} /></Field>
           <Field
-            label={branchNeedsEmail ? 'Contact email' : 'Contact email (optional)'}
+            label="Contact email (optional)"
             htmlFor="ag-branch-email"
-            hint={branchNeedsEmail
-              ? `${targetAgency?.name ?? 'This agency'} has no contact yet, so this branch needs one. The deed goes here.`
-              : `Leave it blank to use ${targetAgency?.name ?? 'the agency'}'s contact.`}
-            error={emailGiven && !emailOk ? 'That is not an email address.' : undefined}>
+            hint={`Overrides ${targetAgency?.name ?? 'the agency'}'s address for this branch. Leave it blank and the agency's is used.`}
+            error={!emailUsable ? 'That is not an email address.' : undefined}>
             <input id="ag-branch-email" type="email" autoComplete="off" placeholder="lettings@agency.co.uk" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
           </Field>
           <Field label="Contact name (optional)" htmlFor="ag-branch-cname">
@@ -188,9 +180,9 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
           )}
           <Field label="New agency name" htmlFor="ag-newagency"><input id="ag-newagency" type="text" autoComplete="off" placeholder="e.g. Southbank Residential" value={newAgency} onChange={(e) => setNewAgency(e.target.value)} /></Field>
           <Field label="Its first branch" htmlFor="ag-newbranch"><input id="ag-newbranch" type="text" autoComplete="off" placeholder="e.g. City Centre" value={newBranch} onChange={(e) => setNewBranch(e.target.value)} /></Field>
-          <Field label="Contact email" htmlFor="ag-agency-email"
-            hint="Where a signed deed goes. The first branch uses it too."
-            error={emailGiven && !emailOk ? 'That is not an email address.' : undefined}>
+          <Field label="Contact email (optional)" htmlFor="ag-agency-email"
+            hint="A signed deed also goes here, and the first branch uses it too. Leave it blank and the deed still reaches whoever sent the referral."
+            error={!emailUsable ? 'That is not an email address.' : undefined}>
             <input id="ag-agency-email" type="email" autoComplete="off" placeholder="lettings@agency.co.uk" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
           </Field>
           <Field label="Contact name (optional)" htmlFor="ag-agency-cname">

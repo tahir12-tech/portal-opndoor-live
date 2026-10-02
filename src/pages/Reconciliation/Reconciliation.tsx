@@ -8,9 +8,10 @@
    2-minute cron also runs the sync). Merge is not built yet (disabled).
    ===================================================================== */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { confirmReconEntity, loadReconciliationQueue, loadAgencyMatchQueue, loadNotInNetworkAgencies, loadRefundQuestions, triggerCrmSync, type ReconRow } from '@/data';
+import { confirmReconEntity, loadReconciliationQueue, loadAgencyMatchQueue, loadNotInNetworkAgencies, loadRefundQuestions, loadSupplierAgenciesWithoutAnEmail, triggerCrmSync, type ReconRow } from '@/data';
 import { AgencyMatchQueue } from './AgencyMatchQueue';
 import { NotInNetwork } from './NotInNetwork';
+import { NoAgencyEmail } from './NoAgencyEmail';
 import { RefundQuestions } from './RefundQuestions';
 import { useSearchParams } from 'react-router-dom';
 import { useSession } from '@/session/SessionContext';
@@ -22,7 +23,7 @@ import '@/components/ui/opbar.css';
 import './Reconciliation.css';
 import { plural } from '@/lib/plural';
 
-type Filter = 'all' | 'agency' | 'branch' | 'dupes' | 'matches' | 'notinnetwork' | 'refunds';
+type Filter = 'all' | 'agency' | 'branch' | 'dupes' | 'matches' | 'notinnetwork' | 'refunds' | 'noemail';
 
 export function Reconciliation() {
   usePageMeta('reconcile', 'Reconciliation', ['Home', 'opndoor', 'Reconciliation']);
@@ -42,11 +43,12 @@ export function Reconciliation() {
        at a number they just clicked and a list that does not contain it,
        which is the exact defect the comment above records. */
     return t === 'agency' || t === 'branch' || t === 'dupes' || t === 'matches' || t === 'notinnetwork'
-      || t === 'refunds' ? t : 'all';
+      || t === 'refunds' || t === 'noemail' ? t : 'all';
   });
   const [matchCount, setMatchCount] = useState(0);
   const [notInCount, setNotInCount] = useState(0);
   const [refundCount, setRefundCount] = useState(0);
+  const [noEmailCount, setNoEmailCount] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
@@ -56,14 +58,15 @@ export function Reconciliation() {
          without a mock-mode branch rejects the whole Promise.all in test
          mode and takes the other counts down with it, so the not-in-network
          reader has one -- see reconciliationService. */
-      const [q, matches, notIn, refunds] = await Promise.all([
+      const [q, matches, notIn, refunds, noEmail] = await Promise.all([
         loadReconciliationQueue(), loadAgencyMatchQueue(), loadNotInNetworkAgencies(),
-        loadRefundQuestions(),
+        loadRefundQuestions(), loadSupplierAgenciesWithoutAnEmail(),
       ]);
       setQueue(q);
       setMatchCount(matches.length);
       setNotInCount(notIn.length);
       setRefundCount(refunds.length);
+      setNoEmailCount(noEmail.length);
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not load the reconciliation queue.', 'error');
     } finally {
@@ -91,6 +94,11 @@ export function Reconciliation() {
        commission already sent is waiting on a decision only a person can
        make, and nothing moves until they make it. */
     { id: 'refunds', label: 'Refunds on sent statements', count: refundCount },
+    /* AFTER the refunds, which are money waiting on a decision, and BEFORE
+       "Not in network", which is the only tab that is not work. This one is
+       work: open the agency and add a contact. Matt, 2026-10-02: "list them
+       on Reconciliation so Opndoor can add one." */
+    { id: 'noemail', label: 'Supplier agencies with no email', count: noEmailCount },
     /* NM-N. Last, because it is the only tab that is not WORK: nothing on
        it can be actioned here, it is a list to retype into HubSpot. */
     { id: 'notinnetwork', label: 'Not in network', count: notInCount },
@@ -188,6 +196,8 @@ export function Reconciliation() {
         <NotInNetwork />
       ) : filter === 'refunds' ? (
         <RefundQuestions onChanged={reload} />
+      ) : filter === 'noemail' ? (
+        <NoAgencyEmail />
       ) : (
       <div className="rq">
         {visible.map((item) => {

@@ -12,18 +12,24 @@
 --   create_referral_target          took one and allowed it blank, on
 --                                   both arms, on both overloads
 --
--- THE BRANCH READING, which is the one judgement in the rule. A branch
--- with no contacts of its own uses its AGENCY's: `effectiveContacts` has
--- always done that, and the deed panel prints it as "agency default for
--- X". The governing clause is "so one always exists", and for a branch
--- under an agency that has a contact, one does. So a branch is refused
--- only when its agency has nothing to fall back on -- which is exactly
--- the case that leaves a deed with nowhere to go. Both halves are
--- asserted below, because the permissive half is the one somebody would
--- otherwise "fix" into strictness without noticing it was a decision.
+-- CORRECTED THE SAME DAY, and the file follows it. Matt, 2026-10-02:
+--
+--   "Supplier side (agencies in a supplier's estate): an agency email is
+--    required at creation and is the default for all its branches; a
+--    branch's own email, if set, overrides it for that branch ...
+--    Opndoor's own agencies (like Regent): no email required. Signed
+--    deeds go to whoever sent the referral (plus the people already
+--    ticked to receive them, as now). The agency or a branch can
+--    optionally add an email that also receives the deed; leave it blank
+--    and nothing is missing."
+--
+-- So "in any estate" became the SUPPLIER estate only, and a branch is
+-- never required to bring one: an override is optional by definition.
+-- Both halves are asserted, because an absent requirement is exactly the
+-- thing a later reader tightens without noticing it was a decision.
 
 begin;
-select plan(13);
+select plan(20);
 
 -- ===========================================================================
 -- THE FIXTURE: an admin to call as, and a supplier to fly-create under.
@@ -52,6 +58,17 @@ values ('93000000-0000-0000-0000-0000000c0011','93000000-0000-0000-0000-0000000c
 insert into public.agencies (id, partner_id, name, review_state)
 values ('93000000-0000-0000-0000-0000000c0012','93000000-0000-0000-0000-0000000c0001','ZZZ Bare Agency','confirmed');
 
+/* AND THE QUIET CASE: no agency address, and an office that holds its own.
+   Nothing is stranded today and the DEFAULT is still missing, which is the
+   distinction the reconciliation list has to be able to draw. Kestrel
+   Lettings on dev is this shape. */
+insert into public.agencies (id, partner_id, name, review_state)
+values ('93000000-0000-0000-0000-0000000c0013','93000000-0000-0000-0000-0000000c0001','ZZZ Per Office Agency','confirmed');
+insert into public.branches (id, agency_id, partner_id, name, review_state)
+values ('93000000-0000-0000-0000-0000000c0023','93000000-0000-0000-0000-0000000c0013','93000000-0000-0000-0000-0000000c0001','ZZZ Per Office','confirmed');
+insert into public.agent_contacts (branch_id, partner_id, name, email, is_primary)
+values ('93000000-0000-0000-0000-0000000c0023','93000000-0000-0000-0000-0000000c0001','Per Office','peroffice@c.test',true);
+
 select set_config('request.jwt.claims',
   '{"sub":"93000000-0000-0000-0000-0000000c00a1","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
@@ -64,7 +81,22 @@ select throws_ok(
       p_agency_name => 'ZZZ Onboarded', p_branch_name => 'ZZZ Onboarded Office',
       p_partner_slug => 'zzz-contact-supplier')$$,
   '22023', null,
-  'onboarding an agency with no contact email is refused');
+  'onboarding a SUPPLIER''S agency with no email is refused');
+
+/* AND ONE OF OUR OWN IS NOT. The deed there goes to whoever sent the
+   referral and the people ticked for it, so an address is an addition and
+   "leave it blank and nothing is missing". */
+select lives_ok(
+  $$select * from public.admin_create_agency_and_branch(
+      p_agency_name => 'ZZZ Ours No Email', p_branch_name => 'ZZZ Ours Office',
+      p_partner_slug => 'opndoor-agents')$$,
+  'while one of Opndoor''s own needs no email at all');
+
+select is(
+  (select count(*)::int from public.agent_contacts c
+    join public.agencies a on a.id = c.agency_id
+   where a.name = 'ZZZ Ours No Email'),
+  0, 'and no empty contact row is invented for it');
 
 select throws_ok(
   $$select * from public.admin_create_agency_and_branch(
@@ -102,30 +134,65 @@ select is(
     where c.agency_id = (select id from public.agencies where name = 'ZZZ Onboarded')),
   1, 'and its first office inherits that one contact rather than needing its own');
 
+/* THE INHERITANCE, ASKED OF THE RESOLVER THE DEED PATH USES rather than
+   of the table. Matt: the agency email "is the default for all its
+   branches; a branch's own email, if set, overrides it for that branch."
+   `effective_primary_contact_route` is what both halves of that sentence
+   come down to, and asserting it here is what stops a later change to
+   either one being invisible. */
+-- Read as the owner: `effective_primary_contact_route` is service-side
+-- plumbing the deed path calls, not something `authenticated` may execute,
+-- and this is ground truth rather than an authorisation claim.
+reset role;
+select is(
+  (select email from public.effective_primary_contact_route(
+     (select b.id from public.branches b join public.agencies a on a.id = b.agency_id
+       where a.name = 'ZZZ Onboarded'),
+     '93000000-0000-0000-0000-0000000c0001')),
+  'hello@onboarded.test',
+  'and the office resolves to the agency''s address, which is the default');
+select set_config('request.jwt.claims',
+  '{"sub":"93000000-0000-0000-0000-0000000c00a1","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+
 -- ===========================================================================
 -- 2. ADDING A BRANCH, where the rule is about what it can fall back on.
 -- ===========================================================================
-select throws_ok(
-  $$select public.admin_add_branch('93000000-0000-0000-0000-0000000c0012', 'ZZZ Bare Office')$$,
-  '22023', null,
-  'a branch under an agency with no contact is refused without one of its own');
-
+/* A BRANCH IS NEVER ASKED FOR ONE, on either side. Matt's correction
+   makes a branch email an OVERRIDE of the agency's, and an override is
+   optional by definition. This agency has no contact at all, which under
+   the hour-old version of the rule was the one case that WAS refused. */
 select lives_ok(
-  $$select public.admin_add_branch('93000000-0000-0000-0000-0000000c0012', 'ZZZ Bare Office',
-      p_contact_email => 'office@bare.test')$$,
-  'and goes through when it brings one');
+  $$select public.admin_add_branch('93000000-0000-0000-0000-0000000c0012', 'ZZZ Bare Office')$$,
+  'a branch needs no email of its own, even under an agency that has none');
 
-/* THE PERMISSIVE HALF, which is a decision and not an oversight: an
-   office under an agency that already has a contact inherits it. */
 select lives_ok(
   $$select public.admin_add_branch('93000000-0000-0000-0000-0000000c0011', 'ZZZ Covered Office')$$,
-  'while a branch under an agency that HAS one needs nothing, because it inherits');
+  'nor under one that has');
 
 select is(
   (select count(*)::int from public.agent_contacts c
     join public.branches b on b.id = c.branch_id
    where b.name = 'ZZZ Covered Office'),
-  0, 'and no second contact is invented for it');
+  0, 'and no contact is invented for it either way');
+
+/* AND WHERE IT BRINGS ONE, IT OVERRIDES. The other half of the sentence,
+   asked of the resolver rather than the table. */
+select lives_ok(
+  $$select public.admin_add_branch('93000000-0000-0000-0000-0000000c0011', 'ZZZ Own Office',
+      p_contact_email => 'own@covered.test')$$,
+  'while a branch that brings one is accepted');
+
+reset role;
+select is(
+  (select email from public.effective_primary_contact_route(
+     (select id from public.branches where name = 'ZZZ Own Office'),
+     '93000000-0000-0000-0000-0000000c0001')),
+  'own@covered.test',
+  'and its own address overrides the agency''s for that branch');
+select set_config('request.jwt.claims',
+  '{"sub":"93000000-0000-0000-0000-0000000c00a1","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
 
 -- ===========================================================================
 -- 3. THE ON-THE-FLY PATH, where an agency is born mid-referral.
@@ -139,7 +206,7 @@ select throws_ok(
   $$select public.create_referral_target(
       p_agency => 'ZZZ Fly Agency', p_branch => 'ZZZ Fly Office', p_partner_slug => null)$$,
   '22023', null,
-  'inventing an agency mid-referral with no contact email is refused');
+  'inventing a supplier''s agency mid-referral with no email is refused');
 
 select lives_ok(
   $$select public.create_referral_target(
@@ -153,6 +220,46 @@ select is(
     join public.agencies a on a.id = c.agency_id
    where a.name = 'ZZZ Fly Agency'),
   'hello@fly.test', 'and the agency it invented has somewhere to send a deed');
+
+-- ===========================================================================
+-- 4. AND WHO STILL NEEDS ONE IS A LIST SOMEBODY CAN WORK FROM.
+-- ===========================================================================
+/* Matt: "For supplier-estate agencies with no agency email, show a clear
+   warning on the supplier's Agencies tab and list them on Reconciliation
+   so Opndoor can add one. No warnings for Opndoor's own agencies without
+   an email."
+
+   THE AGENCY ADDRESS IS THE SUBJECT, not "can a deed reach anybody". The
+   bare agency above has no contact anywhere and is on the list; the
+   COVERED one has a mailbox on every office and no agency address, so
+   nothing is stranded today and it is STILL on the list, because the
+   next office added under it would inherit nothing. The two are told
+   apart by branches_covered rather than by being on or off it. */
+select set_config('request.jwt.claims',
+  '{"sub":"93000000-0000-0000-0000-0000000c00a1","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+
+select bag_eq(
+  $$select agency_name from public.supplier_agencies_without_an_email()
+     where agency_name like 'ZZZ %'$$,
+  $$values ('ZZZ Bare Agency'::text), ('ZZZ Per Office Agency'::text)$$,
+  'both supplier agencies without an agency address are listed, and the one with an address is not');
+
+select is(
+  (select branches || '/' || branches_covered
+     from public.supplier_agencies_without_an_email()
+    where agency_name = 'ZZZ Per Office Agency'),
+  '1/1', 'and the quiet one says its office has its own, so nothing is stranded today');
+
+/* AND NOTHING OF OURS IS ON IT, which is the sentence "No warnings for
+   Opndoor's own agencies without an email". ZZZ Ours No Email was created
+   above with no address at all. */
+select is(
+  (select count(*)::int from public.supplier_agencies_without_an_email()
+    where agency_name = 'ZZZ Ours No Email'),
+  0, 'while Opndoor''s own agency with no email is not listed at all');
+
+reset role;
 
 select * from finish();
 rollback;

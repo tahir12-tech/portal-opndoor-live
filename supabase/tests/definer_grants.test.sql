@@ -231,6 +231,13 @@ insert into allowed(name) values
   ('staff_payment_page_token'),
   ('statement_invoice_email'),
   ('statements_can_be_posted'),
+  /* AGENCIES IN A SUPPLIER'S ESTATE WITH NO AGENCY EMAIL (20261007430000).
+     Matt, 2026-10-02: "list them on Reconciliation so Opndoor can add
+     one." Staff-only inside -- is_aal2 + is_opndoor_staff in its own where
+     clause -- and it returns nothing but an agency name, its supplier and
+     two counts. Covered by
+     an_agency_arrives_with_somewhere_to_send.test.sql. */
+  ('supplier_agencies_without_an_email'),
   ('supplier_commission_tiers'),
   /* A supplier's own live deal of one kind, for its Commission tab. Admin
      only and MFA'd inside the function: what each agency under a supplier

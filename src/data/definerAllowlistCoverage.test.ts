@@ -229,7 +229,17 @@ describe('the definer allowlist', () => {
        add_application_note is SECURITY INVOKER and off this list. Two
        functions fewer that an authenticated session can reach, for a
        rule that is simpler than either of the ones before it. */
-    expect(allowlist.length).toBeLessThanOrEqual(151);
+    /* 151 -> 152, 2026-10-02: supplier_agencies_without_an_email, the
+       reconciliation list Matt asked for -- "list them on Reconciliation
+       so Opndoor can add one". It is a READER and returns nothing but an
+       agency's name, its supplier's name and two counts; its own where
+       clause is `is_aal2() and is_opndoor_staff()`, so a supplier's own
+       Director cannot see which of a rival's agencies are unconfigured.
+       It earns its place on the list rather than being folded into an
+       existing reader because the question is per-estate and none of them
+       asks it. Covered by name in
+       an_agency_arrives_with_somewhere_to_send.test.sql. */
+    expect(allowlist.length).toBeLessThanOrEqual(152);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

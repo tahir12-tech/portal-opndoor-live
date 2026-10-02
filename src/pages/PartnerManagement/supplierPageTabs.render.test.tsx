@@ -180,19 +180,31 @@ describe('the Agencies tab', () => {
     expect(rowText(v, 'ZZZ Per Branch')).not.toMatch(/No agent contact/);
   });
 
-  it('and says instead where its contacts actually are', async () => {
+  /* AND IT ASKS FOR THE AGENCY ADDRESS INSTEAD, since 2026-10-02. Matt:
+     "an agency email is required at creation and is the default for all
+     its branches ... For supplier-estate agencies with no agency email,
+     show a clear warning." So "Contacts are set per branch" -- which was
+     the reassuring answer under the old rule -- is now "No agency email",
+     with the reason spelled out: nothing is stranded today, and the next
+     office added would inherit nothing. The case above is unchanged and
+     is what keeps the two honest: no stranded-deed alarm on this shape. */
+  it('and asks for the agency address instead, saying nothing is stranded', async () => {
     const v = await open();
     await openTab(v, 'Agencies');
-    expect(rowText(v, 'ZZZ Per Branch')).toMatch(/Contacts are set per branch/);
+    const row = rowText(v, 'ZZZ Per Branch');
+    expect(row).toMatch(/No agency email/);
+    expect(row).toMatch(/nothing stranded today, but the next office would inherit nothing/);
   });
 
   /* THE WARNING IS NOT WEAKENED, ONLY AIMED. An agency covered on one branch
      and bare on the other still has a deed with nowhere to go, and the row
-     counts them so the reader knows how much work it is. */
+     counts them so the reader knows how much work it is. The sentence moved
+     under "No agency email", which is the thing to fix; the count did not. */
   it('while one with a bare branch is still warned about, and counted', async () => {
     const v = await open();
     await openTab(v, 'Agencies');
-    expect(rowText(v, 'ZZZ Partly Covered')).toMatch(/No agent contact on 1 of 2 branches/);
+    expect(rowText(v, 'ZZZ Partly Covered'))
+      .toMatch(/No agency email · 1 of 2 branches cannot be sent a deed/);
   });
 
   /* AND THE BRANCH ROWS GO ON ANSWERING FOR THEMSELVES, which is where the

@@ -19,7 +19,7 @@
  * agency, one on each branch.
  */
 import { describe, expect, it } from 'vitest';
-import { agencyContactState, branchCanReceiveDeed, branchesWithNoDeedContact } from './deedContact';
+import { agenciesNeedingAnEmail, agencyContactState, agencyNeedsEmail, branchCanReceiveDeed, branchesWithNoDeedContact } from './deedContact';
 import type { Agency, AgentContact } from './types';
 
 const contact = (email: string): AgentContact =>
@@ -39,13 +39,37 @@ const KESTREL = agency({
   ] as never,
 });
 
-describe('the agency row', () => {
-  /* THE REPORTED BUG. */
-  it('says nothing is wrong when every branch has its own contact', () => {
-    expect(agencyContactState(KESTREL)).toEqual({ kind: 'per-branch' });
+/* =====================================================================
+   AND THE SUBJECT CHANGED, 2026-10-02.
+
+   Matt corrected the rule this file was written against: "Supplier side
+   (agencies in a supplier's estate): an agency email is required at
+   creation and is the default for all its branches ... For
+   supplier-estate agencies with no agency email, show a clear warning on
+   the supplier's Agencies tab and list them on Reconciliation so Opndoor
+   can add one. No warnings for Opndoor's own agencies without an email."
+
+   So the agency row no longer asks "is any deed stranded"; it asks "has
+   this agency got the default", and only in a supplier's estate. Kestrel
+   -- the shape the original bug was reported on -- is now REPORTED,
+   because it has no agency address and the next office added under it
+   would inherit nothing. That is not the old bug coming back: the old
+   warning said "a deed cannot be issued", which was untrue of Kestrel,
+   and the new one says "no agency email", which is true and is the thing
+   to fix. The assertion below says which of those it is.
+
+   The BRANCH question is unchanged, and so is the banner that counts
+   branches: a branch with nothing anywhere is still stranded.
+   ===================================================================== */
+describe('the agency row, in a supplier’s estate', () => {
+  /* THE SHAPE THE ORIGINAL BUG WAS REPORTED ON. Reported now, and for a
+     different reason, with a different sentence: nothing is stranded
+     (bare: 0) and the default is missing. */
+  it('asks for the agency email when every branch has its own', () => {
+    expect(agencyContactState(KESTREL)).toEqual({ kind: 'needs-email', bare: 0, branches: 2 });
   });
 
-  it('and warns, with a count, when some branch has none', () => {
+  it('and counts the branches that are genuinely stranded', () => {
     const half = agency({
       contacts: [],
       branches: [
@@ -53,10 +77,10 @@ describe('the agency row', () => {
         { name: 'Kestrel Riverside', contacts: [] },
       ] as never,
     });
-    expect(agencyContactState(half)).toEqual({ kind: 'bare', bare: 1, branches: 2 });
+    expect(agencyContactState(half)).toEqual({ kind: 'needs-email', bare: 1, branches: 2 });
   });
 
-  it('and shows its own contact when it holds one, which every branch inherits', () => {
+  it('and says nothing once the agency holds one, which every branch inherits', () => {
     const own = agency({ contacts: [contact('head.office@kestrel.invalid')], branches: [
       { name: 'Kestrel Central', contacts: [] },
     ] as never });
@@ -64,10 +88,37 @@ describe('the agency row', () => {
     expect(branchCanReceiveDeed(own, own.branches[0])).toBe(true);
   });
 
-  /* NO BRANCHES AND NO CONTACT is the one case where the agency row IS the
-     whole answer: there is nothing underneath to cover it. */
-  it('and warns on an agency with no contact and nothing underneath', () => {
-    expect(agencyContactState(agency({ contacts: [], branches: [] as never }))).toEqual({ kind: 'none' });
+  it('and asks for one on an agency with no contact and no branches either', () => {
+    expect(agencyContactState(agency({ contacts: [], branches: [] as never })))
+      .toEqual({ kind: 'needs-email', bare: 0, branches: 0 });
+  });
+});
+
+describe('the agency row, on Opndoor’s own estate', () => {
+  /* "No warnings for Opndoor's own agencies without an email." A deed
+     there goes to whoever sent the referral and the people ticked for it;
+     an address is an addition, and warning about a field nobody has to
+     fill in is how a warning stops being read. */
+  const ours = (o: Partial<Agency>) => agency({ partner: 'opndoor-agents', name: "Regent's Lettings", ...o });
+
+  it('says nothing about an agency with no contact anywhere', () => {
+    const regent = ours({ contacts: [], branches: [{ name: "Regent's Park", contacts: [] }] as never });
+    expect(agencyContactState(regent)).toEqual({ kind: 'quiet' });
+    expect(agencyNeedsEmail(regent)).toBe(false);
+  });
+
+  it('and nothing about one that has set one either, because it is optional', () => {
+    const withOne = ours({ contacts: [contact('lettings@regent.invalid')], branches: [] as never });
+    expect(agencyContactState(withOne)).toEqual({ kind: 'quiet' });
+  });
+
+  /* AND THE LIST THE BANNER AND RECONCILIATION BOTH READ holds only the
+     supplier's. One predicate, so the two surfaces cannot disagree about
+     who is counted. */
+  it('so the list to fix holds the supplier’s agencies and none of ours', () => {
+    const regent = ours({ contacts: [], branches: [] as never });
+    expect(agenciesNeedingAnEmail([KESTREL, regent]).map((a) => a.name))
+      .toEqual(['Kestrel Lettings']);
   });
 });
 
