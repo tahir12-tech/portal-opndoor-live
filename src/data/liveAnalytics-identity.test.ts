@@ -73,10 +73,16 @@ describe('trend carries real per-application net commission', () => {
     const rows = liveTrend('month', 'superadmin', ALL_PARTNERS);
     const feb = rows.find((r) => r.label === 'Feb 2026')!;
     expect(feb.count).toBe(4); // all four sent in Feb
-    // commission is real per-partner, not fees * a single scope rate
+    /* REAL PER-PARTNER, not fees times a single scope rate, which is what
+       this test is about and is unchanged. What changed on 2026-10-02 is
+       which partners owe anything: `northwind` is `opndoor_referenced`,
+       so it is an agency-shaped partner and not a supplier, and Opndoor
+       owes it nothing on its own estate's referrals. The aggregate and
+       the route breakdown have always said that; the trend now says it
+       too, because it reads `supplierAmountOf` rather than multiplying
+       partner_rate. Harbourside, a real supplier, is untouched. */
     const expected =
-      1000 * getRatesFor('northwind').partner + 2000 * getRatesFor('harbourside').partner +
-      1500 * getRatesFor('northwind').partner + 2500 * getRatesFor('harbourside').partner;
+      2000 * getRatesFor('harbourside').partner + 2500 * getRatesFor('harbourside').partner;
     expect(feb.comm).toBeCloseTo(Math.round(expected), 0);
   });
 });

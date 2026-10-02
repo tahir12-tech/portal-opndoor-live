@@ -42,12 +42,26 @@ describe('getCommissionSettlement (prior calendar month, net of refunds, payable
     expect(st.settlementDate.getMonth()).toBe(5); // June (0-based)
     expect(st.settlementDate.getDate()).toBe(15);
   });
-  it('one figure per partner, net of refunds, with constituent apps', () => {
+  /* ONE FIGURE PER SUPPLIER, and `northwind` stopped being one on
+     2026-10-02. It is `opndoor_referenced`, which makes it an
+     agency-shaped partner rather than a supplier -- the same shape as
+     Harbour Lets, which Matt had taken off the Suppliers list and out of
+     the route table earlier the same day. Opndoor owes such a party
+     nothing on a referral from its own estate, and the aggregate and the
+     route breakdown have always returned zero for it; this accumulator
+     was the one surface that did not, so it listed a payee with a figure
+     nobody is invoiced for. Harbourside, which holds no referencingMode
+     and so is a real supplier, is unchanged. */
+  it('one figure per supplier, net of refunds, with constituent apps', () => {
     const byName = Object.fromEntries(st.partners.map((p) => [p.partner, p]));
-    expect(byName.northwind.commission).toBeCloseTo(3000 * rm, 6); // P1+P2; P4 refunded, P5/P6 wrong month
-    expect(byName.northwind.apps.map((a) => a.ref).sort()).toEqual(['P1', 'P2']);
     expect(byName.harbourside.commission).toBeCloseTo(1500 * zo, 6);
     expect(byName.harbourside.apps.length).toBe(1);
+  });
+
+  it('and an agency-shaped partner is not a payee at all', () => {
+    expect(st.partners.map((p) => p.partner)).not.toContain('northwind');
+    // Not a zero row either: a payee owed nothing is not a payee.
+    expect(st.partners.every((p) => p.commission > 0)).toBe(true);
   });
 });
 

@@ -41,7 +41,13 @@ describe('the tenant is promised a reminder they actually get', () => {
   it('because renewal-notices emails the tenant, on every rail', () => {
     const job = read('supabase/functions/renewal-notices/index.ts');
     expect(job).toContain('r.tenant_email');
-    expect(job).toMatch(/\[r\.tenant_email, \.\.\.agents\]/);
+    /* IN THEIR OWN EMAIL SINCE 2026-10-02. They used to be one address
+       on the agent's send, so the promise was kept and the wording was
+       not: a third-person report about their own tenancy. The promise is
+       what this file guards, and it is kept either way -- what it
+       asserts now is the send that keeps it. */
+    expect(job).toMatch(/to: r\.tenant_email/);
+    expect(job).toMatch(/tenantRenewalNoticeEmail\(/);
     // Within 30 days of the end, which is what "a month before" means.
     expect(job).toContain('ending within 30 days');
   });

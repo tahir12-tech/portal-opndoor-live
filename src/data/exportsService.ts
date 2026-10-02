@@ -37,7 +37,7 @@ import { liveAvailable, liveAggregate, liveVolume, liveMonths, getCommissionSett
 // heavy xlsx library is not pulled into the main bundle. It is dynamically
 // imported in exportBranded, on demand, when an export is actually run.
 import type { BrandedDoc, ColType, Column, KeyValue, TableRow } from './xlsxTemplate';
-import { feeBaseFor, totalRate, agentAmountOf, feeBasisCell, linesFor, agentRailApp } from './commissionSplit';
+import { feeBaseFor, totalRate, agentAmountOf, supplierAmountOf, feeBasisCell, linesFor, agentRailApp } from './commissionSplit';
 import { orgCell } from './agencyOffices';
 import { gbpPence } from '@/lib/format';
 import { plural } from '@/lib/plural';
@@ -1186,7 +1186,12 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     // row whichever rail it came in on, so multiplying by it on one of our own
     // agencies invented a payable nobody owes. Same rule as liveAggregate, so the
     // export foots to the dashboard.
-    const partnerComm = earned && !agentRailApp(a) ? feeBaseFor(a) * a.partnerRate : 0;
+    // AND THE SUPPLIER SIDE IS READ TOO, since 20261007580000 gave it a
+    // stored line: the same instruction as the agent column above, and
+    // the same reason. supplierAmountOf already answers zero on our own
+    // estate and on a house route, so the rail test it used to need is
+    // inside it now.
+    const partnerComm = earned ? supplierAmountOf(a) : 0;
     /* THE STORED AMOUNT, not the rate multiplied out. Matt, 2026-10-02:
        "GR-20846 shows agent commission £265.39 here and £265.38 on
        Regent's commission statement. Every export, statement and screen

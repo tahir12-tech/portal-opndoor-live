@@ -58,14 +58,24 @@ describe('the agent-facing send paths', () => {
     }
   });
 
-  /* ONE SEND WITH EACH AS A RECIPIENT. renewal-notices was the only
-     notification in the product that looped sendMessage per address, which
-     also made its "emailed" count addresses where every other job counts
-     notifications. */
-  it('renewal-notices sends once with everybody on it, not once each', () => {
+  /* ONE SEND PER AUDIENCE. renewal-notices was the only notification in
+     the product that looped sendMessage per ADDRESS, which also made its
+     "emailed" count addresses where every other job counts
+     notifications. That rule is unchanged and is what this asserts: the
+     agent side is still one send to a list.
+
+     WHAT CHANGED ON 2026-10-02 is that the tenant is no longer one more
+     address on it. Matt: "send the tenant their own email, worded for
+     them ... and the agent theirs, as two separate sends." One send
+     meant one WORDING, and it was the agent's -- a tenant read "The
+     guarantee for Amara Okonjo at 14 Chalcot Square ends on..." about
+     themselves. The split is by audience, which is what differs; it is
+     not a return to the loop. */
+  it('renewal-notices sends once per audience, not once per address', () => {
     const src = fn('renewal-notices/index.ts');
-    expect(src).toMatch(/sendMessage\(\{ to: recipients, message \}\)/);
+    expect(src).toMatch(/sendMessage\(\{ to: agentList, message \}\)/);
     expect(src).not.toMatch(/for \(const to of recipients\)/);
+    expect(src).not.toMatch(/for \(const to of agentList\)/);
   });
 
   /* AND THE PARKING SURVIVED. An expiry or a renewal that reaches nobody has
@@ -77,8 +87,13 @@ describe('the agent-facing send paths', () => {
     expect(fn('renewal-notices/index.ts')).toMatch(/renewal_notice_unaddressed/);
   });
 
-  /* THE TENANT IS NOT IN THE MATRIX and must still be told. */
+  /* THE TENANT IS NOT IN THE MATRIX and must still be told -- now in
+     their own email rather than as an address on the agent's. */
   it('still tells the tenant on a renewal, separately from the matrix', () => {
-    expect(fn('renewal-notices/index.ts')).toMatch(/\[r\.tenant_email, \.\.\.agents\]/);
+    const src = fn('renewal-notices/index.ts');
+    expect(src).toMatch(/tenantRenewalNoticeEmail\(/);
+    expect(src).toMatch(/to: r\.tenant_email/);
+    // And the agent's list no longer carries them.
+    expect(src).not.toMatch(/\[r\.tenant_email, \.\.\.agents\]/);
   });
 });

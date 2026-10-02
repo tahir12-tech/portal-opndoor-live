@@ -808,12 +808,53 @@ export function executedDeedTenantEmail(p: {
 /** The month-before-expiry renewal notice, sent to the tenant, the agent or
     landlord, and the referrer. Names the tenant and property because not every
     recipient is the tenant; invites a reply to continue cover. */
+/* =====================================================================
+   TWO EMAILS, BECAUSE THERE ARE TWO READERS.
+
+   Matt, 2026-10-02: "Renewal notice: send the tenant their own email,
+   worded for them ('Your guarantee for [property] ends on [date]…'),
+   and the agent theirs, as two separate sends."
+
+   WHAT IT WAS. One send carrying the tenant AND the agent AND the
+   referrer, so there was one wording and it was the agent's: a tenant
+   received "The guarantee for Amara Okonjo at 14 Chalcot Square ends on
+   1 September 2027", which is a third-person email about themselves,
+   with the only action being to email support.
+
+   THE SINGLE SEND WAS DELIBERATE and its reason still holds for the
+   agent side: one notification to a list, not a loop per address, which
+   is the shape every other job uses and the shape the deed rule
+   specified. That is why the agent arm keeps it and only the tenant is
+   lifted out -- the split is by AUDIENCE, which is what differs, and not
+   by address.
+   ===================================================================== */
+
+/** The agent's, referrer's or landlord's copy. Third person, because the
+    subject is somebody else's tenancy. */
 export function renewalNoticeEmail(p: { tenantName: string; propertyAddr: string; endDate: string }): Message {
   return {
     subject: `The opndoor guarantee for ${p.tenantName} ends on ${p.endDate}`,
     heading: "The guarantee is ending soon",
     blocks: [
       { p: `The guarantee for ${p.tenantName} at ${p.propertyAddr} ends on ${p.endDate}. If the tenancy is continuing and you would like cover to continue, email support@opndoor.co.` },
+    ],
+  };
+}
+
+/** The tenant's own copy. Second person, and it says what it means for
+    them rather than reporting them to themselves. */
+export function tenantRenewalNoticeEmail(p: { propertyAddr: string; endDate: string; guaranteeRef: string }): Message {
+  return {
+    audience: "tenant",
+    subject: `Your opndoor guarantee ends on ${p.endDate}`,
+    heading: "Your guarantee is ending soon",
+    blocks: [
+      { p: `Your guarantee for ${p.propertyAddr} ends on ${p.endDate}. Nothing happens automatically: if your tenancy is continuing and you would like the cover to continue, email support@opndoor.co and we will tell you what is needed.` },
+      { rows: [["Reference", p.guaranteeRef], ["Cover ends", p.endDate]] },
+      /* NO ACTION BUTTON. There is nothing for them to press: renewal is
+         a conversation, and a button that only opens a mail client reads
+         as a form they have failed to fill in. */
+      { small: "If the tenancy has already ended, you do not need to do anything." },
     ],
   };
 }

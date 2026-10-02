@@ -40,7 +40,7 @@ import { showsOffices } from './agencyOffices';
 import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp, guaranteedAnnual } from './applicationsService';
 import { getPartner, getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
-import { payeesFor, orgAmountOf, agentAmountOf, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
+import { payeesFor, orgAmountOf, agentAmountOf, supplierAmountOf, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
 import { deliveryStateOf } from './deliveryState';
 // Walk fix 21: one rule for the line under a referrer's name.
 import { whereTheyWork, type WhereReader } from './whereTheyWork';
@@ -223,10 +223,13 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
        `agentAmountOf` reads them. A supplier's cut has no line at any
        level, so it stays fee x partner_rate here as everywhere else.
 
-       `r.partner` is still a RATE and `agentComm` is already an AMOUNT,
-       which is why they are not one variable. */
-    const r = !seesComm ? { partner: 0 } : { partner: agentRailApp(app) ? 0 : app.partnerRate };
+       AND SINCE 20261007580000 THE SUPPLIER SIDE IS READ TOO. It had no
+       stored line when the paragraph above was written, which is what
+       that paragraph said; Matt asked for one, so there is one, and
+       both sides are amounts now. The asymmetry is gone and so is the
+       rate variable. */
     const agentComm = seesComm ? agentAmountOf(app) : 0;
+    const supplierComm = seesComm ? supplierAmountOf(app) : 0;
     if (!rentedLets.has(letOf(app))) { rentedLets.add(letOf(app)); rentSum += app.rent; }
     if (inRange(app.sentAt, start, end)) { a.sent += 1; sentLets.add(letOf(app)); }
     if (inRange(app.paidAt, start, end)) {
@@ -240,7 +243,7 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
       if (app.refunded) {
         a.refundCount += 1;
         a.refundValue += app.refundedAmount ?? feeBaseFor(app);
-        a.partnerCommExcl += feeBaseFor(app) * r.partner;
+        a.partnerCommExcl += supplierComm;
         a.agentCommExcl += agentComm;
       } else if (app.partiallyRefunded) {
         /* R2. A PARTIAL REFUND MOVES MONEY, NOT THE GUARANTEE. The deed still
@@ -259,15 +262,15 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
            and whether a partial refund should reduce it is a commercial
            decision recorded as NM-I, not one to take in an arithmetic fix. */
         a.refundValue += app.refundedAmount ?? 0;
-        a.partnerCommNet += feeBaseFor(app) * r.partner;
-        if (!isHousePartner(app.partner)) a.supplierCommNet += feeBaseFor(app) * r.partner;
+        a.partnerCommNet += supplierComm;
+        if (!isHousePartner(app.partner)) a.supplierCommNet += supplierComm;
         a.agentCommNet += agentComm;
       } else {
-        a.partnerCommNet += feeBaseFor(app) * r.partner;
+        a.partnerCommNet += supplierComm;
         // Only a genuine supplier is owed the partner cut; a house route's is
         // opndoor's own margin. isHousePartner is the same test every screen
         // uses to keep plumbing partners off it.
-        if (!isHousePartner(app.partner)) a.supplierCommNet += feeBaseFor(app) * r.partner;
+        if (!isHousePartner(app.partner)) a.supplierCommNet += supplierComm;
         a.agentCommNet += agentComm;
       }
     }
@@ -615,7 +618,7 @@ function groupRows(
     // agentComm are numbers, so "no figure" is zero here, which is the only shape
     // the row allows. A Manager reading League saw both columns in full, per agency
     // and per branch, which is the agency's income broken down by office.
-    const r = !seesComm ? { partner: 0 } : { partner: agentRailApp(app) ? 0 : app.partnerRate };
+    const supplierComm = !seesComm ? 0 : supplierAmountOf(app);
     const sentIn = inRange(app.sentAt, start, end);
     const paidIn = inRange(app.paidAt, start, end);
     const deedIn = inRange(app.deedAt, start, end);
@@ -632,8 +635,8 @@ function groupRows(
       g.paid += 1; g.paidLets.add(letId); g.feesGross += feeBaseFor(app);
       // The refund is of the FEE, not of the rent. Matches liveAggregate and
       // livePartnerBreakdown, which both already said feeBaseFor.
-      if (app.refunded) { g.refundValue += app.refundedAmount ?? feeBaseFor(app); g.partnerCommExcl += feeBaseFor(app) * r.partner; g.agentCommExcl += agentComm; }
-      else { g.partnerComm += feeBaseFor(app) * r.partner; g.agentComm += agentComm; }
+      if (app.refunded) { g.refundValue += app.refundedAmount ?? feeBaseFor(app); g.partnerCommExcl += supplierComm; g.agentCommExcl += agentComm; }
+      else { g.partnerComm += supplierComm; g.agentComm += agentComm; }
     }
     if (deedIn) g.deed += 1;
   }
@@ -819,7 +822,7 @@ export function liveByCustomer(role: Role, scope: PartnerScope, period: Period):
         // The agency's cut is READ (see agentAmountOf); the supplier's is
         // computed, because a supplier has no stored line at any level.
         row.payable += agentAmountOf(app);
-        if (!isHousePartner(app.partner)) row.payable += feeBaseFor(app) * app.partnerRate;
+        if (!isHousePartner(app.partner)) row.payable += supplierAmountOf(app);
       }
     }
   }
@@ -971,7 +974,7 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
         if (!app.refunded && seesComm) {
           m.comm += agencySide
             ? agentAmountOf(app)
-            : feeBaseFor(app) * (isHousePartner(app.partner) ? 0 : app.partnerRate);
+            : (isHousePartner(app.partner) ? 0 : supplierAmountOf(app));
         }
         /* WALK FIX 17. What Opndoor owes out on this fee: the agency's cut
            (totalRate, always) plus a real supplier's (never a house route's,
@@ -986,7 +989,7 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
            admin passes the predicate. */
         if (!app.refunded && seesComm) {
           m.payable += agentAmountOf(app);
-          if (!isHousePartner(app.partner)) m.payable += feeBaseFor(app) * app.partnerRate;
+          if (!isHousePartner(app.partner)) m.payable += supplierAmountOf(app);
         }
       }
     }
@@ -1107,8 +1110,22 @@ export function getCommissionSettlement(role: Role, scope: PartnerScope, window:
        not make OUR terms theirs. The export path already refused this
        (exportsService returns an empty export for an agency reader); the
        screen did not. */
-    if (isHousePartner(a.partner)) continue;
-    const commission = feeBaseFor(a) * a.partnerRate;
+    /* AND AN AGENCY-SHAPED PARTNER IS NOT A SUPPLIER EITHER, 2026-10-02.
+       `isHousePartner` catches our three plumbing slugs; it does not
+       catch a partner row that is really an agency, which is the same
+       gap Matt reported on the Suppliers list ("Harbour Lets shows as a
+       supplier, but it's an agency") and on the route table. Opndoor
+       owes such a party nothing on a referral from its own estate, and
+       the aggregate and the route breakdown have always said so --
+       this accumulator was the one that did not, so it listed a payee
+       with a figure nobody is invoiced for.
+
+       `agentRailApp` is the same predicate both of those use, and it is
+       also what `supplierAmountOf` answers zero to, so the row would
+       now be a zero. It is skipped instead: a payee owed nothing is not
+       a payee. */
+    if (isHousePartner(a.partner) || agentRailApp(a)) continue;
+    const commission = supplierAmountOf(a);
     let ps = byPartner.get(a.partner);
     if (!ps) { ps = { partner: a.partner, partnerName: partnerName(a.partner), commission: 0, apps: [] }; byPartner.set(a.partner, ps); }
     ps.commission += commission;
@@ -1150,10 +1167,10 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
     if (!inRange(app.paidAt, start, end)) continue; // commission attributed to the payment period
     // Lines, not the scalar; and no partner cut on the agent rail. Identical to
     // liveAggregate, so this table foots to the KPIs above it.
-    // The agent side is the stored amount; the supplier side is the rate,
-    // because a supplier has no stored line. See agentAmountOf.
-    const r = { partner: agentRailApp(app) ? 0 : app.partnerRate };
+    // Both sides are stored amounts since 20261007580000. See
+    // agentAmountOf and supplierAmountOf.
     const agentComm = agentAmountOf(app);
+    const supplierComm = supplierAmountOf(app);
     /* BY ROUTE, NOT BY PARTNER. Matt, 2026-10-02: "Harbour Lets is an
        agency, so it belongs in 'Agency referral', not listed as its own
        route. Only real suppliers appear as routes." Grouping on
@@ -1169,12 +1186,12 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
     }
     row.paid += 1;
     row.feesGross += feeBaseFor(app);
-    row.partnerCommGross += feeBaseFor(app) * r.partner;
+    row.partnerCommGross += supplierComm;
     row.agentCommGross += agentComm;
     if (app.refunded) {
       row.refundValue += app.refundedAmount ?? feeBaseFor(app);
     } else {
-      row.partnerCommNet += feeBaseFor(app) * r.partner;
+      row.partnerCommNet += supplierComm;
       row.agentCommNet += agentComm;
     }
   }

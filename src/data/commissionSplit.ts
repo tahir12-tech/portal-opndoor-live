@@ -68,10 +68,17 @@ export function feeBaseFor(app: FullApp): number {
   return app.fee ?? app.rent ?? 0;
 }
 
+/* THE THREE ORG LEVELS, named so the compiler knows what `linesFor` has
+   already guaranteed: it filters 'supplier' out, so nothing downstream of
+   it can carry one. Without this every payee, settlement row and
+   statement line widens to admit a level they can never hold, and the
+   first `switch` over them grows a branch nobody can reach. */
+export type AgencyLevel = 'group' | 'agency' | 'branch';
+
 /** A payee with money attached, for a specific application. */
 export interface PayeeAmount {
   key: string;
-  level: CommissionLine['level'];
+  level: AgencyLevel;
   orgId: string | null;
   orgName: string;
   rate: number;
@@ -83,7 +90,7 @@ export interface PayeeAmount {
 /** Stable identity for a payee. Prefers the org id; a historic row has only a
     name, so the name is the fallback key and is namespaced by level so a branch
     and an agency of the same name never merge. */
-export function payeeKey(level: CommissionLine['level'], orgId: string | null, orgName: string): string {
+export function payeeKey(level: AgencyLevel, orgId: string | null, orgName: string): string {
   return `${level}:${orgId ?? `name/${orgName.trim().toLowerCase()}`}`;
 }
 
@@ -134,7 +141,7 @@ export function agentAmountOf(app: FullApp): number {
     attributes an application to the agency or office that earned it. */
 export function orgAmountOf(
   app: FullApp,
-  level: CommissionLine['level'],
+  level: AgencyLevel,
   orgId?: string | null,
   orgName?: string,
 ): number {
@@ -169,9 +176,54 @@ export function orgAmountOf(
  */
 export function linesFor(app: FullApp): CommissionLine[] {
   if (isDirectRail(app.partner)) return [];
-  const frozen = app.commissionLines;
-  if (frozen && frozen.length) return frozen;
+  /* THE AGENCY SIDE ONLY. 20261007580000 added a 'supplier' level to the
+     same table, and every caller of this function -- the rankings, the
+     settlement, the statement, the aggregate, totalRate -- is asking
+     about the agency side. Filtering here rather than at each of them is
+     the same reasoning this file opens with: four surfaces each doing
+     their own version of one rule is how they drifted apart. The
+     supplier's line is read by `supplierLineOf` and nothing else. */
+  const frozen = (app.commissionLines ?? []).filter((l) => l.level !== 'supplier');
+  if (frozen.length) return frozen;
   return [{ level: 'agency', orgId: null, orgName: app.agency || '(unknown agency)', rate: app.agentRate ?? 0 }];
+}
+
+/* =====================================================================
+   AND WHAT OPNDOOR OWES THE SUPPLIER, READ THE SAME WAY.
+
+   Matt, 2026-10-02: "Store supplier commission per application the same
+   way agency commission is stored, and read it everywhere (statements,
+   exports, reporting, settlements) instead of recalculating."
+
+   This is the other half of the penny. `agentAmountOf` above reads a
+   stored amount because the agency side had one; the supplier side did
+   not, so eight callers each multiplied `feeBaseFor(app) *
+   partnerRate` and each rounded on its own -- the same shape as
+   GR-20846, waiting for the first supplier fee that lands on a half
+   penny.
+
+   THE FALLBACK IS THE OLD ARITHMETIC, for an application created before
+   the line existed and never backfilled. It is exactly what that row
+   has always been worth, and the same fallback `payeesFor` uses on an
+   agency line frozen before the amount column.
+
+   ZERO ON EVERY OTHER RAIL, and not by arithmetic: a house route's cut
+   is Opndoor's own margin and an agency of ours has no supplier above
+   it, so there is nobody to owe. `agentRailApp` is the test the
+   aggregate has always used; `isHousePartner` covers the rest.
+   ===================================================================== */
+
+/** The supplier's frozen line, if this application has one. */
+export function supplierLineOf(app: FullApp): CommissionLine | null {
+  return (app.commissionLines ?? []).find((l) => l.level === 'supplier') ?? null;
+}
+
+/** What Opndoor owes the supplier on this application. */
+export function supplierAmountOf(app: FullApp): number {
+  if (isDirectRail(app.partner) || agentRailApp(app)) return 0;
+  const line = supplierLineOf(app);
+  if (line && line.amount != null) return line.amount;
+  return feeBaseFor(app) * (line?.rate ?? app.partnerRate ?? 0);
 }
 
 /** The total share of the fee this application pays out across every payee. */
@@ -194,8 +246,8 @@ export function totalRate(app: FullApp): number {
     reconstructed single agency line for a historic row with no split is worth. */
 export function payeesFor(app: FullApp, feeBase: number): PayeeAmount[] {
   return linesFor(app).map((l) => ({
-    key: payeeKey(l.level, l.orgId, l.orgName),
-    level: l.level,
+    key: payeeKey(l.level as AgencyLevel, l.orgId, l.orgName),
+    level: l.level as AgencyLevel,
     orgId: l.orgId,
     orgName: l.orgName,
     rate: l.rate,
@@ -211,7 +263,7 @@ export function payeesFor(app: FullApp, feeBase: number): PayeeAmount[] {
  */
 export function orgLines(
   app: FullApp,
-  level: CommissionLine['level'],
+  level: AgencyLevel,
   orgId?: string | null,
   orgName?: string,
 ): CommissionLine[] {
@@ -233,7 +285,7 @@ export function orgLines(
  */
 export function orgRate(
   app: FullApp,
-  level: CommissionLine['level'],
+  level: AgencyLevel,
   orgId?: string | null,
   orgName?: string,
 ): number {

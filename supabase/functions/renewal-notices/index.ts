@@ -17,7 +17,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "../_shared/mailer.ts";
-import { renewalNoticeEmail } from "../_shared/emailTemplates.ts";
+import { renewalNoticeEmail, tenantRenewalNoticeEmail } from "../_shared/emailTemplates.ts";
 import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 const cors = {
@@ -158,20 +158,39 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // The tenant is told on every rail; who else is the matrix's answer.
-      const recipients = Array.from(new Set(
-        [r.tenant_email, ...agents]
-          .filter((e): e is string => typeof e === "string" && e.length > 0),
+      /* TWO SENDS, BY AUDIENCE. Matt, 2026-10-02: "send the tenant their
+         own email, worded for them ... and the agent theirs, as two
+         separate sends."
+
+         The tenant used to be one more address on the agent's email, so
+         they read a third-person report about their own tenancy. They
+         get `tenantRenewalNoticeEmail` now, which is the same facts in
+         the second person.
+
+         THE AGENT SIDE KEEPS ITS SINGLE SEND, and the comment that was
+         here still explains why: one notification to a list rather than
+         a loop per address is the shape every other job uses and the
+         shape the deed rule specified. What changes is that the list no
+         longer has the tenant in it. `emailed` still counts
+         notifications and not addresses -- there are simply up to two of
+         them now, which is what was asked for. */
+      const agentList = Array.from(new Set(
+        agents.filter((e): e is string => typeof e === "string" && e.length > 0),
       ));
-      /* ONE SEND WITH EACH AS A RECIPIENT, not one email each. This looped
-         sendMessage per address, which is the one notification in the product
-         that did -- the shape everything else uses, and the shape the deed
-         rule specified, is a single send carrying all of them. The loop also
-         made "emailed" count addresses where every other job counts
-         notifications. */
       let anySent = false, anyFailed = false;
-      if (recipients.length) {
-        const res = await sendMessage({ to: recipients, message });
+      if (r.tenant_email) {
+        const res = await sendMessage({
+          to: r.tenant_email,
+          message: tenantRenewalNoticeEmail({
+            propertyAddr: r.property_addr || "your property",
+            endDate: endLabel,
+            guaranteeRef: r.guarantee_ref,
+          }),
+        });
+        if (res.ok) { emailed++; anySent = true; } else { emailFailed++; anyFailed = true; }
+      }
+      if (agentList.length) {
+        const res = await sendMessage({ to: agentList, message });
         if (res.ok) { emailed++; anySent = true; } else { emailFailed++; anyFailed = true; }
       }
       // Names the rail's own vocabulary rather than "agent/landlord" for all
@@ -179,7 +198,7 @@ Deno.serve(async (req) => {
       // agency was involved.
       const who = [
         r.tenant_email ? "tenant" : null,
-        agents.length ? `${agents.length} on the referring side` : null,
+        agentList.length ? `${agentList.length} on the referring side` : null,
       ].filter(Boolean).join(", ");
       // One activity entry per application. Partner-safe: names who and when.
       await service.from("activity_log").insert({

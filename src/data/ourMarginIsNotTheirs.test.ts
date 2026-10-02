@@ -57,9 +57,16 @@ describe('the house cut on the agency rail', () => {
   /* AND THE SETTLEMENT DROPS THE HOUSE PARTNER ALTOGETHER. Zeroing the rate
      leaves a "£0.00" line named after a route, which is still Opndoor's
      plumbing showing through on an agency's own page. getCommissionSettlement
-     is a SUPPLIER settlement; a house partner is not one. */
+     is a SUPPLIER settlement; a house partner is not one.
+
+     AND NEITHER IS AN AGENCY-SHAPED PARTNER, added 2026-10-02.
+     `isHousePartner` catches our three plumbing slugs and not a partner
+     row that is really an agency -- the Harbour Lets shape Matt took off
+     the Suppliers list and out of the route table the same day. Both
+     tests, because the two answer different questions and a reader
+     deleting either would be removing a rule rather than a duplicate. */
   it('and the supplier settlement skips a house partner entirely', () => {
-    expect(src).toMatch(/if \(isHousePartner\(a\.partner\)\) continue;/);
+    expect(src).toMatch(/if \(isHousePartner\(a\.partner\) \|\| agentRailApp\(a\)\) continue;/);
   });
 
   /* THE MOUNT. FinanceSurfaces gated itself on maySeeCommission, which a

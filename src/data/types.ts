@@ -377,7 +377,13 @@ export interface AgentContact {
 export type CommissionSource = 'standard' | 'agreement' | 'rate';
 
 export interface CommissionLine {
-  level: 'group' | 'agency' | 'branch';
+  /* 'supplier' SINCE 2026-10-02 (20261007580000), and it is not an org
+     level: it is what Opndoor owes the SUPPLIER on its own referral,
+     stored the same way the agency side is so every surface can read one
+     amount instead of multiplying a rate four ways. Every reader of the
+     agency side filters it out -- `linesFor` does it once, for all of
+     them -- and `supplierLineOf` is the only thing that looks for it. */
+  level: 'group' | 'agency' | 'branch' | 'supplier';
   /** DB id of the org paid. Null for a historic row reconstructed from the scalar. */
   orgId: string | null;
   orgName: string;
