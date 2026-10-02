@@ -572,6 +572,15 @@ screens an admin can no longer open as of item 2.
   well as a control change: `agencies.referencing_mode` is nullable today
   and null means inherit. Two options means it stops being nullable, and
   the existing nulls have to become something.
+- **done `0c62295`.** `20261007470000` backfilled every null to
+  `opndoor_referenced` (Matt: "there are no real agencies yet, only dev
+  test data"), set the column NOT NULL with that default, and made
+  `set_agency_referencing_mode` refuse null. Regent's keeps
+  `pre_referenced_open`. The radios replace the dropdown on the agency
+  page, the confirmation says referrals already sent keep their route,
+  and a `tenant_check_changed` audit row is written only when the value
+  moves. Three pgTAP fixtures used null as a fixture value and now state
+  the mode they were inheriting.
 
 ## THE AGENCY PEOPLE TAB USES THE SHARED TABLE TOO (instruction, 2026-10-02, verbatim).
 
