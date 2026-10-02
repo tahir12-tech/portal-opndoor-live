@@ -223,6 +223,27 @@ path and the statement run call). Screens 1 and 2 are also rendered, with
 the same two-Frost fixture, in
 `src/pages/Agencies/twoFrostsOnTwoScreens.render.test.tsx`.
 
+## FOUR DECISIONS, 2026-10-02 (instruction, verbatim). THIS IS THE CURRENT PLAN.
+
+> Decisions:
+> 1. Nobody is ever positioned at an agency or branch in a supplier's estate. A supplier's own staff sit at the supplier level only (they choose the agency and branch on each referral, but are never positioned there), and supplier-estate agencies never get logins. Enforce it: refuse any position or invite that would place someone at a supplier-estate agency or branch, and rewrite the two tests that modelled a supplier's referrer sitting at a branch to match.
+> 2. A contact email is required when any agency or branch is created, in any estate, so one always exists; creating one without it is refused with a clear message. Check existing agencies and branches on dev and list any without one.
+> 3. Agencies in a supplier's estate need no finance email. For now, all commission statements for a supplier's agencies go to the supplier (its statement plus the per-agency schedules), never to the agencies, whatever the "Opndoor pays the agents directly" setting. Remove anything that sends a statement to a supplier-estate agency.
+> 4. Fix the three older items: remove the reminder promise from the tenant's deed email unless tenants really get that reminder; remove the duplicate "not insurance" sentences; change "guarantor fee" to "guarantee fee" in CSV exports, the activity feed and the API docs wording, but do not rename any API field or CSV column a partner's code may read.
+> Deploy to dev and check there.
+
+- Item 1 answers the first question under "For Matt in the morning" and
+  reverses what I backed out: the trigger on `user_scopes` goes back in,
+  the INVITE path gets the same rule, and the two fixtures that model a
+  supplier's referrer at a branch are rewritten rather than worked around.
+- Item 3 answers the second and goes further than the question asked: the
+  fallback is not the deed contact, it is that a supplier-estate agency
+  gets no statement at all. That makes `commission_statement_recipients`
+  return nothing for one, and the per-agency schedules stay where they
+  are, inside the supplier's own email.
+- Item 4's second half has teeth: "do not rename any API field or CSV
+  column a partner's code may read". The wording changes; the keys do not.
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
