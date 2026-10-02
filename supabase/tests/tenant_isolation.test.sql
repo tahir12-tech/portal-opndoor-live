@@ -91,7 +91,14 @@ insert into public.users (id, full_name, email, role, partner_id, status, sees_c
   ('90000000-0000-0000-0000-00000000c004','ZZZ Alpha Neg','zzz.alpha.neg@iso.test','referrer',(select id from public.partners where slug='opndoor-agents'),'active',false,'90000000-0000-0000-0000-0000000000b1'),
   ('90000000-0000-0000-0000-00000000c005','ZZZ Beta Dir','zzz.beta.dir@iso.test','management',(select id from public.partners where slug='opndoor-agents'),'active',true,null),
   ('90000000-0000-0000-0000-00000000c006','ZZZ Gamma Mgmt','zzz.gamma.mgmt@iso.test','management','90000000-0000-0000-0000-00000000ac01','active',true,null),
-  ('90000000-0000-0000-0000-00000000c007','ZZZ Gamma Ref','zzz.gamma.ref@iso.test','referrer','90000000-0000-0000-0000-00000000ac01','active',false,'90000000-0000-0000-0000-0000000000b5'),
+  /* NO HOME BRANCH, SINCE 2026-10-02. Matt: "A supplier's own staff sit
+     at the supplier level only (they choose the agency and branch on each
+     referral, but are never positioned there)." This referrer used to be
+     given the supplier's own branch as their home, which is the shape the
+     rule rules out, and 20261007400000 now refuses it. What isolates them
+     is `partner_id`, which on the supplier rail IS the company -- and the
+     assertions below are unchanged, because they always were. */
+  ('90000000-0000-0000-0000-00000000c007','ZZZ Gamma Ref','zzz.gamma.ref@iso.test','referrer','90000000-0000-0000-0000-00000000ac01','active',false,null),
   ('90000000-0000-0000-0000-00000000c008','ZZZ Gamma Dev','zzz.gamma.dev@iso.test','developer','90000000-0000-0000-0000-00000000ac01','active',false,null);
 
 insert into public.user_scopes (user_id, kind, group_id, agency_id, branch_id) values
@@ -102,8 +109,15 @@ insert into public.user_scopes (user_id, kind, group_id, agency_id, branch_id) v
   -- The Negotiator holds a BRANCH position. They used to hold none and be
   -- located by home_branch_id; 20261006300000 made a position mandatory on
   -- this estate, because that column is one its own subject can PATCH.
-  ('90000000-0000-0000-0000-00000000c004','branch',null,null,'90000000-0000-0000-0000-0000000000b1'),
-  ('90000000-0000-0000-0000-00000000c007','branch',null,null,'90000000-0000-0000-0000-0000000000b5');
+  ('90000000-0000-0000-0000-00000000c004','branch',null,null,'90000000-0000-0000-0000-0000000000b1');
+  -- AND THE SUPPLIER'S REFERRER HOLDS NONE. They used to hold a branch
+  -- position inside the supplier's own estate; see the note on their row
+  -- above. The supplier's Management and developer never held one either,
+  -- so this makes the three of them the same shape.
+
+-- The constraint trigger that demands a position applies to OUR estate.
+-- Nobody at a supplier has ever held one, which is why the two rows above
+-- it were always only Alpha's and Beta's.
 
 -- One application per branch, each referred by somebody who belongs there.
 insert into public.applications

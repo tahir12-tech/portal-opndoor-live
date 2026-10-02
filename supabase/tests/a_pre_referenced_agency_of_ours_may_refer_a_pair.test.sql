@@ -114,9 +114,15 @@ insert into public.users (id, full_name, email, role, partner_id, status, sees_c
   ('97000000-0000-0000-0000-00000000c002','ZZZ Supplier Manager','zzz.supplier.manager@r.test',
    'management','97000000-0000-0000-0000-0000000000d2','active', true);
 
+/* ONLY THE DIRECTOR ON OUR OWN ESTATE HOLDS A POSITION. The supplier's
+   manager used to hold one on the supplier's own agency; Matt ruled on
+   2026-10-02 that "nobody is ever positioned at an agency or branch in a
+   supplier's estate ... A supplier's own staff sit at the supplier level
+   only", and 20261007400000 refuses it. Their authority comes from
+   `partner_id`, which on that rail IS the company, so the referral below
+   is unaffected -- which is the point worth having a test say. */
 insert into public.user_scopes (user_id, kind, agency_id) values
-  ('97000000-0000-0000-0000-00000000c001','agency','97000000-0000-0000-0000-0000000000a1'),
-  ('97000000-0000-0000-0000-00000000c002','agency','97000000-0000-0000-0000-0000000000a2');
+  ('97000000-0000-0000-0000-00000000c001','agency','97000000-0000-0000-0000-0000000000a1');
 
 -- ===========================================================================
 -- THE TWO QUESTIONS ARE DIFFERENT QUESTIONS

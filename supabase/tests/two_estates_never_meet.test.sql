@@ -33,7 +33,7 @@
 -- rules and are in src/data/twoEstatesNeverMeet.test.ts.
 
 begin;
-select plan(17);
+select plan(22);
 
 -- ===========================================================================
 -- THE FIXTURE: ONE COMPANY, TWO ESTATES
@@ -239,26 +239,76 @@ select is(
   0, 'and never to the same-named branch in Opndoor''s estate');
 
 -- ===========================================================================
--- 6. A SUPPLIER-ESTATE STATEMENT REACHES NO LOGIN  (20261007390000)
+-- 6. NOBODY IS PLACED IN A SUPPLIER'S ESTATE  (20261007400000)
 -- ===========================================================================
-/* Matt: "that commission is paid to the Rightmove-estate agency and its
-   statement goes to that agency's contact email, never into any login."
-   The agency arm of commission_statement_recipients resolves people
-   through user_scopes and never asked which estate the party was in, so
-   a Management user positioned on one of the supplier's agencies was
-   addressed beside the finance address. */
+/* Matt, 2026-10-02: "Nobody is ever positioned at an agency or branch in
+   a supplier's estate. A supplier's own staff sit at the supplier level
+   only (they choose the agency and branch on each referral, but are
+   never positioned there), and supplier-estate agencies never get
+   logins. Enforce it: refuse any position or invite that would place
+   someone at a supplier-estate agency or branch."
+
+   THREE DOORS, and all three are asserted, because shutting one and
+   calling it done is how this sort of rule leaks. */
+select throws_ok(
+  $$insert into public.user_scopes (user_id, kind, agency_id)
+    values ('93000000-0000-0000-0000-0000000e50a3','agency','93000000-0000-0000-0000-0000000e5002')$$,
+  '22023', null,
+  'a position on an agency in a supplier''s estate is refused');
+
+select throws_ok(
+  $$insert into public.user_scopes (user_id, kind, branch_id)
+    values ('93000000-0000-0000-0000-0000000e50a3','branch','93000000-0000-0000-0000-0000000e5012')$$,
+  '22023', null,
+  'and on one of its branches');
+
+/* THE HOME BRANCH IS THE OTHER HALF OF BEING PLACED. It is what the
+   people lists print under somebody's name, and it is what the
+   tenant_isolation fixture gave a supplier's referrer until today. */
+select throws_ok(
+  $$update public.users set home_branch_id = '93000000-0000-0000-0000-0000000e5012'
+     where id = '93000000-0000-0000-0000-0000000e50a3'$$,
+  '22023', null,
+  'and a home branch inside a supplier''s estate is refused too');
+
+/* AND THE INVITE SAYS SO BEFORE IT CREATES ANYBODY. A backstop that
+   fires after the auth account exists is a correct refusal and a bad
+   experience; assert_may_grant_position is what the invite asks first.
+   Run as postgres on purpose: the rule is above the admin
+   short-circuit because it is not about reach.
+   -- lint:as-postgres the estate rule fires for every caller including
+   -- the owner, which is the property being asserted. */
+select throws_ok(
+  $$select public.assert_may_grant_position('agency','93000000-0000-0000-0000-0000000e5002')$$,
+  '22023', null,
+  'and the invite refuses the same placement, with the reason');
+
+/* THE POSITIVE HALF: our own estate still places people, so the four
+   refusals above are about the estate and not about the machinery. */
+select lives_ok(
+  $$insert into public.user_scopes (user_id, kind, branch_id)
+    values ('93000000-0000-0000-0000-0000000e50a1','branch','93000000-0000-0000-0000-0000000e5011')$$,
+  'while a position in Opndoor''s own estate is accepted as before');
+
+-- ===========================================================================
+-- 7. A SUPPLIER'S AGENCIES ARE NEVER WRITTEN TO  (20261007410000)
+-- ===========================================================================
+/* Matt, 2026-10-02, replacing his own earlier sentence about the
+   agency's contact email: "all commission statements for a supplier's
+   agencies go to the supplier (its statement plus the per-agency
+   schedules), never to the agencies, whatever the 'Opndoor pays the
+   agents directly' setting."
+
+   The finance address is set here deliberately: the point is that even
+   WITH one, nobody is written to. */
 update public.agencies set finance_email = 'finance@theirs.test'
  where id = '93000000-0000-0000-0000-0000000e5002';
-insert into public.user_scopes (user_id, kind, agency_id)
-values ('93000000-0000-0000-0000-0000000e50a3','agency','93000000-0000-0000-0000-0000000e5002');
+select is_empty(
+  $$select email from public.commission_statement_recipients('agency','93000000-0000-0000-0000-0000000e5002')$$,
+  'a supplier-estate agency is written to by nobody, finance address or not');
 
-select bag_eq(
-  $$select email, source from public.commission_statement_recipients('agency','93000000-0000-0000-0000-0000000e5002')$$,
-  $$values ('finance@theirs.test','finance')$$,
-  'a supplier-estate agency''s statement goes to its finance address and to no login');
-
-/* AND THE SAME PERSON ARM STILL WORKS IN OPNDOOR'S ESTATE, so the
-   exclusion above is about the estate and not about the arm. */
+/* AND OUR OWN ESTATE IS UNTOUCHED, which is what makes the line above a
+   rule about the estate rather than a function that stopped working. */
 update public.agencies set finance_email = 'finance@ours.test'
  where id = '93000000-0000-0000-0000-0000000e5001';
 select bag_eq(
