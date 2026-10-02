@@ -10,6 +10,8 @@
  * a_change_is_only_a_change.test.sql holds it. This file is the wording.
  */
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { changeSentence, isNoOpChange } from './changeSentence';
 
 const say = (field: string, oldValue: string, newValue: string) =>
@@ -239,5 +241,32 @@ describe('a change that changed nothing', () => {
 
   it('and a one-sided row is left alone, because it is not a comparison', () => {
     expect(isNoOpChange({ field: 'live_from', oldValue: '', newValue: '2026-08-01' })).toBe(false);
+  });
+
+  /* =====================================================================
+     AND EVERY SURFACE THAT DRAWS THE LIST ACTUALLY ASKS.
+
+     Matt's words were "Recent changes (supplier and agency)", and there
+     are THREE lists, not two: the supplier's Settings tab, the
+     supplier's Overview card and the agency page. Two filtered and one
+     did not, and the one that did not is the card he was reading when he
+     reported it -- the same shape as walk item 2, where the Office
+     label was computed once and rendered on two screens.
+
+     A SOURCE TEST, deliberately. The defect is a missing call, and a
+     render test would need a fixture row that is a no-op on each of the
+     three screens to catch the same thing less directly. This fails the
+     moment a fourth list is added without the filter, which is the
+     failure mode worth guarding. */
+  it('and every Recent changes list filters them out', () => {
+    const surfaces = [
+      'src/pages/PartnerManagement/SupplierSettings.tsx',
+      'src/pages/PartnerManagement/SupplierOverview.tsx',
+      'src/pages/Agencies/AgencyChanges.tsx',
+    ];
+    for (const f of surfaces) {
+      const src = readFileSync(join(process.cwd(), f), 'utf8');
+      expect(src, f).toMatch(/\.filter\(\(e\) => !isNoOpChange\(e\)\)/);
+    }
   });
 });

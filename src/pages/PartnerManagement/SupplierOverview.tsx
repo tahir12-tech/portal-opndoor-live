@@ -31,7 +31,7 @@ import { getPartnerAudit, type PartnerAuditEntry } from '@/data/partnersService'
 import { getAgencies, getSupplierDeal, type AgreementView } from '@/data';
 import { agenciesNeedingAnEmail } from '@/data/deedContact';
 import { supplierDealLine } from '@/data/supplierDealLine';
-import { changeSentence } from '@/data/changeSentence';
+import { changeSentence, isNoOpChange } from '@/data/changeSentence';
 import { StatementRecipients } from '@/components/StatementRecipients';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { possessive } from '@/lib/format';
@@ -59,7 +59,16 @@ export function SupplierOverview({ slug, partnerDbId, name, standardTotal, stand
     let alive = true;
     void getSupplierDeal(slug, 'commission').then((d) => { if (alive) setCommission(d); }).catch(() => {});
     void getSupplierDeal(slug, 'agent_share').then((d) => { if (alive) setAgentShare(d); }).catch(() => {});
-    void getPartnerAudit(slug).then((a) => { if (alive) setAudit(a); }).catch(() => { if (alive) setAudit([]); });
+    /* NOTHING-CHANGED ROWS ARE HIDDEN HERE TOO. Matt, 2026-10-02:
+       "Recent changes (supplier and agency): hide old entries where
+       nothing actually changed, e.g. 'Live from changed from August to
+       August 2026'." The Settings tab and the agency page filtered; this
+       card, which is the one he was reading when he reported it, did
+       not. Same predicate, so the three cannot disagree about what
+       counts as a change. */
+    void getPartnerAudit(slug)
+      .then((a) => { if (alive) setAudit(a.filter((e) => !isNoOpChange(e))); })
+      .catch(() => { if (alive) setAudit([]); });
     return () => { alive = false; };
   }, [slug, dataVersion]);
 
