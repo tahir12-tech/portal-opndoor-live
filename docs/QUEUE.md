@@ -893,7 +893,7 @@ you asked for. Say the word and the tenant gets their own wording.
 - The last sentence is the same subject as the instruction above it, so
   the two are built together.
 
-## THE APPLICATION EXPORT'S WORDING SWEEP (instruction, 2026-10-02, verbatim). **PART DONE** (`d181e0e`): the headings moved. The via-supplier labels and the blank rents are NOT done.
+## THE APPLICATION EXPORT'S WORDING SWEEP (instruction, 2026-10-02, verbatim). **PART DONE** (`d181e0e`): the headings moved. The via-supplier labels and the blank rents are NOT done.## THE APPLICATION EXPORT'S WORDING SWEEP (instruction, 2026-10-02, verbatim). **done** (`d181e0e` headings, `d92072b` the via labels and the blank rents).
 
 > Application export: same wording sweep as the Performance export. Replace every remaining "Partner"/"partner" with "Supplier"/"supplier" (the first column, "Partner commission", "All suppliers (combined)" in the header) and "Guarantor fee" with "Guarantee fee", including the notes; this file is for Opndoor only, so its headings can change. Label supplier-estate agencies and branches "(via [supplier])" as on screen. Leave Monthly rent and Share of rent blank where the tenant hasn't given a rent yet. Deploy to dev and check there.
 
@@ -905,7 +905,7 @@ you asked for. Say the word and the tenant gets their own wording.
   given a rent yet" is the same subject as "Not given yet" on the
   Applications list, on the export.
 
-## THE EXPIRIES EXPORT ON DEV IS STALE (bug, 2026-10-02, verbatim). **answered, and every function deployed** (16:35, all 35). ONE QUESTION BACK FOR MATT, below.
+## THE EXPIRIES EXPORT ON DEV IS STALE (bug, 2026-10-02, verbatim). **answered, and every function deployed** (16:35, all 35). ONE QUESTION BACK FOR MATT, below.## THE EXPIRIES EXPORT ON DEV IS STALE (bug, 2026-10-02, verbatim). **done**: answered, every function deployed (16:35, all 35), and the other file brought into line (`6baf1c7`).
 
 > The Expiries export on dev still produces the old file (no "Joint with", old "Annualised rent" and "Guarantor fee" headings) after your fix in fec2309. If it's built by an edge function such as expiry-cohorts, deploy it to dev with the npx command, and check every function changed today has been deployed. Then download it yourself on dev and confirm the new headings.
 
@@ -941,7 +941,7 @@ you asked for. Say the word and the tenant gets their own wording.
   it, and fec2309 never touched it. Say the word and it gets the same
   three labels.
 
-## ADMIN LEAGUE, THREE THINGS (instruction, 2026-10-02, verbatim).
+## ADMIN LEAGUE, THREE THINGS (instruction, 2026-10-02, verbatim). **done** (`9e4d0c6`), with the two restatements below.
 
 > Admin League: rename "Partner comm." to "Supplier comm." on every tab. Where a row already carries its supplier's tag (e.g. "Kestrel Lettings"), drop the "(via …)" from the name so it isn't said twice. Add the dashboard's one-line note that a rate can exceed 100% when payments land this period for referrals sent earlier. Deploy to dev and check there.
 
@@ -954,7 +954,7 @@ you asked for. Say the word and the tenant gets their own wording.
 - The third is the funnel note on the dashboard, which League needs for
   the same reason: its conversion is period throughput too.
 
-## THE LEAGUE EXPORTS (instruction, 2026-10-02, verbatim).
+## THE LEAGUE EXPORTS (instruction, 2026-10-02, verbatim). **done** (`d181e0e` the two labels, `9e4d0c6` the rest).
 
 > League exports (every tab): "All suppliers (combined)" in the header and "Supplier commission" instead of "Partner commission". Deploy to dev and check there.
 
@@ -963,7 +963,7 @@ you asked for. Say the word and the tenant gets their own wording.
   so all three lose the column-heading exception. The expiries file and
   the partner API keep it: nothing has been said about those.
 
-## THE LEAGUE, RESTATED WITH THE EXPORTS IN IT (instruction, 2026-10-02, verbatim).
+## THE LEAGUE, RESTATED WITH THE EXPORTS IN IT (instruction, 2026-10-02, verbatim). **done** (`9e4d0c6`).
 
 > League screen and exports: where a row already shows its supplier (the tag on screen, the Detail column in exports), drop "(via …)" from the name so it isn't said twice. Rename "Partner comm." to "Supplier comm." on screen on every tab, and add the dashboard's one-line note that a rate can exceed 100% when payments land this period for referrals sent earlier. Deploy to dev and check there.
 
@@ -975,11 +975,11 @@ you asked for. Say the word and the tenant gets their own wording.
   have no such column and keep it; League, on screen and in its
   exports, has one and does not.
 
-## THE LEAGUE'S PEOPLE TAB (instruction, 2026-10-02, verbatim).
+## THE LEAGUE'S PEOPLE TAB (instruction, 2026-10-02, verbatim). **done** (`9e4d0c6`).
 
 > League, people tab: call it "Referrers" on screen and in the export, since it includes Directors and supplier staff. Add an "Agency or supplier" column (e.g. "Regent's Lettings", "Kestrel Lettings"), on screen and in the export. Deploy to dev and check there.
 
-## EVERY LEAGUE EXPORT IS TITLED AFTER ITS OWN TAB (bug, 2026-10-02, verbatim).
+## EVERY LEAGUE EXPORT IS TITLED AFTER ITS OWN TAB (bug, 2026-10-02, verbatim). **done** (`9e4d0c6`). The sweep's answer: the sheet name and the first column came from a ternary with agency, branch and "Referrer" for everything else, so the Suppliers board -- added fourth -- fell into the else. `LEAGUE_NOUN` is a Record<LeagueView, ...>, so a fifth board has to be named to compile.
 
 > League Suppliers tab export: it's titled "League table: Referrers" with a "Referrer" column. Title it "League table: Suppliers" with a "Supplier" column. Check every League tab's export is titled after its own tab. Deploy to dev and check there.
 
@@ -989,7 +989,7 @@ you asked for. Say the word and the tenant gets their own wording.
 - "Check every League tab's export" is the sweep, and the answer is
   owed for all of them, not just Suppliers.
 
-## THE WARNING ICON, AND A QUESTION ABOUT DEV DATA (instruction, 2026-10-02, verbatim).
+## THE WARNING ICON, AND A QUESTION ABOUT DEV DATA (instruction, 2026-10-02, verbatim). **done** (`fea1ccd` the icon); the question is answered in the notes below.
 
 > Supplier Overview, "Needs attention": the warning icon renders at full card size and squashes the text into a narrow column. Size the icon like every other warning icon in the portal (small, beside the text). Check every place this component is used. Also: Recent changes shows "Who pays the agents" switched to "the supplier pays its own agents" on 2 Oct by Nicholas Dwyer. Tell me if you changed that while testing; if so, say what you changed and put it back. Deploy to dev and check there.
 
@@ -1026,21 +1026,46 @@ you asked for. Say the word and the tenant gets their own wording.
   says it is still showing on dev, which means either the agency page
   never got the filter or the filter does not catch this shape.
 
-## TWO ON SUPPLIER SETTINGS (instruction, 2026-10-02, verbatim).
+## TWO ON SUPPLIER SETTINGS (instruction, 2026-10-02, verbatim). **item 1 done** (`fea1ccd`); **item 2 is a report, below**.
 
 > 1. Supplier Settings: the "Commission tab" link opens Overview; make it open the Commission tab.
 > 2. Supplier Settings offers "opndoor referenced" as a referencing mode. Since supplier vs agency is partly decided by referencing mode, check what happens if a supplier is switched to it: does it vanish from Suppliers, change estate, or alter commission and statements? Tell me what happens before changing anything. If it reclassifies the supplier, the supplier/agency decision must not depend on referencing mode.
 
 - Item 1 is the link I added in `9eafeec`, which predates PartnerHome
   learning `?tab=` an hour ago: it had no way to name a tab.
-- **Item 2 is a question first and a change second, and he says so.**
-  `partyIsSupplier` IS `referencingMode !== 'opndoor_referenced'`, which
-  is the predicate the Suppliers list, the route table, `viaSupplier`
-  and the supplier settlement all turn on. So the answer is almost
-  certainly yes, it reclassifies. Measure it and report before touching
-  anything.
+- **Item 2, MEASURED ON DEV in a rolled-back transaction. It does
+  reclassify, and the two halves of the product disagree about it.**
 
-## THE SUPPLIER'S COMMISSION STATEMENTS NEVER BUILD (bug, 2026-10-02, verbatim).
+  SQL barely moves. Switching Kestrel to `opndoor_referenced` flips
+  `is_supplier_estate` to false and `is_our_estate_partner` to true, and
+  changes nothing else that was measured: the partner payee row and the
+  statement line are both still there (1 and 1). They survive because
+  the partner arm of `commission_statement_lines` is guarded by
+  `isHousePartner`, not by the estate, and `supplier_settles_its_own_
+  agents` reads `opndoor_pays_agents`, not the mode.
+
+  THE CLIENT MOVES A LOT, because `partyIsSupplier` IS
+  `referencingMode !== 'opndoor_referenced'`:
+    * it VANISHES from Suppliers and appears under Agencies
+      (the Harbour Lets fault, which is what `05fee8e` fixed)
+    * "Commission by route" folds it into "Agency referral" (`routeOf`)
+    * its agencies lose their "(via Kestrel Lettings)" labels
+    * its agencies stop needing an agency email, so they drop off
+      Reconciliation (`agencyContactState`)
+    * Reporting serves it the agency-facing layout, not the supplier one
+    * **the supplier settlement SKIPS it entirely** -- `agentRailApp`
+      becomes true, so Opndoor stops showing it as owed anything while
+      the database still produces a statement line for it
+
+  THAT LAST ONE IS THE SERIOUS ANSWER: the screen would stop listing a
+  supplier the server still bills. So his conditional applies -- "If it
+  reclassifies the supplier, the supplier/agency decision must not
+  depend on referencing mode" -- and the fix is a real one: a partner
+  needs its own `is_supplier` fact, with the mode left to answer the
+  journey question it is named for. NOT STARTED: it is a schema change
+  touching every surface above, and he asked to be told first.
+
+## THE SUPPLIER'S COMMISSION STATEMENTS NEVER BUILD (bug, 2026-10-02, verbatim). **done** (`9e4d0c6`).
 
 > Supplier Reporting tab (admin, Kestrel Lettings): "Commission statements" stays on "Building September 2026..." and never shows the statement or downloads. Find why (the statement function on dev, an error being swallowed, or a missing deploy), fix it, and show a clear error if building ever fails. Deploy to dev and check there.
 
@@ -1076,7 +1101,7 @@ you asked for. Say the word and the tenant gets their own wording.
   mints a reference, and then it hangs.
 - Items 1 and 2 are still to build.
 
-## THE AGENCY'S MONTHLY EXPIRIES EMAIL (instruction, 2026-10-02, verbatim).
+## THE AGENCY'S MONTHLY EXPIRIES EMAIL (instruction, 2026-10-02, verbatim). **done** (`6baf1c7`). Test send on dev for 2027-11: 3 emails, 0 failed, all routed to mdwyer@opndoor.co, ledger untouched.
 
 > Bring the agency-facing "guarantees expiring" monthly email and its spreadsheet into line with the admin Expiries export: "Guarantee fee" not "Guarantor fee", "Annualised rent (this tenant's share)" on joint tenancies, "Joint with" instead of a Tenancy ID, dates as "20 Nov 2026" in the email body, and no Opndoor-internal columns. Show me a TEST version sent only to mdwyer@opndoor.co. Deploy to dev.
 
