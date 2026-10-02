@@ -866,6 +866,17 @@ you asked for. Say the word and the tenant gets their own wording.
   tab, the All count, the three tiles, Home's tile and the sidebar badge
   are one number now, so the row disappearing has to move all of them.
 
+## A TILE THAT IGNORES THE PERIOD SAYS SO (instruction, 2026-10-02, verbatim).
+
+> Reporting: "Total guaranteed rent value" doesn't change with the period, because it's everything currently guaranteed. Label it "Guaranteed rent in force (whole book, not affected by the period)" so it isn't read as this period's figure. Check any other tile that ignores the period and label it the same way.
+
+- The second sentence is the work. One mislabelled tile is a wording
+  fix; "check any other tile that ignores the period" is a sweep, and
+  the answer is owed either way.
+- A tile under a period picker is READ as being of that period. That is
+  the whole defect: the figure is right and the reader is wrong, and
+  the label is what made them wrong.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
