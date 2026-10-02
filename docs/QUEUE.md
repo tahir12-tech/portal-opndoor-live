@@ -1014,6 +1014,22 @@ you asked for. Say the word and the tenant gets their own wording.
 - A spinner that never resolves is an error nobody is shown, which is
   the second half of the instruction and the more important half.
 
+## VIEW AS KESTREL, REPORTING (instruction, 2026-10-02, verbatim).
+
+> View as Kestrel Lettings (and Kestrel's own login), Reporting:
+> 1. Don't add "(via Kestrel Lettings)" to agency and branch names in the supplier's own view; it's only needed where Opndoor sees both estates.
+> 2. "Kestrel Lettings' commission": show Kestrel's own statement first (its total, reference and downloads), with its agencies' schedules beneath it, not a single agency's statement as the headline.
+> 3. Frost Partnership (Kestrel's estate) has its own statement reference, STMT-2026-09-0004. Tell me whether a statement was posted or emailed to that agency. Per the decision, statements for a supplier's agencies go only to the supplier: if anything was sent to the agency, say what and to whom, and make sure it can't happen again.
+> Deploy to dev and check there.
+
+- Item 1 is the third refinement of the same rule in a day: label the
+  estate where the reader can see both, and nowhere else. Charts yes;
+  League no (it has a Supplier column); a SUPPLIER's own view no (every
+  row is theirs). The rule is about the reader as well as the surface.
+- **Item 3 is a question about whether a document reached the wrong
+  party**, and it is the serious one. Answer it from the ledger before
+  anything is built.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
