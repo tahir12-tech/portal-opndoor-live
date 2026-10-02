@@ -109,9 +109,16 @@ values
 -- ===========================================================================
 -- 1. THE TRAP FIRST. The house agency partner must never become a supplier.
 -- ===========================================================================
+/* NARROWED 2026-10-02, to the thing it says it checks. It counted EVERY
+   partner-level payee and expected none, which held only because dev had
+   no supplier with a paid referral in that month. The Frost fixture
+   (docs/reference/frost-both-estates.dev.sql) gave Kestrel one, and a
+   supplier earning a partner-level payee is the correct answer, not a
+   regression. The claim is about the HOUSE agency partner, and that is
+   now what is asked. */
 select is(
-  (select count(*)::int from public.commission_statement_payees('2026-09-01'::date)
-    where level = 'partner'),
+  (select count(*)::int from public.commission_statement_payees('2026-09-01'::date) p
+    where p.level = 'partner' and public.is_house_partner_id(p.org_id)),
   0, 'the house agency partner is not a supplier payee, though its is_house_route is FALSE and it carries every paid referral on dev');
 
 -- ===========================================================================

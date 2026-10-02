@@ -202,6 +202,20 @@ and nothing else. No login is ever addressed for a supplier-estate agency.
 **7. The duplicate report.** `duplicate_agency_groups()` returns nothing.
 Two Frosts in two estates are not a duplicate.
 
+**8. The statement run, which is where the split is easiest to see.**
+`commission_statement_payees('2026-09-01')` returns TWO payees called
+Frost Partnership, £240 each, one per estate, plus a partner-level line
+of £600 for Kestrel (its own cut of GR-FROST-KES). Two payees of one
+name is the right answer: they are two companies as far as the book is
+concerned, and each gets its own statement.
+
+That eighth check cost one test assertion. `a_supplier_gets_its_own_statement`
+counted EVERY partner-level payee in that month and expected none, which
+held only because dev had no supplier with a paid referral in September.
+Kestrel now has one. The claim the case makes is about the HOUSE agency
+partner never becoming a supplier payee, so it now asks that instead of
+asking nobody is.
+
 Measured on dev as each user, through the queries those screens run
 (`agencies` as hydrated by the browser, `applications` and
 `application_commission_lines` under RLS, and the two resolvers the send
