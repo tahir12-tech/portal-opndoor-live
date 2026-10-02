@@ -433,6 +433,24 @@ not missing anything and nothing warns about them.
   all three are the same remembered selection leaking -- into a tab
   count, into a link, and into another page.
 
+## THE SUPPLIERS LIST, THREE THINGS (instruction, 2026-10-02, verbatim).
+
+> Suppliers list (admin):
+> 1. Harbour Lets shows as a supplier, but it's an agency (Opndoor-referenced). Only real suppliers appear here; agencies appear under Agencies. Check every partner is listed in the right place.
+> 2. Under each supplier's name, replace "Total 25.0%, agents' share 10.0%" with the plain one-line summary of its current deal from its Commission tab, e.g. "25% of the fee, agencies 10%" or "Tiered deal", so it never shows a rate that isn't in force.
+> 3. Remove the "All users · all suppliers" link if it leads to the old Users page; each supplier's people are on its People tab.
+> Deploy to dev and check there.
+
+- Item 1 is the same three-way split as the estates work: `partyIsSupplier`
+  already answers it, and Harbour Lets is `opndoor_referenced`, so the
+  Suppliers list is asking a two-way question. Where Harbour Lets should
+  appear instead is the half to check rather than assume -- it is a
+  partner with one agency under it, not an agency itself.
+- Item 2 says "from its Commission tab", so the summary must be the SAME
+  reader that tab uses, not a second sentence built from the two rate
+  columns. Those columns are what make it show a rate that is not in
+  force when a negotiated deal is.
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
