@@ -628,6 +628,19 @@ screens an admin can no longer open as of item 2.
   nulls on `agencies.referencing_mode` become "Opndoor checks
   eligibility", and he has said there is no real agency data to protect.
 
+## THE OFFICE COLUMN SAYS WHAT IT MEANS (instruction, 2026-10-02, verbatim).
+
+> Office column on every people screen: show the branch name for someone positioned at a branch, and "Whole agency" for someone positioned at the agency (or "Whole group" at a group level). Same wording on the agency Team page and the admin views. Deploy to dev and check there.
+
+- This is the thing I flagged at the end of the People tab item and left
+  for Matt: Team put `describePosition` in the Office column, so a
+  Director reading their own Team saw "Agency: Regent's Lettings" under a
+  header that means the branch name on the admin view of the same people.
+  One header, two meanings. He has chosen a third wording for both.
+- It is about the WORDING of the cell, not about when the column appears.
+  The rule from earlier today stands: the column is dropped when no row
+  fills it, which is the single-office case he named on New Independent.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
