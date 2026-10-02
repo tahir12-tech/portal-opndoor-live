@@ -395,7 +395,7 @@ not missing anything and nothing warns about them.
 - Two halves: the NUMBER has to include them, and the SENTENCE has to say
   what they are, in his words.
 
-## FOUR, 2026-10-02 (instruction, verbatim). THE CURRENT PLAN.
+## FOUR, 2026-10-02 (instruction, verbatim). **all four done** (`8fc29bc`, `f016369`, `7432f9a`, `7115ca7`).
 
 > 1. Applications from Home's "View all Direct" (Origin: Direct): there is only one direct application, and "All" correctly shows 1, but In progress shows 8, Fee unpaid 4 and Expired 1. Those tabs are counting non-direct applications. Every tab count must follow the current filters. Reproduce through the browser path first, then fix.
 >
@@ -412,6 +412,34 @@ not missing anything and nothing warns about them.
   route and `mayUseDevCentre` were restored for superadmin then; they come
   out again now. The comment in capabilities.ts records both turns and has
   to record this one, or the next reader restores it a third time.
+
+### WHAT THE FOUR CAME TO
+
+**1. The tab counts already followed the filters** (`8fc29bc`). Measured
+on dev: the three numbers were 8 direct drafts, 4 of them unpaid and 1
+direct expired referral. The fault was the word "All", which was the
+funnel. Matt chose the wider reading the same day and it is built: see
+"ALL MEANS ALL" above (`d357fa9`).
+
+**2. The Dev Centre is developers only** (`f016369`). Third ruling on
+one subject; the predicate, the test and this file all carry the three
+turns so it is not restored a fourth time.
+
+**3. One key, one Revoke, on the tab** (`7432f9a`). Two new functions,
+both narrow. `dev_api_keys` has no admin arm at all by design -- "an
+opndoor admin gets zero rows" -- which is why the old copy sent admin to
+Break glass with a prefix they had to find elsewhere. So
+`admin_supplier_api_keys` returns the four facts the screen shows and
+CANNOT return a prefix: "admin never sees a key" is a property of the
+function, not of its caller. `admin_revoke_partner_api_key` acts by id,
+admin only, recorded to security_events with the person, the key and the
+supplier. Neither widens an existing door, and the test asserts both
+refusals.
+
+**4. The tab speaks to an admin** (`7115ca7`). The three empty states in
+Matt's words, and the PandaDoc warning, the POST line and "check on
+Configuration" behind the developer arm. Two of those three pointed at
+screens an admin can no longer open as of item 2.
 
 ## LINKS SET THE FILTERS THEY NAME (instruction, 2026-10-02, verbatim).
 
