@@ -1076,6 +1076,20 @@ you asked for. Say the word and the tenant gets their own wording.
   mints a reference, and then it hangs.
 - Items 1 and 2 are still to build.
 
+## THE AGENCY'S MONTHLY EXPIRIES EMAIL (instruction, 2026-10-02, verbatim).
+
+> Bring the agency-facing "guarantees expiring" monthly email and its spreadsheet into line with the admin Expiries export: "Guarantee fee" not "Guarantor fee", "Annualised rent (this tenant's share)" on joint tenancies, "Joint with" instead of a Tenancy ID, dates as "20 Nov 2026" in the email body, and no Opndoor-internal columns. Show me a TEST version sent only to mdwyer@opndoor.co. Deploy to dev.
+
+> if there are open items work through them all
+
+> ill be back in an hour
+
+- This answers the question I put back: the cohort file DOES get the
+  same treatment. It is `expiry-cohorts`, a different document from the
+  admin download, with its own shorter column set.
+- "no Opndoor-internal columns" is the constraint that stops this being
+  a copy of the admin file: it is an agency's document.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
