@@ -804,7 +804,7 @@ export function Applications() {
                     <td>
                       <span className="status-cell">
                         <Pill variant={r.status === 'withdrawn' || r.status === 'expired' || r.status === 'draft' ? 'muted' : r.status === 'referencing' ? 'warn' : r.status === 'declined' ? 'danger' : (r.status as PillVariant)}>{STATUS_LABEL[r.status]}</Pill>
-                        {r.refunded && <span className="refund-tag" title="Guarantor fee refunded">Refunded</span>}
+                        {r.refunded && <span className="refund-tag" title="Guarantee fee refunded">Refunded</span>}
                         {/* Payment is per applicant: each tenant pays their own
                             share through their own link, so it is theirs to show
                             even where the status is the tenancy's. */}

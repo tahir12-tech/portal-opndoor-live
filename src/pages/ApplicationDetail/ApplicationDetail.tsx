@@ -737,7 +737,7 @@ export function ApplicationDetail() {
   // (greyed via the timeline's 'terminated' state), not "Awaiting payment".
   const paidStep = timelineTerminated
     ? { label: 'Paid', date: d.status === 'withdrawn' ? 'Withdrawn' : 'Expired', note: d.status === 'withdrawn' ? 'Withdrawn before payment' : 'Expired, unpaid after 15 days' }
-    : { label: 'Paid', date: d.paidStr || 'Awaiting payment', note: d.paidStr ? `Guarantor fee paid · ${paidAmountLabel}${feeBasisSuffix}` : 'Guarantor fee not yet paid' };
+    : { label: 'Paid', date: d.paidStr || 'Awaiting payment', note: d.paidStr ? `Guarantee fee paid · ${paidAmountLabel}${feeBasisSuffix}` : 'Guarantee fee not yet paid' };
   const steps = [
     { label: 'Sent', date: d.sentStr, note: `Referral sent to tenant by ${d.referrer}` },
     paidStep,
@@ -809,7 +809,7 @@ export function ApplicationDetail() {
   } else {
     const baseActivity: Activity[] = [];
     if (d.deedStr) baseActivity.push({ color: 'var(--deed)', text: 'Deed issued and stored against the record', time: `${d.deedStr} · System` });
-    if (d.paidStr) baseActivity.push({ color: 'var(--paid)', text: 'Guarantor fee paid by tenant', time: `${d.paidStr} · System` });
+    if (d.paidStr) baseActivity.push({ color: 'var(--paid)', text: 'Guarantee fee paid by tenant', time: `${d.paidStr} · System` });
     baseActivity.push({ color: 'var(--sent)', text: 'Application sent to tenant', time: `${d.sentStr} · ${d.referrer}` });
     activity = [...extraActivity, ...baseActivity];
   }
@@ -1181,8 +1181,8 @@ export function ApplicationDetail() {
         <>
           <div className="pay-state pay-state--refunded"><span className="pay-dot" />{isExpired ? 'Expired' : 'Withdrawn'}</div>
           <div className="pay-note">{isExpired
-            ? 'This application expired before payment, so no guarantor fee was collected. A late payment automatically reinstates it to Paid.'
-            : 'This application was withdrawn before payment, so no guarantor fee was collected. It is excluded from conversion figures and receives no payment reminders.'}</div>
+            ? 'This application expired before payment, so no guarantee fee was collected. A late payment automatically reinstates it to Paid.'
+            : 'This application was withdrawn before payment, so no guarantee fee was collected. It is excluded from conversion figures and receives no payment reminders.'}</div>
         </>
       )}
       {payPaid && (
@@ -1207,7 +1207,7 @@ export function ApplicationDetail() {
             // The parenthetical used to read "(one month's rent)" whatever the
             // basis was. The row states its own basis above, so this just names
             // where the figure came from.
-            <div className="pay-note">Seeded/test record: no Stripe payment reference. The amount shown is the guarantor fee recorded against the application.</div>
+            <div className="pay-note">Seeded/test record: no Stripe payment reference. The amount shown is the guarantee fee recorded against the application.</div>
           )}
         </>
       )}
@@ -1235,7 +1235,7 @@ export function ApplicationDetail() {
         <>
           <div className="pay-state pay-state--awaiting"><span className="pay-dot" />Awaiting payment</div>
           {/* The FEE, which is one month's rent only at standard terms. */}
-          <div className="drow"><span className="drow__k">Guarantor fee</span><span className="drow__v"><b>{d.feeGBP ?? d.rent}</b>{d.feeBasisLabel ? ` · ${d.feeBasisLabel}` : ''}</span></div>
+          <div className="drow"><span className="drow__k">Guarantee fee</span><span className="drow__v"><b>{d.feeGBP ?? d.rent}</b>{d.feeBasisLabel ? ` · ${d.feeBasisLabel}` : ''}</span></div>
           {pi?.paymentUrl && (
             <>
               <div className="pay-link">
@@ -1420,7 +1420,7 @@ export function ApplicationDetail() {
         <div className="grow">
           <div className="deed__t">Deed not yet issued</div>
           <div className="deed__s">
-            {d.status === 'paid' ? 'Deed sent for signature shortly after payment' : 'Issued once the guarantor fee is paid'}
+            {d.status === 'paid' ? 'Deed sent for signature shortly after payment' : 'Issued once the guarantee fee is paid'}
           </div>
         </div>
       </div>
@@ -1619,7 +1619,7 @@ export function ApplicationDetail() {
         <div className="rec-withdrawn">
           <Icon name="clock" strokeWidth={2.2} />
           <div>
-            <b>This application expired (guarantor fee unpaid 15 days after referral).</b>{' '}
+            <b>This application expired (guarantee fee unpaid 15 days after referral).</b>{' '}
             It is excluded from conversion figures and Leagues, and receives no further reminders. A late payment automatically reinstates it to Paid.
           </div>
         </div>

@@ -48,6 +48,8 @@ import { whereTheyWork, type WhereReader } from './whereTheyWork';
 import { partyIsAgency } from './capabilities';
 import { coverHeldDuring, coverStartsLater } from './inForce';
 import { isDirectRail, isHousePartner } from './channel';
+import { viaSupplier } from './viaSupplier';
+import { routeOf } from './route';
 // Walk fixes 15 and 20: the CUSTOMER is the origin, not the route partner.
 import { ORIGIN_ALL, originOf, originValue, type OriginScope } from './origin';
 import type { CommissionSource } from './types';
@@ -465,7 +467,14 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
     if (isHousePartner(app.partner)) return null;
     return { id: app.partner, name: pn, sub: '', partner: pn };
   }
-  if (key === 'agency') return { id: `${app.partner}${S}${app.agency}`, name: app.agency || '(unknown agency)', sub: '', partner: pn };
+  /* NAMED WITH ITS SUPPLIER WHERE IT HAS ONE. Matt, 2026-10-02: two
+     same-named companies must always be tellable apart. Dev has exactly
+     that -- a Frost Partnership in Opndoor's estate and a Frost
+     Partnership in Kestrel's -- and this chart is one of the few screens
+     that deliberately puts the estates side by side. The ID is untouched:
+     it is the grouping key and it already carries the partner, so the two
+     were always two rows. Only what the reader sees changes. */
+  if (key === 'agency') return { id: `${app.partner}${S}${app.agency}`, name: viaSupplier(app.agency, app.partner) || '(unknown agency)', sub: '', partner: pn };
   /* NM-P. A SINGLE-OFFICE AGENCY IS NAMED BY THE AGENCY, and its subtitle
      goes with it -- the sub is the agency, so leaving it would print the
      same words on both lines of the row.
@@ -476,10 +485,15 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
      changes, which is the whole of Matt's rule. */
   if (key === 'branch') {
     const names = showsOffices(app.agency, app.partner);
+    /* THE SUPPLIER GOES ON WHICHEVER LINE NAMES THE COMPANY. A branch row
+       on a multi-office agency reads "Camden" over "Frost Partnership",
+       so the agency line carries it; a single-office agency is named by
+       the agency on the first line, so that one does. Putting it on both
+       would print the supplier twice in one cell. */
     return {
       id: `${app.partner}${S}${app.agency}${S}${app.branch}`,
-      name: names ? (app.branch || '(unknown branch)') : (app.agency || '(unknown agency)'),
-      sub: names ? (app.agency || '') : '',
+      name: names ? (app.branch || '(unknown branch)') : (viaSupplier(app.agency, app.partner) || '(unknown agency)'),
+      sub: names ? viaSupplier(app.agency, app.partner) : '',
       partner: pn,
     };
   }
@@ -567,7 +581,10 @@ function groupRows(
     const deedIn = inRange(app.deedAt, start, end);
     if (!sentIn && !paidIn && !deedIn) continue; // nothing in period for this entity
     const g = get(k.id, k.name, k.sub, k.partner);
-    if (key === 'referrer') { g.agencies.add(app.agency ?? ''); g.branches.add(app.branch ?? ''); }
+    /* AND WHERE A REFERRER WORKS NAMES THE SUPPLIER TOO, on the agency
+       and not on the branch: the sub reads "Camden, Frost Partnership"
+       and the company is the half that can collide. */
+    if (key === 'referrer') { g.agencies.add(viaSupplier(app.agency, app.partner)); g.branches.add(app.branch ?? ''); }
     const letId = app.tenancyId ?? `solo:${app.ref}`;
     if (sentIn) { g.refs += 1; g.refLets.add(letId); }
     if (paidIn) {
@@ -1092,11 +1109,18 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
     // Lines, not the scalar; and no partner cut on the agent rail. Identical to
     // liveAggregate, so this table foots to the KPIs above it.
     const r = { partner: agentRailApp(app) ? 0 : app.partnerRate, agent: totalRate(app) };
-    let row = map.get(app.partner);
+    /* BY ROUTE, NOT BY PARTNER. Matt, 2026-10-02: "Harbour Lets is an
+       agency, so it belongs in 'Agency referral', not listed as its own
+       route. Only real suppliers appear as routes." Grouping on
+       `app.partner` gave a partner row to anything holding one, which on
+       dev is an agency. `routeOf` folds it into the rail it refers on, so
+       its referrals stay in the totals and stop being a route. */
+    const route = routeOf(app.partner);
+    let row = map.get(route.key);
     if (!row) {
-      row = { partner: app.partner, partnerName: partnerName(app.partner), paid: 0, feesGross: 0, refundValue: 0,
+      row = { partner: route.key, partnerName: route.name, paid: 0, feesGross: 0, refundValue: 0,
         partnerCommGross: 0, partnerCommNet: 0, agentCommGross: 0, agentCommNet: 0 };
-      map.set(app.partner, row);
+      map.set(route.key, row);
     }
     row.paid += 1;
     row.feesGross += feeBaseFor(app);
@@ -1114,8 +1138,14 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
   // Paused/onboarding partners with no activity stay hidden (noted in the caption).
   if (scope === ALL_PARTNERS) {
     for (const p of getPartners()) {
-      if (p.status === 'active' && !map.has(p.id)) {
-        map.set(p.id, { partner: p.id, partnerName: p.name, paid: 0, feesGross: 0, refundValue: 0,
+      /* THROUGH routeOf TOO, or the padding would put back exactly the
+         rows the grouping above just folded away: an active agency with a
+         partner row would reappear as an empty route of its own. It also
+         fixes the name, which was `p.name` here and `partnerName(...)`
+         above -- so a house partner padded in named the plumbing. */
+      const route = routeOf(p.id);
+      if (p.status === 'active' && !map.has(route.key)) {
+        map.set(route.key, { partner: route.key, partnerName: route.name, paid: 0, feesGross: 0, refundValue: 0,
           partnerCommGross: 0, partnerCommNet: 0, agentCommGross: 0, agentCommNet: 0 });
       }
     }
@@ -1272,8 +1302,17 @@ export function getAgentCommissionSettlement(role: Role, scope: PartnerScope, wi
      "what you are owed" has no version that is not money. */
   if (!maySeeCommission(role)) return { monthLabel, monthKey, settlementDate, agencies: [], payees: [], total: 0 };
   const acc = accruePayees(scopeFull(allFull(), role, scope), bStart, bEnd);
+  /* THE PAYEE NAMES ITS SUPPLIER. Matt, 2026-10-02, naming settlements,
+     payees and statements among the six surfaces: an admin's settlement
+     run lists every estate at once, so two payees called Frost
+     Partnership would be two amounts owed to what reads as one company.
+
+     ON `agency`, WHICH IS THE DISPLAY NAME, and not on `key`, which is
+     already namespaced by partner and is what the statement download
+     looks a payee up by. Both sides of that lookup read this same field,
+     so the labelled name matches itself. */
   const payees: AgentSettlementPayee[] = [...acc.values()]
-    .map((r) => ({ key: r.key, level: r.level, orgId: r.orgId, agency: r.orgName,
+    .map((r) => ({ key: r.key, level: r.level, orgId: r.orgId, agency: viaSupplier(r.orgName, r.partner),
       partner: r.partner, partnerName: partnerName(r.partner), commission: r.commission, apps: r.apps }))
     .sort((x, y) => y.commission - x.commission);
   payees.forEach((p) => p.apps.sort((x, y) => y.commission - x.commission));

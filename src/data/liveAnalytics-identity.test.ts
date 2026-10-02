@@ -33,19 +33,38 @@ hydrateFull(APPS);
 afterAll(() => hydrateFull([]));
 const allTime = getPeriods().find((p) => p.id === 'alltime')!;
 
+/* THE NAMES THEMSELVES NOW DISAMBIGUATE TOO, 2026-10-02. Matt: an
+   agency or branch from a supplier's estate is labelled with its
+   supplier wherever it sits beside one of ours. `harbourside` holds no
+   referencingMode in the mock seed, so it is supplier-shaped and its
+   agencies read "(via Harbourside Homes)".
+
+   THE GUARANTEE THIS FILE IS ABOUT IS UNCHANGED and is now true twice
+   over: the two entities are still two rows with their own figures,
+   keyed on the partner, AND a reader can tell them apart without
+   reading the subtitle. The assertions below are widened to say both,
+   rather than loosened to accommodate the label. */
 describe('distinct entities sharing a name are not merged', () => {
   it('two "City" branches under different agencies stay separate', () => {
     const rows = liveLeague('branch', 'superadmin', ALL_PARTNERS, '', allTime).filter((r) => r.name === 'City');
     expect(rows.length).toBe(2);
     expect(rows.map((r) => r.fees).sort((a, b) => a - b)).toEqual([1000, 2000]);
-    // each row's sub disambiguates by its agency
-    expect(rows.map((r) => r.sub).sort()).toEqual(['Alpha Lettings', 'Beta Homes']);
+    // each row's sub disambiguates by its agency, and names the supplier
+    // behind it where there is one
+    expect(rows.map((r) => r.sub).sort()).toEqual(['Alpha Lettings', 'Beta Homes (via Harbourside Homes)']);
   });
 
   it('two "Prime" agencies under different partners stay separate', () => {
-    const rows = liveLeague('agency', 'superadmin', ALL_PARTNERS, '', allTime).filter((r) => r.name === 'Prime');
+    const rows = liveLeague('agency', 'superadmin', ALL_PARTNERS, '', allTime)
+      .filter((r) => r.name.startsWith('Prime'));
     expect(rows.length).toBe(2);
     expect(rows.map((r) => r.fees).sort((a, b) => a - b)).toEqual([1500, 2500]);
+  });
+
+  it('and the supplier estate one says whose it is', () => {
+    const rows = liveLeague('agency', 'superadmin', ALL_PARTNERS, '', allTime)
+      .filter((r) => r.name.startsWith('Prime'));
+    expect(rows.map((r) => r.name).sort()).toEqual(['Prime', 'Prime (via Harbourside Homes)']);
   });
 });
 

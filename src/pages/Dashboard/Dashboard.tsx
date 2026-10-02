@@ -695,7 +695,7 @@ export function Dashboard() {
               <div className="fstage fstage--paid">
                 <div className="fstage__top"><Pill variant="paid">Paid</Pill></div>
                 <div className="fstage__count">{d.paid}</div>
-                <div className="fstage__label">Guarantor fee paid</div>
+                <div className="fstage__label">Guarantee fee paid</div>
                 <div className="fstage__bar"><i /></div>
               </div>
               <div className="fconnect">
@@ -767,7 +767,7 @@ export function Dashboard() {
                     number) rather than paid (the display string): a first
                     referral read "across 1 paid referrals" under the old
                     idiom, which is the bug this one was written to avoid. */}
-                Guarantor fees collected across {d.paid} paid {plural(d.paidCount, 'referral')}{d.feeBasisCopy ? `, ${d.feeBasisCopy}` : ''}, net of any refunds.
+                Guarantee fees collected across {d.paid} paid {plural(d.paidCount, 'referral')}{d.feeBasisCopy ? `, ${d.feeBasisCopy}` : ''}, net of any refunds.
               </p>
               {d.live && (
                 <div className="hero-kpi__split">
@@ -797,7 +797,7 @@ export function Dashboard() {
                 <span className="hero-kpi__big">{d.live ? d.net : d.fees}</span>
               </div>
               <p style={{ position: 'relative', fontSize: 13, color: 'rgba(255,255,255,0.72)', marginTop: 8, maxWidth: '42ch' }}>
-                Guarantor fees from the referrals you sent that reached Paid{d.feeBasisCopy ? `, at ${d.feeBasisCopy}` : ''}.
+                Guarantee fees from the referrals you sent that reached Paid{d.feeBasisCopy ? `, at ${d.feeBasisCopy}` : ''}.
               </p>
               {d.live ? (
                 <div className="hero-kpi__split">

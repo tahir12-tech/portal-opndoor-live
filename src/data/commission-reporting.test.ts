@@ -44,12 +44,29 @@ describe('livePartnerBreakdown reconciles to the blended summary', () => {
     expect(sumAgentNet).toBeCloseTo(agg.agentCommNet, 6);
   });
 
-  it('gross includes the refunded fee; net excludes it (per partner)', () => {
-    const rm = rows.find((r) => r.partner === 'northwind')!;
+  /* BY ROUTE SINCE 2026-10-02, not by partner. Matt: "Harbour Lets is an
+     agency, so it belongs in 'Agency referral', not listed as its own
+     route. Only real suppliers appear as routes." `northwind` is this
+     fixture's estate -- opndoor_referenced, not a house slug -- so it is
+     the same shape as Harbour Lets and folds into the agency rail.
+     Harbourside, which holds no referencingMode, is supplier-shaped and
+     keeps a route of its own.
+
+     THE FIGURES ARE UNCHANGED, which is the point: the rows are grouped
+     differently and every total is the same, and the assertion above
+     this one (every row sums to liveAggregate) is what proves it. */
+  it('gross includes the refunded fee; net excludes it (per route)', () => {
+    const rm = rows.find((r) => r.partner === 'opndoor-agents')!;
     const rr = getRatesFor('northwind');
     // R1 + R2 + R3(refunded) gross = 4500; net excludes R3 = 3000.
+    expect(rm.partnerName).toBe('Agency referral');
     expect(rm.feesGross).toBe(4500);
     expect(rm.agentCommNet).toBeCloseTo(3000 * rr.agent, 6);
+  });
+
+  it('and an agency-shaped partner is not a route of its own', () => {
+    expect(rows.find((r) => r.partner === 'northwind')).toBeUndefined();
+    expect(rows.filter((r) => r.partnerName === 'Agency referral')).toHaveLength(1);
   });
 
   /* THE TWO RAILS, SIDE BY SIDE, in one fixture, which is the only way to tell
@@ -58,7 +75,7 @@ describe('livePartnerBreakdown reconciles to the blended summary', () => {
      payable to a partner however large partner_rate is on the row. Harbourside
      hands us finished referrals and is paid exactly as it always was. */
   it('the estate earns no partner commission and the supplier still does', () => {
-    const estate = rows.find((r) => r.partner === 'northwind')!;
+    const estate = rows.find((r) => r.partner === 'opndoor-agents')!;
     const supplier = rows.find((r) => r.partner === 'harbourside')!;
     expect(getRatesFor('northwind').partner).toBeGreaterThan(0);
     expect(estate.partnerCommGross).toBe(0);

@@ -380,7 +380,7 @@ describe('the commission statement', () => {
 describe('the application record', () => {
   /* NOTHING ON THIS PAGE IS A COMMISSION SURFACE, and that is a ruling rather
      than an omission, so it is asserted as positively as the gates are. Every
-     figure on the record is a fact about the REFERRAL: the guarantor fee as
+     figure on the record is a fact about the REFERRAL: the guarantee fee as
      charged and the basis it was charged on, the rent, the share of a joint
      tenancy, the deed. A Manager owns this referral and answers the phone about
      it, so the correct page for them is the SAME page, and the test says so by
@@ -419,11 +419,11 @@ describe('the application record', () => {
 
   beforeEach(() => { flags.live = false; });
 
-  it('shows a Manager the guarantor fee, which is the tenant\'s price and not our income', async () => {
+  it('shows a Manager the guarantee fee, which is the tenant\'s price and not our income', async () => {
     beManager();
     const view = await openRecord();
     const paid = [...view.container.querySelectorAll('.tl-step')]
-      .find((s) => (s.textContent ?? '').includes('Guarantor fee'));
+      .find((s) => (s.textContent ?? '').includes('Guarantee fee'));
     expect(paid, 'no paid milestone on the timeline').toBeTruthy();
     expect(paid!.textContent).toMatch(/£[\d,]+/);
   });
@@ -477,7 +477,7 @@ describe('the application record', () => {
     expect([...asDirector.container.querySelectorAll('.drow')].map((r) => r.textContent).join('|')).toBe(managerRows);
     expect(record(asDirector)).toBe(managerRecord);
     // Guards against both sides being empty, which would compare nothing.
-    expect(managerTimeline).toMatch(/Guarantor fee/);
+    expect(managerTimeline).toMatch(/Guarantee fee/);
     expect(managerRows).toMatch(/£/);
     // And the one thing that SHOULD differ, asserted so this test documents the
     // boundary rather than quietly stepping around it.

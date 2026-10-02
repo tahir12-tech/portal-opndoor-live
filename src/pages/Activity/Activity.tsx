@@ -37,7 +37,7 @@ const KIND_DOT: Record<ActivityKind, string> = { sent: 'var(--sent)', paid: 'var
 const BAND_PILL: Record<ExpiryBand, PillVariant> = { soon: 'danger', warn: 'warn', notice: 'sent', later: 'muted' };
 
 function activityText(kind: ActivityKind, tenant: string) {
-  if (kind === 'paid') return <>Guarantor fee paid for <b>{tenant}</b></>;
+  if (kind === 'paid') return <>Guarantee fee paid for <b>{tenant}</b></>;
   if (kind === 'deed') return <>Deed of Guarantee issued for <b>{tenant}</b></>;
   if (kind === 'withdrawn') return <>Referral withdrawn for <b>{tenant}</b></>;
   if (kind === 'expired') return <>Referral expired for <b>{tenant}</b></>;
@@ -48,8 +48,8 @@ function activityText(kind: ActivityKind, tenant: string) {
 function feedText(kind: string, tenant: string) {
   const t = <b>{tenant}</b>;
   switch (kind) {
-    case 'payment_received': return <>Guarantor fee paid for {t}</>;
-    case 'refunded': return <>Guarantor fee refunded for {t}</>;
+    case 'payment_received': return <>Guarantee fee paid for {t}</>;
+    case 'refunded': return <>Guarantee fee refunded for {t}</>;
     case 'deed_sent': return <>Deed sent to {t} for signature</>;
     case 'deed_viewed': return <>Deed viewed by {t}</>;
     case 'deed_signed': return <>Deed signed by {t}</>;

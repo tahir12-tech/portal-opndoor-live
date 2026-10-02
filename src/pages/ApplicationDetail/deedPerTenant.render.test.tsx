@@ -101,16 +101,16 @@ describe('every sibling shows its OWN deed state', () => {
 });
 
 describe('the fee, where the page used to print the rent', () => {
-  it('never labels the property’s rent as the guarantor fee on a joint tenancy', async () => {
+  it('never labels the property’s rent as the guarantee fee on a joint tenancy', async () => {
     /* Both siblings carry the WHOLE £3,000 tenancy rent in `rent` and pay a
        share of the fee. The Paid milestone used to print `d.rent`, so both were
        told they had paid £3,000. The rent is still on the page, on the Monthly
        rent row, which is the row whose subject it is. */
     const view = await openDetail(SIBLING);
     const paidNote = [...view.container.querySelectorAll('.tl-step')]
-      .find((s) => (s.textContent ?? '').includes('Guarantor fee paid'));
+      .find((s) => (s.textContent ?? '').includes('Guarantee fee paid'));
     expect(paidNote, 'no paid milestone on the timeline').toBeTruthy();
-    expect(paidNote!.textContent).not.toMatch(/Guarantor fee paid · £3,000(?!\.)/);
+    expect(paidNote!.textContent).not.toMatch(/Guarantee fee paid · £3,000(?!\.)/);
   });
 });
 
