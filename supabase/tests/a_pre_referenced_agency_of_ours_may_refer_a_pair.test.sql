@@ -73,8 +73,13 @@ values
 insert into public.agencies (id, partner_id, name, referencing_mode) values
   ('97000000-0000-0000-0000-0000000000a1','97000000-0000-0000-0000-0000000000d1',
    'ZZZ Regent Shape','pre_referenced_open'),
+  /* THE CONTROL CARRIES NO ANSWER OF ITS OWN... or it did. Since
+     2026-10-02 `referencing_mode` is NOT NULL -- Matt removed "Follow
+     the default" -- so the supplier's agency states the mode its
+     partner has rather than inheriting it. Which is what the column
+     meant by null here, and the assertions below are unchanged. */
   ('97000000-0000-0000-0000-0000000000a2','97000000-0000-0000-0000-0000000000d2',
-   'ZZZ Supplier Shape', null);
+   'ZZZ Supplier Shape', 'pre_referenced_open');
 
 insert into public.branches (id, agency_id, partner_id, name) values
   ('97000000-0000-0000-0000-0000000000b1','97000000-0000-0000-0000-0000000000a1',

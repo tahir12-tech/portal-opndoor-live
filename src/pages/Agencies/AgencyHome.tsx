@@ -40,7 +40,7 @@ import {
   getPositionsForUsers, getDeedRecipients, getOrgDeedReadiness,
   type DeedReadiness,
 } from '@/data/positionsService';
-import { setNodeRate, getCommissionSplits, previewNodeRate, agencyReferencingMode, setAgencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
+import { setNodeRate, getCommissionSplits, previewNodeRate, setAgencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
 import { cancelInvite, resendInvite, resetUserMfa, resetUserPassword, setUserStatus } from '@/data/usersService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -48,6 +48,7 @@ import { Card, CardHead, CardBody } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
@@ -161,6 +162,7 @@ export function AgencyHome() {
   const { key } = useParams<{ key: string }>();
   const { role, seesCommission, currentUserId, partnerScope, dataVersion, refresh: refreshSession } = useSession();
   const toast = useToast();
+  const { ask: askConfirm, confirmEl } = useConfirm();
   const decoded = decodeURIComponent(key ?? '');
   const isAdmin = role === 'superadmin';
   const canSeeCommission = maySeeCommission(role);
@@ -324,9 +326,33 @@ export function AgencyHome() {
   // journey — and drives the route selector further down this page.
   const inOurEstate = partnerMode === 'opndoor_referenced';
   const agentRailFor = (_a: Agency) => inOurEstate;
-  const doSetMode = async (agencyId: string, mode: string | null) => {
-    try { await setAgencyReferencingMode(agencyId, mode); refreshSession(); bump(); toast('Referencing route saved.', 'ok'); }
-    catch (e) { toast(e instanceof Error ? e.message : 'Could not save the referencing route.', 'error'); }
+  /* HOW THIS AGENCY'S TENANTS ARE CHECKED. Matt, 2026-10-02, replacing
+     the "Referrals from this agency" dropdown: two options, no "follow
+     the default", "changing it asks for confirmation and applies to new
+     referrals only, and is recorded in Recent changes."
+
+     THE CONFIRMATION IS HERE AND THE RECORD IS IN SQL. A confirmation
+     belongs to the screen -- it is about what the person is about to do
+     -- and the audit row belongs to the setter, so every caller writes
+     one. The third clause needs nothing built: changing the mode has
+     always applied to new referrals only, because each application
+     snapshots its own `referencing_mode` at creation. The confirmation
+     says so, which is the part that was missing. */
+  const doSetMode = (agencyId: string, name: string, mode: string) => {
+    const toEligibility = mode === 'opndoor_referenced';
+    askConfirm({
+      title: `Change how ${possessive(name)} tenants are checked?`,
+      body: toEligibility
+        ? <>New referrals from {name} will go through eligibility: the tenant completes it before paying.
+            Referrals already sent keep the route they were given. It is recorded in Recent changes.</>
+        : <>New referrals from {name} will go straight to payment, because {name} has already referenced
+            the tenant. Referrals already sent keep the route they were given. It is recorded in Recent changes.</>,
+      confirmLabel: 'Change it',
+      run: async () => {
+        try { await setAgencyReferencingMode(agencyId, mode); refreshSession(); bump(); toast('Saved. It applies to new referrals.', 'ok'); }
+        catch (e) { toast(e instanceof Error ? e.message : 'Could not save it.', 'error'); }
+      },
+    });
   };
 
   /* ---- DRILL-DOWN. The page opens at the top node expanded ONE level; clicking
@@ -1206,6 +1232,7 @@ export function AgencyHome() {
 
   return (
     <>
+      {confirmEl}
       <div className="page-head" style={{ alignItems: 'center' }}>
         <div>
           <Link className="ah-back" to="/agencies"><Icon name="arrowLeft" size={14} /> Agencies</Link>
@@ -1411,24 +1438,45 @@ export function AgencyHome() {
                       </div>
                     )}
                     {open && isAdmin && a.id && (
+                      /* TWO OPTIONS, EACH SAYING WHAT IT DOES TO THE TENANT.
+                         Matt's own title and his own two labels. It was a
+                         three-option select whose first option was
+                         "Follow the default (...)", which made the reader
+                         work out what the partner's default was before
+                         they could tell what this agency does -- and the
+                         answer was in the option's own parenthesis, which
+                         is a note about somebody else's setting.
+
+                         RADIOS, NOT A SELECT. Two mutually exclusive
+                         answers that each need a sentence of explanation
+                         do not fit in a dropdown: the explanation can only
+                         be shown for the one already chosen. */
                       <div className="ah-route">
-                        <span className="ah-route__lbl">Referrals from this agency</span>
-                        <select
-                          value={a.referencingMode ?? ''}
-                          onChange={(e) => { void doSetMode(a.id!, e.target.value || null); }}
-                          aria-label={`Referencing route for ${a.name}`}
-                        >
-                          <option value="">
-                            Follow the default ({partnerMode === 'opndoor_referenced' ? 'go through eligibility checks' : 'arrive already referenced'})
-                          </option>
-                          <option value="opndoor_referenced">Go through eligibility checks</option>
-                          <option value="pre_referenced_open">Arrive already referenced</option>
-                        </select>
-                        <span className="ah-route__why">
-                          {agencyReferencingMode(a, partnerMode) === 'opndoor_referenced'
-                            ? 'The tenant is invited to complete eligibility before paying.'
-                            : 'The tenant is sent straight to payment.'}
-                        </span>
+                        <span className="ah-route__lbl">How are {possessive(a.name)} tenants checked?</span>
+                        <div className="ah-route__opts">
+                          {([
+                            ['opndoor_referenced', 'Opndoor checks eligibility', 'The tenant completes eligibility before paying.'],
+                            ['pre_referenced_open', 'Agency has already referenced them', 'The tenant goes straight to payment.'],
+                          ] as const).map(([value, label, why]) => {
+                            const chosen = value === 'opndoor_referenced'
+                              ? a.referencingMode === 'opndoor_referenced'
+                              : a.referencingMode !== 'opndoor_referenced';
+                            return (
+                              <label key={value} className={`ah-route__opt${chosen ? ' is-on' : ''}`}>
+                                <input
+                                  type="radio"
+                                  name={`tenant-check-${a.id}`}
+                                  checked={chosen}
+                                  onChange={() => { if (!chosen) doSetMode(a.id!, a.name, value); }}
+                                />
+                                <span>
+                                  <b>{label}</b>
+                                  <span className="ah-route__why">{why}</span>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                     {open && isAdmin && (

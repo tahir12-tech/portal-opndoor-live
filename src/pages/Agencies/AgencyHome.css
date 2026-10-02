@@ -253,3 +253,17 @@
    said in the informational tone rather than the warning one. */
 .ah-deed-warn--waiting { color: var(--ink-mute); }
 .ah-deed-warn--waiting svg { color: var(--ink-mute); }
+
+/* HOW THIS AGENCY'S TENANTS ARE CHECKED: two answers, each with the
+   sentence that says what it does to the tenant. A dropdown can only
+   explain the one already chosen, which is why these are radios. */
+.ah-route__opts { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.ah-route__opt {
+  display: flex; gap: 9px; align-items: flex-start;
+  padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px;
+  cursor: pointer;
+}
+.ah-route__opt.is-on { border-color: var(--heliotrope-deep); background: var(--heliotrope-wash, #faf5ff); }
+.ah-route__opt input { margin-top: 2px; flex: none; }
+.ah-route__opt b { display: block; font-size: 13.5px; color: var(--ink); }
+.ah-route__opt .ah-route__why { display: block; margin-top: 1px; }

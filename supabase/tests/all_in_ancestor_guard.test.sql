@@ -22,9 +22,16 @@ values ('93000000-0000-0000-0000-000000000001', 'zzz-guard-rail', 'Guard Rail', 
        ('93000000-0000-0000-0000-000000000009', 'zzz-guard-supplier', 'Guard Supplier', 'pre_referenced_open', 0.25, 0.10, true);
 insert into public.agency_groups (id, partner_id, name)
 values ('93000000-0000-0000-0000-000000000002', '93000000-0000-0000-0000-000000000001', 'Guard Group');
-insert into public.agencies (id, partner_id, name, group_id)
-values ('93000000-0000-0000-0000-000000000003', '93000000-0000-0000-0000-000000000001', 'Guard Agency', '93000000-0000-0000-0000-000000000002'),
-       ('93000000-0000-0000-0000-000000000007', '93000000-0000-0000-0000-000000000009', 'Supplier Agency', null);
+/* referencing_mode IS STATED, not left to the column default. Until
+   2026-10-02 an agency could say null for "whatever my partner says", and
+   these two leant on it: Guard Agency took 'opndoor_referenced' off the
+   rail and Supplier Agency took 'pre_referenced_open' off the supplier.
+   Matt removed "Follow the default", the column is NOT NULL and the
+   default is 'opndoor_referenced', so a supplier's agency has to say so
+   itself or assertion 21 below measures our rail instead of theirs. */
+insert into public.agencies (id, partner_id, name, group_id, referencing_mode)
+values ('93000000-0000-0000-0000-000000000003', '93000000-0000-0000-0000-000000000001', 'Guard Agency', '93000000-0000-0000-0000-000000000002', 'opndoor_referenced'),
+       ('93000000-0000-0000-0000-000000000007', '93000000-0000-0000-0000-000000000009', 'Supplier Agency', null, 'pre_referenced_open');
 insert into public.branches (id, agency_id, partner_id, name)
 values ('93000000-0000-0000-0000-000000000004', '93000000-0000-0000-0000-000000000003', '93000000-0000-0000-0000-000000000001', 'Guard Branch'),
        ('93000000-0000-0000-0000-000000000008', '93000000-0000-0000-0000-000000000007', '93000000-0000-0000-0000-000000000009', 'Supplier Branch');

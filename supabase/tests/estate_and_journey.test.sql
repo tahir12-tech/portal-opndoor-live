@@ -23,10 +23,14 @@ values ('94000000-0000-0000-0000-000000000001', 'zzz-estate', 'Our Estate', 'opn
 insert into public.agencies (id, partner_id, name, referencing_mode) values
   -- REGENT'S SHAPE: ours, references its own tenants.
   ('94000000-0000-0000-0000-000000000002', '94000000-0000-0000-0000-000000000001', 'Regent Shape', 'pre_referenced_open'),
+  /* THE OTHER TWO SAID "null" FOR "inherit the partner's", which stopped
+     being an option on 2026-10-02: Matt removed "Follow the default" and
+     the column is NOT NULL. Each now states the mode it was inheriting,
+     which is what every assertion below was already measuring. */
   -- An ordinary one of ours: we reference its tenants.
-  ('94000000-0000-0000-0000-000000000003', '94000000-0000-0000-0000-000000000001', 'Ordinary Agency', null),
+  ('94000000-0000-0000-0000-000000000003', '94000000-0000-0000-0000-000000000001', 'Ordinary Agency', 'opndoor_referenced'),
   -- The supplier's.
-  ('94000000-0000-0000-0000-000000000007', '94000000-0000-0000-0000-000000000009', 'Supplier Agency', null);
+  ('94000000-0000-0000-0000-000000000007', '94000000-0000-0000-0000-000000000009', 'Supplier Agency', 'pre_referenced_open');
 insert into public.branches (id, agency_id, partner_id, name) values
   ('94000000-0000-0000-0000-000000000004', '94000000-0000-0000-0000-000000000002', '94000000-0000-0000-0000-000000000001', 'Regent Branch'),
   ('94000000-0000-0000-0000-000000000005', '94000000-0000-0000-0000-000000000003', '94000000-0000-0000-0000-000000000001', 'Ordinary Branch'),
@@ -62,7 +66,10 @@ update public.agencies set referencing_mode = 'pre_referenced_screened'
 select ok(
   public.is_agent_estate('94000000-0000-0000-0000-000000000005', '94000000-0000-0000-0000-000000000001'),
   'an agency opting out of eligibility is STILL one of ours');
-update public.agencies set referencing_mode = null
+-- PUT IT BACK. Said null until 2026-10-02, when "Follow the default" went
+-- and the column became NOT NULL; the mode it was inheriting is now stated
+-- on the fixture, so restoring it means naming it.
+update public.agencies set referencing_mode = 'opndoor_referenced'
  where id = '94000000-0000-0000-0000-000000000003';
 
 -- ...and a supplier's agency cannot opt INTO the estate by changing its route.
@@ -71,7 +78,7 @@ update public.agencies set referencing_mode = 'opndoor_referenced'
 select ok(
   not public.is_agent_estate('94000000-0000-0000-0000-000000000008', '94000000-0000-0000-0000-000000000009'),
   'and a supplier''s agency cannot join the estate by asking us to reference its tenants');
-update public.agencies set referencing_mode = null
+update public.agencies set referencing_mode = 'pre_referenced_open'
  where id = '94000000-0000-0000-0000-000000000007';
 
 -- ---------------------------------------------------------------------------

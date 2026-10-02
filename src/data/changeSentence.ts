@@ -117,6 +117,15 @@ const EVENTS: Record<string, (detail: string) => string> = {
      the three names arrive here already written and this does not
      re-derive a level from a role it cannot tell apart. */
   invited_as: (d) => (d ? `Invited as ${d}` : 'Invited'),
+  /* HOW THIS AGENCY'S TENANTS ARE CHECKED. Matt, 2026-10-02: "Changing
+     it ... is recorded in Recent changes." The setter stores the two
+     answers in his own words, separated by an arrow, so the sentence is
+     assembled here rather than the words being invented twice. */
+  tenant_check_changed: (d) => {
+    const [was, now] = d.split(' -> ');
+    if (!now) return d ? `Tenant checks changed to ${d}` : 'Tenant checks changed';
+    return `Tenant checks changed from “${was}” to “${now}”`;
+  },
 };
 
 /* "partner 0.25, agent 0.1" is what set_agency_rates stores, and it is
