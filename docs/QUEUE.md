@@ -967,6 +967,53 @@ you asked for. Say the word and the tenant gets their own wording.
 - "Check every League tab's export" is the sweep, and the answer is
   owed for all of them, not just Suppliers.
 
+## THE WARNING ICON, AND A QUESTION ABOUT DEV DATA (instruction, 2026-10-02, verbatim).
+
+> Supplier Overview, "Needs attention": the warning icon renders at full card size and squashes the text into a narrow column. Size the icon like every other warning icon in the portal (small, beside the text). Check every place this component is used. Also: Recent changes shows "Who pays the agents" switched to "the supplier pays its own agents" on 2 Oct by Nicholas Dwyer. Tell me if you changed that while testing; if so, say what you changed and put it back. Deploy to dev and check there.
+
+- **The question is answered before anything is built.** It is about
+  whether I changed dev's data while testing, and it is owed a straight
+  answer either way.
+
+## THE ADMIN WALK, SIX (instruction, 2026-10-02, verbatim).
+
+> Batch of fixes from the admin walk:
+> 1. Supplier Overview, "Who gets the statements": "Kestrel Lettings's" should be "Kestrel Lettings'". Use the shared possessive helper everywhere a name is made possessive.
+> 2. Supplier Overview, Commission: "What opndoor charges on a referral through this supplier" should read "What opndoor pays this supplier on a referral".
+> 3. Recent changes (supplier and agency): hide old entries where nothing actually changed, e.g. "Live from changed from August to August 2026".
+> 4. League: the people tab is "Negotiators" on screen and "Referrers" in its export. Call it "Referrers" in both, since it includes Directors and supplier staff, and add an "Agency or supplier" column on screen and in the export.
+> 5. League Suppliers tab export is titled "League table: Referrers" with a "Referrer" column. Title it "League table: Suppliers" with a "Supplier" column, and check every League tab's export is titled after its own tab.
+> 6. Reporting: "Total guaranteed rent value" doesn't change with the period. Label it "Guaranteed rent in force (whole book, not affected by the period)", and label any other tile that ignores the period the same way.
+> Deploy to dev and check there.
+
+- Items 4, 5 and 6 restate instructions already recorded above; they are
+  one build each, not two.
+- Item 3 was asked once before, of the SUPPLIER's Recent changes
+  (`9eafeec`, `isNoOpChange`). This asks for it on the agency's too, and
+  says it is still showing on dev, which means either the agency page
+  never got the filter or the filter does not catch this shape.
+
+## TWO ON SUPPLIER SETTINGS (instruction, 2026-10-02, verbatim).
+
+> 1. Supplier Settings: the "Commission tab" link opens Overview; make it open the Commission tab.
+> 2. Supplier Settings offers "opndoor referenced" as a referencing mode. Since supplier vs agency is partly decided by referencing mode, check what happens if a supplier is switched to it: does it vanish from Suppliers, change estate, or alter commission and statements? Tell me what happens before changing anything. If it reclassifies the supplier, the supplier/agency decision must not depend on referencing mode.
+
+- Item 1 is the link I added in `9eafeec`, which predates PartnerHome
+  learning `?tab=` an hour ago: it had no way to name a tab.
+- **Item 2 is a question first and a change second, and he says so.**
+  `partyIsSupplier` IS `referencingMode !== 'opndoor_referenced'`, which
+  is the predicate the Suppliers list, the route table, `viaSupplier`
+  and the supplier settlement all turn on. So the answer is almost
+  certainly yes, it reclassifies. Measure it and report before touching
+  anything.
+
+## THE SUPPLIER'S COMMISSION STATEMENTS NEVER BUILD (bug, 2026-10-02, verbatim).
+
+> Supplier Reporting tab (admin, Kestrel Lettings): "Commission statements" stays on "Building September 2026..." and never shows the statement or downloads. Find why (the statement function on dev, an error being swallowed, or a missing deploy), fix it, and show a clear error if building ever fails. Deploy to dev and check there.
+
+- A spinner that never resolves is an error nobody is shown, which is
+  the second half of the instruction and the more important half.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
