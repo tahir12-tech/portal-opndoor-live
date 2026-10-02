@@ -1132,6 +1132,24 @@ you asked for. Say the word and the tenant gets their own wording.
   can read what, two days before go-live. Measured and flagged rather
   than guessed.
 
+- **DONE, in three commits.**
+  - `008a082` the setting itself: `partners.partner_kind`, the backfill,
+    the three SQL predicates, the whole client sweep, invite-user, and
+    both halves of the proof.
+  - `eb33478` the Recent-changes filter. The agency page already had it;
+    the supplier's **Overview** card did not, and that is the card the
+    report came from.
+  - `a27ad49` Kestrel's own Reporting: the via-labels gated on the
+    reader's scope, and the supplier's own statement moved to the top of
+    its own commission heading with "Agency schedules" beneath.
+- **THE LINE ABOVE WAS CROSSED AFTER ALL, AND SAFELY.** I measured
+  instead of guessing. Repointing `is_our_estate_partner` and
+  `is_agent_estate` at the new setting leaves the truth table for all
+  ten dev partners IDENTICAL except `new-supplier-3`, which is the bug.
+  Doing half the job would have left the authorisation predicates
+  deciding identity from a dropdown, which is the fault Matt reported.
+  The measurement is in the commit message and the pgTAP file.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
@@ -1152,6 +1170,46 @@ you asked for. Say the word and the tenant gets their own wording.
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
+
+- **GO-LIVE ORDER, AND IT MATTERS. `partner_kind` must reach live BEFORE
+  the new frontend does.** The partner hydrate now asks for the column
+  by name. Against a database that has not had `20261007600000` applied,
+  that select fails and NO partner hydrates, which is every screen. The
+  migration is additive and safe to apply on its own ahead of time; the
+  frontend is not safe to ship ahead of it. Normal ordering, written
+  down because Wednesday is the first time it has mattered.
+
+- **ONE PARTNER'S CLASSIFICATION CHANGED, AND IT IS THE ONE YOU NAMED.**
+  `new-supplier-3` was made by "Add supplier" and then set to "opndoor
+  referenced", so it had been reading as an agency: absent from the
+  Suppliers list, folded into Agency referral. It is now a supplier. It
+  holds no agencies and no applications, so nothing moves with it. Say
+  if it was meant to be an agency and it is a one-line update.
+
+- **THERE IS NO "ADD AGENCY PARTNER" BUTTON, AND I DID NOT ADD ONE.**
+  `create_partner` is the "Add supplier" button, so it stamps
+  'supplier'. Harbour Lets is a partner row Opndoor set up by hand, and
+  agencies are normally created under the `opndoor-agents` rail rather
+  than as partners of their own. If making an agency-shaped partner
+  should be a product action it needs its own entry point, which is a
+  better place for the decision than a dropdown on that one. Not a
+  blocker for Wednesday.
+
+- **`opndoor-agents` IS KIND 'agency', NOT 'house'.** It is still a
+  house partner, `is_house_partner_id` is untouched and it stays off
+  customer screens. But an agency Director's own partner scope IS that
+  slug, so calling its kind 'house' would take the agency rail out of
+  the agency case and change every agency screen. House-ness and kind
+  are two axes. `opndoor-direct` and `referencing-partner` are 'house'
+  on both.
+
+- **WHAT I COULD NOT CHECK IN A BROWSER.** Kestrel's Reporting is gated
+  on live mode, and the dev app on 5174 needs MFA, which I cannot do
+  headlessly. The two changes there are covered by render tests that run
+  the real page with live mode on: the order of the two cards, the
+  single mount, and the absence of "(via Kestrel Lettings)" on the
+  supplier's page with its presence on the admin's. Worth one look on
+  dev before Wednesday.
 
 - **Two answers on the admin Agencies page, 2026-10-02.**
 
