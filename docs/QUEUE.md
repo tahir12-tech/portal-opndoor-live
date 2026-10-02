@@ -813,7 +813,7 @@ you asked for. Say the word and the tenant gets their own wording.
   of the application export: one fee name, and a figure that says whose
   share it is.
 
-## THREE, AFTER THE EXPORTS (instruction, 2026-10-02, verbatim).
+## THREE, AFTER THE EXPORTS (instruction, 2026-10-02, verbatim). **done** (`9a8628e`); item 1 needed no work.
 
 > 1. Keep the Office column rule as you built it (shown when rows differ).
 > 2. Renewal notice: send the tenant their own email, worded for them ("Your guarantee for [property] ends on [date]…"), and the agent theirs, as two separate sends.
