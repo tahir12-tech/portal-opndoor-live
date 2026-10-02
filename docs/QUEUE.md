@@ -555,6 +555,25 @@ not missing anything and nothing warns about them.
   moved onto it, and "list any that don't" is a sweep with an answer owed
   either way.
 
+## "ALL" MEANS ALL (instruction, 2026-10-02, verbatim).
+
+> Applications: the "All" tab counts and shows every application in the current filters, including In progress, Fee unpaid and Expired, so "All" equals the sum of the other tabs. "Showing X of Y" counts the same set. Deploy to dev and check there. Yes to defaulting agencies on "Follow the default" to "Opndoor checks eligibility". There are no real agencies yet, only dev test data.
+
+- This is the answer to the question I left under "For Matt in the
+  morning": All was the operational funnel (sent + paid + deed) and the
+  other five statuses were counted on their own tabs and left out of it.
+  He has chosen the wider of the two readings.
+- "so 'All' equals the sum of the other tabs" is true of the EXCLUSIVE
+  tabs. Three of the chips are subsets rather than siblings -- Fee unpaid
+  and Invited are both inside In progress, and Refunded is inside Paid --
+  so the sum that can hold is draft + awaiting decision + declined + sent
+  + paid + deed + withdrawn + expired. Fee unpaid is one of the three he
+  names, and it is a subset, which is how I know the sentence means "All
+  holds everything" rather than "add the chips up".
+- And the second half answers the consequence I flagged: the existing
+  nulls on `agencies.referencing_mode` become "Opndoor checks
+  eligibility", and he has said there is no real agency data to protect.
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
