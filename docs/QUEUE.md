@@ -852,7 +852,7 @@ you asked for. Say the word and the tenant gets their own wording.
 - One count, read in four places, is the shape this wants: the tiles, the
   All tab, the Home tile and the badge.
 
-## ADD THE EMAIL WHERE THE ROW IS (instruction, 2026-10-02, verbatim).
+## ADD THE EMAIL WHERE THE ROW IS (instruction, 2026-10-02, verbatim). **done** (`1784a9b`).
 
 > Reconciliation, "Supplier agencies with no email": each row gets an "Add email" button that sets the agency email right there (same as on the supplier's Agencies tab), plus a link to the agency on its supplier's page. Once added, the row disappears and the counts update. Deploy to dev and check there.
 
