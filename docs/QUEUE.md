@@ -893,6 +893,32 @@ you asked for. Say the word and the tenant gets their own wording.
 - The last sentence is the same subject as the instruction above it, so
   the two are built together.
 
+## THE APPLICATION EXPORT'S WORDING SWEEP (instruction, 2026-10-02, verbatim).
+
+> Application export: same wording sweep as the Performance export. Replace every remaining "Partner"/"partner" with "Supplier"/"supplier" (the first column, "Partner commission", "All suppliers (combined)" in the header) and "Guarantor fee" with "Guarantee fee", including the notes; this file is for Opndoor only, so its headings can change. Label supplier-estate agencies and branches "(via [supplier])" as on screen. Leave Monthly rent and Share of rent blank where the tenant hasn't given a rent yet. Deploy to dev and check there.
+
+- **This lifts the exception on a SECOND file.** I have twice held
+  "column headings a partner's code may read can stay" and asserted it
+  in tests. He has now said it of the performance export and of this
+  one. The expiries file and the API are not covered by either sentence.
+- "Leave Monthly rent and Share of rent blank where the tenant hasn't
+  given a rent yet" is the same subject as "Not given yet" on the
+  Applications list, on the export.
+
+## THE EXPIRIES EXPORT ON DEV IS STALE (bug, 2026-10-02, verbatim).
+
+> The Expiries export on dev still produces the old file (no "Joint with", old "Annualised rent" and "Guarantor fee" headings) after your fix in fec2309. If it's built by an edge function such as expiry-cohorts, deploy it to dev with the npx command, and check every function changed today has been deployed. Then download it yourself on dev and confirm the new headings.
+
+- **Take this first.** It is a report that something recorded as done is
+  not on dev, which makes the record wrong as well as the file.
+- "check every function changed today has been deployed" is the real
+  instruction. One stale function is a mistake; not knowing which are
+  stale is the thing to fix.
+- The precedent is in `tenantFeeEmails.test.ts`: a create-referral fix
+  was committed at 09:17 against a bundle deployed at 09:16, so dev ran
+  the old code for a day. "Nothing about the repo was wrong. The deploy
+  was."
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
