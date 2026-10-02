@@ -228,7 +228,7 @@ export function Reconciliation() {
       ) : filter === 'refunds' ? (
         <RefundQuestions onChanged={reload} />
       ) : filter === 'noemail' ? (
-        <NoAgencyEmail />
+        <NoAgencyEmail onChanged={reload} />
       ) : (
       <div className="rq">
         {visible.map((item) => {
@@ -300,7 +300,7 @@ export function Reconciliation() {
             <><h2 className="rec-sec">Refunds on sent statements</h2><RefundQuestions onChanged={reload} /></>
           )}
           {totals.noEmail > 0 && (
-            <><h2 className="rec-sec">Supplier agencies with no email</h2><NoAgencyEmail /></>
+            <><h2 className="rec-sec">Supplier agencies with no email</h2><NoAgencyEmail onChanged={reload} /></>
           )}
           {totals.notInNetwork > 0 && (
             <><h2 className="rec-sec">Not in network</h2><NotInNetwork /></>

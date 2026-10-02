@@ -245,21 +245,12 @@
   .ph-key { flex-direction: column; align-items: flex-start; }
 }
 
-/* "ADD EMAIL", inline on the row that reports the gap. A quiet link
-   rather than a button: it sits beside a warning, and two heavy things
-   side by side make neither read. */
+/* THE CONTACT LINE IN THE TREE. The "Add email" control that sits on it
+   took its styles to AddContactEmail.css on 2026-10-02, when
+   Reconciliation started drawing the same component: a shared control
+   whose look lives in one page's stylesheet is unstyled on the second
+   page that uses it, and the second page then grows a copy. */
 .ph-tree__contact { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.ph-addemail {
-  display: inline-flex; align-items: center; gap: 4px;
-  background: none; border: 0; padding: 0; cursor: pointer;
-  font: 600 12.5px/1.4 inherit; color: var(--heliotrope-deep);
-}
-.ph-addemail:hover { text-decoration: underline; }
-.ph-addemail__form { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.ph-addemail__form input {
-  min-width: 220px; padding: 5px 9px; font-size: 13px;
-  border: 1px solid var(--line); border-radius: 8px;
-}
 
 /* The Overview's one-line answers and its warning block. */
 .ph-lede { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }

@@ -14,7 +14,9 @@
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { functionErrorMessage } from './paymentService';
 import { getAgencies } from './orgService';
-import { ALL_PARTNERS } from './types';
+import { partnerName } from './partnersService';
+import { agenciesNeedingAnEmail, branchCanReceiveDeed } from './deedContact';
+import { ALL_PARTNERS, type Agency, type Branch } from './types';
 import { formatDateTime } from '@/lib/format';
 
 export interface ReconRow {
@@ -189,14 +191,27 @@ export interface AgencyWithoutAnEmail {
   branchesCovered: number;
 }
 
-/* The mock book carries both shapes, for the same reason the not-in-network
-   one does: one agency fully covered per branch and one genuinely stranded,
-   so the two renderings both ship having been looked at. */
-const MOCK_NO_AGENCY_EMAIL: AgencyWithoutAnEmail[] = [
-  { agencyId: 'mock-ag-1', agencyName: 'Kestrel Lettings', partnerName: 'Kestrel Lettings', branches: 2, branchesCovered: 2 },
-  { agencyId: 'mock-ag-2', agencyName: 'Harbourfoot Residential', partnerName: 'Kestrel Lettings', branches: 2, branchesCovered: 1 },
-];
+/* MOCK MODE COMPUTES IT, as live does, since 2026-10-02.
 
+   It was a frozen array of two agencies -- 'mock-ag-1' and 'mock-ag-2',
+   named Kestrel Lettings and Harbourfoot Residential -- and neither
+   existed in ORG_SEED. Harmless while the tab was a list you could only
+   read. The moment Matt put an "Add email" button on the row, two
+   things broke at once: the row had no agency to write against, and
+   adding an address could not remove a row from a list that never
+   looked at the book.
+
+   SO IT ASKS THE BOOK, through `agenciesNeedingAnEmail` -- the same
+   predicate Home's tile, the sidebar badge, the Agencies screen and the
+   supplier's page use, and the client twin of the SQL reader live mode
+   calls. The demo now behaves like the product: add the address and the
+   row goes.
+
+   THE TWO SHAPES STILL SHIP HAVING BEEN LOOKED AT, which is what the
+   frozen list was for. Harbourside holds no referencingMode in the seed,
+   so it is supplier-shaped, and its two agencies are one with a mailbox
+   on every office (nothing stranded) and one with none (stranded) --
+   the same pair, now real. */
 export async function loadSupplierAgenciesWithoutAnEmail(): Promise<AgencyWithoutAnEmail[]> {
   if (SUPABASE_ENABLED) {
     const { data, error } = await sb().rpc('supplier_agencies_without_an_email');
@@ -210,7 +225,17 @@ export async function loadSupplierAgenciesWithoutAnEmail(): Promise<AgencyWithou
       branchesCovered: Number(r.branches_covered) || 0,
     }));
   }
-  return MOCK_NO_AGENCY_EMAIL.slice();
+  const covered = (a: Agency, b: Branch) => branchCanReceiveDeed(a, b);
+  return agenciesNeedingAnEmail(getAgencies(ALL_PARTNERS)).map((a) => {
+    const branches = a.branches ?? [];
+    return {
+      agencyId: a.id ?? '',
+      agencyName: a.name,
+      partnerName: partnerName(a.partner ?? ''),
+      branches: branches.length,
+      branchesCovered: branches.filter((b) => covered(a, b)).length,
+    };
+  });
 }
 
 export interface MatchBranch { id: string; name: string; area: string | null }

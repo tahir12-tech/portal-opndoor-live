@@ -48,3 +48,13 @@
 /* The two actions, on the card's head row beside the name. */
 .nin__acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 @media (max-width: 520px) { .nin__acts { width: 100%; } }
+
+/* THE ROW'S OWN CONTROLS. "Add email" sets the address in place and the
+   link opens the agency on its supplier's page; they sit at the right of
+   the card head so the name and the counts stay the first thing read. */
+.nin__acts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}

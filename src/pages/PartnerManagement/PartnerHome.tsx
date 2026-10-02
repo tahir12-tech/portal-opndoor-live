@@ -18,7 +18,7 @@
    (partner_active_key_count), never the keys themselves.
    ===================================================================== */
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ALL_PARTNERS, getPartner, getPeriods, getRatesFor, getAgencies, getUsers, maySeeCommission,
   statementMonths,
@@ -275,7 +275,23 @@ export function PartnerHome() {
      template." The page was four flat cards in document order, so a reader
      scrolled past the commission rates to reach the people. */
   type Tab = 'overview' | 'agencies' | 'people' | 'settings' | 'reporting' | 'commission' | 'referrals' | 'integration';
-  const [tab, setTab] = useState<Tab>('overview');
+  /* ?tab= SO ANOTHER PAGE CAN LINK AT A TAB. Reconciliation's "Supplier
+     agencies with no email" rows link to the agency on its supplier's
+     page, and a link that lands on Overview has not done that: the
+     reader arrives at a summary and has to find the tab the row was
+     about. The Overview's own warning switches tabs with a callback,
+     which works because it is already on this page; a link from another
+     one needs a URL.
+
+     A WHITELIST OF LITERALS, as Reconciliation's is and for the same
+     reason: a new tab has to be named here to be deep-linkable, and
+     missing it opens Overview rather than a blank page. */
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = params.get('tab');
+    return t === 'agencies' || t === 'people' || t === 'settings' || t === 'reporting'
+      || t === 'commission' || t === 'referrals' || t === 'integration' ? t : 'overview';
+  });
   /** The Add agency / Add branch dialog, and what it is adding to. */
   const [addOrg, setAddOrg] = useState<{ mode: 'agency' | 'branch'; agency: Agency | null } | null>(null);
   /* THE KEY COUNT MOVED WITH THE SWITCH. ApiAccessSwitch reads it
