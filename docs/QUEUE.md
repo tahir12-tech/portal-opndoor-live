@@ -728,7 +728,7 @@ guarantee for Amara Okonjo at 14 Chalcot Square ends on 1 September
 action offered is to email support. Not changed, because it is not what
 you asked for. Say the word and the tenant gets their own wording.
 
-## ADMIN REPORTING, THREE THINGS (instruction, 2026-10-02, verbatim).
+## ADMIN REPORTING, THREE THINGS (instruction, 2026-10-02, verbatim). **all three done** (`2ea5f13`).
 
 > Admin Reporting:
 > 1. Wherever an agency or branch from a supplier's estate appears alongside Opndoor's (branch and agency charts, referrer list, settlements, payees, statements), label it with its supplier, e.g. "Frost Partnership (via Kestrel Lettings)", so two same-named companies can always be told apart.
