@@ -84,9 +84,155 @@ only. The same company in both places is two records, not one.
 - The checklist Matt wants at the end is a test fixture plus four
   screenshots described in words. It goes in this file.
 
+### SEPARATE ESTATES: DONE, 2026-10-02
+
+Five commits. Full vitest and pgTAP after each, drift clean after each.
+
+- `b054ae0` **Two estates, and the same company can be in both.** The
+  client was the half that assumed one agency across routes. An origin
+  selection is now `agency:<estate>:<name>`; `agencyOffices`,
+  `showsOffices` and `officeLabel` take the estate and every caller that
+  knows it passes it (the League, the list, Agencies & branches, the
+  record, the agency's own page). `ApplicationDetail` gained a partner
+  SLUG beside its partner NAME, because it had nothing to pass. Admin's
+  Agencies tab filters out supplier estates; a supplier's page gained an
+  Agencies tab holding its own. The older `agency:<name>` selection still
+  matches by name, because those are in links people have saved.
+- `841e499` **The same name in two estates is not a duplicate.**
+  `duplicate_agency_groups()` grouped by name across the whole table and
+  marked the cross-partner groups urgent. It now groups by partner AND
+  name, and `cross_partner` is dropped rather than left always false. The
+  reconciliation queue an admin actually reads has always matched within
+  one partner, so nothing on screen changed. Also: the client's PREDICTION
+  of where a deed will go resolved the contact by name alone, so with two
+  Frosts the record could name the other company's mailbox. The SEND was
+  always right (`deed_delivery_target` reads agency_id and branch_id).
+- `5a58113` **Three delivery columns went on the table without a grant.**
+  Not an estates item. `deed_delivered_at`, `deed_delivered_to` and
+  `deed_resent_at` were added by 20261007320000 and never granted, and the
+  grant on `applications` is a denylist. Nothing was visibly wrong, which
+  is the dangerous part: the next `select *` by a signed-in role returns
+  "permission denied" and a blank screen. Found by running the WHOLE pgTAP
+  suite rather than the files the night's work touched.
+- `eb5682e` **Two note refusals now stop earlier than they did.** Also not
+  an estates item. Since notes became the shared record,
+  `add_application_note` is SECURITY INVOKER, so a caller who cannot see
+  the application stops at "application not found" instead of a guard's
+  42501. Same claim, corrected expectation.
+- `5716208` **A supplier-estate statement reaches no login.** The agency
+  arm of `commission_statement_recipients` resolves people through
+  `user_scopes` and never asked which estate the party was in, so a
+  Management user positioned on one of a supplier's agencies was addressed
+  beside the finance address. That arm now excludes a supplier estate. New
+  predicate `is_supplier_estate(uuid)`, the server twin of
+  `partyIsSupplier`.
+
+**Checked and already correct, so nothing was changed:** the League has
+always grouped by partner and name together (`keyOf`); commission lines
+hang off `org_id`, an agency ROW, so the same name in two estates is two
+sets of lines; `agreement_volume` counts by `agency_id`; the New
+Application picker already resolves the chosen agency's own partner and
+passes it to `origin_is_agent_estate`, `origin_referencing_mode` and
+`referral_fee_preview`. `whereTheyWork` still asks by name alone on
+purpose: it is the line under a PERSON, and only Opndoor's estate has
+people.
+
+**The after-launch item is removed.** Phase 3 said "For now Frost's staff
+do not see Rightmove-route referrals in their login", which implied a
+later change. There is no later: two estates never show each other's
+data, and it is now asserted in
+`supabase/tests/two_estates_never_meet.test.sql`.
+
+### THE FROST CHECKLIST, to repeat on dev
+
+Kestrel Lettings is dev's supplier and stands in for Rightmove; dev has no
+Rightmove partner. The fixture is `docs/reference/frost-both-estates.dev.sql`
+and is idempotent: re-running it rebuilds everything, and its delete block
+alone removes the lot. Nothing it creates touches an existing row. It is a
+dev fixture, not a migration, and is deliberately not in
+`supabase/migrations/`.
+
+What it creates:
+
+| | Opndoor's estate | Kestrel's estate |
+|---|---|---|
+| Agency | Frost Partnership (`...a001`) | Frost Partnership (`...a002`) |
+| Office | Frost Mayfair | Frost Mayfair |
+| Branch mailbox | mayfair@frost.example | mayfair@frost-via-kestrel.example |
+| Finance email | finance@frost.example | finance@frost-via-kestrel.example |
+| Login | director@frost.dev.test / `Frost!Dev2026` | none, by design |
+| Referral | GR-FROST-OURS, paid, £2,400 rent | GR-FROST-KES, paid, £2,400 rent |
+| Commission line | £240 to the Opndoor-estate Frost | £240 to the Kestrel-estate Frost |
+
+Both offices are called "Frost Mayfair" on purpose. Anything that resolves
+an agency or a branch by name alone picks the wrong one, and the two
+mailboxes are how you see it happen.
+
+**1. Admin, Agencies.** Six rows: Harbour Lets, Frost Partnership,
+Harborview Lettings, Northgate Lettings, Regent's Lettings, Southbank
+Residential. Frost appears ONCE, with one office (Frost Mayfair). The
+Kestrel-estate Frost is not on this screen at all.
+
+**2. Admin, Kestrel Lettings → Agencies tab.** Two rows: Kestrel Lettings
+(Kestrel Central, Kestrel Riverside) and Frost Partnership (Frost
+Mayfair). Headed "Kestrel Lettings's agencies". This is the only admin
+screen that carries it.
+
+**3. Frost's own login** (director@frost.dev.test, Director). One agency:
+Frost Partnership, under opndoor-agents. One application: GR-FROST-OURS.
+One commission line: £240, against GR-FROST-OURS. One person on Team:
+themselves. GR-FROST-KES is absent — not greyed, not empty, absent — and
+so is its £240, although that line carries the same agency NAME.
+
+**4. Kestrel's own login** (director@kestrel.dev.test, Director). Two
+agencies, both Kestrel's: Kestrel Lettings and Frost Partnership. Two
+applications: GR-22162 (sent) and GR-FROST-KES (paid). Nothing of
+Opndoor's Frost.
+
+**5. The deed, and this is the one worth checking by hand.** GR-FROST-OURS
+goes to director@frost.dev.test (the referrer, on our own estate's
+ladder). GR-FROST-KES goes to mayfair@frost-via-kestrel.example, the route
+contact in Kestrel's estate — never to mayfair@frost.example, which is the
+same office name in the other estate.
+
+**6. The statement.** Our Frost: director@frost.dev.test and
+finance@frost.example. Kestrel's Frost: finance@frost-via-kestrel.example
+and nothing else. No login is ever addressed for a supplier-estate agency.
+
+**7. The duplicate report.** `duplicate_agency_groups()` returns nothing.
+Two Frosts in two estates are not a duplicate.
+
+Measured on dev as each user, through the queries those screens run
+(`agencies` as hydrated by the browser, `applications` and
+`application_commission_lines` under RLS, and the two resolvers the send
+path and the statement run call). Screens 1 and 2 are also rendered, with
+the same two-Frost fixture, in
+`src/pages/Agencies/twoFrostsOnTwoScreens.render.test.tsx`.
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
+
+- **"They never have logins": how far does that reach?** I read it as the
+  AGENCIES in a supplier's estate not having logins, and enforced the part
+  you spelled out in money terms: a supplier-estate agency's statement now
+  reaches its finance address and no login, ever. I first wrote the
+  stronger version, refusing any position on an agency or branch in a
+  supplier's estate, and backed it out: it broke two existing tests
+  (`tenant_isolation`, `a_pre_referenced_agency_of_ours_may_refer_a_pair`)
+  that model a SUPPLIER'S OWN referrer positioned at a branch in the
+  supplier's estate and assert they are isolated to it. That is not an
+  agency having a login, and your sentence does not obviously forbid it.
+  Say which and I will make the trigger match, in either direction. Dev
+  has no such position today: all 14 are under opndoor-agents.
+- **A supplier-estate agency with no finance email has nowhere to send a
+  statement.** You said it "goes to that agency's contact email". There
+  are two things that could be: `finance_email`, which is what the
+  statement run uses and what I tested, and the branch's agent contact,
+  which is where the DEED goes. If an admin sets only the deed contact,
+  the statement run reports a payee it could not address and nothing is
+  sent. Want the deed contact used as the fallback? One line, but it
+  changes who receives money, so I have not guessed.
 
 - **The TENANT's signed-deed email promises the same reminder.** "We will
   email you a month before the guarantee ends" is in the tenant copy too,
