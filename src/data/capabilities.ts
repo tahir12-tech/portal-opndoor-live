@@ -121,9 +121,9 @@ export function partyIsSupplier(scope: PartnerScope): boolean {
  * supplier answers on its own record: API access on, the Dev Centre is theirs;
  * off, there is nothing there for them yet.
  *
- * SUPERADMIN IS EXEMPT, and this is the one exemption that is not special
- * pleading: an Opndoor admin needs the screen for a partner they are about to
- * enable, which is the moment the capability is necessarily still off.
+ * SUPERADMIN IS NOT EXEMPT ANY MORE. See the third ruling in the block
+ * inside the function; the exemption that used to be described here was
+ * for a need the supplier's Integration tab now covers.
  *
  * === true, not a truthy test. Undefined means the partner record did not load,
  * and the safe answer to "may they" when we do not know is no.
@@ -164,8 +164,40 @@ export function mayUseDevCentre(role: Role, scope: PartnerScope): boolean {
 
      opndoor_manager is NOT admitted, and was not before: the route's
      own list never carried it.
+
+     AND THE THIRD RULING, 2026-10-02, which reverses the second. Matt:
+     "Change of decision: Opndoor admin does not need the Dev Centre in
+     the sidebar; the supplier's Integration tab covers it. Leave it off
+     for admin, and update the test and QUEUE.md so it isn't restored."
+
+     THE WHOLE HISTORY, IN ORDER, BECAUSE IT HAS TURNED THREE TIMES:
+
+       1  "for developers only"        -> superadmin and developer kept,
+                                         supplier Management and Referrer
+                                         removed
+       2  "Admin keeps the Dev Centre
+           route"                      -> I had removed four roles when
+                                         the instruction named two; admin
+                                         restored
+       3  "does not need it ... the
+           supplier's Integration tab
+           covers it"                  -> admin removed again, this time
+                                         because the NEED went away rather
+                                         than because the instruction was
+                                         misread
+
+     The reason matters and is why this is not turn 2 happening again.
+     Ruling 2 restored admin because revoking a leaked key had nowhere
+     else to happen. It has somewhere now: the supplier's Integration
+     tab lists each active key with a Revoke beside it. A second door to
+     the same act is a second place for the rule to drift.
+
+     SO IT IS DEVELOPERS ONLY. The nav and the route guard read this one
+     predicate, so the item leaves the sidebar and the address stops
+     opening together -- a hidden door that still opens when you type it
+     is the mistake nav.ts's own history records.
      ===================================================================== */
-  if (role !== 'developer' && role !== 'superadmin') return false;
+  if (role !== 'developer') return false;
   if (scope === ALL_PARTNERS) return false;
   const p = getPartner(scope);
   if (!p) return false;

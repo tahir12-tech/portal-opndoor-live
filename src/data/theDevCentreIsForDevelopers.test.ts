@@ -53,12 +53,26 @@ describe('who may reach the Dev Centre', () => {
     expect(mayUseDevCentre('referrer', SUPPLIER)).toBe(false);
   });
 
-  /* BUT OPNDOOR ADMIN KEEPS IT. Matt, correcting me the same day: "the
-     instruction only covered supplier Management and Referrer users."
-     What admin sees inside is a separate rule and a separate place: a
-     key prefix and a Revoke, never a full key and never a Create. */
-  it('and Opndoor admin, who keeps the route', () => {
-    expect(mayUseDevCentre('superadmin', SUPPLIER)).toBe(true);
+  /* AND NOT OPNDOOR ADMIN EITHER, since 2026-10-02. This case said the
+     opposite yesterday, and the reversal is deliberate rather than the
+     earlier mistake happening again.
+
+       Matt, 2026-10-01: "Admin keeps the Dev Centre route; the
+       instruction only covered supplier Management and Referrer users."
+       I had removed four roles when the instruction named two.
+
+       Matt, 2026-10-02: "Change of decision: Opndoor admin does not
+       need the Dev Centre in the sidebar; the supplier's Integration
+       tab covers it. Leave it off for admin, and update the test and
+       QUEUE.md so it isn't restored."
+
+     WHAT CHANGED IS THE NEED, not the reading. Admin was restored
+     because revoking a leaked key had nowhere else to happen; it has
+     somewhere now. "so it isn't restored" is why this case keeps the
+     history instead of being deleted: the next reader finding ruling 2
+     on its own would put it back. */
+  it('and not Opndoor admin, whose need the Integration tab covers', () => {
+    expect(mayUseDevCentre('superadmin', SUPPLIER)).toBe(false);
   });
 
   /* AND NOT OPNDOOR OPERATIONS STAFF, who never had it: the route's own
@@ -73,9 +87,11 @@ describe('and the party still has to have an API', () => {
     expect(mayUseDevCentre('developer', NO_API)).toBe(false);
   });
 
-  /* INCLUDING FOR ADMIN. A party with no API has no Dev Centre, whoever
-     is looking: that was true before the role test was added and stays
-     true under it. */
+  /* INCLUDING FOR ADMIN, who is now refused twice over: by the role
+     test and by the missing API. Kept rather than deleted, because the
+     party rule has to go on holding on its own -- if admin were ever
+     admitted again, this is the case that would still refuse them at a
+     supplier with no API. */
   it('and not even for admin there', () => {
     expect(mayUseDevCentre('superadmin', NO_API)).toBe(false);
   });
@@ -98,10 +114,11 @@ describe('and the party still has to have an API', () => {
 describe('every role, in one place', () => {
   /* THE WHOLE TABLE, so a role added later has to be thought about here
      rather than inheriting whatever the last condition happened to do. */
-  it('reads as two yeses and the rest no', () => {
+  it('reads as one yes and the rest no', () => {
     const roles: Role[] = ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'];
     const yes = roles.filter((r) => mayUseDevCentre(r, SUPPLIER));
-    expect(yes).toEqual(['superadmin', 'developer']);
+    // One, since 2026-10-02: it is for developers, and nobody else.
+    expect(yes).toEqual(['developer']);
   });
 });
 

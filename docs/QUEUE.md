@@ -1265,9 +1265,36 @@ today. A scan for them belongs in the suite.
 - A message pointing at another page is the same fault the Users and
   Manage buttons were removed for last week.
 
-## THE DEV CENTRE IS FOR DEVELOPERS ONLY (instruction, 2026-10-01, verbatim). **done** (`0136694`), then CORRECTED.
+## THE DEV CENTRE IS FOR DEVELOPERS ONLY (instruction, 2026-10-01, verbatim). **done** (`0136694`), CORRECTED, then REVERSED AGAIN 2026-10-02. **Current answer: developers only, admin has no Dev Centre.**
 
-### THE CORRECTION, verbatim (2026-10-01)
+### THE CURRENT ANSWER, AND THE ONLY ONE THAT IS LIVE (2026-10-02)
+
+> Change of decision: Opndoor admin does not need the Dev Centre in the sidebar; the supplier's Integration tab covers it. Leave it off for admin, and update the test and QUEUE.md so it isn't restored.
+
+**Read this before the two rulings below it, which are history.** The
+predicate admits `developer` and nobody else. Both earlier rulings are
+kept because the reasoning in them is worth having, and because an
+entry that only recorded the latest would let somebody find the 10-01
+correction in the git log and put admin back.
+
+**Why this is not the 10-01 mistake happening again.** That correction
+restored admin because revoking a leaked key had nowhere else to
+happen. It has somewhere now: the supplier's Integration tab lists each
+active key with a Revoke beside it. The NEED went away; the reading did
+not change.
+
+Three turns, in order:
+
+| | Instruction | Result |
+|---|---|---|
+| 1 | "for developers only" | superadmin + developer kept; supplier Management and Referrer removed |
+| 2 | "Admin keeps the Dev Centre route" | admin restored; I had removed four roles when two were named |
+| 3 | "does not need it ... the Integration tab covers it" | admin removed; **developers only** |
+
+The nav and the route guard read the one predicate, so the item leaves
+the sidebar and the address stops opening together.
+
+### THE CORRECTION, verbatim (2026-10-01). SUPERSEDED by the above.
 
 > Admin keeps the Dev Centre route; the instruction only covered supplier Management and Referrer users. Restore it for Opndoor admin, keeping the existing rule that admin never sees or creates full keys.
 
