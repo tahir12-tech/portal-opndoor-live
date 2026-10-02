@@ -941,6 +941,18 @@ you asked for. Say the word and the tenant gets their own wording.
   so all three lose the column-heading exception. The expiries file and
   the partner API keep it: nothing has been said about those.
 
+## THE LEAGUE, RESTATED WITH THE EXPORTS IN IT (instruction, 2026-10-02, verbatim).
+
+> League screen and exports: where a row already shows its supplier (the tag on screen, the Detail column in exports), drop "(via …)" from the name so it isn't said twice. Rename "Partner comm." to "Supplier comm." on screen on every tab, and add the dashboard's one-line note that a rate can exceed 100% when payments land this period for referrals sent earlier. Deploy to dev and check there.
+
+- This supersedes the two League entries above by naming the EXPORT's
+  Detail column as the second place the supplier is already stated. The
+  three are built as one.
+- So the rule is: `viaSupplier` labels a name where nothing else on the
+  row says the estate, and is dropped where something does. The charts
+  have no such column and keep it; League, on screen and in its
+  exports, has one and does not.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
