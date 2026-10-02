@@ -33,7 +33,7 @@
 -- rules and are in src/data/twoEstatesNeverMeet.test.ts.
 
 begin;
-select plan(15);
+select plan(17);
 
 -- ===========================================================================
 -- THE FIXTURE: ONE COMPANY, TWO ESTATES
@@ -68,17 +68,22 @@ select x.id,'00000000-0000-0000-0000-000000000000','authenticated','authenticate
 from (values
   ('93000000-0000-0000-0000-0000000e50a1'::uuid,'zzz.frost.director@e.test'),
   ('93000000-0000-0000-0000-0000000e50a2'::uuid,'zzz.supplier.ref@e.test'),
+  ('93000000-0000-0000-0000-0000000e50a3'::uuid,'zzz.supplier.director@e.test'),
   ('93000000-0000-0000-0000-0000000e50d1'::uuid,'zzz.estate.tenant1@e.test'),
   ('93000000-0000-0000-0000-0000000e50d2'::uuid,'zzz.estate.tenant2@e.test')
 ) as x(id,email);
 
 -- FROST'S OWN LOGIN. It exists in OPNDOOR's estate and nowhere else, which
 -- is the rule: "Each supplier's estate ... They never have logins."
-insert into public.users (id, full_name, email, role, partner_id, status, sees_commission, home_branch_id) values
+insert into public.users (id, full_name, email, role, partner_id, status, sees_commission, receives_commission_statements, home_branch_id) values
   ('93000000-0000-0000-0000-0000000e50a1','ZZZ Frost Director','zzz.frost.director@e.test','management',
-   (select id from public.partners where slug='opndoor-agents'),'active',true,'93000000-0000-0000-0000-0000000e5011'),
+   (select id from public.partners where slug='opndoor-agents'),'active',true,true,'93000000-0000-0000-0000-0000000e5011'),
   ('93000000-0000-0000-0000-0000000e50a2','ZZZ Supplier Ref','zzz.supplier.ref@e.test','referrer',
-   '93000000-0000-0000-0000-0000000e5000','active',false,null);
+   '93000000-0000-0000-0000-0000000e5000','active',false,false,null),
+  -- The person the supplier-estate statement must NOT reach: Management,
+  -- sees commission, ticked for statements, and positioned on the agency.
+  ('93000000-0000-0000-0000-0000000e50a3','ZZZ Supplier Director','zzz.supplier.director@e.test','management',
+   '93000000-0000-0000-0000-0000000e5000','active',true,true,null);
 insert into public.user_scopes (user_id, kind, agency_id) values
   ('93000000-0000-0000-0000-0000000e50a1','agency','93000000-0000-0000-0000-0000000e5001');
 
@@ -232,6 +237,35 @@ select is(
   (select count(*)::int from public.deed_delivery_target('93000000-0000-0000-0000-0000000e5102') t
     where t.email = 'mayfair@ours.test'),
   0, 'and never to the same-named branch in Opndoor''s estate');
+
+-- ===========================================================================
+-- 6. A SUPPLIER-ESTATE STATEMENT REACHES NO LOGIN  (20261007390000)
+-- ===========================================================================
+/* Matt: "that commission is paid to the Rightmove-estate agency and its
+   statement goes to that agency's contact email, never into any login."
+   The agency arm of commission_statement_recipients resolves people
+   through user_scopes and never asked which estate the party was in, so
+   a Management user positioned on one of the supplier's agencies was
+   addressed beside the finance address. */
+update public.agencies set finance_email = 'finance@theirs.test'
+ where id = '93000000-0000-0000-0000-0000000e5002';
+insert into public.user_scopes (user_id, kind, agency_id)
+values ('93000000-0000-0000-0000-0000000e50a3','agency','93000000-0000-0000-0000-0000000e5002');
+
+select bag_eq(
+  $$select email, source from public.commission_statement_recipients('agency','93000000-0000-0000-0000-0000000e5002')$$,
+  $$values ('finance@theirs.test','finance')$$,
+  'a supplier-estate agency''s statement goes to its finance address and to no login');
+
+/* AND THE SAME PERSON ARM STILL WORKS IN OPNDOOR'S ESTATE, so the
+   exclusion above is about the estate and not about the arm. */
+update public.agencies set finance_email = 'finance@ours.test'
+ where id = '93000000-0000-0000-0000-0000000e5001';
+select bag_eq(
+  $$select email, source from public.commission_statement_recipients('agency','93000000-0000-0000-0000-0000000e5001')$$,
+  $$values ('finance@ours.test','finance'),
+           ('zzz.frost.director@e.test','person')$$,
+  'while our own estate still addresses its Director beside the finance address');
 
 select * from finish();
 rollback;
