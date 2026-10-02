@@ -322,7 +322,7 @@ function errorResponses(codes) {
 
 const WEBHOOK_EVENTS = [
   ['application.created', 'An application is created and accepted'],
-  ['application.paid', 'The guarantor fee is paid'],
+  ['application.paid', 'The guarantee fee is paid'],
   ['application.deed_issued', 'The Deed of Guarantee is executed'],
   ['application.lapsed', 'An unpaid application closes automatically'],
   ['application.withdrawn', 'An application is withdrawn before payment'],

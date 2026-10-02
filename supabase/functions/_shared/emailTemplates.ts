@@ -559,7 +559,14 @@ export function deedToSignEmail(p: {
     blocks: [
       { p: "opndoor has issued a Deed of Guarantee for the tenancy below. It needs signing before it takes effect." },
       { rows },
-      { small: "opndoor is a professional guarantor service, not insurance, and is not a party to the tenancy agreement. You remain the claim contact." },
+      /* THE FOOTER ALREADY SAYS THE FIRST HALF. Matt, 2026-10-02: "remove
+         the duplicate 'not insurance' sentences." Every email built by
+         emailLayout carries "opndoor is a professional guarantor service,
+         not insurance. opndoor is not a party to, or named on, the
+         tenancy agreement", so this printed it twice on one screen. What
+         is kept is the half the footer does not say, exactly as on the
+         signed-deed email. */
+      { small: "You remain the claim contact." },
     ],
     action: { label: "Review and sign", href: p.signUrl },
   };

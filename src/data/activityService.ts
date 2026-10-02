@@ -189,7 +189,8 @@ function notifLabel(kind: string, tenant: string): { text: string; dot: Notifica
     case 'deed_sent': return { text: `Deed sent for signature to ${tenant}`, dot: 'sent' };
     case 'deed_signed':
     case 'deed_issued': return { text: `Deed issued for ${tenant}`, dot: 'deed' };
-    case 'refunded': return { text: `Guarantor fee refunded for ${tenant}`, dot: 'other' };
+    // "Guarantee fee", not "guarantor fee" (Matt, 2026-10-02).
+    case 'refunded': return { text: `Guarantee fee refunded for ${tenant}`, dot: 'other' };
     case 'expiry_reminder': return { text: `Guarantee expiring for ${tenant}`, dot: 'other' };
     default: return { text: `Update for ${tenant}`, dot: 'other' };
   }

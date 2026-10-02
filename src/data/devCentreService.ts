@@ -121,7 +121,9 @@ export const API_SCOPES: { id: string; label: string; desc: string }[] = [
 /** The events an endpoint may subscribe to. Matches the enqueue trigger. */
 export const WEBHOOK_EVENTS: { id: string; desc: string }[] = [
   { id: 'application.created', desc: 'An application was created' },
-  { id: 'application.paid', desc: 'The guarantor fee was paid' },
+  // The wording, not the id: 'application.paid' is what a partner's code
+  // subscribes to and must not move (Matt, 2026-10-02).
+  { id: 'application.paid', desc: 'The guarantee fee was paid' },
   { id: 'application.deed_issued', desc: 'The Deed of Guarantee was signed and issued' },
   { id: 'application.lapsed', desc: 'An unpaid application lapsed. NOT the guarantee expiring' },
   { id: 'application.withdrawn', desc: 'The application was withdrawn' },

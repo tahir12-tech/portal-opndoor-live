@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
         // A staff-withdrawn anomaly leaves status != 'paid', so nothing fires here.
         const { data: priorPaid } = await service.from("activity_log").select("id").eq("application_id", appId).eq("kind", "payment_received").limit(1);
         if (appRow?.status === "paid" && !priorPaid?.length) {
-          await service.from("activity_log").insert({ application_id: appId, kind: "payment_received", message: `Guarantor fee paid (£${amount.toLocaleString("en-GB")}) via Stripe.`, actor: "Stripe" });
+          await service.from("activity_log").insert({ application_id: appId, kind: "payment_received", message: `Guarantee fee paid (£${amount.toLocaleString("en-GB")}) via Stripe.`, actor: "Stripe" });
           // Generate the deed (fresh or #13 reinstated) unless one already exists.
           //
           // THE CHECK IS ON THE TENANCY, NOT ON WHOEVER JUST PAID. On a joint

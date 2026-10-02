@@ -365,7 +365,10 @@ async function emailSigningLink(tenantEmail: string, link: string, ctx: RemindCo
       blocks: [
         { p: "Your guarantee is in place and the Deed of Guarantee is ready for your signature. Signing is the last step." },
         { rows: [["Reference", ctx.guarantee_ref]] },
-        { small: "opndoor is a professional guarantor service, not insurance, and is not a party to your tenancy agreement." },
+        /* NO "NOT INSURANCE" LINE HERE. Matt, 2026-10-02. The footer
+           emailLayout puts on every message says it, word for word, and
+           this one added nothing to it -- unlike the deed-to-sign email,
+           which also named the claim contact and keeps that half. */
       ],
       action: { label: "Review and sign", href: link },
     },

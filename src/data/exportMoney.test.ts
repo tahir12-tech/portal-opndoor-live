@@ -301,7 +301,9 @@ describe('the monthly trend states what was actually collected', () => {
     const trendTotal = rows.reduce((s, r) => s + Number(r[2]), 0);
     const gross = blocksOf(built)
       .flatMap(({ block }) => block.items ?? [])
-      .find((i) => i.label === 'Guarantor fees collected (gross)')!;
+      // "Guarantee fees" since 2026-10-02: the SUMMARY labels were reworded,
+      // while the CSV column headings a partner's code reads were not.
+      .find((i) => i.label === 'Guarantee fees collected (gross)')!;
     // The trailing twelve months hold this whole book, so the two are the same
     // money. Compared to the penny, which is the only comparison worth making.
     expect(Math.round(trendTotal * 100) / 100).toBe(Math.round(Number(gross.value) * 100) / 100);

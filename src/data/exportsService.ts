@@ -470,7 +470,20 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
         { label: 'Conversion: Paid to Deed', value: a.paid ? a.deed / a.paid : 0, type: 'pct' },
         { label: 'Conversion: Sent to Deed', value: a.sent ? a.deed / a.sent : 0, type: 'pct' },
         moneyKv('Total guaranteed rent value', a.guaranteed),
-        moneyKv('Guarantor fees collected (gross)', a.feesGross),
+        /* "GUARANTEE FEE" IN THE PROSE, "Guarantor fee" IN THE COLUMNS.
+
+           Matt, 2026-10-02: "change 'guarantor fee' to 'guarantee fee' in
+           CSV exports, the activity feed and the API docs wording, but do
+           not rename any API field or CSV column a partner's code may
+           read."
+
+           So the summary labels, the hints and the notes say "guarantee
+           fee", and every `moneyCol('Guarantor fee')` heading stays
+           exactly as it is. A heading is what a partner's spreadsheet or
+           importer matches on, and renaming it would break the
+           reconciliation these exports exist for. The two readings of one
+           word live side by side on purpose; this note is why. */
+        moneyKv('Guarantee fees collected (gross)', a.feesGross),
         ...(showComm ? (agency ? [
           /* ONE LINE, NO BLENDED RATE. An agency is owed commission on terms they
              signed, per application; a single percentage across a period of
@@ -492,7 +505,7 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
         // Per TENANCY, not per applicant: every sibling row carries the whole
         // let's rent, so averaging over applicants inflated it by the tenant count.
         moneyKv('Average monthly rent (per tenancy)', a.avgRent),
-        moneyKv('Average guarantor fee (per applicant)', a.paid ? a.feesGross / a.paid : 0),
+        moneyKv('Average guarantee fee (per applicant)', a.paid ? a.feesGross / a.paid : 0),
         { label: 'Total deeds issued', value: a.deed, type: 'int' },
         moneyKv('Total value of deeds issued', a.guaranteed),
       ],
@@ -502,7 +515,7 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
     {
       kind: 'keyvalue',
       items: [
-        moneyKv('Guarantor fees collected (gross)', a.feesGross),
+        moneyKv('Guarantee fees collected (gross)', a.feesGross),
         moneyKv(`Refunds (${a.refundCount})`, a.refundValue),
         moneyKv('Net fees after refunds', a.feesNet),
         ...(showComm ? (agency ? [
@@ -731,7 +744,7 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
         { label: 'Conversion: Paid to Deed', value: m.paid ? m.deed / m.paid : 0, type: 'pct' },
         { label: 'Conversion: Sent to Deed', value: m.sent ? m.deed / m.sent : 0, type: 'pct' },
         moneyKv('Total guaranteed rent value', m.deed * ANNUAL),
-        moneyKv('Guarantor fees collected', m.fees),
+        moneyKv('Guarantee fees collected', m.fees),
         ...(showComm ? (agency ? [
           // One line, their own, and no rate in the label: see the live builder.
           moneyKv('Commission (agreed terms)', m.fees * xrates.agent),
@@ -740,7 +753,7 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
           moneyKv('Agent commission (share of one month rent)', m.fees * xrates.agent),
         ]) : []),
         moneyKv('Average monthly rent', AVG_RENT),
-        moneyKv('Average guarantor fee', m.paid ? m.fees / m.paid : 0),
+        moneyKv('Average guarantee fee', m.paid ? m.fees / m.paid : 0),
         { label: 'Total deeds issued', value: m.deed, type: 'int' },
         moneyKv('Total value of deeds issued', m.deed * ANNUAL),
       ],
@@ -816,7 +829,7 @@ export type ExportBasis = 'referred' | 'paid' | 'deed' | 'activity';
 
 export const BASIS_META: Record<ExportBasis, { label: string; recon: string; hint: string }> = {
   referred: { label: 'by referral sent date', recon: 'equals Referrals sent in the performance export for this period', hint: 'Applications first referred (Sent) within the period. Status shown is the latest state now, so payments and deeds that happened later still appear.' },
-  paid: { label: 'by payment date', recon: 'equals the referrals Paid in this period (reconciles to fees collected)', hint: 'Applications whose guarantor fee was paid within the period, whenever they were referred. Use this to reconcile fees and commission each month.' },
+  paid: { label: 'by payment date', recon: 'equals the referrals Paid in this period (reconciles to fees collected)', hint: 'Applications whose guarantee fee was paid within the period, whenever they were referred. Use this to reconcile fees and commission each month.' },
   deed: { label: 'by deed issue date', recon: 'equals the Deeds issued in this period', hint: 'Applications whose Deed of Guarantee was issued within the period, whenever they were referred.' },
   activity: { label: 'by any event in the period', recon: 'every application with a Sent, Paid or Deed Issued event in this period', hint: 'Everything that moved in the period: any application Sent, Paid or Deed issued within it, including referrals from earlier months that paid or issued now. An "Activity in period" column lists which events fell in the period.' },
 };
