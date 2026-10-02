@@ -40,9 +40,25 @@ function londonNow(): { hour: number; date: string } {
   const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   return { hour: Number(g("hour")), date: `${g("year")}-${g("month")}-${g("day")}` };
 }
+/* ONE DATE FORMAT, AND IT IS THE PORTAL'S. Matt, 2026-10-02: "dates as
+   '20 Nov 2026' in the email body". The portal settled on that shape
+   everywhere on screen (`formatDate`, "29 Sep 2026") and this document
+   was still writing 20/11/2026, which is the one format that is read
+   differently on two continents. Built from the parts, so no timezone
+   can move the day. */
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 function dmy(iso: string | null): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? "");
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso ?? "");
+  if (!m) return iso ?? "";
+  return `${Number(m[3])} ${MONTH_ABBR[Number(m[2]) - 1]} ${m[1]}`;
+}
+
+/** "2026-11" -> "November 2026", for the subject and the opening line. */
+const MONTH_LONG = ["January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"];
+function monthWords(ym: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(ym);
+  return m ? `${MONTH_LONG[Number(m[2]) - 1]} ${m[1]}` : ym;
 }
 function gbp(n: number): string {
   return `£${(n ?? 0).toLocaleString("en-GB")}`;
@@ -125,7 +141,7 @@ Deno.serve(async (req) => {
     // All in-force guarantees expiring in the cohort month (any partner), with the
     // fields the export needs. Refunded and already-expired rows are dropped below.
     const { data: apps, error: appErr } = await service.from("applications")
-      .select("id, guarantee_ref, tenancy_start, expiry_date, monthly_rent, payment_state, partner_id, agency_id, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name)")
+      .select("id, guarantee_ref, tenancy_start, expiry_date, monthly_rent, fee_amount, share_amount, tenancy_id, payment_state, partner_id, agency_id, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name)")
       // livemode: this list is emailed to each partner's management users as a
       // cohort export. A sandbox rehearsal that reached 'deed' would appear in a
       // real partner's expiring-guarantees report as a guarantee they believe is
@@ -176,7 +192,45 @@ Deno.serve(async (req) => {
       : await service.from("expiry_cohort_sends").select("partner_id, user_id").eq("cohort_month", cohortMonth);
     const alreadySent = new Set((sent ?? []).map((s: { partner_id: string; user_id: string | null }) => s.user_id ?? s.partner_id));
 
-    const COLS = ["Guarantee reference", "Tenant name", "Property address", "Agency", "Branch", "Tenancy start", "Expiry date", "Days remaining", "Monthly rent", "Annualised rent", "Referrer"];
+    /* THE SAME COLUMNS AS THE ADMIN EXPIRIES FILE, which is the whole
+       instruction: Matt, 2026-10-02, "bring the agency-facing
+       'guarantees expiring' monthly email and its spreadsheet into line
+       with the admin Expiries export". Until now the two documents
+       about one subject disagreed about what the subject was -- this
+       one had no fee at all, said "Annualised rent" without saying
+       whose, and had no way to show that a row has siblings.
+
+       AND NO OPNDOOR-INTERNAL COLUMNS, which is the other half of it.
+       The admin file's set happens to contain none: there is no
+       commission on it, and Agency and Branch are the reader's own. So
+       the two are the same list rather than a subset, and the next
+       column added to one has to be thought about for the other. */
+    const COLS = ["Guarantee reference", "Tenant name", "Tenants on the guarantee", "Joint with",
+      "Property address", "Agency", "Branch", "Tenancy start", "Expiry date", "Days remaining",
+      "Monthly rent (whole tenancy)", "Annualised rent (this tenant's share)",
+      "Guarantee fee (whole tenancy)", "Referrer"];
+
+    /* THE TENANCIES, FROM THE WHOLE BOOK AND NOT FROM THIS MONTH'S SET.
+       "Joint with" names the other tenants on a tenancy, and a joint
+       tenant whose own guarantee expires in a different month is not in
+       `apps` and is still their joint tenant. The admin file reads the
+       whole book for the same reason. One query for every tenancy in
+       play rather than one per row. */
+    const tenancyIds = [...new Set((apps ?? [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((a: any) => a.tenancy_id).filter(Boolean))] as string[];
+    const siblings = new Map<string, { ref: string; fee: number }[]>();
+    if (tenancyIds.length) {
+      const { data: sibRows } = await service.from("applications")
+        .select("guarantee_ref, tenancy_id, fee_amount, monthly_rent")
+        .in("tenancy_id", tenancyIds);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const r of (sibRows ?? []) as any[]) {
+        const list = siblings.get(r.tenancy_id) ?? [];
+        list.push({ ref: r.guarantee_ref, fee: Number(r.fee_amount ?? r.monthly_rent ?? 0) });
+        siblings.set(r.tenancy_id, list);
+      }
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const emb = (x: any) => (Array.isArray(x) ? x[0] : x);
 
@@ -204,7 +258,7 @@ Deno.serve(async (req) => {
 
       const rows: (string | number)[][] = [
         ["opndoor Guarantee Referral Portal - guarantees expiring"],
-        ["Month", `${cohortMonth} (by guarantee expiry date, soonest first)`],
+        ["Month", `${monthWords(cohortMonth)} (by guarantee expiry date, soonest first)`],
         ["Guarantees expiring", cohort.length],
         [],
         COLS,
@@ -212,9 +266,24 @@ Deno.serve(async (req) => {
         ...cohort.map((a: any) => {
           const addr = [a.prop_addr1, a.prop_addr2, a.prop_city, a.prop_postcode].filter(Boolean).join(", ");
           const tenant = [a.tenant_first_name, a.tenant_last_name].filter(Boolean).join(" ");
-          return [a.guarantee_ref, tenant, addr, emb(a.agency)?.name ?? "", emb(a.branch)?.name ?? "",
+          const mates = a.tenancy_id ? (siblings.get(a.tenancy_id) ?? []) : [];
+          const others = mates.filter((m) => m.ref !== a.guarantee_ref).map((m) => m.ref).sort();
+          /* THE TENANCY'S FEE, summed across its tenants, because the
+             column says "whole tenancy" and a joint tenancy is priced
+             once and charged by share. A sole tenant's own fee IS the
+             tenancy's. */
+          const tenancyFee = mates.length
+            ? mates.reduce((t, m) => t + m.fee, 0)
+            : Number(a.fee_amount ?? a.monthly_rent ?? 0);
+          /* AND THE ANNUALISED FIGURE IS THIS TENANT'S SHARE, which is
+             what the admin file's heading now says out loud: a joint
+             tenant guarantees their share of the rent, not all of it. */
+          const share = Number(a.share_amount ?? a.monthly_rent ?? 0);
+          return [a.guarantee_ref, tenant, String(mates.length || 1), others.join(", "),
+            addr, emb(a.agency)?.name ?? "", emb(a.branch)?.name ?? "",
             dmy(a.tenancy_start), dmy(a.expiry_date), String(daysBetween(a.expiry_date, nowL.date)),
-            gbp(Number(a.monthly_rent)), gbp(Number(a.monthly_rent) * 12), emb(a.referrer)?.full_name ?? ""];
+            gbp(Number(a.monthly_rent)), gbp(share * 12), gbp(tenancyFee),
+            emb(a.referrer)?.full_name ?? ""];
         }),
       ];
       const csv = toCSV(rows);
@@ -231,10 +300,18 @@ Deno.serve(async (req) => {
       const res = await sendMessage({
         to: dest,
         message: {
-          subject: `Guarantees expiring in ${cohortMonth}`,
-          heading: `Guarantees expiring in ${cohortMonth}`,
+          subject: `Guarantees expiring in ${monthWords(cohortMonth)}`,
+          heading: `Guarantees expiring in ${monthWords(cohortMonth)}`,
           blocks: [
-            { p: `Attached are the guarantees expiring in <b>${cohortMonth}</b> (${cohort.length}), soonest first, so you can arrange renewals or fresh referrals in good time.` },
+            // "November 2026", not "2026-11": the body is prose, and a
+            // reader should not have to parse a sort key out of it.
+            { p: `Attached are the guarantees expiring in <b>${monthWords(cohortMonth)}</b> (${cohort.length}), soonest first, so you can arrange renewals or fresh referrals in good time.` },
+            /* THE SOONEST FEW, IN THE BODY. The attachment is the
+               document; a person reading on a phone should not have to
+               open it to learn whether anything is urgent. Dates in the
+               portal's one format. */
+            { rows: cohort.slice(0, 3).map((a: { guarantee_ref: string; expiry_date: string }) =>
+                [a.guarantee_ref, dmy(a.expiry_date)] as [string, string]) },
             { small: "This cohort is sent six weeks before the month begins. You can also download expiries for any month from your dashboard." },
           ],
         },
