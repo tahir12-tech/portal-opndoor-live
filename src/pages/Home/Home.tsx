@@ -9,8 +9,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import {
   awaitingDecisionCount, reconciliationPendingCount, loadAgencyMatchQueue, countByStatus,
-  getApplications, ALL_PARTNERS, canPostStatements,
+  getApplications, getAgencies, ALL_PARTNERS, canPostStatements,
 } from '@/data';
+import { agenciesNeedingAnEmail } from '@/data/deedContact';
+import { plural } from '@/lib/plural';
 import { channelOf, ROUTE_LABEL, type Channel } from '@/data/channel';
 import { getPartner } from '@/data/partnersService';
 import { getPositions } from '@/data/positionsService';
@@ -30,6 +32,32 @@ const ROUTE_PILL: Record<Channel, PillVariant> = {
 };
 const initials = (n: string) => n.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
+/**
+ * What the Reconciliation tile's number is made of.
+ *
+ * Matt, 2026-10-02: "Include those in the Home count and say what they
+ * are, e.g. '2 supplier agencies need an email'." His example is the
+ * phrasing, so it is used verbatim when that is the whole of it.
+ *
+ * NAMES ONLY WHAT IS THERE. A tile reading "and 0 supplier agencies need
+ * an email" is a sentence about nothing, and the reason the older meta
+ * said one thing was that there was only one thing to say.
+ */
+export function reconMeta(review: number, needEmail: number): string {
+  const parts: string[] = [];
+  /* "3 to review" rather than "3 agencies and branches to review": the
+     queue holds both kinds and the count is of the two together, so
+     naming them would need "1 agency and branch", which is not English.
+     The tile is labelled Reconciliation and the page says the rest. */
+  if (review > 0) parts.push(`${review} to review`);
+  if (needEmail > 0) {
+    parts.push(`${needEmail} supplier ${plural(needEmail, 'agency')} ${needEmail === 1 ? 'needs' : 'need'} an email`);
+  }
+  // Nothing waiting: the tile shows 0 and the line says what it would count.
+  if (!parts.length) return 'waiting now: agencies and branches to review';
+  return `waiting now: ${parts.join(', ')}`;
+}
+
 export function Home() {
   usePageMeta('home', 'Home', []);
   const { role, dataVersion } = useSession();
@@ -38,6 +66,18 @@ export function Home() {
 
   const awaiting = awaitingDecisionCount();
   const recon = reconciliationPendingCount();
+  /* AND THE AGENCIES THAT NEED AN EMAIL, which are on the same page and
+     were not in the same number. Matt, 2026-10-02: "Home's Reconciliation
+     count shows 0 while the 'Supplier agencies with no email' tab lists
+     two. Include those in the Home count and say what they are."
+
+     COUNTED HERE FROM THE HYDRATED ORG, not fetched. The tile is
+     synchronous and the Reconciliation tab's own reader is an RPC; asking
+     the server here would make Home wait on a round trip to draw a
+     number. `agenciesNeedingAnEmail` is the same predicate the Agencies
+     screen and the supplier's page use, and the SQL reader applies the
+     same three tests, so the tile and the tab count the same rows. */
+  const needEmail = agenciesNeedingAnEmail(getAgencies(ALL_PARTNERS)).length;
   const deliveryFailed = countByStatus(scopeOpts).deliveryFailed;
 
   /* THE INVOICE ADDRESS, and whether a statement could be posted at all.
@@ -95,7 +135,10 @@ export function Home() {
   const tiles = [
     { label: 'Awaiting decision', n: awaiting, meta: 'waiting now for an eligibility decision', to: '/applications?status=referencing', tone: 'warn' as const },
     { label: 'Agency matches', n: matches, meta: 'waiting now: direct tenants, unmatched agent', to: '/reconciliation?tab=matches', tone: 'accent' as const },
-    { label: 'Reconciliation', n: recon, meta: 'waiting now: agencies and branches to review', to: '/reconciliation', tone: 'accent' as const },
+    /* ONE TILE, TWO KINDS OF WORK, and the meta names whichever is there.
+       A tile that counts both and describes one sends the reader to a
+       page looking for rows that are on another tab. */
+    { label: 'Reconciliation', n: recon + needEmail, meta: reconMeta(recon, needEmail), to: '/reconciliation', tone: 'accent' as const },
     { label: 'Delivery failed', n: deliveryFailed, meta: 'waiting now: deed not delivered', to: '/applications?deed=delivery-failed', tone: 'danger' as const },
   ];
 

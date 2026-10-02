@@ -113,9 +113,16 @@ export function agencyNeedsEmail(agency: Agency): boolean {
   return agencyContactState(agency).kind === 'needs-email';
 }
 
-/** Every agency across these that needs an agency-level email. */
+/** Every agency across these that needs an agency-level email.
+ *
+ * PLACEHOLDERS EXCLUDED, to match `supplier_agencies_without_an_email`,
+ * which the Reconciliation tab reads. The house rails each carry an
+ * "Unattached" agency so an application's NOT NULL agency_id resolves,
+ * and none of them is a supplier estate today -- but the two counts have
+ * to be able to disagree only when the data does, not when a future house
+ * route is added under a partner that is. */
 export function agenciesNeedingAnEmail(agencies: Agency[]): Agency[] {
-  return agencies.filter(agencyNeedsEmail);
+  return agencies.filter((a) => !a.isPlaceholder && agencyNeedsEmail(a));
 }
 
 /**
