@@ -189,6 +189,43 @@ const word = (v: string) => VALUE_WORDS[v.trim()] ?? v.trim();
  * its own name with the underscores taken out, which is still readable
  * and is a great deal better than nothing while somebody adds it above.
  */
+/**
+ * DID ANYTHING ACTUALLY CHANGE?
+ *
+ * Matt, 2026-10-02: "Recent changes: hide old entries where nothing
+ * actually changed (e.g. 'Live from changed from August to August
+ * 2026')."
+ *
+ * THESE ARE OLD ROWS, AND THE WRITE IS ALREADY FIXED.
+ * `update_partner_settings` compares `date_trunc('month', ...)` on both
+ * sides before recording a live_from change, so nothing new lands like
+ * this. What is left is history: rows written when the two sides were
+ * compared as a DATE and stored as a MONTH, so 2026-08-01 to 2026-08-14
+ * was a change to the column and no change at all to the reader.
+ *
+ * ASKED THROUGH THE SENTENCE, not through the raw values. The reader
+ * sees "August 2026" on both sides, and the reason is exactly that the
+ * formatter collapses them -- so the formatter is the right judge of
+ * whether anything moved. It also catches the next field that gains a
+ * display format coarser than its storage, which a hand-written
+ * `oldValue === newValue` would not.
+ *
+ * AN EVENT ROW IS NEVER A NO-OP: it records something that happened
+ * rather than a field moving, and it has no two sides to compare.
+ */
+export function isNoOpChange(e: ChangeLike): boolean {
+  if ((e.action ?? '').trim()) return false;
+  const from = (e.oldValue ?? '').trim();
+  const to = (e.newValue ?? '').trim();
+  if (!from || !to) return false;
+  if (from === to) return true;
+  /* THE SAME FIELD, EACH SIDE ON ITS OWN, and compared as the reader
+     would see them. `changeSentence` on the whole row says "changed
+     from A to B"; rendering each side alone says what A and B ARE. */
+  const say = (v: string) => changeSentence({ ...e, oldValue: '', newValue: v });
+  return say(from) === say(to);
+}
+
 export function changeSentence(e: ChangeLike): string {
   /* THE EVENT SHAPE FIRST, where a row has one. A row never has both:
      the reader fills in one or the other. */

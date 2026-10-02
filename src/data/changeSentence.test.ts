@@ -10,7 +10,7 @@
  * a_change_is_only_a_change.test.sql holds it. This file is the wording.
  */
 import { describe, expect, it } from 'vitest';
-import { changeSentence } from './changeSentence';
+import { changeSentence, isNoOpChange } from './changeSentence';
 
 const say = (field: string, oldValue: string, newValue: string) =>
   changeSentence({ field, oldValue, newValue });
@@ -181,5 +181,63 @@ describe('an event rather than a triple', () => {
   it('while a triple is still a triple', () => {
     expect(changeSentence({ field: 'status', oldValue: 'active', newValue: 'deactivated' }))
       .toBe('Status changed from Active to Deactivated');
+  });
+});
+
+/* =====================================================================
+   AND THE ROWS THAT SAY NOTHING, 2026-10-02.
+
+   Matt: "Recent changes: hide old entries where nothing actually
+   changed (e.g. 'Live from changed from August to August 2026')."
+
+   THE WRITE WAS ALREADY FIXED. `update_partner_settings` compares
+   `date_trunc('month', ...)` before recording a live_from change, so
+   nothing new lands like this; these are rows written before that, when
+   the two sides were compared as a DATE and stored as a MONTH.
+   ===================================================================== */
+describe('a change that changed nothing', () => {
+  /* MATT'S EXAMPLE, IN THE SHAPE IT IS ACTUALLY STORED.
+     `update_partner_settings` writes `to_char(live_from,'YYYY-MM')` on
+     both sides, so a row whose DATE moved within one month arrives here
+     with two identical strings -- and renders as "changed from August
+     to August 2026", which is the sentence he quoted. */
+  it('is spotted on Matt’s own example', () => {
+    const row = { field: 'live_from', oldValue: '2026-08', newValue: '2026-08' };
+    expect(changeSentence(row)).toBe('Live from changed from August to August 2026');
+    expect(isNoOpChange(row)).toBe(true);
+  });
+
+  it('and on any other field whose two sides are the same', () => {
+    expect(isNoOpChange({ field: 'name', oldValue: 'Kestrel', newValue: 'Kestrel' })).toBe(true);
+  });
+
+  /* AND THE SECOND ARM, which is the one that earns the predicate its
+     place over a plain `oldValue === newValue`: two DIFFERENT stored
+     values that the reader is shown as one thing. Nothing writes this
+     today; it is what the next field with a display format coarser
+     than its storage will do, which is exactly how live_from did it. */
+  it('and when two different values are shown as the same thing', () => {
+    expect(isNoOpChange({ field: 'status', oldValue: 'active', newValue: 'active ' })).toBe(true);
+  });
+
+  /* AND A REAL CHANGE IS NOT HIDDEN, which is the half that matters:
+     a filter that swallowed real history would be worse than the noise
+     it was added to remove. */
+  it('while a real one is not', () => {
+    expect(isNoOpChange({ field: 'live_from', oldValue: '2026-08', newValue: '2026-09' }))
+      .toBe(false);
+    expect(isNoOpChange({ field: 'name', oldValue: 'Kestrel', newValue: 'Kestrel Lettings' }))
+      .toBe(false);
+  });
+
+  /* NOR AN EVENT, which records something that happened rather than a
+     field moving and has no two sides to compare. */
+  it('and an event row is never one', () => {
+    expect(isNoOpChange({ action: 'created', detail: 'Kestrel Central' })).toBe(false);
+    expect(isNoOpChange({ action: 'contact_added', detail: 'desk@zzz.test' })).toBe(false);
+  });
+
+  it('and a one-sided row is left alone, because it is not a comparison', () => {
+    expect(isNoOpChange({ field: 'live_from', oldValue: '', newValue: '2026-08-01' })).toBe(false);
   });
 });

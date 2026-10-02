@@ -19,7 +19,7 @@
    ===================================================================== */
 import { useCallback, useEffect, useState } from 'react';
 import { getAgencyChanges, type AgencyChange } from '@/data/orgService';
-import { changeSentence } from '@/data/changeSentence';
+import { changeSentence, isNoOpChange } from '@/data/changeSentence';
 import { formatDate } from '@/lib/format';
 import { countOf } from '@/lib/plural';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
@@ -43,7 +43,11 @@ export function AgencyChanges({ agencyId }: { agencyId: string | null | undefine
   const load = useCallback(async () => {
     if (!agencyId) { setLoaded(true); return; }
     try {
-      setRows(await getAgencyChanges(agencyId));
+      /* The same filter as the supplier's list. Matt, 2026-10-02:
+         "hide old entries where nothing actually changed". He named the
+         supplier's, and an agency's history is built by the same
+         writers, so the rows that say nothing are the same rows. */
+      setRows((await getAgencyChanges(agencyId)).filter((e) => !isNoOpChange(e)));
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not read the changes.', 'error');
     } finally {

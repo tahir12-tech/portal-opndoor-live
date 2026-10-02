@@ -35,7 +35,7 @@ import { useConfirm } from '@/components/ui/ConfirmModal';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
-import { changeSentence } from '@/data/changeSentence';
+import { changeSentence, isNoOpChange } from '@/data/changeSentence';
 import { useToast } from '@/components/ui/Toast';
 import { formatDate } from '@/lib/format';
 
@@ -145,9 +145,14 @@ export function SupplierFields({
 
       <div className="ss-sect">
         <div className="ss-sect__head">Capabilities</div>
+        {/* MATT'S OWN SENTENCE, 2026-10-02. The old one explained the
+            DESIGN -- why these are two independent settings rather than
+            one supplier type -- which is a note to whoever built the
+            form, not to whoever is filling it in. It also used "an
+            agency" to mean a kind of supplier, two days after the word
+            was pinned to something else entirely. */}
         <p className="ss-sect__note">
-          What this supplier can do. Independent settings rather than one supplier type: an agency
-          is portal only, a CRM is API only, and some are both.
+          Some suppliers refer through the portal, some through the API, and some use both.
         </p>
         <label className="pmcap">
           <input
@@ -203,7 +208,14 @@ export function SupplierSettings({ slug, canEdit, onSaved }: {
     setSaved(d);
     setLbMode(getReferrerLeaderboardMode(slug));
     setShowAllAudit(false);
-    getPartnerAudit(slug).then(setAudit).catch(() => setAudit([]));
+    /* HIDING THE ROWS THAT SAY NOTHING. Matt, 2026-10-02: "hide old
+       entries where nothing actually changed (e.g. 'Live from changed
+       from August to August 2026')." Filtered on arrival rather than at
+       render, so the "View all changes (N)" count is the number of rows
+       there are to read. */
+    getPartnerAudit(slug)
+      .then((rows) => setAudit(rows.filter((e) => !isNoOpChange(e))))
+      .catch(() => setAudit([]));
   }, [slug]);
 
   if (!draft || !saved) {
@@ -306,9 +318,14 @@ export function SupplierSettings({ slug, canEdit, onSaved }: {
 
         <div className="ss-sect">
           <div className="ss-sect__head">Commission</div>
+          {/* "Set on the Commission tab." and a link, which is Matt's
+              whole instruction. The three things it used to list are the
+              Commission tab's own headings, so this said them twice and
+              could fall behind -- it already named "the total rate and
+              the agents' share within it", which is one of the two deal
+              shapes rather than the model. */}
           <p className="ss-sect__note ss-sect__note--tight">
-            Set on this supplier&rsquo;s <Link to={`/partners/${encodeURIComponent(slug)}`}>Commission tab</Link>:
-            the total rate, the agents&rsquo; share within it, and whether Opndoor pays the agents directly.
+            Set on the <Link to={`/partners/${encodeURIComponent(slug)}`}>Commission tab</Link>.
           </p>
         </div>
 
