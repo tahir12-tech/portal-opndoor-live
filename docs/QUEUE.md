@@ -423,7 +423,7 @@ Statuses: `todo` | `in progress` | `done` | `blocked`.
 - "Everyone who has referred" rather than "Every negotiator" because a
   Director and a Manager refer too, and the table already ranks them.
 
-## THE OFFICE IS CHOSEN FIRST, NOT LAST (instruction, 2026-10-01, verbatim). todo.
+## THE OFFICE IS CHOSEN FIRST, NOT LAST (instruction, 2026-10-01, verbatim). **done** (`8f2545a`).
 
 > New application (signed in as a supplier user, joe@bloggs.com at Kestrel): "Add another tenant" is disabled until an office is chosen, but the office section is last on the form. Move the office/agent section to the top as step 1, so it's chosen before tenants; if the supplier or agency only has one office, pick it automatically so the button works straight away. Same for agency users. Never leave a disabled button whose reason is further down the page. Deploy to dev and check as a supplier user and as Tom.
 
@@ -521,8 +521,16 @@ tell that correction from a seat change.
 
 ## STILL OPEN AFTER 2026-10-01
 
-Nothing from the 2026-10-01 instructions. Every one is marked done
-above, with the commit that closed it.
+Nothing from the 2026-10-01 instructions, including the night's list and
+the separate-estates correction that replaced phases 3 and 4. Every one
+is marked done above, with the commit that closed it.
+
+Five of those statuses were stale until 2026-10-02 and are corrected
+here: the five bigger screens of phase 2 were built and committed
+(`e2cd4c7`, `8f0752d`, `3d08529`, `8f2545a`, `c7b2b55`) and their
+headings still said todo, as did the two-factor reset, which closed
+earlier (`ee23b77`). The work was done; the ledger was not kept, which
+is the thing this file exists to prevent.
 
 Two things worth knowing for whoever picks the next one up:
 
@@ -619,7 +627,7 @@ live rather than trust the default.
   their own name on every row -- which is the test `viewerShape`
   already applies to the Agency and Branch columns on that page.
 
-## AN AGENCY DIRECTOR'S REPORTING, SIX THINGS (instruction, 2026-10-01, verbatim). todo.
+## AN AGENCY DIRECTOR'S REPORTING, SIX THINGS (instruction, 2026-10-01, verbatim). **done** (`5223a95`, `8f0752d`).
 
 > Agency Director's Reporting (signed in as a Regent Director):
 > - Commission statement Tenancy column shows only "Single" or "Joint (2)", never "Joint, Single" or "Joint, Joint (2)".
@@ -655,7 +663,7 @@ live rather than trust the default.
 - 16:45 is before the tenant signed at 16:49. Whatever that row is, it
   is not the signed deed going out.
 
-## AN AGENCY USER'S APPLICATION DETAIL (instruction, 2026-10-01, verbatim). todo.
+## AN AGENCY USER'S APPLICATION DETAIL (instruction, 2026-10-01, verbatim). **done** (`3d08529`).
 
 > Application detail as an agency user (signed in as a Regent Director):
 > - Notes are Opndoor-only: hide the Notes section entirely from agency and supplier users, and check they can't read notes through any other route.
@@ -669,7 +677,7 @@ live rather than trust the default.
   question asked is whether the ROWS are reachable -- the RPC, the
   export, the detail payload. Answer that from the database.
 
-## ONE SHARED PEOPLE TABLE, EVERYWHERE (instructions, 2026-10-01, verbatim). ACTIVE.
+## ONE SHARED PEOPLE TABLE, EVERYWHERE (instructions, 2026-10-01, verbatim). **done** (`e2cd4c7`).
 
 The first:
 
@@ -811,7 +819,7 @@ today. A scan for them belongs in the suite.
   environment, which is the half that could still produce what he
   described. Noted below rather than guessed at.
 
-## RESET TWO-FACTOR DOES NOT REVOKE THE OLD AUTHENTICATOR (security bug, 2026-10-01, verbatim). ACTIVE, TOP OF THE QUEUE.
+## RESET TWO-FACTOR DOES NOT REVOKE THE OLD AUTHENTICATOR (security bug, 2026-10-01, verbatim). **done** (`ee23b77`, `7775fb0`, `a5b724a`).
 
 > Security bug: after Opndoor admin pressed "Reset two-factor" on joe@bloggs.com, I followed the email link and scanned the new QR code. The new authenticator's code was rejected, and a code from the OLD authenticator was accepted. Reset must remove every existing two-factor factor and sign the person out of all sessions immediately; the old authenticator must never work again, and enrolment must verify against the newly created factor only. Reproduce it on dev through the browser path, fix it, and add tests: old code rejected after reset, new code accepted, sessions ended. Check whether the same flaw exists on the live system and tell me.
 
@@ -853,7 +861,7 @@ today. A scan for them belongs in the suite.
   functions as `redirectTo`, so the type has to be known at send
   time.
 
-## THE NOTIFICATIONS PANEL OFFERS ONLY WHAT CAN HAPPEN (instruction, 2026-10-01, verbatim). todo.
+## THE NOTIFICATIONS PANEL OFFERS ONLY WHAT CAN HAPPEN (instruction, 2026-10-01, verbatim). **done** (`c7b2b55`).
 
 > Supplier people's notifications panel: when Opndoor admin opens it, include the monthly commission statements switch (Management only; supplier users can't change it themselves). Only list events that can actually happen for that supplier: for a pre-referenced supplier, hide "Sent for referencing", "Approved" and "Declined". Deploy to dev and check there.
 
@@ -896,7 +904,7 @@ instruction names the parties it applies to, that list is the scope.
   closed as well as the nav item. A hidden link over a live route is
   not hidden.
 
-## EVERY EMAIL COMES FROM no-reply AND POINTS AT SUPPORT (instructions, 2026-10-01, verbatim). ACTIVE.
+## EVERY EMAIL COMES FROM no-reply AND POINTS AT SUPPORT (instructions, 2026-10-01, verbatim). **done** (`0f0f8c2`, `ee23b77`).
 
 The first, which the second supersedes on the Reply-To point:
 
@@ -920,6 +928,13 @@ And the second, which is the one to build:
 - The HANDOVER entry needs a CHECK, not just a sentence: something
   Balal can run to see whether the domain is verified and the
   sender is right.
+
+**Status corrected 2026-10-02.** All four parts are built and were left
+marked ACTIVE: the footer is a mailto in `emailLayout.ts`, no Reply-To is
+set anywhere in `supabase/functions/_shared`, the sender reads
+`app_settings.email_from` through the `email_from` RPC (asserted in
+`supabase/tests/the_sender_address_is_a_setting.test.sql`, 9 assertions),
+and HANDOVER-BALAL.md carries the three-step go-live check.
 
 ## A DEVELOPER'S "SEES" SAYS WHAT THEY SEE (instruction, 2026-10-01, verbatim). **done** (already shipped; verified 2026-10-01 on both lists: `supplierSees` and `describePosition` return DEVELOPER_SEES).
 
