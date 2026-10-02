@@ -395,6 +395,44 @@ not missing anything and nothing warns about them.
 - Two halves: the NUMBER has to include them, and the SENTENCE has to say
   what they are, in his words.
 
+## FOUR, 2026-10-02 (instruction, verbatim). THE CURRENT PLAN.
+
+> 1. Applications from Home's "View all Direct" (Origin: Direct): there is only one direct application, and "All" correctly shows 1, but In progress shows 8, Fee unpaid 4 and Expired 1. Those tabs are counting non-direct applications. Every tab count must follow the current filters. Reproduce through the browser path first, then fix.
+>
+> 2. Change of decision: Opndoor admin does not need the Dev Centre in the sidebar; the supplier's Integration tab covers it. Leave it off for admin, and update the test and QUEUE.md so it isn't restored.
+>
+> 3. Supplier Integration tab: Opndoor admin can revoke a single key here. List each active key by its name, when it was created and when it was last used, each with a Revoke button and a confirmation ("This key stops working immediately. Their other keys keep working."). Admin still never sees or creates a full key. Record who revoked what and when. Update the wording on this tab to match, removing any mention of Break glass or the Dev Centre for admin.
+>
+> 4. Same tab, admin view: replace developer instructions with plain admin wording. Empty states read "No sandbox applications yet", "No API requests in this period", "No webhook deliveries in this period". Remove the PandaDoc sandbox email warning, the "POST to /v1/applications" line and "check on Configuration" from the admin view; they stay in the developer's own Dev Centre.
+>
+> Deploy to dev and check there.
+
+- Item 2 REVERSES the correction of 2026-10-01 ("Admin keeps the Dev
+  Centre route"), which itself reversed the instruction before it. The
+  route and `mayUseDevCentre` were restored for superadmin then; they come
+  out again now. The comment in capabilities.ts records both turns and has
+  to record this one, or the next reader restores it a third time.
+
+## LINKS SET THE FILTERS THEY NAME (instruction, 2026-10-02, verbatim).
+
+> Also: Home's "View all applications" link opens /applications still filtered to Origin: Direct, remembered from the previous visit. Any link that opens Applications sets exactly the filters it names and clears the rest; "View all applications" clears them all. Filters chosen on the page itself can still be remembered while you stay on it. Deploy to dev and check there.
+
+## AND FILTERS DO NOT CARRY BETWEEN PAGES (instruction, 2026-10-02, verbatim).
+
+> League has also picked up Origin: Direct from Applications, so the Agencies table shows "No matches". Filters must not carry between pages: League, Applications and Reporting each open with their own defaults (Origin: Everything) unless a link sets a filter. Check every page with an Origin filter. Deploy to dev and check there.
+
+- **This reverses a ruling of 2026-09-29**, which is recorded in
+  `src/data/origin.ts` as the reason the selection is session-level at
+  all: "Reporting and Applications share one remembered scope choice. So
+  this is not a per-page preference; it is the party the reader is
+  currently looking at, and it lives on the session." It is now the
+  opposite: per page, defaulting to Everything, and a link is the only
+  thing that may set one. That comment has to be turned over rather than
+  deleted, or the shared scope gets rebuilt by somebody reading it.
+- The three instructions above are one subject and are built together:
+  all three are the same remembered selection leaking -- into a tab
+  count, into a link, and into another page.
+
 ### For Matt in the morning
 
 *(Anything that needed a decision goes here as I hit it. Empty is good news.)*
