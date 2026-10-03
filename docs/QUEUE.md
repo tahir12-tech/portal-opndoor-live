@@ -1509,6 +1509,50 @@ Suppliers list. The half deferred is the rest of his sentence:
   in flight must not have those refused retrospectively, and the API's
   refusal needs a stable error code, not just a message.
 
+### A supplier's own users can add an agency or office (instruction, 2026-10-03, verbatim)
+
+> Supplier users who can refer (Management and Referrers) can add an agency or office for their own supplier while sending a referral, instead of "A new agency is set up by opndoor, not here":
+> - On the New application form, "Add a new agency" and "Add a new office" sit under the agency and office pickers. A new agency needs its name, address and agency email (where signed deeds go); a new office needs its name and address, and its email is optional (it uses the agency's otherwise).
+> - It's checked against that supplier's existing agencies and offices first (case-insensitive), offering "Use [existing] instead?" rather than creating a duplicate.
+> - It belongs to that supplier's estate only, is usable straight away for the referral, and lands in Opndoor's Reconciliation to check, recorded in Recent changes with who added it.
+> - Supplier Management can also add and edit agencies and offices from their Agencies page; show an "Add agency" button there to match the page's own text.
+> - Opndoor's own agencies are unchanged: their users can't add agencies or offices.
+> Show me it working as a Kestrel Referrer and as Kestrel Management on dev.
+
+**HERE BECAUSE OF MATT'S OWN CONSTRAINT TONIGHT**, not because I think it is
+wrong: *"Work through tonight without waiting for me, small safe changes only;
+anything large or risky goes under 'After launch'."* This is the largest thing
+on the list and it is on the referral path. Say the word and I will build it,
+but I am not writing it at 2am two days before go-live.
+
+WHAT IT ACTUALLY TAKES, so the size is visible rather than asserted:
+
+- **A NEW WRITE PERMISSION ON THE SUPPLIER RAIL.** Today only Opndoor creates
+  agencies and branches (`admin_add_agency`, `admin_add_branch`,
+  `admin_create_agency_and_branch`, all `is_admin()`). This needs an RPC a
+  supplier's own Management AND Referrers may call, scoped to their own
+  partner. That is a new hole in the partner boundary, and the boundary is the
+  thing seven rounds of security review were about.
+- **RLS ON agencies AND branches**, both insert policies, plus the
+  `review_state = 'pending_review'` path so the row lands in Reconciliation.
+  The agent rail already has on-the-fly creation (`unreviewed`), so there is a
+  pattern to follow, which is the good news.
+- **THE DUPLICATE CHECK IS THE SAME ONE** `SupplierAddOrg` already does
+  case-insensitively ("Use [existing] instead?"), so that part is reuse.
+- **CREATION AUDITING**, which is the separate instruction recorded above and
+  does not exist yet for orgs. "Recorded in Recent changes with who added it"
+  cannot be satisfied until that is built, so these two are one piece of work.
+- **AND IT MUST NOT REACH OUR OWN ESTATE.** "Opndoor's own agencies are
+  unchanged" means the control is gated on `partyIsSupplier`, and getting that
+  wrong gives a Regent negotiator the ability to invent agencies.
+
+ONE CONTRADICTION TO RESOLVE BEFORE BUILDING: 2026-10-03's earlier instruction
+was *"remove 'add an agency or branch on the fly' for agency and supplier
+users"* from the help guides. That was about the GUIDES describing a capability
+agency users do not have. This instruction gives it to supplier users only, so
+the guide wording differs per rail -- worth saying out loud because the two
+instructions read as opposites.
+
 ### org_deed_readiness still picks agencies by referencing_mode (2026-10-03)
 
 Matt, verbatim: *"org_deed_readiness using referencing_mode: put under After
