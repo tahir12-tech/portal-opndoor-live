@@ -1234,6 +1234,13 @@ you asked for. Say the word and the tenant gets their own wording.
   took the SQL for the rule. The rule is Matt's, and the SQL is one of
   the things that is wrong.
 
+## A REFERENCE IS MINTED WHEN A STATEMENT IS POSTED (instruction, 2026-10-03, verbatim).
+
+> Statement references are being assigned when a statement is viewed or exported (e.g. STMT-2026-10-0001 for October, which hasn't ended; STMT-2026-09-0004 for Frost via Kestrel yesterday). A reference must only be assigned when the monthly run actually posts a statement. Viewing, exporting or previewing shows "Reference assigned when the statement is posted". Tell me which references on dev were assigned without a statement being sent, and whether that leaves gaps in the sequence; don't renumber anything without telling me first. Deploy to dev and check there.
+
+- This is the unguarded half I reported on 2026-10-02: STMT-2026-09-0004
+  was minted at 15:38:48 with no row in `commission_statement_sends`.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
