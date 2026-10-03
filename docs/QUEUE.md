@@ -1513,11 +1513,14 @@ Suppliers list. The half deferred is the rest of his sentence:
 
 > Partner API: tell me what happens today when a referral comes in for an agency or office that doesn't exist yet in that supplier's estate. It should work the same as the new form rule: the API can create the agency (name, address, agency email) and office for that supplier, checked against existing ones for duplicates, landing in Reconciliation. Document it on the API documentation page.
 
-**THE ANSWER IS OWED TONIGHT; THE BUILD IS HERE.** The first sentence is a
-question I can answer by reading `create_referral_api`, and I will. The rest is
-the same new write permission as the instruction above it -- on the API rather
-than the form, which makes it wider, not narrower: an integrator's typo would
-create an agency rather than being refused.
+**DESIGN FIRST, SHOWN TO MATT, THEN BUILT.** Item 9 of the new order, in his
+own words: *"design it first and show me before building, because it changes a
+live integration path."* The first sentence is still a question I can answer by
+reading `create_referral_api`, and I will.
+
+It is the same write permission as the form version (item 3), on the API
+instead -- which makes it wider, not narrower: an integrator's typo would
+create a company rather than being refused.
 
 - IT IS THE SAME PIECE OF WORK as the form version, and must be built with
   it rather than separately: one RPC, one duplicate rule, one
@@ -1540,11 +1543,13 @@ create an agency rather than being refused.
 > - Opndoor's own agencies are unchanged: their users can't add agencies or offices.
 > Show me it working as a Kestrel Referrer and as Kestrel Management on dev.
 
-**HERE BECAUSE OF MATT'S OWN CONSTRAINT TONIGHT**, not because I think it is
-wrong: *"Work through tonight without waiting for me, small safe changes only;
-anything large or risky goes under 'After launch'."* This is the largest thing
-on the list and it is on the referral path. Say the word and I will build it,
-but I am not writing it at 2am two days before go-live.
+**NO LONGER DEFERRED.** Matt lifted the constraint the same evening: *"Do
+everything, properly, with tests: no shortcuts and nothing silently dropped"*,
+with this as item 3 of the new order. It is being BUILT. The note below stays
+because it is the plan.
+
+The API half (item 9) is still not being built: Matt wants the design shown
+first, *"because it changes a live integration path"*.
 
 WHAT IT ACTUALLY TAKES, so the size is visible rather than asserted:
 
@@ -2113,6 +2118,32 @@ is nothing left to match" instead of a warning.
   should see it at all. Measure first.
 - THE SECOND HALF is a display rule in customer views only: an admin's
   own name must not appear in a customer's referrer list.
+
+## DO EVERYTHING, PROPERLY (instruction, 2026-10-03, verbatim). THIS SUPERSEDES THE ORDER BELOW AND LIFTS THE SMALL-CHANGES CONSTRAINT.
+
+> Do everything, properly, with tests: no shortcuts and nothing silently dropped. Order:
+> 1. Supplier Management commission (invite and View as).
+> 2. The opndoor Manager invite.
+> 3. Add agency and office from the New application form for supplier users.
+> 4. Supplier statements posting, and Tom Reeve's open referral.
+> 5. The supplier Users page replaced by the shared People table.
+> 6. Help guide rewrites and the leaflets as HTML pages.
+> 7. Form validation across every form.
+> 8. The dropdown sweep.
+> 9. The API creating agencies: design it first and show me before building, because it changes a live integration path.
+> Then the small copy fixes. Work through the night. At Sunday 18:00, tell me exactly what's done and what isn't, so I decide then whether to push what's ready or move the launch.
+
+- **THIS LIFTS "small safe changes only"**, which was the constraint I
+  put two items under "After launch" on. Item 3 comes back out and is
+  BUILT. Item 9 stays out of the build: Matt wants the design first and
+  says why -- it changes a live integration path.
+- **"NOTHING SILENTLY DROPPED"** is the binding half. Anything that
+  cannot be finished is reported at Sunday 18:00 by name, not left to
+  be discovered.
+- **SUNDAY 18:00 IS A DELIVERABLE**, not a courtesy: Matt decides then
+  whether to push what is ready or move the launch, so the report has
+  to be exact about what is done, what is half-done and what is
+  untouched.
 
 ## THE ORDER FOR TONIGHT (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
