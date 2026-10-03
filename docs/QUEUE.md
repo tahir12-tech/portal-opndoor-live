@@ -1739,6 +1739,21 @@ is nothing left to match" instead of a warning.
   funnel) and "one row per agency, supplier or branch", and only the
   second kind is in scope.
 
+## EVERY PEOPLE ACTION ASKS FIRST, AND DELETE IS A SECOND STEP (instruction, 2026-10-03, verbatim).
+
+> People tables (every level: admin, agency, supplier, opndoor team):
+> 1. Every action that changes something asks first, in plain words: "Remove access for Joe Joe? They can't sign in from now on. Their referrals stay as they are." Same for Reset two-factor, Send password reset, Cancel invite and Change level (show old and new level). Notifications can open straight away.
+> 2. After access is removed, offer "Delete": "Delete Joe Joe? They disappear from People. Their name stays on referrals and activity they're part of." The person is removed from People lists and can never sign in, but their name stays wherever they appear on past records. Recorded in Recent changes. Removed-but-not-deleted people show as "No access" with a "Restore access" option.
+> Deploy to dev and check there.
+
+- Part 2 is a NEW STATE on a person, which makes it a migration, an RLS
+  question and a People-list filter, not a dialog. "Their name stays
+  wherever they appear on past records" is the constraint: nothing may
+  cascade, and `referrer_name` is already snapshotted on applications
+  for exactly this reason.
+- "every level" means the four people surfaces share one set of
+  dialogs, the way the people TABLE is already one component.
+
 ## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > No default deal and the warnings now; the referral refusal goes under "After launch". Then prioritise for Wednesday: 1) "Referrals sent" including expired and "Fee unpaid" (figures people will rely on); 2) the application-detail trio and the ready-to-sign email (what tenants and agents see); 3) supplier Reporting hiding "Commission by route"; 4) real reasons on failed saves. Everything else after those, and anything not done by Sunday evening moves to "After launch".
