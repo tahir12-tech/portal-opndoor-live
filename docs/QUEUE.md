@@ -1789,6 +1789,22 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## A DEPARTED REFERRER'S OPEN REFERRALS STILL HAVE SOMEBODY (instruction, 2026-10-03, verbatim). ANSWER FIRST.
+
+> When a referrer's access is removed or they're deleted, their open referrals must still have someone to notify and to receive the deed. Tell me what happens today for GR-20837 (Tom Reeve deleted, referral awaiting payment) if the tenant pays and signs: who gets the paid email and the signed deed? It should go to the office's or agency's email if set, otherwise the agency's Directors, and the agency page should say "N open referrals from people who have left; deeds will go to [who]". Also, the activity log still says "guarantor fee still unpaid"; reminders should say "guarantee fee".
+
+- THE ANSWER COMES FIRST and is about a LIVE referral: GR-20837 is one
+  of the three "Fee unpaid" rows, so this is not hypothetical.
+- IT IS THE CONSEQUENCE OF TODAY'S DELETE, which is mine (`cbdb349`):
+  deleting a person is new as of this afternoon, and this is the first
+  question about what it does to work in flight. Removing ACCESS is
+  older, and the same question applies to it.
+- THREE THINGS ASKED: who gets the paid email, who gets the signed
+  deed, and then a fallback ladder (office email, else agency email,
+  else the agency's Directors) plus a line on the agency page.
+- AND A SEPARATE WORDING FIX: "guarantor fee" -> "guarantee fee" in
+  the activity log and the reminders.
+
 ## AN OLD LINK SAYS WHERE THE TENANT ACTUALLY IS (instruction, 2026-10-03, verbatim).
 
 > Tenant payment link opened after payment: reflect where they actually are. If the deed is signed: "Your guarantee fee is paid and your Deed of Guarantee is signed. Nothing more is needed. A copy was emailed to you." If paid but not yet signed: show the "Sign your deed now" button. Same for every tenant-facing page reached from an old link.
