@@ -1436,6 +1436,10 @@ statement.
   apportioned per applicant, which `apportion()` and every frozen line
   assume.
 
+## SAY THE REAL REASON A SAVE FAILED (instruction, 2026-10-03, verbatim).
+
+> Add agency (supplier Agencies tab): adding an agency whose name already exists in that supplier's estate (e.g. "Frost Partnership" under Kestrel) fails with the generic "Something went wrong saving that change." Show the real reason inside the form, next to the name: "Kestrel Lettings already has an agency called Frost Partnership. Open it instead?" with a link to it. Sweep the portal for other saves that show the generic message when the real reason is known (duplicate name, duplicate email, invalid input) and show the reason instead. Error toasts use the error icon, not the green tick. Deploy to dev and check there.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
