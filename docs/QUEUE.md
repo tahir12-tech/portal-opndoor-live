@@ -1904,6 +1904,20 @@ is nothing left to match" instead of a warning.
 - The em-dash check is a new repo guard, and the existing
   noEmDashesInCustomerText is the one to extend rather than a second.
 
+## AND THE SAME USER'S EXPORT HAS NO COMMISSION EITHER (instruction, 2026-10-03, verbatim).
+
+> Also check: the Kestrel Management user's Performance export has no commission columns or settlement section at all. Confirm whether the new user was created at a level without commission access, or whether supplier Management is being treated as no-commission everywhere.
+
+- THIS IS THE DIAGNOSTIC QUESTION for the item above, and it has two
+  possible answers with very different fixes: either Matthew Dwyer's
+  row holds `sees_commission = false` (an invite-form default, one
+  user, one row to correct) or `maySeeCommission` answers false for
+  supplier management generally (every supplier Manager, a predicate
+  to fix).
+- MEASURABLE IN ONE QUERY, and the export agreeing with the screen is
+  itself evidence: both go through `maySeeCommission`, so a single
+  cause is the more likely.
+
 ## A REAL MANAGEMENT LOGIN DIFFERS FROM VIEW AS (instruction, 2026-10-03, verbatim).
 
 > Signed in as a new Kestrel Management user (Matthew Dwyer): Reporting shows no "Commission payable" tile and no commission statements section, though "View as Kestrel" shows both. Management at a supplier must see their commission and statements. Find why a real Management login differs from View as, fix it, and make View as show exactly what that level sees. Also: referrals an Opndoor admin made on a supplier's or agency's behalf show the admin's name in that customer's referrer lists ("Nicholas Dwyer"); show "opndoor (on your behalf)" instead in customer views.
