@@ -310,6 +310,20 @@ describe('the definer allowlist', () => {
        does not print them and a reader who may see this page need not be
        handed the agency's mailbox list to render it. Covered by name in
        a_departed_referrers_referral_still_has_somebody.test.sql. */
+    /* STILL 157 AFTER THE API WORK OF 2026-10-03, which is worth a line
+       because two functions were added that reach a reader and neither
+       belongs here:
+
+         partner_api_create_org   SECURITY DEFINER, and granted to
+                                  service_role ALONE. The edge function calls
+                                  it; a browser never can, so it is not part
+                                  of the surface this list measures.
+         org_names_are_similar    granted to authenticated, and NOT security
+                                  definer: it is a predicate over two
+                                  strings, reads no table and needs no
+                                  elevated rights. The list is definer
+                                  functions a session can call, and it is
+                                  only the first half of that. */
     expect(allowlist.length).toBeLessThanOrEqual(157);
   });
 

@@ -183,7 +183,11 @@ async function resolveOrg(
   service: any,
   partnerId: string,
   org: Record<string, unknown>,
-): Promise<{ branchId: string; agencyId: string } | { error: FieldError }> {
+  /* THE KEY THAT ASKED, for the audit trail on anything created below. An API
+     key is not a person, so what goes on the org_audit row is the key's own
+     NAME: "Rightmove production" rather than a uuid nobody can read. */
+  apiKeyId: string | null,
+): Promise<{ branchId: string; agencyId: string; created?: string[] } | { error: FieldError }> {
   const agencyId = str(org.agency_id);
   const branchId = str(org.branch_id);
   const agencyName = str(org.agency_name);
@@ -284,26 +288,44 @@ async function resolveOrg(
         },
       };
 
-    case "agency_not_found":
-      return {
-        error: {
-          field: "org.agency_name",
-          code: "not_found",
-          message: "No agency of that name exists for your account. Create it in the opndoor portal first, with a contact email, then send applications against it. Names are matched ignoring case, surrounding spaces and a trailing Ltd or Limited.",
-        },
-      };
+    /* =====================================================================
+       AN UNKNOWN AGENCY IS NOT NECESSARILY AN ERROR ANY MORE.
 
-    case "branch_not_found":
-      return {
-        error: {
-          field: "org.branch_name",
-          code: "not_found",
-          // The branches we DO hold are named. This is our data, already
-          // disclosed by GET /v1/orgs to this same key, so listing it here
-          // reveals nothing new and turns a guess into a correction.
-          message: `No branch of that name exists under that agency. Create it in the opndoor portal first. Branches we hold: ${r.detail || "none"}.`,
-        },
-      };
+       Matt, 2026-10-03, approving the design: "the API can create the agency
+       (name, address, agency email) and office for that supplier, checked
+       against existing ones for duplicates, landing in Reconciliation."
+
+       OPT IN, SO MOST PARTNERS SEE NO CHANGE AT ALL.
+       `partner_api_create_org` reads `api_may_create_agencies` off the
+       partner, which defaults to false, and answers `creation_not_enabled`.
+       That is turned back into the message below, word for word, so a partner
+       without the flag gets exactly the response they got yesterday.
+
+       THE DECISION IS IN SQL, not here, which is the same reasoning the
+       `agency_required` comment above records: two implementations of "may
+       this caller create an agency" would drift, and the one that drifts open
+       writes rows into somebody's book.
+       ===================================================================== */
+    case "agency_not_found":
+    case "branch_not_found": {
+      const made = await tryCreateOrg(service, partnerId, org, apiKeyId, r?.outcome, r?.detail);
+      if (made) return made;
+      return r?.outcome === "agency_not_found"
+        ? {
+          error: {
+            field: "org.agency_name",
+            code: "not_found",
+            message: "No agency of that name exists for your account. Create it in the opndoor portal first, with a contact email, then send applications against it. Names are matched ignoring case, surrounding spaces and a trailing Ltd or Limited.",
+          },
+        }
+        : {
+          error: {
+            field: "org.branch_name",
+            code: "not_found",
+            message: `No branch of that name exists under that agency. Create it in the opndoor portal first. Branches we hold: ${r.detail || "none"}.`,
+          },
+        };
+    }
 
     case "branch_required":
       return {
@@ -348,6 +370,125 @@ async function resolveOrg(
  * fix their data before sending any traffic.
  */
 // deno-lint-ignore no-explicit-any
+/* =====================================================================
+   CREATE THE AGENCY AND THE OFFICE, IF THIS SUPPLIER HAS ASKED FOR THAT.
+
+   Matt's approved design, in his own order: "opt-in flag defaulting to false,
+   suppliers only, agency email required, reuse on an exact (normalised)
+   match, refuse on ambiguous, land in Reconciliation, response says what was
+   created, audited with the key name."
+
+   RETURNS null TO MEAN "NOT MY CASE", which is what lets the caller fall
+   through to the message it has always returned. Every refusal that is about
+   the CREATION rather than about the lookup gets its own field error instead,
+   because "no agency of that name, create it in the portal" is actively
+   misleading to a partner who has the flag on and simply left the email out.
+
+   EVERY OUTCOME IS NAMED. The default arm exists for a future outcome the SQL
+   grows and this file has not heard of: it falls through to the old message
+   rather than inventing a response, which is the safe direction.
+   ===================================================================== */
+async function tryCreateOrg(
+  // deno-lint-ignore no-explicit-any
+  service: any,
+  partnerId: string,
+  org: Record<string, unknown>,
+  apiKeyId: string | null,
+  lookup: string | undefined,
+  lookupDetail: string | undefined,
+): Promise<{ branchId: string; agencyId: string; created?: string[] } | { error: FieldError } | null> {
+  const { data: rows, error } = await service.rpc("partner_api_create_org", {
+    p_partner: partnerId,
+    p_api_key: apiKeyId,
+    p_agency_name: str(org.agency_name),
+    p_agency_email: str(org.agency_email),
+    p_agency_address: str(org.agency_address),
+    p_branch_name: str(org.branch_name),
+    p_branch_address: str(org.branch_address),
+    p_branch_email: str(org.branch_email),
+  });
+  // A failed call is not a refusal. Fall through to the lookup's own message
+  // rather than telling a partner their agency could not be created when we
+  // do not know that it could not.
+  if (error) return null;
+  const c = Array.isArray(rows) ? rows[0] : rows;
+
+  switch (c?.outcome) {
+    case "ok":
+      /* THE CONTACT CHECK STILL RUNS. An agency created here has the email
+         that was sent, so it passes; one that already existed with no contact
+         does not, and must be refused for the same reason it always was. */
+      return await withContactCreated(service, c.branch_id, c.agency_id, c.created ?? []);
+
+    /* NOT ENABLED, OR NOT A SUPPLIER: this is not our case. The caller
+       returns the message it has always returned, so a partner without the
+       flag cannot tell from the response that the feature exists. */
+    case "creation_not_enabled":
+    case "creation_not_available":
+    case "unknown_partner":
+      return null;
+
+    case "agency_email_required":
+      return {
+        error: {
+          field: "org.agency_email",
+          code: "required",
+          message: "We do not hold an agency of that name. Send agency_email as well and we will create it: signed deeds for its offices go to that address.",
+        },
+      };
+
+    case "agency_email_invalid":
+      return {
+        error: { field: "org.agency_email", code: "invalid", message: "That is not a valid email address." },
+      };
+
+    case "agency_required":
+      return {
+        error: { field: "org.agency_name", code: "required", message: "An agency name is required." },
+      };
+
+    /* AMBIGUOUS IS OUR DATA PROBLEM, and it is reported as one: picking one of
+       two agencies that normalise the same would attach real money to a
+       guess. The names are ours and this key can already read them from GET
+       /v1/orgs, so naming them turns a mystery into a correction. */
+    case "agency_ambiguous":
+      return {
+        error: {
+          field: "org.agency_name",
+          code: "ambiguous",
+          message: `We hold more than one agency with that name: ${c.detail || ""}. Send agency_id and branch_id from GET /v1/orgs instead.`,
+        },
+      };
+
+    case "branch_ambiguous":
+      return {
+        error: {
+          field: "org.branch_name",
+          code: "ambiguous",
+          message: `That agency has more than one office with that name: ${c.detail || ""}. Send agency_id and branch_id from GET /v1/orgs instead.`,
+        },
+      };
+
+    default:
+      // An outcome this file has not heard of. The lookup's own message is
+      // the safe answer; `lookup` and `lookupDetail` are what produced it.
+      console.log(JSON.stringify({
+        event: "create_org_unknown_outcome", outcome: c?.outcome, lookup, lookupDetail,
+      }));
+      return null;
+  }
+}
+
+/** withContact, carrying what was created so the response can say. */
+async function withContactCreated(
+  // deno-lint-ignore no-explicit-any
+  service: any, branchId: string, agencyId: string, created: string[],
+): Promise<{ branchId: string; agencyId: string; created?: string[] } | { error: FieldError }> {
+  const r = await withContact(service, branchId, agencyId, "org.agency_name");
+  if ("error" in r) return r;
+  return { ...r, created };
+}
+
 async function withContact(
   service: any, branchId: string, agencyId: string, field: string,
 ): Promise<{ branchId: string; agencyId: string } | { error: FieldError }> {
@@ -376,8 +517,15 @@ export async function createApplication(
   scopes: string[],
   mode: string,
   body: Record<string, unknown>,
+  /* THE KEY THAT ASKED. Optional so every existing caller and test compiles
+     unchanged; without it an org created through this path is audited as "an
+     API key", which is true and is all we would know. */
+  apiKeyId: string | null = null,
 ): Promise<CreateOutcome> {
   const fields: FieldError[] = [];
+  /* WHAT THIS CALL CREATED, for the response. Matt: "response says what was
+     created." Empty on every ordinary call, which is most of them. */
+  let createdOrg: string[] = [];
 
   // ---- mode dispatch --------------------------------------------------------
   // A single switch on the partner's mode, deliberately in one place rather than
@@ -435,11 +583,12 @@ export async function createApplication(
   let branchId = "";
   let agencyId = "";
   if (referrerId) {
-    const o = await resolveOrg(service, partnerId, org);
+    const o = await resolveOrg(service, partnerId, org, apiKeyId);
     if ("error" in o) fields.push(o.error);
     else {
       branchId = o.branchId;
       agencyId = o.agencyId;
+      createdOrg = o.created ?? [];
     }
   }
 
@@ -585,11 +734,25 @@ export async function createApplication(
           monthly_rent: created.monthly_rent,
           start_date: created.tenancy_start,
         },
-        // `created` is gone from this object. It was always false now, and a
-        // field that can only take one value is a field somebody eventually
-        // branches on. The ids are returned so a partner who sent NAMES can store
-        // them against their own records and send ids from then on.
-        org: { agency_id: agencyId, branch_id: branchId },
+        /* THE IDS, so a partner who sent NAMES can store them against their
+           own records and send ids from then on.
+
+           AND WHAT THIS CALL CREATED, which is Matt's own requirement:
+           "response says what was created". It is an ARRAY of what was made,
+           not a boolean: a call can create an agency and an office, or just
+           an office under an agency that already existed, and those are
+           different facts to a partner reconciling their own records.
+
+           OMITTED ENTIRELY WHEN NOTHING WAS CREATED, which is almost every
+           call. A `created: []` on every response is a field integrators
+           would start branching on, and the earlier version of this object
+           carried exactly that mistake: a `created` flag that was always
+           false. Absent means nothing happened. */
+        org: {
+          agency_id: agencyId,
+          branch_id: branchId,
+          ...(createdOrg.length ? { created: createdOrg } : {}),
+        },
         referrer: { email: referrerEmail },
       },
       payment_url: paymentUrl,

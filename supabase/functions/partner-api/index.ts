@@ -649,7 +649,9 @@ async function postApplication(
   // ---- do the work --------------------------------------------------------
   let outcome;
   try {
-    outcome = await createApplication(service, partnerId, livemode, scopes, mode, body);
+    // The key is threaded through so an agency this call creates is audited
+    // with the key's own name rather than as an anonymous write.
+    outcome = await createApplication(service, partnerId, livemode, scopes, mode, body, apiKeyId);
   } catch (e) {
     console.log(JSON.stringify({ requestId, event: "create_failed", message: String(e) }));
     outcome = { status: 500, body: errorBody("internal_error", "Something went wrong.") };

@@ -138,9 +138,15 @@ tenant who took longer than a fortnight.
 
 ## Organisations
 
-Every application belongs to one of your branches. **Create your agencies and
-branches in the opndoor portal first**, each with a contact email. The API
-resolves what you name; it never creates an organisation for you.
+Every application belongs to one of your branches. The API resolves the agency
+and branch you name against the ones on your account.
+
+By default, **a name that does not match is rejected**: create the agency or
+branch in the opndoor portal first, each with a contact email, then send again.
+
+If creating them from the API would suit your integration better, opndoor can
+switch that on for your account. See **Creating an agency from the API** below.
+It is off unless you ask.
 
 ### Naming them
 
@@ -160,9 +166,10 @@ not need to normalise anything before sending.
 If the agency has exactly one branch you may omit `branch_name` and we will use
 it. If it has several, name the one you mean.
 
-**If a name does not match, the application is rejected and nothing is created.**
-Create the organisation in the portal, then send again. The error names the
-branches we do hold under that agency, so a near miss is usually obvious:
+**If a name does not match, the application is rejected and nothing is created**,
+unless creating organisations is switched on for your account. Create the
+organisation in the portal, then send again. The error names the branches we do
+hold under that agency, so a near miss is usually obvious:
 
 ```json
 { "field": "org.branch_name", "code": "not_found",
@@ -173,6 +180,76 @@ branches we do hold under that agency, so a near miss is usually obvious:
 If a name matches more than one of your organisations, the application is
 rejected as `ambiguous` rather than guessed at. That is a duplicate on our side:
 send ids instead, or contact opndoor to have them merged.
+
+### Creating an agency from the API
+
+**This is off unless opndoor has switched it on for your account.** Ask your
+account manager. With it off, an unknown agency or branch is rejected exactly
+as described above, and nothing below applies to you.
+
+With it on, send the agency's details alongside the names and we will create
+what is missing as part of the same call:
+
+```jsonc
+"org": {
+  "agency_name":    "Foo Lettings",
+  "agency_email":   "lettings@foo.co.uk",   // required when creating
+  "agency_address": "14 Mount Street, London W1K 3NG",
+  "branch_name":    "Camden",
+  "branch_address": "20 Camden High Street, London NW1 0JH",
+  "branch_email":   "camden@foo.co.uk"      // optional
+}
+```
+
+`agency_email` is **required** to create an agency: signed deeds for its
+branches are sent there. `branch_email` is optional and overrides it for that
+one branch. Both addresses are optional, and are recorded against the branch.
+
+**Nothing is duplicated.** The agency name is matched first, by the same rule as
+everywhere else: ignoring case, surrounding whitespace and a trailing `Ltd` or
+`Limited`. An agency that already exists is reused and nothing is created, so a
+retry after a timeout is safe. The same applies to the branch within it.
+
+**Ambiguity is refused rather than guessed.** If two of your agencies normalise
+to the same name, the call is rejected as `ambiguous` and you should send ids.
+
+If we hold no agency of that name and you have not sent `agency_email`, the
+call is rejected and tells you so:
+
+```json
+{ "field": "org.agency_email", "code": "required",
+  "message": "We do not hold an agency of that name. Send agency_email as well
+              and we will create it: signed deeds for its offices go to that
+              address." }
+```
+
+#### What you get back
+
+The response's `org` object names what the call created, and the field is
+**absent when nothing was**:
+
+```jsonc
+"org": {
+  "agency_id": "...",
+  "branch_id": "...",
+  "created": ["agency", "branch"]   // or ["branch"], or absent
+}
+```
+
+Store the ids and send those from then on.
+
+#### What happens on our side
+
+Anything created this way is **held for review by opndoor** before it becomes a
+confirmed record. Your application is created and sent to the tenant
+immediately; the review is ours, not yours, and does not hold anything up.
+
+We also check a new name against your existing ones for near misses, so a typo
+such as `Foo Lettigns` is flagged to us as a possible duplicate of
+`Foo Lettings` rather than quietly becoming a second agency.
+
+Every creation is recorded against the API key that made it, by name, so you
+can tell which of your integrations added what.
 
 ### Using our ids instead
 

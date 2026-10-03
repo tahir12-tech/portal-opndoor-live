@@ -678,7 +678,7 @@
     "application.paid": {
       "post": {
         "operationId": "onApplicationPaid",
-        "summary": "The guarantor fee is paid",
+        "summary": "The guarantee fee is paid",
         "description": "Signed with HMAC-SHA256 over \"<t>.<raw body>\" using your endpoint secret, sent as X-Opndoor-Signature: t=<unix>,v1=<hex>. Verify against the RAW body before parsing. Respond 2xx to accept; anything else is retried. Dedupe on X-Opndoor-Event-Id.",
         "requestBody": {
           "required": true,
