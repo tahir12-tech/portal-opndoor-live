@@ -1313,6 +1313,13 @@ reading the wrong one. No frozen amount changed.
 
 > Tenant "ready to sign" email (including resends): don't say "Your guarantee is in place" before the deed is signed; say "Your guarantee fee is paid and your Deed of Guarantee is ready to sign. Signing puts your guarantee in place." If the deed was reissued after a start-date correction, say so: "This replaces your earlier deed; the tenancy start is now 29 December 2026." Use the same header as the other tenant emails.
 
+## THE CORRECTION NOTE, AND FIFTY HUBSPOT ALERTS (instruction, 2026-10-03, verbatim).
+
+> 1. Corrected-deed note in the signed-deed emails (tenant and agent): style it as a normal-weight paragraph in the email's body text style, with at most a subtle left border, not large bold letter-spaced text in a box. Dates as "1 Oct 2026", not "01 Oct 2026".
+> 2. There are 50 "[opndoor ops] hubspot_sync_error" alerts in the review inbox. Tell me why HubSpot sync is failing on dev, and whether alerts are repeated for the same failure. The same failure should alert once, then not again until it changes or recovers.
+
+- Part 2 is an answer first, like the GR-FROST-KES one.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
