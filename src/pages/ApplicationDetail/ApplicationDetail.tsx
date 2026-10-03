@@ -42,6 +42,7 @@ import { gbpPence } from '@/lib/format';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { maySeeDeliveryState, type DeliveryState } from '@/data/deliveryState';
 import { isTenancyStartInAllowedRange,parseFlexibleDate } from '@/lib/validation';
+import { tenancyStartGiven } from '@/data/tenancyStartGiven';
 import { titleCaseAddress, formatLondonDate, formatDate, formatLongDate, formatDateTime } from '@/lib/format';
 import { isAgencyUser } from '@/data/capabilities';
 import { viewerShape } from '@/data/viewerShape';
@@ -1816,7 +1817,18 @@ export function ApplicationDetail() {
             />
             <CardBody style={{ paddingTop: 6, paddingBottom: 6 }}>
               <div className="drow"><span className="drow__k">Monthly rent</span><span className="drow__v"><b style={{ fontFamily: 'var(--display)', fontSize: 16 }}>{d.rent}</b> per month{siblings.length > 1 && me?.sharePercent != null && <> · <b>{me.sharePercent}%</b> is this tenant’s share</>}</span></div>
-              <div className="drow"><span className="drow__k">Tenancy start</span><span className="drow__v">{fmtLong(currentStart)}</span></div>
+              {/* BLANK WHILE IT IS A PLACEHOLDER. Matt, 2026-10-03: "Leave
+                  Tenancy start blank until the tenant has given one; check the
+                  screen and other exports for the same." `tenancy_start` is
+                  NOT NULL and the direct rail's draft is born with
+                  `current_date + 30` in it, which is where GR-20626's
+                  04/10/2026 came from. See data/tenancyStartGiven.
+
+                  "Not given yet" RATHER THAN AN EMPTY CELL, because this is a
+                  labelled row on a card and a blank value beside a label reads
+                  as a fault. The export is a spreadsheet cell and is genuinely
+                  blank there. */}
+              <div className="drow"><span className="drow__k">Tenancy start</span><span className="drow__v">{tenancyStartGiven(d) ? fmtLong(currentStart) : <span className="muted">Not given yet</span>}</span></div>
 
               {/* THE OTHER TENANTS. One property and one rent, but several
                   applications and several deeds, and this page is only ever

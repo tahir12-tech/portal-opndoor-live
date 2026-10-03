@@ -147,17 +147,26 @@ function RANK_OPTIONS(view: LeagueView): { value: string; label: string }[] {
 }
 
 /** The opening sentence, naming exactly the boards on the page. Lower-cased and
-    listed with an Oxford-free "and", so one tab reads "Every negotiator ranked
-    in full." and three read "Every agency, branch and negotiator ranked in
-    full." */
+    listed with an Oxford-free "and", so four tabs read "Every agency, branch,
+    referrer and supplier ranked in full." */
 export function introFor(tabs: { id: LeagueView; label: string }[]): string {
-  /* "EVERYONE WHO HAS REFERRED", not "every negotiator". Matt,
-     2026-10-01. A Director and a Manager refer too and are both on this
-     board, so naming it after the junior level described the wrong set --
-     and the people it left out are the ones most likely to be reading. */
-  const words = tabs.map((t) => ({ agency: 'agency', branch: 'branch', referrer: 'negotiator', supplier: 'supplier' }[t.id] ?? t.label.toLowerCase()));
+  /* "REFERRER", NOT "NEGOTIATOR". Matt, 2026-10-03: "League description:
+     'Every agency, branch, referrer and supplier ranked in full.' Sweep the
+     portal, emails, exports and help for any remaining 'negotiator' used to
+     mean a referrer generally (keep it only where it's the Negotiator level)."
+
+     THE TAB WAS RENAMED ON 2026-10-02 and this sentence was not, which is how
+     the page came to call one board two things in two lines. Negotiator is one
+     LEVEL on our own estate's ladder; this board ranks everybody who sent a
+     referral, including a Director who typed one in and a supplier's own
+     staff, neither of whom is a Negotiator.
+
+     THE ONE-TAB SENTENCE STAYS AS IT IS. "Everyone who has referred" is
+     better than "Every referrer" on a page where that board is the only one:
+     it says the thing the rename was about. */
+  const words = tabs.map((t) => ({ agency: 'agency', branch: 'branch', referrer: 'referrer', supplier: 'supplier' }[t.id] ?? t.label.toLowerCase()));
   if (!words.length) return 'Nothing to rank in this scope yet.';
-  if (words.length === 1 && words[0] === 'negotiator') return 'Everyone who has referred, ranked in full.';
+  if (words.length === 1 && words[0] === 'referrer') return 'Everyone who has referred, ranked in full.';
   const list = words.length === 1
     ? words[0]
     : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;

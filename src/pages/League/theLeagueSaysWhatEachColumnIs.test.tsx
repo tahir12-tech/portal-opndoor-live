@@ -43,15 +43,19 @@ describe('the movement column', () => {
 
 describe('the opening sentence', () => {
   it('names everyone who has referred, not one level of them', () => {
-    expect(introFor([{ id: 'referrer', label: 'Negotiators' }] as never))
+    expect(introFor([{ id: 'referrer', label: 'Referrers' }] as never))
       .toBe('Everyone who has referred, ranked in full.');
   });
 
   it('and still lists the boards when there are several', () => {
     expect(introFor([
       { id: 'agency', label: 'Agencies' },
-      { id: 'referrer', label: 'Negotiators' },
-    ] as never)).toBe('Every agency and negotiator ranked in full.');
+      { id: 'referrer', label: 'Referrers' },
+      /* "referrer", NOT "negotiator". Matt, 2026-10-03: "League description:
+         'Every agency, branch, referrer and supplier ranked in full.'" The TAB
+         was renamed on 2026-10-02 and this sentence was not, so the page
+         called one board two things two lines apart. */
+    ] as never)).toBe('Every agency and referrer ranked in full.');
   });
 });
 

@@ -42,6 +42,7 @@ import { orgCell } from './agencyOffices';
 import { viaSupplier, withoutVia } from './viaSupplier';
 import { formatDate, gbpPence } from '@/lib/format';
 import { plural } from '@/lib/plural';
+import { tenancyStartGiven } from './tenancyStartGiven';
 
 /** A named branded sheet + the download filename (the xlsx-free document spec). */
 export interface BrandedExport {
@@ -1312,7 +1313,11 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
       // blank on an unissued row only while nothing has written a date to it.
       // expiryOf says the rule out loud, and says it the same way here, on the
       // bordereau and on the expiries file.
-      a.tenancyStart ? dmy(a.tenancyStart) : '', exp ? dmy(exp) : '',
+      /* BLANK WHILE IT IS A PLACEHOLDER. Matt, 2026-10-03: "GR-20626
+         (unfinished, no tenancy details given) shows Tenancy start date
+         04/10/2026. Leave Tenancy start blank until the tenant has given one."
+         See data/tenancyStartGiven for where that date comes from. */
+      tenancyStartGiven(a) && a.tenancyStart ? dmy(a.tenancyStart) : '', exp ? dmy(exp) : '',
       a.refundAfterStart ? 'Yes - refunded after tenancy start' : '',
     ];
     if (basis === 'activity') row.push(ev.join(', '));
@@ -2274,7 +2279,7 @@ export function buildLiveBordereau(year: number, m0: number, insuranceRate: numb
          today and none of them on a deed-issued row, so this column
          goes mostly blank, which is the honest state of it. */
       rec?.landlordName ?? '',
-      a.deedAt ? dmy(a.deedAt) : '', a.tenancyStart ? dmy(a.tenancyStart) : '', expiry ? dmy(expiry) : '',
+      a.deedAt ? dmy(a.deedAt) : '', tenancyStartGiven(a) && a.tenancyStart ? dmy(a.tenancyStart) : '', expiry ? dmy(expiry) : '',
       // THE SHARE, not the tenancy's rent: this deed guarantees this tenant's
       // part of it, and the premium follows what is guaranteed. A tenancy of one
       // has no share and the whole rent is its own, so the cell is unchanged.

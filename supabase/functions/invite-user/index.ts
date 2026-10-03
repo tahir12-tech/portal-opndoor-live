@@ -155,10 +155,17 @@ Deno.serve(async (req) => {
         return json({
           ok: false,
           error: isBranchOnly
-            ? "Branch managers may invite negotiators only."
+            /* THE LEVELS, CAPITALISED AS THE PRODUCT CAPITALISES THEM. Matt,
+               2026-10-03: "Sweep the portal, emails, exports and help for any
+               remaining 'negotiator' used to mean a referrer generally (keep
+               it only where it's the Negotiator level)." These three ARE
+               about the level, so they stay -- but in lower case they read as
+               a job title, which is the thing the sweep is about. Everywhere
+               else in the product a level is a proper noun. */
+            ? "Branch managers may invite Negotiators only."
             : onOurEstate
-              ? "You can invite negotiators and managers. Developer accounts are for API integrations, which agencies do not use."
-              : "Managers may invite negotiators, managers or developers.",
+              ? "You can invite Negotiators and Managers. Developer accounts are for API integrations, which agencies do not use."
+              : "Managers may invite Negotiators, Managers or Developers.",
         }, 403);
       }
 
