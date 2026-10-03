@@ -259,7 +259,24 @@ describe('the definer allowlist', () => {
        to sit beside. `dev_api_keys` has no admin arm by design, so the
        tab had nothing to list; this returns a name, created, last used
        and the id, and cannot return a prefix, hash or scope. */
-    expect(allowlist.length).toBeLessThanOrEqual(154);
+    /* 154 -> 155, 2026-10-03: suppliers_with_no_commission_deal, which
+       Health and the supplier's Overview read to show "Referrals are
+       coming in with no commission deal set".
+
+       IT IS A LIST OF WHO IS BEING UNDER-BILLED, so it is Opndoor's own
+       commercial admin rather than anybody's record of themselves, and
+       the function asks `is_admin()` in its own WHERE clause instead of
+       trusting the two callers -- a supplier must never be able to read
+       which of its competitors has no deal. It returns a slug, a name,
+       a count and two dates: no rates, no money, nothing about a
+       referral beyond when it arrived.
+
+       NO EXISTING READER COULD ANSWER IT. The question joins partners,
+       pricing_agreements and applications and turns on the difference
+       between a null rate and a zero one, which is the distinction
+       20261007680000 created and nothing else asks. Covered by name in
+       a_missing_deal_is_loud.test.sql. */
+    expect(allowlist.length).toBeLessThanOrEqual(155);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

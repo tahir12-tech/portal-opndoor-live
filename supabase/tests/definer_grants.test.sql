@@ -259,6 +259,12 @@ insert into allowed(name) values
      publishes to its staff. Covered by a_supplier_has_two_deals.test.sql. */
   ('supplier_deal'),
   ('supplier_share_deals'),
+  /* Every supplier taking referrals with no commission deal, for Health
+     and the supplier's Overview. Opndoor's own commercial admin -- it
+     names who is being under-billed -- so the function asks is_admin()
+     itself and returns nothing to anybody else. 20261007690000, covered
+     by a_missing_deal_is_loud.test.sql. */
+  ('suppliers_with_no_commission_deal'),
   ('trigger_crm_sync'),
   ('update_partner_settings'),
   ('user_notification_enabled'),

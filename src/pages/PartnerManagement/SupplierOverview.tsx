@@ -26,9 +26,9 @@
    tab reads them. An overview that said any of it in its own words
    would be a fifth place for the same fact to drift.
    ===================================================================== */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getPartnerAudit, type PartnerAuditEntry } from '@/data/partnersService';
-import { getAgencies, getSupplierDeal, type AgreementView } from '@/data';
+import { getAgencies, getApplications, getSupplierDeal, ALL_PARTNERS, type AgreementView } from '@/data';
 import { agenciesNeedingAnEmail } from '@/data/deedContact';
 import { supplierDealLine } from '@/data/supplierDealLine';
 import { changeSentence, isNoOpChange } from '@/data/changeSentence';
@@ -51,6 +51,17 @@ export function SupplierOverview({ slug, partnerDbId, name, standardTotal, stand
   onOpenAgencies: () => void;
   dataVersion: number;
 }) {
+  /* HOW MANY REFERRALS THIS SUPPLIER HAS TAKEN, read from the hydrated book
+     rather than fetched: the Agencies tab beside this reads the same book,
+     and two readers would be two answers to "how many". It decides only
+     which of the two no-deal sentences is shown. */
+  const referrals = useMemo(
+    // 'all' status, because the question is "has this supplier sent us
+    // anything", not "anything still open": a referral that expired unpaid
+    // was still priced at 0% and is still the thing being warned about.
+    () => getApplications({ role: 'superadmin', scope: ALL_PARTNERS, partner: slug, status: 'all' }).length,
+    [slug, dataVersion],
+  );
   const [commission, setCommission] = useState<AgreementView | null>(null);
   const [agentShare, setAgentShare] = useState<AgreementView | null>(null);
   const [audit, setAudit] = useState<PartnerAuditEntry[]>([]);
@@ -99,13 +110,33 @@ export function SupplierOverview({ slug, partnerDbId, name, standardTotal, stand
               exists is the fault this whole change is about. */}
           {hasNoDeal(commission, standardTotal) ? (
             <>
+              {/* TWO SENTENCES, AND WHICH ONE DEPENDS ON WHETHER IT IS
+                  ALREADY COSTING ANYTHING. Matt, 2026-10-03: "show it on
+                  Health and the supplier's Overview ('Referrals are coming
+                  in with no commission deal set')". A supplier set up this
+                  morning with no referrals yet is a job to finish; one
+                  taking referrals is money going past unbilled, and the
+                  two should not read the same. */}
               <p className="ph-lede stmt__err">
                 <Icon name="alert" size={14} />
-                <span>No commission deal set.</span>
+                <span>
+                  {referrals > 0
+                    ? 'Referrals are coming in with no commission deal set.'
+                    : 'No commission deal set.'}
+                </span>
               </p>
               <p className="ph-note muted">
-                Nothing is charged and nothing is owed on this supplier&rsquo;s referrals until a
-                deal is set, on the Commission tab.
+                {referrals > 0
+                  ? <>
+                      {referrals} {plural(referrals, 'referral')} {referrals === 1 ? 'has' : 'have'}
+                      {' '}been priced at 0% and nothing is owed on {referrals === 1 ? 'it' : 'them'}.
+                      Setting a deal now prices new referrals only; tell opndoor if these need
+                      repricing.
+                    </>
+                  : <>
+                      Nothing is charged and nothing is owed on this supplier&rsquo;s referrals
+                      until a deal is set, on the Commission tab.
+                    </>}
               </p>
             </>
           ) : (

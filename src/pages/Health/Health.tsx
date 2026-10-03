@@ -33,6 +33,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Card, CardHead } from '@/components/ui/Card';
 import { InvoiceEmailCard } from './InvoiceEmailCard';
+import { NoCommissionDealCard } from './NoCommissionDealCard';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 import '@/components/ui/opbar.css';
@@ -276,6 +277,11 @@ export function Health() {
       )}
 
       <InvoiceEmailCard onChanged={setInvoiceSet} />
+
+      {/* ABOVE the scheduled jobs, because it is money going past unbilled
+          and the jobs below are mostly green. It draws nothing when there
+          is nothing, so it costs the page no space on a normal day. */}
+      <NoCommissionDealCard />
 
       <Card style={{ marginBottom: 18 }}>
         <CardHead title="Scheduled jobs" sub="The last run of each cron, and the real HTTP status of its call." />

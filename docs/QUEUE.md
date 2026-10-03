@@ -1525,6 +1525,22 @@ Suppliers list. The half deferred is the rest of his sentence:
 - "A deliberate 0% deal like Letly's must not alert" is the whole
   difficulty: the test is "nothing resolved", not "the answer was 0".
 
+- **DONE.** `has_no_commission_deal` is `resolve_rates`'s own precedence
+  with the final `, 0` taken off, so it is true exactly when the
+  fallback was taken and false for every rate anybody set, zero
+  included. An AFTER INSERT trigger on `applications` catches all four
+  ways a referral is made (portal, joint, API, direct insert) rather
+  than one of them. `supplier_no_deal_alerts` latches it to once per
+  supplier, and is re-armed for anybody who since got a deal, so a
+  supplier that LOSES one is alerted about again. The screens derive the
+  condition instead of reading the latch, so setting a deal clears them
+  at once and clearing a latch shows nothing different.
+
+- Its own pgTAP caught the first version: the re-arm sweep sat after the
+  early returns, so it only ran when the inserting supplier itself had
+  no deal, and a stale latch would have silently eaten the alert the day
+  a supplier lost its deal. Fixed in a new migration, 20261007700000.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue

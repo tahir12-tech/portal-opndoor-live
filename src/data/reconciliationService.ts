@@ -577,6 +577,42 @@ export function reconciliationTotals(input: {
   return { ...t, all: t.review + t.matches + t.refunds + t.noEmail + t.notInNetwork };
 }
 
+/* =====================================================================
+   SUPPLIERS TAKING REFERRALS WITH NO COMMISSION DEAL.
+
+   Matt, 2026-10-03: "Make a missing deal loud, not silent ... show it on
+   Health and the supplier's Overview."
+
+   DERIVED SERVER-SIDE, not read from the alert latch.
+   `supplier_no_deal_alerts` records who has already been emailed about;
+   this asks what is true now, so setting a deal clears the row from the
+   screen immediately and clearing a latch changes nothing a reader sees.
+   Two facts, one of which is about the world and one about our own post.
+
+   EMPTY IN MOCK MODE, like every other live-only reader here: the demo
+   book has no pricing agreements to be missing. */
+export interface SupplierWithNoDeal {
+  slug: string;
+  name: string;
+  referrals: number;
+  firstReferralAt: Date | null;
+  lastReferralAt: Date | null;
+}
+
+export async function loadSuppliersWithNoDeal(): Promise<SupplierWithNoDeal[]> {
+  if (!SUPABASE_ENABLED) return [];
+  const { data, error } = await sb().rpc('suppliers_with_no_commission_deal');
+  if (error) throw new Error(error.message);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any) => ({
+    slug: r.slug,
+    name: r.name,
+    referrals: Number(r.referrals) || 0,
+    firstReferralAt: r.first_referral_at ? new Date(r.first_referral_at) : null,
+    lastReferralAt: r.last_referral_at ? new Date(r.last_referral_at) : null,
+  }));
+}
+
 export async function loadReconciliationTotals(): Promise<ReconciliationTotals> {
   const [review, matches, notInNetwork, refunds, noEmail] = await Promise.all([
     loadReconciliationQueue(), loadAgencyMatchQueue(), loadNotInNetworkAgencies(),
