@@ -1448,6 +1448,10 @@ statement.
   strings appear in fixtures, in seeds and in `docs/reference`. The
   sweep has to tell a placeholder from a test row.
 
+## A SUPPLIER'S REPORTING MENTIONS NO ROUTES (instruction, 2026-10-03, verbatim).
+
+> Reporting as a supplier (Kestrel's own login and "View as"): hide the "Commission by route" table; it's Opndoor-only. The supplier's commission is already shown in the summary and its statement. Check nothing else on a supplier's or agency's Reporting mentions routes, other suppliers, or Opndoor's settlement process.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
