@@ -1309,6 +1309,10 @@ reading the wrong one. No frozen amount changed.
 > 3. Delivery panel: after a start-date correction it still shows the old deed's delivery ("Delivered to joe@joe.com, 1 Oct 20:21") while the corrected deed is unsigned. Show the current deed's state ("Corrected deed awaiting the tenant's signature; it will be sent to joe@joe.com once signed"), with the earlier delivery listed as superseded.
 > Deploy to dev and check there.
 
+## READY TO SIGN IS NOT IN PLACE (instruction, 2026-10-03, verbatim).
+
+> Tenant "ready to sign" email (including resends): don't say "Your guarantee is in place" before the deed is signed; say "Your guarantee fee is paid and your Deed of Guarantee is ready to sign. Signing puts your guarantee in place." If the deed was reissued after a start-date correction, say so: "This replaces your earlier deed; the tenancy start is now 29 December 2026." Use the same header as the other tenant emails.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
