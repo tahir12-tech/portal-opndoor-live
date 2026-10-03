@@ -1789,6 +1789,18 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## AN EMPTY TAB SAYS WHAT THAT TAB HOLDS (instruction, 2026-10-03, verbatim).
+
+> Applications empty-tab messages: the Paid tab should say "No [direct] applications paid and waiting for a deed", not "No … applications paid". Check each tab's empty message matches exactly what that tab holds.
+
+- This corrects the sentence I wrote for the same instruction earlier
+  today ("when a status tab is empty, say which"): naming the tab is not
+  the same as describing the set, and Paid is the tab where the two come
+  apart -- it holds applications that have paid and have NOT yet got a
+  deed, so "paid" alone describes a superset that includes every deed.
+- "Check each tab" means every clause in TAB_CLAUSE has to be read
+  against the filter it belongs to, not just the one he named.
+
 ## THREE ANSWERS, AND ONE THING DEFERRED (instruction, 2026-10-03, verbatim).
 
 > 1. Resend invite: no question needed, but show "Invite sent again to [email]".
