@@ -1789,6 +1789,18 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## A FAILED SAVE POINTS AT THE FIRST MISSING FIELD (instruction, 2026-10-03, verbatim). EVERY FORM.
+
+> New application form: when Send is pressed with required fields missing, scroll to the first missing field, highlight every missing field in red with "Required", and show a message at the Send button: "3 fields still need filling in" with a link that jumps to the first one. Same for every form in the portal.
+
+- FOUR BEHAVIOURS, not one: scroll to the first, mark every one, count
+  them at the button, and a link that jumps. "Same for every form in
+  the portal" makes it shared machinery rather than four edits to
+  NewApplication.
+- AgencyCreate already has half of this (`showProblems`, `problemFor`,
+  `.ac-problems`), so the shared piece should be lifted from there
+  rather than invented, and AgencyCreate should end up using it.
+
 ## THE EXPIRIES DIALOG, IN THE READER'S WORDS (instruction, 2026-10-03, verbatim).
 
 > Expiries dialog (agency and supplier views): say "Your agency's guarantees only" (or "your company's" for suppliers) instead of "Your partner only", and "Management get this list by email six weeks before the month begins" instead of "receive this cohort". Open on the next month that has any guarantees expiring; if none, next month, with a note "Nothing expiring yet; your earliest is [month]".
