@@ -1277,6 +1277,14 @@ are taken from the audit; these are the ones that were not.)*
 
 > Monthly bordereau dialog: default the month to the last complete calendar month (today that's September 2026), not a fixed month. Also show "last changed 7 Aug 2026" in the same date style as the rest of the portal.
 
+## FEE UNPAID MEANS ASKED AND NOT PAID (instruction, 2026-10-03, verbatim, two messages).
+
+> Applications, "Fee unpaid" tab: only include applications where the tenant has been asked to pay (reached payment), not unfinished direct applications that haven't got that far (e.g. GR-20626, no rent given yet).
+
+> Applications, "Fee unpaid" tab: it should list every application where the tenant has been asked for the guarantee fee and hasn't paid (today the 3 Sent referrals: GR-22162, GR-20837, GR-20764), not unfinished direct applications that haven't reached payment (GR-20626). Its count must match.
+
+- The second names the rows, so it is the one to measure against on dev.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
