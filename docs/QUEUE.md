@@ -1819,6 +1819,26 @@ is nothing left to match" instead of a warning.
   go-live. If the answer is "not told", the copy fix ships tonight and
   the email goes under "After launch" with its wording drafted.
 
+## THE TENANT AND LANDLORD LEAFLETS (instruction, 2026-10-03, verbatim). DO NOT TOUCH THE COVER TERMS.
+
+> Help resources:
+> 1. Open the tenant and landlord leaflets the same way as the referrer guide (as a page with "Save as PDF"), not in a PDF viewer.
+> 2. Tenant leaflet: fee as "a one-off fee, usually one month's rent (split between you if you're renting jointly)", not always one month; "guarantee fee", not "guarantor fee".
+> 3. Landlord leaflet: the "It costs you nothing" icon is a dollar sign; use £. Header "Guarantee service", as on the tenant leaflet, not "Guarantee referral portal".
+> 4. Landlord leaflet, joint tenancies: add "On a joint tenancy, each tenant has their own deed covering their share of the rent."
+> Don't change the cover amounts, claim steps or refund wording; I'm checking those against the deed and will send exact wording.
+
+- THE LAST LINE IS A HOLD, and it is the important one: the cover
+  amounts, the claim steps and the refund wording are being checked
+  against the DEED and must not be touched. Anything I change in these
+  two leaflets stops at the four items above.
+- ITEM 1 IS THE BIG ONE: the leaflets are shipped PDFs
+  (`opndoor-for-tenants.pdf`, `opndoor-for-landlords.pdf`), and the
+  guides are authored HTML. Turning a PDF into an HTML page means
+  AUTHORING the page from the PDF's content -- and the content includes
+  the wording I have just been told not to change. So this is
+  transcription, done carefully, not a rewrite.
+
 ## PRIORITY: THE MANAGEMENT GUIDE SHOWS WHAT WE PAY SUPPLIERS (instruction, 2026-10-03, verbatim). REMOVE NOW.
 
 > Priority before launch: the Management help guide shows a commission table "Partner 25%, Agent 10%" to agency and supplier management. Remove it now: it's wrong for most deals and reveals what Opndoor pays suppliers. Each customer's guide should say "Your commission is set out in your agreement and shown on your Commission tab and monthly statement." Then rewrite this guide to match today's portal along with the referrer guide (same rules: plain English, no em dashes, no "partner", "canonical", "shipped", query strings or Opndoor-internal screens like "Manage partner"; separate wording for agencies, suppliers and Opndoor admins).
