@@ -1789,6 +1789,19 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## THE CHECKOUT LINE SAYS WHOSE SHARE IT IS (instruction, 2026-10-03, verbatim).
+
+> Stripe checkout description on joint tenancies: "Your 10% share of the guarantee fee (5 weeks of rent for the whole tenancy)".
+
+- A TENANT-FACING LINE ON A PAYMENT PAGE, which is the last thing
+  somebody reads before paying, so the two numbers in it are the two a
+  joint tenant needs: THEIR percentage, and what the whole fee is a
+  proportion of.
+- The share percentage is `applications.share_percent` and the basis is
+  `fee_basis_weeks`, both snapshotted at creation.
+- Named for joint tenancies only: a tenancy of one has no share to
+  name, and the existing line is right there.
+
 ## A FAILED SAVE POINTS AT THE FIRST MISSING FIELD (instruction, 2026-10-03, verbatim). EVERY FORM.
 
 > New application form: when Send is pressed with required fields missing, scroll to the first missing field, highlight every missing field in red with "Required", and show a message at the Send button: "3 fields still need filling in" with a link that jumps to the first one. Same for every form in the portal.
