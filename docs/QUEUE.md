@@ -1789,6 +1789,19 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## A WITHDRAWN APPLICATION IS NOT AWAITING A DEED (instruction, 2026-10-03, verbatim).
+
+> Withdrawn application page: the timeline shows "Deed Issued: Awaiting deed" and the guarantee card says "Reserved · confirmed once the deed is issued" with "Rent to be guaranteed £12,000". For withdrawn (and expired) applications show "Not issued: application withdrawn" instead, and no rent to be guaranteed.
+
+- THE PAGE IS DESCRIBING A FUTURE THAT IS NOT COMING. "Awaiting deed"
+  and "Reserved" are both about a deed that will be issued, on a row
+  that is finished -- and "Rent to be guaranteed £12,000" is a sum we
+  are not going to guarantee.
+- SAME SHAPE AS TODAY'S OTHER BLANKS (the four money columns, the
+  tenancy start): a terminal state printing a value that belongs to a
+  live one.
+- BOTH STATES, withdrawn and expired, and the sentence names which.
+
 ## THE WITHDRAW DIALOG SAYS WHAT NOW HAPPENS (instruction, 2026-10-03, verbatim). ANSWER TWO QUESTIONS.
 
 > Withdraw application dialog: it says withdrawn referrals are "excluded from conversion figures and Leagues", but they now count as sent. Make the text match what actually happens. Also tell me: after withdrawal, does the tenant's payment link stop working, and is the tenant told? It should stop working, and the tenant should get a short email that the application was withdrawn by the agency.
