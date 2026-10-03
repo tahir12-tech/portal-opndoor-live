@@ -60,6 +60,7 @@ import { CustomerReport } from '@/components/CustomerReport';
 import { liveByCustomer } from '@/data/liveAnalytics';
 import { agencyLevelOf, AGENCY_LEVELS, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
 import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
+import { getOrgDepartedReferrals, departedReferralsLine, type DepartedReferrals } from '@/data/positionsService';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions, type PersonAction } from '@/components/people/PersonActions';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
@@ -458,6 +459,40 @@ export function AgencyHome() {
      this says "is one waiting". See data/deedsStuck.ts for why the warning
      needs both. Read off the hydrated book, so it costs no call. */
   const stuckDeeds = useMemo(() => deedsWithNowhereToGo(), [dataVersion, tick]);
+
+  /* OPEN REFERRALS OF PEOPLE WHO HAVE LEFT, and who their deeds go to instead.
+
+     Matt, 2026-10-03: "the agency page should say 'N open referrals from
+     people who have left; deeds will go to [who]'."
+
+     A THIRD QUESTION, not a variant of the two above it. Readiness asks
+     "could a deed reach anybody here"; stuckDeeds asks "is one waiting";
+     this asks "whose referrals are now somebody else's to receive" -- and
+     the answer is reassuring rather than a warning, which is why it reads
+     as a note and not as the blocked banner.
+
+     THE SAME SHAPE AS READINESS, one call for every agency, because the
+     answer walks the delivery ladder per referral and is resolved
+     server-side. Absent means none, so an agency with nothing to say draws
+     nothing. */
+  const [departed, setDeparted] = useState<Map<string, DepartedReferrals> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getOrgDepartedReferrals().then((d) => { if (alive) setDeparted(d); }).catch(() => { if (alive) setDeparted(null); });
+    return () => { alive = false; };
+  }, [dataVersion, tick]);
+  /* ROLLED UP OVER THE AGENCIES THIS PAGE IS SHOWING, which is one for an
+     agency and several for a group: the line is about the page, and a group
+     whose two agencies each have one is telling the reader about two. */
+  const departedHere = useMemo(() => {
+    if (!departed) return null;
+    const rows = agencies.map((a) => (a.id ? departed.get(a.id) : undefined)).filter(Boolean) as DepartedReferrals[];
+    if (!rows.length) return null;
+    return {
+      count: rows.reduce((n, r) => n + r.count, 0),
+      goesTo: [...new Set(rows.flatMap((r) => r.goesTo))].sort(),
+    };
+  }, [departed, agencies]);
 
   /* ---- per-node rate editor. Every level can hold a line now, including a
      branch. The editor previews the worst branch total the change produces and
@@ -1430,6 +1465,16 @@ export function AgencyHome() {
             first item after shipping. When it lands, this button comes
             back and `figuresFollow` in origin.ts goes away. */}
       </div>
+
+      {/* THE DEPARTED-REFERRER LINE, under the header and above the tabs: it is
+          about the whole agency, not about one tab's contents, and it is the
+          first thing a manager wants to know on the day somebody leaves. */}
+      {departedHere && (
+        <div className="ah-departed" role="note">
+          <Icon name="info" size={15} />
+          <span>{departedReferralsLine(departedHere)}</span>
+        </div>
+      )}
 
       {/* Creation lives on the NODES it creates into, never floating up here where
           it cannot say what it is adding to. */}

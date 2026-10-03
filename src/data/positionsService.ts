@@ -10,6 +10,7 @@
    button. See 20260813070000.
    ===================================================================== */
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import { plural } from '@/lib/plural';
 
 export type ScopeKind = 'group' | 'agency' | 'branch';
 
@@ -592,6 +593,66 @@ export async function getOrgDeedReadiness(): Promise<DeedReadiness | null> {
     else { agencies.set(String(r.agency_id), !!r.ready); agencyPeople.set(String(r.agency_id), n); }
   }
   return { agencies, branches, agencyPeople, branchPeople };
+}
+
+/* =====================================================================
+   OPEN REFERRALS FROM PEOPLE WHO HAVE LEFT, AND WHO THE DEED GOES TO.
+
+   Matt, 2026-10-03: "the agency page should say 'N open referrals from people
+   who have left; deeds will go to [who]'."
+
+   ONE CALL FOR EVERY AGENCY, which is getOrgDeedReadiness's shape beside it
+   and for its reason: the Agencies list draws many agencies and the answer is
+   a per-referral walk down the delivery ladder, so it is resolved server-side
+   and set-based rather than once per row here.
+
+   "[WHO]" COMES BACK AS NAMES, resolved through the same ladder the deed send
+   itself uses (agency_notification_recipients), so the sentence cannot drift
+   from where the deed actually goes. An agency with no open referrals of a
+   departed person is ABSENT from the result rather than present with a zero,
+   which is what lets the caller draw nothing without a special case.
+
+   Null in mock mode, which reads the same way as absent. */
+export interface DepartedReferrals {
+  /** Open, pre-deed referrals whose referrer has been removed or deleted. */
+  count: number;
+  /** Who the paid email and the signed deed will go to instead. */
+  goesTo: string[];
+}
+
+export async function getOrgDepartedReferrals(): Promise<Map<string, DepartedReferrals> | null> {
+  if (!SUPABASE_ENABLED) return null;
+  const { data, error } = await sb().rpc('org_departed_referrals');
+  if (error) throw new Error(error.message);
+  const out = new Map<string, DepartedReferrals>();
+  for (const r of (data ?? []) as Array<{ agency_id: string; open_count: number | null; goes_to: string[] | null }>) {
+    const count = Number(r.open_count ?? 0);
+    // A zero cannot be said in Matt's sentence, so it is not carried.
+    if (count > 0) out.set(String(r.agency_id), { count, goesTo: (r.goes_to ?? []).filter(Boolean) });
+  }
+  return out;
+}
+
+/* THE SENTENCE ITSELF, here rather than in the component, because the agency
+   page and the Agencies list both want it and a second copy would be a second
+   wording. "N open referrals" with the plural agreeing, then who instead.
+
+   NO NAMES AT ALL is possible and has to read as something: an agency whose
+   every manager has also left resolves to an empty ladder, and the honest
+   sentence then names the problem rather than trailing off after "go to". */
+export function departedReferralsLine(d: DepartedReferrals): string {
+  const n = d.count;
+  // Through `plural`, not a ternary: theCountsReadAsEnglish refuses a
+  // hand-rolled one, and it is right to -- every such site is a place the
+  // product can say "1 referrals".
+  const head = `${n} open ${plural(n, 'referral')} from people who have left`;
+  if (!d.goesTo.length) {
+    return `${head}. There is nobody left at this agency to send the deeds to. Tell opndoor.`;
+  }
+  const names = d.goesTo.length === 1
+    ? d.goesTo[0]
+    : `${d.goesTo.slice(0, -1).join(', ')} and ${d.goesTo[d.goesTo.length - 1]}`;
+  return `${head}; deeds will go to ${names}.`;
 }
 
 /** Records that somebody works at an agency. The bootstrap for cross-route reach. */

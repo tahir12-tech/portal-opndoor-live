@@ -292,7 +292,25 @@ describe('the definer allowlist', () => {
        user_audit.target_user both reference this row, and Matt's rule is
        that "their name stays wherever they appear on past records".
        Covered by name in a_deleted_person_keeps_their_name.test.sql. */
-    expect(allowlist.length).toBeLessThanOrEqual(156);
+    /* 156 -> 157, 2026-10-03: org_departed_referrals, the line Matt asked
+       the agency page to carry -- "N open referrals from people who have
+       left; deeds will go to [who]".
+
+       IT IS org_deed_readiness's SIBLING and asks its authorisation
+       question the same way: `app_reachable_agency` per agency, which
+       answers true for an admin and for opndoor_manager, so it needs no
+       second arm for them, and `is_aal2()` at the top. No argument, one
+       row per reachable agency, for the same reason that one takes none --
+       the Agencies page draws many agencies and a per-agency call would be
+       a round trip per row.
+
+       IT ANSWERS WITH NAMES, NOT ADDRESSES. The "[who]" is the distinct
+       set of display names the delivery ladder resolves for those
+       referrals; emails are not returned, because the sentence on the page
+       does not print them and a reader who may see this page need not be
+       handed the agency's mailbox list to render it. Covered by name in
+       a_departed_referrers_referral_still_has_somebody.test.sql. */
+    expect(allowlist.length).toBeLessThanOrEqual(157);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

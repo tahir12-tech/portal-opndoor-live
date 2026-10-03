@@ -177,6 +177,7 @@ insert into allowed(name) values
   ('ops_routing_matrix'),
   ('org_add_contact'),
   ('org_deed_readiness'),
+  ('org_departed_referrals'),
   ('org_rate_tiers'),
   ('org_remove_contact'),
   ('org_set_primary_contact'),

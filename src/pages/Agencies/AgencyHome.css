@@ -267,3 +267,17 @@
 .ah-route__opt input { margin-top: 2px; flex: none; }
 .ah-route__opt b { display: block; font-size: 13.5px; color: var(--ink); }
 .ah-route__opt .ah-route__why { display: block; margin-top: 1px; }
+
+/* "N open referrals from people who have left; deeds will go to [who]."
+   A NOTE AND NOT A WARNING: the answer is reassuring -- the deeds have
+   somewhere to go -- so it does not borrow the blocked banner's red. The one
+   case that IS a problem (nobody left at the agency at all) says so in its own
+   words rather than by colour. */
+.ah-departed {
+  display: flex; align-items: center; gap: 8px;
+  margin: 14px 0 0; padding: 10px 14px;
+  border: 1px solid var(--line); border-radius: var(--r-md, 10px);
+  background: var(--white-lilac); color: var(--ink);
+  font-size: 13.5px; font-weight: 500;
+}
+.ah-departed svg { flex: 0 0 auto; color: var(--ink-mute); }

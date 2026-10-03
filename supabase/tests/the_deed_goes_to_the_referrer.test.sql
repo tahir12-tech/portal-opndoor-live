@@ -10,7 +10,7 @@
 -- the file says what it means on a clone and on an empty database.
 
 begin;
-select plan(18);
+select plan(19);
 
 -- ---------------------------------------------------------------------------
 -- AN AGENCY ON THE HOUSE ROUTE, with a negotiator, a manager and a director.
@@ -150,15 +150,32 @@ select ok(
            where r.rung = 'copy'),
   'and the ticked people in scope carry it instead');
 
--- Untick everybody: it falls to a manager covering the branch.
+-- Untick everybody: it falls to management covering the branch.
 select set_config('app.setting_notifications_tick', 'on', true);
 update public.users set receives_notifications = false
  where id in ('95000000-0000-0000-0000-00000000e0a2','95000000-0000-0000-0000-00000000e0a3','95000000-0000-0000-0000-00000000e0a4');
 select set_config('app.setting_notifications_tick', 'off', true);
 
+/* THE DIRECTOR, SINCE 20261007900000, and this assertion used to read
+   'branch_manager'. It is the same question with a finer answer: Matt's
+   instruction of 2026-10-03 puts the office's or agency's email first and then
+   "the agency's Directors", so the one rung that used to be "any management in
+   scope" is now three. ZZZ Dir holds sees_commission, which on this rail IS
+   what makes them a Director, so they are who it reaches.
+
+   NOT A WEAKENED TEST: the Manager rung is still covered, one assertion down,
+   by taking the Director away as well. */
 select is(
   (select min(r.rung) from public.agency_notification_recipients('95000000-0000-0000-0000-0000000000f1') r),
-  'branch_manager', 'with nobody ticked it falls to a manager covering the branch');
+  'director', 'with nobody ticked it falls to the agency''s Director');
+
+-- And with the Director gone too, the Manager rather than nobody, which is
+-- the last resort 20261007900000 kept beneath Matt's sentence on purpose.
+update public.users set status = 'deactivated' where id = '95000000-0000-0000-0000-00000000e0a2';
+
+select is(
+  (select min(r.rung) from public.agency_notification_recipients('95000000-0000-0000-0000-0000000000f1') r),
+  'branch_manager', 'and with no Director either, a Manager covering the branch');
 
 -- Nobody left at all: park, and do not auto-send.
 update public.users set status = 'deactivated'
