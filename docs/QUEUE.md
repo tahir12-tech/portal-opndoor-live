@@ -1222,6 +1222,10 @@ you asked for. Say the word and the tenant gets their own wording.
 
 > Reporting's "View all" links (Volume by branch, agency, referrer) open League on its default period instead of the period selected on Reporting. Carry the period (and the chosen measure, e.g. Referral count) across in the link, so League shows the same rows. Deploy to dev and check there.
 
+## A SUPPLIER'S STAFF ARE LABELLED WITH THEIR SUPPLIER (instruction, 2026-10-03, verbatim).
+
+> Reporting and League, referrer lists: a supplier's own staff are labelled with their supplier (e.g. "Kestrel Lettings"), not with the agency or branch they last referred for.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
