@@ -1637,6 +1637,10 @@ is a race on a rarer action and the fix means rewriting another function.
 
 > People tables: for a Manager, "Sees" should read "The whole agency (no commission)", matching how the Developer row says it.
 
+## THE AGREEMENT CARD IN PLAIN ENGLISH (instruction, 2026-10-03, verbatim).
+
+> Agency Commission tab, Agreement card (as seen by admin and the agency's Directors): rewrite in plain English. Replace "Negotiated · additive · volume counted per agency per year" and the "Additive: …" paragraph with one line, e.g. "Agreed deal: 1 tenant pays 3 weeks' rent and we pay 20%; 2 or more pay 5 weeks and we pay 25%." Show the volume "Counter" and "next referral lands at" only when the deal changes with volume, worded as "18 referrals so far this year; the next is paid at 20%", with dates as "23 Sep 2026". Show "Other offices or the group above are also paid on top" only when that's actually the case.
+
 ## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > No default deal and the warnings now; the referral refusal goes under "After launch". Then prioritise for Wednesday: 1) "Referrals sent" including expired and "Fee unpaid" (figures people will rely on); 2) the application-detail trio and the ready-to-sign email (what tenants and agents see); 3) supplier Reporting hiding "Commission by route"; 4) real reasons on failed saves. Everything else after those, and anything not done by Sunday evening moves to "After launch".
