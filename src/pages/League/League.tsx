@@ -38,6 +38,7 @@ import { isAgencyUser } from '@/data/capabilities';
 import { ScopePicker } from '@/components/ui/ScopePicker';
 import { recentScopes } from '@/data/scopeRecents';
 import { originFromParams, originOptions } from '@/data/origin';
+import { rankFromParam } from '@/data/leagueLink';
 import { uniqueAgencyIdByName, uniqueBranchIdByName } from '@/data/orgService';
 import { scopedSummaries } from '@/data/applicationsService';
 import { getPositions, type Position } from '@/data/positionsService';
@@ -205,9 +206,21 @@ export function League() {
    'Last 30 days' instead of 'This calendar month', so they aren't empty
    on the 1st of the month." A league table of a month that started this
    morning ranks nobody, and the 1st is exactly when people look. */
-function useLeaguePeriod(): [Period, (id: string) => void] {
+/* AND A LINK MAY SET IT. Matt, 2026-10-03: "Reporting's 'View all'
+   links open League on its default period instead of the period selected
+   on Reporting. Carry the period (and the chosen measure) across in the
+   link, so League shows the same rows." The page still OWNS the period
+   -- the dashboard's selection does not follow the reader around, which
+   is the rule above -- but a link that says which period it means is the
+   reader asking, not a filter leaking between pages. An unknown or
+   absent id falls back to the page's own default. */
+function useLeaguePeriod(asked?: string | null): [Period, (id: string) => void] {
   const periods = getPeriods();
-  const [period, setPeriodState] = useState<Period>(() => periods.find((p) => p.id === DEFAULT_PERIOD) ?? periods[0]);
+  const [period, setPeriodState] = useState<Period>(() => (
+    periods.find((p) => p.id === asked)
+    ?? periods.find((p) => p.id === DEFAULT_PERIOD)
+    ?? periods[0]
+  ));
   return [period, (id: string) => setPeriodState(periods.find((p) => p.id === id) ?? periods[0])];
 }
 
@@ -259,7 +272,12 @@ function ScopeToggle({ scope, setScope, mineLabel }: { scope: LeagueScope; setSc
 // ---- Referrer view (#79): own-partner board, positions + counts (+ fees when Full). ----
 function ReferrerLeagueView() {
   usePageMeta('league', 'League table', ['Home', 'League table']);
-  const [period, setPeriod] = useLeaguePeriod();
+  /* THE PERIOD OFF THE LINK HERE TOO. A negotiator pressing "View all"
+     under Reporting's referrer chart lands on this board, not the full
+     one, so carrying the period on only the full view would have left
+     exactly the readers the chart is about on the default. */
+  const [refParams] = useSearchParams();
+  const [period, setPeriod] = useLeaguePeriod(refParams.get('period'));
   /* A negotiator sees their branch's league and their company's, and the toggle
      between them is only worth drawing when the two differ. At a single-office
      agency, which is most of them, "my branch" and "whole company" are the same
@@ -368,8 +386,8 @@ function ReferrerLeagueView() {
 function FullLeagueView() {
   usePageMeta('league', 'League tables', ['Home', 'League tables']);
   const { role, partnerScope, currentUserId, scopeSel, setScopeSel, dataVersion } = useSession();
-  const [period, setPeriod] = useLeaguePeriod();
   const [params] = useSearchParams();
+  const [period, setPeriod] = useLeaguePeriod(params.get('period'));
   const navigate = useNavigate();
 
   // The viewer's position in the org, which decides whether the league narrows to
@@ -439,7 +457,12 @@ function FullLeagueView() {
     if (!tabs.some((t) => t.id === view)) setView(tabs[tabs.length - 1]?.id ?? 'referrer');
   }, [tabs, view]);
   const [q, setQ] = useState('');
-  const [sort, setSort] = useState<SortKey>('fees');
+  /* AND THE MEASURE OFF THE LINK. Fees is the board's own default; a
+     link that names a measure ("Referral count" on the chart, `refs`
+     here) opens on that column instead, so "View all" under a chart
+     ranked by referrals does not re-rank the same rows by money. The
+     mapping between the two vocabularies is in data/leagueLink.ts. */
+  const [sort, setSort] = useState<SortKey>(() => rankFromParam(params.get('rank')) ?? 'fees');
   const [dir, setDir] = useState<-1 | 1>(-1);
   const [page, setPage] = useState(0);
   const [partner, setPartner] = useState(() => (partnerScope === ALL_PARTNERS ? '' : partnerScope));

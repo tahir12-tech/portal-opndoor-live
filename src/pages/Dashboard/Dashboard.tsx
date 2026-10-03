@@ -25,7 +25,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   ALL_PARTNERS, READS_THE_WHOLE_BOOK, isOpndoorStaff, readsTheWholeBook, buildApplicationDoc, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPeriods, getTrend, maySeeCommission, partnerName,
-  statementMonths,
+  statementMonths, leagueLink,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
 import { formatLondonDate, gbpPence, possessive, formatDate } from '@/lib/format';
@@ -1054,7 +1054,15 @@ export function Dashboard() {
                 </CardBody>
                 <CardFoot>
                   <span className="muted" style={{ fontSize: 12.5 }}>{countLine}</span>
-                  <Button variant="quiet" size="sm" to={`/league?view=${key}`} arrow>View all</Button>
+                  {/* CARRYING WHAT THE READER IS LOOKING AT. Matt,
+                      2026-10-03: "Reporting's 'View all' links open League on
+                      its default period instead of the period selected on
+                      Reporting. Carry the period (and the chosen measure)
+                      across in the link, so League shows the same rows." The
+                      link said only which board; the period and the measure
+                      were dropped at the door, so "View all" showed a
+                      different table from the one it sat under. */}
+                  <Button variant="quiet" size="sm" to={leagueLink(key, period.id, measure[key])} arrow>View all</Button>
                 </CardFoot>
               </Card>
             );
