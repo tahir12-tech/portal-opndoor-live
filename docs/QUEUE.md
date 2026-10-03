@@ -1948,6 +1948,23 @@ is nothing left to match" instead of a warning.
 - The em-dash check is a new repo guard, and the existing
   noEmDashesInCustomerText is the one to extend rather than a second.
 
+## THE SUPPLIER'S ADD USER DIALOG (instruction, 2026-10-03, verbatim). ONE LINE DEPENDS ON AFTER LAUNCH.
+
+> Add user dialog for supplier users: sentence case, not capitals; no Supplier picker (it's always their own supplier); short level descriptions, e.g. Management "Sees everything for your company, including commission, and manages the team and agencies"; Referrer "Sends referrals and sees their own; can add agencies and offices while referring"; Developer "Uses the Dev Centre and API; no commission". Use the same dialog component as the agency Team page.
+
+- ONE OF THE THREE DESCRIPTIONS DESCRIBES A CAPABILITY THAT DOES NOT
+  EXIST YET. Referrer: "can add agencies and offices while referring"
+  is the instruction recorded under "After launch" tonight, on Matt's
+  own "small safe changes only" constraint. Shipping the sentence
+  before the capability would have the dialog promise something the
+  portal refuses.
+- SO THIS SPLITS: the casing, the removed Supplier picker and the
+  Management and Developer lines are small and safe; the Referrer line
+  ships with the capability, or ships without its second clause. Matt
+  to say which -- I will default to shipping the Referrer line WITHOUT
+  the clause and note it, rather than promising it.
+- "The same dialog component as the agency Team page" is `InviteToLevel`.
+
 ## THE SUPPLIER'S USERS PAGE IS THE OLD ONE (instruction, 2026-10-03, verbatim).
 
 > Supplier Users page (as Kestrel Management): the "…" menu on each row opens an empty box, so no actions are possible; the level key shows agency levels (Director, Manager, Negotiator) instead of the supplier's (Management, Referrer, Developer); and it's an older page, not the shared People table the agency Team and admin pages use. Replace it with the shared People table, with the supplier's levels, "Sees" column and the same confirmed actions, and the sidebar label "Team" to match agencies. Test every action as Kestrel Management on dev.
