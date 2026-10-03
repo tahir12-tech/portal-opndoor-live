@@ -152,7 +152,11 @@ const EMPTY_CELL = "-";
  * above it), so there is no number yet to show and the honest thing to print is
  * when it will appear.
  */
-const REF_ON_SEND = "Assigned when the statement is posted";
+/* Matt's exact wording, 2026-10-03: "Viewing, exporting or previewing shows
+   'Reference assigned when the statement is posted'." It was "Assigned when
+   the statement is posted", which is the same fact one word short of saying
+   what is assigned. The client has the same string in one place. */
+const REF_ON_SEND = "Reference assigned when the statement is posted";
 
 /** Current hour and calendar date in Europe/London. */
 function londonNow(): { hour: number; date: string } {
@@ -1633,7 +1637,10 @@ async function serveReissue(
   /* ITS OWN NUMBER, from the month's own counter, under a key that cannot
      collide with the original. Minted BEFORE the send and after the
      recipient check, exactly as the run does it and for the same reason. */
-  const { data: refData, error: refErr } = await service.rpc("commission_statement_ref", {
+  // `mint_...`, not the read. 20261007650000 split the two: the reader never
+  // mints, so every screen and export stopped taking numbers, and this is one
+  // of the two places that is actually issuing one.
+  const { data: refData, error: refErr } = await service.rpc("mint_commission_statement_ref", {
     p_month: monthKey, p_payee_key: `${q.payee_key}#reissue`,
   });
   if (refErr || typeof refData !== "string" || !refData) {
@@ -1932,7 +1939,11 @@ Deno.serve(async (req) => {
          commission_statement_sends, so a re-run posts it once the RPC answers. */
       let reference = REF_ON_SEND;
       if (!dry) {
-        const { data: refData, error: refErr } = await service.rpc("commission_statement_ref", {
+        // THE MOMENT A NUMBER IS ISSUED, and the only other one. Inside
+        // `if (!dry)` already, which is what makes a dry run take none;
+        // 20261007650000 makes that structural rather than careful, because
+        // the reader cannot mint at all now.
+        const { data: refData, error: refErr } = await service.rpc("mint_commission_statement_ref", {
           p_month: monthKey, p_payee_key: p.payee_key,
         });
         if (refErr || typeof refData !== "string" || !refData) { failed += 1; continue; }

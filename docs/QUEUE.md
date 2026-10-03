@@ -1338,6 +1338,48 @@ reading the wrong one. No frozen amount changed.
 - Doing 2 first: it is the one blocking his walk and it is the smaller of
   the two. Both reported together.
 
+## THE STATEMENT REFERENCES: THE REPORT (2026-10-03). NOTHING RENUMBERED.
+
+Answering the three instructions above on this subject, in one piece.
+
+### Which references on dev were taken without a statement being sent
+
+| ref | payee | taken | sent? |
+|---|---|---|---|
+| **STMT-2026-09-0004** | Frost Partnership, Kestrel's estate | 02 Oct 16:38:48 | **never** |
+| **STMT-2026-09-0005** | Kestrel Lettings (the supplier itself) | 03 Oct 11:20:16 | **never** |
+| **STMT-2026-10-0001** | Regent's Lettings | **26 Sep 13:13:18** | **never** |
+
+Three of the six references on dev. The other three (September 0001,
+0002, 0003) were all posted and have rows in
+`commission_statement_sends`.
+
+### Gaps in the sequence: none, now or after
+
+September runs 1,2,3,4,5 with no gap. 4 and 5 were simply taken by
+nothing. If they were deleted, 1,2,3 remain contiguous and the next real
+posting takes 4, so **removing them would leave no gap either**.
+October's only reference would disappear entirely and October would start
+at 1 when it is first posted. **Nothing renumbered, as instructed.**
+
+### How September "picked up" October's number: it did not
+
+Matt's third message carries the diagnosis: the export says
+STMT-2026-09-0001 and only the heading says October's. The heading cached
+its reference under the PAYEE KEY ALONE. `monthKey` was already in the
+effect's dependencies, so the effect re-ran on a month change, found
+October's answer still sitting under that payee, and skipped the fetch.
+September never picked anything up: the heading never asked again.
+
+And STMT-2026-10-0001 exists at all because viewing October minted it,
+on 26 Sep, in the same second as September 0001 and 0002.
+
+### Still to decide, and not blocking
+
+Whether to delete the three. They cost nothing where they are, and
+deleting is irreversible, so I have left them. Say the word and it is one
+statement.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue

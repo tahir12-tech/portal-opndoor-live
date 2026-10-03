@@ -253,10 +253,15 @@ select throws_ok(
   $$select public.commission_statement_ref('2026-09','opndoor-agents|agency:96000000-0000-0000-0000-0000000000a2')$$,
   '42501', 'You can only read a statement for a party you hold.',
   'nor read or mint another party''s commission statement number');
-select matches(
+/* MINTED BY THE RUN, READ BY THE ADMIN. 20261007650000 split the two: the
+   reader never mints, so this had to stop asking the reader to. The reach
+   half of the claim is the throws_ok above and is unchanged -- that is what
+   this section is about -- and the SHAPE of the number is asserted here from
+   the half that issues it. */
+select is(
   (select public.commission_statement_ref('2026-09','opndoor-agents|agency:96000000-0000-0000-0000-0000000000a1')),
-  '^STMT-2026-09-[0-9]{4}$',
-  'while their OWN agency''s reference is minted, in the STMT-YYYY-MM-NNNN shape');
+  null,
+  'their own agency''s reference reads as null until a statement is posted, and reading takes no number');
 
 -- THE INTERNAL TRAIL. Declared opndoor-admin-only and enforced in one render
 -- site in the client, which is not enforcement.

@@ -274,6 +274,10 @@ describe('a raising guard cannot evaluate to NULL', () => {
        nullable. The column constraint is the guarantee, and stating that
        here is the point of this list. If `role` ever becomes nullable, this
        is the note that says what else has to change. */
-    expect(denyIf.length).toBe(66);
+    /* 67 since 20261007650000, which split commission_statement_ref in two:
+       the minting half refuses anybody who is not the monthly run, and that
+       refusal is a deny-if like the other sixty-six. Coalesced in
+       20261007660000 after this very test caught it unwrapped. */
+    expect(denyIf.length).toBe(67);
   });
 });

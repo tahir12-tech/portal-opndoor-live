@@ -1566,13 +1566,46 @@ function dmyhm(x: Date): string {
  * NO DATABASE, NO NUMBER. A demo book has never been through the RPC and a
  * failed call must not invent one, so both read as the empty glyph rather than as
  * a plausible reference nothing can be reconciled against.
+ *
+ * AND READING NO LONGER TAKES ONE, 2026-10-03. Matt: "A reference must only be
+ * assigned when the monthly run actually posts a statement. Viewing, exporting
+ * or previewing shows 'Reference assigned when the statement is posted'."
+ *
+ * The RPC used to look the number up and, finding none, INSERT one -- so every
+ * caller of this function minted: this heading, all three statement exports and
+ * the supplier's card. 20261007650000 split it in two, and the one named here
+ * now returns null for a month nothing has been posted for. `mint_` is the
+ * other half and only the monthly run may call it.
+ *
+ * A MONTH WITH NO STATEMENT IS NOT A FAILURE, so it does not read as the empty
+ * glyph either. `REFERENCE_ON_POST` is the sentence, in one place, because this
+ * function has four callers and four chances to word it differently.
  */
+export const REFERENCE_ON_POST = 'Reference assigned when the statement is posted';
+
 export async function statementReference(monthKey: string, payeeKey: string): Promise<string> {
   if (!SUPABASE_ENABLED) return EMPTY;
   const { data, error } = await sb().rpc('commission_statement_ref', {
     p_month: monthKey, p_payee_key: payeeKey,
   });
-  return !error && typeof data === 'string' && data ? data : EMPTY;
+  if (error) return EMPTY;
+  return typeof data === 'string' && data ? data : REFERENCE_ON_POST;
+}
+
+/** Has this statement actually been posted? The reference IS the record of
+    that, so "it has a number" and "it was posted" are one question, and a
+    caller that needs a filename or a sort key asks it this way rather than
+    comparing against the sentence. */
+export function isPostedReference(ref: string): boolean {
+  return !!ref && ref !== REFERENCE_ON_POST && ref !== EMPTY;
+}
+
+/** The reference as a meta-line clause. "Reference STMT-2026-09-0001" when
+    there is one, and the sentence ALONE when there is not: prefixing it reads
+    "Reference Reference assigned when the statement is posted", which is the
+    kind of thing three call sites each discover separately. */
+export function referenceClause(ref: string): string {
+  return isPostedReference(ref) ? `Reference ${ref}` : ref;
 }
 
 /* THE NAME-SLUG REFERENCE IS GONE. It built
@@ -1679,9 +1712,13 @@ export async function buildPartnerStatementDoc(role: Role, scope: PartnerScope, 
       { kind: 'keyvalue', items: [moneyKv('Total commission payable', totalComm)] },
     );
   }
-  const metaLine = `${st.monthLabel} settlement · Payee: ${payee} · Supplier commission · Reference ${ref} · Generated ${generated} · GBP`;
+  const metaLine = `${st.monthLabel} settlement · Payee: ${payee} · Supplier commission · ${referenceClause(ref)} · Generated ${generated} · GBP`;
   const doc: BrandedDoc = { reportName: 'Commission statement', metaLine, blocks };
-  return { sheets: [{ name: 'Statement', doc }], filename: `opndoor-statement-${ref}.xlsx` };
+  /* A FILENAME IS NOT A PLACE FOR A SENTENCE. Where the month has not been
+     posted, `ref` is "Reference assigned when the statement is posted", which
+     would land on disk as the filename. The month and the payee identify the
+     document perfectly well until it has a number of its own. */
+  return { sheets: [{ name: 'Statement', doc }], filename: `opndoor-statement-${isPostedReference(ref) ? ref : st.monthKey}.xlsx` };
 }
 
 /**
@@ -1759,9 +1796,13 @@ export async function buildAgentStatementDoc(role: Role, scope: PartnerScope, pa
   // Same rule in the heading: the parenthetical names the supplier, so
   // there is nothing to put in it when there is no supplier.
   const payeeBit = partyIsSupplier(partner) ? `${payee} (${partnerLabel})` : payee;
-  const metaLine = `${st.monthLabel} settlement · Payee: ${payeeBit} · ${forAgency ? 'Commission earned' : 'Agent commission'} · Reference ${ref} · Generated ${generated} · GBP`;
+  const metaLine = `${st.monthLabel} settlement · Payee: ${payeeBit} · ${forAgency ? 'Commission earned' : 'Agent commission'} · ${referenceClause(ref)} · Generated ${generated} · GBP`;
   const doc: BrandedDoc = { reportName: 'Commission statement', metaLine, blocks };
-  return { sheets: [{ name: 'Statement', doc }], filename: `opndoor-statement-${ref}.xlsx` };
+  /* A FILENAME IS NOT A PLACE FOR A SENTENCE. Where the month has not been
+     posted, `ref` is "Reference assigned when the statement is posted", which
+     would land on disk as the filename. The month and the payee identify the
+     document perfectly well until it has a number of its own. */
+  return { sheets: [{ name: 'Statement', doc }], filename: `opndoor-statement-${isPostedReference(ref) ? ref : st.monthKey}.xlsx` };
 }
 
 /* ---------- The agency's own commission statement, for a month it chooses ----------
@@ -1964,7 +2005,7 @@ export async function buildCommissionStatementDoc(
       { kind: 'keyvalue', items: [moneyKv(`Total commission (${st.lines.length} ${plural(st.lines.length, 'application')})`, st.total)] },
     );
   }
-  const metaLine = `${st.monthLabel} · ${st.payeeName} · Commission earned · Reference ${ref} · Generated ${generated} · GBP`;
+  const metaLine = `${st.monthLabel} · ${st.payeeName} · Commission earned · ${referenceClause(ref)} · Generated ${generated} · GBP`;
   // ONE "Commission statement" HEADING. reportName is the title under the brand
   // band; there used to be a section block of the same words directly beneath it,
   // which reads as a mistake rather than as structure.

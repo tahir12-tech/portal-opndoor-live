@@ -26,7 +26,7 @@
 -- this is the list of things the product must be able to do.
 
 begin;
-select plan(22);
+select plan(23);
 
 -- ===========================================================================
 -- ONE AGENCY, ITS DIRECTOR, ITS MANAGER, ITS NEGOTIATOR
@@ -255,7 +255,13 @@ select lives_ok(
 
 select lives_ok(
   $$select public.commission_statement_ref('2026-11', 'opndoor-agents|agency:95000000-0000-0000-0000-0000000000a1')$$,
-  'and mint the statement reference, which is the step that refused it every month until now');
+  'and READ the statement reference, which is the step that refused it every month until now');
+/* AND MINTING IS THE RUN'S, 20261007650000. This file walks the monthly
+   run's steps, and taking the number is one of them, so the step is still
+   here -- asked of the half that does it, as the caller that does it. */
+select lives_ok(
+  $$select public.mint_commission_statement_ref('2026-11', 'opndoor-agents|agency:95000000-0000-0000-0000-0000000000a1')$$,
+  'and the run itself mints one');
 
 select lives_ok(
   $$insert into public.commission_statement_sends (statement_month, payee_key, recipients, total)

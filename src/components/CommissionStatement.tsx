@@ -25,7 +25,8 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   buildAllStatementsCsv, buildCommissionStatementDoc, downloadCsv, exportBranded,
   getCommissionStatements, maySeeCommission,
-  statementMonths, type CommissionStatement as Statement, statementReference } from '@/data';
+  statementMonths, type CommissionStatement as Statement, statementReference,
+  isPostedReference } from '@/data';
 import type { PartnerScope, Role } from '@/data';
 import { SOURCE_LABEL } from '@/data/commissionSplit';
 import type { CommissionSource } from '@/data/types';
@@ -192,14 +193,33 @@ function StatementPanel({
   const single = !!orgId || statements.length === 1;
   const shown = single ? statements : statements.filter((s) => s.payeeKey === openPayee);
 
+  /* KEYED ON THE MONTH AS WELL AS THE PAYEE, 2026-10-03.
+
+     Matt: "after switching the month from October to September, the
+     on-screen heading for Regent's Lettings still shows October's
+     reference (STMT-2026-10-0001), while the export correctly says
+     STMT-2026-09-0001. The heading must update with the month."
+
+     THE CACHE WAS KEYED ON THE PAYEE ALONE. The effect re-ran on a month
+     change -- `monthKey` was already in its dependencies -- and then hit
+     `if (refs[st.payeeKey]) continue`, found October's answer still
+     sitting under that payee, and skipped the fetch. So September showed
+     October's number. Nothing "picked up" anything: the heading never
+     asked again. The export was right because it calls
+     statementReference(monthKey, ...) fresh every time.
+
+     The comment below used to say "a month change mid-flight must not
+     write a stale reference", which is the race and was handled. The
+     cache key was the other half and was not. */
+  const refKey = (monthKeyIn: string, payeeKey: string) => `${monthKeyIn}|${payeeKey}`;
   useEffect(() => {
     let ignore = false;
     void (async () => {
       for (const st of shown) {
-        if (refs[st.payeeKey]) continue;
+        if (refs[refKey(st.monthKey, st.payeeKey)]) continue;
         const r = await statementReference(st.monthKey, st.payeeKey);
         // A month change mid-flight must not write a stale reference.
-        if (!ignore && r) setRefs((prev) => ({ ...prev, [st.payeeKey]: r }));
+        if (!ignore && r) setRefs((prev) => ({ ...prev, [refKey(st.monthKey, st.payeeKey)]: r }));
       }
     })();
     return () => { ignore = true; };
@@ -322,8 +342,20 @@ function StatementPanel({
                     {st.level === 'agency' ? 'Agency' : st.level === 'group' ? 'Group' : 'Branch'} · {st.monthLabel}
                     {/* THE REFERENCE THE DOCUMENT CARRIES. It was on the PDF
                         and the CSV and nowhere on the page, so a payee
-                        querying a statement had nothing to quote. */}
-                    {refs[st.payeeKey] && <> · <span className="stmt__ref">{refs[st.payeeKey]}</span></>}
+                        querying a statement had nothing to quote.
+
+                        AND THE SENTENCE WHERE THERE IS NO NUMBER YET. A month
+                        nothing has been posted for has no reference, which is
+                        a fact about the month: looking at it must not take
+                        one. `stmt__ref` is the mono treatment a reference
+                        gets, so the sentence does not wear it. */}
+                    {(() => {
+                      const r = refs[refKey(st.monthKey, st.payeeKey)];
+                      if (!r) return null;
+                      return isPostedReference(r)
+                        ? <> · <span className="stmt__ref">{r}</span></>
+                        : <> · <span className="muted">{r}</span></>;
+                    })()}
                   </div>
                   {/* TWO LINES, ALWAYS. A third used to appear here whenever a
                       column collapsed, "Branch: Soho · Source: Agreement", on
