@@ -60,6 +60,35 @@ function tCell(v: string, s: Style = textStyle): XCell {
 function nCell(v: number, fmt: string): XCell {
   return { v: Number.isFinite(v) ? v : 0, t: 'n', s: numStyle(fmt) };
 }
+
+/* AN EMPTY NUMERIC CELL IS EMPTY, NOT ZERO.
+
+   Matt, 2026-10-03: "an unfinished application with no rent given (e.g.
+   GR-20626) still shows £0.00 for Monthly rent, Share of rent, Guarantee fee
+   charged and Tenancy total fee. Leave all four blank until the tenant has
+   given a rent, whether the stored value is empty or zero."
+
+   ALL FOUR WERE ALREADY PASSING `''`. exportsService has blanked them since
+   2026-10-02 -- `a.rent ? money(a.rent) : ''`, `unfinished ? '' : ...` -- and
+   they still printed £0.00, because the row builder did `Number(val)` and
+   `Number('')` is 0. One comment in that file had even noticed the symptom
+   ("a blank in a numeric column renders as £0.00") and worked around it for
+   one column rather than fixing it here.
+
+   SO THE FIX IS HERE AND IT IS ONE LINE OF MEANING: an empty value keeps the
+   numeric styling, so the column still reads right-aligned and the file still
+   looks like a table, and carries no value at all. Every export gains it,
+   which is right -- no money column anywhere should turn "nothing" into
+   "nothing owed". */
+function emptyNumCell(fmt: string): XCell {
+  return { v: '', t: 's', s: numStyle(fmt) };
+}
+
+/** Is this cell genuinely absent, as opposed to a real zero? `0` is a figure
+    and must print; `''`, null and undefined are not. */
+function isBlank(v: unknown): boolean {
+  return v == null || (typeof v === 'string' && v.trim() === '');
+}
 function fmtFor(type: ColType): string {
   return type === 'money' ? FMT_MONEY : type === 'money2' ? FMT_MONEY2 : type === 'pct' ? FMT_PCT : FMT_INT;
 }
@@ -141,7 +170,10 @@ export function buildBrandedSheet(doc: BrandedDoc): XLSX.WorkSheet {
     b.rows.forEach((r) => {
       grid.push(r.map((val, ci): XCell => {
         const col = b.columns[ci];
-        return col.type === 'text' ? tCell(String(val)) : nCell(Number(val), fmtFor(col.type));
+        if (col.type === 'text') return tCell(String(val));
+        // Nothing is not nothing-owed. See emptyNumCell.
+        if (isBlank(val)) return emptyNumCell(fmtFor(col.type));
+        return nCell(Number(val), fmtFor(col.type));
       }));
     });
     b.columns.forEach((col, ci) => {
