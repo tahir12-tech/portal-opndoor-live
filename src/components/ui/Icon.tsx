@@ -75,8 +75,42 @@ export interface IconProps {
   style?: CSSProperties;
 }
 
-export function Icon({ name, size, strokeWidth = 2, className, style }: IconProps) {
-  const dims = size != null ? { width: size, height: size } : {};
+/* THE FLOOR, SO NO ICON CAN RENDER AT PAGE SIZE.
+
+   Matt, 2026-10-03: "the info icon beside the 'Conversion is period
+   throughput' note renders at full page size (same bug as the supplier
+   Overview warning icon). Sweep the whole portal for every icon that can
+   render without a size, give them all a size."
+
+   WHY IT HAPPENED, AND WHY IT HAPPENED TWICE. `size` was optional and
+   `dims` was `{}` when it was omitted, so the element went out as an
+   `<svg viewBox="0 0 24 24">` with no width and no height. An SVG with a
+   viewBox and no intrinsic size fills its container. 286 of the 340
+   usages in the portal pass no size, and almost all of them look right
+   because their CONTAINER has a CSS rule -- `.btn svg`, `.sb__link svg`,
+   `.funnel-note svg` and forty more. The two Matt found are the two
+   whose container had no such rule. It is not a mistake anybody made at
+   the call site; it is a component whose default was "as big as you
+   like".
+
+   SO THE DEFAULT IS A NUMBER, and 16 because that is what `.btn svg`
+   uses and it is the commonest size in the stylesheet. Every call site
+   that passes a size is unaffected, and so is every CSS rule that sizes
+   icons: width and height here are PRESENTATION attributes, which sit
+   below any CSS selector in the cascade, so the forty rules above still
+   win exactly as they did. The only renders that change are the ones
+   that were filling their container, which is the bug.
+
+   A DEFAULT RATHER THAN A REQUIRED PROP, deliberately. Requiring it
+   would have meant stamping a number on 286 call sites that are
+   currently, correctly, sized by CSS -- and each of those numbers would
+   then be a second opinion about a size the stylesheet already owns,
+   drifting the first time a rule changed. The guard in
+   everyIconHasASize.test.ts asserts the default exists and that the
+   element always goes out with dimensions, so this cannot silently come
+   back. */
+export function Icon({ name, size = 16, strokeWidth = 2, className, style }: IconProps) {
+  const dims = { width: size, height: size };
   return (
     <svg
       viewBox="0 0 24 24"

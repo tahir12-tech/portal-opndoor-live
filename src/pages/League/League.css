@@ -253,4 +253,11 @@
   font-size: 12.5px;
   color: var(--ink-mute);
 }
-.lt-note svg { flex: none; margin-top: 2px; }
+/* THE SAME 14px AS `.funnel-note svg` ON THE DASHBOARD, which carries the
+   identical sentence. This rule set `flex` and `margin-top` and no size,
+   so the icon took the component's old no-size path and filled the card
+   while the Dashboard's copy of the same note was 14px. The component now
+   has a floor of its own, so this is no longer load-bearing; it is here so
+   the two notes match, which is why they are the same number and not
+   whatever the floor happens to be. */
+.lt-note svg { flex: none; margin-top: 2px; width: 14px; height: 14px; color: var(--sent); }
