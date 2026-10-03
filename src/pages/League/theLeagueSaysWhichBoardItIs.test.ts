@@ -89,9 +89,16 @@ describe('the people board', () => {
     expect(LEAGUE).toContain("['sub', 'Agency or supplier', false]");
   });
 
+  /* THE CELL IS NO LONGER CALLED `detail`, and the assertion followed it
+     rather than being deleted. 2026-10-03 split that one column into named
+     ones per board -- Agency and Route on Branches, Route on Agencies, none
+     on Suppliers -- and the referrer board kept its single "Agency or
+     supplier" cell, which is the shape the instruction before gave it. What
+     is asserted is still the pair: the heading exists, and the referrer arm
+     puts something under it. */
   it('and in the export, which had no such column at all', () => {
     expect(EXPORTS).toContain("{ header: 'Agency or supplier', type: 'text' }");
-    expect(EXPORTS).toContain('if (view === \'referrer\') return [name, detail,');
+    expect(EXPORTS).toContain("return [name, who, r.refs,");
   });
 });
 

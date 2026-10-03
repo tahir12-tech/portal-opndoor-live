@@ -45,7 +45,7 @@ import { liveScopeShape } from '@/data/liveAnalytics';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
-import { withoutVia } from '@/data/viaSupplier';
+import { withoutVia, rowIsItsOwnPartner } from '@/data/viaSupplier';
 import { Icon } from '@/components/ui/Icon';
 import { Card, CardFoot } from '@/components/ui/Card';
 import { Eyebrow } from '@/components/ui/Eyebrow';
@@ -719,9 +719,16 @@ function FullLeagueView() {
                         <td key={c[0]}>
                           <div className="lt-name">
                             {showPartner ? withoutVia(r.name) : r.name}
-                            {showPartner && r.partner ? <span className="lt-partner">{r.partner}</span> : null}
+                            {/* AND NOT WHERE THE ROW IS THE PARTNER. On the
+                                Suppliers board the name and the tag are the
+                                same string, so this printed "Kestrel Lettings
+                                / Kestrel Lettings". The tag is attribution,
+                                and a row about the supplier has nothing to
+                                attribute. */}
+                            {showPartner && r.partner && !rowIsItsOwnPartner(r)
+                              ? <span className="lt-partner">{r.partner}</span> : null}
                           </div>
-                          {!hasSubCol && <div className="lt-sub">{r.sub}</div>}
+                          {!hasSubCol && !rowIsItsOwnPartner(r) && <div className="lt-sub">{r.sub}</div>}
                         </td>
                       ) : c[0] === 'sub' ? (
                         <td key={c[0]} className="soft">{showPartner ? withoutVia(r.sub) : r.sub}</td>

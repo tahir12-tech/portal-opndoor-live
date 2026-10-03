@@ -1439,18 +1439,42 @@ function leagueColumns(view: LeagueView, agency: boolean, showComm: boolean): Co
      one dropped: two people of one name at two companies read as one
      person with a strange total. It carries no commission, as before. */
   if (view === 'referrer') return [first, { header: 'Agency or supplier', type: 'text' }, ...core];
+  /* =====================================================================
+     "Detail" BECOMES COLUMNS THAT SAY WHAT THEY HOLD, 2026-10-03.
+
+     Matt: "replace 'Detail' with separate 'Agency' and 'Route' columns on
+     the Branches export (e.g. Kestrel Central | Kestrel Lettings |
+     Kestrel Lettings), 'Route' alone on the Agencies export, and no
+     Detail column on Suppliers."
+
+     ONE COLUMN HAD BEEN DOING THREE JOBS. `Detail` was the row's sub and
+     its partner joined with a dot, so a branch row read "Kestrel
+     Lettings · Kestrel Lettings" in a single cell and a Suppliers row
+     read the supplier's own name next to the supplier's own name.
+
+     AND THE REPEAT IN THE EXAMPLE IS DELIBERATE. On a branch of Kestrel's
+     Frost the agency and the route are both "Kestrel Lettings", and Matt
+     keeps both: a repeat is only wrong where nothing says what the second
+     one IS. Two headed columns say it. That is also why the Suppliers
+     sheet loses the column outright rather than carrying a blank one --
+     there the first column already IS the route.
+     ===================================================================== */
+  const detailCols: Column[] = view === 'supplier' ? []
+    : view === 'branch'
+      ? [{ header: 'Agency', type: 'text' }, { header: 'Route', type: 'text' }]
+      : [{ header: 'Route', type: 'text' }];
   /* A MANAGER READS THE BOARD, NOT THE PAYOUT. The referrer view never carried
      commission and the other two do, as the last column or two; a Manager is
      supposed to see who is performing across every branch and keeps all of that,
      and stops at the money the agency earns from it. leagueRows makes the same
      test on the same flag, so a heading here always has a cell under it. */
-  if (!showComm) return [first, { header: 'Detail', type: 'text' }, ...core];
+  if (!showComm) return [first, ...detailCols, ...core];
   const comm: Column[] = agency
     // A branch board row shows the branch's OWN commission, which is nothing
     // where it holds no rate of its own; hence the note on the sheet.
     ? [moneyCol(view === 'branch' ? 'Own commission' : 'Commission')]
     : [moneyCol('Supplier commission'), moneyCol('Agent commission')];
-  return [first, { header: 'Detail', type: 'text' }, ...core, ...comm];
+  return [first, ...detailCols, ...core, ...comm];
 }
 function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, agency: boolean, showComm: boolean): TableRow[] {
   return rows.map((r) => {
@@ -1463,9 +1487,29 @@ function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, a
        condition that the suffix on the name is the same fact twice. */
     const name = showPartner ? withoutVia(r.name) : r.name;
     const sub = showPartner ? withoutVia(r.sub) : r.sub;
-    const detail = showPartner && r.partner ? `${sub}${sub ? ' · ' : ''}${r.partner}` : sub;
-    if (view === 'referrer') return [name, detail, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
-    const base = [name, detail, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
+    /* THE CELLS UNDER WHATEVER `leagueColumns` DECLARED, and the two have
+       to agree exactly or every cell after them shifts a column. Suppliers
+       gets none, Branches gets the agency and the route, Agencies gets the
+       route.
+
+       `Route` IS THE PARTNER, and it is only filled when the sheet spans
+       more than one: narrowed to a single partner it would be the same
+       word on every row of the sheet, which is the noise this change is
+       about. `Agency` is the row's sub, which `keyOf` fills with the
+       agency on a multi-office branch row; a single-office agency is
+       NAMED by the agency in the first column, so this is blank there and
+       says so by being blank rather than by repeating the first cell. */
+    const route = showPartner && r.partner ? r.partner : '';
+    const detailCells = view === 'supplier' ? []
+      : view === 'branch' ? [sub, route]
+      : [route];
+    if (view === 'referrer') {
+      // The referrer board keeps its one "Agency or supplier" cell, which is
+      // the shape the 2026-10-02 instruction gave it.
+      const who = showPartner && r.partner ? `${sub}${sub ? ' · ' : ''}${r.partner}` : sub;
+      return [name, who, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
+    }
+    const base = [name, ...detailCells, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
     if (!showComm) return base;
     return agency ? [...base, money(r.agentComm)] : [...base, money(r.partnerComm), money(r.agentComm)];
   });

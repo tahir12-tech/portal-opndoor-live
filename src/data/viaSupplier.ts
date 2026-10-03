@@ -88,6 +88,41 @@ export function viaSupplier(scope: PartnerScope, name: string | null | undefined
   return supplier ? `${n} (via ${supplier})` : n;
 }
 
+/* =====================================================================
+   A ROW THAT IS ITS OWN PARTNER SAYS SO ONCE.
+
+   Matt, 2026-10-03: "League Suppliers tab (screen and export): the
+   supplier's name repeats as its own subtitle ('Kestrel Lettings /
+   Kestrel Lettings') and in the export's Detail column. Drop the repeat:
+   no subtitle on the Suppliers tab, and leave Detail blank or remove it
+   there."
+
+   THE THIRD INSTRUCTION IN THIS FAMILY, after "(via …)" on a row whose
+   tag already names the supplier and "(via …)" in a column that already
+   carries it. Every one of them is the same sentence: the partner is
+   attribution, and attribution is worth nothing on a row whose subject
+   IS the partner. On the Suppliers board `keyOf` sets `name` and
+   `partner` to the same string, which is what makes that exactly
+   checkable rather than a special case for one tab.
+
+   ASKED OF THE ROW, NOT THE VIEW, deliberately. `view === 'supplier'`
+   would fix the board Matt is looking at and leave the next one -- an
+   agency that shares its supplier's name, which is the shape behind
+   "Kestrel Central's subtitle still shows Kestrel Lettings (via Kestrel
+   Lettings)". A row that would print the same words twice is the thing
+   to test for.
+
+   ONE PREDICATE FOR THE SCREEN AND THE EXPORT, because they are two
+   renderings of one table and this file exists because they drifted.
+   ===================================================================== */
+export function rowIsItsOwnPartner(
+  row: { name?: string | null; partner?: string | null },
+): boolean {
+  const name = (row.name ?? '').trim();
+  const partner = (row.partner ?? '').trim();
+  return !!name && !!partner && withoutVia(name) === withoutVia(partner);
+}
+
 /** True where `viaSupplier` would add something, for a caller that needs to
     decide whether to draw a second line rather than extend the first. */
 export function isSupplierEstate(partnerSlug: string | null | undefined): boolean {
