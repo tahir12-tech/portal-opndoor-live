@@ -1273,6 +1273,10 @@ you asked for. Say the word and the tenant gets their own wording.
 *(Filled in when the backfill runs. Rows recoverable from `partner_audit`
 are taken from the audit; these are the ones that were not.)*
 
+## THE BORDEREAU DEFAULTS TO LAST MONTH (instruction, 2026-10-03, verbatim).
+
+> Monthly bordereau dialog: default the month to the last complete calendar month (today that's September 2026), not a fixed month. Also show "last changed 7 Aug 2026" in the same date style as the rest of the portal.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
