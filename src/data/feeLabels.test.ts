@@ -55,6 +55,11 @@ describe('the guarantor fee is stated as the fee, not the rent', () => {
     const d = withFee(REF, null);
     expect(d.feeGBP).toBeUndefined();
     expect(d.feeBasisLabel).toBeUndefined();
-    expect(d.rent).toBe('£2,450');
+    /* TO THE PENNY SINCE 2026-10-03. `rent` was `£${n.toLocaleString()}`,
+       which has no minimum fraction digits, so £2,450.00 printed as
+       £2,450 and £23,030.40 as £23,030.4 -- the figure on GR-23853 that
+       Matt reported. The fallback itself is unchanged: this row still
+       shows the rent because it carries no fee. */
+    expect(d.rent).toBe('£2,450.00');
   });
 });

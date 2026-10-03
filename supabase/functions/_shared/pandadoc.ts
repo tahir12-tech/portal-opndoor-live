@@ -75,6 +75,19 @@ function fmtDate(iso: string): string {
 const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+const MONTH_LONG = ["January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"];
+
+/** "29 December 2026", which is how Matt wrote the correction sentence. The
+    short form beside this one is for the deed itself and the expiries file,
+    where a column has to stay narrow; a sentence in a tenant's email has
+    room for the word. */
+function longDate(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+  if (!m) return iso || "";
+  return `${Number(m[3])} ${MONTH_LONG[Number(m[2]) - 1] ?? m[2]} ${m[1]}`;
+}
+
 function spelledDate(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
   if (!m) return iso || "";
@@ -251,6 +264,12 @@ export interface RemindContext {
   tenant_first_name: string;
   tenant_last_name: string;
   tenant_email: string;
+  /** True when this deed replaced an earlier one after a tenancy correction.
+      The tenant has a deed in their inbox that is no longer the one to sign,
+      and an email that does not say so reads as a duplicate. */
+  replacesEarlierDeed?: boolean;
+  /** The corrected tenancy start, for that sentence. */
+  tenancyStart?: string | null;
 }
 export interface RemindResult {
   ok: boolean;
@@ -362,8 +381,30 @@ async function emailSigningLink(tenantEmail: string, link: string, ctx: RemindCo
     message: {
       subject: `Your opndoor Deed of Guarantee is ready to sign, ${ctx.guarantee_ref}`,
       heading: "Your Deed of Guarantee is ready to sign",
+      /* THE SAME HEADER AS EVERY OTHER TENANT EMAIL. Matt, 2026-10-03:
+         "Use the same header as the other tenant emails." It was missing,
+         and `audience` defaults to "portal", so this one message was
+         headed GUARANTEE REFERRAL PORTAL -- the name of a product the
+         tenant has never seen -- while everything else they get from us
+         says GUARANTOR APPLICATION. */
+      audience: "tenant",
       blocks: [
-        { p: "Your guarantee is in place and the Deed of Guarantee is ready for your signature. Signing is the last step." },
+        /* NOT "IN PLACE" BEFORE IT IS SIGNED. Matt, 2026-10-03: "don't say
+           'Your guarantee is in place' before the deed is signed; say
+           'Your guarantee fee is paid and your Deed of Guarantee is ready
+           to sign. Signing puts your guarantee in place.'"
+
+           IT TOLD THE TENANT THEY WERE COVERED while asking them to do the
+           thing that covers them, which is the one sentence in this email
+           that could cost somebody a tenancy. */
+        { p: "Your guarantee fee is paid and your Deed of Guarantee is ready to sign. Signing puts your guarantee in place." },
+        /* AND WHETHER THIS REPLACES ONE THEY ALREADY HAVE. A correction
+           voids the old deed and issues a new one, so the tenant is holding
+           a signing link that no longer works and a new one that looks the
+           same. Matt's words, with his date format. */
+        ...(ctx.replacesEarlierDeed
+          ? [{ p: `This replaces your earlier deed; the tenancy start is now ${longDate(ctx.tenancyStart ?? "")}.` }]
+          : []),
         { rows: [["Reference", ctx.guarantee_ref]] },
         /* NO "NOT INSURANCE" LINE HERE. Matt, 2026-10-02. The footer
            emailLayout puts on every message says it, word for word, and

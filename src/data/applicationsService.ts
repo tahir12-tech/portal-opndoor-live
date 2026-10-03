@@ -781,7 +781,14 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
     partner: summarySlug,
     partnerName: partnerName(summarySlug),
     agentAddr: AGENT_ADDR[r.branch] || `${r.branch}, London`,
-    rent: `£${r.rent.toLocaleString('en-GB')}`,
+    /* TO THE PENNY. Matt, 2026-10-03, on GR-23853: "'Rent to be guaranteed
+       £23,030.4' must show two decimal places; check every money figure on
+       this page and the tenant pages." Bare toLocaleString has no MINIMUM,
+       so £1,500.00 printed as £1,500 and £23,030.40 as £23,030.4 -- the
+       same number read two ways on one screen. He gave this rule on
+       2026-10-01 too and only the paid amount was fixed then, which is why
+       there is now a guard. */
+    rent: gbpPence(r.rent),
     rentNum: r.rent,
     ...feeLabels({ rent: r.rent, fee: summary?.fee ?? null, sharePercent: r.sharePercent ?? null }),
     referrer: r.referrer,
@@ -799,7 +806,7 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
     issue: deedAt ? fmtShort(deedAt) : null,
     // Expiry is always tenancy start + 12 months - 1 day, never anchored on the deed date.
     expiry: deedAt ? fmtShort(guaranteeExpiry(tenancyStart)) : null,
-    annual: `£${annual.toLocaleString('en-GB')}`,
+    annual: gbpPence(annual),
     paymentDate: paidAt || null,
     owner: r.owner,
     landlordName: r.landlordName ?? undefined,

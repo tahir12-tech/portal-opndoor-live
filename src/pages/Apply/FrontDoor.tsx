@@ -28,6 +28,7 @@ import { validatePhone } from '@/tenant/formSpec';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import '@/pages/auth/auth.css';
 import './Apply.css';
+import { gbpPence } from '@/lib/format';
 
 /* The SAME split-panel shell the portal's own sign-in uses: auth.css, the same
    brand panel on the left, the same card on the right. Not a lookalike, the
@@ -107,7 +108,11 @@ export function Shell({
   );
 }
 
-const money = (n: number) => `£${n.toLocaleString('en-GB', { maximumFractionDigits: 0 })}`;
+/* The tenant's own first sight of the rent being guaranteed, so it matches
+   the figure on every later page rather than being rounded to the pound.
+   Matt, 2026-10-03: "check every money figure on this page and the tenant
+   pages." */
+const money = (n: number) => gbpPence(n);
 
 /* ---------------------------------------------------------------------------
    1. Register. THE FRONT DOOR.

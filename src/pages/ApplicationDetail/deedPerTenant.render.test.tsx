@@ -75,7 +75,9 @@ describe('every sibling shows its OWN deed state', () => {
     const view = await openDetail(SIBLING);
     const para = view.container.querySelector('.jt-panel__deed')!.textContent ?? '';
     expect(para).toMatch(/Each tenant signs their own Deed of Guarantee/i);
-    expect(para).toMatch(/names all 2 tenants/i);
+    expect(para).toMatch(/names both tenants/i /* "all 2" until 2026-10-03: Matt, "'names all
+      2 tenants' should read 'names both tenants' (and 'all 3 tenants'
+      for three or more)". English has a word for two. */);
     expect(para).not.toMatch(/carried by the lead/i);
     expect(para).not.toMatch(/issued/i);
   });

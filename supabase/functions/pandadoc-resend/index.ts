@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
 
     const { data: app, error } = await userClient
       .from("applications")
-      .select("id, status, deed_state, pandadoc_document_id, guarantee_ref, tenant_first_name, tenant_last_name,tenant_email, livemode")
+      .select("id, status, deed_state, pandadoc_document_id, guarantee_ref, tenant_first_name, tenant_last_name, tenant_email, livemode, tenancy_start")
       .eq("guarantee_ref", ref)
       .maybeSingle();
     if (error) return json({ ok: false, error: error.message }, 400);
@@ -48,12 +48,31 @@ Deno.serve(async (req) => {
 
     const service = createClient(SUPABASE_URL, SERVICE);
     if (app.deed_state === "awaiting_tenant" && app.pandadoc_document_id) {
+      /* DID A CORRECTION REPLACE THIS DEED? Matt, 2026-10-03: "If the deed
+         was reissued after a start-date correction, say so."
+
+         READ FROM THE ACTIVITY LOG, which is where the fact already is:
+         both correction paths write `tenancy_correction_applied`. The
+         delivery columns cannot answer it -- `deed_delivery_superseded_at`
+         is only set when there was a delivery to supersede, and a deed
+         corrected while still unsigned never had one, which is exactly
+         the case Matt is looking at. */
+      const { data: corrections } = await service
+        .from("activity_log")
+        .select("id")
+        .eq("application_id", app.id)
+        .eq("kind", "tenancy_correction_applied")
+        .limit(1);
+      const replacesEarlierDeed = (corrections?.length ?? 0) > 0;
+
       // State-aware nudge: reminder if PandaDoc allows it, else re-deliver the link.
       const result = await remindSignature(app.pandadoc_document_id, {
         guarantee_ref: app.guarantee_ref,
         tenant_first_name: app.tenant_first_name,
         tenant_last_name: app.tenant_last_name,
         tenant_email: app.tenant_email,
+        replacesEarlierDeed,
+        tenancyStart: app.tenancy_start,
       }, app.livemode === true);
       if (!result.ok) {
         // Honest, partner-safe entry for everyone; the raw provider detail is

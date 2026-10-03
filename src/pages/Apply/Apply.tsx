@@ -43,7 +43,7 @@ import { DocUpload, FinancialsPanel, ID_CHECK_ENABLED, IdCheckPanel, ProofUpload
 import { RevealMissingContext } from './reveal';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { useTenantDocumentTitle } from '@/hooks/useDocumentTitle';
-import { formatLongDate } from '@/lib/format';
+import { formatLongDate, gbpPence } from '@/lib/format';
 import { Field } from '@/components/ui/Field';
 import './Apply.css';
 import { plural } from '@/lib/plural';
@@ -223,7 +223,8 @@ export function Apply() {
     const amt = bundle?.application.share_amount;
     const parts: string[] = [];
     if (pct != null) parts.push(`${Number(pct)}%`);
-    if (amt != null) parts.push(`£${Number(amt).toLocaleString('en-GB')}`);
+    // To the penny, like every other money figure a tenant is shown.
+    if (amt != null) parts.push(gbpPence(Number(amt)));
     return parts.join(' · ') || '-';
   };
 

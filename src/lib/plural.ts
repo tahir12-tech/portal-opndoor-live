@@ -91,3 +91,25 @@ export function plural(n: number, singular: string, many?: string): string {
 export function countOf(n: number, singular: string, many?: string): string {
   return `${n.toLocaleString('en-GB')} ${plural(n, singular, many)}`;
 }
+
+/**
+ * "all of them", in English.
+ *
+ * Matt, 2026-10-03, on GR-23853: "'names all 2 tenants' should read 'names
+ * both tenants' (and 'all 3 tenants' for three or more)."
+ *
+ * ENGLISH HAS A WORD FOR TWO AND IT IS NOT "ALL 2". `countOf` is right about
+ * the plural and has nothing to say about the quantifier in front of it, so
+ * "all " + countOf(2, 'tenant') reads as a machine counting. This is the
+ * quantifier, and it lives here beside the other two because that is where
+ * anybody writing a sentence about a count will look -- and because
+ * theCountsReadAsEnglish refuses a hand-rolled one at the call site.
+ *
+ * ONE IS "the tenant", not "all 1 tenant" and not "both": a caller that can
+ * reach n = 1 is describing one thing and the article is the honest word.
+ */
+export function allOf(n: number, singular: string, many?: string): string {
+  if (n === 2) return `both ${plural(2, singular, many)}`;
+  if (n === 1) return `the ${singular}`;
+  return `all ${countOf(n, singular, many)}`;
+}

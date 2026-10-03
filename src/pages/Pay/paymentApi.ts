@@ -5,6 +5,7 @@
    end (and the smoke test passes).
    ===================================================================== */
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import { gbpPence } from '@/lib/format';
 
 export interface PaymentConfirmation {
   found: boolean;
@@ -58,8 +59,14 @@ export async function requestSigningLink(sessionId: string): Promise<string | nu
   }
 }
 
-/** £ amount, pence only when present. */
+/** £ amount, always to the penny.
+ *
+ *  "pence only when present" was the old rule and it is the one Matt has now
+ *  corrected twice: "money always shows two decimal places (£34,545.60, not
+ *  £34,545.6), everywhere" (2026-10-01) and "check every money figure on this
+ *  page and the tenant pages" (2026-10-03). This is what a tenant is asked to
+ *  pay, beside a figure on a statement that is always to the penny. */
 export function fmtAmount(n: number | undefined): string {
   if (n == null) return '';
-  return `£${n.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  return gbpPence(n);
 }

@@ -57,7 +57,7 @@ import { buildAgentJourney, getApplicationJourney, AGENT_JOURNEY_BANDS, type App
 import { useToast } from '@/components/ui/Toast';
 import { ROUTE_LABEL, preReferencedJourney, type Channel } from '@/data/channel';
 import './ApplicationDetail.css';
-import { countOf } from '@/lib/plural';
+import { allOf, countOf } from '@/lib/plural';
 
 
 
@@ -127,6 +127,13 @@ interface DeliveryInfo {
   deliveredTo: string | null;
   /** The most recent send after that one, when there has been one. */
   resentAt: string | null;
+  /** The CURRENT deed's state, so the panel can say what is happening now
+      rather than only what happened last. */
+  deedState: string | null;
+  /** A delivery a tenancy correction superseded: it really happened and the
+      agent holds that PDF, it is simply no longer the current deed. */
+  supersededAt: string | null;
+  supersededTo: string | null;
 }
 
 /** The ladder's rungs in plain words. The column stores our internal names;
@@ -168,6 +175,9 @@ async function loadDelivery(ref: string): Promise<DeliveryInfo | null> {
     deliveredAt: str('delivered_at'),
     deliveredTo: str('delivered_to'),
     resentAt: str('resent_at'),
+    deedState: str('deed_state'),
+    supersededAt: str('superseded_at'),
+    supersededTo: str('superseded_to'),
   };
 }
 
@@ -1526,8 +1536,39 @@ export function ApplicationDetail() {
       )}
       {dlvState === 'not_attempted' && (
         <>
+          {/* WHAT IS HAPPENING NOW, WHERE A CORRECTION REPLACED THE DEED.
+              Matt, 2026-10-03: "after a start-date correction it still shows
+              the old deed's delivery while the corrected deed is unsigned.
+              Show the current deed's state ... with the earlier delivery
+              listed as superseded."
+
+              20261007640000 stopped the panel claiming the archived deed's
+              delivery, which left it saying only "Goes to: ..." -- true, and
+              silent about why the delivery the reader remembers has gone.
+              This is the sentence that was missing. */}
+          {delivery.supersededAt && (
+            <div className="pay-note">
+              {delivery.deedState === 'awaiting_tenant'
+                ? <>Corrected deed awaiting the tenant&rsquo;s signature; it will be sent to{' '}
+                    <b>{dlvWouldGo || 'the agent'}</b> once signed.</>
+                : <>The deed was replaced by a correction and has not been delivered yet.</>}
+            </div>
+          )}
           <div className="drow"><span className="drow__k">Goes to</span><span className="drow__v">{dlvWouldGo || 'No recipient could be resolved'}</span></div>
           {delivery.source && <div className="drow"><span className="drow__k">Address from</span><span className="drow__v">{rungLabel(delivery.source)}</span></div>}
+          {/* THE EARLIER DELIVERY IS KEPT AND LABELLED, not dropped: the
+              agent has that PDF in their inbox, and a panel that simply
+              forgot it would leave them holding a document the portal
+              denies sending. */}
+          {delivery.supersededAt && (
+            <div className="drow">
+              <span className="drow__k">Superseded</span>
+              <span className="drow__v">
+                Sent to {delivery.supersededTo ?? 'the agent'} on{' '}
+                {fmtStamp(new Date(delivery.supersededAt))}, before the correction
+              </span>
+            </div>
+          )}
         </>
       )}
       {/* Automatic delivery being off is a fact about our own setup, not about
@@ -1814,7 +1855,7 @@ export function ApplicationDetail() {
                   })}
                   <p className="jt-panel__deed">
                     Each tenant signs their own Deed of Guarantee. It covers their share of the
-                    rent and names all {countOf(siblings.length, 'tenant')}, and it is generated as soon as
+                    rent and names {allOf(siblings.length, 'tenant')}, and it is generated as soon as
                     that tenant has paid, so nobody waits on a co-tenant.
                   </p>
                 </div>

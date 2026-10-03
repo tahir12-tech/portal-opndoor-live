@@ -213,7 +213,9 @@ describe('the application detail page', () => {
     const view = await openDetail(SECOND);
     const deed = view.container.querySelector('.jt-panel__deed')?.textContent ?? '';
     expect(deed).toMatch(/signs their own Deed of Guarantee/i);
-    expect(deed).toMatch(/names all 2 tenants/i);
+    expect(deed).toMatch(/names both tenants/i /* "all 2" until 2026-10-03: Matt, "'names all
+      2 tenants' should read 'names both tenants' (and 'all 3 tenants'
+      for three or more)". English has a word for two. */);
   });
 
   it('says what the rent above is a share of', async () => {
