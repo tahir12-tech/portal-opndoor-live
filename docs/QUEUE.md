@@ -1789,6 +1789,23 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## THE WITHDRAW DIALOG SAYS WHAT NOW HAPPENS (instruction, 2026-10-03, verbatim). ANSWER TWO QUESTIONS.
+
+> Withdraw application dialog: it says withdrawn referrals are "excluded from conversion figures and Leagues", but they now count as sent. Make the text match what actually happens. Also tell me: after withdrawal, does the tenant's payment link stop working, and is the tenant told? It should stop working, and the tenant should get a short email that the application was withdrawn by the agency.
+
+- THE DIALOG IS OUT OF DATE BECAUSE OF A CHANGE I MADE TODAY.
+  "A referral counts as sent once it was sent" (`reachedPayment`,
+  2026-10-03) put withdrawn referrals back into the sent figures; the
+  four exclusion sites moved and this dialog's copy did not. Mine.
+- TWO QUESTIONS TO ANSWER BEFORE BUILDING: does the payment link stop
+  working after a withdrawal, and is the tenant told. The pay page has
+  an `isClosed` arm for withdrawn, so the first is probably yes and
+  needs confirming rather than assuming; the tenant email almost
+  certainly does not exist.
+- A NEW TENANT-FACING EMAIL IS NOT A SMALL SAFE CHANGE two days before
+  go-live. If the answer is "not told", the copy fix ships tonight and
+  the email goes under "After launch" with its wording drafted.
+
 ## THE ORDER FOR TONIGHT (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > Agreed order: 1) the invoice instruction and supplier payable (£600 not £840) across screen, PDF, CSV and zip; 2) the 15th-of-next-month date; 3) the opndoor Manager invite blocker; 4) whether the monthly run posts supplier statements (answer first, send nothing); 5) the open referrals of deleted referrers (who gets the deed); then the rest in order. Drop "Change level everywhere". Work through tonight without waiting for me, small safe changes only; anything large or risky goes under "After launch". Branch must be pushed by Sunday night for Balal at 05:00 Monday. Morning summary in plain English.
