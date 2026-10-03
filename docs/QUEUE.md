@@ -1241,6 +1241,17 @@ you asked for. Say the word and the tenant gets their own wording.
 - This is the unguarded half I reported on 2026-10-02: STMT-2026-09-0004
   was minted at 15:38:48 with no row in `commission_statement_sends`.
 
+## THE PAYEE LIST IS EVERY PAYEE (instruction, 2026-10-03, verbatim).
+
+> Reporting, "Commission statement" payee list (admin): label supplier-estate agencies "(via [supplier])" as elsewhere, and include suppliers as payees (e.g. Kestrel Lettings, Level "Supplier", with its statement), so every payee Opndoor owes for the month is listed. Totals must match Settlements.
+
+## SEPTEMBER PICKED UP OCTOBER'S NUMBER (instruction, 2026-10-03, verbatim).
+
+> Statement references: Regent's Lettings' September 2026 statement shows STMT-2026-10-0001, the same reference shown on its October 2026 statement. Every statement must have its own reference, for its own month. Find how September picked up October's number, fix it, and check every statement reference on dev is unique and matches its month. References are only assigned when the monthly run actually posts a statement; viewing or exporting shows "Reference assigned when the statement is posted". Tell me what you'd change before renumbering anything.
+
+- Same subject as "A REFERENCE IS MINTED WHEN A STATEMENT IS POSTED"
+  above; the two are one piece of work and one report.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
