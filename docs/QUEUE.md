@@ -1169,6 +1169,14 @@ you asked for. Say the word and the tenant gets their own wording.
 
 > Admin exports: produce the Expiries export as a branded Excel file using the existing branded template (BrandedDoc, as the commission statements use), not a plain CSV. Header "Scope: Whole book" instead of "All partners". Do the same for Export summary, Application export and the League exports so all admin downloads look alike. Keep column headings and figures exactly as they are now. Deploy to dev and check there.
 
+## NO RENT MEANS FOUR BLANKS, NOT FOUR ZEROS (instruction, 2026-10-03, verbatim).
+
+> Application export: an unfinished application with no rent given (e.g. GR-20626) still shows £0.00 for Monthly rent, Share of rent, Guarantee fee charged and Tenancy total fee. Leave all four blank until the tenant has given a rent, whether the stored value is empty or zero.
+
+- Extends the 2026-10-02 instruction, which was Monthly rent and Share of
+  rent and keyed on "no rent given". Zero is now the same case as empty,
+  and two more columns are named.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
