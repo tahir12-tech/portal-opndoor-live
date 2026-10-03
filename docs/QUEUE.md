@@ -1538,6 +1538,49 @@ Matt's own numbers in both cases.
   exactly as an expired one did. Dev holds none, so no figure moves
   today. Say if it should be excluded.
 
+## PRIORITIES 2, 3 AND 4 ARE DONE (2026-10-03).
+
+- **2. The detail trio and the ready-to-sign email** (`7ac7773`). Money to
+  the penny on the detail page and the three tenant-facing formatters,
+  with a test that refuses a hand-rolled pound sign in any of them;
+  `allOf` in the shared plural lib so two is "both"; the Delivery panel
+  says the corrected deed is awaiting signature and lists the earlier
+  delivery as superseded; the email no longer claims the guarantee is in
+  place and is headed as a tenant email.
+- **3. A supplier's Reporting** (`93249c6`). Commission by route is
+  Opndoor-only, and the settlement banner excludes a supplier as well as
+  an agency. Both were gated on `!agencyFacing`, the same miss as
+  2026-10-01.
+- **4. The real reason a save failed** (this commit).
+
+### The sweep Matt asked for, and what it found
+
+Four unique constraints a user can reach:
+
+| constraint | says the real reason? |
+|---|---|
+| `agencies (partner_id, name)` | **NO. This was the bug.** Fixed. |
+| `agency_groups (partner_id, name)` | yes, and with an exception handler |
+| `branches (agency_id, name)` | yes, pre-checked |
+| `partners (slug)` | cannot collide: `create_partner` loops for a free slug |
+
+- **The generic message is not itself the fault.** `cleanRpcError`
+  replaces anything reading like a database internal with a safe
+  sentence, which is right: #67 exists because a Postgres error once
+  reached a user. The fault was an RPC leaving a reason it knew to be
+  discovered by an index.
+- **Error toasts already use the error icon.** `Toast.tsx` picks `alert`
+  for the error tone, and the Add agency form already passed `'error'`.
+  Nothing to change; the icon was right and the WORDS were wrong.
+
+### Known, smaller, not fixed
+
+`admin_add_branch` pre-checks a duplicate branch name but has no
+`exception when unique_violation`, so two admins adding the same branch
+name at the same instant would still see the generic message. The agency
+path now has both halves. Left alone two days before go-live because it
+is a race on a rarer action and the fix means rewriting another function.
+
 ## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > No default deal and the warnings now; the referral refusal goes under "After launch". Then prioritise for Wednesday: 1) "Referrals sent" including expired and "Fee unpaid" (figures people will rely on); 2) the application-detail trio and the ready-to-sign email (what tenants and agents see); 3) supplier Reporting hiding "Commission by route"; 4) real reasons on failed saves. Everything else after those, and anything not done by Sunday evening moves to "After launch".

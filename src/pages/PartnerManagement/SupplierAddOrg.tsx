@@ -20,8 +20,9 @@
    office named after it, carrying the address that was typed, so a
    single-office agency renders as nothing extra.
    ===================================================================== */
-import { useState } from 'react';
-import { createAgencyWithBranch, createBranchLive, type Agency } from '@/data';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { createAgencyWithBranch, createBranchLive, getAgencies, type Agency } from '@/data';
 import { useToast } from '@/components/ui/Toast';
 import { useSession } from '@/session/SessionContext';
 import { Modal } from '@/components/ui/Modal';
@@ -40,18 +41,50 @@ export function SupplierAddOrg({ mode, partnerSlug, partnerName, agency, onClose
   onDone: () => void;
 }) {
   const toast = useToast();
-  const { refresh } = useSession();
+  const { refresh, dataVersion } = useSession();
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
+
+  /* =====================================================================
+     THE REAL REASON, NEXT TO THE NAME.
+
+     Matt, 2026-10-03: "adding an agency whose name already exists in that
+     supplier's estate (e.g. 'Frost Partnership' under Kestrel) fails with
+     the generic 'Something went wrong saving that change.' Show the real
+     reason inside the form, next to the name: 'Kestrel Lettings already
+     has an agency called Frost Partnership. Open it instead?' with a link
+     to it."
+
+     CHECKED HERE AS WELL AS AT THE SERVER, which is not belt-and-braces
+     for its own sake: the server's sentence arrives after a round trip and
+     as a toast, and the reader is looking at the field. This answers while
+     they type. 20261007720000 is the one that cannot be bypassed -- two
+     admins adding the same name at once reach the constraint, not this.
+
+     CASE-INSENSITIVE, matching the server's check rather than the raw
+     unique index: an estate holding "Frost Partnership" and "frost
+     partnership" is the mistake this message exists to prevent. */
+  const existing = useMemo(() => {
+    const n = name.trim().toLowerCase();
+    if (mode !== 'agency' || !n) return null;
+    return getAgencies(partnerSlug).find((a) => a.name.trim().toLowerCase() === n) ?? null;
+  }, [mode, name, partnerSlug, dataVersion]);
+
+  const nameError = existing ? (
+    <>
+      {partnerName} already has an agency called {existing.name}.{' '}
+      <Link to={`/agencies/${encodeURIComponent(existing.id ?? existing.name)}`}>Open it instead?</Link>
+    </>
+  ) : undefined;
 
   const emailGiven = !!email.trim();
   const emailShaped = !emailGiven || EMAIL_RE.test(email.trim());
   // Required for an agency in a supplier's estate; optional for a branch,
   // which falls back to the agency's.
   const emailOk = mode === 'agency' ? (emailGiven && emailShaped) : emailShaped;
-  const can = !!name.trim() && !!address.trim() && emailOk && !busy;
+  const can = !!name.trim() && !!address.trim() && emailOk && !busy && !existing;
 
   const save = async () => {
     if (!can) return;
@@ -98,7 +131,8 @@ export function SupplierAddOrg({ mode, partnerSlug, partnerName, agency, onClose
         </Button>
       </>}
     >
-      <Field label={mode === 'agency' ? 'Agency name' : 'Branch name'} htmlFor="sao-name">
+      <Field label={mode === 'agency' ? 'Agency name' : 'Branch name'} htmlFor="sao-name"
+        error={nameError}>
         <input id="sao-name" type="text" autoComplete="off" autoFocus
           placeholder={mode === 'agency' ? 'e.g. Frost Partnership' : 'e.g. Mayfair'}
           value={name} onChange={(e) => setName(e.target.value)} />
