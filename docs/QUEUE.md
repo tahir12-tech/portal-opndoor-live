@@ -1789,6 +1789,18 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## BLOCKER: A NEW SUPPLIER IS STILL GETTING 25/10 (instruction, 2026-10-03, verbatim). MEASURE FIRST.
+
+> Blocker: "No Deal Supplier", created via Add supplier at 16:41 today, still shows "25% of the fee, agencies 10%" on its Overview, so new suppliers are still getting a default deal despite 7b5b848. Find where the 25%/10% still comes from (database defaults, the RPC, the form, or the screen showing a fallback when the rates are empty), fix it, and prove it on dev by creating a supplier and showing its rates are empty and every screen says "No deal set". Tell me what No Deal Supplier actually has stored before changing it.
+
+- A DEFECT ON A SHIPPED FIX, so it goes ahead of everything else open.
+- "Tell me what No Deal Supplier actually has stored before changing it"
+  is the first step and is not optional: the four candidates Matt lists
+  (column default, RPC, form, screen fallback) are distinguishable only
+  by what is in the row.
+- "Prove it on dev by creating a supplier" means a real creation
+  through the real path, not a SQL insert.
+
 ## REFERRER IS THE WORD, NEGOTIATOR IS THE LEVEL (instruction, 2026-10-03, verbatim).
 
 > League description: "Every agency, branch, referrer and supplier ranked in full." Sweep the portal, emails, exports and help for any remaining "negotiator" used to mean a referrer generally (keep it only where it's the Negotiator level).
