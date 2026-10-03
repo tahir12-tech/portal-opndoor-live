@@ -40,7 +40,7 @@ import type { BrandedDoc, ColType, Column, KeyValue, TableRow } from './xlsxTemp
 import { feeBaseFor, totalRate, agentAmountOf, supplierAmountOf, feeBasisCell, linesFor, agentRailApp } from './commissionSplit';
 import { orgCell } from './agencyOffices';
 import { viaSupplier, withoutVia } from './viaSupplier';
-import { gbpPence } from '@/lib/format';
+import { formatDate, gbpPence } from '@/lib/format';
 import { plural } from '@/lib/plural';
 
 /** A named branded sheet + the download filename (the xlsx-free document spec). */
@@ -1693,6 +1693,53 @@ export async function statementReference(monthKey: string, payeeKey: string): Pr
     comparing against the sentence. */
 export function isPostedReference(ref: string): boolean {
   return !!ref && ref !== REFERENCE_ON_POST && ref !== EMPTY;
+}
+
+/* =====================================================================
+   WHEN A MONTH'S COMMISSION IS PAID: THE 15TH OF THE MONTH AFTER IT.
+
+   Matt, 2026-10-03, verbatim: "the October 2026 draft says 'Opndoor pays this
+   on 15 Oct 2026'. Each month's commission is paid on the 15th of the
+   following month, so October's is 15 Nov 2026. Fix the date for every month
+   shown, and for a draft say 'Opndoor pays this on 15 Nov 2026, once the
+   month's statement is posted'."
+
+   WHAT WAS WRONG, AND WHY IT WAS WRONG BY A WHOLE MONTH. The line read
+   `agentSettlement.settlementDate`, which is the SETTLEMENT RUN's date -- the
+   15th after the run's own prior calendar month. That is the right date for
+   the run and the wrong date for a statement, because the reader picks the
+   month: on any month other than the one the run is currently settling, the
+   two differ. October's statement said 15 October, which is not only wrong
+   but wrong in the direction that makes us look late.
+
+   DERIVED FROM THE STATEMENT'S OWN MONTH, so every month shown is right by
+   construction rather than right when the two happen to coincide.
+   ===================================================================== */
+export function paidOnFor(monthKey: string): Date | null {
+  const m = /^(\d{4})-(\d{2})$/.exec((monthKey ?? '').trim());
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (!(month >= 1 && month <= 12)) return null;
+  // Month is 0-based, so `month` IS the following month. December rolls over.
+  return new Date(year, month, 15);
+}
+
+/**
+ * The one sentence under a statement, for the month that statement is for.
+ *
+ * A DRAFT SAYS THE DATE AND THE CONDITION, which is Matt's own wording: the
+ * date is still the 15th of the following month, and what is not yet true is
+ * that the statement has been posted. Saying only the date would promise a
+ * payment against figures that can still move.
+ */
+export function paidOnSentence(monthKey: string, posted: boolean): string | null {
+  const when = paidOnFor(monthKey);
+  if (!when) return null;
+  const date = formatDate(when);
+  return posted
+    ? `Opndoor pays this on ${date}.`
+    : `Opndoor pays this on ${date}, once the month's statement is posted.`;
 }
 
 /** The reference as a meta-line clause. "Reference STMT-2026-09-0001" when

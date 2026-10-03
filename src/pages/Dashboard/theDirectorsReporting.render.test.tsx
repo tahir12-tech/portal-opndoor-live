@@ -20,6 +20,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const DASH = readFileSync('src/pages/Dashboard/Dashboard.tsx', 'utf8');
 const ANALYTICS = readFileSync('src/data/analyticsService.ts', 'utf8');
@@ -58,10 +59,21 @@ describe("Opndoor's settlement run is not an agency's page", () => {
   });
 
   /* WHAT REPLACES THEM, which is the half that matters: an agency still
-     has to know when they are paid. */
+     has to know when they are paid.
+
+     THE LINE MOVED ON 2026-10-03 and the assertion moved with it. Matt:
+     "the October 2026 draft says 'Opndoor pays this on 15 Oct 2026'. Each
+     month's commission is paid on the 15th of the following month, so
+     October's is 15 Nov 2026." This page built the sentence from
+     `agentSettlement.settlementDate` -- the SETTLEMENT RUN's date, right for
+     the run and a month early for any statement except the one the run is
+     currently settling. It is now built inside CommissionStatement, from the
+     month that statement is for, so what this file asserts is that the page
+     no longer builds it itself. */
   it('and one line under the statement says when Opndoor pays', () => {
-    expect(DASH).toContain('Opndoor pays this on');
-    expect(DASH).toContain('{agencyFacing && agentSettleDate && (');
+    const STMT = readFileSync(join(process.cwd(), 'src/components/CommissionStatement.tsx'), 'utf8');
+    expect(STMT).toContain('paidOnSentence(shownMonth, monthPosted)');
+    expect(DASH).not.toContain('Opndoor pays this on <b>{agentSettleDate}</b>');
   });
 });
 

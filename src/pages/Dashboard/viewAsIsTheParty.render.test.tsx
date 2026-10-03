@@ -32,6 +32,8 @@
  * check becomes decorative.
  */
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { cleanup, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -135,10 +137,25 @@ describe('the same admin, viewing as one of our agencies', () => {
   /* THE SETTLEMENT BLOCKS LEFT THE AGENCY'S PAGE on 2026-10-01, so View as
      shows what the agency sees: their own statement and the date it is
      paid, not Opndoor's run. */
-  it('and IS shown that agency’s own statement, with the date it is paid', async () => {
+  it('and IS shown that agency’s own statement, not Opndoor’s settlement run', async () => {
     const v = await openReporting('superadmin', AGENCY);
-    expect(text(v)).toMatch(/Opndoor pays this on/);
+    expect(text(v)).toContain('Commission statement');
     expect(v.container.querySelector('#settlements')).toBeNull();
+  });
+
+  /* THE PAYMENT DATE MOVED INTO THE STATEMENT ON 2026-10-03, and this
+     assertion moved with it rather than being dropped. It used to read
+     `toMatch(/Opndoor pays this on/)` on this page, where the Dashboard
+     built the sentence from the settlement RUN's date -- right for the run
+     and a month early for any other month, which is what Matt reported:
+     "the October 2026 draft says 'Opndoor pays this on 15 Oct 2026' ...
+     October's is 15 Nov 2026." It is derived from the statement's own month
+     now, so the date is asserted where the derivation lives, in
+     paidOnDate.test.ts, and what belongs here is that this page no longer
+     builds one of its own. */
+  it('and the page no longer builds a payment date of its own', () => {
+    const dash = readFileSync(join(process.cwd(), 'src/pages/Dashboard/Dashboard.tsx'), 'utf8');
+    expect(dash).not.toContain('Opndoor pays this on <b>{agentSettleDate}</b>');
   });
 
   it('with the statement named for the party rather than called “Your commission”', async () => {

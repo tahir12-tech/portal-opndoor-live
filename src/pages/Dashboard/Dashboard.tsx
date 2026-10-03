@@ -1179,18 +1179,19 @@ export function Dashboard() {
                 sub: `One schedule for each of ${possessive(partnerName(partnerScope))} agencies, behind the statement above. Commission on fees paid in the month, net of refunds.`,
               } : {})}
             />
-            {/* ONE LINE, INSTEAD OF THE SETTLEMENT BLOCKS. Matt,
-                2026-10-01: "Under the statement, one line: 'Opndoor pays
-                this on 15 Oct 2026.' Keep the Download statement button."
+            {/* THE LINE MOVED INTO THE STATEMENT, 2026-10-03.
 
-                What an agency needs from the settlement run is the date
-                their own statement is paid. The blocks above said that
-                too, in three sections about Opndoor's whole run. */}
-            {agencyFacing && agentSettleDate && (
-              <p className="muted" style={{ margin: '10px 2px 0', fontSize: 13 }}>
-                Opndoor pays this on <b>{agentSettleDate}</b>.
-              </p>
-            )}
+                Matt, 2026-10-01, asked for it: "Under the statement, one
+                line: 'Opndoor pays this on 15 Oct 2026.'" It was built here
+                from `agentSettlement.settlementDate`, which is the
+                SETTLEMENT RUN's date -- the 15th after the run's own prior
+                calendar month. That is right for the run and wrong for a
+                statement, because the reader picks the month: October's
+                statement said 15 October, a month early.
+
+                Matt, 2026-10-03: "Fix the date for every month shown." So
+                it is derived from the statement's own month, inside the
+                component that knows it. See paidOnSentence. */}
           </RoleOnly>
         )}
 

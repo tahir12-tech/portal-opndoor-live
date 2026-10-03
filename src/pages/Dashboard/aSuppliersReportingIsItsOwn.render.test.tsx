@@ -242,8 +242,20 @@ describe('Opndoor’s settlements', () => {
   it('and not for one of our own agencies either, since 2026-10-01', async () => {
     const v = await openReporting({ role: 'management', partner: 'opndoor-agents' });
     expect(v.container.querySelector('#settlements')).toBeNull();
-    /* What they get instead is one line under their own statement. */
-    expect(v.container.textContent).toMatch(/Opndoor pays this on/);
+    /* What they get instead is their own statement, with the payment date
+       under it.
+
+       THE ASSERTION CHANGED ON 2026-10-03 AND IT IS WORTH SAYING WHY. It
+       used to read `toMatch(/Opndoor pays this on/)` and passed -- while
+       this fixture renders the statement's "Nothing has been paid yet"
+       branch. The line was built on the Dashboard from the settlement run's
+       date, so it printed whether or not there was a statement to print it
+       under, which is also how it came to be a month early on every month
+       the run was not currently settling. It is inside the statement now,
+       from the statement's own month, so a reader with nothing paid gets no
+       payment date -- because there is nothing to be paid. */
+    expect(v.container.textContent).toContain('Nothing has been paid yet');
+    expect(v.container.textContent).not.toMatch(/Opndoor pays this on/);
   });
 });
 

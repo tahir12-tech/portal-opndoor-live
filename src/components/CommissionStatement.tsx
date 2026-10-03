@@ -26,7 +26,7 @@ import {
   buildAllStatementsCsv, buildCommissionStatementDoc, downloadCsv, exportBranded,
   getCommissionStatements, maySeeCommission,
   statementMonths, type CommissionStatement as Statement, statementReference,
-  isPostedReference, draftLabel } from '@/data';
+  isPostedReference, draftLabel, paidOnSentence } from '@/data';
 import type { PartnerScope, Role } from '@/data';
 import { SOURCE_LABEL } from '@/data/commissionSplit';
 import type { CommissionSource } from '@/data/types';
@@ -231,6 +231,19 @@ function StatementPanel({
      write a stale reference", which is the race and was handled. The
      cache key was the other half and was not. */
   const refKey = (monthKeyIn: string, payeeKey: string) => `${monthKeyIn}|${payeeKey}`;
+  /* POSTED IS PER PAYEE, AND THIS LINE IS PER MONTH, so it asks whether the
+     month has been posted AT ALL: on the list view there are several payees
+     and one date. A month with nothing posted yet is a draft, and the
+     sentence says so. */
+  const monthPosted = shown.length > 0
+    && shown.every((st) => isPostedReference(refs[refKey(st.monthKey, st.payeeKey)] ?? ''));
+  /* ON FIRST PAINT TOO. `monthKey` is set by an effect, so reading it alone
+     left the footer silent for a tick -- and silent in any test that renders
+     without awaiting one. The month shown is `monthKey` once chosen and
+     `months[0]` before that, which is exactly what the effect picks, so the
+     sentence is right from the first frame rather than arriving late. */
+  const shownMonth = monthKey || months[0]?.key || '';
+  const paidOn = shownMonth ? paidOnSentence(shownMonth, monthPosted) : null;
   useEffect(() => {
     let ignore = false;
     void (async () => {
@@ -490,6 +503,19 @@ function StatementPanel({
       </CardBody>
       <CardFoot>
         <span className="muted" style={{ fontSize: 12.5 }}>
+          {/* WHEN THIS MONTH IS PAID, FOR THE MONTH ON SCREEN. Matt,
+              2026-10-03: "the October 2026 draft says 'Opndoor pays this on
+              15 Oct 2026'. Each month's commission is paid on the 15th of the
+              following month, so October's is 15 Nov 2026. Fix the date for
+              every month shown."
+
+              The Dashboard printed this line from `agentSettlement
+              .settlementDate`, which is the SETTLEMENT RUN's date -- right
+              for the run, wrong for a statement, because the reader picks the
+              month. It lives here now, where the month is known, so every
+              month shown is right by construction rather than right when the
+              two happen to coincide. */}
+          {paidOn && <><b>{paidOn}</b>{' '}</>}
           Commission accrues on the date the fee was <b>paid</b>. A refunded fee earns nothing and is
           not listed. These are the same figures Opndoor settles from.
         </span>
