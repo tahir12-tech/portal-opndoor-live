@@ -315,6 +315,22 @@ describe('a raising guard cannot evaluate to NULL', () => {
              that says what else has to change -- and the failure would be
              that a person with no status could be deleted without their
              access having been removed. */
-    expect(denyIf.length).toBe(69);
+    /* 69 -> 70 with 20261007830000, the opndoor-team invite. ONE of the three
+       new refusals in `create_invited_user` is a deny-if; the other two are
+       `is not null` tests, which cannot be NULL by construction.
+
+           if p_partner is not null
+
+       That is the guard counted here, and it is total for the most direct
+       reason there is: `x is not null` is a boolean for every x, including
+       NULL. It is in this list rather than the deny-unless one only because
+       of its polarity -- `if <bad> then raise`.
+
+       Worth stating which way it would fail if it somehow were not total:
+       this refuses an opndoor admin or manager that carries a partner, and
+       `users_partner_by_role` is a CHECK constraint that refuses the same row
+       immediately afterwards. So the guard is there to give the reason a
+       sentence, and the column constraint is what actually holds. */
+    expect(denyIf.length).toBe(70);
   });
 });

@@ -61,8 +61,15 @@ interface RoleOption {
   desc: string;
 }
 const ROLE_OPTIONS: RoleOption[] = [
-  { id: 'superadmin', name: 'opndoor admin (Super-admin)', desc: "opndoor's internal admin. Full control of the portal: manages agencies, branches and users, keeps opndoor's own records in step, edits help resources, and sees every referral." },
-  { id: 'opndoor_manager', name: 'opndoor manager', desc: "opndoor operations staff. Sees every referral across all partners and works the day-to-day queues: the eligibility decision, reconciliation and direct-agency matches. Cannot change partner settings or commission, create partners, or manage the opndoor team." },
+  /* "opndoor admin", not "opndoor admin (Super-admin)". Matt, 2026-10-03:
+     rename it, and say "suppliers and agencies" instead of "partners".
+     Super-admin is the database's word for the role and means nothing to
+     whoever is filling in this dialog; "partners" is the schema's word for
+     two different kinds of company, and the opndoor manager's own
+     description is where it leaked furthest -- "every referral across all
+     partners" and "cannot change partner settings". */
+  { id: 'superadmin', name: 'opndoor admin', desc: "opndoor's internal admin. Full control of the portal: manages suppliers, agencies, offices and users, keeps opndoor's own records in step, edits help resources, and sees every referral." },
+  { id: 'opndoor_manager', name: 'opndoor manager', desc: "opndoor operations staff. Sees every referral across every supplier and agency and works the day-to-day queues: the eligibility decision, reconciliation and direct-agency matches. Cannot change a supplier's or agency's settings or commission, add a supplier, or manage the opndoor team." },
   { id: 'management', name: 'Management', desc: "Supplier management. The same screens and tools as a referrer, but across the whole supplier with full visibility of all tracking and analytics. Manages the supplier's own agencies, branches and team, with edits applying straight away. Cannot change portal settings." },
   { id: 'referrer', name: 'Referrer', desc: 'Sees and tracks only their own referrals. Can add agencies and branches on the fly while referring.' },
   // "Sees the Dev Centre only" read as seeing nothing, which made the role look
@@ -104,7 +111,22 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   // query param is still honoured so old links keep working.
   const teamMode = (team || params.get('team') === 'opndoor') && role === 'superadmin';
 
-  usePageMeta(teamMode ? 'opteam' : 'users', 'Users', ['Home', 'Administration', 'Users']);
+  /* THE OPNDOOR TEAM PAGE IS CALLED THE OPNDOOR TEAM. Matt, 2026-10-03, twice:
+     "opndoor team page: breadcrumb and title should say 'opndoor team',
+     matching the sidebar" and "Breadcrumb and title 'Administration / Users'
+     should say 'opndoor team'".
+
+     It is one route and one component serving two pages -- a customer's staff
+     and opndoor's own -- and the meta was written for the first. The sidebar
+     has said "opndoor team" all along, so a reader following it arrived at a
+     page headed something else. `teamMode` already tells the two apart four
+     lines up and decides the eyebrow, the sentence and both card labels; the
+     breadcrumb was the one thing it did not reach. */
+  usePageMeta(
+    teamMode ? 'opteam' : 'users',
+    teamMode ? 'opndoor team' : 'Users',
+    teamMode ? ['Home', 'opndoor team'] : ['Home', 'Administration', 'Users'],
+  );
 
   // Drill-in from Partners: ?partner=<id> scopes this view.
   useEffect(() => {

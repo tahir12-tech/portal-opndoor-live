@@ -120,6 +120,23 @@
   flex-direction: column;
   gap: 10px;
 }
+/* A ROLE OPTION IS A SENTENCE, NOT A FIELD LABEL.
+
+   Matt, 2026-10-03: "The two role options in that dialog are in letter-spaced
+   capitals. Use normal sentence case like the rest of the portal's radio
+   options."
+
+   WHY THEY WERE SHOUTING, AND IT IS NOT A CHOICE ANYBODY MADE. `.roleopt` IS
+   a <label> element, and when these options sit inside a `.field` -- which is
+   how the dialog lays them out -- they inherit `.field label` from
+   portal.css: 11px, weight 700, letter-spacing .12em, text-transform
+   uppercase. That rule is right for the one-word caption over an input and
+   wrong for a radio option whose name is "opndoor admin" and whose body is
+   three sentences. So the two opndoor roles read "OPNDOOR ADMIN
+   (SUPER-ADMIN)".
+
+   RESET HERE RATHER THAN NARROWING `.field label`, which stands over every
+   input in the product and is not the thing that is wrong. */
 .roleopt {
   display: flex;
   gap: 14px;
@@ -128,6 +145,10 @@
   border-radius: var(--r-md);
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 14px;
+  font-weight: 400;
 }
 .roleopt:hover {
   border-color: var(--ink-mute);
