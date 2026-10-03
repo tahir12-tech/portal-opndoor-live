@@ -2270,6 +2270,62 @@ money.
   to be exact about what is done, what is half-done and what is
   untouched.
 
+### Running status of items 1 to 9
+
+Updated as each lands, so the Sunday 18:00 report is read off this rather
+than reconstructed.
+
+- **1. Supplier Management commission. DONE.** Three parts, and the third
+  was not in the original reading of the item:
+  - the invite (`20261007830000`, and `SUPPLIER_LEVELS` passing
+    `seesCommission: true`);
+  - View as reading the viewed PARTY's rail, not the admin
+    (`topLevelSeesCommission`, restored in the effect's cleanup);
+  - **the rows the defect had already written** (`20261007880000`).
+    `create_invited_user` took the flag from its caller, so fixing the
+    dialog fixed one door; and the session reads `sees_commission` off
+    the row, so the people already created stayed blind whatever the
+    invite did next. The flag is now FORCED in SQL on a supplier
+    partner, and the two existing rows are corrected with a
+    `user_audit` line each.
+  - ANSWER TO "which existing supplier users would be affected on
+    live": on dev it is TWO, both active Kestrel Management --
+    `joe@bloggs.com` and `test@kestrel.com` (the Matthew Dwyer account
+    Matt reported it from). `director@kestrel.dev.test` and the pending
+    `123@opndoor.co` already held the flag. The developer
+    (`something@bloggs.com`) is left alone on purpose. The same query on
+    live names whoever it is there, and the migration corrects them when
+    applied.
+- **2. The opndoor Manager invite. DONE** (`72ce6eb`, `20261007830000`).
+- **3. Add agency and office while referring. DONE.** Server half
+  `c8b753d` (`20261007840000`, `850000`, `860000`, `870000`, 14 pgTAP);
+  client half `2305339` (29 vitest). The type-ahead's "Create new agent"
+  row is GONE on the supplier rail and replaced by a dialog that asks
+  for the address Matt requires and writes through the RPC before Send,
+  so the agency is a real row, pending_review, in Reconciliation, with
+  an org_audit line, before the referral is sent. The admin keeps the
+  old row. "Add agency" is now on a supplier Management's own Agencies
+  page, which is what its banner has promised since 2026-10-01.
+- **4. Supplier statements posting, and Tom Reeve's open referral.** NEXT.
+  Both are ANSWER FIRST: send nothing for Kestrel's September without
+  telling Matt.
+- **5 to 9.** Not started.
+
+### Adjacent findings, not fixed, found while doing the above
+
+Recorded rather than fixed, per the standing rule that a walk fixes what
+is reported and adjacent findings are listed.
+
+- `admin_update_user_role` still calls `assert_may_grant_level`
+  unconditionally, including on a supplier's people. That is the same
+  shape as the invite blocker `20261007830000` fixed: the function knows
+  the AGENCY ladder only (Director, Manager, Negotiator) and
+  `level_rank_of` is null for a supplier's own people, who hold no
+  position. So changing a supplier user's role through that door may be
+  refused with a sentence about a ladder they are not on. NOT reported by
+  Matt and not reachable from the supplier People tab's "Change role"
+  today, which is why it is here and not built.
+
 ## THE ORDER FOR TONIGHT (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > Agreed order: 1) the invoice instruction and supplier payable (£600 not £840) across screen, PDF, CSV and zip; 2) the 15th-of-next-month date; 3) the opndoor Manager invite blocker; 4) whether the monthly run posts supplier statements (answer first, send nothing); 5) the open referrals of deleted referrers (who gets the deed); then the rest in order. Drop "Change level everywhere". Work through tonight without waiting for me, small safe changes only; anything large or risky goes under "After launch". Branch must be pushed by Sunday night for Balal at 05:00 Monday. Morning summary in plain English.
