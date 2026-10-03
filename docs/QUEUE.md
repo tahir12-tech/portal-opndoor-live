@@ -1948,6 +1948,23 @@ is nothing left to match" instead of a warning.
 - The em-dash check is a new repo guard, and the existing
   noEmDashesInCustomerText is the one to extend rather than a second.
 
+## THE SUPPLIER'S USERS PAGE IS THE OLD ONE (instruction, 2026-10-03, verbatim).
+
+> Supplier Users page (as Kestrel Management): the "…" menu on each row opens an empty box, so no actions are possible; the level key shows agency levels (Director, Manager, Negotiator) instead of the supplier's (Management, Referrer, Developer); and it's an older page, not the shared People table the agency Team and admin pages use. Replace it with the shared People table, with the supplier's levels, "Sees" column and the same confirmed actions, and the sidebar label "Team" to match agencies. Test every action as Kestrel Management on dev.
+
+- AN EMPTY ACTION MENU IS THE SHARP END: a supplier's Management can
+  see their people and do nothing to any of them. The menu rendering
+  but empty is the same shape as Users' "Nothing you can change here"
+  without the sentence.
+- THE SHARED TABLE AND THE SHARED ACTIONS BOTH EXIST (`PeopleTable`,
+  `PersonActions`, and as of tonight `personConfirm`), and the supplier
+  People TAB on the supplier's own page already uses them -- so this is
+  a fifth surface being brought onto the same two components, not new
+  machinery.
+- THE LEVEL KEY SHOWING AGENCY LEVELS to a supplier is the D11
+  distinction in reverse, and `supplierSees`/`supplierLevelsFor`
+  already hold the right words.
+
 ## THE OFFICE AND THE AGENCY, CORRECTLY, EVERYWHERE (instruction, 2026-10-03, verbatim). FIND WHY FIRST.
 
 > Kestrel's view: GR-FROST-KES's office shows as "Frost Partnership" (with no agency) on Applications and the League Branches tab and export, but the agency page correctly shows it as the Frost Mayfair office of Frost Partnership. Find why and show office and agency correctly everywhere.
