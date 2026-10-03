@@ -28,6 +28,8 @@ import { useSession } from '@/session/SessionContext';
 import { Modal } from '@/components/ui/Modal';
 import { Field } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
+import { MissingFields } from '@/components/ui/MissingFields';
+import { useMissingFields } from '@/lib/useMissingFields';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -129,8 +131,28 @@ export function SupplierAddOrg({ mode, partnerSlug, partnerName, agency, onClose
   const emailOk = mode === 'agency' ? (emailGiven && emailShaped) : emailShaped;
   const can = !!name.trim() && !!address.trim() && emailOk && !busy && !existing;
 
+  /* =====================================================================
+     PRESS IT AND BE TOLD, rather than finding the button dead.
+
+     Matt, 2026-10-03: "when Send is pressed with required fields missing,
+     scroll to the first missing field, highlight every missing field in red
+     with 'Required' ... Same for every form in the portal."
+
+     THIS DIALOG HAD THE SAME SHAPE THE REFERRAL FORM DID: `disabled={!can}`,
+     so a reader who had filled in two of three fields was looking at a button
+     that would not go down and no mark anywhere saying which one was left.
+     On a three-field dialog that is survivable and still wrong; the rule is
+     the same rule, so it gets the same answer.
+
+     `tried` RATHER THAN SHOWING ERRORS FROM THE START. A dialog opens empty
+     by definition, and three red "Required" marks on a form nobody has typed
+     in yet is a scold. */
+  const [tried, setTried] = useState(false);
+  const { formRef, count: missing, jump } = useMissingFields<HTMLDivElement>(tried);
+  const req = (filled: boolean) => (tried && !filled ? 'Required' : undefined);
+
   const save = async () => {
-    if (!can) return;
+    if (!can) { setTried(true); jump(); return; }
     setBusy(true);
     try {
       if (mode === 'agency') {
@@ -169,20 +191,23 @@ export function SupplierAddOrg({ mode, partnerSlug, partnerName, agency, onClose
         : `It belongs to ${partnerName}, under ${agency?.name ?? 'this agency'}.`}
       footer={<>
         <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-        <Button variant="primary" onClick={() => void save()} disabled={!can}>
+        <MissingFields count={missing} onJump={jump} />
+        <Button variant="primary" onClick={() => void save()} disabled={busy}>
           {busy ? 'Saving…' : mode === 'agency' ? 'Add agency' : 'Add branch'}
         </Button>
       </>}
     >
+      <div ref={formRef}>
       <Field label={mode === 'agency' ? 'Agency name' : 'Branch name'} htmlFor="sao-name"
-        error={nameError}>
+        error={nameError ?? req(!!name.trim())}>
         <input id="sao-name" type="text" autoComplete="off" autoFocus
           placeholder={mode === 'agency' ? 'e.g. Example Lettings' : 'e.g. Mayfair'}
           value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
 
       <Field label="Address" htmlFor="sao-addr"
-        hint={mode === 'agency' ? 'Where they work from. This becomes their office.' : 'Where this office is.'}>
+        hint={mode === 'agency' ? 'Where they work from. This becomes their office.' : 'Where this office is.'}
+        error={req(!!address.trim())}>
         <input id="sao-addr" type="text" autoComplete="off"
           placeholder="e.g. 14 Mount Street, London W1K 3NG"
           value={address} onChange={(e) => setAddress(e.target.value)} />
@@ -194,11 +219,17 @@ export function SupplierAddOrg({ mode, partnerSlug, partnerName, agency, onClose
         hint={mode === 'agency'
           ? 'Where a signed deed goes. Every office of theirs uses it unless it has its own.'
           : `Leave it blank to use ${agency?.name ?? 'the agency'}’s address.`}
-        error={emailGiven && !emailShaped ? 'That is not an email address.' : undefined}>
+        /* "Required" ONLY ON AN AGENCY. A branch's email is an override of
+           the agency's and is optional by definition, so an empty one is not
+           a missing field and must not be counted as one. */
+        error={emailGiven && !emailShaped
+          ? 'That is not an email address.'
+          : (mode === 'agency' ? req(emailGiven) : undefined)}>
         <input id="sao-email" type="email" autoComplete="off"
           placeholder="lettings@example.co.uk"
           value={email} onChange={(e) => setEmail(e.target.value)} />
       </Field>
+      </div>
     </Modal>
   );
 }

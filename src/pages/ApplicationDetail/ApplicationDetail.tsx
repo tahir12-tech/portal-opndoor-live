@@ -946,8 +946,17 @@ export function ApplicationDetail() {
   //our code update
  async function saveAmend(confirmReissue = false) {
     const parsedDate = parseInput(amendInput);
-    if (!parsedDate || parsedDate.getTime() === currentStart.getTime() || !isTenancyStartInAllowedRange(parsedDate)) {
-      toast('Enter a valid tenancy start date within 7 days in the past and 2 years in the future.');
+    /* AN EMPTY BOX AND A WRONG DATE ARE NOT THE SAME COMPLAINT, and the one
+       sentence answered both: somebody who had typed nothing was told about a
+       seven-day window they had not been anywhere near. */
+    if (!amendInput.trim()) { toast('Enter the new tenancy start date.'); return; }
+    if (!parsedDate) { toast('That is not a date we can read. Use dd/mm/yyyy.'); return; }
+    if (parsedDate.getTime() === currentStart.getTime()) {
+      toast('That is already the tenancy start date.');
+      return;
+    }
+    if (!isTenancyStartInAllowedRange(parsedDate)) {
+      toast('Enter a tenancy start date within 7 days in the past and 2 years in the future.');
       return;
     }
     // #82 On a signed deed, require the explicit consequence confirmation first.
@@ -2010,7 +2019,14 @@ export function ApplicationDetail() {
           <>
             <Button variant="ghost" onClick={() => setAmendOpen(false)}>Cancel</Button>
             {/* <Button variant="primary" onClick={() => saveAmend()} disabled={!canSave}>{executed ? 'Review consequences' : reissues ? 'Save and reissue deed' : 'Save start date'}</Button> */}
-             <Button variant="primary" onClick={() => saveAmend()} disabled={!canSave || !amendInput.trim()}>{executed ? 'Review consequences' : reissues ? 'Save and reissue deed' : 'Save start date'}</Button>
+             {/* PRESSABLE WITH THE DATE EMPTY, so the refusal can be read.
+                 Matt, 2026-10-03: "Same for every form in the portal." It was
+                 `disabled={!canSave || !amendInput.trim()}`, so somebody who
+                 opened the dialog and pressed Save was pressing nothing.
+                 `canSave` is the PERMISSION half and stays in the gate: a
+                 button the server will refuse outright should not be offered
+                 at all, which is a different rule from a field left blank. */}
+             <Button variant="primary" onClick={() => saveAmend()} disabled={!canSave}>{executed ? 'Review consequences' : reissues ? 'Save and reissue deed' : 'Save start date'}</Button>
           </>
         }
       >

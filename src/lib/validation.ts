@@ -113,20 +113,42 @@ export type TenantErrors = Partial<Record<keyof TenantValues, string>>;
  * about the tenancy, not about today: 18 by the start date, and not
  * implausibly old by it either.
  */
+/* =====================================================================
+   "REQUIRED" WHERE IT IS EMPTY, THE REAL REASON WHERE IT IS WRONG.
+
+   Matt, 2026-10-03: "when Send is pressed with required fields missing,
+   scroll to the first missing field, highlight every missing field in red
+   with 'Required' ... Same for every form in the portal."
+
+   AND HE IS RIGHT THAT IT IS TIGHTER, which was not obvious until the two
+   were put side by side. "Enter a first name", under a label reading
+   "First name *", says nothing the label has not. One word does the job
+   and the eye can count the red ones down the page.
+
+   BUT ONLY WHERE IT IS EMPTY. A postcode that is present and malformed is
+   not a missing field, and "Required" there is actively wrong: the reader
+   has filled it in and is being told they have not. Those keep the sentence
+   that says what is actually the matter, which is the half of this that
+   carries information. */
+export const REQUIRED = 'Required';
+
 export function validateTenant(t: TenantValues, tenancyStart: string): TenantErrors {
   const e: TenantErrors = {};
 
-  if (!(TITLE_OPTIONS as readonly string[]).includes(t.title)) e.title = 'Select a title';
-  if (!t.first.trim()) e.first = 'Enter a first name';
-  if (!t.last.trim()) e.last = 'Enter a last name';
+  if (!(TITLE_OPTIONS as readonly string[]).includes(t.title)) e.title = REQUIRED;
+  if (!t.first.trim()) e.first = REQUIRED;
+  if (!t.last.trim()) e.last = REQUIRED;
 
   const dob = parseISODate(t.dob);
   const start = parseISODate(tenancyStart);
-  if (!dob) e.dob = 'Enter a valid date of birth';
+  if (!t.dob.trim()) e.dob = REQUIRED;
+  else if (!dob) e.dob = 'Enter a valid date of birth';
   else if (dob >= startOfToday()) e.dob = 'Date of birth must be in the past';
 
-  if (!isValidEmail(t.email)) e.email = 'Enter a valid email address';
-  if (!t.phone.trim() || !/[0-9]/.test(t.phone)) e.phone = 'Enter a phone number';
+  if (!t.email.trim()) e.email = REQUIRED;
+  else if (!isValidEmail(t.email)) e.email = 'Enter a valid email address';
+  if (!t.phone.trim()) e.phone = REQUIRED;
+  else if (!/[0-9]/.test(t.phone)) e.phone = 'Enter a phone number';
 
   // Combined age rule (re-checked whenever either date changes): 18 by the tenancy start,
   // and not implausibly old. DOB + 18 years must be on or before the tenancy start.
@@ -170,15 +192,19 @@ export function validateReferral(v: ReferralValues): ReferralErrors {
 
   const start = parseISODate(v.tenancyStart);
 
-  if (!v.addr1.trim()) e.addr1 = 'Enter address line 1';
-  if (!v.city.trim()) e.city = 'Enter a city or town';
-  if (!isValidPostcode(v.postcode)) e.postcode = 'Enter a valid UK postcode';
+  if (!v.addr1.trim()) e.addr1 = REQUIRED;
+  if (!v.city.trim()) e.city = REQUIRED;
+  if (!v.postcode.trim()) e.postcode = REQUIRED;
+  else if (!isValidPostcode(v.postcode)) e.postcode = 'Enter a valid UK postcode';
 
   const rent = Number(v.rent);
-  if (!v.rent.trim() || !Number.isFinite(rent) || rent <= 0) e.rent = 'Enter a monthly rent greater than 0';
+  if (!v.rent.trim()) e.rent = REQUIRED;
+  else if (!Number.isFinite(rent) || rent <= 0) e.rent = 'Enter a monthly rent greater than 0';
 
   // Tenancy start: a real date within a sensible range (7 days ago to 2 years ahead).
-  if (!start) {
+  if (!v.tenancyStart.trim()) {
+    e.tenancyStart = REQUIRED;
+  } else if (!start) {
     e.tenancyStart = 'Enter a valid tenancy start date';
   } 
   //Our code 

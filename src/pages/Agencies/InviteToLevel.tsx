@@ -68,6 +68,7 @@ export function InviteToLevel({ ctx, onClose, onInvited }: { ctx: InviteContext;
     : 'Invite branch manager or negotiator';
 
   const canSend = !!email.trim() && EMAIL_RE.test(email.trim()) && !busy && !!ctx.partner;
+  const [tried, setTried] = useState(false);
 
   // The position granted on creation. A negotiator (referrer) is placed by their
   // home branch instead of a scope; a group/brand/branch manager gets a scope.
@@ -127,7 +128,16 @@ export function InviteToLevel({ ctx, onClose, onInvited }: { ctx: InviteContext;
     : {};
 
   const send = async () => {
-    if (!canSend) { if (!EMAIL_RE.test(email.trim())) toast('Enter a valid email address.', 'error'); return; }
+    /* PRESSABLE, AND IT SAYS WHY. Matt, 2026-10-03: "Same for every form in
+       the portal." This refusal existed and could never run, because the
+       button was disabled until the form was valid: a reader with the email
+       blank pressed nothing and was told nothing. One required field, so the
+       field's own mark is the whole answer and there is no count to show. */
+    if (!canSend) {
+      setTried(true);
+      if (email.trim() && !EMAIL_RE.test(email.trim())) toast('Enter a valid email address.', 'error');
+      return;
+    }
     setBusy(true);
     try {
       await inviteUser({
@@ -155,10 +165,10 @@ export function InviteToLevel({ ctx, onClose, onInvited }: { ctx: InviteContext;
       onClose={() => { if (!busy) onClose(); }}
       title={titleFor}
       sub={`${ctx.name} · they will be invited to Opndoor and land in this ${levelWord}.`}
-      footer={<><Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" onClick={send} disabled={!canSend}>{busy ? 'Sending…' : 'Send invite'}</Button></>}
+      footer={<><Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" onClick={send} disabled={busy}>{busy ? 'Sending…' : 'Send invite'}</Button></>}
     >
       <div className="form-grid">
-        <Field span2 label={<>Work email <span className="req" aria-hidden="true">*</span></>} htmlFor="inv-email"><input id="inv-email" type="email" autoComplete="off" placeholder="name@example.co.uk" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+        <Field span2 label={<>Work email <span className="req" aria-hidden="true">*</span></>} htmlFor="inv-email" error={tried && !email.trim() ? 'Required' : undefined}><input id="inv-email" type="email" autoComplete="off" placeholder="name@example.co.uk" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <Field label="First name" htmlFor="inv-first" hint="Optional"><input id="inv-first" type="text" autoComplete="off" value={first} onChange={(e) => setFirst(e.target.value)} /></Field>
         <Field label="Last name" htmlFor="inv-last" hint="Optional"><input id="inv-last" type="text" autoComplete="off" value={last} onChange={(e) => setLast(e.target.value)} /></Field>
       </div>

@@ -186,6 +186,9 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   const [addEmail, setAddEmail] = useState('');
   const [addRole, setAddRole] = useState<Role>('referrer');
   const [addPartnerId, setAddPartnerId] = useState('');
+  /* Whether Send invite has been pressed on an incomplete dialog. A dialog
+     opens empty, so a mark before the first press is a scold. */
+  const [addTried, setAddTried] = useState(false);
   const [addBranch, setAddBranch] = useState('');
   /* THE LEVEL AND THE POSITION, for an invite onto our own estate. Round 5,
      M10. This screen sent neither: no seesCommission, so every management
@@ -635,6 +638,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   }
 
   function openAdd() {
+    setAddTried(false);
     setAddFirst('');
     setAddLast('');
     setAddEmail('');
@@ -649,7 +653,16 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   async function sendInvite() {
     const email = addEmail.trim();
     if (busy) return;
-    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('Enter a valid work email to invite.'); return; }
+    /* MARKED, NOT ONLY TOASTED. Matt, 2026-10-03: "highlight every missing
+       field in red with 'Required' ... Same for every form in the portal." A
+       toast says what is wrong and then goes away, leaving no mark on the
+       field it was about; this dialog's button was at least pressable, which
+       is why the toast was reachable at all. */
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      setAddTried(true);
+      toast(email ? 'That is not an email address.' : 'Enter a work email to invite.');
+      return;
+    }
     // A partner manager placing a negotiator must say which branch, or the new user
     // is invisible to a scoped inviter until their first referral. opndoor admins,
     // who see everyone, may leave it unset.
@@ -904,7 +917,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
         <div className="form-grid">
           <Field label="First name"><input type="text" placeholder="Jane" value={addFirst} onChange={(e) => setAddFirst(e.target.value)} /></Field>
           <Field label="Last name"><input type="text" placeholder="Smith" value={addLast} onChange={(e) => setAddLast(e.target.value)} /></Field>
-          <Field label="Work email" span2><input type="email" placeholder="jane@example.co.uk" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} /></Field>
+          <Field label="Work email" span2 error={addTried && !addEmail.trim() ? 'Required' : undefined}><input type="email" placeholder="jane@example.co.uk" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} /></Field>
           {/* AN ADMIN'S QUESTION, AND ONLY AN ADMIN'S. Matt, 2026-10-03: "no
               Supplier picker (it's always their own supplier)." A supplier's
               own Management has exactly one answer -- `openAdd` already sets

@@ -169,8 +169,15 @@ describe('the dialog it opens', () => {
     await waitFor(() => expect(body()).toMatch(new RegExp(`already has an agency called ${AGENCY}`)));
     expect(btn(new RegExp(`Use ${AGENCY} instead\\?`))).toBeTruthy();
     expect(document.querySelector('a[href*="/agencies/"]')).toBeNull();
-    // And it cannot be saved past the warning.
-    expect(btn(/^\s*Add agency\s*$/)!.hasAttribute('disabled')).toBe(true);
+    /* AND IT CANNOT BE SAVED PAST THE WARNING, which is now asserted as the
+       GUARANTEE rather than as the mechanism. The button used to carry
+       `disabled`; since the form-validation work it is pressable, because a
+       dead button cannot tell you why it is dead (Matt, 2026-10-03: "show a
+       message at the Send button"). Pressing it refuses and the dialog stays
+       open with the warning, which is the thing that actually matters. */
+    fireEvent.click(btn(/^\s*Add agency\s*$/)!);
+    await waitFor(() => expect(document.getElementById('sao-name')).toBeTruthy());
+    expect(body()).toMatch(new RegExp(`already has an agency called ${AGENCY}`));
   });
 
   /* SELECTED, NOT CREATED. Taking the offer closes the dialog and puts the

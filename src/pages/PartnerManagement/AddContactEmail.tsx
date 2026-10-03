@@ -48,9 +48,18 @@ export function AddContactEmail({ agency, branch, current, onSaved, label }: {
 
   const owner = branch ? branch.name : agency.name;
   const ok = EMAIL_RE.test(email.trim());
+  const [tried, setTried] = useState(false);
+  const fieldError = !tried ? undefined
+    : !email.trim() ? 'Required'
+      : !ok ? 'That is not an email address.' : undefined;
 
   const save = () => {
     const next = email.trim();
+    /* THE REFUSAL, WHICH HAD NOWHERE TO LIVE while the button was disabled
+       until the address was valid. Pressing Save with the box empty now says
+       so rather than doing nothing. */
+    if (!next) { setTried(true); return; }
+    if (!ok) { setTried(true); return; }
     ask({
       title: current ? `Change the email for ${owner}?` : `Set the email for ${owner}?`,
       /* WHAT IT ACTUALLY DOES, naming the thing that moves. An address on
@@ -117,10 +126,17 @@ export function AddContactEmail({ agency, branch, current, onSaved, label }: {
           placeholder="lettings@example.co.uk"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && ok) save(); if (e.key === 'Escape') setOpen(false); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setOpen(false); }}
           aria-label={`Email for ${owner}`}
+          aria-invalid={fieldError ? true : undefined}
         />
-        <Button variant="dark" size="sm" disabled={!ok || busy} onClick={save}>Save</Button>
+        {/* INLINE, because this control is a span on a row rather than a
+            `Field` in a dialog: there is no label above it to put a message
+            under, so it goes beside the box where the eye already is. */}
+        {fieldError && <span className="field-error" role="alert">{fieldError}</span>}
+        {/* PRESSABLE, so the refusal in `save` can be read. Matt, 2026-10-03:
+            "Same for every form in the portal." */}
+        <Button variant="dark" size="sm" disabled={busy} onClick={save}>Save</Button>
         <Button variant="quiet" size="sm" disabled={busy} onClick={() => setOpen(false)}>Cancel</Button>
       </span>
     </>

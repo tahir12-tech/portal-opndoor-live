@@ -30,6 +30,8 @@ import { mayAddAnotherTenant } from './jointAllowed';
 import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, rebalanceShares, shareSumError } from './shareMath';
 import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, originReferencingMode, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, UNRESOLVED, newApplicationSectionCopy, type OrgShape } from '@/data';
 import { Modal } from '@/components/ui/Modal';
+import { useMissingFields } from '@/lib/useMissingFields';
+import { MissingFields } from '@/components/ui/MissingFields';
 import { TITLE_OPTIONS, validateReferral, validateTenant, parseFlexibleDate, toISODate, type ReferralValues, type TenantErrors, type TenantValues } from '@/lib/validation';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -396,7 +398,17 @@ export function NewApplication() {
     e.preventDefault();
     setSubmitted(true);
     setFormError('');
-    if (!isValid || busy) return;
+    if (!isValid || busy) {
+      /* GO TO THE FIRST MISSING FIELD. Matt, 2026-10-03: "when Send is pressed
+         with required fields missing, scroll to the first missing field."
+
+         AFTER THE PAINT, not now. `setSubmitted(true)` is what reveals the
+         errors, and React has not re-rendered yet, so at this moment the DOM
+         holds no `.field.is-invalid` at all and the scroll would find nothing.
+         One frame later it holds every one of them, in order. */
+      jumpToMissing();
+      return;
+    }
     // #5 Soft duplicate guard: warn (never block) if an active referral already
     // exists for this tenant + property. Continue anyway proceeds unconditionally.
     const dup = findActiveReferralByTenantProperty({ role, scope: partnerScope }, values.email.trim(), values.postcode.trim());
@@ -469,7 +481,21 @@ export function NewApplication() {
     }
   }
 
-  const disabled = busy || (submitted && !isValid);
+  /* THE BUTTON STAYS PRESSABLE, which is the half of Matt's instruction that
+     is not copy. It used to go dead the moment it had been pressed once on an
+     invalid form (`submitted && !isValid`), so a reader who fixed one of three
+     fields had no way to ask again and no way to find the other two. Pressing
+     Send on an incomplete form is now how you find out what is left: it says
+     how many, and takes you to the first. */
+  const disabled = busy;
+
+  /* HOW MANY FIELDS ARE SHOWING AS MISSING, counted off the DOM rather than
+     off `errors`, for the reason in lib/missingFields: the DOM is what the
+     reader is looking at, it is already in their order, and it includes the
+     fields this component does not own -- the picker's, and every extra
+     tenant's. Recounted after each render, which is when the answer can have
+     changed. */
+  const { formRef, count: missingCount, jump: jumpToMissing } = useMissingFields<HTMLFormElement>(submitted);
 
   /* ---- one tenant's fields, used for every tenant ----------------------
      The same markup for the first applicant and the fourth, so a rule added to
@@ -554,11 +580,15 @@ export function NewApplication() {
         <div className="page-head__actions">
           <Button variant="ghost" size="sm" to="/applications">Cancel</Button>
           <Button variant="primary" size="sm" type="submit" form="na-form" arrow disabled={disabled}>{busy ? 'Sending…' : 'Send application'}</Button>
+          {/* "3 fields still need filling in", beside the button that did
+              nothing. The field errors are already on screen and, on a form
+              this long, a screen and a half above the thing just pressed. */}
+          <MissingFields count={missingCount} onJump={jumpToMissing} />
         </div>
       </div>
 
       <div className="na-grid">
-        <form className="na-form" id="na-form" onSubmit={submit} noValidate>
+        <form className="na-form" id="na-form" ref={formRef} onSubmit={submit} noValidate>
           {/* 0. REFERRED BY — admin only.
               Q-06 item H, and Matt's answer of 2026-09-29: "'Admin view only'
               on Referred by means that section only; agencies keep their own

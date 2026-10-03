@@ -22,6 +22,8 @@ import { showsOffices } from '@/data/agencyOffices';
 // import { usePageMeta } from '@/components/layout/pageMeta';
 // import { useToast } from '@/components/ui/Toast';
 // import { Button } from '@/components/ui/Button';
+import { MissingFields } from '@/components/ui/MissingFields';
+import { useMissingFields } from '@/lib/useMissingFields';
 // import { Icon } from '@/components/ui/Icon';
 // import { Eyebrow } from '@/components/ui/Eyebrow';
 // import { Field } from '@/components/ui/Field';
@@ -1304,8 +1306,14 @@ function requestCloseContacts() {
   const branchEmailProvided = !!branchContact.email.trim();
   const branchEmailOk = EMAIL_RE.test(branchContact.email.trim());
   const canSaveBranch = !!branchName.trim() && !!branchAgency && (!branchEmailProvided || branchEmailOk) && !busy;
+  /* PRESS IT AND BE TOLD. Matt, 2026-10-03: "Same for every form in the
+     portal." The Save button was disabled until the form was valid, so a
+     reader with the name left blank had a dead button and no mark saying
+     which field. See lib/missingFields. */
+  const [branchTried, setBranchTried] = useState(false);
+  const branchMissing = useMissingFields<HTMLDivElement>(branchTried);
   function saveBranch() {
-    if (!canSaveBranch) return;
+    if (!canSaveBranch) { setBranchTried(true); branchMissing.jump(); return; }
     const agency = findAgency(branchAgency);
     if (!agency) { toast('Select a parent agency.'); return; }
     void runOrg(
@@ -1700,9 +1708,10 @@ function requestCloseContacts() {
         onClose={() => { if (!busy) setBranchOpen(false); }}
         title="Add branch"
         sub="Add a branch to an agency. A branch with no contact of its own inherits the agency default."
-        footer={<><Button variant="ghost" onClick={() => setBranchOpen(false)} disabled={busy}>Cancel</Button><Button variant="primary" onClick={saveBranch} disabled={!canSaveBranch}>{busy ? 'Saving…' : 'Save branch'}</Button></>}
+        footer={<><Button variant="ghost" onClick={() => setBranchOpen(false)} disabled={busy}>Cancel</Button><MissingFields count={branchMissing.count} onJump={branchMissing.jump} /><Button variant="primary" onClick={saveBranch} disabled={busy}>{busy ? 'Saving…' : 'Save branch'}</Button></>}
       >
-        <Field label="Branch name" htmlFor="branch-name"><input id="branch-name" type="text" placeholder="e.g. Notting Hill" autoComplete="off" value={branchName} onChange={(e) => setBranchName(e.target.value)} /></Field>
+        <div ref={branchMissing.formRef}>
+        <Field label="Branch name" htmlFor="branch-name" error={branchTried && !branchName.trim() ? 'Required' : undefined}><input id="branch-name" type="text" placeholder="e.g. Notting Hill" autoComplete="off" value={branchName} onChange={(e) => setBranchName(e.target.value)} /></Field>
         <Field label="Postcode / area" htmlFor="branch-area" hint="Optional"><input id="branch-area" type="text" placeholder="e.g. W11" autoComplete="off" value={branchArea} onChange={(e) => setBranchArea(e.target.value)} /></Field>
         <Field label="Parent agency" htmlFor="branch-agency">
           <select id="branch-agency" value={branchAgency} onChange={(e) => setBranchAgency(e.target.value)}>
@@ -1717,6 +1726,7 @@ function requestCloseContacts() {
             <Field label="Contact name" htmlFor="branch-cname" hint="Optional"><input id="branch-cname" type="text" placeholder="e.g. Jane Smith" autoComplete="off" value={branchContact.name} onChange={(e) => setBranchContact((c) => ({ ...c, name: e.target.value }))} /></Field>
             <Field label="Contact phone" htmlFor="branch-cphone" hint="Optional"><input id="branch-cphone" type="tel" placeholder="020 7946 0000" autoComplete="off" value={branchContact.phone} onChange={(e) => setBranchContact((c) => ({ ...c, phone: e.target.value }))} /></Field>
           </div>
+        </div>
         </div>
       </Modal>
 
