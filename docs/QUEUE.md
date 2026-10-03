@@ -1511,6 +1511,10 @@ Suppliers list. The half deferred is the rest of his sentence:
 - Everything not in that list, and not already done, is now AFTER those
   four and subject to the Sunday cut.
 
+## THE REHEARSAL CHECKS THE RATES SURVIVED (instruction, 2026-10-03, verbatim).
+
+> Add to HANDOVER-BALAL.md's rehearsal checks: after migrations on the clone, confirm Rightmove (and every live supplier) still has its commission rates and agreement exactly as before, and that a test referral through Rightmove freezes the right rates, not 0. If any live supplier has rates without an agreement row (like New Supplier 2 on dev), list it for me before go-live.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
