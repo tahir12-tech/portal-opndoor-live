@@ -380,6 +380,118 @@ because until this branch the fee WAS one month's rent.
 > authoritative answer is always the `ls | wc -l` in 1.4, never a number typed
 > into prose.
 
+### 1.4b The commission rates and deals survived, and a referral still freezes them
+
+**Why this check is new.** `20261007680000` stopped "Add supplier" handing out a
+silent 25% / 10% commission deal. It drops the DEFAULT on
+`partners.partner_rate` and `partners.agent_rate` and makes both columns
+nullable, so a supplier created from now on has no deal until somebody sets
+one.
+
+**It changes no existing row**, and that is exactly the claim to verify rather
+than take on trust: dropping a default cannot alter a value that is already
+there, and on dev all eleven partners kept their rates. The clone is where that
+is confirmed against LIVE data, which nobody has inspected.
+
+**And one thing genuinely behaves differently afterwards.** `resolve_rates` now
+coalesces its answer to `0` as a last resort. Before, the columns were NOT NULL
+so there was nothing to coalesce; now a partner with no rate and no agreement
+prices a referral at nothing rather than failing on
+`applications.partner_rate`'s NOT NULL. That is deliberate (refusing such a
+referral outright is an After-launch item), but it means **a supplier whose
+rates went missing would be silent instead of loud**. Hence check 3.
+
+#### 1. Every partner's rates are exactly what they were
+
+```sql
+-- Run BEFORE the migrations, keep the output, run again AFTER, and diff.
+-- `20_compare.sql` covers this generically; this is the same claim in a form
+-- you can read without reading a diff.
+select slug, partner_rate, agent_rate
+  from public.partners
+ order by slug;
+```
+
+- [ ] identical before and after, row for row
+
+#### 2. Every live supplier's commission agreement is still there
+
+```sql
+select p.slug,
+       p.partner_rate,
+       p.agent_rate,
+       count(pa.id) filter (where pa.kind = 'commission'  and pa.ended_at is null) as commission_deals,
+       count(pa.id) filter (where pa.kind = 'agent_share' and pa.ended_at is null) as share_deals
+  from public.partners p
+  left join public.pricing_agreements pa
+         on pa.scope_level = 'partner' and pa.scope_id = p.id
+ where p.partner_kind = 'supplier'
+ group by p.slug, p.partner_rate, p.agent_rate
+ order by p.slug;
+```
+
+- [ ] every supplier that had an agreement before still has one
+- [ ] Rightmove's row reads the rates you expect, and you have checked them
+      against what Rightmove is actually contracted to
+
+#### 3. Any supplier with rates but NO agreement row: LIST IT FOR MATT
+
+Matt's own words: *"If any live supplier has rates without an agreement row
+(like New Supplier 2 on dev), list it for me before go-live."*
+
+```sql
+select p.slug, p.name, p.partner_rate, p.agent_rate
+  from public.partners p
+ where p.partner_kind = 'supplier'
+   and (p.partner_rate is not null or p.agent_rate is not null)
+   and not exists (
+     select 1 from public.pricing_agreements pa
+      where pa.scope_level = 'partner' and pa.scope_id = p.id
+        and pa.kind = 'commission' and pa.ended_at is null)
+ order by p.name;
+```
+
+**On dev this returns four: ACME TEST, New Suplier, New Supplier 2 and New
+Supplier 3.** Each got 25% / 10% from the old default with nobody agreeing it,
+and each has `rate_edits = 0` in `partner_audit`. They are test rows and were
+deliberately left alone.
+
+On LIVE the same query may return a real company being paid a rate nobody
+recorded a deal for. That is a commercial question and not a technical one.
+
+- [ ] query run, output pasted to Matt, **before go-live**
+- [ ] empty result, or Matt has seen the list and said to proceed
+
+#### 4. A test referral through Rightmove freezes the real rates, not 0
+
+Do this during the clone walk (section 11), with a referral through Rightmove
+rather than a hand-written insert: the point is to exercise `resolve_rates` and
+`freeze_commission_lines` the way the product does.
+
+```sql
+-- Replace GR-XXXXX with the reference the walk created.
+select a.guarantee_ref,
+       a.partner_rate        as frozen_on_the_application,
+       a.agent_rate          as frozen_agent_rate,
+       l.level, l.rate, l.basis_amount, l.amount
+  from public.applications a
+  left join public.application_commission_lines l on l.application_id = a.id
+ where a.guarantee_ref = 'GR-XXXXX'
+ order by l.level;
+```
+
+- [ ] `frozen_on_the_application` is Rightmove's real rate, **not 0 and not
+      null**
+- [ ] there is a `supplier` line, and its `rate` matches
+- [ ] the `amount` is that rate times `basis_amount`, to the penny
+
+**A zero here is the failure this check exists for.** It would mean the
+referral resolved no rate and took the new fallback, and it would be silent
+everywhere else: the application is created, the statement shows nothing owed,
+and the first person to notice is Rightmove.
+
+**Stop and tell Matt** if any of the four boxes above is unticked.
+
 ### 1.5 Then walk it
 
 Deploy functions and secrets to the clone (sections 6 and 7 with `$CLONE`), then
