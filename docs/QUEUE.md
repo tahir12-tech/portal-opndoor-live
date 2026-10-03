@@ -1819,6 +1819,29 @@ is nothing left to match" instead of a warning.
   go-live. If the answer is "not told", the copy fix ships tonight and
   the email goes under "After launch" with its wording drafted.
 
+## THE LEAFLET WORDING, CONFIRMED (instruction, 2026-10-03, verbatim, two messages).
+
+> Help and leaflets, confirmed by me:
+> 1. Claims: both the landlord and the agent can make a claim. FAQ 2 and the Landlord guide's description: "Either the landlord or the agent can make a claim under the deed." Keep the leaflet's "claim directly, or your agent can do it for you".
+> 2. Joint tenancies: each tenant's deed covers only their share of the rent. Landlord leaflet: "On a joint tenancy, each tenant has their own deed covering their share of the rent."
+> 3. The claim steps on the landlord leaflet are correct; leave them.
+> Don't change the cover amounts, refund wording or the "optional extra layer" yet.
+
+> More from me on the help resources:
+> 1. Refunds: keep "Full refund if the tenancy doesn't go ahead" as it is; there are no extra conditions.
+> 2. Remove the "Optional extra layer… eligible for rent guarantee cover" section from the landlord leaflet in the portal.
+> 3. FAQ 7 (changing the start date): tell me exactly what the portal enforces today (how long after payment, and any limit on how far the date can move), then make the FAQ say exactly that in plain English.
+> Leave the £120,000 and £10,000 figures as they are for now.
+
+- THE SECOND MESSAGE OVERTAKES THE FIRST on the "optional extra layer":
+  the first says don't change it yet, the second says remove it. The
+  later one wins.
+- FAQ 7 IS ANSWER-FIRST: what the portal enforces today, measured, and
+  only then the copy. `amend-tenancy-start` and `tenancy-correction`
+  hold the real rule, including the 7-day correction token.
+- STILL HELD: cover amounts (120,000 and 10,000), refund wording
+  (confirmed as-is), claim steps (confirmed correct).
+
 ## THE TENANT AND LANDLORD LEAFLETS (instruction, 2026-10-03, verbatim). DO NOT TOUCH THE COVER TERMS.
 
 > Help resources:
