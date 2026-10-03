@@ -1789,6 +1789,27 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## TWO RECORDS ON DEV I CANNOT ACCOUNT FOR (instruction, 2026-10-03, verbatim). INVESTIGATE, CHANGE NOTHING.
+
+> Two records on dev I can't account for. Investigate and tell me, without changing anything:
+> 1. The invited opndoor admin "Matthew Dwyer" (mwdwyer@mail.com, invited 29 Sep) was on the opndoor team page at 14:03 today and is gone at 16:47. Who or what removed it, when, and how? If invites expire or get tidied automatically, say so, and whether that would also hide invites on agency and supplier People tabs.
+> 2. Where "Harborview Lettings" on the Agencies list came from: who created it, when, and how.
+
+- "WITHOUT CHANGING ANYTHING" is explicit and covers both.
+- ITEM 1 IS A WINDOW I WAS WORKING IN. Between 14:03 and 16:47 today I
+  applied 20261007810000, which added `and u.status <> 'deleted'` to
+  `list_managed_users` -- the one function every People list is
+  hydrated from. That is the first thing to rule in or out, and it has
+  to be ruled out by the DATA, not by my reading of my own diff.
+- ITEM 2: "Harborview Lettings" is also the name in my own
+  deedAgreement.render.test.tsx fixture. Those tests run against the
+  mock store, not dev, but the coincidence has to be explained rather
+  than assumed.
+
+## THE OPNDOOR TEAM PAGE IS CALLED THE OPNDOOR TEAM (instruction, 2026-10-03, verbatim).
+
+> opndoor team page: breadcrumb and title should say "opndoor team", matching the sidebar.
+
 ## THE INVOICE INSTRUCTION ASKS FOR WHAT WE OWE THEM (instruction, 2026-10-03, verbatim). DOUBLE PAYMENT.
 
 > Also in the supplier statement (CSV and PDF): the invoice instruction must ask for what Opndoor owes the supplier itself (£600 here, not £840), otherwise agency commission Opndoor pays directly gets paid twice. For a draft, leave out the invoice instruction entirely ("Don't invoice yet: this statement hasn't been posted"). Month as "September 2026", not "Sep-26".
