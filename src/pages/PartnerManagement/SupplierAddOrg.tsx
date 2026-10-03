@@ -134,7 +134,7 @@ export function SupplierAddOrg({ mode, partnerSlug, partnerName, agency, onClose
       <Field label={mode === 'agency' ? 'Agency name' : 'Branch name'} htmlFor="sao-name"
         error={nameError}>
         <input id="sao-name" type="text" autoComplete="off" autoFocus
-          placeholder={mode === 'agency' ? 'e.g. Frost Partnership' : 'e.g. Mayfair'}
+          placeholder={mode === 'agency' ? 'e.g. Example Lettings' : 'e.g. Mayfair'}
           value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
 
@@ -153,7 +153,7 @@ export function SupplierAddOrg({ mode, partnerSlug, partnerName, agency, onClose
           : `Leave it blank to use ${agency?.name ?? 'the agency'}’s address.`}
         error={emailGiven && !emailShaped ? 'That is not an email address.' : undefined}>
         <input id="sao-email" type="email" autoComplete="off"
-          placeholder="lettings@agency.co.uk"
+          placeholder="lettings@example.co.uk"
           value={email} onChange={(e) => setEmail(e.target.value)} />
       </Field>
     </Modal>

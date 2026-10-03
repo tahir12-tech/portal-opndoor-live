@@ -140,13 +140,13 @@ export function SupplierInvite({
       >
         <div className="form-grid">
           <Field label="First name">
-            <input type="text" placeholder="James" value={first} onChange={(e) => setFirst(e.target.value)} />
+            <input type="text" placeholder="Jane" value={first} onChange={(e) => setFirst(e.target.value)} />
           </Field>
           <Field label="Last name">
-            <input type="text" placeholder="Okafor" value={last} onChange={(e) => setLast(e.target.value)} />
+            <input type="text" placeholder="Smith" value={last} onChange={(e) => setLast(e.target.value)} />
           </Field>
           <Field label="Work email" span2>
-            <input type="email" placeholder="james@supplier.co.uk" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input type="email" placeholder="jane@example.co.uk" value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
         </div>
         {/* THE SHARED LIST. The change-role dialog offers the same three

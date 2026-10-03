@@ -494,19 +494,19 @@ export function NewApplication() {
         </Field>
         <div className="field span-2" style={{ gridColumn: '2 / 3' }} />
         <Field label={<>First name <Req /></>} htmlFor={`${p}-first`} error={fieldError('first')}>
-          <input id={`${p}-first`} type="text" placeholder="Amelia" value={v.first} onChange={(e) => onField('first', e.target.value)} onBlur={() => onBlurField('first')} />
+          <input id={`${p}-first`} type="text" placeholder="Jane" value={v.first} onChange={(e) => onField('first', e.target.value)} onBlur={() => onBlurField('first')} />
         </Field>
         <Field label="Middle name" htmlFor={`${p}-middle`} hint={middleNameHint}>
-          <input id={`${p}-middle`} type="text" placeholder="Rose" value={v.middle} onChange={(e) => onField('middle', e.target.value)} />
+          <input id={`${p}-middle`} type="text" placeholder="Anne" value={v.middle} onChange={(e) => onField('middle', e.target.value)} />
         </Field>
         <Field label={<>Last name <Req /></>} htmlFor={`${p}-last`} error={fieldError('last')}>
-          <input id={`${p}-last`} type="text" placeholder="Hartley" value={v.last} onChange={(e) => onField('last', e.target.value)} onBlur={() => onBlurField('last')} />
+          <input id={`${p}-last`} type="text" placeholder="Smith" value={v.last} onChange={(e) => onField('last', e.target.value)} onBlur={() => onBlurField('last')} />
         </Field>
         <Field label={<>Date of birth <Req /></>} htmlFor={`${p}-dob`} error={fieldError('dob')}>
           <input id={`${p}-dob`} type="date" min={dobMin} max={dobMax} value={v.dob} onChange={(e) => onField('dob', e.target.value)} onPaste={onPasteDob} onBlur={() => onBlurField('dob')} />
         </Field>
         <Field label={<>Email <Req /></>} htmlFor={`${p}-email`} error={emailError ?? fieldError('email')}>
-          <input id={`${p}-email`} type="email" placeholder="amelia@example.com" value={v.email} onChange={(e) => onField('email', e.target.value)} onBlur={() => onBlurField('email')} />
+          <input id={`${p}-email`} type="email" placeholder="jane@example.com" value={v.email} onChange={(e) => onField('email', e.target.value)} onBlur={() => onBlurField('email')} />
         </Field>
         <Field label={<>Phone <Req /></>} htmlFor={`${p}-phone`} error={fieldError('phone')}>
           <input id={`${p}-phone`} type="tel" placeholder="07700 900000" value={v.phone} onChange={(e) => onField('phone', e.target.value)} onBlur={() => onBlurField('phone')} />

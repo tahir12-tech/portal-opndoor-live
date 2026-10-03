@@ -158,7 +158,7 @@ export function InviteToLevel({ ctx, onClose, onInvited }: { ctx: InviteContext;
       footer={<><Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" onClick={send} disabled={!canSend}>{busy ? 'Sending…' : 'Send invite'}</Button></>}
     >
       <div className="form-grid">
-        <Field span2 label={<>Work email <span className="req" aria-hidden="true">*</span></>} htmlFor="inv-email"><input id="inv-email" type="email" autoComplete="off" placeholder="name@agency.co.uk" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+        <Field span2 label={<>Work email <span className="req" aria-hidden="true">*</span></>} htmlFor="inv-email"><input id="inv-email" type="email" autoComplete="off" placeholder="name@example.co.uk" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <Field label="First name" htmlFor="inv-first" hint="Optional"><input id="inv-first" type="text" autoComplete="off" value={first} onChange={(e) => setFirst(e.target.value)} /></Field>
         <Field label="Last name" htmlFor="inv-last" hint="Optional"><input id="inv-last" type="text" autoComplete="off" value={last} onChange={(e) => setLast(e.target.value)} /></Field>
       </div>

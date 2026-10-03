@@ -114,7 +114,7 @@ export function AddContactEmail({ agency, branch, current, onSaved, label }: {
           type="email"
           autoComplete="off"
           autoFocus
-          placeholder="lettings@agency.co.uk"
+          placeholder="lettings@example.co.uk"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && ok) save(); if (e.key === 'Escape') setOpen(false); }}

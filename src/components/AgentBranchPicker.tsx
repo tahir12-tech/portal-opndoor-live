@@ -736,11 +736,11 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
             )}
             <div className="field span-2" style={fieldStyle}>
               <label htmlFor="ag-email">Contact email <span className="req" aria-hidden="true">*</span></label>
-              <input id="ag-email" type="email" placeholder="agent@agency.co.uk" value={agEmail} onChange={(e) => setAgEmail(e.target.value)} />
+              <input id="ag-email" type="email" placeholder="jane@example.co.uk" value={agEmail} onChange={(e) => setAgEmail(e.target.value)} />
             </div>
             <div className="field" style={fieldStyle}>
               <label htmlFor="ag-cname">Contact name <span className="hint">(optional)</span></label>
-              <input id="ag-cname" type="text" placeholder="e.g. Jordan Blake" value={agName} onChange={(e) => setAgName(e.target.value)} />
+              <input id="ag-cname" type="text" placeholder="e.g. Jane Smith" value={agName} onChange={(e) => setAgName(e.target.value)} />
             </div>
             <div className="field" style={fieldStyle}>
               <label htmlFor="ag-phone">Contact phone <span className="hint">(optional)</span></label>
@@ -754,7 +754,7 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
       {branchNew && !branchAuto && (
         <div className="field span-2" style={{ background: 'var(--white-lilac)', border: '1px solid var(--line)', borderRadius: 'var(--r-md, 10px)', padding: 14 }}>
           <label htmlFor="br-email">New branch contact email <span className="hint">(optional)</span></label>
-          <input id="br-email" type="email" placeholder="branch@agency.co.uk" value={brEmail} onChange={(e) => setBrEmail(e.target.value)} />
+          <input id="br-email" type="email" placeholder="lettings@example.co.uk" value={brEmail} onChange={(e) => setBrEmail(e.target.value)} />
           <span className="hint">Optional. If left blank, this branch inherits the agency's default contact.</span>
         </div>
       )}

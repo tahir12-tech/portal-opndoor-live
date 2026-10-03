@@ -104,8 +104,12 @@ describe('inviting onto our own estate', () => {
       fireEvent.change(el, { target: { value } });
     };
     await act(async () => {
-      type(/james/i, 'Rosa');
-      type(/okafor/i, 'Bell');
+      /* ANCHORED, SINCE 2026-10-03. The example names became "Jane" and
+         "Smith" in the invented-names sweep, and an unanchored /jane/i now
+         also matches the email hint "jane@example.co.uk" two fields down.
+         The exact placeholder is the stable thing to find a field by. */
+      type(/^Jane$/, 'Rosa');
+      type(/^Smith$/, 'Bell');
       type(/@/, 'rosa@zzz.test');
       fireEvent.change(sel(v, 'Level')!, { target: { value: 'Director' } });
     });

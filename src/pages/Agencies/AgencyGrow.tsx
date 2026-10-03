@@ -167,26 +167,26 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
             htmlFor="ag-branch-email"
             hint={`Overrides ${targetAgency?.name ?? 'the agency'}'s address for this branch. Leave it blank and the agency's is used.`}
             error={!emailUsable ? 'That is not an email address.' : undefined}>
-            <input id="ag-branch-email" type="email" autoComplete="off" placeholder="lettings@agency.co.uk" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
+            <input id="ag-branch-email" type="email" autoComplete="off" placeholder="lettings@example.co.uk" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
           </Field>
           <Field label="Contact name (optional)" htmlFor="ag-branch-cname">
-            <input id="ag-branch-cname" type="text" autoComplete="off" placeholder="e.g. Priya Shah" value={contactName} onChange={(e) => setContactName(e.target.value)} />
+            <input id="ag-branch-cname" type="text" autoComplete="off" placeholder="e.g. Jane Smith" value={contactName} onChange={(e) => setContactName(e.target.value)} />
           </Field>
         </>
       ) : (
         <>
           {!group && (
-            <Field label="Group name" htmlFor="ag-groupname" hint="The group that will sit above both agencies."><input id="ag-groupname" type="text" autoComplete="off" placeholder="e.g. Meridian Property Group" value={groupName} onChange={(e) => setGroupName(e.target.value)} /></Field>
+            <Field label="Group name" htmlFor="ag-groupname" hint="The group that will sit above both agencies."><input id="ag-groupname" type="text" autoComplete="off" placeholder="e.g. Example Property Group" value={groupName} onChange={(e) => setGroupName(e.target.value)} /></Field>
           )}
-          <Field label="New agency name" htmlFor="ag-newagency"><input id="ag-newagency" type="text" autoComplete="off" placeholder="e.g. Southbank Residential" value={newAgency} onChange={(e) => setNewAgency(e.target.value)} /></Field>
+          <Field label="New agency name" htmlFor="ag-newagency"><input id="ag-newagency" type="text" autoComplete="off" placeholder="e.g. Example Lettings" value={newAgency} onChange={(e) => setNewAgency(e.target.value)} /></Field>
           <Field label="Its first branch" htmlFor="ag-newbranch"><input id="ag-newbranch" type="text" autoComplete="off" placeholder="e.g. City Centre" value={newBranch} onChange={(e) => setNewBranch(e.target.value)} /></Field>
           <Field label="Contact email (optional)" htmlFor="ag-agency-email"
             hint="A signed deed also goes here, and the first branch uses it too. Leave it blank and the deed still reaches whoever sent the referral."
             error={!emailUsable ? 'That is not an email address.' : undefined}>
-            <input id="ag-agency-email" type="email" autoComplete="off" placeholder="lettings@agency.co.uk" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
+            <input id="ag-agency-email" type="email" autoComplete="off" placeholder="lettings@example.co.uk" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
           </Field>
           <Field label="Contact name (optional)" htmlFor="ag-agency-cname">
-            <input id="ag-agency-cname" type="text" autoComplete="off" placeholder="e.g. Priya Shah" value={contactName} onChange={(e) => setContactName(e.target.value)} />
+            <input id="ag-agency-cname" type="text" autoComplete="off" placeholder="e.g. Jane Smith" value={contactName} onChange={(e) => setContactName(e.target.value)} />
           </Field>
         </>
       )}

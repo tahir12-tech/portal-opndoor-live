@@ -646,10 +646,10 @@ export function Help() {
       >
         {mgrDraft && (
           <div className="form-grid">
-            <Field label="Name" htmlFor="am-name"><input id="am-name" type="text" placeholder="e.g. Rosa Hartley" value={mgrDraft.name} onChange={(e) => setMgrDraft({ ...mgrDraft, name: e.target.value })} /></Field>
+            <Field label="Name" htmlFor="am-name"><input id="am-name" type="text" placeholder="e.g. Jane Smith" value={mgrDraft.name} onChange={(e) => setMgrDraft({ ...mgrDraft, name: e.target.value })} /></Field>
             <Field label="Team / title" htmlFor="am-role"><input id="am-role" type="text" placeholder="e.g. opndoor Partnerships" value={mgrDraft.role} onChange={(e) => setMgrDraft({ ...mgrDraft, role: e.target.value })} /></Field>
             <Field label="Email" htmlFor="am-email"><input id="am-email" type="email" placeholder="partners@opndoor.co" value={mgrDraft.email} onChange={(e) => setMgrDraft({ ...mgrDraft, email: e.target.value })} /></Field>
-            <Field label="Phone" htmlFor="am-phone"><input id="am-phone" type="text" placeholder="020 4577 2100" value={mgrDraft.phone} onChange={(e) => setMgrDraft({ ...mgrDraft, phone: e.target.value })} /></Field>
+            <Field label="Phone" htmlFor="am-phone"><input id="am-phone" type="text" placeholder="020 7946 0000" value={mgrDraft.phone} onChange={(e) => setMgrDraft({ ...mgrDraft, phone: e.target.value })} /></Field>
           </div>
         )}
       </Modal>

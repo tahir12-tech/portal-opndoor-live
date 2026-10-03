@@ -102,7 +102,7 @@ export function SupplierFields({
     <>
       <Field label="Supplier company name" htmlFor={id('name')}>
         <input
-          id={id('name')} type="text" placeholder="e.g. Acme Property Group"
+          id={id('name')} type="text" placeholder="e.g. Example Property Group"
           autoComplete="off" disabled={disabled}
           value={draft.name} onChange={(e) => set('name', e.target.value)}
         />

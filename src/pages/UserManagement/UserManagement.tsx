@@ -775,9 +775,9 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
         footer={<><Button variant="ghost" onClick={() => setAddOpen(false)} disabled={busy}>Cancel</Button><Button variant="primary" onClick={sendInvite} arrow disabled={busy}>{busy ? 'Sending…' : 'Send invite'}</Button></>}
       >
         <div className="form-grid">
-          <Field label="First name"><input type="text" placeholder="James" value={addFirst} onChange={(e) => setAddFirst(e.target.value)} /></Field>
-          <Field label="Last name"><input type="text" placeholder="Okafor" value={addLast} onChange={(e) => setAddLast(e.target.value)} /></Field>
-          <Field label="Work email" span2><input type="email" placeholder="james@brackenhouse.co.uk" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} /></Field>
+          <Field label="First name"><input type="text" placeholder="Jane" value={addFirst} onChange={(e) => setAddFirst(e.target.value)} /></Field>
+          <Field label="Last name"><input type="text" placeholder="Smith" value={addLast} onChange={(e) => setAddLast(e.target.value)} /></Field>
+          <Field label="Work email" span2><input type="email" placeholder="jane@example.co.uk" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} /></Field>
           {addRole !== 'superadmin' && addRole !== 'opndoor_manager' && (
             <Field label="Supplier" span2 hint="The supplier this person works for.">
               {/* NM-O: "Supplier", not "Partner company". The select below

@@ -524,8 +524,8 @@ import { showsOffices } from '@/data/agencyOffices';
 //           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Branch contact <span style={{ fontWeight: 400, color: 'var(--ink-mute)' }}>(optional)</span></div>
 //           <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Leave blank to inherit the agency default contact.</p>
 //           <div className="form-grid">
-//             <Field span2 label="Contact email" htmlFor="branch-cemail" hint="Optional"><input id="branch-cemail" type="email" placeholder="branch@agency.co.uk" autoComplete="off" value={branchContact.email} onChange={(e) => setBranchContact((c) => ({ ...c, email: e.target.value }))} /></Field>
-//             <Field label="Contact name" htmlFor="branch-cname" hint="Optional"><input id="branch-cname" type="text" placeholder="e.g. Sam Rivers" autoComplete="off" value={branchContact.name} onChange={(e) => setBranchContact((c) => ({ ...c, name: e.target.value }))} /></Field>
+//             <Field span2 label="Contact email" htmlFor="branch-cemail" hint="Optional"><input id="branch-cemail" type="email" placeholder="lettings@example.co.uk" autoComplete="off" value={branchContact.email} onChange={(e) => setBranchContact((c) => ({ ...c, email: e.target.value }))} /></Field>
+//             <Field label="Contact name" htmlFor="branch-cname" hint="Optional"><input id="branch-cname" type="text" placeholder="e.g. Jane Smith" autoComplete="off" value={branchContact.name} onChange={(e) => setBranchContact((c) => ({ ...c, name: e.target.value }))} /></Field>
 //             <Field label="Contact phone" htmlFor="branch-cphone" hint="Optional"><input id="branch-cphone" type="tel" placeholder="020 7946 0000" autoComplete="off" value={branchContact.phone} onChange={(e) => setBranchContact((c) => ({ ...c, phone: e.target.value }))} /></Field>
 //           </div>
 //         </div>
@@ -591,7 +591,7 @@ import { showsOffices } from '@/data/agencyOffices';
 //           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>{ctEditIndex !== null ? 'Edit contact' : 'Add a contact'}</div>
 //           <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>The email is what matters. It is where the Deed of Guarantee is delivered.</p>
 //           <div className="form-grid">
-//             <Field span2 label={<>Contact email <span className="req" aria-hidden="true">*</span></>} htmlFor="ct-email"><input id="ct-email" type="email" placeholder="deeds@agency.co.uk" autoComplete="off" value={ctEmail} onChange={(e) => setCtEmail(e.target.value)} /></Field>
+//             <Field span2 label={<>Contact email <span className="req" aria-hidden="true">*</span></>} htmlFor="ct-email"><input id="ct-email" type="email" placeholder="deeds@example.co.uk" autoComplete="off" value={ctEmail} onChange={(e) => setCtEmail(e.target.value)} /></Field>
 //             <div className="field span-2" style={{ marginTop: -6 }}><span className="hint">Use a shared work address (e.g. deeds@agency.co.uk) rather than a personal one. Deeds must always deliver, even when staff change.</span></div>
 //             <Field label="Name" htmlFor="ct-name" hint="Optional"><input id="ct-name" type="text" placeholder="e.g. Deeds team" autoComplete="off" value={ctName} onChange={(e) => setCtName(e.target.value)} /></Field>
 //             <Field label="Role" htmlFor="ct-role" hint="Optional"><input id="ct-role" type="text" placeholder="e.g. Branch manager" autoComplete="off" value={ctRole} onChange={(e) => setCtRole(e.target.value)} /></Field>
@@ -1651,8 +1651,8 @@ function requestCloseContacts() {
           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Branch contact <span style={{ fontWeight: 400, color: 'var(--ink-mute)' }}>(optional)</span></div>
           <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Leave blank to inherit the agency default contact.</p>
           <div className="form-grid">
-            <Field span2 label="Contact email" htmlFor="branch-cemail" hint="Optional"><input id="branch-cemail" type="email" placeholder="branch@agency.co.uk" autoComplete="off" value={branchContact.email} onChange={(e) => setBranchContact((c) => ({ ...c, email: e.target.value }))} /></Field>
-            <Field label="Contact name" htmlFor="branch-cname" hint="Optional"><input id="branch-cname" type="text" placeholder="e.g. Sam Rivers" autoComplete="off" value={branchContact.name} onChange={(e) => setBranchContact((c) => ({ ...c, name: e.target.value }))} /></Field>
+            <Field span2 label="Contact email" htmlFor="branch-cemail" hint="Optional"><input id="branch-cemail" type="email" placeholder="lettings@example.co.uk" autoComplete="off" value={branchContact.email} onChange={(e) => setBranchContact((c) => ({ ...c, email: e.target.value }))} /></Field>
+            <Field label="Contact name" htmlFor="branch-cname" hint="Optional"><input id="branch-cname" type="text" placeholder="e.g. Jane Smith" autoComplete="off" value={branchContact.name} onChange={(e) => setBranchContact((c) => ({ ...c, name: e.target.value }))} /></Field>
             <Field label="Contact phone" htmlFor="branch-cphone" hint="Optional"><input id="branch-cphone" type="tel" placeholder="020 7946 0000" autoComplete="off" value={branchContact.phone} onChange={(e) => setBranchContact((c) => ({ ...c, phone: e.target.value }))} /></Field>
           </div>
         </div>
@@ -1718,7 +1718,7 @@ function requestCloseContacts() {
           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>{ctEditIndex !== null ? 'Edit contact' : 'Add a contact'}</div>
           <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>The email is what matters. It is where the Deed of Guarantee is delivered.</p>
           <div className="form-grid">
-            <Field span2 label={<>Contact email <span className="req" aria-hidden="true">*</span></>} htmlFor="ct-email"><input id="ct-email" type="email" placeholder="deeds@agency.co.uk" autoComplete="off" value={ctEmail} onChange={(e) => setCtEmail(e.target.value)} /></Field>
+            <Field span2 label={<>Contact email <span className="req" aria-hidden="true">*</span></>} htmlFor="ct-email"><input id="ct-email" type="email" placeholder="deeds@example.co.uk" autoComplete="off" value={ctEmail} onChange={(e) => setCtEmail(e.target.value)} /></Field>
             <div className="field span-2" style={{ marginTop: -6 }}><span className="hint">Use a shared work address (e.g. deeds@agency.co.uk) rather than a personal one. Deeds must always deliver, even when staff change.</span></div>
             <Field label="Name" htmlFor="ct-name" hint="Optional"><input id="ct-name" type="text" placeholder="e.g. Deeds team" autoComplete="off" value={ctName} onChange={(e) => setCtName(e.target.value)} /></Field>
             <Field label="Role" htmlFor="ct-role" hint="Optional"><input id="ct-role" type="text" placeholder="e.g. Branch manager" autoComplete="off" value={ctRole} onChange={(e) => setCtRole(e.target.value)} /></Field>
@@ -1761,7 +1761,7 @@ function requestCloseContacts() {
             </Field>
             {groupChoice === 'new' && (
               <Field label="New group name" span2>
-                <input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="Northgate Property Group" />
+                <input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="Example Property Group" />
               </Field>
             )}
           </div>

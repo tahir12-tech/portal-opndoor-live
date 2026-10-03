@@ -240,14 +240,14 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
       </div>
       <Field label="Agency name" htmlFor={`ac-name-${i}`}
         error={showProblems ? problemFor(`ac-name-${i}`) : undefined}>
-        <input id={`ac-name-${i}`} type="text" autoComplete="off" placeholder="e.g. Northgate Lettings" value={d.name} onChange={(e) => setDraft(i, { name: e.target.value })} />
+        <input id={`ac-name-${i}`} type="text" autoComplete="off" placeholder="e.g. Example Lettings" value={d.name} onChange={(e) => setDraft(i, { name: e.target.value })} />
       </Field>
       {/* THE ADDRESS, NOT A BRANCH NAME. It becomes the agency's office,
           named after the agency, and is never shown as a separate thing. */}
       <Field label="Agency address" htmlFor={`ac-addr-${i}`}
         hint="Where they work from. This becomes their office."
         error={showProblems ? problemFor(`ac-addr-${i}`) : undefined}>
-        <input id={`ac-addr-${i}`} type="text" autoComplete="off" placeholder="e.g. 14 Northgate, Chester CH1 2EX" value={d.address} onChange={(e) => setDraft(i, { address: e.target.value })} />
+        <input id={`ac-addr-${i}`} type="text" autoComplete="off" placeholder="e.g. 14 High Street, Chester CH1 2EX" value={d.address} onChange={(e) => setDraft(i, { address: e.target.value })} />
       </Field>
       {/* AN EXTRA PLACE THE DEED GOES, not the only one. On our own estate
           it reaches whoever sent the referral and anybody ticked for it;
@@ -255,10 +255,10 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
       <Field label="Contact email" htmlFor={`ac-email-${i}`}
         hint="Optional. A signed deed also goes here, and every office of theirs uses it unless it has its own."
         error={showProblems ? problemFor(`ac-email-${i}`) : undefined}>
-        <input id={`ac-email-${i}`} type="email" autoComplete="off" placeholder="lettings@northgate.co.uk" value={d.contactEmail} onChange={(e) => setDraft(i, { contactEmail: e.target.value })} />
+        <input id={`ac-email-${i}`} type="email" autoComplete="off" placeholder="lettings@example.co.uk" value={d.contactEmail} onChange={(e) => setDraft(i, { contactEmail: e.target.value })} />
       </Field>
       <Field label="Contact name" htmlFor={`ac-cname-${i}`} hint="Optional.">
-        <input id={`ac-cname-${i}`} type="text" autoComplete="off" placeholder="e.g. Priya Shah" value={d.contactName} onChange={(e) => setDraft(i, { contactName: e.target.value })} />
+        <input id={`ac-cname-${i}`} type="text" autoComplete="off" placeholder="e.g. Jane Smith" value={d.contactName} onChange={(e) => setDraft(i, { contactName: e.target.value })} />
       </Field>
       <Field label="Agency commission %" htmlFor={`ac-rate-${i}`} hint={`Blank earns the Opndoor standard (${fmtRatePct(base.agent)}).`}>
         <input id={`ac-rate-${i}`} inputMode="decimal" placeholder="standard" value={d.ratePct} onChange={(e) => setDraft(i, { ratePct: e.target.value })} />
@@ -269,7 +269,7 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
           sitting there asking to be filled in. */}
       {d.extra.map((b, bi) => (
         <Field key={bi} label={`Another office ${bi + 1}`} htmlFor={`ac-br-${i}-${bi}`}>
-          <input id={`ac-br-${i}-${bi}`} type="text" autoComplete="off" placeholder="e.g. Northgate Central" value={b} onChange={(e) => setExtra(i, bi, e.target.value)} />
+          <input id={`ac-br-${i}-${bi}`} type="text" autoComplete="off" placeholder="e.g. Example Central" value={b} onChange={(e) => setExtra(i, bi, e.target.value)} />
         </Field>
       ))}
       <button className="ah-linkbtn" onClick={() => setDraft(i, { extra: [...d.extra, ''] })}>
@@ -340,7 +340,7 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
 
       {shape === 'group' && (
         <>
-          <Field label="Group name" htmlFor="ac-groupname" error={showProblems ? problemFor('ac-groupname') : undefined}><input id="ac-groupname" type="text" autoComplete="off" placeholder="e.g. Meridian Property Group" value={groupName} onChange={(e) => setGroupName(e.target.value)} /></Field>
+          <Field label="Group name" htmlFor="ac-groupname" error={showProblems ? problemFor('ac-groupname') : undefined}><input id="ac-groupname" type="text" autoComplete="off" placeholder="e.g. Example Property Group" value={groupName} onChange={(e) => setGroupName(e.target.value)} /></Field>
           <Field label="Group commission %" htmlFor="ac-grouprate" hint="Optional. A group rate is its own line, paid to the group, on top of each agency's.">
             <input id="ac-grouprate" inputMode="decimal" placeholder="none" value={groupRatePct} onChange={(e) => setGroupRatePct(e.target.value)} />
           </Field>
@@ -362,7 +362,7 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
         <div className="ac-invite">
           <div className="ac-invite__title">First invite <span className="soft">(optional)</span></div>
           <div className="form-grid">
-            <Field span2 label="Email" htmlFor="ac-inv-email" error={showProblems ? problemFor('ac-inv-email') : undefined}><input id="ac-inv-email" type="email" autoComplete="off" placeholder="manager@agency.co.uk" value={invEmail} onChange={(e) => setInvEmail(e.target.value)} /></Field>
+            <Field span2 label="Email" htmlFor="ac-inv-email" error={showProblems ? problemFor('ac-inv-email') : undefined}><input id="ac-inv-email" type="email" autoComplete="off" placeholder="manager@example.co.uk" value={invEmail} onChange={(e) => setInvEmail(e.target.value)} /></Field>
             <Field label="First name" htmlFor="ac-inv-first" hint="Optional"><input id="ac-inv-first" type="text" autoComplete="off" value={invFirst} onChange={(e) => setInvFirst(e.target.value)} /></Field>
             <Field label="Last name" htmlFor="ac-inv-last" hint="Optional"><input id="ac-inv-last" type="text" autoComplete="off" value={invLast} onChange={(e) => setInvLast(e.target.value)} /></Field>
             {/* Only levels that exist in the shape being created. */}
