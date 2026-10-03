@@ -1409,6 +1409,15 @@ statement.
 > - "Opndoor checks tenants itself"
 > Rewrite the Capabilities intro as: "How this supplier sends referrals: through the portal, through the API, or both." Remove the line about agencies and CRMs. Deploy to dev and check there.
 
+## A NEW SUPPLIER HAS NO DEAL UNTIL SOMEBODY SETS ONE (instruction, 2026-10-03, verbatim).
+
+> New suppliers must never get a default commission deal. Today "Add supplier" silently sets 25% of the fee with agencies at 10% (e.g. ACME TEST). Change it so a new supplier starts with no deal at all: the Commission tab and Overview say "No commission deal set" as a warning, the Suppliers list shows "No deal set", and new referrals for that supplier are refused (portal and API) with a clear message until a deal is set. Check whether the same default exists for new agencies, and remove it there too. Tell me which existing dev suppliers got their deal this way (Letly, Test Supplier, New Suplier, New Supplier 2 and 3, ACME TEST) without changing them. Deploy to dev and check there.
+
+- The default is `create_partner`'s `p_partner_rate default 0.25,
+  p_agent_rate default 0.10`, which I read this morning while adding
+  `partner_kind` and did not question. Refusing referrals is the part
+  that needs care: it is a new way for the referral path to fail.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
