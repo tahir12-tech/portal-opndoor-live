@@ -1789,6 +1789,22 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## REFERRER IS THE WORD, NEGOTIATOR IS THE LEVEL (instruction, 2026-10-03, verbatim).
+
+> League description: "Every agency, branch, referrer and supplier ranked in full." Sweep the portal, emails, exports and help for any remaining "negotiator" used to mean a referrer generally (keep it only where it's the Negotiator level).
+
+- The League TAB was renamed to "Referrers" on 2026-10-02, with the
+  reason in that commit: "Negotiator is one LEVEL on our estate's
+  ladder, and this board ranks everybody who sent a referral -- a
+  Director who typed one in, and a supplier's own staff, neither of whom
+  is a Negotiator." `introFor` was not changed with it, so the sentence
+  under the heading still says "negotiator".
+- The description Matt gives names FOUR boards, which is also the fix to
+  `introFor`'s own word list.
+- "Keep it only where it's the Negotiator level" is the whole test: the
+  level picker, the level ladder, a people table's Level column and
+  anything describing what a Negotiator may do all keep the word.
+
 ## NO TENANCY START UNTIL THE TENANT GIVES ONE (instruction, 2026-10-03, verbatim).
 
 > Application export: GR-20626 (unfinished, no tenancy details given) shows Tenancy start date 04/10/2026. Leave Tenancy start blank until the tenant has given one; check the screen and other exports for the same.
