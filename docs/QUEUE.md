@@ -1789,6 +1789,19 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## AN OLD LINK SAYS WHERE THE TENANT ACTUALLY IS (instruction, 2026-10-03, verbatim).
+
+> Tenant payment link opened after payment: reflect where they actually are. If the deed is signed: "Your guarantee fee is paid and your Deed of Guarantee is signed. Nothing more is needed. A copy was emailed to you." If paid but not yet signed: show the "Sign your deed now" button. Same for every tenant-facing page reached from an old link.
+
+- A TENANT-FACING PAGE AND A REAL JOURNEY: the payment email is the
+  link they keep, so the second time they open it is the common case,
+  not the edge.
+- THREE STATES, not two: paid and signed (nothing to do), paid and
+  unsigned (sign now), and the ordinary unpaid case. The page knows
+  `isPaid` already; what it does not do is branch on the DEED state.
+- "Same for every tenant-facing page reached from an old link" makes it
+  the pay page, the tenant portal and the front door, not just one.
+
 ## CREATION IS RECORDED, NOT JUST EDITS (instruction, 2026-10-03, verbatim).
 
 > Record agency, branch, group and supplier creation in Recent changes and the audit trail (who, when, and from where), the same way edits are recorded.
