@@ -37,7 +37,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getCommissionStatements, getPeriods, hydrateCommissionVisibility, setHomePartner, statementMonths } from '@/data';
 import { hydrateFull, type FullApp } from '@/data/applicationsService';
 import {
-  buildAgentStatementDoc, buildApplicationDoc, buildCommissionStatementDoc, buildExpiriesCsv,
+  buildAgentStatementDoc, buildApplicationDoc, buildCommissionStatementDoc, buildExpiriesDoc,
   buildLeagueDoc, buildLivePerformanceDoc, buildPartnerStatementDoc, type BrandedExport,
 } from '@/data/exportsService';
 import { BASIS_META } from '@/data/exportsService';
@@ -305,14 +305,15 @@ describe('the expiries file, which has no commission in it at all', () => {
   it('is unchanged for a Manager, because gating it would take away the level', () => {
     /* A cohort of guarantees about to lapse is renewal work, and renewal work is
        exactly what a Manager is for. It states no earnings, so the predicate has
-       no business here and buildExpiriesCsv asks the two-role question instead. */
+       no business here and buildExpiriesDoc asks the two-role question instead. */
     beManager();
-    const asManager = buildExpiriesCsv(MANAGEMENT, 2027, 4);
+    const asManager = buildExpiriesDoc(MANAGEMENT, 2027, 4);
     expect(asManager).not.toBeNull();
-    expect(asManager!.csv).toMatch(/Guarantee reference/);
-    expect(asManager!.csv).not.toMatch(/commission/i);
+    const text = (b: NonNullable<typeof asManager>) => JSON.stringify(b.sheets);
+    expect(text(asManager!)).toMatch(/Guarantee reference/);
+    expect(text(asManager!)).not.toMatch(/commission/i);
     beDirector();
-    const asDirector = buildExpiriesCsv(MANAGEMENT, 2027, 4);
-    expect(asDirector!.csv).toBe(asManager!.csv);
+    const asDirector = buildExpiriesDoc(MANAGEMENT, 2027, 4);
+    expect(text(asDirector!)).toBe(text(asManager!));
   });
 });

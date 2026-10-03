@@ -308,14 +308,31 @@ function seesEveryReferral(role: Role): boolean {
 }
 
 /**
- * What an agency-facing document calls the slice it covers, in place of "Whole
- * estate".
+ * WHAT OPNDOOR'S OWN COPY OF A DOCUMENT COVERS: everything.
  *
- * "Whole estate" is Opndoor's phrase for its book of agencies. To the agency
- * inside it the words claim a reach they do not have, and "estate" is one of the
- * two words that must never reach a customer's screen. Their own name is the
- * honest label, and it is taken from the same scoped book every figure below is
- * summed from, so the header cannot name an agency the rows do not contain.
+ * Matt, 2026-10-03: "Header 'Scope: Whole book' instead of 'All partners'
+ * ... so all admin downloads look alike." The four admin exports said it
+ * three different ways -- the expiries file "All partners (opndoor whole
+ * book)", the others "Whole estate", the supplier line "All suppliers
+ * (combined)" -- for one and the same scope. "All partners" is also the
+ * least true of the three: on the agency rail every agency Opndoor has
+ * onboarded shares ONE partner, so "all partners" is a count of rails, not
+ * of the book.
+ *
+ * One phrase, in one place, so the four downloads cannot drift again.
+ */
+const WHOLE_BOOK = 'Whole book';
+
+/**
+ * What an agency-facing document calls the slice it covers, in place of the
+ * whole book.
+ *
+ * "Whole book" is Opndoor's phrase for everything it has onboarded. To the
+ * agency inside it the words claim a reach they do not have, and the phrase
+ * this replaced ("whole estate") used one of the two words that must never
+ * reach a customer's screen. Their own name is the honest label, and it is
+ * taken from the same scoped book every figure below is summed from, so the
+ * header cannot name an agency the rows do not contain.
  */
 function agencyScopeLabel(role: Role, scope: PartnerScope = scopeFor(role)): string {
   const names = new Set(scopeFull(allFull(), role, scope).map((a) => a.agency).filter(Boolean));
@@ -800,7 +817,7 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
 
   const [ds, de] = realPeriodRange(period);
   // Their own name where the estate used to be, and no partner segment at all.
-  const scopeText = role === 'referrer' ? 'Your referrals only' : agency ? agencyScopeLabel(role) : 'Whole estate';
+  const scopeText = role === 'referrer' ? 'Your referrals only' : agency ? agencyScopeLabel(role) : WHOLE_BOOK;
   const metaLine = `${periodWindow(period, ds, de, role)} · ${scopeText} · ${agency ? '' : `Supplier: ${scopeLabel(role)} · `}Generated ${generatedOn()} · GBP · Live records`;
   const doc: BrandedDoc = { reportName: 'Performance export', metaLine, blocks };
   return { sheets: [{ name: 'Performance', doc }], filename: `opndoor-performance-${period.id}-${fileStamp()}.xlsx` };
@@ -907,7 +924,7 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
     reportName: 'Performance export',
     metaLine: brandMeta(
       period,
-      role === 'referrer' ? 'Your referrals only' : agency ? agencyScopeLabel(role) : 'Whole estate',
+      role === 'referrer' ? 'Your referrals only' : agency ? agencyScopeLabel(role) : WHOLE_BOOK,
       agency ? null : scopeLabel(role),
       role,
     ),
@@ -1302,7 +1319,7 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     return row;
   });
 
-  const scopeText = agency ? agencyScopeLabel(role) : 'Whole estate';
+  const scopeText = agency ? agencyScopeLabel(role) : WHOLE_BOOK;
   const metaLine = `${periodWindow(period, start, end, role)} · ${scopeText} (${meta.label}) · ${agency ? '' : `Supplier: ${scopeLabel(role)} · `}Generated ${generatedOn()} · GBP`;
   const doc: BrandedDoc = {
     reportName: 'Application export',
@@ -1373,7 +1390,7 @@ export function buildApplicationDoc(role: Role, period: Period, basis: ExportBas
     reportName: 'Application export',
     metaLine: brandMeta(
       period,
-      `${agency ? agencyScopeLabel(role) : 'Whole estate'} (${meta.label})`,
+      `${agency ? agencyScopeLabel(role) : WHOLE_BOOK} (${meta.label})`,
       agency ? null : scopeLabel(role),
       role,
     ),
@@ -1547,7 +1564,7 @@ export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string,
   // The caller passes the scope here rather than leaving it to scopeFor, so both
   // questions are asked of the scope this workbook was actually built over.
   const agency = isAgencyUser(role, scope);
-  const scopeText = role === 'referrer' ? 'Your slice' : agency ? agencyScopeLabel(role, scope) : 'Whole estate';
+  const scopeText = role === 'referrer' ? 'Your slice' : agency ? agencyScopeLabel(role, scope) : WHOLE_BOOK;
   const partnerLabel = agency ? null : leaguePartnerLabel(scope, partner);
   let metaLine: string;
   if (liveAvailable()) {
@@ -2284,7 +2301,7 @@ export async function exportBordereauFile(role: Role, year: number, m0: number, 
  * management + opndoor admin, like the Application export. Live-sourced in
  * Supabase mode; a modelled generator keeps the demo download non-empty.
  */
-export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: string; filename: string } | null {
+export function buildExpiriesDoc(role: Role, year: number, m0: number): BrandedExport | null {
   if (!readsTheWholeBook(role)) return null;
   const mStart = new Date(year, m0, 1, 0, 0, 0, 0);
   const mEnd = new Date(year, m0 + 1, 0, 23, 59, 59, 999);
@@ -2315,9 +2332,30 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
      was the only thing that said "this row has siblings". "Joint with"
      answers the question the operator actually has -- which other
      guarantees -- in the references they can look up. */
-  const colHeader: CsvRow = ['Guarantee reference', 'Tenant name', 'Tenants on the guarantee', 'Joint with', 'Property address', 'Agency', 'Branch', 'Tenancy start', 'Expiry date', 'Days remaining', 'Monthly rent (whole tenancy)', "Annualised rent (this tenant's share)", 'Guarantee fee (whole tenancy)', 'Referrer'];
+  /* THE SAME HEADINGS, NOW TYPED. Matt, 2026-10-03: "Keep column headings
+     and figures exactly as they are now." The headings are unchanged word
+     for word; what the branded sheet adds is that a count is a number, a
+     money column is money and a date is text, so the three figures a
+     renewals operator sorts by (days remaining, rent, fee) sort as figures
+     rather than as the strings a CSV left behind. */
+  const columns: Column[] = [
+    { header: 'Guarantee reference', type: 'text' },
+    { header: 'Tenant name', type: 'text' },
+    { header: 'Tenants on the guarantee', type: 'int' },
+    { header: 'Joint with', type: 'text' },
+    { header: 'Property address', type: 'text' },
+    { header: 'Agency', type: 'text' },
+    { header: 'Branch', type: 'text' },
+    { header: 'Tenancy start', type: 'text' },
+    { header: 'Expiry date', type: 'text' },
+    { header: 'Days remaining', type: 'int' },
+    moneyCol('Monthly rent (whole tenancy)'),
+    moneyCol("Annualised rent (this tenant's share)"),
+    moneyCol('Guarantee fee (whole tenancy)'),
+    { header: 'Referrer', type: 'text' },
+  ];
 
-  const dataRows: CsvRow[] = [];
+  const dataRows: TableRow[] = [];
   if (liveAvailable()) {
     const book = scopeFull(allFull(), role, scopeFor(role));
     // The whole tenancy, from the whole book: its other tenants are not Deed
@@ -2352,7 +2390,7 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
       // single tenancy has nobody to be joint with, and listing its own
       // reference back at it would read as a second guarantee.
       const others = a.tenancyId ? (tenancyRefs.get(a.tenancyId) ?? []).filter((r) => r !== a.ref) : [];
-      dataRows.push([a.ref, rec?.name ?? '', String(n), others.sort().join(', '), addr, orgCell(a.agency), orgCell(a.branch), a.tenancyStart ? dmy(a.tenancyStart) : '', dmy(exp!), String(daysLeft(exp!)), moneyText(a.rent), moneyText(guaranteedAnnual(a)), moneyText(fee), a.referrer ?? '']);
+      dataRows.push([a.ref, rec?.name ?? '', n, others.sort().join(', '), addr, orgCell(a.agency), orgCell(a.branch), a.tenancyStart ? dmy(a.tenancyStart) : '', dmy(exp!), daysLeft(exp!), money(a.rent), money(guaranteedAnnual(a)), money(fee), a.referrer ?? '']);
     }
   } else {
     const AG = ['Bracken House Lettings', 'Meridian Residential', 'Crowngate Property'];
@@ -2369,14 +2407,10 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
       const rent = APP_RENTS[(i * 7) % APP_RENTS.length];
       const tenant = `${BX_FIRST[(i * 5) % BX_FIRST.length]} ${BX_LAST[(i * 3) % BX_LAST.length]}`;
       const addr = [(flat ? `${flat}, ` : '') + st[0], 'London', st[1]].filter(Boolean).join(', ');
-      dataRows.push([`GR-${41000 + (year * 12 + m0) * 50 + i}`, tenant, '1', '', addr, AG[i % AG.length], BR[i % BR.length], dmy(tStart), dmy(exp), String(daysLeft(exp)), moneyText(rent), moneyText(rent * 12), moneyText(rent), APP_REFERRERS[i % APP_REFERRERS.length]]);
+      dataRows.push([`GR-${41000 + (year * 12 + m0) * 50 + i}`, tenant, 1, '', addr, AG[i % AG.length], BR[i % BR.length], dmy(tStart), dmy(exp), daysLeft(exp), money(rent), money(rent * 12), money(rent), APP_REFERRERS[i % APP_REFERRERS.length]]);
     }
   }
 
-  const rows: CsvRow[] = [];
-  rows.push(['opndoor Guarantee Referral Portal - guarantees expiring']);
-  rows.push(['Generated', new Date().toLocaleString('en-GB')]);
-  rows.push(['Month', `${MONTH_NAMES[m0]} ${year} (by guarantee expiry date, soonest first)`]);
   /* "Your partner" told an agency manager that their own book belongs to a
      party they have never heard of. Their name, from the same book the rows
      came from.
@@ -2386,12 +2420,35 @@ export function buildExpiriesCsv(role: Role, year: number, m0: number): { csv: s
      them, so the document misdescribed its own contents. The first arm
      asks `isOpndoorStaff` rather than naming superadmin, which is the same
      predicate the modal above it now uses -- the modal and the file build
-     this sentence separately, so fixing one leaves the other. */
-  rows.push(['Scope', isOpndoorStaff(role) ? 'All partners (opndoor whole book)' : agencyFacing(role) ? agencyScopeLabel(role) : 'Your partner']);
-  rows.push(['Guarantees expiring', String(dataRows.length)]);
-  rows.push(['Currency', 'GBP']);
-  rows.push([]);
-  rows.push(colHeader);
-  for (const r of dataRows) rows.push(r);
-  return { csv: toCSV(rows), filename: `opndoor-expiries-${year}-${pad(m0 + 1)}.csv` };
+     this sentence separately, so fixing one leaves the other.
+
+     AND IT IS "Whole book" NOW, not "All partners (opndoor whole book)".
+     Matt, 2026-10-03: "Header 'Scope: Whole book' instead of 'All
+     partners'." Off the shared constant, so this file and the other three
+     admin downloads say it in the same words. */
+  const scopeText = isOpndoorStaff(role) ? WHOLE_BOOK : agencyFacing(role) ? agencyScopeLabel(role) : 'Your partner';
+
+  const doc: BrandedDoc = {
+    reportName: 'Guarantees expiring',
+    /* NO brandMeta HERE, and it is not an oversight: brandMeta takes a
+       Period, and this document's window is a calendar month chosen in a
+       month picker, not one of the seven reporting periods. The shape of
+       the line is the same -- window, scope, generated, currency -- so it
+       reads as a sibling of the other three. */
+    metaLine: `${MONTH_NAMES[m0]} ${year} (by guarantee expiry date, soonest first) · ${scopeText} · Generated ${generatedOn()} · GBP`,
+    blocks: [
+      {
+        kind: 'keyvalue',
+        items: [
+          { label: 'Month', value: `${MONTH_NAMES[m0]} ${year}` },
+          { label: 'Scope', value: scopeText },
+          { label: 'Guarantees expiring', value: String(dataRows.length) },
+          { label: 'Note', value: 'Every in-force guarantee whose expiry date falls in this month, soonest first. Already-expired guarantees are never listed.' },
+        ],
+      },
+      { kind: 'blank' },
+      { kind: 'table', columns, rows: dataRows },
+    ],
+  };
+  return { sheets: [{ name: 'Expiries', doc }], filename: `opndoor-expiries-${year}-${pad(m0 + 1)}.xlsx` };
 }

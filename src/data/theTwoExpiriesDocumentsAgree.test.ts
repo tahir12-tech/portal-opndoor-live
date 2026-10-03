@@ -24,10 +24,24 @@ import { readFileSync } from 'node:fs';
 const ADMIN = readFileSync('src/data/exportsService.ts', 'utf8');
 const COHORT = readFileSync('supabase/functions/expiry-cohorts/index.ts', 'utf8');
 
-/** The admin file's column list, as written. */
+/** The admin file's column list, as written.
+ *
+ * IT IS A TYPED Column[] SINCE 2026-10-03, where it used to be one line of
+ * CSV strings: "produce the Expiries export as a branded Excel file using
+ * the existing branded template ... not a plain CSV". The headings did not
+ * change -- that was the other half of the same instruction -- so the only
+ * thing this reader had to learn is the two shapes a heading now arrives
+ * in: `header: '...'` for a plain column and `moneyCol('...')` for a money
+ * one. */
 const adminCols = () => {
-  const line = ADMIN.split('\n').find((l) => l.includes("const colHeader: CsvRow = ["))!;
-  return [...line.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2]).filter((c) => c !== 'CsvRow');
+  /* ANCHORED ON THE FUNCTION, not on the first `const columns` in the file:
+     exportsService builds several branded tables and the application
+     export's declaration comes first, so an unanchored search read that
+     one and reported its commission columns as the expiries file's. */
+  const fn = ADMIN.indexOf('export function buildExpiriesDoc');
+  const at = ADMIN.indexOf('const columns: Column[] = [', fn);
+  const block = ADMIN.slice(at, ADMIN.indexOf('\n  ];', at));
+  return [...block.matchAll(/(?:header:|moneyCol\()\s*(?:'([^']*)'|"([^"]*)")/g)].map((m) => m[1] ?? m[2]);
 };
 
 describe('the two expiries documents', () => {

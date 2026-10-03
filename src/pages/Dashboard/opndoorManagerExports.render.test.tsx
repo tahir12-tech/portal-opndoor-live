@@ -39,7 +39,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { PageMetaProvider } from '@/components/layout/pageMeta';
 import { Dashboard } from './Dashboard';
 import { hydrateFull, type FullApp } from '@/data/applicationsService';
-import { hydrateCommissionVisibility, buildExpiriesCsv } from '@/data';
+import { hydrateCommissionVisibility, buildExpiriesDoc } from '@/data';
 
 const D = (y: number, m: number, d: number) => new Date(y, m, d);
 
@@ -134,19 +134,27 @@ describe('the Export summary control', () => {
   });
 });
 
-describe('the expiries CSV itself', () => {
+describe('the expiries workbook itself', () => {
+  /* A WORKBOOK SINCE 2026-10-03, and the scope line moved with it: it is a
+     key/value line in the branded header block now rather than a CSV row,
+     and it reads "Whole book" where it read "All partners (opndoor whole
+     book)". Matt: "Header 'Scope: Whole book' instead of 'All partners'." */
+  const scopeOf = (role: Parameters<typeof buildExpiriesDoc>[0]) => {
+    const built = buildExpiriesDoc(role, 2027, 3);
+    expect(built, 'the builder refused the role outright').toBeTruthy();
+    const items = built!.sheets.flatMap((s) => s.doc.blocks).flatMap((b) => (b.kind === 'keyvalue' ? b.items : []));
+    return String(items.find((i) => i.label === 'Scope')?.value ?? '');
+  };
+
   /* THE SAME SENTENCE, IN THE FILE. The modal and the document build their
      scope line separately, so fixing one leaves the other. Asserted on the
      builder because that is what a person ends up holding. */
-  it('does not describe an estate-wide file as one partner’s', () => {
-    const out = buildExpiriesCsv('opndoor_manager', 2027, 3);
-    expect(out, 'the builder refused the role outright').toBeTruthy();
-    expect(out!.csv).not.toMatch(/Your partner/);
+  it('does not describe a whole-book file as one partner’s', () => {
+    expect(scopeOf('opndoor_manager')).not.toMatch(/Your partner/);
   });
 
   it('and says what it actually covers', () => {
-    const out = buildExpiriesCsv('opndoor_manager', 2027, 3);
-    expect(out!.csv).toMatch(/All partners/);
+    expect(scopeOf('opndoor_manager')).toBe('Whole book');
   });
 
   /* AND AN AGENCY'S OWN FILE STILL SAYS THE AGENCY'S NAME, which is what
@@ -154,8 +162,6 @@ describe('the expiries CSV itself', () => {
      told an agency manager their own book belonged to a party they have
      never heard of. */
   it('while an agency reader still gets their own name on it', () => {
-    const out = buildExpiriesCsv('management', 2027, 3);
-    expect(out).toBeTruthy();
-    expect(out!.csv).not.toMatch(/All partners \(opndoor whole book\)/);
+    expect(scopeOf('management')).not.toBe('Whole book');
   });
 });

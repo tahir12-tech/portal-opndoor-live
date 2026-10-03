@@ -26,7 +26,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { hydrateFull, type FullApp } from '@/data/applicationsService';
 import { BASIS_META, getPeriods } from '@/data';
 import {
-  buildAgentStatementDoc, buildApplicationDoc, buildExpiriesCsv, buildLeagueDoc,
+  buildAgentStatementDoc, buildApplicationDoc, buildExpiriesDoc, buildLeagueDoc,
   buildLivePerformanceDoc, buildPartnerStatementDoc, buildPerformanceDoc,
   buildRealApplicationDoc, type BrandedExport,
 } from '@/data/exportsService';
@@ -172,10 +172,11 @@ describe('an agency-facing export never says partner or estate', () => {
   });
 
   it('the expiries file, header block and all', () => {
-    const out = buildExpiriesCsv(AGENCY_ROLE, 2027, 5)!;
+    const out = buildExpiriesDoc(AGENCY_ROLE, 2027, 5)!;
     // "Scope: Your partner" told an agency their book belongs to someone else.
-    expectClean([out.csv], 'expiries csv');
-    expect(out.csv).toContain("Regent's Lettings");
+    expectClean(copyOf(out), 'expiries workbook copy');
+    expectClean(cellsOf(out), 'expiries workbook cells');
+    expect(copyOf(out)).toContain("Regent's Lettings");
   });
 
   it('the settlement statement the agency can download from the dashboard', async () => {
@@ -202,7 +203,7 @@ describe('an agency-facing export never says partner or estate', () => {
     const heads = columnsOf(apps).map((c) => c.header);
     expect(heads).toContain('Supplier');
     expect(heads).toContain('Supplier commission');
-    expect(apps.sheets[0].doc.metaLine).toContain('Whole estate');
+    expect(apps.sheets[0].doc.metaLine).toContain('Whole book');
   });
 });
 

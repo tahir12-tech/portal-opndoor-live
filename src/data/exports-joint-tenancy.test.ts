@@ -13,7 +13,7 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { hydrateFull, type FullApp } from '@/data/applicationsService';
 import { BASIS_META } from '@/data';
-import { buildRealApplicationDoc, buildExpiriesCsv } from '@/data/exportsService';
+import { buildRealApplicationDoc, buildExpiriesDoc } from '@/data/exportsService';
 import { getPeriods } from '@/data';
 
 const D = (s: string) => new Date(s);
@@ -164,14 +164,21 @@ describe('the application export, for a joint tenancy', () => {
   });
 });
 
-describe('the expiries CSV', () => {
-  /* The LIVE branch of buildExpiriesCsv is unreachable here: it is gated on
+describe('the expiries workbook', () => {
+  /* The LIVE branch of buildExpiriesDoc is unreachable here: it is gated on
      liveAvailable(), which needs Supabase, and test mode runs the synthetic
      generator instead. What is testable — and what actually changed — is the
      column contract, which is built before the branch and shared by both. The
      live rows are proved on dev. */
-  const out = buildExpiriesCsv('superadmin', 2027, 5)!;
-  const head = out.csv.split('\n').find((l) => l.includes('Guarantee reference'))!;
+  /* A WORKBOOK SINCE 2026-10-03, not a CSV: "produce the Expiries export as
+     a branded Excel file using the existing branded template ... Keep column
+     headings and figures exactly as they are now." So the headings this test
+     is about are unchanged; where they live is not. */
+  const out = buildExpiriesDoc('superadmin', 2027, 5)!;
+  const head = out.sheets
+    .flatMap((sh) => sh.doc.blocks)
+    .flatMap((b) => (b.kind === 'table' ? b.columns.map((c) => c.header) : []))
+    .join(' | ');
 
   it('carries the tenancy columns an operator needs to chase the right people', () => {
     // Without a tenant count, someone chasing a two-person expiry rings one of

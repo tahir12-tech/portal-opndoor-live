@@ -24,7 +24,7 @@ import { hydrateFull, type FullApp } from '@/data/applicationsService';
 import { BASIS_META, getPeriods } from '@/data';
 import { getCommissionStatements } from '@/data/liveAnalytics';
 import {
-  buildAgentStatementDoc, buildApplicationDoc, buildCommissionStatementDoc, buildExpiriesCsv,
+  buildAgentStatementDoc, buildApplicationDoc, buildCommissionStatementDoc, buildExpiriesDoc,
   buildLeagueDoc, buildLivePerformanceDoc, buildPartnerStatementDoc, buildPerformanceDoc,
   buildRealApplicationDoc, type BrandedExport,
   buildAllStatementsCsv, buildSyntheticBordereau, buildLiveBordereau, BORDEREAU_COLS,
@@ -268,16 +268,20 @@ describe('every money cell in every export is a penny figure', () => {
     }
   });
 
-  it('the expiries CSV, whose money columns are text', () => {
-    const out = buildExpiriesCsv(ADMIN_ROLE, 2027, 5)!;
-    const rows = out.csv.split('\r\n').map((l) => l.split('","').map((c) => c.replace(/^"|"$/g, '')));
-    const head = rows.find((r) => r[0] === 'Guarantee reference')!;
-    const moneyAt = head.map((h, i) => ({ h, i })).filter(({ h }) => /rent|fee/i.test(h));
-    expect(moneyAt.length, 'the expiries file states rent and fee').toBe(3);
-    for (const r of rows.slice(rows.indexOf(head) + 1)) {
-      if (r.length !== head.length) continue; // the header block above the table
-      for (const { h, i } of moneyAt) expectPence(r[i], `expiries CSV / "${h}" / ${r[0]}`);
-    }
+  /* THE EXPIRIES FILE JOINS THE WALK, where it used to need its own
+     reader. Matt, 2026-10-03: "produce the Expiries export as a branded
+     Excel file using the existing branded template ... not a plain CSV."
+     Its three money columns were text cells carrying "£1,234.00" and are
+     now money-typed numbers like every other document here, so the
+     generic walker covers them and the hand-rolled CSV parser goes. */
+  it('the expiries workbook, whose money columns are now money', () => {
+    const built = buildExpiriesDoc(ADMIN_ROLE, 2027, 5)!;
+    const moneyCols = built.sheets
+      .flatMap((sh) => (sh.doc.blocks as Block[]).flatMap((b) => b.columns ?? []))
+      .filter((c) => /rent|fee/i.test(c.header));
+    expect(moneyCols.length, 'the expiries file states rent and fee').toBe(3);
+    for (const c of moneyCols) expect(c.type, `expiries / "${c.header}"`).toBe('money2');
+    expect(expectMoneyCells(built, 'expiries'), 'the expiries file carried no money at all').toBeGreaterThan(0);
   });
 });
 

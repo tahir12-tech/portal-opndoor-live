@@ -23,7 +23,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  ALL_PARTNERS, READS_THE_WHOLE_BOOK, isOpndoorStaff, readsTheWholeBook, buildApplicationDoc, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
+  ALL_PARTNERS, READS_THE_WHOLE_BOOK, isOpndoorStaff, readsTheWholeBook, buildApplicationDoc, buildExpiriesDoc, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, exportBranded,
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPeriods, getTrend, maySeeCommission, partnerName,
   statementMonths, leagueLink,
   type LeagueRow, type Period, type TrendRow,
@@ -501,8 +501,12 @@ export function Dashboard() {
   }
   function runExpiries() {
     const mv = (expMonth || '2026-06').split('-');
-    const out = buildExpiriesCsv(role, +mv[0], +mv[1] - 1);
-    if (out) downloadCsv(out.csv, out.filename);
+    /* A BRANDED WORKBOOK, LIKE THE OTHER THREE. Matt, 2026-10-03:
+       "produce the Expiries export as a branded Excel file using the
+       existing branded template (BrandedDoc, as the commission statements
+       use), not a plain CSV ... so all admin downloads look alike." */
+    const out = buildExpiriesDoc(role, +mv[0], +mv[1] - 1);
+    if (out) void exportBranded(out);
     setExpOpen(false);
   }
   return (
@@ -1366,7 +1370,7 @@ export function Dashboard() {
             <div className="bdx__head">
               <div>
                 <div className="bdx__title">Expiring guarantees</div>
-                <div className="bdx__sub">Every in-force guarantee expiring in the chosen month, soonest first. {isOpndoorStaff(role) ? 'All partners.' : 'Your partner only.'} Already-expired guarantees are never shown.</div>
+                <div className="bdx__sub">Every in-force guarantee expiring in the chosen month, soonest first. {isOpndoorStaff(role) ? 'The whole book.' : 'Your partner only.'} Already-expired guarantees are never shown.</div>
               </div>
               <button className="bdx__close" aria-label="Close" onClick={() => setExpOpen(false)}><Icon name="x" /></button>
             </div>
