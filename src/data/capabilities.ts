@@ -279,3 +279,67 @@ export function topLevelSeesCommission(scope: PartnerScope): boolean {
   // answer follows the rail rather than the reader.
   return partyIsSupplier(scope) || partyIsAgency(scope);
 }
+
+/* =====================================================================
+   MAY THIS READER ADD AN AGENCY, OR AN OFFICE, TO THEIR OWN ESTATE?
+
+   Matt, 2026-10-03: "Supplier users who can refer (Management and Referrers)
+   can add an agency or office for their own supplier while sending a referral
+   ... Supplier Management can also add and edit agencies and offices from
+   their Agencies page ... Opndoor's own agencies are unchanged: their users
+   can't add agencies or offices."
+
+   THE CLIENT TWIN OF 20261007840000, and it has to be, because the reason the
+   Agencies page drew "Add agency" for an admin alone was written down on the
+   button: "admin_create_agency_and_branch refuses anyone but an admin, so
+   drawing this for an agency manager offered a button that could only fail."
+   That reason was true and is now only half true -- the function admits a
+   supplier's own people -- so the gate moves with it rather than being
+   widened to everybody.
+
+   WHY OUR OWN ESTATE IS STILL REFUSED, which is the half that did not change:
+   `opndoor-agents` is ONE partner shared by every agency we onboard, so a
+   Regent director adding an agency there is not adding to their own book, they
+   are creating a sibling beside it. agencies_insert and
+   create_referral_target both refuse it in SQL, so the button would still be
+   one that could only fail.
+
+   TWO FUNCTIONS, ONE PREDICATE, and deliberately: `canAdd` here is asked of
+   the ESTATE, and whether this particular reader may is the level question
+   below it. A supplier's referrer may add while referring (the New application
+   form) and not from the Agencies page, which is Matt's split and is about
+   where the control is, not about which rail the row lands in.
+   ===================================================================== */
+
+/** Is this party's estate one its own people may add agencies to at all? */
+export function ownEstateTakesAdditions(scope: PartnerScope): boolean {
+  if (!scope || scope === ALL_PARTNERS) return false;
+  return partyIsSupplier(scope);
+}
+
+/**
+ * May this reader add an agency from the Agencies page?
+ *
+ * MANAGEMENT, NOT REFERRERS, on this screen. Matt gives the referrer the
+ * control on the referral form, where they have met a new office and the
+ * alternative is an abandoned referral; the Agencies page is housekeeping, and
+ * he named Management for it. The SERVER admits both (a referrer reaching this
+ * RPC is not a breach, it is the referral path), so this is a screen decision
+ * and is written as one.
+ */
+export function mayAddOwnEstateAgency(role: Role, scope: PartnerScope): boolean {
+  if (role === 'superadmin') return true;
+  return role === 'management' && ownEstateTakesAdditions(scope);
+}
+
+/**
+ * May this reader add an agency or office WHILE REFERRING?
+ *
+ * Both levels that can refer, which is Matt's instruction in his own words:
+ * "Supplier users who can refer (Management and Referrers)". A developer
+ * cannot refer, so there is nothing to add one for.
+ */
+export function mayAddWhileReferring(role: Role, scope: PartnerScope): boolean {
+  if (role === 'superadmin') return false; // An admin has the type-ahead's own create row.
+  return (role === 'management' || role === 'referrer') && ownEstateTakesAdditions(scope);
+}

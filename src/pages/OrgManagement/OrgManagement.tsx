@@ -630,7 +630,7 @@ import { getOrgDeedReadiness, type DeedReadiness } from '@/data/positionsService
 import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import {
   ALL_PARTNERS, addContactLive, createBranchLive, effectivePrimary, findAgency,
-  getAgencies, getGroups, getRatesFor, createAgencyGroup, maySeeCommission, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
+  getAgencies, getGroups, getPartners, getRatesFor, createAgencyGroup, maySeeCommission, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
   type Agency, type AgencyGroup, type AgentContact, type Branch,
 } from '@/data';
 import { useSession } from '@/session/SessionContext';
@@ -638,12 +638,13 @@ import { usePageMeta } from '@/components/layout/pageMeta';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
 import { agenciesNeedingAnEmail, agencyContactState, branchesWithNoDeedContact } from '@/data/deedContact';
-import { partyIsSupplier } from '@/data/capabilities';
+import { mayAddOwnEstateAgency, ownEstateTakesAdditions, partyIsSupplier } from '@/data/capabilities';
 import { Icon } from '@/components/ui/Icon';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { AgencyCreate } from '@/pages/Agencies/AgencyCreate';
+import { SupplierAddOrg } from '@/pages/PartnerManagement/SupplierAddOrg';
 import './OrgManagement.css';
 import { plural } from '@/lib/plural';
 
@@ -1554,11 +1555,23 @@ function requestCloseContacts() {
           <p className="page-head__sub">The group → agency → branch hierarchy. Search a group, agency or branch, expand to see branches, or click any figure to view the applications behind it.</p>
         </div>
         <div className="page-head__actions">
-          {/* Opndoor onboards agencies: admin_create_agency_and_branch refuses
-              anyone but an admin, so drawing this for an agency manager offered a
-              button that could only fail. Add BRANCH stays on canManageOrg, which
+          {/* WHO ONBOARDS AN AGENCY, which changed on 2026-10-03 and the comment
+              that used to sit here is why this is a predicate now rather than a
+              role test. It read: "Opndoor onboards agencies:
+              admin_create_agency_and_branch refuses anyone but an admin, so
+              drawing this for an agency manager offered a button that could only
+              fail." Still true of an agency manager, and no longer true of a
+              supplier's own Management: 20261007840000 admits them for their own
+              estate, which is Matt's "Supplier Management can also add and edit
+              agencies and offices from their Agencies page; show an 'Add agency'
+              button there to match the page's own text."
+
+              THE PAGE'S OWN TEXT is the point he is making: the banner has told
+              Management "You can view, add and edit the agencies and branches you
+              manage" since 2026-10-01, and on the supplier rail there was no
+              button to do it with. Add BRANCH stays on canManageOrg, which
               management may genuinely do. */}
-          {role === 'superadmin' && (
+          {mayAddOwnEstateAgency(role, partnerScope) && (
             <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}><Icon name="plus" /> Add agency</Button>
           )}
         </div>
@@ -1661,8 +1674,25 @@ function requestCloseContacts() {
       )}
       <div className={`org-empty${shownAgencies.length ? '' : ' is-shown'}`}>No groups, agencies or branches match your search.</div>
 
-      {/* Agency onboarding flow (name, first branch + address, commission, first invite). */}
-      <AgencyCreate open={createOpen} onClose={() => setCreateOpen(false)} />
+      {/* TWO DIALOGS, BECAUSE THEY ARE TWO DIFFERENT JOBS. The admin flow
+          onboards one of OUR agencies: name, first branch and address,
+          commission, first invite. A supplier adding to its own estate has no
+          commission to set (the supplier's deal covers it) and no invite to send
+          (an agency in a supplier's estate never has logins), so it gets the
+          three fields Matt asked for and the duplicate check that goes with
+          them -- the same dialog his Add agency button on Manage partner opens,
+          rather than a second copy of it here. */}
+      {createOpen && ownEstateTakesAdditions(partnerScope) && role !== 'superadmin' ? (
+        <SupplierAddOrg
+          mode="agency"
+          partnerSlug={String(partnerScope)}
+          partnerName={getPartners().find((pp) => pp.id === partnerScope)?.name ?? 'your company'}
+          onClose={() => setCreateOpen(false)}
+          onDone={() => { setCreateOpen(false); refresh(); }}
+        />
+      ) : (
+        <AgencyCreate open={createOpen} onClose={() => setCreateOpen(false)} />
+      )}
 
       {/* ADD BRANCH */}
       <Modal

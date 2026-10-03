@@ -61,6 +61,8 @@
    ===================================================================== */
 import { useEffect, useRef, useState } from 'react';
 import { ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFly, findAgency, getPartners, loadOrgShape, mayInventAgency, mayInventBranch, orgNotSetUp, ownStockViewer, searchAgencies, searchBranches, FULL_PICKER, UNRESOLVED, type OrgShape } from '@/data';
+import { mayAddWhileReferring } from '@/data/capabilities';
+import { SupplierAddOrg } from '@/pages/PartnerManagement/SupplierAddOrg';
 import { useSession } from '@/session/SessionContext';
 import { Icon } from '@/components/ui/Icon';
 import { TypeAhead, highlightMatch, type TypeAheadOption } from '@/components/ui/TypeAhead';
@@ -173,6 +175,38 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
   // keeps it flagged as new (so re-selecting it still requires a contact and
   // creates a contact-bearing record on submit).
   const createdAgencies = useRef<Set<string>>(new Set());
+
+  /* =====================================================================
+     A SUPPLIER'S OWN PEOPLE ADD A REAL AGENCY, NOT A NAME.
+
+     Matt, 2026-10-03: "On the New application form, 'Add a new agency' and
+     'Add a new office' sit under the agency and office pickers. A new agency
+     needs its name, address and agency email (where signed deeds go); a new
+     office needs its name and address, and its email is optional (it uses the
+     agency's otherwise)."
+
+     WHY THIS REPLACES THE TYPE-AHEAD'S "Create new agent" ROW rather than
+     sitting beside it. That row takes a NAME and nothing else: the agency
+     lands in the client store as a placeholder and is written for real by
+     create_referral_target when the referral is sent. It has no address field
+     and no office address, because it never asked for one -- and an address is
+     now required. Two doors onto the same job, asking for different things and
+     writing at different moments, is how the two of them drift; so on the
+     supplier rail the row goes and the button takes its place.
+
+     AN ADMIN KEEPS THE ROW. mayAddWhileReferring answers false for an admin
+     deliberately: an admin fly-creating under an explicitly chosen supplier is
+     a different flow with a partner picker in it, it is the admin product, and
+     Matt's instruction is about the supplier's own users.
+
+     IT IS WRITTEN BEFORE SEND, which is the real change. The dialog calls the
+     RPC, so by the time the picker selects it the agency is a row with an id,
+     pending_review, in Reconciliation, with an org_audit line naming who added
+     it. The referral then goes against an existing agency like any other --
+     "usable straight away for the referral" with nothing deferred to submit.
+     ===================================================================== */
+  const addsViaDialog = mayAddWhileReferring(role, partnerScope);
+  const [addOrg, setAddOrg] = useState<'agency' | 'branch' | null>(null);
 
   // The partner the referral resolves to.
   const resolvedPartner = (() => {
@@ -392,7 +426,7 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
   // Only a supplier invents an agency mid-referral. For an agent a new agency
   // is an acquisition, and that belongs to an admin on the Agencies screen, not
   // to whoever happens to be sending a referral.
-  if (agentQuery && !agentExact && mayInventAgency(shape)) {
+  if (agentQuery && !agentExact && mayInventAgency(shape) && !addsViaDialog) {
     agentOptions.push({
       id: '__create-agent',
       icon: <Icon name="plus" />,
@@ -413,7 +447,9 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
     if (matches.length === 1) chooseAgency(matches[0].name, false, matches[0].partner);
     // Enter is a shortcut for the list, so it has to obey the same rule: no
     // silent agency creation for a partner that owns its stock.
-    else if (mayInventAgency(shape)) { createAgencyOnTheFly(q, partnerScope); createdAgencies.current.add(q.toLowerCase()); chooseAgency(q, true); }
+    // ... and nothing on the supplier rail, where Add a new agency is the door
+    // and typing a name is not a creation any more.
+    else if (mayInventAgency(shape) && !addsViaDialog) { createAgencyOnTheFly(q, partnerScope); createdAgencies.current.add(q.toLowerCase()); chooseAgency(q, true); }
   }
 
   // ---- branch options ----
@@ -442,7 +478,15 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
      Through the predicate, not off the field: an UNRESOLVED shape also satisfies
      `!refersOwnStock`, so reading the field inline offered branch creation to
      everybody while the shape was in flight. */
-  const mayAddBranch = mayInventBranch(shape);
+  const mayAddBranch = mayInventBranch(shape) && !addsViaDialog;
+  /* THE ESCAPE HATCH IS NOT THE CREATE ROW, and keeping them apart matters
+     once the create row is gone from the supplier rail. "Use a different
+     branch" under a one-office agency only UNCOLLAPSES the step; what it
+     reveals is a search box over offices that already exist, which is a
+     reader on either rail's right whether or not they may add one. Hanging it
+     on mayAddBranch would have taken it away from exactly the readers who
+     just gained the Add a new office button. */
+  const mayReachOtherOffices = mayInventBranch(shape);
   if (mayAddBranch && branchQuery && !branchExact && selectedAgency) {
     branchOptions.push({
       id: '__create-branch',
@@ -643,6 +687,14 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
           {!shape.mayAddAgency && (
             <span className="hint">Referrals go against one of your own agencies. A new agency is set up by opndoor, not here.</span>
           )}
+          {/* UNDER THE PICKER, which is where Matt put it: the list is still the
+              first thing to try, and this is what to do when the agency is not
+              in it. */}
+          {addsViaDialog && (
+            <button type="button" className="abp-addorg" onClick={() => setAddOrg('agency')}>
+              <Icon name="plus" size={13} /> Add a new agency
+            </button>
+          )}
         </div>
       )}
       {/* #74 New agency: ask explicitly (no default) whether it is single-office. */}
@@ -679,7 +731,7 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
           </div>
           {/* Only where a new branch is actually allowed. On our estate there is
               nothing behind this link and SQL would refuse what it led to. */}
-          {mayAddBranch && (
+          {mayReachOtherOffices && (
             <button type="button" className="linkish" onClick={() => setRevealBranch(true)}
               style={{ background: 'none', border: 0, padding: 0, marginTop: 4, cursor: 'pointer',
                        color: 'var(--heliotrope-deep, #5b3fd9)', font: 'inherit', textDecoration: 'underline' }}>
@@ -712,8 +764,19 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
             <span className="hint">
               {mayAddBranch
                 ? 'Branches are filtered to the selected agent. Add a new branch on the fly if it is not listed.'
-                : 'Referrals go against one of your own offices. A new office is set up by opndoor, not here.'}
+                : addsViaDialog
+                  ? 'Offices are filtered to the agency above. Use Add a new office if it is not listed.'
+                  : 'Referrals go against one of your own offices. A new office is set up by opndoor, not here.'}
             </span>
+          )}
+          {/* ONLY ONCE THERE IS AN AGENCY TO ADD IT TO. An office with no
+              agency is not a thing the server can write (admin_add_branch
+              takes the agency's id), so the button waits rather than opening a
+              dialog that could only fail on save. */}
+          {addsViaDialog && selectedAgency && (
+            <button type="button" className="abp-addorg" onClick={() => setAddOrg('branch')}>
+              <Icon name="plus" size={13} /> Add a new office
+            </button>
           )}
         </div>
       ) : null}
@@ -757,6 +820,37 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
           <input id="br-email" type="email" placeholder="lettings@example.co.uk" value={brEmail} onChange={(e) => setBrEmail(e.target.value)} />
           <span className="hint">Optional. If left blank, this branch inherits the agency's default contact.</span>
         </div>
+      )}
+
+      {/* THE SAME DIALOG THE AGENCIES PAGE OPENS, with one prop different.
+          `onUseExisting` turns its duplicate offer from a link into a
+          selection, because a reader halfway through a referral must not be
+          navigated away from it. See the prop's own note.
+
+          SELECTED AS AN EXISTING AGENCY, not a new one: by the time this
+          returns, the row is written, so `chooseAgency(name, false)` is the
+          truth. Passing true would re-ask for the contact the dialog just
+          took and hand it to create_referral_target to create a second time. */}
+      {addOrg && (
+        <SupplierAddOrg
+          mode={addOrg}
+          partnerSlug={partnerScope === ALL_PARTNERS ? '' : String(partnerScope)}
+          partnerName={partnerName(String(partnerScope))}
+          agency={addOrg === 'branch' && selectedAgency ? (findAgency(selectedAgency) ?? null) : null}
+          onClose={() => setAddOrg(null)}
+          onUseExisting={(name) => {
+            if (addOrg === 'agency') chooseAgency(name, false);
+            else chooseBranch(name, false);
+            setAddOrg(null);
+          }}
+          onDone={(name) => {
+            // The dialog has already re-hydrated, so the new row is in the
+            // store under the name that was typed.
+            if (addOrg === 'agency') chooseAgency(name, false);
+            else chooseBranch(name, false);
+            setAddOrg(null);
+          }}
+        />
       )}
     </div>
   );
