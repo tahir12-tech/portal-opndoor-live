@@ -2169,6 +2169,74 @@ roles, with the three refusals that keep those seats Opndoor's
 invite-user is deployed. The invite EMAIL, the accept link and the first
 sign-in are unexercised. Somebody has to click it.
 
+## FOR MATT: GR-FROST-KES's OFFICE. ANSWERED, AND IT IS A CONFLICT BETWEEN TWO OF YOUR OWN RULINGS (2026-10-03).
+
+> Kestrel's view: GR-FROST-KES's office shows as "Frost Partnership" (with no agency) on Applications and the League Branches tab and export, but the agency page correctly shows it as the Frost Mayfair office of Frost Partnership. Find why and show office and agency correctly everywhere.
+
+**THE DATA IS CORRECT.** On dev the application points at agency "Frost
+Partnership" and branch "Frost Mayfair", and the branch belongs to that agency.
+Nothing is mislinked.
+
+**WHY IT DISPLAYS LIKE THAT: it is NM-P, working exactly as specified and
+tested.** Your ruling of 2026-09-30:
+
+> A single-office agency shows only as the agency, e.g. "Regent Property",
+> everywhere... No "1 branch", no branch row, no branch name. Where the system
+> needs an office behind the scenes, it uses the agency's own name and address
+> and is never shown separately.
+
+Kestrel's Frost has ONE office, so `showsOffices` answers false, the org cell
+prints the AGENCY's name, and the agency sub-line underneath is suppressed on
+purpose: a comment there says it "would print the same words twice". Hence
+"Frost Partnership, with no agency". `agencyOffices.test.ts` pins this with a
+fixture whose office name is deliberately DIFFERENT from its agency's
+(`officeLabel('Riverside Homes', 'Bermondsey')` is asserted to be "Riverside
+Homes"), so it is not an accident of the data.
+
+**THE ASSUMPTION UNDERNEATH IT IS TRUE OF THREE AGENCIES AND FALSE OF FIVE.**
+Your sentence rests on the office being named after the agency. Measured, every
+single-office agency on dev:
+
+| agency | its one office | |
+|---|---|---|
+| Harbour Lets | Harbour Lets | repeats the agency |
+| Kestrel's "123" | 123 | repeats the agency |
+| New Independent | New Independent | repeats the agency |
+| Kestrel's Frost Partnership | **Frost Mayfair** | a real, chosen name |
+| our Frost Partnership | **Frost Mayfair** | a real, chosen name |
+| Harborview Lettings | **Brighton Marina** | a real, chosen name |
+| **Regent's Lettings** | **Regent's Park** | a real, chosen name |
+| Southbank Residential | **Southbank Quay** | a real, chosen name |
+
+The three that repeat are offices the system created behind the scenes, which
+is the case you described. The five that do not are offices a person named, and
+hiding one of those loses a fact the reader cannot recover from the row.
+
+**THE FIX IS ONE LINE AND I HAVE NOT MADE IT, because it changes Regent two
+days before they go live.** The rule would become your REASON rather than your
+proxy: collapse when the office's name carries nothing (it is the agency's own
+name, or the auto "[Agency], Head office"), not merely when there is one of
+them. New Independent, your own example, still collapses. I wrote it, ran it,
+and it turns nine existing assertions red in two files, all of them pinning
+NM-P as written.
+
+**What it would do to Regent:** their Office column on Applications and the
+League Branches tab would read "Regent's Park" where today it reads "Regent's
+Lettings". More accurate, and the agency is still named in its own column, but
+it is a change to the go-live agency's screens that you have not asked for.
+
+**Three ways to go, and it is yours:**
+
+1. **Apply it everywhere.** Kestrel's Frost reads "Frost Mayfair", and so does
+   Regent read "Regent's Park". One rule, no special cases. My preference.
+2. **Apply it on the supplier rail only.** Fixes exactly what you reported and
+   leaves Regent alone, at the cost of a rule that is about the rail rather
+   than about the name, which is harder to defend later.
+3. **Leave it.** NM-P stands and Kestrel's Frost keeps reading "Frost
+   Partnership" in the Office column.
+
+Say which and it is a ten-minute change plus the nine assertions.
+
 ## ITEM 4, BOTH ANSWERS (2026-10-03). ONE NEEDS YOUR DECISION.
 
 ### 4a. Does the monthly run post and email supplier statements? YES.
