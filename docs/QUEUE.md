@@ -1727,6 +1727,18 @@ is nothing left to match" instead of a warning.
   separately, full tests and drift after each, deploy edge functions to
   dev after any function change, never push.
 
+## EVERY LIST THAT GROWS WITH THE BOOK SHOWS A TOP TEN (instruction, 2026-10-03, verbatim).
+
+> Reporting, "Every customer" table: show the top 10 by the chosen measure, with the search still finding any customer, and a "View all N customers" link to League with the same period and filter. Same for any other list on Reporting or Home that grows with the number of agencies.
+
+- The link half is already built: "View all" carries the period and the
+  measure as of today (`6ace193`), so this is the same link from a new
+  place rather than a new mechanism.
+- "Same for any other list" means SWEEP: every list on Reporting and
+  Home has to be sorted into "fixed length" (a status breakdown, a
+  funnel) and "one row per agency, supplier or branch", and only the
+  second kind is in scope.
+
 ## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > No default deal and the warnings now; the referral refusal goes under "After launch". Then prioritise for Wednesday: 1) "Referrals sent" including expired and "Fee unpaid" (figures people will rely on); 2) the application-detail trio and the ready-to-sign email (what tenants and agents see); 3) supplier Reporting hiding "Commission by route"; 4) real reasons on failed saves. Everything else after those, and anything not done by Sunday evening moves to "After launch".
