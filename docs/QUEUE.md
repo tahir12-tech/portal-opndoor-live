@@ -1789,6 +1789,24 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## A SUPPLIER'S COMMISSION PAYABLE IS ITS OWN (instruction, 2026-10-03, verbatim).
+
+> Supplier's own Reporting (and View as):
+> 1. "Commission payable" must show what Opndoor owes the supplier itself (£600 for Kestrel), not including agency commission Opndoor pays agencies directly on referrals frozen under "separately". Where the supplier passes agency commission on (frozen under "the supplier pays its own agents"), it is included.
+> 2. Commission statements: say "The same documents that were emailed" only for posted statements; for unposted ones say "Draft: this month's statement hasn't been sent yet".
+
+- PART 1 TURNS ON THE FROZEN SNAPSHOT, not the partner's live flag: it
+  is `opndoor_pays_agents_at_freeze`, the column added by
+  20261007610000 for exactly this question. "Separately" means Opndoor
+  pays the agency directly, so that money is not the supplier's;
+  "carved" means it comes out of the supplier's total and the supplier
+  passes it on, so it is.
+- GR-FROST-KES is the worked example and the figure Matt gives: Kestrel
+  £600 of the £840, because Frost's £240 is frozen under "separately"
+  and Opndoor pays Frost.
+- PART 2 is the same distinction as the statement heading: posted vs
+  not. `commission_statement_sends` is what "emailed" means.
+
 ## CHANGE LEVEL EVERYWHERE (instruction, 2026-10-03, verbatim). THIS SUPERSEDES D11'S WORDING.
 
 > People tables: use "Change level" everywhere (supplier People tab says "Change role").
