@@ -274,6 +274,32 @@ function agencyFacing(role: Role): boolean {
   return isAgencyUser(role, scopeFor(role));
 }
 
+/* =====================================================================
+   IS THIS FILE FOR A CUSTOMER, OR FOR OPNDOOR?
+
+   Matt, 2026-10-03: "Application export as seen by an agency or supplier:
+   include the tenant's name (it's their own client); drop the 'Refund policy
+   anomaly' column; replace 'Tenancy ID' with 'Joint with' listing the other
+   tenants' references, as the expiries file does. Keep Opndoor's own export as
+   it is unless the same changes make sense there."
+
+   "AN AGENCY OR SUPPLIER" IS NOT `agencyFacing`, which is the distinction this
+   predicate exists for. That one asks "is the reader on the agency rail" and
+   decides things about the AGENCY rail specifically -- whether to print a
+   Supplier column, whether to name the supplier's own commission. Matt's
+   sentence here is about the audience: a supplier reading their own book is a
+   customer reading their own book, exactly as an agency is, and both are owed
+   the same three changes.
+
+   OPNDOOR STAFF ARE THE ONLY ONES WHO ARE NOT. An opndoor_manager reads the
+   whole estate for operational reasons and the Tenancy ID is what they
+   reconcile a joint let by; "Joint with" is the customer's way of saying the
+   same thing and is worse for that job, because it cannot be grouped on.
+   ===================================================================== */
+function customerFacing(role: Role): boolean {
+  return !isOpndoorStaff(role);
+}
+
 /**
  * Entitled to the DOCUMENT, whether or not entitled to the money inside it.
  *
@@ -1107,6 +1133,24 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
      "Regent's Park 20% + Regent's 5%", which is a rate per payee, so it is a
      commission column like the three beside it and leaves with them. */
   const manyPayees = showComm && apps.some((a) => linesFor(a).length > 1);
+  /* THE THREE CHANGES MATT ASKED FOR ON A CUSTOMER'S COPY, and the reason
+     each is a customer change rather than a change to the file:
+
+       the TENANT'S NAME    "it's their own client". Opndoor's copy is a
+                            cross-customer operational list and names tenants
+                            already, further down; a customer's copy opened on
+                            references alone and they had to look each one up.
+       REFUND POLICY        an Opndoor reconciliation flag. It reports that a
+         ANOMALY            refund does not match OUR policy, which is our
+                            problem to resolve and not a column a customer can
+                            act on.
+       TENANCY ID ->        the id is a uuid. "Joint with" is the same fact in
+         JOINT WITH         the form a customer can use -- the other tenants'
+                            references -- and is how the expiries file has
+                            said it since it was written. Opndoor keeps the id
+                            because it is what they group a joint let by, and
+                            references cannot be grouped on. */
+  const forCustomer = customerFacing(role);
 
   const columns: Column[] = [
     /* "Supplier", not "Partner". Matt, 2026-10-02: the exception that
@@ -1116,6 +1160,9 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
        are not covered by that and keep theirs. */
     ...(agency ? [] : [{ header: 'Supplier', type: 'text' } as Column]),
     { header: 'Guarantee reference', type: 'text' },
+    // Their own client, so it goes where they will look for it: beside the
+    // reference it belongs to, not at the far end of the row.
+    ...(forCustomer ? [{ header: 'Tenant', type: 'text' } as Column] : []),
     ...(showAgency ? [{ header: 'Agency', type: 'text' } as Column] : []),
     ...(showBranch ? [{ header: 'Branch', type: 'text' } as Column] : []),
     { header: 'Referrer', type: 'text' },
@@ -1146,7 +1193,9 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
        nothing a reader can act on: whether THAT tenant's deed exists is Status
        and Deed issued date, on that tenant's own row. Position in the tenancy is
        still here, in Tenancy position, which is where it belongs. */
-    { header: 'Tenancy ID', type: 'text' },
+    ...(forCustomer
+      ? [{ header: 'Joint with', type: 'text' } as Column]
+      : [{ header: 'Tenancy ID', type: 'text' } as Column]),
     { header: 'Tenancy position', type: 'text' },
     { header: 'Share of tenancy', type: 'text' },
     // Named for what it is: on a joint tenancy every sibling row carries the
@@ -1181,7 +1230,7 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     ...(manyPayees ? [{ header: 'Commission payees', type: 'text' } as Column] : []),
     { header: 'Tenancy start date', type: 'text' },
     { header: 'Expiry date', type: 'text' },
-    { header: 'Refund policy anomaly', type: 'text' },
+    ...(forCustomer ? [] : [{ header: 'Refund policy anomaly', type: 'text' } as Column]),
   ];
   if (basis === 'activity') columns.push({ header: 'Activity in period', type: 'text' });
 
@@ -1192,10 +1241,16 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
   const wholeBook = scopeFull(allFull(), role, scopeFor(role));
   const tenancySize = new Map<string, number>();
   const tenancyFee = new Map<string, number>();
+  /* AND THE REFERENCES, for "Joint with". Built over the WHOLE book for the
+     reason the two maps above are: a sibling who paid outside the exported
+     period is still part of the tenancy, and a "Joint with" computed from the
+     filtered rows would quietly drop them. */
+  const tenancyRefs = new Map<string, string[]>();
   for (const a of wholeBook) {
     if (!a.tenancyId) continue;
     tenancySize.set(a.tenancyId, (tenancySize.get(a.tenancyId) ?? 0) + 1);
     tenancyFee.set(a.tenancyId, (tenancyFee.get(a.tenancyId) ?? 0) + feeBaseFor(a));
+    tenancyRefs.set(a.tenancyId, [...(tenancyRefs.get(a.tenancyId) ?? []), a.ref]);
   }
   // To the penny, through the one formatter: the shares were apportioned to the
   // penny by the server and summing them back in floating point reintroduces the
@@ -1273,12 +1328,21 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
          agency-facing reader gets an empty export from this service --
          so every estate is always in it. Said explicitly because
          `viaSupplier` now requires the answer. */
+      // Their own client. `findRecord` is how the expiries file reaches the
+      // tenant's name too, from the same book.
+      ...(forCustomer ? [findRecord(a.ref)?.name ?? ''] : []),
       ...(showAgency ? [viaSupplier(ALL_PARTNERS, orgCell(a.agency), a.partner)] : []),
       ...(showBranch ? [viaSupplier(ALL_PARTNERS, orgCell(a.branch), a.partner)] : []),
       a.referrer, STATUS[a.status], payState,
       a.sentAt ? dmy(a.sentAt) : '', a.paidAt ? dmy(a.paidAt) : '', a.deedAt ? dmy(a.deedAt) : '',
       a.refundedAt ? dmy(a.refundedAt) : '', a.refundedAmount != null ? moneyText(a.refundedAmount) : '',
-      a.tenancyId ?? '',
+      /* THE OTHERS, not this one, and blank where there are none, which is
+         the expiries file's own rule: a sole tenancy has nobody to be joint
+         with, and listing its own reference back at it reads as a second
+         guarantee. Opndoor keeps the uuid, which is what they group on. */
+      forCustomer
+        ? (a.tenancyId ? (tenancyRefs.get(a.tenancyId) ?? []).filter((r) => r !== a.ref).sort().join(', ') : '')
+        : (a.tenancyId ?? ''),
       a.tenancyId && a.tenancyPosition ? `${a.tenancyPosition} of ${tenancySize.get(a.tenancyId) ?? a.tenancyPosition}` : '',
       /* 100%, NEVER BLANK. Matt: "Share of tenancy: show 100% for every
          single-tenant application, never blank." A sole tenant has no
@@ -1446,7 +1510,7 @@ const LEAGUE_NOUN: Record<LeagueView, { sheet: string; column: string }> = {
   supplier: { sheet: 'Suppliers', column: 'Supplier' },
 };
 
-function leagueColumns(view: LeagueView, agency: boolean, showComm: boolean): Column[] {
+function leagueColumns(view: LeagueView, agency: boolean, showComm: boolean, forCustomer = false): Column[] {
   const first: Column = { header: LEAGUE_NOUN[view].column, type: 'text' };
   const core: Column[] = [
     { header: 'Referrals', type: 'int' },
@@ -1460,7 +1524,26 @@ function leagueColumns(view: LeagueView, agency: boolean, showComm: boolean): Co
      which is the Detail column every other board already had and this
      one dropped: two people of one name at two companies read as one
      person with a strange total. It carries no commission, as before. */
-  if (view === 'referrer') return [first, { header: 'Agency or supplier', type: 'text' }, ...core];
+  /* =====================================================================
+     AND BOTH OF THOSE COLUMNS ARE OPNDOOR'S, 2026-10-03.
+
+     Matt: "League exports as an agency or supplier: drop the 'Route' column
+     (and 'Agency or supplier'), which only mean something in Opndoor's view."
+
+     HE IS RIGHT ABOUT WHY, and it is worth writing down: the ROUTE is which
+     of Opndoor's rails the row came in on, and both columns exist to tell
+     two estates apart in one file. A customer's export holds ONE estate --
+     their own -- so Route is their own name repeated down every row, and
+     "Agency or supplier" is the agency they already know they are looking at.
+     Each adds a column of noise to a spreadsheet somebody is going to sort.
+
+     THE REFERRER BOARD IS THE ONE PLACE THAT COULD HAVE BEEN ARGUED: the
+     column was added on 2026-10-02 because "two people of one name at two
+     companies read as one person with a strange total". That is true across
+     estates and false within one, and a customer's file is within one. */
+  if (view === 'referrer') {
+    return forCustomer ? [first, ...core] : [first, { header: 'Agency or supplier', type: 'text' }, ...core];
+  }
   /* =====================================================================
      "Detail" BECOMES COLUMNS THAT SAY WHAT THEY HOLD, 2026-10-03.
 
@@ -1481,10 +1564,16 @@ function leagueColumns(view: LeagueView, agency: boolean, showComm: boolean): Co
      sheet loses the column outright rather than carrying a blank one --
      there the first column already IS the route.
      ===================================================================== */
+  /* THE AGENCY COLUMN STAYS ON A CUSTOMER'S BRANCHES SHEET, and only the
+     Route goes: a branch row still has to say which of their agencies it
+     belongs to, which is the half of Matt's 2026-10-02 instruction that is
+     about their own structure rather than about ours. */
   const detailCols: Column[] = view === 'supplier' ? []
     : view === 'branch'
-      ? [{ header: 'Agency', type: 'text' }, { header: 'Route', type: 'text' }]
-      : [{ header: 'Route', type: 'text' }];
+      ? (forCustomer
+        ? [{ header: 'Agency', type: 'text' }]
+        : [{ header: 'Agency', type: 'text' }, { header: 'Route', type: 'text' }])
+      : (forCustomer ? [] : [{ header: 'Route', type: 'text' }]);
   /* A MANAGER READS THE BOARD, NOT THE PAYOUT. The referrer view never carried
      commission and the other two do, as the last column or two; a Manager is
      supposed to see who is performing across every branch and keeps all of that,
@@ -1498,7 +1587,7 @@ function leagueColumns(view: LeagueView, agency: boolean, showComm: boolean): Co
     : [moneyCol('Supplier commission'), moneyCol('Agent commission')];
   return [first, ...detailCols, ...core, ...comm];
 }
-function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, agency: boolean, showComm: boolean): TableRow[] {
+function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, agency: boolean, showComm: boolean, forCustomer = false): TableRow[] {
   return rows.map((r) => {
     // Keep per-row partner attribution in the export when viewing across
     // partners (the on-screen Partner tag's export twin, #52).
@@ -1522,12 +1611,18 @@ function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, a
        NAMED by the agency in the first column, so this is blank there and
        says so by being blank rather than by repeating the first cell. */
     const route = showPartner && r.partner ? r.partner : '';
+    /* AND NO ROUTE AT ALL ON A CUSTOMER'S COPY, 2026-10-03: "drop the 'Route'
+       column (and 'Agency or supplier'), which only mean something in
+       Opndoor's view." The cells go with the headings in `leagueColumns`, and
+       the two have to agree exactly or every column after them shifts. */
     const detailCells = view === 'supplier' ? []
-      : view === 'branch' ? [sub, route]
-      : [route];
+      : view === 'branch' ? (forCustomer ? [sub] : [sub, route])
+        : (forCustomer ? [] : [route]);
     if (view === 'referrer') {
       // The referrer board keeps its one "Agency or supplier" cell, which is
-      // the shape the 2026-10-02 instruction gave it.
+      // the shape the 2026-10-02 instruction gave it, and loses it on a
+      // customer's copy, which holds one estate and already knows whose.
+      if (forCustomer) return [name, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
       const who = showPartner && r.partner ? `${sub}${sub ? ' · ' : ''}${r.partner}` : sub;
       return [name, who, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
     }
@@ -1569,6 +1664,10 @@ export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string,
   // The caller passes the scope here rather than leaving it to scopeFor, so both
   // questions are asked of the scope this workbook was actually built over.
   const agency = isAgencyUser(role, scope);
+  /* "an agency OR supplier", which is the audience and not the rail: a
+     supplier reading their own League holds one estate exactly as an agency
+     does, and Route is their own name repeated down every row. */
+  const forCustomer = customerFacing(role);
   const scopeText = role === 'referrer' ? 'Your slice' : agency ? agencyScopeLabel(role, scope) : WHOLE_BOOK;
   const partnerLabel = agency ? null : leaguePartnerLabel(scope, partner);
   let metaLine: string;
@@ -1585,7 +1684,7 @@ export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string,
       reportName: `League table: ${name}`,
       metaLine,
       blocks: [
-        { kind: 'table', columns: leagueColumns(view, agency, showComm), rows: leagueRows(view, getLeague(view, { role, scope, partner, period, branchIds }), showPartner, agency, showComm) },
+        { kind: 'table', columns: leagueColumns(view, agency, showComm, forCustomer), rows: leagueRows(view, getLeague(view, { role, scope, partner, period, branchIds }), showPartner, agency, showComm, forCustomer) },
         // The note explains an empty commission cell. With no commission column it
         // explains nothing and would be the only mention of commission on the sheet.
         ...(showComm && agency && view === 'branch' ? [{ kind: 'keyvalue' as const, items: [{ label: 'Note', value: BRANCH_COMMISSION_NOTE }] }] : []),

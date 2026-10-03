@@ -76,13 +76,45 @@ describe('the export columns', () => {
      in a way that still opens. Both are asserted, on the same three views. */
   it('are none on Suppliers, Route on Agencies, Agency and Route on Branches', () => {
     expect(EXPORTS).toContain("const detailCols: Column[] = view === 'supplier' ? []");
-    expect(EXPORTS).toContain("? [{ header: 'Agency', type: 'text' }, { header: 'Route', type: 'text' }]");
-    expect(EXPORTS).toContain(": [{ header: 'Route', type: 'text' }];");
+    expect(EXPORTS).toContain("[{ header: 'Agency', type: 'text' }, { header: 'Route', type: 'text' }]");
+    expect(EXPORTS).toContain("[{ header: 'Route', type: 'text' }]");
   });
 
   it('and the cells follow the same three-way split', () => {
     expect(EXPORTS).toContain("const detailCells = view === 'supplier' ? []");
-    expect(EXPORTS).toContain("view === 'branch' ? [sub, route]");
+    expect(EXPORTS).toContain("view === 'branch' ? (forCustomer ? [sub] : [sub, route])");
+  });
+
+  /* =====================================================================
+     AND NONE OF IT ON A CUSTOMER'S COPY, 2026-10-03.
+
+     Matt: "League exports as an agency or supplier: drop the 'Route' column
+     (and 'Agency or supplier'), which only mean something in Opndoor's view."
+
+     THE SPLIT ABOVE IS STILL THE SPLIT, for Opndoor, and this is a second
+     axis on top of it: the ROUTE is which of our rails the row came in on,
+     and both columns exist to tell two estates apart in one file. A
+     customer's export holds one estate, so Route is their own name repeated
+     down every row.
+
+     THE AGENCY COLUMN SURVIVES on their Branches sheet, which is the half of
+     the 2026-10-02 instruction that is about THEIR structure rather than
+     ours: a branch row still has to say which of their agencies it is in.
+     ===================================================================== */
+  it('and a customer gets neither Route nor "Agency or supplier"', () => {
+    expect(EXPORTS).toContain("(forCustomer ? [] : [{ header: 'Route', type: 'text' }])");
+    expect(EXPORTS).toContain("return forCustomer ? [first, ...core] : [first, { header: 'Agency or supplier', type: 'text' }, ...core];");
+    // The cells go with the headings, or every column after them shifts.
+    expect(EXPORTS).toContain("if (forCustomer) return [name, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];");
+  });
+
+  /* THE AUDIENCE, NOT THE RAIL. `agency` is already in scope at that site and
+     would have been the easy thing to reach for; it answers false for a
+     supplier's Management, who is just as much a customer reading their own
+     book. */
+  it('and the test is the audience rather than the rail', () => {
+    expect(EXPORTS).toContain('const forCustomer = customerFacing(role);');
+    expect(EXPORTS).toContain('function customerFacing(role: Role): boolean {\n  return !isOpndoorStaff(role);');
   });
 
   /* COMMENTS STRIPPED, because the comment above this very code quotes
