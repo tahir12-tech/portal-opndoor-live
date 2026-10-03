@@ -275,8 +275,15 @@ describe('the words on a supplier’s own page', () => {
     const v = await open();
     await openTab(v, 'Settings');
     const t = v.container.textContent ?? '';
-    expect(t).toContain('The supplier references first');
-    expect(t).not.toContain('The partner references first');
+    /* THE SENTENCE IT USED TO READ WAS "The supplier references first ...",
+       the `desc` under the dropdown. Matt replaced both on 2026-10-03: the
+       dropdown became three radios and the note under it went, because it
+       only ever described the option already chosen. The rule this test is
+       about is unchanged -- this party is called a supplier, never a partner
+       -- so it now reads the lines that are actually on the page. */
+    expect(t).toContain('They check tenants, and Opndoor applies its own criteria too');
+    expect(t).toContain('How are this supplier’s tenants checked?');
+    expect(t).not.toMatch(/\bpartner\b/i);
   });
 
   /* STATUS IS A LABEL, NOT THE STORED VALUE. The column printed `u.status`

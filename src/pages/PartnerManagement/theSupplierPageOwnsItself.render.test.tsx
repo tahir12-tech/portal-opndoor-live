@@ -84,9 +84,17 @@ describe('the Settings tab has the fields Manage had', () => {
   it('name, live from, status, referencing mode and the portal capability', async () => {
     const v = await supplierPage();
     await openTab(v, 'Settings');
-    for (const id of ['#ss-name', '#ss-since', '#ss-status', '#ss-refmode']) {
+    for (const id of ['#ss-name', '#ss-since', '#ss-status']) {
       expect(v.container.querySelector(id), `no ${id}`).toBeTruthy();
     }
+    /* REFERENCING MODE IS THREE RADIOS SINCE 2026-10-03, not `#ss-refmode`:
+       "replace the 'Referencing mode' dropdown with the same plain-English
+       radio question as the agency page". The field is still here and still
+       sets the same thing, so this assertion moved from the select's id to
+       the radio group's name. */
+    const modes = v.container.querySelectorAll<HTMLInputElement>('input[name="ss-refmode"]');
+    expect(modes, 'no referencing-mode radios').toHaveLength(3);
+    expect(v.container.textContent).toContain('How are this supplier’s tenants checked?');
     expect(v.container.textContent).toContain('Portal referrals');
     expect((v.container.querySelector<HTMLInputElement>('#ss-name'))!.value).toBe('ZZZ Page Co');
   });

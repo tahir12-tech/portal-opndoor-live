@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Card, CardHead } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
+import { TenantsChecked } from '@/components/TenantsChecked';
 import { Modal } from '@/components/ui/Modal';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { Tag } from '@/components/ui/Tag';
@@ -138,7 +139,11 @@ export function PartnerManagement() {
   // which has a rate-confirmation early-return). Same governed RPC + audit.
 
   const modeLabel = (m: ReferencingMode): string =>
-    REFERENCING_MODES.find((x) => x.id === m)?.label ?? m;
+    /* THE ANSWER, NOT THE FIELD'S OLD NAME. The form no longer shows
+       'Pre-referenced, screened' anywhere, so a confirmation saying the
+       change was "to Pre-referenced, screened" would name words the reader
+       has never seen. `choice` is the line they clicked. */
+    REFERENCING_MODES.find((x) => x.id === m)?.choice ?? m;
 
   function readRate(v: string, fallback: number): number {
     const n = parseFloat(v);
@@ -185,7 +190,13 @@ export function PartnerManagement() {
       const changes: RateChange[] = [];
       if ((cur.referencingMode ?? 'pre_referenced_screened') !== refMode) {
         changes.push({
-          label: 'Referencing mode',
+          /* NAMED AS THE FORM NAMES IT. The field was labelled "Referencing
+             mode" while it was a dropdown of that name; the form now asks
+             "How are this supplier's tenants checked?", so a confirmation
+             headed "Referencing mode" would name a control that is no longer
+             on the page. changeSentence calls the same field "Referencing" in
+             the audit trail, which is the same vocabulary. */
+          label: 'How tenants are checked',
           from: modeLabel(cur.referencingMode ?? 'pre_referenced_screened'),
           to: modeLabel(refMode),
         });
@@ -375,21 +386,26 @@ export function PartnerManagement() {
             What happens to an application after it arrives. Each application records the mode in force
             when it was created, so changing this never rewrites the basis of applications already in flight.
           </div>
-          <Field label="Referencing mode" htmlFor="pm-refmode">
-            <select id="pm-refmode" value={refMode} onChange={(e) => setRefMode(e.target.value as ReferencingMode)}>
-              {REFERENCING_MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-            </select>
-          </Field>
-          <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginTop: -6, marginBottom: 4 }}>
-            {REFERENCING_MODES.find((m) => m.id === refMode)?.desc}
-          </div>
+          {/* THE QUESTION, NOT THE FIELD NAME. Matt, 2026-10-03: "replace the
+              'Referencing mode' dropdown with the same plain-English radio
+              question as the agency page". Shared with Supplier Settings,
+              which set the same field through its own copy of this select. */}
+          <TenantsChecked name="pm-refmode" value={refMode} onChange={setRefMode} />
         </div>
 
         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 16 }}>
           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Capabilities</div>
+          {/* MATT'S OWN SENTENCE, 2026-10-03: "Rewrite the Capabilities intro
+              as: 'How this supplier sends referrals: through the portal,
+              through the API, or both.' Remove the line about agencies and
+              CRMs." The old one explained the DESIGN -- why these are two
+              independent settings rather than one supplier type -- which is a
+              note to whoever built the form, not to whoever is filling it in.
+              It also used "an agency" to mean a kind of supplier, which is not
+              what the word means here. Supplier Settings already carried the
+              corrected version; this form did not. */}
           <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginBottom: 12 }}>
-            What this supplier can do. Two independent settings rather than one supplier type: an agency is
-            portal only, a CRM is API only, and some suppliers are both.
+            How this supplier sends referrals: through the portal, through the API, or both.
           </div>
 
           <label className="pmcap">

@@ -25,7 +25,7 @@
    ===================================================================== */
 import { useEffect, useState } from 'react';
 import {
-  getPartner, updatePartnerSettings, REFERENCING_MODES,
+  getPartner, updatePartnerSettings,
   getPartnerAudit, getReferrerLeaderboardMode, setReferrerLeaderboardMode,
   type PartnerAuditEntry, type PartnerSettingsInput, type PartnerStatus,
   type ReferencingMode, type LeaderboardMode,
@@ -35,6 +35,7 @@ import { useConfirm } from '@/components/ui/ConfirmModal';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
+import { TenantsChecked } from '@/components/TenantsChecked';
 import { changeSentence, isNoOpChange } from '@/data/changeSentence';
 import { useToast } from '@/components/ui/Toast';
 import { formatDate } from '@/lib/format';
@@ -130,17 +131,17 @@ export function SupplierFields({
           force when it was created, so changing this never rewrites the basis of applications
           already in flight.
         </p>
-        <Field label="Referencing mode" htmlFor={id('refmode')}>
-          <select
-            id={id('refmode')} disabled={disabled}
-            value={draft.refMode} onChange={(e) => set('refMode', e.target.value as ReferencingMode)}
-          >
-            {REFERENCING_MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-          </select>
-        </Field>
-        <p className="ss-sect__note ss-sect__note--tight">
-          {REFERENCING_MODES.find((m) => m.id === draft.refMode)?.desc}
-        </p>
+        {/* THE QUESTION, NOT THE FIELD NAME. Matt, 2026-10-03: "replace the
+            'Referencing mode' dropdown with the same plain-English radio
+            question as the agency page". The note under the select went with
+            it: it described only the option already chosen, and the three
+            lines now say it themselves. */}
+        <TenantsChecked
+          name={id('refmode')}
+          value={draft.refMode}
+          disabled={disabled}
+          onChange={(next) => set('refMode', next)}
+        />
       </div>
 
       <div className="ss-sect">
@@ -152,7 +153,7 @@ export function SupplierFields({
             agency" to mean a kind of supplier, two days after the word
             was pinned to something else entirely. */}
         <p className="ss-sect__note">
-          Some suppliers refer through the portal, some through the API, and some use both.
+          How this supplier sends referrals: through the portal, through the API, or both.
         </p>
         <label className="pmcap">
           <input

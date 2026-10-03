@@ -368,12 +368,31 @@ export type ReferencingMode = 'pre_referenced_open' | 'pre_referenced_screened' 
     pre-referenced modes exist for suppliers alone -- an agency on our own
     rail is always opndoor_referenced -- so there is no reader this sentence
     is now wrong for. */
-export const REFERENCING_MODES: { id: ReferencingMode; label: string; desc: string }[] = [
+/**
+ * The three referencing modes, with the three ways they get said.
+ *
+ * `label`  the short name, for a chip or a column where there is room for
+ *          two words and the reader already knows the vocabulary.
+ * `choice` the ANSWER TO A QUESTION, which is how somebody setting it up
+ *          meets it. Matt, 2026-10-03, gave these three lines verbatim:
+ *          "replace the 'Referencing mode' dropdown with the same
+ *          plain-English radio question as the agency page, 'How are this
+ *          supplier's tenants checked?', one line each". A dropdown of
+ *          'Pre-referenced, screened' asked the reader to know the jargon
+ *          before they could pick, and showed the explanation only for the
+ *          option they had already chosen.
+ * `desc`   the longer note, kept for the places that still explain the
+ *          consequence rather than name the setting.
+ */
+export const REFERENCING_MODES: { id: ReferencingMode; label: string; choice: string; desc: string }[] = [
   { id: 'pre_referenced_screened', label: 'Pre-referenced, screened',
+    choice: 'They check tenants, and Opndoor applies its own criteria too',
     desc: 'The supplier references first and opndoor applies its own criteria. Applications are refused.' },
   { id: 'pre_referenced_open', label: 'Pre-referenced, open',
+    choice: 'They check tenants, and Opndoor accepts them as sent',
     desc: 'The supplier references first and opndoor applies no criteria at all. A commercial position, granted deliberately.' },
   { id: 'opndoor_referenced', label: 'opndoor referenced',
+    choice: 'Opndoor checks tenants itself',
     desc: 'opndoor completes the reference. Applications are refused.' },
 ];
 
