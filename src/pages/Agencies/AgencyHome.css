@@ -172,7 +172,13 @@
 
 /* ---- people filters ---- */
 .ah-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
-.ah-filters select, .ah-filter-q {
+/* THE LOOK MOVED TO `.sel` IN portal.css, 2026-10-03, and this rule is the
+   reason: Matt pointed at these filters as the ones that look right and asked
+   for every other dropdown to match them. Two definitions of one look is how
+   they come apart, so the declarations went to the shared class and the
+   selects here carry it. The search box keeps them, because `.ah-filter-q` is
+   a text input and `.sel` is for dropdowns. */
+.ah-filter-q {
   font: inherit; font-size: 13px; padding: 6px 8px;
   border: 1px solid var(--line); border-radius: 8px; background: var(--app-bg);
 }

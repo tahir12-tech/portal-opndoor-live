@@ -818,6 +818,7 @@ export function Team() {
           onChange={(e) => setFilter((f) => ({ ...f, q: e.target.value }))}
         />
         <select
+          className="sel"
           aria-label="Level" value={filter.level}
           onChange={(e) => setFilter((f) => ({ ...f, level: e.target.value as AgencyLevel | '' }))}
         >
@@ -825,6 +826,7 @@ export function Team() {
           {AGENCY_LEVELS.map((l) => <option key={l.level} value={l.level}>{l.level}</option>)}
         </select>
         <select
+          className="sel"
           aria-label="Status" value={filter.status}
           onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value }))}
         >
@@ -834,7 +836,7 @@ export function Team() {
           <option value="deactivated">No access</option>
         </select>
         {placeIsAChoice && (
-          <select aria-label="Office" value={place} onChange={(e) => setPlace(e.target.value)}>
+          <select className="sel" aria-label="Office" value={place} onChange={(e) => setPlace(e.target.value)}>
             <option value="">Everywhere</option>
             {placeOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
           </select>

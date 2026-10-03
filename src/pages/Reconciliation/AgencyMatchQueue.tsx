@@ -231,7 +231,7 @@ function MatchItem({ row, onDone }: { row: AgencyMatchRow; onDone: () => Promise
         {agencyId && (
           <div className="rqitem__meta" style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>Branch of <b>{chosenAgencyName}</b>:</span>
-            <select value={branchId} onChange={(e) => setBranchId(e.target.value)}
+            <select className="sel" value={branchId} onChange={(e) => setBranchId(e.target.value)}
               aria-label="Branch" disabled={busy || !branches.length}>
               <option value="">{branches.length ? 'Choose a branch…' : 'No branches on this agency'}</option>
               {branches.map((b) => (

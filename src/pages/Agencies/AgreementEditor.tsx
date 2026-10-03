@@ -691,7 +691,7 @@ export function AgreementEditor({
                             standard deal -- the commonest one there is --
                             read "1 months' rent". feeBasisWords has had this
                             rule since it was written; the control did not. */}
-                        <select value={b.unit} onChange={(e) => setBand(i, { unit: e.target.value as FeeBasisUnit })} aria-label={`Band ${i + 1} unit`}>
+                        <select className="sel" value={b.unit} onChange={(e) => setBand(i, { unit: e.target.value as FeeBasisUnit })} aria-label={`Band ${i + 1} unit`}>
                           <option value="weeks">{Number(b.weeks) === 1 ? 'week’s rent' : 'weeks’ rent'}</option>
                           <option value="months">{Number(b.weeks) === 1 ? 'month’s rent' : 'months’ rent'}</option>
                         </select>

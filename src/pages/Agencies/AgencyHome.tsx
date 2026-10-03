@@ -841,25 +841,25 @@ export function AgencyHome() {
                 agency / branch, which is where somebody sits, under a label
                 that reads as what they are. Two different questions had the
                 same word and only the wrong one was askable. */}
-            <select value={pFilter.level} onChange={(e) => set('level', e.target.value)} aria-label="Level">
+            <select className="sel" value={pFilter.level} onChange={(e) => set('level', e.target.value)} aria-label="Level">
               <option value="">All levels</option>
               {AGENCY_LEVELS.map((l) => <option key={l.level} value={l.level}>{l.level}</option>)}
             </select>
             {/* Agency and Branch follow the scope rule: a filter that can only
                 hold one value is a control that cannot do anything. */}
             {manyAgencies && (
-              <select value={pFilter.agency} onChange={(e) => set('agency', e.target.value)} aria-label="Agency">
+              <select className="sel" value={pFilter.agency} onChange={(e) => set('agency', e.target.value)} aria-label="Agency">
                 <option value="">All agencies</option>
                 {uniq(peopleRows.map((r) => r.agency)).map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
             )}
             {manyOffices && (
-              <select value={pFilter.branch} onChange={(e) => set('branch', e.target.value)} aria-label="Office">
+              <select className="sel" value={pFilter.branch} onChange={(e) => set('branch', e.target.value)} aria-label="Office">
                 <option value="">All offices</option>
                 {uniq(peopleRows.map((r) => r.branch)).map((x) => <option key={x} value={x}>{x}</option>)}
               </select>
             )}
-            <select value={pFilter.status} onChange={(e) => set('status', e.target.value)} aria-label="Status">
+            <select className="sel" value={pFilter.status} onChange={(e) => set('status', e.target.value)} aria-label="Status">
               <option value="">Any status</option>
               <option value="active">Active</option><option value="pending">Pending</option>
               {/* Deactivated was missing, so Restore access would have landed on

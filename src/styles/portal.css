@@ -499,6 +499,63 @@ table.dt { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 /* In a table cell the input is the cell: no extra width, tighter padding. */
 td > .inp { padding: 7px 10px; }
 
+/* =====================================================================
+   ONE DROPDOWN, IN THE LOOK MATT POINTED AT.
+
+   Matt, 2026-10-03: "the 'All levels' and 'Any status' filters are unstyled
+   browser dropdowns. Use the same styled select as the agency People page,
+   and sweep the portal for any other unstyled dropdowns (filters, forms,
+   dialogs) and switch them to the shared component."
+
+   WHY MOST DROPDOWNS WERE ALREADY FINE, and so why this went unnoticed:
+   `.field select` has been styled since the forms were written, so every
+   dropdown inside a Field looks right. That is 24 of the 49 in the product.
+   A dropdown in a FILTER BAR sits outside a Field, had no class at all, and
+   rendered as the operating system's own control, next to a search box with a
+   border round it. Measured before writing this, three bars differed:
+
+     agency People     `.ah-filters select`, a real style. Matt's reference.
+     Team              `.tm-filters select`, layout only. Bare.
+     shared PeopleTable `.ppl-filters select`, min-width only. Bare, and this
+                       is the supplier People tab he was looking at.
+
+   SO THE SHARED LOOK IS THE AGENCY PAGE'S, not `.inp`'s, because he named it
+   and because it is the right one: a filter is a small chip above a table, not
+   a form control, and 14px boxes in a row above a 13px table read as a second
+   form.
+
+   THE ARROW IS DRAWN, because `appearance: none` removes the platform one and
+   leaving it off is what makes a styled select look like a text box somebody
+   cannot type in. Inline SVG, so there is no asset to ship.
+
+   WIDTH IS NOT SET HERE. A filter should be as wide as its longest option, and
+   each bar places its own: `.ppl-filters select` has a min-width, `.tm-filters
+   select` has a flex. This is the look, not the layout.
+
+   THREE SELECTS KEEP THEIR OWN STYLE ON PURPOSE and are not swept into this:
+   `.fchip select` on Applications is an invisible overlay on a drawn chip,
+   `.users-chip select` is inline inside a pill that draws its own border, and
+   `.pay__field select` is on the tenant-facing payment page, which has its own
+   stylesheet and is not part of the portal's chrome.
+   ===================================================================== */
+.sel {
+  appearance: none; -webkit-appearance: none;
+  font: inherit; font-size: 13px;
+  padding: 6px 26px 6px 8px;
+  border: 1px solid var(--line); border-radius: 8px;
+  color: var(--ink); background-color: var(--app-bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1.3 5 5.3l4-4' fill='none' stroke='%238B80AD' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+}
+.sel:focus {
+  outline: none; border-color: var(--heliotrope-deep);
+  box-shadow: 0 0 0 3px rgba(211,100,251,0.15);
+}
+.sel:disabled { color: var(--ink-soft); cursor: not-allowed; opacity: .7; }
+
 /* Password field with show/hide toggle (#78). */
 .pw-input { position: relative; }
 .pw-input input { padding-right: 44px; }
