@@ -1252,6 +1252,15 @@ you asked for. Say the word and the tenant gets their own wording.
 - Same subject as "A REFERENCE IS MINTED WHEN A STATEMENT IS POSTED"
   above; the two are one piece of work and one report.
 
+## THE HEADING MUST FOLLOW THE MONTH (instruction, 2026-10-03, verbatim).
+
+> Reporting, Commission statement (admin): after switching the month from October to September, the on-screen heading for Regent's Lettings still shows October's reference (STMT-2026-10-0001), while the export correctly says STMT-2026-09-0001. The heading must update with the month. Also: references must only be assigned when the monthly run actually posts a statement; viewing or exporting a statement for a month not yet posted (e.g. October now) shows "Reference assigned when the statement is posted". Tell me which references on dev were assigned without a statement being sent, without renumbering anything.
+
+- The third instruction on statement references, and the one that
+  carries the diagnosis: the EXPORT is right and the HEADING is stale,
+  so September did not "pick up" October's number. The heading never
+  re-read it. All three are one piece of work and one report.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
