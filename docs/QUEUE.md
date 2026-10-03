@@ -1948,6 +1948,16 @@ is nothing left to match" instead of a warning.
 - The em-dash check is a new repo guard, and the existing
   noEmDashesInCustomerText is the one to extend rather than a second.
 
+## THE HANDOVER CHECKS THE DEV BANNER IS DEV-ONLY (instruction, 2026-10-03, verbatim).
+
+> Add to HANDOVER-BALAL.md: on live, confirm the Dev Centre banner "This project reaches nothing real. No card is charged…" does not appear (it's dev-only), and that live keys are clearly marked as creating real applications.
+
+- A HANDOVER CHECK, so it is a documentation change and small.
+- IT IS ALSO THE RIGHT CHECK TO ASK FOR: a banner saying "no card is
+  charged" shown on LIVE is the most dangerous sentence in the product,
+  and the inverse -- a live key that does not say it is live -- is the
+  second.
+
 ## THE SUPPLIER'S ADD USER DIALOG (instruction, 2026-10-03, verbatim). ONE LINE DEPENDS ON AFTER LAUNCH.
 
 > Add user dialog for supplier users: sentence case, not capitals; no Supplier picker (it's always their own supplier); short level descriptions, e.g. Management "Sees everything for your company, including commission, and manages the team and agencies"; Referrer "Sends referrals and sees their own; can add agencies and offices while referring"; Developer "Uses the Dev Centre and API; no commission". Use the same dialog component as the agency Team page.
