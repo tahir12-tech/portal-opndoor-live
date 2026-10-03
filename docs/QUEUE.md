@@ -2119,6 +2119,56 @@ is nothing left to match" instead of a warning.
 - THE SECOND HALF is a display rule in customer views only: an admin's
   own name must not appear in a customer's referrer list.
 
+## WHAT AN OPNDOOR MANAGER CAN AND CANNOT DO TODAY (report, 2026-10-03).
+
+Matt asked for this with the invite blocker. Read off the code, not from
+memory.
+
+**THE ONE SENTENCE:** an opndoor manager reads the whole book and touches the
+day-to-day queues; they see no money and change no settings. `is_admin()` is
+`role = 'superadmin'` and nothing else, so every door gated on it is shut to
+them.
+
+**CAN:**
+
+- Read EVERY referral, across every supplier and agency. They are in
+  `READS_THE_WHOLE_BOOK`, and `scopeFull` gives them the whole book.
+- Work the queues: the eligibility decision, Reconciliation, the
+  direct-to-agency matches.
+- Read Reporting, the League and Health. Their Reporting page exists because
+  `trendMeasuresFor` names them, and the trend offers them fees collected,
+  referrals sent and deeds issued.
+- Read the Expiries export (`readsTheWholeBook`), which states no commission.
+- Be reached by ops routing (`set_ops_route`, `ops_routing_matrix`).
+- See a person's notification panel (`person_notification_panel`).
+
+**CANNOT:**
+
+- See commission, ever. `maySeeCommission` returns true for `superadmin` and
+  for `management`, and never for them -- 20261005170000 is explicit that
+  may_see_commission is "never true for opndoor_manager". That is why their
+  trend is not offered "Commission payable" and why the four rate routes
+  return nothing.
+- Settle anything, or read a settlement or a statement: those are
+  commission surfaces.
+- Mint or read a statement reference (`mint_commission_statement_ref` is
+  service_role; `commission_statement_ref` reads only when posted).
+- Change a supplier's or an agency's settings, create a supplier, or set a
+  commission rate: all `is_admin()`.
+- Manage the opndoor team. `create_invited_user`'s new opndoor-seat check is
+  `is_admin()`, so an opndoor manager cannot add or change opndoor staff --
+  including themselves.
+- Open the Dev Centre, mint an API key or revoke one.
+- Run the bordereau.
+
+**THE END-TO-END TEST MATT ASKED FOR IS NOT DONE AND I CANNOT DO IT HERE.**
+"test both end to end (invite email, accept, sign in, see the right things)"
+needs a browser and a mailbox. What IS proved: the SQL path accepts both
+roles, with the three refusals that keep those seats Opndoor's
+(the_opndoor_team_can_be_invited.test.sql, 11 assertions against dev), and
+invite-user is deployed. The invite EMAIL, the accept link and the first
+sign-in are unexercised. Somebody has to click it.
+
 ## FOR MATT IN THE MORNING: TWO SUPPLIER USERS NEED THEIR FLAG SET (2026-10-03).
 
 **This changes what two people can see, so it is parked rather than done.**
