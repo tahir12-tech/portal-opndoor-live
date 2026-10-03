@@ -31,7 +31,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { personAsk, levelChangeAsk, deleteAsk } from './personConfirm';
+import { personAsk, levelChangeAsk, deleteAsk, resentLine } from './personConfirm';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const SURFACES: [string, string][] = [
@@ -122,12 +122,51 @@ describe('what does not ask', () => {
     expect(actions).toContain('onClick={() => onNotifications!({ id: r.userId, name: who })}');
   });
 
-  /* AND A RESEND, which is not in Matt's list: it sends the same invitation
-     again and changes nothing about the person. Named here so the decision is
-     visible rather than looking like a miss. */
+  /* AND A RESEND. Matt, 2026-10-03, when I raised it: "Resend invite: no
+     question needed, but show 'Invite sent again to [email]'." It sends the
+     same invitation again and changes nothing about the person, so there is
+     nothing to warn about -- but it is worth reporting. */
   it('and Resend invite, which changes nothing about the person', () => {
     expect(read('src/pages/Agencies/AgencyHome.tsx')).toContain("if (what === 'resend') { await go(); return; }");
-    expect(read('src/pages/PartnerManagement/PartnerHome.tsx')).toContain("if (what === 'resend') { void runPerson(what, userId, who); return; }");
+    expect(read('src/pages/PartnerManagement/PartnerHome.tsx')).toContain("if (what === 'resend') { void runPerson(what, userId, email); return; }");
+  });
+});
+
+/* WHAT A RESEND REPORTS INSTEAD.
+ *
+ * Matt, 2026-10-03, verbatim: "Resend invite: no question needed, but show
+ * 'Invite sent again to [email]'."
+ *
+ * THE EMAIL, NOT THE NAME, which is the whole of it. Two of the four surfaces
+ * said "Invitation resent to Joe Joe": that reports that something was sent
+ * and not WHERE, and where is the one thing an administrator is checking,
+ * because the usual reason to press Resend is that the first one did not
+ * arrive.
+ */
+describe('the resend report', () => {
+  it('is Matt’s sentence, naming the address', () => {
+    expect(resentLine('joe@example.co.uk')).toBe('Invite sent again to joe@example.co.uk.');
+  });
+
+  it.each(SURFACES)('%s reports it from there', (_where, path) => {
+    expect(read(path)).toContain('resentLine(');
+  });
+
+  it('and nowhere still says "Invitation resent"', () => {
+    for (const [where, path] of SURFACES) {
+      const code = read(path).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      expect(code, where).not.toContain('Invitation resent');
+    }
+  });
+
+  /* THE EMAIL HAS TO REACH THE HOST, which is why PersonActions' callback
+     gained a fourth argument rather than `who` changing meaning for one
+     action: every question this row asks is about a PERSON and wants the
+     name, and only this one report is about an address. */
+  it('because the row hands over both the name and the address', () => {
+    const actions = read('src/components/people/PersonActions.tsx');
+    expect(actions).toContain('onAction: (what: PersonAction, userId: string, who: string, email: string) => void;');
+    expect(actions).toContain("onAction('resend', r.userId, who, r.email)");
   });
 });
 

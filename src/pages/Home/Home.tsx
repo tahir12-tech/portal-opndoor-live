@@ -13,7 +13,7 @@ import {
   loadReconciliationTotals, reconciliationLandingTab, NO_RECONCILIATION_WORK,
   type ReconciliationTotals,
 } from '@/data';
-import { plural } from '@/lib/plural';
+import { countOf, plural } from '@/lib/plural';
 import { channelOf, ROUTE_LABEL, type Channel } from '@/data/channel';
 import { getPartner } from '@/data/partnersService';
 import { getPositions } from '@/data/positionsService';
@@ -31,6 +31,10 @@ const ROUTE_PILL: Record<Channel, PillVariant> = {
   'Partner referral': 'sent',
   'Provider hand-over': 'warn',
 };
+/* EIGHT ROWS, which is what this table has always shown. Named so the
+   sentence under it and the slice cannot disagree about the number. */
+const NEEDS_SHOWN = 8;
+
 const initials = (n: string) => n.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
 /**
@@ -139,12 +143,24 @@ export function Home() {
     return () => { cancelled = true; };
   }, [dataVersion, isOpndoorStaff]);
 
-  // The awaiting-decision cohort, route-badged — the clearest "needs a person" list.
-  const needs = useMemo(
-    () => getApplications({ ...scopeOpts, status: 'referencing' }).slice(0, 8),
+  /* The awaiting-decision cohort, route-badged — the clearest "needs a person"
+     list.
+
+     THE WHOLE SET AND THE FIRST EIGHT, SEPARATELY, since 2026-10-03. Matt:
+     "Home 'Awaiting a decision': show '8 of N' and a 'View all' link when
+     there are more." This took .slice(0, 8) and said nothing, so the table
+     stopped at eight with no way to tell eight from eighty.
+
+     N IS THE SCOPED COUNT, not `awaitingDecisionCount()`, which is the whole
+     book: the eight came from this reader's scope, so the number beside them
+     has to come from the same set or "8 of N" compares two different
+     questions. */
+  const needsAll = useMemo(
+    () => getApplications({ ...scopeOpts, status: 'referencing' }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [role, dataVersion],
   );
+  const needs = needsAll.slice(0, NEEDS_SHOWN);
 
   // Per-actor landing: only opndoor staff see the ops Home. A developer's home is
   // the Dev Centre; an agency/group manager lands on THEIR agency home (per the
@@ -315,6 +331,23 @@ export function Home() {
                 })}
               </tbody>
             </table>
+          )}
+          {/* "8 OF N", AND A WAY TO THE REST. Matt, 2026-10-03.
+
+              THE LINK CARRIES THE FILTER THIS TABLE IS, which is what makes
+              it a different link from "View all applications" in the head
+              above: that one clears every filter, deliberately (2026-10-02,
+              "'View all applications' clears them all"), and this one opens
+              the same cohort the eight rows came from. */}
+          {needsAll.length > needs.length && (
+            <div className="home-tablefoot">
+              <span className="muted">
+                {needs.length} of {countOf(needsAll.length, 'application')} awaiting a decision
+              </span>
+              <Link className="home-viewall" to="/applications?status=referencing">
+                View all {needsAll.length} <Icon name="arrowRight" size={13} />
+              </Link>
+            </div>
           )}
         </CardBody>
       </Card>

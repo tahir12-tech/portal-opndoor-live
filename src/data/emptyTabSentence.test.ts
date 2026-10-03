@@ -31,9 +31,55 @@ describe('a status tab with nothing in it', () => {
   /* THE ADJECTIVE TABS, which are the reason this is a clause map and not
      the label: "No applications Paid" is what reusing the label would give. */
   it('and reads as English on the tabs whose label is an adjective', () => {
-    expect(emptyTabSentence('paid', null, false)).toBe('No applications paid.');
     expect(emptyTabSentence('deed', null, false)).toBe('No applications with a deed issued.');
     expect(emptyTabSentence('sent', null, false)).toBe('No applications sent and not yet paid.');
+  });
+});
+
+/* AND EACH CLAUSE DESCRIBES THE SET, NOT THE TAB'S NAME.
+ *
+ * Matt, 2026-10-03, verbatim: "the Paid tab should say 'No [direct]
+ * applications paid and waiting for a deed', not 'No … applications paid'.
+ * Check each tab's empty message matches exactly what that tab holds."
+ *
+ * This corrects what the test above asserted when the file was written the
+ * same morning: naming the tab is not describing the set. Three clauses were
+ * wrong by that test, and each one is wrong in the same direction -- it
+ * described a SUPERSET, which is the kind of sentence that reads as false
+ * when the neighbouring tab has rows in it.
+ */
+describe('each clause against its own filter', () => {
+  /* Paid is `status = 'paid'`, and a deed has its own status, so this tab
+     holds what has paid and has NOT got a deed. Matt's sentence. */
+  it('Paid is paid and waiting for a deed, not paid', () => {
+    expect(emptyTabSentence('paid', null, false)).toBe('No applications paid and waiting for a deed.');
+    expect(emptyTabSentence('paid', 'direct', false)).toBe('No direct applications paid and waiting for a deed.');
+  });
+
+  /* `awaitingSignature` is deed_state = 'awaiting_tenant': the deed is with
+     the TENANT. "Awaiting signature" did not say whose, and on a joint
+     tenancy that is the question. */
+  it('Awaiting signature says who is signing', () => {
+    expect(emptyTabSentence('awaiting', null, false))
+      .toBe('No applications waiting for a tenant to sign their deed.');
+  });
+
+  /* 'failed' means the deed WAS sent and the address bounced; a row with
+     nobody to send to is 'cannot_deliver' and is the other tab. The two
+     clauses used to describe one state between them. */
+  it('Delivery failed is a send that did not arrive, not one that never went', () => {
+    expect(emptyTabSentence('delivery-failed', null, false))
+      .toBe('No applications whose signed deed was sent and did not arrive.');
+    expect(emptyTabSentence('cannot-deliver', null, false))
+      .toBe('No applications with nowhere to send the deed.');
+  });
+
+  /* THE TWO TABS THAT SHARE A FILTER, worded from two directions, and both
+     true of it: `sent` and `fee-unpaid` are both `status = 'sent'`. One tab
+     is the funnel step, the other is the chase list. */
+  it('while Sent and Fee unpaid are one filter said two ways, both true', () => {
+    expect(emptyTabSentence('sent', null, false)).toBe('No applications sent and not yet paid.');
+    expect(emptyTabSentence('fee-unpaid', null, false)).toBe('No applications waiting on the guarantee fee.');
   });
 });
 

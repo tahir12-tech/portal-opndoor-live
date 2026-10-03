@@ -158,7 +158,7 @@ import './PartnerHome.css';
 import { plural, countOf } from '@/lib/plural';
 import { formatDate, formatMonth, possessive } from '@/lib/format';
 import { PeopleTable } from '@/components/people/PeopleTable';
-import { deleteAsk, personAsk, type AskedAction } from '@/components/people/personConfirm';
+import { deleteAsk, personAsk, resentLine, type AskedAction } from '@/components/people/personConfirm';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
@@ -256,8 +256,8 @@ export function PartnerHome() {
      and ends its sessions. The words are personAsk's, shared with the other
      three People surfaces. A resend is the exception and is not in Matt's
      list: it sends the same invitation again and changes nothing. */
-  const askPerson = (what: AskedAction | 'resend' | 'cancel' | 'delete', userId: string, who: string) => {
-    if (what === 'resend') { void runPerson(what, userId, who); return; }
+  const askPerson = (what: AskedAction | 'resend' | 'cancel' | 'delete', userId: string, who: string, email = who) => {
+    if (what === 'resend') { void runPerson(what, userId, email); return; }
     const q = what === 'delete' ? deleteAsk(who)
       : personAsk(what === 'cancel' ? 'cancelInvite' : what, who);
     askConfirm({ ...q, run: () => runPerson(what, userId, who) });
@@ -266,7 +266,9 @@ export function PartnerHome() {
     if (busy) return;
     setBusy(true);
     try {
-      if (what === 'resend') { await resendInvite(userId); toast(`Invitation resent to ${who}.`); }
+      /* `who` IS THE EMAIL ON THIS ONE ARM, passed as such by askPerson:
+         Matt, 2026-10-03, "show 'Invite sent again to [email]'". */
+      if (what === 'resend') { await resendInvite(userId); toast(resentLine(who)); }
       else if (what === 'cancel') { await cancelInvite(userId); toast(`Invitation to ${who} cancelled.`); }
       else if (what === 'password') { await resetUserPassword(userId); toast(`Password reset link sent to ${who}.`); }
       /* THE RESET AND THE EMAIL ARE TWO FACTS, and the toast says both.
@@ -836,7 +838,7 @@ export function PartnerHome() {
                   isAdmin
                   manyOffices={false}
                   changeLevelLabel="Change role"
-                  onAction={(what, userId, who) => askPerson(what, userId, who)}
+                  onAction={(what, userId, who, email) => askPerson(what, userId, who, email)}
                   onCancelInvite={(userId, who) => askPerson('cancel', userId, who)}
                   onChangeLevel={(pr) => setRoleFor({ userId: pr.userId, name: pr.name, current: u.role })}
                   onPosition={() => {}}

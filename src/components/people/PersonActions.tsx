@@ -19,7 +19,13 @@ interface PersonActionsProps {
   isAdmin: boolean;
   /** Position is only a choice where there is more than one office to choose. */
   manyOffices: boolean;
-  onAction: (what: PersonAction, userId: string, who: string) => void;
+  /* THE EMAIL AS WELL AS THE NAME. Matt, 2026-10-03: "Resend invite: no
+     question needed, but show 'Invite sent again to [email]'." `who` is the
+     name where there is one, which is right for every question this row
+     asks -- they are about a person -- and wrong for the one report that is
+     about an address. Both are passed rather than switching what `who`
+     means per action. */
+  onAction: (what: PersonAction, userId: string, who: string, email: string) => void;
   onCancelInvite: (userId: string, who: string) => void;
   onChangeLevel: (p: { userId: string; name: string; current: string }) => void;
   onPosition: (p: { id: string; name: string }) => void;
@@ -79,7 +85,7 @@ export function PersonActions({
   return (
     <div className="ah-rowacts">
       {r.status === 'pending' && <>
-        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('resend', r.userId, who)}>Resend invite</button>
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('resend', r.userId, who, r.email)}>Resend invite</button>
         <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onCancelInvite(r.userId, who)}>Cancel invite</button>
       </>}
       {r.status === 'active' && (
@@ -98,11 +104,11 @@ export function PersonActions({
         <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onNotifications!({ id: r.userId, name: who })}>Notifications</button>
       )}
       {r.status !== 'pending' && <>
-        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('password', r.userId, who)}>Send password reset</button>
-        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('mfa', r.userId, who)}>Reset two-factor</button>
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('password', r.userId, who, r.email)}>Send password reset</button>
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('mfa', r.userId, who, r.email)}>Reset two-factor</button>
       </>}
       {r.status === 'active' && (
-        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('remove', r.userId, who)}>Remove access</button>
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('remove', r.userId, who, r.email)}>Remove access</button>
       )}
       {/* AFTER ACCESS IS REMOVED, TWO CHOICES AND NOT ONE. Matt, 2026-10-03:
           "After access is removed, offer 'Delete' ... Removed-but-not-deleted
@@ -113,8 +119,8 @@ export function PersonActions({
           somebody with no access sat on every People list for ever, which is
           what Delete is for. */}
       {r.status === 'deactivated' && <>
-        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('restore', r.userId, who)}>Restore access</button>
-        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('delete', r.userId, who)}>Delete</button>
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('restore', r.userId, who, r.email)}>Restore access</button>
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('delete', r.userId, who, r.email)}>Delete</button>
       </>}
     </div>
   );

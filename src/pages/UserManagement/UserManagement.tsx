@@ -40,7 +40,7 @@ import { useToast } from '@/components/ui/Toast';
 import './UserManagement.css';
 import { changeSentence } from '@/data/changeSentence';
 import { PeopleTable } from '@/components/people/PeopleTable';
-import { deleteAsk, levelChangeAsk, personAsk } from '@/components/people/personConfirm';
+import { deleteAsk, levelChangeAsk, personAsk, resentLine } from '@/components/people/personConfirm';
 
 const ROLE_META: Record<Role, [string, string]> = {
   superadmin: ['opndoor admin', 'role-tag--super'],
@@ -402,7 +402,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
       return;
     }
     if (action === 'resend') {
-      void doDirect(() => resendInvite(u.id), `Invitation resent to ${userEmail(u)}.`);
+      void doDirect(() => resendInvite(u.id), resentLine(userEmail(u)));
       return;
     }
     if (action === 'cancel-invite') {

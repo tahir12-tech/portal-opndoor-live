@@ -49,7 +49,7 @@ import { Pill } from '@/components/ui/Pill';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
-import { deleteAsk, personAsk } from '@/components/people/personConfirm';
+import { deleteAsk, personAsk, resentLine } from '@/components/people/personConfirm';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
@@ -590,7 +590,7 @@ export function AgencyHome() {
     } catch (e) { toast(e instanceof Error ? e.message : 'Could not change that level.', 'error'); }
   };
 
-  const doPersonAction = async (what: PersonAction, userId: string, who: string) => {
+  const doPersonAction = async (what: PersonAction, userId: string, who: string, email: string) => {
     const run = {
       remove: () => setUserStatus(userId, 'deactivated'),
       restore: () => setUserStatus(userId, 'active'),
@@ -602,7 +602,7 @@ export function AgencyHome() {
     const done = {
       remove: `${who} no longer has access.`,
       restore: `${who} has access again.`,
-      resend: `Invitation resent to ${who}.`,
+      resend: resentLine(email),
       // Says what happened and nothing about the account, the same answer
       // whether or not the address turned out to be reachable.
       password: 'Password reset link sent.',
@@ -891,7 +891,7 @@ export function AgencyHome() {
                   person={r}
                   isAdmin={isAdmin}
                   manyOffices={manyOffices}
-                  onAction={(what, id, who) => void doPersonAction(what, id, who)}
+                  onAction={(what, id, who, email) => void doPersonAction(what, id, who, email)}
                   onCancelInvite={(id, who) => void doCancelInvite(id, who)}
                   onChangeLevel={(p) => { setLevelPick(null); setLevelFor(p); }}
                   onPosition={setPosFor}
@@ -1011,7 +1011,7 @@ export function AgencyHome() {
                     person={r}
                     isAdmin={isAdmin}
                     manyOffices={manyOffices}
-                    onAction={(what, id, who) => void doPersonAction(what, id, who)}
+                    onAction={(what, id, who, email) => void doPersonAction(what, id, who, email)}
                     onCancelInvite={(id, who) => void doCancelInvite(id, who)}
                     onChangeLevel={(p) => { setLevelPick(null); setLevelFor(p); }}
                     onPosition={setPosFor}

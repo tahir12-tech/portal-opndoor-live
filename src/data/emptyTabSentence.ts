@@ -22,6 +22,41 @@
    anything, and naming them is the useful answer.
    ===================================================================== */
 
+/* EACH CLAUSE DESCRIBES THE SET, NOT THE TAB'S NAME.
+
+   Matt, 2026-10-03: "the Paid tab should say 'No [direct] applications paid
+   and waiting for a deed', not 'No … applications paid'. Check each tab's
+   empty message matches exactly what that tab holds."
+
+   THAT CORRECTS THE FIRST VERSION OF THIS FILE, written the same morning from
+   his earlier instruction ("say which tab"). Naming the tab and describing
+   the set are not the same thing, and Paid is where they come apart: the tab
+   is `status = 'paid'`, and a deed has its own status, so the tab holds
+   applications that have paid and have NOT got a deed. "No applications paid"
+   describes a superset that includes every deed in the book -- and when there
+   are deeds on the next tab along, it reads as false.
+
+   READING EVERY CLAUSE AGAINST ITS OWN FILTER, which is the rest of his
+   instruction, found two more:
+
+     awaiting           `r.awaitingSignature`, which is deed_state =
+                        'awaiting_tenant': the deed is with the TENANT and
+                        unsigned. "awaiting signature" did not say whose, and
+                        on a joint tenancy that is the question.
+     delivery-failed    `deliveryStateOf(r) === 'failed'`, which means the
+                        deed WAS sent and the address bounced -- deliveryState
+                        is explicit that a row with nobody to send to is
+                        'cannot_deliver' instead. "could not be sent" is the
+                        other tab's meaning, so the two clauses described one
+                        state between them and left the real distinction
+                        unsaid.
+
+   AND THE REST CHECK OUT. `sent` and `fee-unpaid` are the SAME filter
+   (`status = 'sent'`) worded from two directions, which is right: one tab is
+   the funnel step and the other is the chase list, and both sentences are
+   true of it. `refunded` and the two delivery tabs are flags rather than
+   statuses, so their rows can sit at any step, and their clauses say nothing
+   about where. */
 /** A clause that follows "No [origin] applications ...", per tab id. */
 const TAB_CLAUSE: Record<string, string> = {
   draft: 'in progress',
@@ -30,13 +65,13 @@ const TAB_CLAUSE: Record<string, string> = {
   referencing: 'awaiting a decision',
   declined: 'declined',
   sent: 'sent and not yet paid',
-  paid: 'paid',
+  paid: 'paid and waiting for a deed',
   deed: 'with a deed issued',
   refunded: 'refunded',
-  awaiting: 'awaiting signature',
+  awaiting: 'waiting for a tenant to sign their deed',
   withdrawn: 'withdrawn',
   expired: 'expired',
-  'delivery-failed': 'whose deed could not be sent',
+  'delivery-failed': 'whose signed deed was sent and did not arrive',
   'cannot-deliver': 'with nowhere to send the deed',
 };
 

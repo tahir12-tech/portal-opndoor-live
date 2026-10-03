@@ -35,6 +35,17 @@
 .home-q__go { position: absolute; top: 15px; right: 14px; display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; color: var(--heliotrope-deep); }
 
 .home-viewall { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--heliotrope-deep); text-decoration: none; }
+
+/* THE COUNT AND THE WAY TO THE REST, under a table that shows the first
+   eight. Matt, 2026-10-03: "show '8 of N' and a 'View all' link when there
+   are more." Same row shape as the Every customer table's footer, so the two
+   read alike. */
+.home-tablefoot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line);
+  font-size: 12.5px;
+}
+
 .home-empty { padding: 26px 20px; text-align: center; color: var(--ink-mute); font-size: 13.5px; }
 
 /* Direct signups — a per-stage strip inside its card. */

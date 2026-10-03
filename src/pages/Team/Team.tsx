@@ -74,7 +74,7 @@ import '@/pages/UserManagement/UserManagement.css';
 import './Team.css';
 import { plural, countOf } from '@/lib/plural';
 import { PeopleTable, type PeopleTableRow } from '@/components/people/PeopleTable';
-import { deleteAsk, levelChangeAsk, personAsk } from '@/components/people/personConfirm';
+import { deleteAsk, levelChangeAsk, personAsk, resentLine } from '@/components/people/personConfirm';
 
 
 /** What to call this person. Opndoor's own roles keep their own names; an
@@ -622,7 +622,7 @@ export function Team() {
           {may && u.status === 'pending' && (
             <>
               <Button variant="quiet" size="sm" disabled={busy}
-                onClick={() => void run(() => resendInvite(u.id), `Invitation resent to ${userEmail(u)}.`)}>
+                onClick={() => void run(() => resendInvite(u.id), resentLine(userEmail(u)))}>
                 Resend invite
               </Button>
               <Button variant="quiet" size="sm" disabled={busy}

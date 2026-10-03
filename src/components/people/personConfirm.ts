@@ -29,10 +29,13 @@
    WHAT DOES NOT ASK, and why:
      Notifications    Matt: "can open straight away". It opens a panel; the
                       panel has its own save.
-     Resend invite    Not in Matt's list. It sends the same invitation again
-                      and changes nothing about the person, which is why it
-                      reads like Notifications rather than like the other
-                      five. Say the word and it joins them.
+     Resend invite    Matt, 2026-10-03, when I asked: "Resend invite: no
+                      question needed, but show 'Invite sent again to
+                      [email]'." It sends the same invitation again and
+                      changes nothing about the person, so there is nothing
+                      to warn about -- but it is worth REPORTING, and the
+                      thing to report is the address it went to. `resentLine`
+                      below is that sentence.
    ===================================================================== */
 
 /** The actions that ask, which is every one that changes something. */
@@ -130,4 +133,20 @@ export function deleteAsk(who: string): PersonAsk {
     confirmLabel: 'Delete',
     danger: true,
   };
+}
+
+/**
+ * The line to show after an invitation is sent again.
+ *
+ * Matt, 2026-10-03, verbatim: "Resend invite: no question needed, but show
+ * 'Invite sent again to [email]'."
+ *
+ * THE EMAIL, NOT THE NAME, which is the whole of the instruction. Two of the
+ * four surfaces said "Invitation resent to Joe Joe", which tells an
+ * administrator that something was sent and not where -- and where is the one
+ * thing they are checking when they press Resend, because the usual reason to
+ * press it is that the first one did not arrive.
+ */
+export function resentLine(email: string): string {
+  return `Invite sent again to ${email}.`;
 }
