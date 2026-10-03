@@ -968,7 +968,7 @@ export function Dashboard() {
             list -- and the synthetic book has none, because liveByCustomer
             reads the hydrated set. One gate rather than two, and the one
             that is actually about whether there is anything to show. */}
-        {opndoorStaff && <CustomersTable rows={customers} seesCommission={seesCommission} />}
+        {opndoorStaff && <CustomersTable rows={customers} seesCommission={seesCommission} periodId={period.id} />}
 
         {/* OPNDOOR ONLY, 2026-10-03. Matt: "Reporting as a supplier
             (Kestrel's own login and 'View as'): hide the 'Commission by

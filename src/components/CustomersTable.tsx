@@ -27,6 +27,8 @@ import { gbpPence } from '@/lib/format';
 import type { CustomerRow } from '@/data/liveAnalytics';
 import { Card, CardHead } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { MeasureSelect } from '@/components/ui/Select';
+import { leagueLinkByRank } from '@/data/leagueLink';
 import './CustomersTable.css';
 import { plural } from '@/lib/plural';
 
@@ -47,28 +49,91 @@ const WHICH: { key: Which; label: string }[] = [
   { key: 'supplier', label: 'Suppliers' },
 ];
 
-export function CustomersTable({ rows, seesCommission }: {
+/* TOP TEN BY THE CHOSEN MEASURE, not always by fees.
+
+   Matt, 2026-10-03: "show the top 10 by the chosen measure, with the search
+   still finding any customer, and a 'View all N customers' link to League with
+   the same period and filter."
+
+   The table was ordered by fees collected and nothing else, so "the top 10"
+   meant one thing on a page whose charts beside it each have a measure of
+   their own. Whichever column a reader is here for, the ten rows they get are
+   now the ten biggest by THAT column, and the footer names which. */
+type Measure = 'fees' | 'sent' | 'deeds' | 'payable';
+const MEASURES: { value: Measure; label: string }[] = [
+  { value: 'fees', label: 'Fees collected' },
+  { value: 'sent', label: 'Referrals sent' },
+  { value: 'deeds', label: 'Deeds issued' },
+  { value: 'payable', label: 'Commission payable' },
+];
+
+export function CustomersTable({ rows, seesCommission, periodId }: {
   rows: CustomerRow[];
   /** Commission payable is a commission figure. The column is dropped
    *  rather than zeroed for a reader who may not see one: a column of
    *  £0.00 reads as "they are owed nothing", which is a different and
    *  false statement. */
   seesCommission: boolean;
+  /** The period the figures are for, so the League link opens on the same
+   *  one. Absent means no link, which is the mock/demo path. */
+  periodId?: string;
 }) {
   const [which, setWhich] = useState<Which>('all');
   const [q, setQ] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const [measure, setMeasure] = useState<Measure>('fees');
+  /* A READER WHO MAY NOT SEE COMMISSION IS NOT OFFERED IT, for the same
+     reason the column is dropped rather than zeroed: ranking the book by a
+     figure they may not read is the figure, one subtraction away. */
+  const measures = MEASURES.filter((m) => m.value !== 'payable' || seesCommission);
+  const chosen = measures.some((m) => m.value === measure) ? measure : 'fees';
+  const measureLabel = measures.find((m) => m.value === chosen)!.label;
 
-  /* ALREADY SORTED BY FEES by liveByCustomer (fees, then referrals, then
-     name), so "top 10 by fees collected" is the first ten and nothing is
-     re-sorted here. Sorting it again would be a second opinion about the
-     same question. */
+  /* SORTED HERE, FOR EVERY MEASURE INCLUDING THE DEFAULT.
+
+     liveByCustomer hands these over by fees, then referrals, then name, and
+     this used to lean on that and re-sort nothing -- which was right while
+     fees was the only ordering there was. Now that three of the four
+     measures have to be sorted anyway, leaving the fourth to the caller
+     would make the table's order a property of who built the rows. The
+     comparator below uses fees and referrals as its tie-breakers, so
+     choosing Fees collected reproduces liveByCustomer's own order exactly
+     rather than offering a second opinion about it. */
   const matching = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows
       .filter((r) => which === 'all' || r.kind === which)
-      .filter((r) => !needle || r.name.toLowerCase().includes(needle));
-  }, [rows, which, q]);
+      .filter((r) => !needle || r.name.toLowerCase().includes(needle))
+      .slice()
+      .sort((a, b) => b[chosen] - a[chosen]
+        || b.fees - a.fees
+        || b.sent - a.sent
+        || a.name.localeCompare(b.name));
+  }, [rows, which, q, chosen]);
+
+  /* THE LEAGUE LINK, AND WHY IT FOLLOWS THE SEGMENT. Matt, 2026-10-03: "a
+     'View all N customers' link to League with the same period and filter."
+
+     The League has a board of agencies and a board of suppliers and no board
+     of both, so a single link from the combined table would send a reader
+     looking for Kestrel to a table of agencies. It therefore follows the
+     Agencies/Suppliers segment this table already has, and the combined "All"
+     view keeps "Show all" instead -- which is the only place the two estates
+     sit side by side, and is why this table exists.
+
+     MATT CONFIRMED THIS, 2026-10-03: "On 'All' in the Every-customer table,
+     keep 'Show all' in place. On Agencies or Suppliers, link 'View all N' to
+     that League board with the same period."
+
+     The period and the measure travel through leagueLink, the same helper the
+     charts' own "View all" uses, so the board opens on what was being read
+     here rather than on its own defaults. */
+  const RANK_FOR_MEASURE: Record<Measure, 'fees' | 'refs' | 'deed'> = {
+    fees: 'fees', sent: 'refs', deeds: 'deed', payable: 'fees',
+  };
+  const leagueHref = periodId && which !== 'all'
+    ? leagueLinkByRank(which === 'supplier' ? 'supplier' : 'agency', periodId, RANK_FOR_MEASURE[chosen])
+    : null;
 
   // A search is itself a narrowing, so it shows everything it found: being
   // told "10 of 14 matches" after typing a name is the opposite of helpful.
@@ -95,6 +160,12 @@ export function CustomersTable({ rows, seesCommission }: {
                 >{w.label}</button>
               ))}
             </div>
+            <MeasureSelect
+              ariaLabel="Rank customers by"
+              value={chosen}
+              onChange={(v) => { setMeasure(v as Measure); setShowAll(false); }}
+              options={measures}
+            />
             <input
               id="custtab-search"
               type="search"
@@ -159,15 +230,20 @@ export function CustomersTable({ rows, seesCommission }: {
         ) : hidden > 0 ? (
           <>
             <span className="muted">
-              Top {shown.length} by fees collected. {hidden} more {plural(hidden, 'customer')}.
+              Top {shown.length} by {measureLabel.toLowerCase()}. {hidden} more {plural(hidden, 'customer')}.
             </span>
             <Button variant="quiet" size="sm" onClick={() => setShowAll(true)}>Show all</Button>
+            {leagueHref && (
+              <Button variant="quiet" size="sm" to={leagueHref} arrow>
+                View all {matching.length} {which === 'supplier' ? plural(matching.length, 'supplier') : plural(matching.length, 'agency')}
+              </Button>
+            )}
           </>
         ) : (
           <span className="muted">
             {searching
               ? `${matching.length} ${plural(matching.length, 'match')}.`
-              : `All ${matching.length}, biggest first by fees collected.`}
+              : `All ${matching.length}, biggest first by ${measureLabel.toLowerCase()}.`}
             {showAll && !searching && matching.length > TOP_N && (
               <> <button type="button" className="custtab__link" onClick={() => setShowAll(false)}>Show top {TOP_N}</button></>
             )}

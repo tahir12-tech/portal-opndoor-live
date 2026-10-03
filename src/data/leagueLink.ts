@@ -38,7 +38,15 @@ const RANK_FOR: Record<ChartMeasure, LeagueRank> = {
 /** The "View all" target for a Reporting chart, carrying what the reader
     is looking at: the board, the period and the measure. */
 export function leagueLink(view: LeagueView, periodId: string, measure: ChartMeasure): string {
-  const params = new URLSearchParams({ view, period: periodId, rank: RANK_FOR[measure] });
+  return leagueLinkByRank(view, periodId, RANK_FOR[measure]);
+}
+
+/** The same link for a caller that already thinks in the League's own
+    columns rather than in a chart's measures -- the Every customer table,
+    whose measures include Deeds issued, which no chart offers and which the
+    League has had as a sortable column all along. */
+export function leagueLinkByRank(view: LeagueView, periodId: string, rank: LeagueRank): string {
+  const params = new URLSearchParams({ view, period: periodId, rank });
   return `/league?${params.toString()}`;
 }
 
