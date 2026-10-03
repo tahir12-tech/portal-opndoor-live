@@ -1150,6 +1150,10 @@ you asked for. Say the word and the tenant gets their own wording.
   deciding identity from a dropdown, which is the fault Matt reported.
   The measurement is in the commit message and the pgTAP file.
 
+## EVERY COUNT UPDATES AFTER EVERY ACTION (instruction, 2026-10-03, verbatim).
+
+> Reconciliation: after pressing Ignore on a "Not in network" agency, the section empties but the tab count ("Not in network 1"), the "Waiting" tile and the sidebar badge stay at their old numbers until refresh. Every count on the page, on Home and in the sidebar must update straight after any action on this page (Ignore, Added to HubSpot, Add email, confirm, dismiss). Deploy to dev and check there.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
