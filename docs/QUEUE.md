@@ -1789,6 +1789,27 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## THE EXPIRIES DIALOG, IN THE READER'S WORDS (instruction, 2026-10-03, verbatim).
+
+> Expiries dialog (agency and supplier views): say "Your agency's guarantees only" (or "your company's" for suppliers) instead of "Your partner only", and "Management get this list by email six weeks before the month begins" instead of "receive this cohort". Open on the next month that has any guarantees expiring; if none, next month, with a note "Nothing expiring yet; your earliest is [month]".
+
+- The copy half is two sentences. The MONTH half is behaviour: the
+  dialog opens on a fixed "+42 days" month today, so it can open on a
+  month with nothing in it, and the "earliest is [month]" note needs a
+  query the dialog does not make yet.
+
+## THE AGENCY'S OWN APPLICATION EXPORT (instruction, 2026-10-03, verbatim).
+
+> Application export as seen by an agency or supplier: include the tenant's name (it's their own client); drop the "Refund policy anomaly" column; replace "Tenancy ID" with "Joint with" listing the other tenants' references, as the expiries file does. Keep Opndoor's own export as it is unless the same changes make sense there.
+
+- THE TENANT NAME IS THE INTERESTING ONE: the export is pseudonymised
+  by guarantee reference on purpose ("No tenant names or contact
+  details are included"), and Matt is overriding that for the agency's
+  OWN copy, on the grounds that the tenant is their client. Opndoor's
+  copy keeps the note unless the same change makes sense there.
+- "as the expiries file does" names the implementation to copy: the
+  tenancyRefs map, siblings only, blank for a single tenancy.
+
 ## A DIRECTOR'S ROW SAYS WHO TO ASK (instruction, 2026-10-03, verbatim).
 
 > Agency Team page (Director view): on other Directors' rows, show a small note instead of the missing actions: "To change or remove a Director, contact your account manager at partners@opndoor.co."
