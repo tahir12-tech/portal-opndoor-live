@@ -1789,6 +1789,25 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## BLOCKER: AN OPNDOOR MANAGER CANNOT BE INVITED (instruction, 2026-10-03, verbatim).
+
+> 1. Blocker: Add opndoor team member with "opndoor manager" selected fails with "A portal user is a manager, a referrer or a developer." The invite path doesn't accept the opndoor manager level. Fix it so both opndoor admin and opndoor manager can be invited, and test both end to end (invite email, accept, sign in, see the right things). Also tell me what an opndoor manager can and can't see and do today.
+> 2. The two role options in that dialog are in letter-spaced capitals. Use normal sentence case like the rest of the portal's radio options, rename "OPNDOOR ADMIN (SUPER-ADMIN)" to "opndoor admin", and say "suppliers and agencies" instead of "partners".
+> 3. Breadcrumb and title "Administration / Users" should say "opndoor team", matching the sidebar.
+
+- ITEM 1 IS A BLOCKER AND THE MESSAGE IS FROM SQL: "A portal user is a
+  manager, a referrer or a developer" is the invite RPC's own refusal,
+  so the allowed set there never included `opndoor_manager`.
+- "test both end to end (invite email, accept, sign in, see the right
+  things)" is the acceptance test, and it cannot be done from SQL
+  alone.
+- "tell me what an opndoor manager can and can't see and do today" is a
+  REPORT, and it has an answer already in the code: `maySeeCommission`
+  is never true for them (20261005170000), they read the whole book,
+  and several screens name the role explicitly.
+- ITEM 3 restates the instruction recorded just above it; one piece of
+  work covers both.
+
 ## TWO RECORDS ON DEV I CANNOT ACCOUNT FOR (instruction, 2026-10-03, verbatim). INVESTIGATE, CHANGE NOTHING.
 
 > Two records on dev I can't account for. Investigate and tell me, without changing anything:
