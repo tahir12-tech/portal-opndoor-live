@@ -1616,6 +1616,14 @@ name at the same instant would still see the generic message. The agency
 path now has both halves. Left alone two days before go-live because it
 is a race on a rarer action and the fix means rewriting another function.
 
+## THE HANDOVER CHECKS HUBSPOT END TO END (instruction, 2026-10-03, verbatim).
+
+> Add to HANDOVER-BALAL.md: confirm the HubSpot token is set on live and hubspot_disabled is off, then sync one test company and check it appears in HubSpot. Note that dev has never had a token, so HubSpot sync has never been exercised end to end.
+
+## A DEED WARNING NEEDS A DEED (instruction, 2026-10-03, verbatim).
+
+> Agencies list and agency page: for Opndoor's own agencies with no users, replace "No one at this agency can receive the deed. Invite a manager or nominate a recipient." with a neutral "No users yet. Invite someone to start referring." Only warn about deed delivery when there's an application at that agency whose deed has nowhere to go.
+
 ## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > No default deal and the warnings now; the referral refusal goes under "After launch". Then prioritise for Wednesday: 1) "Referrals sent" including expired and "Fee unpaid" (figures people will rely on); 2) the application-detail trio and the ready-to-sign email (what tenants and agents see); 3) supplier Reporting hiding "Commission by route"; 4) real reasons on failed saves. Everything else after those, and anything not done by Sunday evening moves to "After launch".

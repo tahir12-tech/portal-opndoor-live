@@ -181,12 +181,26 @@ Deno.serve(async (req) => {
          token still alerts exactly as before. */
       const { data: off } = await service.rpc("ops_hubspot_disabled");
       if (off === true) {
+        /* DISABLED IS A RECOVERY, not a silence. Somebody turning HubSpot
+           off on this environment has resolved the "no token" alert, and
+           leaving the latch set would mean a token going missing LATER --
+           after it was turned back on -- said nothing, because the latch
+           would still be holding the last episode. 20261007740000. */
+        await service.rpc("clear_ops_incident", { p_type: "hubspot_sync_error:config" })
+          .then(() => {}, () => {});
         return json({ ok: true, skipped: "disabled", detail: "HubSpot is disabled on this environment." });
       }
       await incident("hubspot_sync_error:config",
         "hubspot-sync: no HubSpot access token (HUBSPOT_ACCESS_TOKEN edge env, x-hubspot-token header, or ops_secrets 'hubspot_access_token'). Nothing is syncing.");
       return json({ ok: false, error: "No HubSpot access token configured." }, 500);
     }
+
+    /* THE TOKEN IS THERE, SO THE CONFIG ALERT HAS RECOVERED. Matt's rule
+       is "once, then not again until it changes or recovers", and this is
+       the recovery: without it a token that went missing, was restored and
+       went missing again would alert only the first time. 20261007740000. */
+    await service.rpc("clear_ops_incident", { p_type: "hubspot_sync_error:config" })
+      .then(() => {}, () => {});
 
     const hs = async (path: string, method = "GET", body?: unknown) => {
       const res = await fetch(`${HS_BASE}${path}`, {
