@@ -89,6 +89,11 @@ export interface FullApp {
   referrerSeesCommission?: boolean | null;
   owner: number;
   status: Status;
+  /** What this application was BEFORE it expired, or null. The only thing
+      that tells an unfinished direct draft, closed after thirty days, from a
+      real referral that expired unpaid: `sentAt` cannot, because every direct
+      draft carries it from creation. Read through `reachedPayment`. */
+  expiredFrom?: Status | null;
   rent: number;
   /** Commission rates SNAPSHOTTED at creation (fractions of one month's rent).
       Every commission/settlement/league/export figure reads these, never the
@@ -305,8 +310,9 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
      the tab called All was the funnel, and said so nowhere.
 
      THE SUM HOLDS OVER THE EXCLUSIVE TABS: draft + referencing +
-     declined + sent + paid + deed + withdrawn + expired. Invited and
-     feeUnpaid are inside draft, refunded and awaiting are inside paid,
+     declined + sent + paid + deed + withdrawn + expired. Invited is
+     inside draft, feeUnpaid is inside SENT (it was inside draft until
+     2026-10-03), refunded and awaiting are inside paid,
      and the two delivery counts are inside deed; adding those in as
      well would double-count rows the reader can see are one row. Matt's
      own example names Fee unpaid, which is one of the subsets, so the
@@ -321,9 +327,22 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
     // part of All like everything else.
     if (r.status === 'referencing') { counts.referencing++; return; }
     if (r.status === 'declined') { counts.declined++; return; }
-    // Agent-rail draft: its own tab, plus the two early sub-states.
-    if (r.status === 'draft') { counts.draft++; if (!r.registered) counts.invited++; if (!r.feePaid) counts.feeUnpaid++; return; }
+    // Agent-rail draft: its own tab, plus Invited. Fee unpaid is NOT one of
+    // its sub-states any more: see below.
+    if (r.status === 'draft') { counts.draft++; if (!r.registered) counts.invited++; return; }
     counts[r.status]++;
+    /* FEE UNPAID IS A SUBSET OF SENT, NOT OF DRAFT, since 2026-10-03. Matt:
+       it "should list every application where the tenant has been asked for
+       the guarantee fee and hasn't paid (today the 3 Sent referrals ...), not
+       unfinished direct applications that haven't reached payment ... Its
+       count must match."
+
+       IT COUNTED DRAFTS, and so did the list, so the two agreed about the
+       wrong thing -- which is why no test caught it until the list was fixed
+       and they came apart. Both now read `sent`, and the comment above about
+       which counts are subsets of which is corrected with them: feeUnpaid
+       sits inside `sent`, so the exclusive-tab sum is unaffected. */
+    if (r.status === 'sent') counts.feeUnpaid++;
     if (r.refunded) counts.refunded++;
     if (r.awaitingSignature) counts.awaiting++;
     /* #93 said delivery failure was an ops surface and hid it from referrers.
@@ -371,6 +390,37 @@ export function tenancySiblings(ref: string, opts: AppScopeOpts): ApplicationSum
 }
 
 /** The visible rows for the given filters (scoped + status/agency/branch/search/sort). */
+/* =====================================================================
+   WAS THE TENANT EVER ASKED TO PAY?
+
+   Matt, 2026-10-03, on Reporting: "A referral counts as sent once it was
+   sent to the tenant, whatever happened after. Unfinished direct
+   applications that never reached the tenant being asked to pay are the
+   only ones left out." And on the Applications list: "'Fee unpaid' ...
+   should list every application where the tenant has been asked for the
+   guarantee fee and hasn't paid ... not unfinished direct applications
+   that haven't reached payment."
+
+   ONE QUESTION, ASKED BY TWO SCREENS, so it is one function.
+
+   AND `sentAt` IS NOT THE ANSWER, which is the trap. Every direct draft
+   carries `sent_at` from the moment it is created -- that is what
+   `expired_from` was added for in 20261007530000, when the thirty-day
+   close matched nothing because it was looking at `sent_at`. GR-20626 on
+   dev is `status = 'draft'` with `sent_at` set and no rent given.
+
+   SO IT IS THE STATUS, AND WHAT THE STATUS USED TO BE. A draft was never
+   asked. A draft that was closed after thirty days is `expired` with
+   `expired_from = 'draft'`, and was never asked either. Dev holds seven
+   of those and eight genuine referrals that expired unpaid, and nothing
+   but this column tells them apart.
+   ===================================================================== */
+export function reachedPayment(r: { status: Status; expiredFrom?: Status | null }): boolean {
+  if (r.status === 'draft') return false;
+  if (r.expiredFrom === 'draft') return false;
+  return true;
+}
+
 export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
   let rows = scopedSet(opts);
   if (opts.partner) rows = rows.filter((r) => r.partner === opts.partner);
@@ -389,16 +439,21 @@ export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
        total.
 
        WHAT STAYS. The block still runs for every OTHER tab, so choosing
-       Paid does not sweep in drafts, and the two draft sub-filters
-       (Invited, Fee unpaid) keep their own arms. Only 'all' and the
-       no-status case are let through, which is the whole change. */
+       Paid does not sweep in drafts, and Invited keeps its own arm.
+       Only 'all' and the no-status case are let through.
+
+       AND FEE UNPAID IS NO LONGER ONE OF THEM, 2026-10-03. It had an arm
+       here because it used to mean "a draft that has not paid"; it now
+       means "asked and has not paid", which is `status = 'sent'` and
+       therefore never reaches this block at all -- the block only runs
+       for draft and the terminal states. Its arm was removed rather than
+       left, because a clause that can never be true reads as a rule. */
     const everything = !opts.status || opts.status === 'all';
     if (!everything
         && (r.status === 'draft' || r.status === 'referencing' || r.status === 'declined'
             || r.status === 'withdrawn' || r.status === 'expired')) {
       const shown = opts.status === r.status
-        || (opts.status === 'invited' && r.status === 'draft' && !r.registered)
-        || (opts.status === 'fee-unpaid' && r.status === 'draft' && !r.feePaid);
+        || (opts.status === 'invited' && r.status === 'draft' && !r.registered);
       if (!shown) return false;
     }
     if (opts.status === 'refunded') { if (!r.refunded) return false; }
@@ -409,7 +464,22 @@ export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
     // tree, which is the supplier rail's ladder and answers wrongly for ours.
     else if (opts.status === 'delivery-failed') { if (deliveryStateOf(r) !== 'failed') return false; }
     else if (opts.status === 'cannot-deliver') { if (!ADMIN_ROLES.includes(opts.role) || deliveryStateOf(r) !== 'cannot_deliver') return false; }
-    else if (opts.status === 'invited' || opts.status === 'fee-unpaid') { if (r.status !== 'draft') return false; }
+    else if (opts.status === 'invited') { if (r.status !== 'draft') return false; }
+    /* FEE UNPAID IS "ASKED AND HAS NOT PAID". Matt, 2026-10-03: it "should
+       list every application where the tenant has been asked for the
+       guarantee fee and hasn't paid (today the 3 Sent referrals ...), not
+       unfinished direct applications that haven't reached payment".
+
+       IT WAS THE EXACT OPPOSITE: `r.status === 'draft' && !r.feePaid`, so
+       the tab listed the one application nobody had asked for anything and
+       none of the three that were waiting on a payment. It shared a branch
+       with `invited`, which IS about drafts, and the shared branch is how
+       the two came to mean the same thing.
+
+       `sent` AND NOT "EVER UNPAID". Dev also holds eight referrals that
+       expired without paying; they are not waiting on a tenant, they are
+       finished. Matt's own list is the three. */
+    else if (opts.status === 'fee-unpaid') { if (r.status !== 'sent') return false; }
     else if (opts.status && opts.status !== 'all' && r.status !== opts.status) return false;
     if (opts.branch && r.branch !== opts.branch) return false;
     if (opts.agency && r.agency !== opts.agency) return false;

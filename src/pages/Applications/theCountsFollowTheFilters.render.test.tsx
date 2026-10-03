@@ -125,13 +125,21 @@ describe('the tab counts before any filter', () => {
      total and is why he asked. */
   it('count the whole book', async () => {
     expect(tabCounts(await openList())).toMatchObject({
-      All: 8, 'In progress': 4, 'Invited, not registered': 2, 'Fee unpaid': 4, Sent: 2, Paid: 2,
+      /* 'Fee unpaid' IS 2, NOT 4, since 2026-10-03: it counts the SENT
+         referrals waiting on a payment, not the unfinished drafts.
+         Matt: the tab "should list every application where the tenant
+         has been asked for the guarantee fee and hasn't paid ... not
+         unfinished direct applications that haven't reached payment".
+         The book holds two `sent` rows, which is also what Sent says --
+         the two are the same set here because a sent row that has paid
+         is no longer sent. */
+      All: 8, 'In progress': 4, 'Invited, not registered': 2, 'Fee unpaid': 2, Sent: 2, Paid: 2,
     });
   });
 
   it('and All is the sum of the exclusive tabs', async () => {
     const c = tabCounts(await openList()) as Record<string, number>;
-    // Invited and Fee unpaid sit inside In progress, so they are not
+    // Invited sits inside In progress and Fee unpaid inside Sent, so neither is
     // addends; the reader adding up the screen leaves them out too.
     expect((c['In progress'] ?? 0) + (c.Sent ?? 0) + (c.Paid ?? 0)
       + (c['Deed Issued'] ?? 0) + (c['Awaiting decision'] ?? 0)
@@ -141,10 +149,15 @@ describe('the tab counts before any filter', () => {
 
 describe('the tab counts follow the Origin filter', () => {
   /* MATT'S OWN EXAMPLE, named in the instruction. */
-  it('so In progress and Fee unpaid count only direct applications', async () => {
+  /* 'Fee unpaid' IS 1 HERE, NOT 2. It used to be the two direct drafts,
+     which are precisely the rows Matt said must not be on the tab; it is
+     now the direct referral that was sent and has not paid. "In progress"
+     is unchanged at 2, which is the half that must not move: that tab IS
+     about drafts. */
+  it('so In progress counts the direct drafts and Fee unpaid the direct sent', async () => {
     const v = await openList();
     await pickOrigin(v, 'Direct');
-    expect(tabCounts(v)).toMatchObject({ 'In progress': 2, 'Fee unpaid': 2 });
+    expect(tabCounts(v)).toMatchObject({ 'In progress': 2, 'Fee unpaid': 1 });
   });
 
   it('and so does every other tab', async () => {

@@ -174,6 +174,11 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         // agent entered them, and position 1 leads: it carries the one deed.
         'tenancy_id, tenancy_position, share_percent, share_amount, ' +
         'status, beneficiary, tenancy_start, sent_at, paid_at, deed_issued_at, expiry_date, ' +
+        /* WHAT IT WAS BEFORE IT EXPIRED (20261007530000). The one thing that
+           tells an unfinished direct application closed after thirty days
+           from a real referral that expired unpaid -- and `sent_at` cannot,
+           because every direct draft carries it from creation. */
+        'expired_from, ' +
         'payment_state, refunded_at, refunded_amount, paid_amount, refund_after_start, ' +
         'withdrawn_at, withdrawn_reason, withdrawn_note, ' +
         'deed_state, deed_sent_at, deed_viewed_at, expiry_reminders_sent, ' +
@@ -468,6 +473,9 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     ben: a.beneficiary ?? '',
     rent: num(a.monthly_rent),
     status: a.status as Status,
+    /* What it was before it expired, so a closed direct draft can be told
+       from a referral that expired unpaid. See reachedPayment(). */
+    expiredFrom: (a.expired_from ?? null) as Status | null,
     date: eventDate(a),
     eventTs: eventTs(a),
     owner: ownerFlag(a),
@@ -548,6 +556,9 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     referrerSeesCommission: emb(a.referrer)?.sees_commission === true,
     owner: ownerFlag(a),
     status: a.status as Status,
+    /* What it was before it expired, so a closed direct draft can be told
+       from a referral that expired unpaid. See reachedPayment(). */
+    expiredFrom: (a.expired_from ?? null) as Status | null,
     rent: num(a.monthly_rent),
     // The FEE, which is what commission is a share of. Falls back to rent so a
     // row created before M1 (or a mock row) reads exactly as it always did.

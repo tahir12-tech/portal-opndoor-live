@@ -83,12 +83,19 @@ describe('with no origin chosen', () => {
        the other tabs." It was 4 here, the funnel. */
     expect(c.all).toBe(BOOK.length);
     expect(c.draft).toBe(5);
-    expect(c.feeUnpaid).toBe(5);
+    /* FEE UNPAID IS A SUBSET OF SENT, NOT OF DRAFT, since 2026-10-03. It
+       was 5 here: every draft that had not paid. Matt: the tab "should
+       list every application where the tenant has been asked for the
+       guarantee fee and hasn't paid ... not unfinished direct
+       applications that haven't reached payment". The book holds one
+       `sent` row, so the answer is 1. */
+    expect(c.feeUnpaid).toBe(1);
     expect(c.expired).toBe(3);
   });
 
   /* AND THE SUM HOLDS, over the tabs that are siblings rather than
-     subsets. Invited and feeUnpaid sit inside draft, refunded and
+     subsets. Invited sits inside draft, feeUnpaid inside SENT (it sat
+     inside draft until 2026-10-03), refunded and
      awaiting inside paid, and the delivery counts inside deed, so they
      are left out of the addition exactly as the reader leaves them out
      when adding up what is on screen. */
@@ -109,8 +116,13 @@ describe('with Origin: Direct, which is what Home’s link sets', () => {
     expect(countByStatus(direct).draft).toBe(2);
   });
 
-  it('Fee unpaid counts only the direct drafts that have not paid', () => {
-    expect(countByStatus(direct).feeUnpaid).toBe(2);
+  /* AND NONE ON THE DIRECT RAIL, which is the whole of Matt's complaint
+     read from the other end: the direct rail here is drafts and one
+     expired, nobody has been asked for a fee, so the tab is empty. It
+     said 2 -- the two unfinished drafts -- which is exactly the pair of
+     applications he said must not be on it. */
+  it('Fee unpaid counts nobody on the direct rail, because nobody was asked', () => {
+    expect(countByStatus(direct).feeUnpaid).toBe(0);
   });
 
   it('Expired counts only the direct expired referrals', () => {

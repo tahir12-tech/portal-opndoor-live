@@ -1504,6 +1504,40 @@ Suppliers list. The half deferred is the rest of his sentence:
 
 > Reporting as a supplier (Kestrel's own login and "View as"): hide the "Commission by route" table; it's Opndoor-only. The supplier's commission is already shown in the summary and its statement. Check nothing else on a supplier's or agency's Reporting mentions routes, other suppliers, or Opndoor's settlement process.
 
+## PRIORITY 1 IS DONE: SENT IS SENT, AND FEE UNPAID MEANS ASKED (2026-10-03).
+
+Both of Matt's priority-1 items, measured on dev before and after.
+
+| figure | before | after |
+|---|---|---|
+| Northgate: applications | 14 | 14 |
+| **Northgate: "Referrals sent"** | **8** | **14** |
+| Whole book: "Referrals sent" | 25 | **32** |
+| **Fee unpaid** | **1** (GR-20626, a draft) | **3** (GR-22162, GR-20837, GR-20764) |
+
+Matt's own numbers in both cases.
+
+- **ONE PREDICATE, `reachedPayment`**, because both instructions ask the
+  same question. `sentAt` is NOT it: every direct draft carries
+  `sent_at` from creation, which is why `expired_from` exists. The test
+  is `status <> 'draft'` and `expired_from <> 'draft'`.
+- Dev holds eight referrals that expired unpaid and seven unfinished
+  direct drafts closed after thirty days. Both are `expired`; only
+  `expired_from` tells them apart.
+- **Fee unpaid was the exact opposite of the rule**: `status === 'draft'
+  && !feePaid`. It shared a branch with `invited`, which IS about
+  drafts, and that shared branch is how the two came to mean the same
+  thing. The count agreed with the list on the wrong answer, so nothing
+  caught it until the list was fixed.
+- **Conversion rates fall, and that is the point.** Northgate's
+  Sent-to-Paid goes 8/8 = 100% to 8/14 = 57%. A 100% rate was the tell:
+  every paid referral counted and every unpaid one deleted.
+- **WITHDRAWN IS NOW COUNTED AS SENT, which Matt did not name.** His
+  sentence is exhaustive -- "unfinished direct applications ... are the
+  only ones left out" -- and a withdrawn referral reached the tenant
+  exactly as an expired one did. Dev holds none, so no figure moves
+  today. Say if it should be excluded.
+
 ## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > No default deal and the warnings now; the referral refusal goes under "After launch". Then prioritise for Wednesday: 1) "Referrals sent" including expired and "Fee unpaid" (figures people will rely on); 2) the application-detail trio and the ready-to-sign email (what tenants and agents see); 3) supplier Reporting hiding "Commission by route"; 4) real reasons on failed saves. Everything else after those, and anything not done by Sunday evening moves to "After launch".

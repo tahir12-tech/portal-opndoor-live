@@ -527,6 +527,11 @@ export interface ApplicationSummary {
   ben: string;
   rent: number;
   status: Status;
+  /** What this application was BEFORE it expired, or null. The only thing that
+      tells an unfinished direct draft, closed after thirty days, from a real
+      referral that expired unpaid: `sentAt` cannot, because every direct draft
+      carries it from creation. Read through `reachedPayment`. */
+  expiredFrom?: Status | null;
   date: string; // ISO yyyy-mm-dd (the anchor event's day, for display)
   /**
    * Anchor event time in epoch ms (deed issued, else paid, else sent), for a

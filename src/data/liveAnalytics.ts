@@ -37,7 +37,7 @@ import { SUPABASE_ENABLED } from '@/lib/supabase';
 import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
 import { ALL_PARTNERS, agencyLevelOf, maySeeCommission } from './types';
 import { showsOffices } from './agencyOffices';
-import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp, guaranteedAnnual } from './applicationsService';
+import { allFull, findRecord, guaranteeExpiry, isHydrated, reachedPayment, type FullApp, guaranteedAnnual } from './applicationsService';
 import { getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
 import { payeesFor, orgAmountOf, agentAmountOf, supplierAmountOf, supplierLineOf, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
@@ -172,10 +172,33 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
   // Asked once, outside the loop: whether this reader may be told what the agency
   // earns does not change from row to row.
   const seesComm = maySeeCommission(role);
-  // #2/#13 Withdrawn and Expired are terminal and pre-payment: they leave the
-  // funnel entirely, so they are excluded from every count, conversion denominator,
-  // ops metric and average here (never inside Sent, never in stuck-at-Sent).
-  const set = scopeFull(allFull(), role, scope).filter((x) => !x.withdrawn && !x.expired);
+  /* =====================================================================
+     A REFERRAL COUNTS AS SENT ONCE IT WAS SENT, 2026-10-03.
+
+     Matt: "Reporting 'Referrals sent' ... leaves out referrals that later
+     expired unpaid: Northgate Lettings shows 8 sent on Reporting but has
+     14 applications, 6 of them expired. A referral counts as sent once it
+     was sent to the tenant, whatever happened after. Unfinished direct
+     applications that never reached the tenant being asked to pay are the
+     only ones left out."
+
+     THIS REPLACES #2/#13's `withdrawn || expired`. That rule read the
+     funnel as "what is still alive", so a referral the agent sent, the
+     tenant received and nobody paid simply vanished -- and an agency's
+     own Reporting understated the work it had done. Matt's rule reads it
+     as "what happened": sent is a thing that happened and cannot be
+     undone by what came after.
+
+     AND IT INCLUDES WITHDRAWN, which Matt did not name but his sentence
+     does: "the only ones left out" is exhaustive, and a withdrawn
+     referral was sent to the tenant exactly as an expired one was. Dev
+     holds none, so no figure moves for it today. Flagged to Matt rather
+     than quietly decided either way.
+
+     `reachedPayment` is the applications list's own predicate, shared so
+     the Fee unpaid tab and these figures cannot disagree about which
+     applications were ever real. */
+  const set = scopeFull(allFull(), role, scope).filter(reachedPayment);
   const a: LiveAgg = {
     sent: 0, paid: 0, deed: 0, feesGross: 0, refundValue: 0, refundCount: 0, feesNet: 0,
     guaranteed: 0, guaranteedNotStarted: 0, partnerCommNet: 0, supplierCommNet: 0, agentCommNet: 0, partnerCommExcl: 0, agentCommExcl: 0,
@@ -579,9 +602,9 @@ function groupRows(
     return g;
   };
   for (const app of set) {
-    // #2/#13 Withdrawn and Expired are terminal and excluded from every league/
-    // volume figure (refs, conversion, fees), matching liveAggregate's exclusion.
-    if (app.withdrawn || app.expired) continue;
+    // A referral counts as sent once it was sent; only an application the
+    // tenant was never asked to pay for is out. See liveAggregate.
+    if (!reachedPayment(app)) continue;
     const k = keyOf(app, key, monthLabel, scope);
     if (!k) continue;
     // PER-ORG ATTRIBUTION. An agency/branch row earns its OWN lines; a referrer or
@@ -809,9 +832,8 @@ export function liveByCustomer(role: Role, scope: PartnerScope, period: Period):
   const seesComm = maySeeCommission(role);
   const map = new Map<string, CustomerRow>();
   for (const app of set) {
-    // #2/#13 Withdrawn and Expired are terminal and out of every volume
-    // figure, matching liveAggregate and groupRows.
-    if (app.withdrawn || app.expired) continue;
+    // Same rule as liveAggregate and groupRows: sent is sent.
+    if (!reachedPayment(app)) continue;
     const o = originOf(app);
     if (o.kind !== 'agency' && o.kind !== 'supplier') continue;
     const key = originValue(app);
@@ -945,7 +967,7 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
   const idx = (d: Date) => d.getFullYear() * 12 + d.getMonth();
   const at = (d: Date) => months.find((x) => x.key === idx(d));
   for (const app of set) {
-    if (app.withdrawn || app.expired) continue; // #2/#13 terminal: excluded from trailing-12-month volume/fees
+    if (!reachedPayment(app)) continue; // sent is sent; only never-asked is out
     if (app.sentAt && idx(app.sentAt) >= lo && idx(app.sentAt) <= hi) { const m = at(app.sentAt); if (m) m.refs += 1; }
     if (app.paidAt && idx(app.paidAt) >= lo && idx(app.paidAt) <= hi) {
       const m = at(app.paidAt);
