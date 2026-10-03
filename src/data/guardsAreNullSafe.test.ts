@@ -278,6 +278,43 @@ describe('a raising guard cannot evaluate to NULL', () => {
        the minting half refuses anybody who is not the monthly run, and that
        refusal is a deny-if like the other sixty-six. Coalesced in
        20261007660000 after this very test caught it unwrapped. */
-    expect(denyIf.length).toBe(67);
+    /* 67 -> 69 with 20261007810000, admin_delete_user. Both audited, and
+       both are total for a reason that sits above them in the same
+       function:
+
+       (a)   if p_user = me
+
+             The self-delete refusal, the same shape and the same words as
+             admin_set_user_status' own self-deactivate guard. `me` is
+             auth.uid(), and a NULL there would mean an unauthenticated
+             caller -- which `is_aal2()` has already refused on the first
+             line of the function. `p_user` is a parameter and can be NULL,
+             and a NULL one has already been refused four lines above by
+             `if cur.id is null then raise 'User not found'`: no row is
+             found for a NULL id. So both sides are non-NULL by the time
+             this runs, and `=` between two non-NULL values is a plain
+             boolean.
+
+             Worth stating which way it would fail if it were not total:
+             this is a DENY guard, so NULL reads as "do not raise" and an
+             administrator could delete their own account. That is why it
+             is audited rather than waved through.
+
+       (b)   if cur.status <> 'deactivated'
+
+             "Remove their access first, then delete them", which is what
+             keeps Matt's two steps two steps. `cur` is a row that is
+             known to exist (same `cur.id is null` guard), and
+             `public.users.status` is NOT NULL -- checked on dev, not
+             assumed. So `<>` is a plain boolean.
+
+             Left uncoalesced for the reason the set_user_scope note above
+             gives: `coalesce(cur.status,'')` would be dead code implying
+             the column is nullable, and the column constraint is the
+             guarantee. If `status` ever becomes nullable, this is the note
+             that says what else has to change -- and the failure would be
+             that a person with no status could be deleted without their
+             access having been removed. */
+    expect(denyIf.length).toBe(69);
   });
 });

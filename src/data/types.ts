@@ -269,7 +269,17 @@ export type DeedState = 'awaiting_tenant' | 'executed' | 'declined' | 'voided' |
 /** Guarantor-fee payment state (DB-enforced set). */
 export type PaymentState = 'awaiting' | 'paid' | 'refunded';
 export type PartnerStatus = 'active' | 'onboarding' | 'paused';
-export type UserStatus = 'active' | 'pending' | 'deactivated';
+/* FOUR, SINCE 2026-10-03. Matt: "After access is removed, offer 'Delete' ...
+   The person is removed from People lists and can never sign in, but their
+   name stays wherever they appear on past records."
+
+   'deleted' IS A LABEL ON A ROW THAT STAYS. Nothing is removed:
+   applications.referrer_id and user_audit.target_user point at that row, and
+   a real delete would either fail on those keys or cascade and take a name
+   off a guarantee the person really did refer. What changes is that
+   list_managed_users stops returning them, which is the one clause that takes
+   them off all four People screens. See 20261007810000. */
+export type UserStatus = 'active' | 'pending' | 'deactivated' | 'deleted';
 
 /* ---------- Partner ---------- */
 export interface Partner {

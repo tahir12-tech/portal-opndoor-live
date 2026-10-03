@@ -276,7 +276,23 @@ describe('the definer allowlist', () => {
        between a null rate and a zero one, which is the distinction
        20261007680000 created and nothing else asks. Covered by name in
        a_missing_deal_is_loud.test.sql. */
-    expect(allowlist.length).toBeLessThanOrEqual(155);
+    /* 155 -> 156, 2026-10-03: admin_delete_user, the second step of
+       "After access is removed, offer 'Delete'".
+
+       IT IS A SIBLING OF admin_set_user_status AND ASKS ITS PERMISSION
+       QUESTION WORD FOR WORD -- is_admin, or management reaching one of
+       its own people through app_may_reach_user -- then the level ladder
+       on top of that. It widens nothing: whoever may take somebody's
+       access away may finish the job, and nobody else. It also refuses a
+       person whose access has not been removed yet, so the two steps
+       cannot be collapsed by finding the RPC, and it refuses self.
+
+       IT DELETES NOTHING. The row's status becomes 'deleted' and that is
+       all, which is the point: applications.referrer_id and
+       user_audit.target_user both reference this row, and Matt's rule is
+       that "their name stays wherever they appear on past records".
+       Covered by name in a_deleted_person_keeps_their_name.test.sql. */
+    expect(allowlist.length).toBeLessThanOrEqual(156);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

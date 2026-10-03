@@ -52,7 +52,7 @@
 import { possessive } from '@/lib/format';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
-  cancelInvite, getAgencies, getGroups, inviteUser, resendInvite, setUserStatus,
+  cancelInvite, deleteUser, getAgencies, getGroups, inviteUser, resendInvite, setUserStatus,
   resetUserMfa, resetUserPassword, setAgencyLevel, getUsers, userEmail,
   agencyLevelOf, AGENCY_LEVELS, levelsGrantableBy, mayActOn, mayActOnOrEqual, type Actor, type AgencyLevel,
   type Agency, type ManagedUser,
@@ -74,7 +74,7 @@ import '@/pages/UserManagement/UserManagement.css';
 import './Team.css';
 import { plural, countOf } from '@/lib/plural';
 import { PeopleTable, type PeopleTableRow } from '@/components/people/PeopleTable';
-import { levelChangeAsk, personAsk } from '@/components/people/personConfirm';
+import { deleteAsk, levelChangeAsk, personAsk } from '@/components/people/personConfirm';
 
 
 /** What to call this person. Opndoor's own roles keep their own names; an
@@ -677,6 +677,24 @@ export function Team() {
               Restore access
             </Button>
           )}
+          {/* AND DELETE, the second step. Matt, 2026-10-03: "After access is
+              removed, offer 'Delete'." Without it somebody with no access
+              stayed on this list for ever. The toast says what survived,
+              because "deleted" on its own invites the question Matt's own
+              dialog answers. */}
+          {may && u.status === 'deactivated' && (
+            <Button variant="quiet" size="sm" disabled={busy}
+              onClick={() => {
+                const q = deleteAsk(u.name);
+                setConfirm({
+                  title: q.title, body: q.body, cta: q.confirmLabel, danger: true,
+                  run: async () => { await deleteUser(u.id); },
+                  done: `${u.name} is off the People lists. Their name stays on their referrals.`,
+                });
+              }}>
+              Delete
+            </Button>
+          )}
         </>
       ),
     };
@@ -790,7 +808,7 @@ export function Team() {
           <option value="">Any status</option>
           <option value="active">Active</option>
           <option value="pending">Invited</option>
-          <option value="deactivated">Deactivated</option>
+          <option value="deactivated">No access</option>
         </select>
         {placeIsAChoice && (
           <select aria-label="Office" value={place} onChange={(e) => setPlace(e.target.value)}>

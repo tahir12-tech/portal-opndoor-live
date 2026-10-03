@@ -58,6 +58,7 @@ insert into allowed(name) values
   ('admin_cancel_invite'),
   ('admin_create_agency_and_branch'),
   ('admin_delete_org_shape'),
+  ('admin_delete_user'),
   ('admin_reset_user_mfa'),
   /* ONE KEY, FROM THE SUPPLIER'S INTEGRATION TAB (20261007440000). Matt,
      2026-10-02: "Opndoor admin can revoke a single key here." Admin only

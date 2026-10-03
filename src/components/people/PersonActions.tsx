@@ -12,7 +12,7 @@
    there says Change role. The label is the only thing that differs; what the
    button opens is the host page's business.
    ===================================================================== */
-export type PersonAction = 'remove' | 'restore' | 'resend' | 'password' | 'mfa';
+export type PersonAction = 'remove' | 'restore' | 'resend' | 'password' | 'mfa' | 'delete';
 
 interface PersonActionsProps {
   person: { userId: string; name: string; email: string; status: string; agencyLevel: string };
@@ -104,9 +104,18 @@ export function PersonActions({
       {r.status === 'active' && (
         <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('remove', r.userId, who)}>Remove access</button>
       )}
-      {r.status === 'deactivated' && (
+      {/* AFTER ACCESS IS REMOVED, TWO CHOICES AND NOT ONE. Matt, 2026-10-03:
+          "After access is removed, offer 'Delete' ... Removed-but-not-deleted
+          people show as 'No access' with a 'Restore access' option."
+
+          Restore first, deliberately: it is the recoverable one, and a row
+          whose only offer was Restore had no way to finish the job -- so
+          somebody with no access sat on every People list for ever, which is
+          what Delete is for. */}
+      {r.status === 'deactivated' && <>
         <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('restore', r.userId, who)}>Restore access</button>
-      )}
+        <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => onAction('delete', r.userId, who)}>Delete</button>
+      </>}
     </div>
   );
 }

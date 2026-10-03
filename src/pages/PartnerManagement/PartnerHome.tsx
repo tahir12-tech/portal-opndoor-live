@@ -144,7 +144,7 @@ import { agencyContactState } from '@/data/deedContact';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions } from '@/components/people/PersonActions';
 import { useToast } from '@/components/ui/Toast';
-import { cancelInvite, resendInvite, resetUserMfa, resetUserPassword, setUserStatus } from '@/data/usersService';
+import { cancelInvite, deleteUser, resendInvite, resetUserMfa, resetUserPassword, setUserStatus } from '@/data/usersService';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { Icon } from '@/components/ui/Icon';
@@ -158,7 +158,7 @@ import './PartnerHome.css';
 import { plural, countOf } from '@/lib/plural';
 import { formatDate, formatMonth, possessive } from '@/lib/format';
 import { PeopleTable } from '@/components/people/PeopleTable';
-import { personAsk, type AskedAction } from '@/components/people/personConfirm';
+import { deleteAsk, personAsk, type AskedAction } from '@/components/people/personConfirm';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
@@ -256,10 +256,11 @@ export function PartnerHome() {
      and ends its sessions. The words are personAsk's, shared with the other
      three People surfaces. A resend is the exception and is not in Matt's
      list: it sends the same invitation again and changes nothing. */
-  const askPerson = (what: AskedAction | 'resend' | 'cancel', userId: string, who: string) => {
+  const askPerson = (what: AskedAction | 'resend' | 'cancel' | 'delete', userId: string, who: string) => {
     if (what === 'resend') { void runPerson(what, userId, who); return; }
-    const asked: AskedAction = what === 'cancel' ? 'cancelInvite' : what;
-    askConfirm({ ...personAsk(asked, who), run: () => runPerson(what, userId, who) });
+    const q = what === 'delete' ? deleteAsk(who)
+      : personAsk(what === 'cancel' ? 'cancelInvite' : what, who);
+    askConfirm({ ...q, run: () => runPerson(what, userId, who) });
   };
   const runPerson = async (what: string, userId: string, who: string) => {
     if (busy) return;
@@ -282,6 +283,9 @@ export function PartnerHome() {
       }
       else if (what === 'remove') { await setUserStatus(userId, 'deactivated'); toast(`${who} no longer has access.`); }
       else if (what === 'restore') { await setUserStatus(userId, 'active'); toast(`${who} has access again.`); }
+      /* Says what survived, because "deleted" on its own invites the question
+         Matt's own dialog answers: their name stays on their referrals. */
+      else if (what === 'delete') { await deleteUser(userId); toast(`${who} is off the People lists. Their name stays on their referrals.`); }
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
     } finally { setBusy(false); }

@@ -41,7 +41,7 @@ import {
   type DeedReadiness,
 } from '@/data/positionsService';
 import { setNodeRate, getCommissionSplits, previewNodeRate, setAgencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
-import { cancelInvite, resendInvite, resetUserMfa, resetUserPassword, setUserStatus } from '@/data/usersService';
+import { cancelInvite, deleteUser, resendInvite, resetUserMfa, resetUserPassword, setUserStatus } from '@/data/usersService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Card, CardHead, CardBody } from '@/components/ui/Card';
@@ -49,7 +49,7 @@ import { Pill } from '@/components/ui/Pill';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
-import { personAsk } from '@/components/people/personConfirm';
+import { deleteAsk, personAsk } from '@/components/people/personConfirm';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
@@ -61,7 +61,7 @@ import { liveByCustomer } from '@/data/liveAnalytics';
 import { agencyLevelOf, AGENCY_LEVELS, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
 import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import { PageTabs } from '@/components/ui/PageTabs';
-import { PersonActions } from '@/components/people/PersonActions';
+import { PersonActions, type PersonAction } from '@/components/people/PersonActions';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
 import { AgencyGrow } from './AgencyGrow';
 import { AgreementEditor, agreementSummary, dealWords } from './AgreementEditor';
@@ -590,13 +590,14 @@ export function AgencyHome() {
     } catch (e) { toast(e instanceof Error ? e.message : 'Could not change that level.', 'error'); }
   };
 
-  const doPersonAction = async (what: 'remove' | 'restore' | 'resend' | 'password' | 'mfa', userId: string, who: string) => {
+  const doPersonAction = async (what: PersonAction, userId: string, who: string) => {
     const run = {
       remove: () => setUserStatus(userId, 'deactivated'),
       restore: () => setUserStatus(userId, 'active'),
       resend: () => resendInvite(userId),
       password: () => resetUserPassword(userId),
       mfa: () => resetUserMfa(userId),
+      delete: () => deleteUser(userId),
     }[what];
     const done = {
       remove: `${who} no longer has access.`,
@@ -606,6 +607,8 @@ export function AgencyHome() {
       // whether or not the address turned out to be reachable.
       password: 'Password reset link sent.',
       mfa: `${who} will enrol a new authenticator at their next sign in.`,
+      // Says what survived, because "deleted" on its own invites the question.
+      delete: `${who} is off the People lists. Their name stays on their referrals.`,
     }[what];
     const go = async () => {
       try { await run(); refreshSession(); bump(); toast(done, 'ok'); }
@@ -621,7 +624,7 @@ export function AgencyHome() {
        A RESEND IS THE EXCEPTION, and it is not in Matt's list: it sends the
        same invitation again and changes nothing about the person. */
     if (what === 'resend') { await go(); return; }
-    askConfirm({ ...personAsk(what, who), run: go });
+    askConfirm({ ...(what === 'delete' ? deleteAsk(who) : personAsk(what, who)), run: go });
   };
 
   /* THE DEED-RECIPIENT NOMINATION IS GONE (20261006160000). It answered "this
@@ -827,7 +830,7 @@ export function AgencyHome() {
               {/* Deactivated was missing, so Restore access would have landed on
                   rows nobody could filter to: the only way to find a person you
                   had just removed was to scroll the whole org. */}
-              <option value="deactivated">Deactivated</option>
+              <option value="deactivated">No access</option>
             </select>
             {(pFilter.q || pFilter.level || pFilter.agency || pFilter.branch || pFilter.status) && (
               <button className="ah-linkbtn ah-linkbtn--quiet" onClick={() => setPFilter({ level: '', position: '', agency: '', branch: '', status: '', q: '' })}>Clear filters</button>

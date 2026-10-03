@@ -25,7 +25,7 @@ import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
   getPartner, getPartners, getUserAudit, getUsers, homePartner, inviteUser, partnerName,
-  cancelInvite, resendInvite, resetUserMfa, resetUserPassword, setUserStatus, updateUserName, updateUserRole, userEmail, userPartnerName,
+  cancelInvite, deleteUser, resendInvite, resetUserMfa, resetUserPassword, setUserStatus, updateUserName, updateUserRole, userEmail, userPartnerName,
   type ManagedUser, type Role, type UserAuditEntry,
 } from '@/data';
 import { ALL_PARTNERS } from '@/data';
@@ -40,7 +40,7 @@ import { useToast } from '@/components/ui/Toast';
 import './UserManagement.css';
 import { changeSentence } from '@/data/changeSentence';
 import { PeopleTable } from '@/components/people/PeopleTable';
-import { levelChangeAsk, personAsk } from '@/components/people/personConfirm';
+import { deleteAsk, levelChangeAsk, personAsk } from '@/components/people/personConfirm';
 
 const ROLE_META: Record<Role, [string, string]> = {
   superadmin: ['opndoor admin', 'role-tag--super'],
@@ -447,6 +447,17 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     if (action === 'reactivate') {
       const q = personAsk('restore', u.name || userEmail(u));
       setConfirm({ ...q, body: <>{q.body}</>, success: `${u.name} has access again.`, run: () => setUserStatus(u.id, 'active') });
+      return;
+    }
+    if (action === 'delete') {
+      const q = deleteAsk(u.name || userEmail(u));
+      setConfirm({
+        ...q,
+        body: <>{q.body}</>,
+        // Says what survived, because "deleted" on its own invites the question.
+        success: `${u.name} is off the People lists. Their name stays on their referrals.`,
+        run: () => deleteUser(u.id),
+      });
     }
   }
 
@@ -465,8 +476,17 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   // The action items for a row, rendered inside the portalled popover.
   function menuItems(u: ManagedUser): ReactNode {
     if (u.status === 'deactivated') {
+      /* TWO CHOICES AFTER ACCESS IS REMOVED. Matt, 2026-10-03: "After access
+         is removed, offer 'Delete'." The menu held one item, so somebody with
+         no access stayed on this list for ever and there was nothing to be
+         done about it. */
       return mayAct(u)
-        ? <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reactivate', u); }}><Icon name="check" />Restore access</button>
+        ? (
+          <>
+            <button className="rowmenu__item" onClick={() => { setMenuOpenId(null); handleAction('reactivate', u); }}><Icon name="check" />Restore access</button>
+            <button className="rowmenu__item rowmenu__item--danger" onClick={() => { setMenuOpenId(null); handleAction('delete', u); }}><Icon name="trash" />Delete</button>
+          </>
+        )
         : <div className="rowmenu__empty">Nothing you can change here.</div>;
     }
     if (u.status === 'pending') {

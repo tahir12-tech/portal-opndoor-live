@@ -82,6 +82,12 @@ export function getUsers(opts: GetUsersOpts): ManagedUser[] {
   const scope = opts.viewer === 'superadmin' ? opts.scope ?? getSelectedPartner() : homePartner();
   const isOpndoorStaff = (r: ManagedUser['role']) => r === 'superadmin' || r === 'opndoor_manager';
   return USERS.filter((u) => {
+    /* A DELETED PERSON IS ON NO PEOPLE LIST. Matt, 2026-10-03: "The person is
+       removed from People lists". In live mode `list_managed_users` answers
+       this, in one clause, for all four screens (20261007810000); this is the
+       mock path's copy of the same rule, so the demo and dev estates behave
+       the same way rather than the state existing on only one of them. */
+    if (u.status === 'deleted') return false;
     if (opts.team) return isOpndoorStaff(u.role); // opndoor team: opndoor's own staff (admin + manager)
     if (isOpndoorStaff(u.role)) return false; // partner lists never include opndoor staff
     if (opts.viewer === 'superadmin') return scope === ALL_PARTNERS || u.partner === scope;
@@ -165,6 +171,35 @@ export async function setUserStatus(id: string, status: 'active' | 'deactivated'
   const old = u.status;
   if (old !== status) recordUserAudit(id, 'status', old, status);
   u.status = status;
+}
+
+/**
+ * Take somebody off the People lists for good, after their access has gone.
+ *
+ * Matt, 2026-10-03: "After access is removed, offer 'Delete' ... The person is
+ * removed from People lists and can never sign in, but their name stays
+ * wherever they appear on past records."
+ *
+ * NOTHING IS DELETED, which is the point. The status becomes 'deleted' and
+ * `list_managed_users` stops returning them, so they are gone from all four
+ * People screens in one clause; the row stays because
+ * `applications.referrer_id` and `user_audit.target_user` point at it, and
+ * their name is snapshotted on the application anyway. See 20261007810000.
+ *
+ * THE RPC REFUSES AN ACTIVE PERSON, so the two steps stay two steps even for
+ * a caller that reaches past the screens.
+ */
+export async function deleteUser(id: string): Promise<void> {
+  const u = USERS.find((x) => x.id === id);
+  if (!u) throw new Error('User not found.');
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('admin_delete_user', { p_user: id });
+    if (error) throw new Error(error.message);
+    return;
+  }
+  if (u.status !== 'deactivated') throw new Error('Remove their access first, then delete them.');
+  recordUserAudit(id, 'status', u.status, 'deleted');
+  u.status = 'deleted';
 }
 
 /** Cancel a pending invite: removes the pending user, invalidates their invite
