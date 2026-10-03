@@ -43,6 +43,19 @@ export type Block =
   | { rows: [string, string][] }
   /** Set apart, for a code or a reference. */
   | { callout: string }
+  /** A PARAGRAPH THAT MATTERS, and nothing more than that.
+   *
+   *  Matt, 2026-10-03: "Corrected-deed note in the signed-deed emails
+   *  (tenant and agent): style it as a normal-weight paragraph in the
+   *  email's body text style, with at most a subtle left border, not large
+   *  bold letter-spaced text in a box."
+   *
+   *  The corrected-deed sentence was using `callout`, which is built for a
+   *  CODE or a reference -- 22px, bold, letter-spaced, centred -- so a
+   *  two-line sentence arrived shouting. This is the body paragraph with a
+   *  rule down its left edge: the same words, read at the same speed as the
+   *  rest of the email. */
+  | { note: string }
   /** Quieter than a paragraph, for the sentence nobody needs to read twice. */
   | { small: string };
 
@@ -147,6 +160,16 @@ function blockHtml(b: Block): string {
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
       <tr><td style="background:${WHITE_LILAC};border:1px solid ${LINE};border-radius:10px;padding:16px 18px;
         font:700 22px/1.3 ${FONT};color:${VALHALLA};letter-spacing:.08em;text-align:center;">${esc(b.callout)}</td></tr></table>`;
+  }
+  /* A TABLE RATHER THAN A STYLED <p>, for the one reason tables are still
+     written in email: Outlook's word-processor renderer drops border-left
+     on a block element often enough that the note would lose the only mark
+     that sets it apart. Everything else about it is the `p` arm above --
+     same weight, size, line height and colour -- which is the whole point. */
+  if ("note" in b) {
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;">
+      <tr><td style="border-left:3px solid ${LINE};padding:2px 0 2px 14px;
+        font:400 15px/1.65 ${FONT};color:${INK_SOFT};">${rich(b.note)}</td></tr></table>`;
   }
   if ("list" in b) {
     return `<ul style="margin:0 0 14px;padding-left:20px;font:400 15px/1.7 ${FONT};color:${INK_SOFT};">`
@@ -260,6 +283,8 @@ export function renderText(m: Message, r?: Recipients): string {
     else if ("p" in b) out.push(strip(b.p), "");
     else if ("small" in b) out.push(strip(b.small), "");
     else if ("callout" in b) out.push("    " + strip(b.callout), "");
+    // A note reads as a paragraph in plain text: there is no left border to draw.
+    else if ("note" in b) out.push(strip(b.note), "");
     else if ("list" in b) { for (const i of b.list) out.push("  - " + strip(i)); out.push(""); }
     else for (const [k, v] of b.rows) out.push(`  ${strip(k)}: ${strip(v)}`);
   }

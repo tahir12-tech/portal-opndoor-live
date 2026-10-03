@@ -213,15 +213,50 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
  */
 export async function correctedFromLabel(service: any, appId: string): Promise<string | null> {
   const { data } = await service.from("applications")
-    .select("deed_delivered_at, deed_issued_at").eq("id", appId).maybeSingle();
+    .select("deed_delivered_at, deed_delivery_superseded_at, deed_issued_at").eq("id", appId).maybeSingle();
+  /* THE SUPERSEDED DELIVERY IS THE ANSWER, and it is read FIRST.
+     20261007640000 moved the earlier delivery to
+     `deed_delivery_superseded_at` when a correction voids the deed, and
+     nulled `deed_delivered_at` -- which is what unblocked the corrected
+     deed's automatic send. This function was still asking the nulled
+     column, so from that day the note that says "this replaces the one
+     sent on ..." could never appear on the very emails it is for: the
+     correction clears the only date it was reading.
+
+     A stamp here IS the statement that a delivery was superseded, so it
+     needs no second test. The issued/delivered comparison below is the
+     HISTORIC path: rows corrected before that migration still carry the
+     old delivery in place, and there the newer issue stamp is the only
+     thing that separates a correction from a plain resend. */
+  const superseded = data?.deed_delivery_superseded_at ? new Date(data.deed_delivery_superseded_at) : null;
   const sent = data?.deed_delivered_at ? new Date(data.deed_delivered_at) : null;
   const issued = data?.deed_issued_at ? new Date(data.deed_issued_at) : null;
-  if (!sent || !issued || issued <= sent) return null;
+  const was = superseded ?? ((sent && issued && issued > sent) ? sent : null);
+  if (!was) return null;
+  return londonDayLabel(was);
+}
+
+/** "1 Oct 2026", in London.
+ *
+ *  Matt, 2026-10-03: "Dates as '1 Oct 2026', not '01 Oct 2026'."
+ *
+ *  AND `day: "numeric"` IS NOT WHAT DELIVERS THAT, which is the whole reason
+ *  this needed measuring rather than reading. The options asked for a numeric
+ *  day and still produced "01": en-GB has no pattern for day-month-year all
+ *  numeric that keeps a one-digit day, so the resolved format is dd/mm/yyyy
+ *  and `formatToParts` hands back the day already padded. The option was
+ *  right and the output was wrong, which is why the bug survived a reading of
+ *  this function.
+ *
+ *  So the zero comes off explicitly, through Number(). The month is an
+ *  abbreviation from the list rather than Intl's "short", whose output
+ *  carries a full stop in some runtimes ("1 Oct. 2026"). */
+function londonDayLabel(when: Date): string {
   const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const d = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London", day: "numeric", month: "numeric", year: "numeric",
-  }).formatToParts(sent);
-  const day = d.find((p) => p.type === "day")?.value ?? "";
+  }).formatToParts(when);
+  const day = Number(d.find((p) => p.type === "day")?.value ?? "0");
   const mon = Number(d.find((p) => p.type === "month")?.value ?? "0");
   const year = d.find((p) => p.type === "year")?.value ?? "";
   return `${day} ${MONTH[mon - 1] ?? mon} ${year}`;

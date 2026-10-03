@@ -688,8 +688,13 @@ export function executedDeedAgentEmail(p: {
          start is now 21 November 2026; please discard the earlier copy.'"
          Without it the second email reads as a duplicate of the first,
          and the one with the wrong date is the one already filed. */
+      /* AND IT IS A `note`, NOT A `callout`. Matt, 2026-10-03: "style it as
+         a normal-weight paragraph in the email's body text style, with at
+         most a subtle left border, not large bold letter-spaced text in a
+         box." `callout` is the code/reference block -- 22px, bold,
+         letter-spaced, centred -- so a two-line sentence arrived shouting. */
       ...(p.correctedFrom
-        ? [{ callout: `This corrected deed replaces the one sent on ${p.correctedFrom}.${p.tenancyStartLabel ? ` The tenancy start is now ${p.tenancyStartLabel};` : ''} please discard the earlier copy.` }]
+        ? [{ note: `This corrected deed replaces the one sent on ${p.correctedFrom}.${p.tenancyStartLabel ? ` The tenancy start is now ${p.tenancyStartLabel};` : ''} please discard the earlier copy.` }]
         : []),
       { p: `Your signed copy is attached. Keep it with the tenancy paperwork, it is the reference for any claim under the guarantee.${portalLine}${jointLine}` },
       { rows },
@@ -789,8 +794,13 @@ export function executedDeedTenantEmail(p: {
     subject: `Your signed Deed of Guarantee for ${p.guaranteeRef}`,
     heading: "Your Deed of Guarantee has been signed",
     blocks: [
+      /* AND IT IS A `note`, NOT A `callout`. Matt, 2026-10-03: "style it as
+         a normal-weight paragraph in the email's body text style, with at
+         most a subtle left border, not large bold letter-spaced text in a
+         box." `callout` is the code/reference block -- 22px, bold,
+         letter-spaced, centred -- so a two-line sentence arrived shouting. */
       ...(p.correctedFrom
-        ? [{ callout: `This corrected deed replaces the one sent on ${p.correctedFrom}.${p.tenancyStartLabel ? ` The tenancy start is now ${p.tenancyStartLabel};` : ''} please discard the earlier copy.` }]
+        ? [{ note: `This corrected deed replaces the one sent on ${p.correctedFrom}.${p.tenancyStartLabel ? ` The tenancy start is now ${p.tenancyStartLabel};` : ''} please discard the earlier copy.` }]
         : []),
       { p: "The Deed of Guarantee for your tenancy has been signed by all parties. A copy is attached for your records, and you do not need to do anything else." },
       { rows },
