@@ -1301,6 +1301,14 @@ reading the wrong one. No frozen amount changed.
 
 > Reporting "Referrals sent" (Every customer table, funnel, charts, exports) leaves out referrals that later expired unpaid: Northgate Lettings shows 8 sent on Reporting but has 14 applications, 6 of them expired. A referral counts as sent once it was sent to the tenant, whatever happened after. Unfinished direct applications that never reached the tenant being asked to pay are the only ones left out. Check the conversion rates still make sense after the change. Deploy to dev and check there.
 
+## THE APPLICATION DETAIL, THREE THINGS (instruction, 2026-10-03, verbatim).
+
+> Application detail (GR-23853):
+> 1. "Rent to be guaranteed £23,030.4" must show two decimal places; check every money figure on this page and the tenant pages.
+> 2. "names all 2 tenants" should read "names both tenants" (and "all 3 tenants" for three or more).
+> 3. Delivery panel: after a start-date correction it still shows the old deed's delivery ("Delivered to joe@joe.com, 1 Oct 20:21") while the corrected deed is unsigned. Show the current deed's state ("Corrected deed awaiting the tenant's signature; it will be sent to joe@joe.com once signed"), with the earlier delivery listed as superseded.
+> Deploy to dev and check there.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
