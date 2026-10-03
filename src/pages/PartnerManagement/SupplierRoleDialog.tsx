@@ -27,6 +27,7 @@ import { useState } from 'react';
 import { updateUserRole } from '@/data/usersService';
 import type { Role } from '@/data/types';
 import { Button } from '@/components/ui/Button';
+import { levelChangeAsk } from '@/components/people/personConfirm';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { SupplierLevelOptions, supplierLevelsFor } from './SupplierLevels';
@@ -83,6 +84,16 @@ export function SupplierRoleDialog({
       )}
     >
       <SupplierLevelOptions value={role} onChange={setRole} apiAccessEnabled={apiAccessEnabled} />
+      {/* OLD AND NEW, both named. Matt, 2026-10-03: "Change level (show old
+          and new level)." The dialog named the person and the levels on
+          offer; what it never said is which one they are leaving. Same
+          sentence as the agency ladder's, from personConfirm, with "role"
+          as the word this rail uses (decision D11). */}
+      {!unchanged && chosen && (() => {
+        const was = levels.find((l) => l.role === user.current);
+        const q = levelChangeAsk(user.name, was?.level ?? user.current, chosen.level, 'role');
+        return <p className="ph-note soft"><b>{q.title}</b> {q.body}</p>;
+      })()}
       {!chosen && (
         /* THEY HOLD A ROLE THE SUPPLIER CAN NO LONGER GRANT. Said
            plainly: the alternative is a dialog with nothing selected and

@@ -158,6 +158,8 @@ import './PartnerHome.css';
 import { plural, countOf } from '@/lib/plural';
 import { formatDate, formatMonth, possessive } from '@/lib/format';
 import { PeopleTable } from '@/components/people/PeopleTable';
+import { personAsk, type AskedAction } from '@/components/people/personConfirm';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 
 const STATUS_PILL: Record<string, [string, PillVariant]> = {
   active: ['Active', 'deed'],
@@ -239,12 +241,26 @@ export function PartnerHome() {
     [role, reportPeriod, partner, dataVersion],
   );
   const toast = useToast();
+  const { ask: askConfirm, confirmEl } = useConfirm();
   const isAdmin = role === 'superadmin';
 
   /* ONE HANDLER FOR THE ROW ACTIONS. Each is a single call into usersService
      and each reports the same way, so they share a body rather than growing
      six copies of try/catch/toast -- which is how the two action sets
      already in the product came to disagree about confirmation. */
+  /* AND IT ASKS FIRST, FOR EVERYTHING BUT A RESEND. Matt, 2026-10-03: "Every
+     action that changes something asks first, in plain words". The comment
+     above notes that the two action sets already in the product "came to
+     disagree about confirmation" -- and what this page settled on was no
+     confirmation at all, for all six, including the one that bans an account
+     and ends its sessions. The words are personAsk's, shared with the other
+     three People surfaces. A resend is the exception and is not in Matt's
+     list: it sends the same invitation again and changes nothing. */
+  const askPerson = (what: AskedAction | 'resend' | 'cancel', userId: string, who: string) => {
+    if (what === 'resend') { void runPerson(what, userId, who); return; }
+    const asked: AskedAction = what === 'cancel' ? 'cancelInvite' : what;
+    askConfirm({ ...personAsk(asked, who), run: () => runPerson(what, userId, who) });
+  };
   const runPerson = async (what: string, userId: string, who: string) => {
     if (busy) return;
     setBusy(true);
@@ -816,8 +832,8 @@ export function PartnerHome() {
                   isAdmin
                   manyOffices={false}
                   changeLevelLabel="Change role"
-                  onAction={(what, userId, who) => void runPerson(what, userId, who)}
-                  onCancelInvite={(userId, who) => void runPerson('cancel', userId, who)}
+                  onAction={(what, userId, who) => askPerson(what, userId, who)}
+                  onCancelInvite={(userId, who) => askPerson('cancel', userId, who)}
                   onChangeLevel={(pr) => setRoleFor({ userId: pr.userId, name: pr.name, current: u.role })}
                   onPosition={() => {}}
                   onNotifications={(pr) => setNotifFor(pr)}
@@ -853,6 +869,7 @@ export function PartnerHome() {
           onClose={() => setNotifFor(null)}
         />
       )}
+      {confirmEl}
     </>
   );
 }

@@ -74,6 +74,7 @@ import '@/pages/UserManagement/UserManagement.css';
 import './Team.css';
 import { plural, countOf } from '@/lib/plural';
 import { PeopleTable, type PeopleTableRow } from '@/components/people/PeopleTable';
+import { levelChangeAsk, personAsk } from '@/components/people/personConfirm';
 
 
 /** What to call this person. Opndoor's own roles keep their own names; an
@@ -326,7 +327,17 @@ export function Team() {
   const [levelUser, setLevelUser] = useState<ManagedUser | null>(null);
   const [levelPick, setLevelPick] = useState<AgencyLevel | null>(null);
   /** A one-line confirmation for the destructive-ish row actions. */
-  const [confirm, setConfirm] = useState<{ line: string; cta: string; run: () => Promise<void>; done: string } | null>(null);
+  /* THE QUESTION AND THE CONSEQUENCE, since 2026-10-03, where this held one
+     `line` that had to be both. Matt's shape is two sentences -- "Remove
+     access for Joe Joe? They can't sign in from now on. Their referrals stay
+     as they are." -- and a single line forced every one of these to choose
+     which half to print. The words come from personAsk, shared with the other
+     three People surfaces. */
+  const [confirm, setConfirm] = useState<{ title: string; body: string; cta: string; danger?: boolean; run: () => Promise<void>; done: string } | null>(null);
+  const askPerson = (what: Parameters<typeof personAsk>[0], who: string, run: () => Promise<void>, done: string) => {
+    const q = personAsk(what, who);
+    setConfirm({ title: q.title, body: q.body, cta: q.confirmLabel, danger: q.danger, run, done });
+  };
   /* Who receives the monthly commission statement. Held here rather than on
      ManagedUser: it is read off users.receives_commission_statements by two
      screens, and hydrate's user list is shared by every screen in the portal. */
@@ -615,12 +626,7 @@ export function Team() {
                 Resend invite
               </Button>
               <Button variant="quiet" size="sm" disabled={busy}
-                onClick={() => setConfirm({
-                  line: `Cancel the invitation to ${u.name}?`,
-                  cta: 'Cancel invitation',
-                  run: () => cancelInvite(u.id),
-                  done: `Invitation to ${userEmail(u)} cancelled.`,
-                })}>
+                onClick={() => askPerson('cancelInvite', u.name, async () => { await cancelInvite(u.id); }, `Invitation to ${userEmail(u)} cancelled.`)}>
                 Cancel invite
               </Button>
             </>
@@ -640,46 +646,34 @@ export function Team() {
           )}
           {may && u.status !== 'pending' && (
             <Button variant="quiet" size="sm" disabled={busy}
-              onClick={() => setConfirm({
-                line: `Send ${u.name} a password reset link?`,
-                cta: 'Send reset link',
-                run: () => resetUserPassword(u.id),
-                // Says what happened and nothing about the account: the same
-                // answer whether or not the address turned out to be reachable.
-                done: 'Password reset link sent.',
-              })}>
+              // The `done` says what happened and nothing about the account:
+              // the same answer whether or not the address was reachable.
+              onClick={() => askPerson('password', u.name, async () => { await resetUserPassword(u.id); }, 'Password reset link sent.')}>
               Send password reset
             </Button>
           )}
           {may && u.status !== 'pending' && (
             <Button variant="quiet" size="sm" disabled={busy}
-              onClick={() => setConfirm({
-                line: `Reset two-factor for ${u.name}? They will set up a new authenticator the next time they sign in.`,
-                cta: 'Reset two-factor',
-                /* The email's success is reported by the caller that can show it;
-                   this confirm dialog has its own success line. */
-                run: async () => { await resetUserMfa(u.id); },
-                done: `${u.name} will enrol a new authenticator at their next sign in.`,
-              })}>
+              onClick={() => askPerson('mfa', u.name, async () => { await resetUserMfa(u.id); }, `${u.name} will enrol a new authenticator at their next sign in.`)}>
               Reset two-factor
             </Button>
           )}
           {may && u.status === 'active' && (
             <Button variant="quiet" size="sm" disabled={busy}
-              onClick={() => setConfirm({
-                // Says what it keeps, because "remove" reads like deletion and this
-                // is not one: the person, their referrals and the history stay.
-                line: `Remove ${possessive(u.name)} access? Their referrals and history are kept, and you can restore access later.`,
-                cta: 'Remove access',
-                run: () => setUserStatus(u.id, 'deactivated'),
-                done: `${u.name} no longer has access.`,
-              })}>
+              /* The question still says what it KEEPS, because "remove" reads
+                 like deletion and this is not one. It is personAsk's sentence
+                 now, so the other three surfaces say it too. */
+              onClick={() => askPerson('remove', u.name, async () => { await setUserStatus(u.id, 'deactivated'); }, `${u.name} no longer has access.`)}>
               Remove access
             </Button>
           )}
           {may && u.status === 'deactivated' && (
             <Button variant="quiet" size="sm" disabled={busy}
-              onClick={() => void run(() => setUserStatus(u.id, 'active'), `${u.name} has access again.`)}>
+              /* ASKED TOO, where it used to run on the click. An action pair
+                 where one half asks and the other does not reads as though
+                 only one of them matters, and this one hands somebody their
+                 sign-in back. */
+              onClick={() => askPerson('restore', u.name, async () => { await setUserStatus(u.id, 'active'); }, `${u.name} has access again.`)}>
               Restore access
             </Button>
           )}
@@ -929,6 +923,10 @@ export function Team() {
             </Button>
           </>}
         >
+          {/* OLD AND NEW, both named, once a level is picked. The same
+              sentence the shared ChangeLevelModal shows, from
+              personConfirm, so this page and the agency page cannot word
+              one change two ways. */}
           <div className="roleopts">
             {levelsGrantableBy(actor)
               .filter((o) => o.level !== levelLabel(levelUser))
@@ -939,11 +937,14 @@ export function Team() {
                 </label>
               ))}
           </div>
-          {levelPick && (
-            <p className="soft" style={{ marginTop: 14 }}>
-              Make {levelUser.name} {levelPick === 'Director' ? 'a Director' : levelPick === 'Manager' ? 'a Manager' : 'a Negotiator'}?
-            </p>
-          )}
+          {levelPick && (() => {
+            const q = levelChangeAsk(levelUser.name, levelLabel(levelUser), levelPick);
+            return (
+              <p className="soft" style={{ marginTop: 14 }}>
+                <b>{q.title}</b> {q.body}
+              </p>
+            );
+          })()}
         </Modal>
       )}
 
@@ -955,10 +956,16 @@ export function Team() {
         <Modal
           open
           width={440}
-          title={confirm.cta}
+          title={confirm.title}
           onClose={() => setConfirm(null)}
           footer={<>
             <Button variant="ghost" disabled={busy} onClick={() => setConfirm(null)}>Cancel</Button>
+            {/* NO RED BUTTON HERE: this page's Button has four variants and
+                none of them is destructive, and inventing one for one dialog
+                is a design change nobody asked for. The `danger` flag is
+                carried on the spec so the shared ConfirmModal -- which does
+                have one -- uses it, and so this page gains it the day its
+                Button does. */}
             <Button variant="primary" disabled={busy}
               onClick={() => {
                 const c = confirm;
@@ -968,7 +975,7 @@ export function Team() {
             </Button>
           </>}
         >
-          <p>{confirm.line}</p>
+          <p>{confirm.body}</p>
         </Modal>
       )}
 

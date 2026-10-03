@@ -49,6 +49,7 @@ import { Pill } from '@/components/ui/Pill';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 import { useConfirm } from '@/components/ui/ConfirmModal';
+import { personAsk } from '@/components/people/personConfirm';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { InviteToLevel, type InviteContext } from './InviteToLevel';
@@ -499,9 +500,15 @@ export function AgencyHome() {
      reload, so there is nothing for this page to hold. */
 
   // A pending person has not accepted; withdrawing the invitation removes them.
-  const doCancelInvite = async (userId: string, who: string) => {
-    try { await cancelInvite(userId); refreshSession(); bump(); toast(`Invitation to ${who} cancelled.`, 'ok'); }
-    catch (e) { toast(e instanceof Error ? e.message : 'Could not cancel that invitation.', 'error'); }
+  const doCancelInvite = (userId: string, who: string) => {
+    const q = personAsk('cancelInvite', who);
+    askConfirm({
+      ...q,
+      run: async () => {
+        try { await cancelInvite(userId); refreshSession(); bump(); toast(`Invitation to ${who} cancelled.`, 'ok'); }
+        catch (e) { toast(e instanceof Error ? e.message : 'Could not cancel that invitation.', 'error'); }
+      },
+    });
   };
 
   /* THE SAME SET OF CONTROLS AS TEAM AND USERS, on every person.
@@ -600,8 +607,21 @@ export function AgencyHome() {
       password: 'Password reset link sent.',
       mfa: `${who} will enrol a new authenticator at their next sign in.`,
     }[what];
-    try { await run(); refreshSession(); bump(); toast(done, 'ok'); }
-    catch (e) { toast(e instanceof Error ? e.message : 'That did not work.', 'error'); }
+    const go = async () => {
+      try { await run(); refreshSession(); bump(); toast(done, 'ok'); }
+      catch (e) { toast(e instanceof Error ? e.message : 'That did not work.', 'error'); }
+    };
+    /* IT ASKS FIRST, FOR EVERYTHING BUT A RESEND. Matt, 2026-10-03: "Every
+       action that changes something asks first, in plain words". This page
+       ran all five on the click -- so "Remove access", one word away from
+       "Reset two-factor" in a row of six quiet links, signed somebody out
+       and banned their account with nothing in between. The words are
+       personAsk's, shared with the other three People surfaces.
+
+       A RESEND IS THE EXCEPTION, and it is not in Matt's list: it sends the
+       same invitation again and changes nothing about the person. */
+    if (what === 'resend') { await go(); return; }
+    askConfirm({ ...personAsk(what, who), run: go });
   };
 
   /* THE DEED-RECIPIENT NOMINATION IS GONE (20261006160000). It answered "this

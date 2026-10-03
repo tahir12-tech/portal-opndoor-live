@@ -40,6 +40,7 @@ import { useToast } from '@/components/ui/Toast';
 import './UserManagement.css';
 import { changeSentence } from '@/data/changeSentence';
 import { PeopleTable } from '@/components/people/PeopleTable';
+import { levelChangeAsk, personAsk } from '@/components/people/personConfirm';
 
 const ROLE_META: Record<Role, [string, string]> = {
   superadmin: ['opndoor admin', 'role-tag--super'],
@@ -389,8 +390,15 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   function handleAction(action: string, u: ManagedUser) {
     if (action === 'edit-role') { openEditRole(u); return; }
     if (action === 'edit-name') { openEditName(u); return; }
+    /* THE SAME FIVE QUESTIONS AS EVERY OTHER PEOPLE TABLE. Matt,
+       2026-10-03: "Every action that changes something asks first, in plain
+       words ... Same for Reset two-factor, Send password reset, Cancel invite
+       and Change level." The words come from personAsk so the four surfaces
+       cannot word one action four ways; the `success` lines stay this page's
+       own, because this dialog reports its own outcome. */
     if (action === 'reset-password') {
-      void doDirect(() => resetUserPassword(u.id), `Password reset link sent to ${userEmail(u)}.`);
+      const q = personAsk('password', u.name || userEmail(u));
+      setConfirm({ ...q, body: <>{q.body}</>, success: `Password reset link sent to ${userEmail(u)}.`, run: () => resetUserPassword(u.id) });
       return;
     }
     if (action === 'resend') {
@@ -398,21 +406,15 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
       return;
     }
     if (action === 'cancel-invite') {
-      setConfirm({
-        title: `Cancel the invite to ${userEmail(u)}?`,
-        body: <>The pending user is removed and their invite link stops working. You can invite this email again afterwards.</>,
-        confirmLabel: 'Cancel invite',
-        danger: true,
-        success: `Invitation to ${userEmail(u)} cancelled.`,
-        run: () => cancelInvite(u.id),
-      });
+      const q = personAsk('cancelInvite', userEmail(u));
+      setConfirm({ ...q, body: <>{q.body}</>, success: `Invitation to ${userEmail(u)} cancelled.`, run: () => cancelInvite(u.id) });
       return;
     }
     if (action === 'reset-2fa') {
+      const q = personAsk('mfa', u.name || userEmail(u));
       setConfirm({
-        title: `Reset 2FA for ${u.name}?`,
-        body: <>Their current authenticator stops working immediately and they are signed out. They set up a new authenticator at their next sign in.</>,
-        confirmLabel: 'Reset 2FA',
+        ...q,
+        body: <>{q.body}</>,
         success: `Two-factor authentication reset for ${u.name}. They will set it up again at next sign in.`,
         /* The email's success is reported by the caller that can show it;
            this confirm dialog has its own success line. */
@@ -438,24 +440,13 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
       return;
     }
     if (action === 'deactivate') {
-      setConfirm({
-        title: `Deactivate ${u.name}?`,
-        body: <>They are signed out immediately and blocked from signing in. Reactivating them is the only way to restore access.</>,
-        confirmLabel: 'Deactivate',
-        danger: true,
-        success: `${u.name} has been deactivated and can no longer sign in.`,
-        run: () => setUserStatus(u.id, 'deactivated'),
-      });
+      const q = personAsk('remove', u.name || userEmail(u));
+      setConfirm({ ...q, body: <>{q.body}</>, success: `${u.name} no longer has access.`, run: () => setUserStatus(u.id, 'deactivated') });
       return;
     }
     if (action === 'reactivate') {
-      setConfirm({
-        title: `Reactivate ${u.name}?`,
-        body: <>They will be able to sign in again with their existing password and two-factor authentication.</>,
-        confirmLabel: 'Reactivate',
-        success: `${u.name} has been reactivated and can sign in again.`,
-        run: () => setUserStatus(u.id, 'active'),
-      });
+      const q = personAsk('restore', u.name || userEmail(u));
+      setConfirm({ ...q, body: <>{q.body}</>, success: `${u.name} has access again.`, run: () => setUserStatus(u.id, 'active') });
     }
   }
 
@@ -612,8 +603,14 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     const to = ROLE_META[editRole][0];
     setEditUser(null);
     setConfirm({
-      title: `Change ${possessive(u.name)} role?`,
-      body: <><b>{from}</b> → <b>{to}</b>. Their access changes immediately at their next page load. {editRole === 'management' ? 'They will see everything in your organisation.' : editRole === 'referrer' ? 'They will see only their own referrals.' : ''}</>,
+      /* THE SAME SENTENCE AS THE OTHER THREE PEOPLE SURFACES, since
+         2026-10-03. This one already showed both levels and already asked --
+         it was the only one that did -- but as "Manager → Director", an arrow
+         where Matt asked for plain words. levelChangeAsk names both in a
+         sentence; the clause about what the new role SEES is this page's own
+         and stays, because it is the half the ladder cannot say. */
+      title: levelChangeAsk(u.name, from, to, 'role').title,
+      body: <>{levelChangeAsk(u.name, from, to, 'role').body} {editRole === 'management' ? 'They will see everything in your organisation.' : editRole === 'referrer' ? 'They will see only their own referrals.' : ''}</>,
       confirmLabel: 'Change role',
       success: `${possessive(u.name)} role updated to ${to}.`,
       run: () => updateUserRole(u.id, editRole),

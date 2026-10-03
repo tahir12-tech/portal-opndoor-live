@@ -29,6 +29,7 @@ import { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { levelsGrantableBy, setAgencyLevel, type Actor, type AgencyLevel } from '@/data';
+import { levelChangeAsk } from './personConfirm';
 
 /** "a Director" / "a Manager" / "a Negotiator", so the sentence reads. */
 const withArticle = (l: AgencyLevel) => `a ${l}`;
@@ -92,11 +93,21 @@ export function ChangeLevelModal({
           </label>
         ))}
       </div>
-      {pick && (
-        <p className="soft" style={{ marginTop: 14 }}>
-          Make {person.name} {withArticle(pick)}?
-        </p>
-      )}
+      {/* OLD AND NEW, both named. Matt, 2026-10-03: "Same for ... Change
+          level (show old and new level)." This asked "Make Jane a Director?",
+          which is the new level only -- and on this ladder the level somebody
+          is LEAVING is the thing an administrator is most likely to have
+          mis-remembered: a Director and a Manager are both `management` and
+          differ in one flag. The sentence comes from personConfirm, with the
+          other four questions. */}
+      {pick && (() => {
+        const q = levelChangeAsk(person.name, person.current, pick);
+        return (
+          <p className="soft" style={{ marginTop: 14 }}>
+            <b>{q.title}</b> {q.body}
+          </p>
+        );
+      })()}
     </Modal>
   );
 }
