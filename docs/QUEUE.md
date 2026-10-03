@@ -1165,6 +1165,10 @@ you asked for. Say the word and the tenant gets their own wording.
 - **An answer first, not a change.** Measured on dev and reported before
   anything is touched.
 
+## EVERY ADMIN DOWNLOAD IS A BRANDED FILE (instruction, 2026-10-03, verbatim).
+
+> Admin exports: produce the Expiries export as a branded Excel file using the existing branded template (BrandedDoc, as the commission statements use), not a plain CSV. Header "Scope: Whole book" instead of "All partners". Do the same for Export summary, Application export and the League exports so all admin downloads look alike. Keep column headings and figures exactly as they are now. Deploy to dev and check there.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
