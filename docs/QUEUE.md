@@ -1509,6 +1509,27 @@ Suppliers list. The half deferred is the rest of his sentence:
   in flight must not have those refused retrospectively, and the API's
   refusal needs a stable error code, not just a message.
 
+### The partner API can create an agency or office too (instruction, 2026-10-03, verbatim)
+
+> Partner API: tell me what happens today when a referral comes in for an agency or office that doesn't exist yet in that supplier's estate. It should work the same as the new form rule: the API can create the agency (name, address, agency email) and office for that supplier, checked against existing ones for duplicates, landing in Reconciliation. Document it on the API documentation page.
+
+**THE ANSWER IS OWED TONIGHT; THE BUILD IS HERE.** The first sentence is a
+question I can answer by reading `create_referral_api`, and I will. The rest is
+the same new write permission as the instruction above it -- on the API rather
+than the form, which makes it wider, not narrower: an integrator's typo would
+create an agency rather than being refused.
+
+- IT IS THE SAME PIECE OF WORK as the form version, and must be built with
+  it rather than separately: one RPC, one duplicate rule, one
+  pending-review path, one audit entry, two callers.
+- THE API SIDE HAS AN EXTRA REQUIREMENT the form does not: a stable error
+  code and documented behaviour, because an integrator cannot read a dialog.
+  "Document it on the API documentation page" is part of the deliverable.
+- AND IT CHANGES WHAT A REFERRAL CAN DO. Today an API referral for an
+  unknown agency is refused; after this it silently creates a company. That
+  is the single largest behaviour change anybody has asked for this week and
+  it is on the live integration path.
+
 ### A supplier's own users can add an agency or office (instruction, 2026-10-03, verbatim)
 
 > Supplier users who can refer (Management and Referrers) can add an agency or office for their own supplier while sending a referral, instead of "A new agency is set up by opndoor, not here":
