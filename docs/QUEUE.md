@@ -1819,6 +1819,37 @@ is nothing left to match" instead of a warning.
   go-live. If the answer is "not told", the copy fix ships tonight and
   the email goes under "After launch" with its wording drafted.
 
+## PRIORITY: THE MANAGEMENT GUIDE SHOWS WHAT WE PAY SUPPLIERS (instruction, 2026-10-03, verbatim). REMOVE NOW.
+
+> Priority before launch: the Management help guide shows a commission table "Partner 25%, Agent 10%" to agency and supplier management. Remove it now: it's wrong for most deals and reveals what Opndoor pays suppliers. Each customer's guide should say "Your commission is set out in your agreement and shown on your Commission tab and monthly statement." Then rewrite this guide to match today's portal along with the referrer guide (same rules: plain English, no em dashes, no "partner", "canonical", "shipped", query strings or Opndoor-internal screens like "Manage partner"; separate wording for agencies, suppliers and Opndoor admins).
+
+- THIS IS A DISCLOSURE, not a wording problem, and it is why it jumps
+  the agreed order: the guide is served to agency and supplier
+  management and prints the supplier rate. It is also wrong for most
+  deals -- Regent is on 3/5 weeks at 20/25%, Letly on 0%.
+- "REMOVE IT NOW" IS SEPARABLE from the rewrite, and the removal is
+  small and safe: delete the table, put Matt's one sentence in its
+  place. The rewrite follows.
+
+## REWRITE THE HELP GUIDES TO MATCH TODAY'S PORTAL (instruction, 2026-10-03, verbatim).
+
+> Rewrite the Help guides (referrer guide and any others) to match the portal as it is today, in plain English, no em dashes anywhere:
+> - Fee: "the guarantee fee agreed with your agency (usually one month's rent)", not always one month.
+> - New application: the Office section is picked from offices Opndoor has set up; remove "add an agency or branch on the fly" for agency and supplier users.
+> - Status table: add Awaiting signature, use "guarantee fee".
+> - League: "at your agency" (or "your company" for suppliers), never "partner".
+> - Title "Refer and track" for people who don't see commission; mention commission only for Directors and Management.
+> - Remove "canonical", "shipped" and other internal words.
+> Show each guide to the right level only, and add a check that fails if help text contains an em dash.
+
+- THE GUIDES ARE AUTHORED HTML in public/help-docs/ (referrer,
+  management, opndoor-admin), served as files and printed to PDF.
+- "Show each guide to the right level only" is already modelled in
+  mock/help.ts (`minRole`, `needsCommission`); what has to be checked
+  is that it MATCHES these three audiences.
+- The em-dash check is a new repo guard, and the existing
+  noEmDashesInCustomerText is the one to extend rather than a second.
+
 ## THE ORDER FOR TONIGHT (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > Agreed order: 1) the invoice instruction and supplier payable (£600 not £840) across screen, PDF, CSV and zip; 2) the 15th-of-next-month date; 3) the opndoor Manager invite blocker; 4) whether the monthly run posts supplier statements (answer first, send nothing); 5) the open referrals of deleted referrers (who gets the deed); then the rest in order. Drop "Change level everywhere". Work through tonight without waiting for me, small safe changes only; anything large or risky goes under "After launch". Branch must be pushed by Sunday night for Balal at 05:00 Monday. Morning summary in plain English.
