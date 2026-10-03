@@ -1821,6 +1821,21 @@ is nothing left to match" instead of a warning.
 - `create_partner` already writes `partner_audit` on creation; the org
   side is what is missing.
 
+## THE CHECKOUT LINE, CORRECTED, AND THE TENANT'S OWN EMAIL (instruction, 2026-10-03, verbatim). SUPERSEDES THE WORDING BELOW.
+
+> Stripe checkout: prefill the tenant's own email from the application (it currently shows email@example.com for GR-25236). Also, joint tenancies: describe it as "Your share of the guarantee fee (5 weeks of rent for the whole tenancy)".
+
+- THE PERCENTAGE COMES OUT. Matt's first version of this sentence, half
+  an hour earlier and recorded below, was "Your 10% share of the
+  guarantee fee (...)". This one drops the figure. The later wording
+  wins, and the no-percentage sentence is already the fallback arm in
+  `feeLineDescriptionFor`, so this narrows the function rather than
+  changing it.
+- "email@example.com" ON GR-25236 IS A REAL DEFECT AND A WORSE ONE than
+  the wording: Stripe is being handed a placeholder address, so the
+  receipt goes to nobody and the tenant has to retype their own email
+  at the card screen.
+
 ## THE CHECKOUT LINE SAYS WHOSE SHARE IT IS (instruction, 2026-10-03, verbatim).
 
 > Stripe checkout description on joint tenancies: "Your 10% share of the guarantee fee (5 weeks of rent for the whole tenancy)".
