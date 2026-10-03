@@ -1789,6 +1789,19 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## A MONTH IS PAID ON THE 15TH OF THE NEXT MONTH (instruction, 2026-10-03, verbatim).
+
+> Agency Reporting (Director view), commission statement: the October 2026 draft says "Opndoor pays this on 15 Oct 2026". Each month's commission is paid on the 15th of the following month, so October's is 15 Nov 2026. Fix the date for every month shown, and for a draft say "Opndoor pays this on 15 Nov 2026, once the month's statement is posted".
+
+- A WRONG DATE ON A MONEY DOCUMENT, and wrong by a whole month in the
+  direction that makes us look late. "Fix the date for every month
+  shown" means the bug is in how the date is derived from the month,
+  not one label.
+- The settlement screens already compute the 15th of the month AFTER
+  the accrual month (`settlementDate`, "payable the 15th", prior
+  calendar month); the statement heading evidently derives it from the
+  statement's own month instead.
+
 ## BLOCKER: AN OPNDOOR MANAGER CANNOT BE INVITED (instruction, 2026-10-03, verbatim).
 
 > 1. Blocker: Add opndoor team member with "opndoor manager" selected fails with "A portal user is a manager, a referrer or a developer." The invite path doesn't accept the opndoor manager level. Fix it so both opndoor admin and opndoor manager can be invited, and test both end to end (invite email, accept, sign in, see the right things). Also tell me what an opndoor manager can and can't see and do today.
