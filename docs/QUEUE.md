@@ -1509,6 +1509,34 @@ Suppliers list. The half deferred is the rest of his sentence:
   in flight must not have those refused retrospectively, and the API's
   refusal needs a stable error code, not just a message.
 
+### org_deed_readiness still picks agencies by referencing_mode (2026-10-03)
+
+Matt, verbatim: *"org_deed_readiness using referencing_mode: put under After
+launch."*
+
+> and (public.app_reachable_agency(a.id))
+> where p.referencing_mode = 'opndoor_referenced'
+
+- WHAT IT IS. The function selects the agencies it answers for by their
+  partner's `referencing_mode`, which is the pattern `partner_kind`
+  replaced on 2026-10-02 for exactly this reason: it makes identity a
+  function of the journey, so a supplier switched to "opndoor referenced"
+  changes which rail it appears to be on. The replacement is
+  `partner_kind = 'agency'`, and `is_our_estate_partner` is the predicate
+  that already asks it.
+- WHY IT IS NOT A WORDING FIX. Changing the clause changes WHICH AGENCIES
+  APPEAR in the Agencies list's deed readiness and in the agency page's
+  tree, so it is a behaviour change on a screen, not a rename. It was
+  found while gating the deed warning (2026-10-03) and left alone two days
+  before go-live.
+- IT IS NOT WRONG TODAY. Every agency on our own estate sits on
+  `opndoor-agents`, whose `referencing_mode` is `opndoor_referenced`, so
+  the two clauses select the same set on dev and on live. What the old
+  clause cannot survive is a supplier whose mode is changed.
+- Note when it is built: `org_deed_readiness` also returns the `people`
+  count added by 20261007800000, and both callers read it. Repointing the
+  WHERE clause must not change the count's meaning.
+
 ### A fixed amount per tenant, instead of a percentage (note, 2026-10-03, verbatim)
 
 > some suppliers may be paid a fixed amount per tenant who pays (e.g. £10) instead of a percentage
@@ -1760,6 +1788,21 @@ is nothing left to match" instead of a warning.
 
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
+
+## THREE ANSWERS, AND ONE THING DEFERRED (instruction, 2026-10-03, verbatim).
+
+> 1. Resend invite: no question needed, but show "Invite sent again to [email]".
+> 2. Home "Awaiting a decision": show "8 of N" and a "View all" link when there are more.
+> 3. org_deed_readiness using referencing_mode: put under After launch.
+
+- 1 answers the one decision I left open. The toast exists on all four
+  People surfaces and says "Invitation resent to ..." against the NAME
+  on three of them; Matt's wording names the EMAIL, which is the thing
+  an administrator is checking.
+- 2 is the table I reported and left alone. It grows with applications
+  rather than agencies, so it was outside the top-ten instruction; this
+  brings it in with its own count and link.
+- 3 is recorded below, not built.
 
 ## THE QUEUE IS CLEAR (2026-10-03, evening).
 
