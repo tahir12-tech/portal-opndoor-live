@@ -2076,6 +2076,26 @@ is nothing left to match" instead of a warning.
   itself evidence: both go through `maySeeCommission`, so a single
   cause is the more likely.
 
+## SUPPLIER MANAGEMENT MUST SEE COMMISSION (instruction, 2026-10-03, verbatim). THIS CORRECTS MY READING.
+
+> On Kestrel Management: I invited Matthew Dwyer as "Management" from Kestrel's own Add user dialog, whose only options are Management, Referrer and Developer. So supplier "Management" invited that way gets sees_commission = false, which is the defect: supplier Management must see commission. Fix the supplier invite, and fix View as to read the viewed person's access, not the admin's. Tell me which existing supplier users would be affected on live.
+
+- MATT IS RIGHT AND I WAS WRONG. I reported that the user "was created
+  at a level without commission access", reading `sees_commission =
+  false` as a Manager rather than a Director. That is the AGENCY
+  ladder, where Director and Manager are both `management` and the flag
+  is the only thing between them. THE SUPPLIER RAIL HAS NO SUCH
+  LADDER: its dialog offers Management, Referrer and Developer, so
+  "Management" is the top of that rail and must see commission. The
+  flag being false is the bug, not the level.
+- TWO FIXES, THEN A REPORT: the supplier invite must set the flag, and
+  View as must read the VIEWED person's access rather than the
+  admin's.
+- "WHICH EXISTING SUPPLIER USERS WOULD BE AFFECTED ON LIVE" -- I cannot
+  read live (CLAUDE.md: never touched, read or written). I will report
+  dev's affected rows exactly and give Matt the query to run against
+  live himself.
+
 ## A REAL MANAGEMENT LOGIN DIFFERS FROM VIEW AS (instruction, 2026-10-03, verbatim).
 
 > Signed in as a new Kestrel Management user (Matthew Dwyer): Reporting shows no "Commission payable" tile and no commission statements section, though "View as Kestrel" shows both. Management at a supplier must see their commission and statements. Find why a real Management login differs from View as, fix it, and make View as show exactly what that level sees. Also: referrals an Opndoor admin made on a supplier's or agency's behalf show the admin's name in that customer's referrer lists ("Nicholas Dwyer"); show "opndoor (on your behalf)" instead in customer views.
