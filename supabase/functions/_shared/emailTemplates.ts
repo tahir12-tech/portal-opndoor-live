@@ -449,6 +449,62 @@ export function paymentLinkEmail(p: {
   };
 }
 
+/* =====================================================================
+   THE TENANT IS TOLD WHEN THE AGENCY WITHDRAWS.
+
+   Matt, 2026-10-03: "after withdrawal, does the tenant's payment link stop
+   working, and is the tenant told? It should stop working, and the tenant
+   should get a short email that the application was withdrawn by the agency."
+
+   ANSWERED BEFORE BUILDING: the link DOES stop working -- `getPayPageState`
+   answers `isClosed` for a withdrawn application, so the page shows "This
+   referral is closed" and the checkout action refuses. The tenant was NOT
+   told: `mark_withdrawn` writes the row and the activity log and sends
+   nothing. So a tenant who had been asked for money, and may have been about
+   to pay it, found out by opening a dead link.
+
+   "SHORT", which is his word and is the whole brief. No fee, no basis, no
+   payment row: the fee is the thing that is no longer owed, and printing it
+   invites the reader to wonder whether they still have to pay it.
+
+   NO REASON IS GIVEN, and that is deliberate rather than an omission. The
+   reasons are the agency's internal vocabulary -- "duplicate referral",
+   "tenancy fell through" -- and two of the four would be news to a tenant who
+   does not know their tenancy has fallen through. The agency is named as the
+   party that did it so the tenant knows who to ask.
+
+   NO ACTION BUTTON. There is nothing for them to do, and a button on an email
+   that exists to say "nothing is needed" is a button somebody presses.
+   ===================================================================== */
+export function withdrawnNoticeEmail(p: {
+  propertyAddr: string;
+  guaranteeRef: string;
+  /** The agency that withdrew it, where we can name one. */
+  agencyName?: string | null;
+}): Message {
+  const who = (p.agencyName ?? "").trim();
+  return {
+    audience: "tenant",
+    subject: "Your opndoor guarantee referral has been withdrawn",
+    heading: "This referral has been closed",
+    blocks: [
+      {
+        p: who
+          ? `${who} has withdrawn the opndoor guarantee referral for your tenancy at ${p.propertyAddr}. `
+            + `There is nothing to pay and nothing for you to do.`
+          : `The guarantee referral for your tenancy at ${p.propertyAddr} has been withdrawn by the agency. `
+            + `There is nothing to pay and nothing for you to do.`,
+      },
+      { rows: [["Reference", p.guaranteeRef]] as [string, string][] },
+      {
+        small: who
+          ? `Your payment link no longer works. If you think this is a mistake, speak to ${who}.`
+          : `Your payment link no longer works. If you think this is a mistake, speak to your letting agent.`,
+      },
+    ],
+  };
+}
+
 /** The direct rail's approval. Unlike paymentLinkEmail, which sends a referred
     tenant a tokenised /pay link because they have no account, a direct tenant
     already has one, so this brings them back to their own portal to sign in and

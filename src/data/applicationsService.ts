@@ -1113,6 +1113,35 @@ export async function withdrawApplication(ref: string, reason: WithdrawReason, n
   }
   const { error } = await sb().rpc('mark_withdrawn', { p_ref: ref, p_reason: reason, p_note: note.trim() || null });
   if (error) throw new Error(error.message || 'Could not withdraw the application.');
+
+  /* =====================================================================
+     AND TELL THE TENANT.
+
+     Matt, 2026-10-03: "after withdrawal, does the tenant's payment link stop
+     working, and is the tenant told? It should stop working, and the tenant
+     should get a short email that the application was withdrawn by the
+     agency."
+
+     THE LINK ALREADY STOPPED WORKING -- `getPayPageState` answers `isClosed`
+     for a withdrawn application and the checkout action refuses -- and the
+     tenant was never told, so somebody who had been asked for money found
+     out by opening a dead link.
+
+     AFTER THE RPC AND NOT INSIDE IT, because `mark_withdrawn` is plpgsql and
+     cannot send email. Every tenant email in the product is an edge function
+     for that reason.
+
+     A FAILED EMAIL DOES NOT FAIL THE WITHDRAWAL. The withdrawal is already
+     committed by the line above, and throwing here would tell the person who
+     pressed the button that it had not worked when it had: they would press
+     it again and meet "Only an application at Sent can be withdrawn". The
+     failure is written to the activity log by the function itself, where
+     Opndoor can see it and resend. */
+  try {
+    await sb().functions.invoke('withdraw-notice', { body: { ref } });
+  } catch {
+    // Deliberately swallowed. See above: the withdrawal stands either way.
+  }
 }
 
 export interface AmendResult {

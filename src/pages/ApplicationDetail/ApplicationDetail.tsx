@@ -707,7 +707,27 @@ export function ApplicationDetail() {
   // three milestones themselves are unchanged.
   let deedDate = d.deedStr || 'Awaiting deed';
   let deedNote = d.deedStr ? 'Guarantee deed issued and stored' : 'Deed not yet issued';
-  if (d.status === 'deed') {
+  /* =====================================================================
+     A CLOSED REFERRAL IS NOT WAITING FOR ANYTHING.
+
+     Matt, 2026-10-03: "Withdrawn application page: the timeline shows 'Deed
+     Issued: Awaiting deed' ... For withdrawn (and expired) applications show
+     'Not issued: application withdrawn' instead, and no rent to be
+     guaranteed."
+
+     "Awaiting deed" IS A PROMISE, and on a withdrawn referral it is a promise
+     nobody is keeping: the deed is never coming, the timeline already draws
+     the termination (`timelineTerminated` caps `reached` at 1), and the one
+     node that had not been told was the caption on the end of it.
+
+     BEFORE THE OTHER ARMS, because they are about a deed in progress and
+     this is about there not being one. */
+  if (timelineTerminated) {
+    deedDate = 'Not issued';
+    deedNote = d.status === 'expired'
+      ? 'Not issued: application expired'
+      : 'Not issued: application withdrawn';
+  } else if (d.status === 'deed') {
     deedNote = 'Signed by tenant and issued';
   } else if (paymentInfo?.deedState === 'awaiting_tenant') {
     deedDate = 'Awaiting signature';
@@ -786,7 +806,14 @@ export function ApplicationDetail() {
   const deedMeta = deedVersion > 1 ? `PDF · 248 KB · reissued ${fmtShort(NOW)}` : `PDF · 248 KB · issued ${d.issue}`;
   const gsumIssue = isDeed ? amendedDates?.issue ?? d.issue : 'Pending';
   const gsumExpiry = isDeed ? amendedDates?.expiry ?? d.expiry : 'Pending';
-  const gsumNote = isDeed ? 'Auto-assigned by the system' : 'Reserved · confirmed once the deed is issued';
+  /* AND THE CARD SAYS THE SAME THING. "Reserved, confirmed once the deed is
+     issued" on a withdrawn referral reserves something against a deed that
+     will never be issued. Matt's own sentence, for both terminal states. */
+  const gsumNote = isDeed
+    ? 'Auto-assigned by the system'
+    : timelineTerminated
+      ? (d.status === 'expired' ? 'Not issued: application expired' : 'Not issued: application withdrawn')
+      : 'Reserved · confirmed once the deed is issued';
 
   // ---- Activity feed ----
   // Real mode: one canonical feed sourced solely from the activity_log, with a
@@ -1202,7 +1229,7 @@ export function ApplicationDetail() {
           <div className="pay-state pay-state--refunded"><span className="pay-dot" />{isExpired ? 'Expired' : 'Withdrawn'}</div>
           <div className="pay-note">{isExpired
             ? 'This application expired before payment, so no guarantee fee was collected. A late payment automatically reinstates it to Paid.'
-            : 'This application was withdrawn before payment, so no guarantee fee was collected. It is excluded from conversion figures and receives no payment reminders.'}</div>
+            : 'This application was withdrawn before payment, so no guarantee fee was collected. It still counts as a referral sent, and receives no payment reminders.'}</div>
         </>
       )}
       {payPaid && (
@@ -1661,8 +1688,22 @@ export function ApplicationDetail() {
         <div className="rec-withdrawn">
           <Icon name="ban" strokeWidth={2.2} />
           <div>
+            {/* =====================================================================
+                IT COUNTS AS SENT. Matt, 2026-10-03: "it says withdrawn
+                referrals are 'excluded from conversion figures and Leagues',
+                but they now count as sent. Make the text match what actually
+                happens."
+
+                CHECKED BEFORE CHANGING THE WORDS: `reachedPayment` answers
+                TRUE for `withdrawn`, and its own test says why -- "a withdrawn
+                referral reached the tenant". So the referral is in the sent
+                column of every funnel, chart, export and League board. What it
+                is NOT is a conversion: it never reached Paid, so it sits in the
+                denominator and not the numerator, which is the honest thing to
+                say and is what the old sentence got backwards.
+                ===================================================================== */}
             <b>This application was withdrawn{withdrawnReason ? ` (${REASON_LABEL[withdrawnReason]})` : ''}.</b>{' '}
-            It is excluded from conversion figures and Leagues, and receives no further payment reminders.
+            It still counts as a referral sent, in Reporting and in the League, and it never converted. It receives no further payment reminders.
           </div>
         </div>
       )}
@@ -1671,7 +1712,7 @@ export function ApplicationDetail() {
           <Icon name="clock" strokeWidth={2.2} />
           <div>
             <b>This application expired (guarantee fee unpaid 15 days after referral).</b>{' '}
-            It is excluded from conversion figures and Leagues, and receives no further reminders. A late payment automatically reinstates it to Paid.
+            It still counts as a referral sent, in Reporting and in the League, and it never converted. It receives no further reminders, and a late payment automatically reinstates it to Paid.
           </div>
         </div>
       )}
@@ -1971,10 +2012,18 @@ export function ApplicationDetail() {
                   whether anybody has guaranteed it yet, and the deed is that
                   moment -- not the payment and not the signature, both of
                   which happen while the answer is still "nobody has". */}
-              <div className="gsum__row">
-                <span className="k">{isDeed ? 'Guaranteed annual rent' : 'Rent to be guaranteed'}</span>
-                <span className="v">{d.annual}</span>
-              </div>
+              {/* AND NOT AT ALL ON A CLOSED ONE. Matt: "and no rent to be
+                  guaranteed." The row is a figure about a guarantee that is
+                  going to exist; on a withdrawn or expired referral there is
+                  no such guarantee, and printing £12,000 against one reads
+                  as cover somebody has. The row is DROPPED rather than
+                  zeroed: £0 is a different claim and an equally wrong one. */}
+              {!timelineTerminated && (
+                <div className="gsum__row">
+                  <span className="k">{isDeed ? 'Guaranteed annual rent' : 'Rent to be guaranteed'}</span>
+                  <span className="v">{d.annual}</span>
+                </div>
+              )}
             </CardBody>
           </Card>
 
@@ -2062,7 +2111,19 @@ export function ApplicationDetail() {
         onClose={() => setWithdrawOpen(false)}
         width={460}
         title="Withdraw application"
-        sub="Withdrawing marks this referral as closed before payment. It is excluded from conversion figures and Leagues, and receives no further payment reminders. This cannot be undone."
+        /* WHAT WITHDRAWING ACTUALLY DOES, which is the dialog's whole job and
+           was wrong in its first clause. Matt, 2026-10-03: "it says withdrawn
+           referrals are 'excluded from conversion figures and Leagues', but
+           they now count as sent. Make the text match what actually happens."
+
+           AND IT NOW SAYS WHAT HAPPENS TO THE TENANT, which it never did: the
+           person pressing this is deciding something on somebody else's
+           behalf, and the two consequences they most need to know are that
+           the tenant's link stops working and that the tenant is told. Both
+           are checked below rather than claimed: `getPayPageState` closes the
+           page for a withdrawn application, and the withdrawal now emails
+           them. */
+        sub="Withdrawing closes this referral before payment. It still counts as a referral sent, and it never converted. The tenant's payment link stops working and they are emailed to say the agency has withdrawn it. No further payment reminders are sent. This cannot be undone."
         footer={
           <>
             <Button variant="ghost" onClick={() => setWithdrawOpen(false)} disabled={withdrawBusy}>Cancel</Button>
