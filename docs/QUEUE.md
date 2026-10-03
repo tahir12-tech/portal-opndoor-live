@@ -1265,6 +1265,14 @@ you asked for. Say the word and the tenant gets their own wording.
 
 > Settlement statements for Opndoor's own agencies: remove the "Supplier: Agency referral" row and "(Agency referral)" from the heading; show the Supplier row only when the agency came through a supplier.
 
+## GO AHEAD, ALL FOUR STEPS (approval, 2026-10-03, verbatim).
+
+> Go ahead with all four steps as described. For older referrals with no audit record, fill the frozen setting from the partner's current setting and list in QUEUE.md which rows were filled that way. No frozen amounts change. Then the statement-reference fix as one piece of work. Deploy to dev and check there.
+
+### Rows filled from the partner's current setting
+*(Filled in when the backfill runs. Rows recoverable from `partner_audit`
+are taken from the audit; these are the ones that were not.)*
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
