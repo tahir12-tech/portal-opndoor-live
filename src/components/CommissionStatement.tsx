@@ -48,6 +48,19 @@ const dmy = formatDate;
     rather than to a blank, so a source we stop labelling is still legible. */
 const sourceWord = (s: string) => SOURCE_LABEL[s as CommissionSource] ?? s;
 
+/** What a payee's LEVEL is called on screen. One function because it is
+    printed twice, in the list and in the open statement's own heading, and
+    they drifted the moment a fourth level arrived: the list said "Branch" for
+    a supplier because the old expression was a two-way question with a
+    fallback. Matt, 2026-10-03: "include suppliers as payees (e.g. Kestrel
+    Lettings, Level 'Supplier', with its statement)". */
+function levelWord(level: Statement['level']): string {
+  return level === 'agency' ? 'Agency'
+    : level === 'group' ? 'Group'
+    : level === 'supplier' ? 'Supplier'
+    : 'Branch';
+}
+
 /** The columns, in the order the PDF and the CSV declare them in
     supabase/functions/commission-statements/index.ts, so a reader can hold the
     three side by side. No widths: the page has CSS, and the only thing this
@@ -311,7 +324,7 @@ function StatementPanel({
                             {st.payeeName}
                           </button>
                         </td>
-                        <td className="muted">{st.level === 'agency' ? 'Agency' : st.level === 'group' ? 'Group' : 'Branch'}</td>
+                        <td className="muted">{levelWord(st.level)}</td>
                         <td className="num">{st.lines.length}</td>
                         <td className="num">{money(st.total)}</td>
                       </tr>
@@ -339,7 +352,7 @@ function StatementPanel({
                   )}
                   <div className="stmt__payee">{st.payeeName}</div>
                   <div className="stmt__level">
-                    {st.level === 'agency' ? 'Agency' : st.level === 'group' ? 'Group' : 'Branch'} · {st.monthLabel}
+                    {levelWord(st.level)} · {st.monthLabel}
                     {/* THE REFERENCE THE DOCUMENT CARRIES. It was on the PDF
                         and the CSV and nowhere on the page, so a payee
                         querying a statement had nothing to quote.

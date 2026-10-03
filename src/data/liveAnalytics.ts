@@ -40,7 +40,7 @@ import { showsOffices } from './agencyOffices';
 import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp, guaranteedAnnual } from './applicationsService';
 import { getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
-import { payeesFor, orgAmountOf, agentAmountOf, supplierAmountOf, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
+import { payeesFor, orgAmountOf, agentAmountOf, supplierAmountOf, supplierLineOf, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
 import { deliveryStateOf } from './deliveryState';
 // Walk fix 21: one rule for the line under a referrer's name.
 import { whereTheyWork, type WhereReader } from './whereTheyWork';
@@ -1295,7 +1295,11 @@ export interface CommissionStatement {
   monthKey: string;
   monthLabel: string;
   payeeKey: string;
-  level: 'group' | 'agency' | 'branch';
+  /* 'supplier' since 2026-10-03. Matt: "include suppliers as payees (e.g.
+     Kestrel Lettings, Level 'Supplier', with its statement), so every payee
+     Opndoor owes for the month is listed." It is a payee of Opndoor like the
+     other three; what differs is which accumulator it comes from. */
+  level: 'group' | 'agency' | 'branch' | 'supplier';
   orgId: string | null;
   /** The payee's own name. Never a partner name: on the agent rail the partner
       is house plumbing and must not appear on a customer's statement. */
@@ -1426,19 +1430,81 @@ export function getCommissionStatements(role: Role, scope: PartnerScope, monthKe
   const bStart = new Date(y, m - 1, 1, 0, 0, 0, 0);
   const bEnd = new Date(y, m, 0, 23, 59, 59, 999);
   const label = monthLabelOf(bStart);
-  const acc = accruePayees(scopeFull(allFull(), role, scope), bStart, bEnd);
-  return [...acc.values()]
+  const set = scopeFull(allFull(), role, scope);
+  const acc = accruePayees(set, bStart, bEnd);
+  const agencySide: CommissionStatement[] = [...acc.values()]
     .map((r) => ({
       monthKey, monthLabel: label, payeeKey: r.key, level: r.level, orgId: r.orgId,
-      payeeName: r.orgName,
+      /* NAMED WITH ITS SUPPLIER WHERE IT HAS ONE, 2026-10-03. Matt: "label
+         supplier-estate agencies '(via [supplier])' as elsewhere". This was
+         the one payee surface that did not, so an admin's month listed two
+         payees called Frost Partnership with nothing to say which company
+         each amount was owed to. Gated on the scope like every other
+         caller, so a supplier's own view of its own agencies is unlabelled. */
+      payeeName: viaSupplier(scope, r.orgName, r.partner),
       /* GUARANTEE REFERENCE ORDER, LOWEST FIRST, the same as the PDF and
          the CSV. Matt, 2026-10-01. It was paid date first with the
          reference only as a tiebreak, so the screen and the attachment
          listed one month two ways. */
       lines: r.lines.sort((x, y) => x.ref.localeCompare(y.ref)),
       total: r.commission,
-    }))
-    .sort((x, y) => y.total - x.total);
+    }));
+
+  /* =====================================================================
+     AND THE SUPPLIERS, WHICH THIS LIST HAS NEVER HELD.
+
+     Matt, 2026-10-03: "include suppliers as payees (e.g. Kestrel Lettings,
+     Level 'Supplier', with its statement), so every payee Opndoor owes for
+     the month is listed. Totals must match Settlements."
+
+     WHY IT WAS MISSING. `accruePayees` reads `payeesFor`, which reads
+     `linesFor`, which filters the 'supplier' level out -- correctly, because
+     every other caller of it asks about the agency side. So the supplier's
+     own debt had a frozen line, a settlement row and a statement of its own,
+     and no row on the one list headed "every payee Opndoor owes".
+
+     THE SAME ACCUMULATOR AS THE SETTLEMENT, deliberately, which is what makes
+     "totals must match Settlements" true by construction rather than by
+     arithmetic that happens to agree today: getCommissionSettlement skips a
+     house partner and an agency-rail one and reads `supplierAmountOf`, and so
+     does this. `payeesFor` is NOT reused, because under "the supplier pays
+     its own agents" it correctly returns nothing, and the supplier is still
+     owed its own cut. */
+  const bySupplier = new Map<string, CommissionStatement>();
+  for (const a of set) {
+    if (!inRange(a.paidAt, bStart, bEnd)) continue;
+    if (a.refunded) continue;
+    if (isHousePartner(a.partner) || agentRailApp(a)) continue;
+    const amount = supplierAmountOf(a);
+    if (!amount) continue;
+    const key = `${a.partner}|partner:${a.partner}`;
+    let row = bySupplier.get(key);
+    if (!row) {
+      row = {
+        monthKey, monthLabel: label, payeeKey: key, level: 'supplier' as const,
+        orgId: null, payeeName: partnerName(a.partner), lines: [], total: 0,
+      };
+      bySupplier.set(key, row);
+    }
+    row.total += amount;
+    const line = supplierLineOf(a);
+    row.lines.push({
+      ref: a.ref,
+      tenant: findRecord(a.ref)?.name || a.ref,
+      tenancyId: a.tenancyId ?? null,
+      tenancyPlace: a.tenancyId ? 'Joint' : 'Single',
+      branch: a.branch,
+      paidAt: a.paidAt!,
+      fee: feeBaseFor(a),
+      sharePercent: a.sharePercent ?? null,
+      rate: line?.rate ?? a.partnerRate ?? 0,
+      source: line?.source ?? null,
+      commission: amount,
+    });
+  }
+  for (const row of bySupplier.values()) row.lines.sort((x, y) => x.ref.localeCompare(y.ref));
+
+  return [...agencySide, ...bySupplier.values()].sort((x, y) => y.total - x.total);
 }
 
 export interface TrendRow {
