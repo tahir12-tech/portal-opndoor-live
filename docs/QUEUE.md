@@ -1422,6 +1422,24 @@ statement.
 
 *(Recorded, NOT built. Nothing in this section is in the go-live scope.)*
 
+### Refusing referrals for a supplier with no deal (2026-10-03)
+
+Matt's own split, verbatim: *"No default deal and the warnings now; the
+referral refusal goes under 'After launch'."*
+
+So the half that ships now is: no default on creation, "No commission
+deal set" on the Commission tab and Overview, "No deal set" on the
+Suppliers list. The half deferred is the rest of his sentence:
+
+> new referrals for that supplier are refused (portal and API) with a clear message until a deal is set
+
+- Deferred because it is a NEW WAY FOR THE REFERRAL PATH TO FAIL, two
+  days before go-live, on both rails at once. Everything else shipping
+  this week is wording, layout or a reported figure.
+- Note when it is built: a supplier with no deal and existing referrals
+  in flight must not have those refused retrospectively, and the API's
+  refusal needs a stable error code, not just a message.
+
 ### A fixed amount per tenant, instead of a percentage (note, 2026-10-03, verbatim)
 
 > some suppliers may be paid a fixed amount per tenant who pays (e.g. £10) instead of a percentage
@@ -1451,6 +1469,13 @@ statement.
 ## A SUPPLIER'S REPORTING MENTIONS NO ROUTES (instruction, 2026-10-03, verbatim).
 
 > Reporting as a supplier (Kestrel's own login and "View as"): hide the "Commission by route" table; it's Opndoor-only. The supplier's commission is already shown in the summary and its statement. Check nothing else on a supplier's or agency's Reporting mentions routes, other suppliers, or Opndoor's settlement process.
+
+## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
+
+> No default deal and the warnings now; the referral refusal goes under "After launch". Then prioritise for Wednesday: 1) "Referrals sent" including expired and "Fee unpaid" (figures people will rely on); 2) the application-detail trio and the ready-to-sign email (what tenants and agents see); 3) supplier Reporting hiding "Commission by route"; 4) real reasons on failed saves. Everything else after those, and anything not done by Sunday evening moves to "After launch".
+
+- Everything not in that list, and not already done, is now AFTER those
+  four and subject to the Sunday cut.
 
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
