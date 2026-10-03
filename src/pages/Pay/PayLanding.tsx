@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PayFrame } from './PayFrame';
-import { getPayPage, startCheckout, declineApplication, type PayPageData } from './paymentPageApi';
+import { requestSigningLinkByToken, getPayPage, startCheckout, declineApplication, type PayPageData } from './paymentPageApi';
 import { Icon } from '@/components/ui/Icon';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { countOf } from '@/lib/plural';
@@ -49,7 +49,36 @@ export function PayLanding() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   // #14 decline sub-flow: null (not started) -> confirm form -> submitting
+  /* THE SIGNING TRIP, which only a paid-and-unsigned link ever takes. Its own
+     state rather than reusing `busy`: that one disables the Pay button, and
+     these two states cannot both be on screen. */
+  const [signing, setSigning] = useState(false);
+  const [signErr, setSignErr] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
+  /* WITH THE OTHER HOOKS, ABOVE EVERY EARLY RETURN. This sat down beside the
+     branch that uses it, which React refuses: `phase` gates several returns
+     above, so the hook count changed between renders and the page died with
+     "Rendered more hooks than during the previous render".
+
+     MINTED ON DEMAND, and opened in this tab. Matt: "show the 'Sign your deed
+     now' button."
+
+     THE SAME TAB, not a new one: a popup blocker eats a window opened from an
+     async callback, and the tenant is finished with this page either way.
+
+     A FAILURE SAYS WHAT HAPPENS NEXT rather than what went wrong. The deed is
+     emailed to them regardless, so the honest message is that the link is
+     coming, which is also true. */
+  const onSignFromLink = useCallback(async () => {
+    if (!token || signing) return;
+    setSigning(true);
+    setSignErr(false);
+    const r = await requestSigningLinkByToken(token);
+    if (r.signingUrl) { window.location.href = r.signingUrl; return; }
+    setSigning(false);
+    setSignErr(true);
+  }, [token, signing]);
+
   const [declineReason, setDeclineReason] = useState('another_guarantor');
 
   const load = useCallback(async () => {
@@ -99,11 +128,47 @@ export function PayLanding() {
   }
 
   if (phase === 'paid') {
+    /* =====================================================================
+       WHERE THEY ACTUALLY ARE, not where they were when the email was sent.
+
+       Matt, 2026-10-03: "Tenant payment link opened after payment: reflect
+       where they actually are. If the deed is signed: 'Your guarantee fee is
+       paid and your Deed of Guarantee is signed. Nothing more is needed. A
+       copy was emailed to you.' If paid but not yet signed: show the 'Sign
+       your deed now' button."
+
+       THE SAVED LINK IS THE COMMON CASE, not the edge. The payment email is
+       the one the tenant keeps, so the SECOND time they open it is the
+       ordinary journey, and this page told all of them the same thing: "your
+       Deed of Guarantee will be sent to you to sign" -- to somebody who had
+       already signed it, and to somebody whose deed was sitting there waiting
+       with no way to reach it from here.
+
+       THE SAME THREE STATES THE POST-CHECKOUT PAGE DRAWS, deliberately
+       worded the same way, because they are one journey reached by two doors
+       and a tenant comparing them should not find two answers. */
+    const signedOff = data?.deedSigned === true;
+    const readyToSign = data?.deedReady === true;
     return (
       <PayFrame>
         <div className="pay__icon pay__icon--ok"><Icon name="check" /></div>
-        <h1 className="pay__title">This fee has been paid</h1>
-        <p className="pay__lead">Thank you, your guarantee fee has been paid and nothing more is needed. Your Deed of Guarantee will be sent to you to sign electronically{data?.ref ? <> (reference <b>{data.ref}</b>)</> : null}.</p>
+        <h1 className="pay__title">{signedOff ? 'You are all set' : 'This fee has been paid'}</h1>
+        {signedOff ? (
+          <p className="pay__lead">Your guarantee fee is paid and your Deed of Guarantee is signed. Nothing more is needed. A copy was emailed to you{data?.ref ? <> (reference <b>{data.ref}</b>)</> : null}.</p>
+        ) : readyToSign ? (
+          <>
+            <p className="pay__lead">Thank you, your guarantee fee has been paid{data?.ref ? <> (reference <b>{data.ref}</b>)</> : null}. Your Deed of Guarantee is ready to sign.</p>
+            <button className="pay__btn pay__btn--primary" onClick={() => void onSignFromLink()} disabled={signing}>
+              <Icon name="edit" strokeWidth={2} /> {signing ? 'Opening…' : 'Sign your deed now'}
+            </button>
+            {signErr && <p className="pay__muted">We couldn&rsquo;t open the signing session just now. We&rsquo;ll email your signing link shortly.</p>}
+          </>
+        ) : (
+          /* STILL BEING PREPARED, which is a real state and is nobody's
+             fault: the deed is generated after payment. The old sentence is
+             the right one here and nowhere else. */
+          <p className="pay__lead">Thank you, your guarantee fee has been paid and nothing more is needed. Your Deed of Guarantee will be sent to you to sign electronically{data?.ref ? <> (reference <b>{data.ref}</b>)</> : null}.</p>
+        )}
       </PayFrame>
     );
   }

@@ -3,8 +3,15 @@
 //
 // #1 Backend for the public tenant payment confirmation page (/pay?token=...).
 // Security is the application-scoped token (payment_page_tokens), not a login; the
-// tenant is never a portal user. Three actions:
+// tenant is never a portal user. Four actions:
 //   view     - validate the token, log the first view, return public-safe data.
+//   sign     - mint a PandaDoc signing link for a paid, unsigned deed. Matt,
+//              2026-10-03: "Tenant payment link opened after payment: reflect
+//              where they actually are ... If paid but not yet signed: show the
+//              'Sign your deed now' button." The post-checkout page has had
+//              that button for a while; an OLD link lands here instead and had
+//              no way to offer it, because payment-confirmation mints from a
+//              Stripe session id and a saved link has none.
 //   checkout - create a fresh Stripe Checkout Session (robust to link expiry and
 //              the #13 expired-reinstate case) and return its URL to redirect to.
 //   decline  - #14 tenant self-decline: withdraw the application (tenant-flagged),
@@ -23,6 +30,10 @@ import { stripeSecretFor, stripePublishableFor } from "../_shared/livemodeCreden
 // rather than reimplemented so the email, this page and the Stripe line item
 // cannot describe one fee three different ways.
 import { feeBasisPhrase, feeBasisWeeksOf, feeLineDescriptionFor } from "../_shared/emailTemplates.ts";
+/* The same minting the post-checkout page uses, from the same place: two
+   implementations of "issue a signing link" is two sets of PandaDoc
+   behaviour to keep in step. */
+import { getSigningLink } from "../_shared/pandadoc.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -90,7 +101,7 @@ Deno.serve(async (req) => {
       // measured against. referencing_mode, agency_id, the agency's own name and
       // the partner's refers_own_stock are the four facts that decide whose
       // decision this page is describing: see the rail block below.
-      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, fee_amount, share_amount, tenancy_start, status, payment_state, livemode, referencing_mode, agency_id, agency:agencies(name), partner:partners(slug, name, refers_own_stock), tenancy_id")
+      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, fee_amount, share_amount, tenancy_start, status, payment_state, livemode, referencing_mode, agency_id, agency:agencies(name), partner:partners(slug, name, refers_own_stock), tenancy_id, deed_state, pandadoc_document_id")
       .eq("id", tok.application_id).maybeSingle();
     if (!app) return json({ ok: false, error: "This link is not valid." }, 404);
 
@@ -254,6 +265,23 @@ Deno.serve(async (req) => {
       isExpired,
       isClosed,
       payable,
+      /* WHERE THE DEED HAS GOT TO. Matt, 2026-10-03: "If the deed is signed:
+         'Your guarantee fee is paid and your Deed of Guarantee is signed.
+         Nothing more is needed. A copy was emailed to you.' If paid but not
+         yet signed: show the 'Sign your deed now' button."
+
+         THREE BOOLEANS RATHER THAN THE RAW STATE, which is what
+         payment-confirmation already returns and for its reason: the page has
+         to answer "can this tenant act", and `deed_state` has values that are
+         none of its business. `pandadoc_document_id` is required for ready,
+         because a state of awaiting_tenant with no document is a deed being
+         prepared, not one waiting on them.
+
+         NO DOCUMENT ID IS RETURNED. The id is ours; what the tenant gets is a
+         signing link, minted on demand by the `sign` action below. */
+      deedReady: app.deed_state === "awaiting_tenant" && !!app.pandadoc_document_id,
+      deedSigned: app.deed_state === "executed",
+      deedError: app.deed_state === "error",
     };
 
     if (action === "view") {
@@ -273,6 +301,30 @@ Deno.serve(async (req) => {
         });
       }
       return json({ ok: true, ...publicData });
+    }
+
+    /* "SIGN YOUR DEED NOW", FROM A SAVED LINK.
+
+       MIRRORS payment-confirmation's OWN sign action, including its rate
+       limit and its reasoning, because it is the same act reached from the
+       other door: minting is an external PandaDoc call that issues a live
+       7-day link, so it is capped per token on top of the limits above, and a
+       leaked token cannot mint unlimited signing links. The link itself is
+       scoped to the recipient by PandaDoc; possession of the token is the
+       bearer capability by design, exactly as it is for paying.
+
+       ONLY WHEN THERE IS SOMETHING TO SIGN. A deed still being prepared, or
+       already signed, returns deedReady false and the page says where they
+       are rather than opening an empty session. */
+    if (action === "sign") {
+      const ready = app.deed_state === "awaiting_tenant" && !!app.pandadoc_document_id;
+      if (!ready) return json({ ok: true, deedReady: false, deedSigned: app.deed_state === "executed" });
+      const { data: mintOk } = await service.rpc("bump_rate_limit", { p_key: `paysign_token:${token}`, p_limit: 10, p_window_secs: 3600 });
+      if (mintOk === false) return json({ ok: false, error: "Too many attempts, please try again later." }, 429);
+      const { link, detail } = await getSigningLink(
+        app.pandadoc_document_id as string, app.tenant_email as string, app.livemode === true);
+      if (!link) console.log(JSON.stringify({ event: "paysign_token_failed", ref: app.guarantee_ref, detail: detail ?? null }));
+      return json({ ok: true, deedReady: true, signingUrl: link });
     }
 
     if (action === "decline") {

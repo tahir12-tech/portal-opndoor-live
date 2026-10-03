@@ -48,6 +48,13 @@ export interface PayPageData {
   tenantCount?: number;
   status?: string;
   isPaid?: boolean;
+  /* WHERE THE DEED HAS GOT TO, for a link opened after payment. Matt,
+     2026-10-03: "Tenant payment link opened after payment: reflect where they
+     actually are." The page used to say "Your Deed of Guarantee will be sent
+     to you to sign" to a tenant who had already signed it. */
+  deedReady?: boolean;
+  deedSigned?: boolean;
+  deedError?: boolean;
   isExpired?: boolean;
   isClosed?: boolean;
   payable?: boolean;
@@ -124,5 +131,30 @@ export async function declineApplication(token: string, reason: string): Promise
     return (data ?? { ok: false }) as { ok: boolean; status?: string; error?: string };
   } catch {
     return { ok: false, error: 'Could not record that. Please contact support@opndoor.co.' };
+  }
+}
+
+/**
+ * Mint a signing link for a paid, unsigned deed, from the saved payment link.
+ *
+ * Matt, 2026-10-03: "If paid but not yet signed: show the 'Sign your deed now'
+ * button. Same for every tenant-facing page reached from an old link."
+ *
+ * THE POST-CHECKOUT PAGE HAS HAD THAT BUTTON for a while, through
+ * `requestSigningLink`, which mints from a STRIPE SESSION ID. A tenant opening
+ * the link they saved from the email has no session id, so that door was shut
+ * to exactly the reader Matt is describing. This is the same act through the
+ * token they already hold.
+ */
+export async function requestSigningLinkByToken(
+  token: string,
+): Promise<{ ok: boolean; deedReady?: boolean; deedSigned?: boolean; signingUrl?: string | null; error?: string }> {
+  if (!SUPABASE_ENABLED) return { ok: true, deedReady: false };
+  try {
+    const { data, error } = await sb().functions.invoke('payment-page', { body: { token, action: 'sign' } });
+    if (error) return { ok: false, error: 'Could not open the signing session.' };
+    return (data ?? { ok: false }) as { ok: boolean; deedReady?: boolean; signingUrl?: string | null };
+  } catch {
+    return { ok: false, error: 'Could not open the signing session.' };
   }
 }
