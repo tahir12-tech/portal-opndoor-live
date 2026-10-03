@@ -334,9 +334,20 @@ describe('an agreement replaces Set rate', () => {
  * would let volume bought through one supplier pay for a better commission
  * band with the other, in both directions.
  */
+/* THE COUNTER ONLY EXISTS WHERE VOLUME MOVES THE DEAL, since 2026-10-03.
+   Matt: "Show the volume 'Counter' and 'next referral lands at' only when the
+   deal changes with volume, worded as '18 referrals so far this year; the next
+   is paid at 20%', with dates as '23 Sep 2026'."
+
+   So these fixtures carry TIERS, which Regent's real deal does not. Without
+   them the counter is a number that changes nothing printed beside a "next
+   referral" that is the same as the last one, and the card no longer draws it
+   -- which is asserted at the bottom of this describe. */
+const TIERED = { ...REGENT_AGREEMENT, tiers: [{ from: 0, to: 50, rate: 0.2 }, { from: 51, to: null, rate: 0.25 }] };
+
 describe('an agency that does business on two routes', () => {
   const twoRoutes = {
-    ...REGENT_AGREEMENT,
+    ...TIERED,
     volume: 12,
     volumes: [
       { routeId: 'p-house', route: 'Opndoor agents', count: 12 },
@@ -363,21 +374,58 @@ describe('an agency that does business on two routes', () => {
   it('shows a counter for each route, named, rather than one pooled total', async () => {
     const view = await openAgency(twoRoutes);
     const now = view.container.querySelector('.ah-agr__now')!.textContent ?? '';
-    expect(now).toMatch(/Counters, one per route/);
-    expect(now).toMatch(/12\s*paid through Opndoor agents/);
-    expect(now).toMatch(/3\s*paid through Harbour Lets/);
+    expect(now).toMatch(/12\s*referrals through Opndoor agents this year/);
+    expect(now).toMatch(/3\s*referrals through Harbour Lets this year/);
     // And never the sum, which is the number that would be wrong.
     expect(now).not.toMatch(/\b15\b/);
   });
 
-  it('and still reads as one plain counter when there is only one route', async () => {
+  /* THE SENTENCE MATT WROTE, on the ordinary single-route agency. */
+  it('and reads as one sentence when there is only one route', async () => {
     const view = await openAgency({
-      ...REGENT_AGREEMENT, volume: 7,
-      volumes: [{ routeId: 'p-house', route: 'Opndoor agents', count: 7 }],
+      ...TIERED, volume: 18,
+      volumes: [{ routeId: 'p-house', route: 'Opndoor agents', count: 18 }],
     });
     const now = view.container.querySelector('.ah-agr__now')!.textContent ?? '';
-    expect(now).toMatch(/Counter/);
-    expect(now).not.toMatch(/one per route/);
-    expect(now).toMatch(/7\s*paid since/);
+    expect(now).toContain('18 referrals so far this year; the next is paid at 20%');
+    // The portal's one date format, not the ISO value the record holds.
+    expect(now).toContain('counting from 23 Sep 2026');
+    expect(now).not.toContain('2026-09-23');
+    expect(now).not.toMatch(/Counter/);
+  });
+
+  /* AND IT IS NOT DRAWN AT ALL ON A DEAL THAT DOES NOT MOVE WITH VOLUME,
+     which is Regent's own deal and most of the book. */
+  it('and is absent entirely where volume changes nothing', async () => {
+    AGREEMENT_OVERRIDE = { ...REGENT_AGREEMENT, volume: 18 };
+    const view = renderAt('/agencies/ag-regent');
+    await waitFor(() => { if (!view.container.querySelector('[role="tablist"]')) throw new Error('no tabs'); });
+    const commission = [...view.container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      .find((b) => (b.textContent ?? '').trim() === 'Commission')!;
+    await act(async () => { fireEvent.click(commission); });
+    await settle();
+    expect(view.container.querySelector('.ah-agr__now')).toBeNull();
+  });
+
+  /* THE DEAL ITSELF IS THE LINE THAT REPLACED THE JARGON. Matt: "Replace
+     'Negotiated · additive · volume counted per agency per year' and the
+     'Additive: …' paragraph with one line". */
+  it('while the card leads on what was agreed', async () => {
+    const view = await openAgency(TIERED);
+    const text = view.container.textContent ?? '';
+    expect(text).toContain('Agreed deal:');
+    expect(text).toContain('1 tenant pays 3 weeks of rent');
+    expect(text).not.toMatch(/Negotiated ·/);
+    expect(text).not.toMatch(/volume counted per/);
+    expect(text).not.toMatch(/^Additive:/m);
+  });
+
+  /* AND NOBODY IS WARNED ABOUT AN ADDITION THAT DOES NOT HAPPEN. Matt: "Show
+     'Other offices or the group above are also paid on top' only when that's
+     actually the case." Regent is one agency with no other node holding a
+     rate, so it is not the case. */
+  it('and says nothing about other payees where there are none', async () => {
+    const view = await openAgency(TIERED);
+    expect(view.container.textContent ?? '').not.toContain('also paid on top');
   });
 });

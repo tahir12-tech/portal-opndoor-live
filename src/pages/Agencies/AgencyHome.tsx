@@ -28,7 +28,7 @@
    them in memory unshown; it no longer asks for either. See the two effects.
    ===================================================================== */
 // Walk fix 19: the possessive is formed in one place.
-import { possessive } from '@/lib/format';
+import { formatDate, possessive } from '@/lib/format';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -63,7 +63,7 @@ import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions } from '@/components/people/PersonActions';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
 import { AgencyGrow } from './AgencyGrow';
-import { AgreementEditor, agreementSummary } from './AgreementEditor';
+import { AgreementEditor, agreementSummary, dealWords } from './AgreementEditor';
 import { CommissionStatement } from '@/components/CommissionStatement';
 import { showsOffices } from '@/data/agencyOffices';
 import './AgencyHome.css';
@@ -1066,23 +1066,59 @@ export function AgencyHome() {
     const pct = (r: number | null) => (r == null ? 'standard' : pctLabel(r));
     const band = (b: AgreementView['bands'][number]) =>
       `${b.min}${b.max == null ? '+' : b.max > b.min ? `-${b.max}` : ''} ${plural(b.max ?? 0, 'tenant')}`;
+
+    /* THE DEAL IN ONE LINE, IN THE WORDS IT WAS AGREED IN.
+
+       Matt, 2026-10-03: "Replace 'Negotiated · additive · volume counted per
+       agency per year' and the 'Additive: …' paragraph with one line, e.g.
+       'Agreed deal: 1 tenant pays 3 weeks' rent and we pay 20%; 2 or more pay
+       5 weeks and we pay 25%.'"
+
+       The subtitle was three pieces of our own vocabulary -- negotiated,
+       additive, counting scope -- none of which is a term of the deal, and
+       the paragraph under it explained one of those three words. Neither
+       said what had been agreed. `dealWords` is the sentence the editor's own
+       preview shows while somebody is agreeing it, so the card now says back
+       what they typed, rather than describing the record it was stored in. */
+    const agreed = dealWords(agreement.bands.map((b) => ({ ...b, unit: b.unit ?? 'weeks' })), agreement.tiers);
+
+    /* WHETHER ANYBODY ELSE IS ACTUALLY PAID. Matt: "Show 'Other offices or
+       the group above are also paid on top' only when that's actually the
+       case." "Additive" was printed on every negotiated deal, and on the
+       ordinary one -- a single agency, nobody else holding a rate -- it
+       warned about an addition that does not happen. The test is whether
+       some OTHER node in this org holds an explicit rate. */
+    const othersPaid = agreement.coverage !== 'all_in' && (
+      (group?.agentRate ?? null) != null
+      || agencies.some((a) => a.id !== target?.id && a.agentRate != null)
+      || agencies.some((a) => (a.branches ?? []).some((b) => b.agentRate != null))
+    );
+
+    /* AND THE VOLUME HALF ONLY WHERE VOLUME MOVES THE DEAL. Matt: "Show the
+       volume 'Counter' and 'next referral lands at' only when the deal
+       changes with volume". Without tiers the counter is a number that
+       changes nothing, printed beside a "next referral lands at" that is the
+       same as the last one. */
+    const byVolume = agreement.tiers.length > 0;
+    const periodWord = { week: 'this week', month: 'this month', year: 'this year' }[agreement.period] ?? 'in total';
     return (
       <Card>
-        <CardHead
-          title="Agreement"
-          sub={`Negotiated · ${agreement.coverage === 'all_in' ? 'all-in' : 'additive'} · volume counted per ${agreement.countingScope} per ${agreement.period}`}
-          actions={editBtn}
-        />
+        <CardHead title="Agreement" actions={editBtn} />
         <CardBody>
           {agreement.note && <p className="ah-agr__note">{agreement.note}</p>}
+          <p className="ah-agr__std"><b>Agreed deal:</b> {agreed}</p>
           {/* An all-in deal is the whole commission for everything beneath it.
               Showing the bands without saying so describes half the deal, and
               somebody will then wonder why a branch rate cannot be set. */}
-          <p className="ah-agr__std">
-            {agreement.coverage === 'all_in'
-              ? 'All-in: this agreement is the entire commission for every branch under this agency. No branch below may hold a rate of its own. A rate set above, at group level, still adds.'
-              : 'Additive: this agreement is this party’s own line. Rates set at other levels still add on top, exactly as they would on top of an explicit rate.'}
-          </p>
+          {agreement.coverage === 'all_in' && (
+            <p className="ah-agr__std">
+              This is the entire commission for every office under this agency. No office below may hold a
+              rate of its own. A rate set above, at the group, still adds.
+            </p>
+          )}
+          {othersPaid && (
+            <p className="ah-agr__std">Other offices or the group above are also paid on top.</p>
+          )}
           <table className="dt ah-table">
             <thead><tr><th>Deal shape</th><th>Fee</th><th>Rate</th></tr></thead>
             <tbody>
@@ -1111,35 +1147,42 @@ export function AgencyHome() {
               </table>
             </>
           )}
-          <div className="ah-agr__now">
-            {/* ONE COUNTER, OR ONE PER ROUTE. An agency is never duplicated
-                per supplier, so an agency doing business under two of them is
-                one party with two counters and the pooled total would be
-                wrong in both directions: volume bought through one supplier
-                would pay for a better band with the other. Almost every
-                agency has a single route, and then this reads exactly as it
-                did before. */}
-            {agreement.volumes.length > 1 ? (
-              <div>
-                <span className="ah-agr__lbl">Counters, one per route</span>
-                {agreement.volumes.map((v) => (
-                  <div key={v.routeId}>
-                    <b>{v.count}</b> paid through {v.route}
+          {/* THE COUNTER, WHERE IT MEANS SOMETHING, AND AS A SENTENCE. Matt:
+              "worded as '18 referrals so far this year; the next is paid at
+              20%', with dates as '23 Sep 2026'." It was two labelled figures
+              -- "Counter: 18 paid since 2026-09-23" and "The next referral
+              lands at 3 weeks · 20%" -- which is the mechanism in two halves
+              and an ISO date, on a card an agency's Director reads. */}
+          {byVolume && (
+            <div className="ah-agr__now">
+              {agreement.volumes.length > 1 ? (
+                /* ONE COUNTER, OR ONE PER ROUTE. An agency is never duplicated
+                   per supplier, so an agency doing business under two of them
+                   is one party with two counters and the pooled total would be
+                   wrong in both directions: volume bought through one supplier
+                   would pay for a better band with the other. Almost every
+                   agency has a single route, and then this reads exactly as the
+                   single sentence below. */
+                <div>
+                  {agreement.volumes.map((v) => (
+                    <div key={v.routeId}>
+                      <b>{v.count}</b> {plural(v.count, 'referral')} through {v.route} {periodWord}
+                    </div>
+                  ))}
+                  <div className="soft">
+                    The next is paid at <b>{pct(agreement.nextRate)}</b>
+                    {agreement.periodStart ? <> · counting from {formatDate(agreement.periodStart)}</> : null}
                   </div>
-                ))}
-                <div className="soft">since {agreement.periodStart ?? EMPTY}</div>
-              </div>
-            ) : (
-              <div>
-                <span className="ah-agr__lbl">Counter</span>
-                <b>{agreement.volume}</b> paid since {agreement.periodStart ?? EMPTY}
-              </div>
-            )}
-            <div>
-              <span className="ah-agr__lbl">The next referral lands at</span>
-              <b>{agreement.nextBasis ?? EMPTY} weeks</b> · <b>{pct(agreement.nextRate)}</b>
+                </div>
+              ) : (
+                <div>
+                  <b>{agreement.volume}</b> {plural(agreement.volume, 'referral')} so far {periodWord};
+                  {' '}the next is paid at <b>{pct(agreement.nextRate)}</b>
+                  {agreement.periodStart ? <span className="soft"> · counting from {formatDate(agreement.periodStart)}</span> : null}
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </CardBody>
       </Card>
     );
