@@ -1948,6 +1948,24 @@ is nothing left to match" instead of a warning.
 - The em-dash check is a new repo guard, and the existing
   noEmDashesInCustomerText is the one to extend rather than a second.
 
+## THE OFFICE AND THE AGENCY, CORRECTLY, EVERYWHERE (instruction, 2026-10-03, verbatim). FIND WHY FIRST.
+
+> Kestrel's view: GR-FROST-KES's office shows as "Frost Partnership" (with no agency) on Applications and the League Branches tab and export, but the agency page correctly shows it as the Frost Mayfair office of Frost Partnership. Find why and show office and agency correctly everywhere.
+
+- THREE SURFACES WRONG, ONE RIGHT, which makes the right one the clue:
+  the agency page reads the org tree (agencies -> branches), and the
+  other three read the APPLICATION's own `branch` / `agency` strings.
+- DEV HAS THE ANSWER ALREADY: GR-FROST-KES is agency "Frost
+  Partnership", branch "Frost Mayfair" in the database -- I read both
+  this afternoon. So the row is right and the DISPLAY is collapsing
+  them, which points at `orgCell`/`agencyOffices`' single-office rule:
+  "a single-office agency shows only as the agency". Frost has one
+  office in Kestrel's estate, so the rule fires and the office name is
+  dropped -- then the Branch column has the AGENCY's name in it and the
+  Agency column has nothing.
+- SO IT IS PROBABLY A RULE WORKING AS DESIGNED IN THE WRONG PLACE, and
+  the fix is which columns it may collapse, not the data.
+
 ## A SUPPLIER'S VIEW OF ITS OWN AGENCY (instruction, 2026-10-03, verbatim).
 
 > Supplier view of one of its agencies (e.g. Frost Partnership as Kestrel Management): "1 referrals" should be "1 referral"; remove the People tab and "0 people" (supplier-estate agencies have no logins); in Recent changes and any other customer-facing history, show changes made by Opndoor staff as "opndoor", not the staff member's name.
