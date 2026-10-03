@@ -1401,6 +1401,14 @@ statement.
   named columns say which is which. The repeat was only wrong where
   nothing said what the second one was.
 
+## HOW ARE THIS SUPPLIER'S TENANTS CHECKED (instruction, 2026-10-03, verbatim).
+
+> Add supplier form (and supplier Settings): replace the "Referencing mode" dropdown with the same plain-English radio question as the agency page, "How are this supplier's tenants checked?", one line each:
+> - "They check tenants, and Opndoor applies its own criteria too" (screened)
+> - "They check tenants, and Opndoor accepts them as sent" (open)
+> - "Opndoor checks tenants itself"
+> Rewrite the Capabilities intro as: "How this supplier sends referrals: through the portal, through the API, or both." Remove the line about agencies and CRMs. Deploy to dev and check there.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
