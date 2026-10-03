@@ -1261,6 +1261,10 @@ you asked for. Say the word and the tenant gets their own wording.
   so September did not "pick up" October's number. The heading never
   re-read it. All three are one piece of work and one report.
 
+## NO SUPPLIER ROW WHERE THERE IS NO SUPPLIER (instruction, 2026-10-03, verbatim).
+
+> Settlement statements for Opndoor's own agencies: remove the "Supplier: Agency referral" row and "(Agency referral)" from the heading; show the Supplier row only when the agency came through a supplier.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
