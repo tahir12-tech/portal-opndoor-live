@@ -1380,6 +1380,15 @@ Whether to delete the three. They cost nothing where they are, and
 deleting is irreversible, so I have left them. Say the word and it is one
 statement.
 
+## THE SUPPLIERS TAB SAYS THE SUPPLIER ONCE (instruction, 2026-10-03, verbatim).
+
+> League Suppliers tab (screen and export): the supplier's name repeats as its own subtitle ("Kestrel Lettings / Kestrel Lettings") and in the export's Detail column. Drop the repeat: no subtitle on the Suppliers tab, and leave Detail blank or remove it there.
+
+- Third instruction on the League subtitle. With "Kestrel Central's
+  subtitle still shows 'Kestrel Lettings (via Kestrel Lettings)'" and
+  "a supplier's own staff are labelled with their supplier", this is one
+  piece of work on one function.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
