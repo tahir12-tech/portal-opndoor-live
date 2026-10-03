@@ -1754,6 +1754,13 @@ is nothing left to match" instead of a warning.
 - "every level" means the four people surfaces share one set of
   dialogs, the way the people TABLE is already one component.
 
+## WHERE "VIEW ALL N" GOES FROM THE CUSTOMER TABLE (decision, 2026-10-03, verbatim).
+
+> On "All" in the Every-customer table, keep "Show all" in place. On Agencies or Suppliers, link "View all N" to that League board with the same period. Carry on with the queue.
+
+- Answers the one question I raised: the League has a board of agencies
+  and a board of suppliers and no board of both.
+
 ## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > No default deal and the warnings now; the referral refusal goes under "After launch". Then prioritise for Wednesday: 1) "Referrals sent" including expired and "Fee unpaid" (figures people will rely on); 2) the application-detail trio and the ready-to-sign email (what tenants and agents see); 3) supplier Reporting hiding "Commission by route"; 4) real reasons on failed saves. Everything else after those, and anything not done by Sunday evening moves to "After launch".
