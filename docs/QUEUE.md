@@ -1789,6 +1789,19 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## CHANGE LEVEL EVERYWHERE (instruction, 2026-10-03, verbatim). THIS SUPERSEDES D11'S WORDING.
+
+> People tables: use "Change level" everywhere (supplier People tab says "Change role").
+
+- SUPERSEDES the wording half of decision D11, which was that the
+  supplier rail has ROLES and the agency rail has LEVELS, so the button
+  said "Change role" on one and "Change level" on the other. The button,
+  the dialog title and the confirmation sentence all follow that split
+  today (`changeLevelLabel`, and `levelChangeAsk`'s fourth argument).
+- The underlying field is untouched: a supplier's people still hold a
+  `role`, and the three choices there are still Management, Referrer and
+  Developer. What changes is the word on the control.
+
 ## BLOCKER: A NEW SUPPLIER IS STILL GETTING 25/10 (instruction, 2026-10-03, verbatim). MEASURE FIRST.
 
 > Blocker: "No Deal Supplier", created via Add supplier at 16:41 today, still shows "25% of the fee, agencies 10%" on its Overview, so new suppliers are still getting a default deal despite 7b5b848. Find where the 25%/10% still comes from (database defaults, the RPC, the form, or the screen showing a fallback when the rates are empty), fix it, and prove it on dev by creating a supplier and showing its rates are empty and every screen says "No deal set". Tell me what No Deal Supplier actually has stored before changing it.
