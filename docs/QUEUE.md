@@ -2119,6 +2119,18 @@ is nothing left to match" instead of a warning.
 - THE SECOND HALF is a display rule in customer views only: an admin's
   own name must not appear in a customer's referrer list.
 
+## ITEM 9 SHIPS IN THIS RELEASE, DESIGN FIRST (instruction, 2026-10-03, verbatim, two messages).
+
+> On item 9: once I've seen the design, build it in this release, not later.
+
+> Send me the item 9 API design now, in plain English, before starting item 1, so I can approve it tonight. Then work items 1 to 9 in order without waiting for me.
+
+- SO IT IS IN SCOPE FOR THIS RELEASE, not After launch. The design goes
+  to Matt FIRST, tonight, and is the gate on building it -- not on
+  starting items 1 to 8.
+- "WHAT HAPPENS TODAY" has to be answered as part of the design, by
+  reading `create_referral_api`, not asserted.
+
 ## DO EVERYTHING, PROPERLY (instruction, 2026-10-03, verbatim). THIS SUPERSEDES THE ORDER BELOW AND LIFTS THE SMALL-CHANGES CONSTRAINT.
 
 > Do everything, properly, with tests: no shortcuts and nothing silently dropped. Order:
