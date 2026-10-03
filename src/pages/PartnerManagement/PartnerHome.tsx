@@ -20,7 +20,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ALL_PARTNERS, getPartner, getPeriods, getRatesFor, getAgencies, getUsers, maySeeCommission,
+  ALL_PARTNERS, getPartner, getPeriods,  getAgencies, getUsers, maySeeCommission,
   statementMonths,
   REFERENCING_MODES, type Agency, type ManagedUser, type ReferencingMode, type Role,
 } from '@/data';
@@ -339,7 +339,6 @@ export function PartnerHome() {
     );
   }
 
-  const rates = getRatesFor(partner.id);
   const branchCount = agencies.reduce((n, a) => n + (a.branches ? a.branches.length : 0), 0);
   const sp = STATUS_PILL[partner.status] || STATUS_PILL.active;
 
@@ -484,8 +483,15 @@ export function PartnerHome() {
           partnerId={partner.dbId ?? partner.id}
           name={partner.name}
           canEdit={isAdmin}
-          total={rates.partner ?? null}
-          agentShare={rates.agent ?? null}
+          /* THE PARTNER'S OWN RATES, NOT getRatesFor's. Matt, 2026-10-03:
+             "No Deal Supplier" showed "25% of the fee, agencies 10%" on this
+             card with 25/10 really stored on the row -- and it would have
+             gone on showing it after that was fixed, because `getRatesFor`
+             substituted 25% for a null before this `?? null` could see one.
+             SupplierDeals asks `flat == null` to say "No commission deal
+             set", and it was never handed a null to ask about. */
+          total={partner.partnerRate ?? null}
+          agentShare={partner.agentRate ?? null}
           paysAgents={partner.opndoorPaysAgents === true}
           /* THE REAL IDS ONLY. A membership is keyed on agencies.id, so an
              agency with no db id -- mock mode, and any row that has not come

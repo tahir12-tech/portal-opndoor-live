@@ -55,8 +55,14 @@ export function PartnerManagement() {
   const [name, setName] = useState('');
   const [since, setSince] = useState('');
   const [status, setStatus] = useState<PartnerStatus>('active');
-  const [partnerRate, setPartnerRate] = useState('25');
-  const [agentRate, setAgentRate] = useState('10');
+  /* THE TWO RATE SLOTS ARE GONE, 2026-10-03.
+
+     They held '25' and '10', nothing on this form was ever bound to them --
+     commission moved to the Commission tab, and this dialog's own toast says
+     so -- and `save()` shipped them to addPartner on every creation. That is
+     where "No Deal Supplier" got 25%/10% from, three weeks after the column
+     default and the RPC default were both removed: dead form state that was
+     still the deal. */
   const [refMode, setRefMode] = useState<ReferencingMode>('pre_referenced_screened');
   const [portalOn, setPortalOn] = useState(true);
   const [apiOn, setApiOn] = useState(false);
@@ -122,8 +128,6 @@ export function PartnerManagement() {
     setName('');
     setSince('');
     setStatus('active');
-    setPartnerRate('25');
-    setAgentRate('10');
     // New partners default to screened and portal-only. Screened refuses
     // applications until that mode is built, which is the safe place to start:
     // open means no criteria at all and is a commercial decision, not a default.
@@ -145,11 +149,6 @@ export function PartnerManagement() {
        has never seen. `choice` is the line they clicked. */
     REFERENCING_MODES.find((x) => x.id === m)?.choice ?? m;
 
-  function readRate(v: string, fallback: number): number {
-    const n = parseFloat(v);
-    if (isNaN(n) || n < 0) return fallback;
-    return Math.min(100, n) / 100;
-  }
 
   // Persist an edit (already confirmed for rate changes) and re-hydrate.
   async function applyUpdate(id: string, input: PartnerSettingsInput) {
@@ -170,8 +169,6 @@ export function PartnerManagement() {
 
   function save() {
     if (!name.trim() || saving) return;
-    const pr = readRate(partnerRate, 0.25);
-    const ar = readRate(agentRate, 0.1);
     if (editingId) {
       const cur = getPartner(editingId);
       if (!cur) return;
@@ -184,7 +181,13 @@ export function PartnerManagement() {
          silently undo the Commission tab. */
       const input: PartnerSettingsInput = {
         name: name.trim(), status, since,
-        partnerRate: cur.partnerRate ?? 0.25, agentRate: cur.agentRate ?? 0.1,
+        /* THE STORED RATES, AND NULL IS ONE OF THEM. This was `?? 0.25`
+           and `?? 0.1`, which meant the first edit of ANY other setting --
+           a name, a status, the referencing question -- silently wrote a
+           deal onto a supplier that had none. update_partner_settings
+           takes nulls and audits them as "no deal set", so passing them
+           through is both possible and the truthful thing to do. */
+        partnerRate: cur.partnerRate ?? null, agentRate: cur.agentRate ?? null,
         referencingMode: refMode, portalReferralsEnabled: portalOn, apiAccessEnabled: apiOn,
       };
       const changes: RateChange[] = [];
@@ -228,7 +231,10 @@ export function PartnerManagement() {
       // if the server actually created the row.
       setSaving(true);
       addPartner({
-        name: name.trim(), since: since || undefined, status, partnerRate: pr, agentRate: ar,
+        /* NO RATES AT ALL. This form has no rate field and has not had one
+           since commission moved to the Commission tab; a new supplier is
+           created with no deal and the toast below names the next step. */
+        name: name.trim(), since: since || undefined, status,
         referencingMode: refMode, portalReferralsEnabled: portalOn, apiAccessEnabled: apiOn,
       })
         .then(async (rec) => {

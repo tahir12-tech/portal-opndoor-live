@@ -14,7 +14,7 @@ import { fmtRatePct } from '@/lib/format';
 import { ALL_PARTNERS } from './types';
 import { houseRouteLabel } from './channel';
 import { KEYS, clone, loadJSON, loadString, saveJSON, saveString } from './storage';
-import { DEFAULT_AGENT_RATE, DEFAULT_PARTNER_RATE, HOME_PARTNER, PARTNERS_SEED } from './mock/partners';
+import { HOME_PARTNER, PARTNERS_SEED } from './mock/partners';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 
 // Working copy, seeded from localStorage or the seed. The only place the list lives.
@@ -92,8 +92,21 @@ export async function addPartner(input: AddPartnerInput): Promise<Partner> {
       p_name: input.name,
       p_status: input.status ?? 'onboarding',
       p_live_from: input.since ? `${input.since}-01` : null,
-      p_partner_rate: input.partnerRate ?? DEFAULT_PARTNER_RATE,
-      p_agent_rate: input.agentRate ?? DEFAULT_AGENT_RATE,
+      /* NO DEAL UNLESS SOMEBODY GAVE ONE. Matt, 2026-10-03, reporting "No
+         Deal Supplier" created at 16:41 with 25%/10% stored on it: "new
+         suppliers are still getting a default deal despite 7b5b848."
+
+         THIS LINE IS WHERE IT CAME FROM, and it is the reason that commit
+         looked right: 7b5b848 took the default off the `partners` columns
+         AND out of create_partner's parameters, which it did -- measured
+         again today, both are null -- and then the client put it back on
+         the way in. The RPC never saw a null to honour.
+
+         `?? null` rather than dropping the keys: the RPC's parameters
+         default to null either way, and stating it keeps this call site
+         readable as "no rate" rather than as an omission. */
+      p_partner_rate: input.partnerRate ?? null,
+      p_agent_rate: input.agentRate ?? null,
       p_referencing_mode: input.referencingMode ?? 'pre_referenced_screened',
       p_portal_referrals: input.portalReferralsEnabled ?? true,
       p_api_access: input.apiAccessEnabled ?? false,
@@ -109,8 +122,13 @@ export async function addPartner(input: AddPartnerInput): Promise<Partner> {
       weight: 0.05,
       users: 0,
       apps: 0,
-      partnerRate: Number(row.partner_rate),
-      agentRate: Number(row.agent_rate),
+      /* AND NULL READS BACK AS NULL, not as 0. `Number(null)` is 0, so
+         even with the default gone this would have handed every screen a
+         0% deal -- which is Letly's deliberate deal, and the one thing
+         "no deal set" must never be confused with. Same shape as the
+         export's `Number('')` this morning. */
+      partnerRate: row.partner_rate == null ? null : Number(row.partner_rate),
+      agentRate: row.agent_rate == null ? null : Number(row.agent_rate),
       referencingMode: row.referencing_mode,
       // What the server says it was born as, not what this client asked
       // for. create_partner stamps 'supplier' and this is the button that
@@ -144,8 +162,12 @@ function addPartnerLocal(input: AddPartnerInput): Partner {
     users: 0,
     apps: 0,
     since: input.since || new Date().toISOString().slice(0, 7),
-    partnerRate: input.partnerRate != null ? input.partnerRate : DEFAULT_PARTNER_RATE,
-    agentRate: input.agentRate != null ? input.agentRate : DEFAULT_AGENT_RATE,
+    /* AND THE DEMO PATH SAYS THE SAME THING. The live path stopped
+       substituting 25/10 today; leaving it here would mean the demo estate
+       was the one place a new supplier still arrived with a deal, which is
+       how the two drift. */
+    partnerRate: input.partnerRate ?? null,
+    agentRate: input.agentRate ?? null,
     // "Add supplier" makes a supplier, in both modes.
     kind: 'supplier',
   };
@@ -174,8 +196,14 @@ export interface PartnerSettingsInput {
   name: string;
   status: PartnerStatus;
   since: string; // 'YYYY-MM' or ''
-  partnerRate: number; // fraction of one month's rent
-  agentRate: number;
+  /* NULLABLE SINCE 2026-10-03, because "no deal set" is a real state and
+     this type was the last place that could not say it. A supplier created
+     with no deal keeps none until somebody sets one, and the settings form
+     passes back what is stored -- which is now sometimes nothing.
+     update_partner_settings has taken nulls since 20261007680000 and audits
+     them as "no deal set". */
+  partnerRate: number | null; // fraction of one month's rent
+  agentRate: number | null;
   referencingMode: ReferencingMode;
   portalReferralsEnabled: boolean;
   apiAccessEnabled: boolean;
@@ -321,12 +349,33 @@ export async function getPartnerAudit(id: string): Promise<PartnerAuditEntry[]> 
   return PARTNER_AUDIT[id] ?? [];
 }
 
-/** Per-partner commission rates for a scope. For "all", returns the primary partner's rates. */
+/**
+ * Per-partner commission rates for a scope, FOR ARITHMETIC. For "all",
+ * returns the primary partner's rates.
+ *
+ * NO DEAL IS ZERO HERE, NOT 25%. Matt, 2026-10-03, on "No Deal Supplier":
+ * one of the four places he asked me to look was "the screen showing a
+ * fallback when the rates are empty", and this was it. It substituted
+ * DEFAULT_PARTNER_RATE for a null, so a supplier with no deal read 25% to
+ * every caller -- including the supplier Overview, whose own `?? null` could
+ * then never fire and whose "No commission deal set" could never be reached.
+ *
+ * ZERO IS WHAT SQL SAYS. `resolve_rates` ends in a coalesce to 0 since
+ * 20261007680000, deliberately, so that a dealless supplier's referrals are
+ * RECORDED rather than refused. This function is the client's mirror of it
+ * and now agrees: nothing resolved means nothing is owed, and the loud alert
+ * `has_no_commission_deal` raises is what stops that being silent.
+ *
+ * AND IT IS NOT THE FUNCTION A SCREEN SHOULD ASK. "0%" and "no deal set" are
+ * different sentences and this returns a number, so a screen that shows a
+ * deal reads the partner's own `partnerRate`, which is null when there is
+ * none. Letly's real 0% deal is the reason the two cannot be conflated.
+ */
 export function getRatesFor(scope: PartnerScope): CommissionRates {
   const p = scope && scope !== ALL_PARTNERS ? getPartner(scope) : PARTNERS.find((x) => x.primary) ?? PARTNERS[0];
   return {
-    partner: p && p.partnerRate != null ? p.partnerRate : DEFAULT_PARTNER_RATE,
-    agent: p && p.agentRate != null ? p.agentRate : DEFAULT_AGENT_RATE,
+    partner: p?.partnerRate ?? 0,
+    agent: p?.agentRate ?? 0,
   };
 }
 
