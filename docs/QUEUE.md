@@ -1270,8 +1270,20 @@ you asked for. Say the word and the tenant gets their own wording.
 > Go ahead with all four steps as described. For older referrals with no audit record, fill the frozen setting from the partner's current setting and list in QUEUE.md which rows were filled that way. No frozen amounts change. Then the statement-reference fix as one piece of work. Deploy to dev and check there.
 
 ### Rows filled from the partner's current setting
-*(Filled in when the backfill runs. Rows recoverable from `partner_audit`
-are taken from the audit; these are the ones that were not.)*
+
+**NONE on dev.** `20261007610000` applied; both supplier-estate
+applications were answered by `partner_audit`, so the fallback filled
+nothing. The fallback is in the migration for live, where the ledger may
+not reach back as far.
+
+| ref | partner | created | frozen setting | source | live flag today |
+|---|---|---|---|---|---|
+| GR-22162 | kestrel-lettings | 2026-09-29 | `false` (the supplier pays its own agents) | audit | `false` |
+| GR-FROST-KES | kestrel-lettings | 2026-10-02 | **`true`** (opndoor pays the agents) | audit | `false` |
+
+GR-FROST-KES is the row that proves the point: its frozen arrangement
+DIFFERS from the live flag, so every reader asking the live flag has been
+reading the wrong one. No frozen amount changed.
 
 ## THE BORDEREAU DEFAULTS TO LAST MONTH (instruction, 2026-10-03, verbatim).
 
@@ -1284,6 +1296,10 @@ are taken from the audit; these are the ones that were not.)*
 > Applications, "Fee unpaid" tab: it should list every application where the tenant has been asked for the guarantee fee and hasn't paid (today the 3 Sent referrals: GR-22162, GR-20837, GR-20764), not unfinished direct applications that haven't reached payment (GR-20626). Its count must match.
 
 - The second names the rows, so it is the one to measure against on dev.
+
+## A REFERRAL IS SENT ONCE IT IS SENT (instruction, 2026-10-03, verbatim).
+
+> Reporting "Referrals sent" (Every customer table, funnel, charts, exports) leaves out referrals that later expired unpaid: Northgate Lettings shows 8 sent on Reporting but has 14 applications, 6 of them expired. A referral counts as sent once it was sent to the tenant, whatever happened after. Unfinished direct applications that never reached the tenant being asked to pay are the only ones left out. Check the conversion rates still make sense after the change. Deploy to dev and check there.
 
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
