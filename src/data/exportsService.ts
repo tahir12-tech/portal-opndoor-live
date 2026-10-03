@@ -21,7 +21,7 @@ import {
   BX_FIRST, BX_FLATS, BX_LAST, BX_STREETS, BX_TITLES, TREND_MONTHS,
 } from './mock/analyticsModel';
 import { partnerName, getRatesFor, scopeFor } from './partnersService';
-import { isAgencyUser } from './capabilities';
+import { isAgencyUser, partyIsSupplier } from './capabilities';
 import { viewerShape } from './viewerShape';
 // The statement column rule, shared with the screen and (as a copied block) with
 // the PDF and the CSV the cron emails. See statementColumns.ts.
@@ -1717,7 +1717,23 @@ export async function buildAgentStatementDoc(role: Role, scope: PartnerScope, pa
       kind: 'keyvalue',
       items: [
         { label: 'Payee', value: payee },
-        ...(forAgency ? [] : [{ label: 'Supplier', value: partnerLabel }]),
+        /* A SUPPLIER ROW ONLY WHERE THERE IS A SUPPLIER. Matt,
+           2026-10-03: "Settlement statements for Opndoor's own agencies:
+           remove the 'Supplier: Agency referral' row and '(Agency
+           referral)' from the heading; show the Supplier row only when
+           the agency came through a supplier."
+
+           IT WAS KEYED ON THE READER, which is a different question.
+           `forAgency` asks "is an agency reading this", so an ADMIN
+           reading one of our own agencies' statements got a Supplier row
+           naming `opndoor-agents` -- which prints as "Agency referral",
+           the route label. That is house plumbing on a customer-facing
+           document, and the agency it names is not a supplier's at all.
+
+           The reader question still decides the commission wording below,
+           because that genuinely differs by who is reading. This one is
+           about the PARTY. */
+        ...(partyIsSupplier(partner) ? [{ label: 'Supplier', value: partnerLabel }] : []),
         { label: 'Commission type', value: forAgency ? 'Commission earned' : 'Agent commission' },
         { label: 'Period (month)', value: st.monthLabel },
         { label: 'Settlement date', value: dmy(st.settlementDate) },
@@ -1740,7 +1756,9 @@ export async function buildAgentStatementDoc(role: Role, scope: PartnerScope, pa
       { kind: 'keyvalue', items: [moneyKv('Total commission payable', totalComm)] },
     );
   }
-  const payeeBit = forAgency ? payee : `${payee} (${partnerLabel})`;
+  // Same rule in the heading: the parenthetical names the supplier, so
+  // there is nothing to put in it when there is no supplier.
+  const payeeBit = partyIsSupplier(partner) ? `${payee} (${partnerLabel})` : payee;
   const metaLine = `${st.monthLabel} settlement · Payee: ${payeeBit} · ${forAgency ? 'Commission earned' : 'Agent commission'} · Reference ${ref} · Generated ${generated} · GBP`;
   const doc: BrandedDoc = { reportName: 'Commission statement', metaLine, blocks };
   return { sheets: [{ name: 'Statement', doc }], filename: `opndoor-statement-${ref}.xlsx` };
