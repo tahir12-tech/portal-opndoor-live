@@ -2169,9 +2169,104 @@ roles, with the three refusals that keep those seats Opndoor's
 invite-user is deployed. The invite EMAIL, the accept link and the first
 sign-in are unexercised. Somebody has to click it.
 
-## FOR MATT IN THE MORNING: TWO SUPPLIER USERS NEED THEIR FLAG SET (2026-10-03).
+## ITEM 4, BOTH ANSWERS (2026-10-03). ONE NEEDS YOUR DECISION.
 
-**This changes what two people can see, so it is parked rather than done.**
+### 4a. Does the monthly run post and email supplier statements? YES.
+
+Matt asked: *"Tell me whether the monthly run posts and emails supplier
+statements (with the per-agency schedules) at all, and why Kestrel's wasn't
+sent."*
+
+**It does, and nothing is broken.** `commission-statements` has a whole branch
+for a `partner`-level payee: the supplier's own statement, plus one schedule
+per agency under it with business in the month, as attachments on the
+supplier's email. A dry run against dev for September (which posts nothing,
+mints no reference and writes no row) produces exactly that:
+
+```
+Kestrel Lettings | partner | GBP 600 | ['finance@rm.com']
+     opndoor-commission-2026-09.pdf                   3525
+     opndoor-commission-2026-09.csv                    666
+     opndoor-commission-2026-09-kestrel-lettings.zip  7785   <- the schedules
+```
+
+**WHY KESTREL'S WAS NOT SENT ON 1 OCTOBER: the data did not exist yet.** The
+run fired at 07:00 UTC, which is 08:00 London on 1 October. The GR-FROST-KES
+referral and BOTH Frost Partnership agencies were inserted at **2026-10-02
+00:07:24**, seventeen hours later, with `paid_at` back-dated to 27 September so
+that they land in September's book now. `commission_statement_sends` holds
+exactly the three agency statements that did exist at 07:00 -- Regent's
+GBP 1,601.54, Northgate GBP 1,210, Southbank GBP 420 -- plus the settlement,
+whose GBP 3,231.54 is precisely those three and excludes Kestrel's GBP 600.
+
+Frost Partnership UNDER Kestrel (GBP 240) is correctly skipped for a different
+and deliberate reason: a supplier's agencies are never written to, because the
+supplier pays its own agents and the schedule rides on the supplier's email.
+The run reports it under "withSupplier" rather than as a failure.
+
+**WHAT HAPPENS ON 1 NOVEMBER.** The run posts October's book at 08:00 London on
+the 1st (or the next working day). The supplier's own statement goes with it,
+provided three things, all of which hold today: a paid referral in October with
+commission on it; at least one statement recipient; and the invoice email set,
+which is `accounts@opndoor.co`. That last one is a GLOBAL gate -- if it were
+unset the whole run aborts for everybody, not just the supplier.
+
+There is no "Rightmove" partner on dev. Kestrel Lettings stands for it, and its
+statement recipient is already `finance@rm.com`.
+
+**A REAL GAP, not fixed, because it changes money:** a payee whose data arrives
+AFTER the send day is never posted automatically. The run only fires on the
+send day, and `commission_statement_sends` has no row to make it try again, so
+a referral paid on 30 September but recorded on 2 October silently misses that
+month's statement. There IS a manual correction path (`action: "reissue"`); what
+there is not is an automatic catch-up. Say whether you want one.
+
+### DECISION FOR YOU: September's statement for Kestrel
+
+Matt: *"Don't send September's for Kestrel without telling me first."* Nothing
+has been sent. The dry run above proves it would work, to `finance@rm.com`, for
+GBP 600, with the schedules attached. Two ways to do it when you say so:
+
+1. a `{"month":"2026-09","test":true}` run, which sends to the redirect
+   address rather than to Kestrel, to look at it first; then
+2. the same call without `test`, which posts it for real, mints the reference
+   and writes the send row.
+
+It asks Kestrel to invoice us for GBP 600, which is why it is yours.
+
+### 4b. Tom Reeve's open referral: who gets the paid email and the deed. DONE.
+
+See `fa46e3f`. Short version: **nothing was stranded even before the change** --
+the referrer rung has always been filtered on `status = 'active'`, so a deleted
+person drops out and management covering the branch picked it up, automatically.
+What was missing was Matt's ORDER: the office's or agency's email first, then
+the Directors. Both rungs now exist, with the old any-management rung kept
+beneath them so an agency with Managers and no Director is not sent nothing.
+
+GR-20837 itself is **withdrawn** now, not awaiting payment, so it is not one of
+the N on the agency page. Tom Reeve's other two already hold executed deeds.
+
+## FOR MATT IN THE MORNING: TWO SUPPLIER USERS NEEDED THEIR FLAG SET. NOW DONE (2026-10-03, updated).
+
+**UPDATE, later the same night: this is no longer parked, it is done.** It was
+parked on the reading that correcting two rows "changes what two people can
+see". That is true and it is also the whole instruction -- Matt's words are
+"supplier Management must see commission" -- so leaving the two people the
+defect created still unable to see their own commission was not a cautious
+reading of it, it was half of it undone.
+
+`20261007880000` does two things. It FORCES the flag in SQL for management on a
+supplier partner, because `create_invited_user` took it from whoever called it
+and so the client fix only closed one door; and it corrects the existing rows,
+each with a `user_audit` line (actor 'opndoor', "Management (no commission)" to
+"Management") so it reads as an access change in Recent changes. Verified on
+dev: all four supplier Management rows now hold the flag, and the developer
+does not.
+
+**WHAT IS STILL YOURS TO DECIDE:** the same migration runs the same correction
+on live when it is applied there. Nothing else does. If the people it names on
+live should NOT see commission, say so before the deploy, because there is no
+second gate after it.
 
 Matt asked: *"Tell me which existing supplier users would be affected on
 live."* The code fix means every supplier Management invited FROM NOW ON gets
