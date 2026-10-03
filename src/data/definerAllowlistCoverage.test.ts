@@ -71,7 +71,7 @@ const NOT_YET_COVERED = [
   'dev_update_webhook_endpoint', 'dev_webhook_deliveries', 'dev_webhook_endpoint_secret',
   'dev_webhook_endpoints', 'dev_webhook_stats', 'partner_active_key_count',
   // --- opndoor-admin globals, which have no agency to be scoped to --------
-  'admin_add_agency', 'admin_break_glass_revoke_key', 'admin_delete_org_shape',
+ 'admin_break_glass_revoke_key', 'admin_delete_org_shape',
   'confirm_org_entity', 'log_view_as', 'set_app_setting_num',
   'trigger_crm_sync',
   /* update_partner_settings LEFT THIS LIST with R6 (20261006870000). It is now
@@ -98,6 +98,15 @@ const NOT_YET_COVERED = [
      assertion instead (every_browser_rpc_checks_its_reach). That is the
      direction this list is supposed to move in. */
   'dev_sandbox_application_document',
+  /* AND ONE CAME OFF ON 2026-10-03: `admin_add_agency` is now exercised by
+     a_creation_row_says_where_from.test.sql, which calls it and reads the
+     org_audit row it writes.
+
+     NOT A COVERAGE DRIVE. Matt asked for creation to record "who, when, and
+     from where", and the only way to assert where-from is to call the
+     function and read what it wrote -- so the coverage is a by-product of
+     testing the thing he asked for, which is the direction this list is
+     supposed to move in. */
 ].sort();
 
 /* THE ALLOWLIST IS DERIVED FROM THE MIGRATION FILES, NOT FROM THE DATABASE.
@@ -390,7 +399,7 @@ describe('every allowlisted function is exercised by a pgTAP test', () => {
        covered by an_admin_revokes_one_key.test.sql as the two doors the
        admin one is NOT -- the first returns an admin nothing, the
        second refuses them. */
-    expect(NOT_YET_COVERED.length).toBe(31);
+    expect(NOT_YET_COVERED.length).toBe(30);
   });
 
   /* AND THE SORTED CLAIM IS NOW TRUE OF THE FILE. The literal is `.sort()`ed
