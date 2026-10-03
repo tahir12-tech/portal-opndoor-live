@@ -1418,6 +1418,24 @@ statement.
   `partner_kind` and did not question. Refusing referrals is the part
   that needs care: it is a new way for the referral path to fail.
 
+## After launch
+
+*(Recorded, NOT built. Nothing in this section is in the go-live scope.)*
+
+### A fixed amount per tenant, instead of a percentage (note, 2026-10-03, verbatim)
+
+> some suppliers may be paid a fixed amount per tenant who pays (e.g. £10) instead of a percentage
+
+**Matt's open questions, to answer before anything is built:**
+- Is it instead of a percentage, or as well as one?
+- On a joint tenancy, is it per tenant or per tenancy?
+
+- Not started, and deliberately not designed either: both answers change
+  the shape. "As well as" makes it a second line on the same referral;
+  "per tenancy" makes it the first money in the system that is NOT
+  apportioned per applicant, which `apportion()` and every frozen line
+  assume.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
