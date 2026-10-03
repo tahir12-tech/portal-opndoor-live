@@ -131,11 +131,23 @@ describe('a volume step says which referrals', () => {
 });
 
 describe('the whole deal, in a sentence', () => {
+  /* AND IT STARTS WITH A CAPITAL, since 2026-10-03. Matt: "The plain-English
+     summary starts lowercase ('any number of tenants…'); capitalise it." The
+     sentence is built from a table row, and "any number of tenants" reads
+     correctly in the middle of a list and wrongly at the front of a
+     paragraph, which is where this is printed. */
   it('a flat deal reads as one price and one commission', () => {
     expect(dealWords(
       [{ min: 1, max: null, weeks: 1, unit: 'months', rate: 0.2 }],
       [],
-    )).toBe("any number of tenants pay one month's rent, and we pay 20% of that.");
+    )).toBe("Any number of tenants pay one month's rent, and we pay 20% of that.");
+  });
+
+  /* A ROW THAT ALREADY STARTS WITH A FIGURE IS UNTOUCHED, which is most of
+     them: "1 tenant pays ..." has nothing to capitalise. */
+  it('and a deal that opens on a number is unchanged by that', () => {
+    expect(dealWords([{ min: 1, max: 1, weeks: 3, unit: 'weeks', rate: 0.2 }], []))
+      .toMatch(/^1 tenant pays/);
   });
 
   /* REGENT'S REAL DEAL, which is what this wording was specified
@@ -161,7 +173,7 @@ describe('the whole deal, in a sentence', () => {
       [{ min: 1, max: null, weeks: 3, unit: 'weeks', rate: null }],
       [{ from: 0, to: 50, rate: 0.2 }, { from: 51, to: null, rate: 0.25 }],
     );
-    expect(s).toContain('any number of tenants pay 3 weeks of rent');
+    expect(s).toContain('Any number of tenants pay 3 weeks of rent');
     expect(s).toContain('We pay by volume. Referrals 1 to 50: 20%, 51 and over: 25%.');
     expect(s).not.toMatch(/pay null|NaN|undefined/);
   });

@@ -64,11 +64,23 @@ export type PricingModel = 'standard' | 'flat' | 'bands' | 'tiered';
    Matt's own words. `contrast` is the sentence that says what the other
    one is, which is the part a name alone cannot do.
    ===================================================================== */
+/* WHAT "OUR STANDARD" ACTUALLY IS, in one place.
+   Matt, 2026-10-03: "'Standard terms' should say the actual figures: 'No
+   special deal. The tenant pays one month's rent and we pay our standard
+   10%.'" "Our usual commission" named a figure without giving it, so the one
+   option somebody picks when they do NOT want to think about numbers was the
+   only one that would not tell them what the numbers are.
+
+   The band seed below already writes 10 as the standard rate, so the sentence
+   and the seeded row read off the same constant and cannot drift. */
+const STANDARD_AGENT_PCT = '10';
+const STANDARD_TERMS = `No special deal. The tenant pays one month’s rent and we pay our standard ${STANDARD_AGENT_PCT}%.`;
+
 const MODELS: { id: PricingModel; name: string; desc: string; eg?: string; contrast?: string }[] = [
   {
     id: 'standard',
     name: 'Standard terms',
-    desc: 'No special deal. The tenant pays one month’s rent and we pay our usual commission.',
+    desc: STANDARD_TERMS,
   },
   {
     id: 'flat',
@@ -185,6 +197,21 @@ export function tierWords(from: number, to: number | null): string {
 }
 
 /**
+ * The typed lowest edge, as the database wants it.
+ *
+ * The inverse of `tierWords`' Math.max(from, 1): the screen counts referrals
+ * from 1 and `agreement_volume` counts from 0, so the opening row -- whether
+ * it was typed as 1 or left as 0 -- is stored as 0 and everything above it is
+ * stored as typed. Without this the first referral of each period would match
+ * no tier and have no rate at all.
+ */
+export function toStoredFrom(typed: string | number): number {
+  const n = typeof typed === 'number' ? typed : Number(String(typed).trim());
+  if (!Number.isFinite(n)) return NaN;
+  return n <= 1 ? 0 : n;
+}
+
+/**
  * The whole deal in a sentence, for somebody who is agreeing it.
  *
  * Replaces "The next referral lands at", which named a mechanism rather
@@ -228,14 +255,24 @@ export function dealWords(
     return `${who} ${verb} ${fee}, and we pay ${pctOf(b.rate)}% of that`;
   });
   const fee = feeParts.join('; ');
-  if (!tiered) return `${fee}.`;
+  if (!tiered) return sentence(`${fee}.`);
   const rates = tiers
     .map((t) => `${tierWords(t.from, t.to)}: ${pctOf(t.rate)}%`)
     .join(', ');
   /* THE STEPS, AND NOTHING ELSE. A sentence explaining that commission
      steps up with volume, immediately above a list of the steps, is the
      list said twice. */
-  return `${fee}. We pay by volume. Referrals ${rates}.`;
+  return sentence(`${fee}. We pay by volume. Referrals ${rates}.`);
+}
+
+/* IT IS A SENTENCE, SO IT STARTS LIKE ONE. Matt, 2026-10-03: "The
+   plain-English summary starts lowercase ('any number of tenants…');
+   capitalise it." It is built from a table row -- "any number of tenants",
+   "1 tenant", "3 or more" -- and those read correctly in the middle of a
+   list and wrongly at the front of a paragraph. Capitalised here, at the
+   one exit, rather than at the three call sites that print it. */
+function sentence(s: string): string {
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
 /**
@@ -322,17 +359,25 @@ export function AgreementEditor({
       ? live.bands.map((b) => ({ min: String(b.min), max: b.max == null ? '' : String(b.max), weeks: String(b.weeks), unit: b.unit ?? 'weeks', rate: pctOf(b.rate) }))
       // One month, said as one month. This used to seed 4.3333 weeks, which is
       // what standard terms had to be written as before the unit existed.
-      : [{ min: '1', max: '', weeks: '1', unit: 'months', rate: '10' }]);
+      : [{ min: '1', max: '', weeks: '1', unit: 'months', rate: STANDARD_AGENT_PCT }]);
   const [tiers, setTiers] = useState<TierRow[]>(() =>
     live && live.tiers.length
-      ? live.tiers.map((t) => ({ from: String(t.from), to: t.to == null ? '' : String(t.to), rate: pctOf(t.rate) }))
-      /* FROM ZERO, not from one. agreement_volume is 0 before the first referral
-         of a period, so a lowest tier starting at 1 matches nothing at all on
-         the very referral that opens the period. That used to be invisible
-         because the rate fell back to the BAND's, which is the fallback this
-         model is removing: with the bands carrying fee only, an uncovered
-         volume has no rate to fall back to. */
-      : [{ from: '0', to: '50', rate: '20' }, { from: '51', to: '', rate: '25' }]);
+      // A stored 0 is the opening referral and reads as 1, the same rule tierWords prints.
+      ? live.tiers.map((t) => ({ from: String(Math.max(t.from, 1)), to: t.to == null ? '' : String(t.to), rate: pctOf(t.rate) }))
+      /* ONE ON SCREEN, ZERO IN THE DATABASE, and the two differ on purpose.
+
+         agreement_volume is 0 before the first referral of a period, so a
+         STORED lowest tier of 1 matches nothing at all on the very referral
+         that opens the period -- and with the bands carrying fee only on this
+         model, an uncovered volume has no rate to fall back to.
+
+         But nobody agreeing a deal says "referrals 0 to 50", which is why
+         tierWords has printed the first row as 1 since it was written. Matt,
+         2026-10-03: "the first row starts at 0 but the plain-English line
+         says 'Referrals 1 to 50'. Start the first row at 1." So the FORM now
+         reads 1, matching its own sentence, and `toStoredFrom` below puts the
+         0 back on the way to the database. */
+      : [{ from: '1', to: '50', rate: '20' }, { from: '51', to: '', rate: '25' }]);
 
   /* A flat deal is one open-ended band, so switching model narrows what is
      edited rather than throwing the numbers away: an administrator who clicks
@@ -383,7 +428,7 @@ export function AgreementEditor({
     if (model === 'standard') {
       return share
         ? 'No special arrangement. The agencies under this supplier keep whatever its flat share says.'
-        : 'No special deal. The tenant pays one month’s rent and we pay our usual commission.';
+        : STANDARD_TERMS;
     }
     return dealWords(
       shownBands.map((x) => ({
@@ -446,19 +491,25 @@ export function AgreementEditor({
         rate: model === 'tiered' ? null : toRate(b.rate),
       }));
       const tierInput: AgreementTierInput[] = model === 'tiered'
-        ? tiers.map((t) => ({ from: Number(t.from), to: t.to.trim() === '' ? null : Number(t.to), rate: Number(t.rate) / 100 }))
+        ? tiers.map((t) => ({ from: toStoredFrom(t.from), to: t.to.trim() === '' ? null : Number(t.to), rate: Number(t.rate) / 100 }))
         : [];
 
-      /* THE TIERS MUST COVER ZERO, or the first referral of every period has no
-         rate. The bands no longer carry one on this model, so there is nothing
-         behind the tiers to catch a volume they miss: resolve_pricing_agreement
-         coalesces the tier's rate over the band's, and the band's is now null.
-         Refused rather than quietly rewritten, because the lowest number in a
-         pricing table is not ours to change. */
+      /* THE TIERS MUST STILL COVER ZERO, or the first referral of every period
+         has no rate. The bands no longer carry one on this model, so there is
+         nothing behind the tiers to catch a volume they miss:
+         resolve_pricing_agreement coalesces the tier's rate over the band's,
+         and the band's is now null.
+
+         WHAT CHANGED ON 2026-10-03 is where the 0 comes from, not whether
+         there is one. The form reads 1 -- "referrals 1 to 50" is what somebody
+         agreeing a deal says -- and `toStoredFrom` writes the opening row as
+         0. So the refusal can only fire now on a lowest row of 2 or more,
+         which really is a gap the administrator typed, and it says so in
+         their numbers rather than in the database's. */
       if (model === 'tiered') {
         const lowest = Math.min(...tierInput.map((t) => t.from));
         if (!Number.isFinite(lowest) || lowest > 0) {
-          setRefusal('The lowest volume tier must start at 0, or the first referral of each period has no rate. The bands set the fee on this model and the tiers set the rate, so nothing else can price it.');
+          setRefusal('The lowest volume tier must start at 1, or the first referrals of each period have no rate. The bands set the fee on this model and the tiers set the rate, so nothing else can price them.');
           setBusy(false);
           return;
         }
@@ -632,9 +683,17 @@ export function AgreementEditor({
                         multiple of the rent instead. */}
                     {!share && (
                       <td>
+                        {/* AND THE UNIT AGREES WITH THE NUMBER BESIDE IT.
+                            Matt, 2026-10-03: "'1 months' rent' should be '1
+                            month's rent' when the number is 1." The row is a
+                            number input and a unit dropdown read as one
+                            phrase, and the dropdown was a fixed plural, so a
+                            standard deal -- the commonest one there is --
+                            read "1 months' rent". feeBasisWords has had this
+                            rule since it was written; the control did not. */}
                         <select value={b.unit} onChange={(e) => setBand(i, { unit: e.target.value as FeeBasisUnit })} aria-label={`Band ${i + 1} unit`}>
-                          <option value="weeks">weeks’ rent</option>
-                          <option value="months">months’ rent</option>
+                          <option value="weeks">{Number(b.weeks) === 1 ? 'week’s rent' : 'weeks’ rent'}</option>
+                          <option value="months">{Number(b.weeks) === 1 ? 'month’s rent' : 'months’ rent'}</option>
                         </select>
                       </td>
                     )}

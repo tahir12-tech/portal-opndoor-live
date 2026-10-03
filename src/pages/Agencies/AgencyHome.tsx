@@ -1174,14 +1174,21 @@ export function AgencyHome() {
         set.push({ level: 'branch', id: b.id, name: b.name, rate: b.agentRate ?? null });
       });
     });
+    /* THE SUBTITLE COUNTED THE ROWS, NOT THE RATES. Matt, 2026-10-03:
+       "remove '2 rates explicitly set' when both rows say 'Inherits'."
+       `set` became every node on 2026-10-02, so that a first rate could be
+       set from this tab -- and the sentence above it went on counting the
+       list, which now includes every inheriting branch. Two rows both
+       reading "Inherits" were announced as two rates explicitly set. */
+    const explicit = set.filter((r) => r.rate != null).length;
     return (
       <>
         {AgreementPanel()}
         <Card>
           <CardHead
             title="Rates set"
-            sub={set.length
-              ? `${set.length} ${plural(set.length, 'rate')} explicitly set`
+            sub={explicit
+              ? `${explicit} ${plural(explicit, 'rate')} explicitly set`
               : negotiated
                 ? 'No explicit rate is set: this agency is priced by its agreement'
                 : 'No rate is set anywhere; every branch earns the Opndoor standard'}
@@ -1209,7 +1216,15 @@ export function AgencyHome() {
                           ? <span className="soft">Inherits</span>
                           : <><b>{pctLabel(r.rate)}</b> of the guarantee fee</>}
                       </td>
-                      <td className="num">{RateLine({ level: r.level, id: r.id, name: r.name, own: r.rate, onCommissionTab: true })}</td>
+                      {/* NO "SET RATE" HERE ANY MORE. Matt, 2026-10-03:
+                          "remove the 'Set rate' buttons (deals are set with
+                          'Set a deal')." A rate set per node and a deal are
+                          two ways to price the same party, and the deal is
+                          the one that can say what was actually agreed.
+                          "Change rate" STAYS where a rate already exists: a
+                          figure somebody can see and cannot correct is worse
+                          than either, and Matt named the Set button. */}
+                      <td className="num">{r.rate == null ? null : RateLine({ level: r.level, id: r.id, name: r.name, own: r.rate, onCommissionTab: true })}</td>
                     </tr>
                   ))}
                 </tbody>
