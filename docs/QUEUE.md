@@ -1789,6 +1789,18 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## THE INVOICE INSTRUCTION ASKS FOR WHAT WE OWE THEM (instruction, 2026-10-03, verbatim). DOUBLE PAYMENT.
+
+> Also in the supplier statement (CSV and PDF): the invoice instruction must ask for what Opndoor owes the supplier itself (£600 here, not £840), otherwise agency commission Opndoor pays directly gets paid twice. For a draft, leave out the invoice instruction entirely ("Don't invoice yet: this statement hasn't been posted"). Month as "September 2026", not "Sep-26".
+
+- THIS IS A MONEY DEFECT AND MATT HAS NAMED THE CONSEQUENCE: an invoice
+  instruction for £840 against a £600 debt, where the £240 is already
+  paid straight to Frost, is £240 paid twice. It goes with the two
+  instructions above it -- same figure, same frozen column -- and
+  ahead of the wording items.
+- Three parts: the figure, the draft case (no instruction at all, and
+  his sentence instead), and "Sep-26" becoming "September 2026".
+
 ## THE SUPPLIER STATEMENT PDF, THREE THINGS (instruction, 2026-10-03, verbatim).
 
 > Supplier statement PDF (Kestrel, September 2026):
