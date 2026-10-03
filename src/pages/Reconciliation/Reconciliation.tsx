@@ -76,6 +76,44 @@ export function Reconciliation() {
 
   useEffect(() => { void reload(); }, [reload]);
 
+  /* =====================================================================
+     EVERY COUNT, AFTER EVERY ACTION, THROUGH ONE DOOR.
+
+     Matt, 2026-10-03: "after pressing Ignore on a 'Not in network' agency,
+     the section empties but the tab count ('Not in network 1'), the
+     'Waiting' tile and the sidebar badge stay at their old numbers until
+     refresh. Every count on the page, on Home and in the sidebar must
+     update straight after any action on this page (Ignore, Added to
+     HubSpot, Add email, confirm, dismiss)."
+
+     THERE ARE TWO HALVES AND THEY HAVE DIFFERENT LEVERS, which is why
+     four of the six actions moved one and not the other:
+
+       this page's tab counts and tiles   `reload()`, which re-reads the
+                                          five queues into `totals`
+       Home's tile and the sidebar badge  `refreshData()`, because both
+                                          re-read loadReconciliationTotals
+                                          on `dataVersion` and nothing else
+                                          bumps it
+
+     Ignore and "Added to HubSpot" moved NEITHER: `<NotInNetwork />` was
+     mounted with no `onChanged` at all, so it reloaded its own rows and
+     told nobody. That is the bug Matt pressed. `confirm` below already did
+     both, Add email did both by calling `refresh()` itself, and the match
+     and refund actions did the page but not the badge.
+
+     SO IT IS ONE FUNCTION AND EVERY ACTION CALLS IT. A child that has to
+     remember two calls is a child that will do one, which is the whole
+     history of this page's counts.
+
+     THE HYDRATE COMES FIRST, deliberately. `loadSupplierAgenciesWithoutAnEmail`
+     is computed from the hydrated org in mock mode, so reloading the lists
+     before re-hydrating would read the book the action just invalidated. */
+  const afterAction = useCallback(async () => {
+    await refreshData();
+    await reload();
+  }, [refreshData, reload]);
+
   const dupes = queue.filter((i) => i.match).length;
   const newOnes = queue.length - dupes;
   const agencyCount = queue.filter((i) => i.type === 'agency').length;
@@ -142,9 +180,11 @@ export function Reconciliation() {
       // #118/#119: nudge an immediate HubSpot sync (fire-and-forget) so the confirmed
       // org appears in HubSpot within seconds; the 2-minute cron remains the backstop.
       void triggerCrmSync().catch(() => {});
-      await refreshData(); // re-hydrate so the sidebar pending badge decrements
       toast(`"${item.name}" is now a confirmed ${item.type}. Sending it to HubSpot.`);
-      await reload();
+      // Both halves, through the one door. This used to be refreshData()
+      // here and reload() after the toast, which is the pair every other
+      // action was missing half of.
+      await afterAction();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not confirm the record.', 'error');
     } finally {
@@ -222,13 +262,13 @@ export function Reconciliation() {
       </div>
 
       {filter === 'matches' ? (
-        <AgencyMatchQueue onChanged={reload} />
+        <AgencyMatchQueue onChanged={afterAction} />
       ) : filter === 'notinnetwork' ? (
-        <NotInNetwork />
+        <NotInNetwork onChanged={afterAction} />
       ) : filter === 'refunds' ? (
-        <RefundQuestions onChanged={reload} />
+        <RefundQuestions onChanged={afterAction} />
       ) : filter === 'noemail' ? (
-        <NoAgencyEmail onChanged={reload} />
+        <NoAgencyEmail onChanged={afterAction} />
       ) : (
       <div className="rq">
         {visible.map((item) => {
@@ -294,16 +334,16 @@ export function Reconciliation() {
       {filter === 'all' && (
         <>
           {totals.matches > 0 && (
-            <><h2 className="rec-sec">Agents named by tenants</h2><AgencyMatchQueue onChanged={reload} /></>
+            <><h2 className="rec-sec">Agents named by tenants</h2><AgencyMatchQueue onChanged={afterAction} /></>
           )}
           {totals.refunds > 0 && (
-            <><h2 className="rec-sec">Refunds on sent statements</h2><RefundQuestions onChanged={reload} /></>
+            <><h2 className="rec-sec">Refunds on sent statements</h2><RefundQuestions onChanged={afterAction} /></>
           )}
           {totals.noEmail > 0 && (
-            <><h2 className="rec-sec">Supplier agencies with no email</h2><NoAgencyEmail onChanged={reload} /></>
+            <><h2 className="rec-sec">Supplier agencies with no email</h2><NoAgencyEmail onChanged={afterAction} /></>
           )}
           {totals.notInNetwork > 0 && (
-            <><h2 className="rec-sec">Not in network</h2><NotInNetwork /></>
+            <><h2 className="rec-sec">Not in network</h2><NotInNetwork onChanged={afterAction} /></>
           )}
         </>
       )}

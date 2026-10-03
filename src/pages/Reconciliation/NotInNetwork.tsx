@@ -41,7 +41,18 @@ function contactName(c: { title: string | null; firstName: string | null; lastNa
   return [c.title, c.firstName, c.lastName].filter(Boolean).join(' ').trim();
 }
 
-export function NotInNetwork() {
+/* THE CALLBACK THIS COMPONENT DID NOT HAVE. Matt, 2026-10-03: "after
+   pressing Ignore ... the section empties but the tab count ('Not in
+   network 1'), the 'Waiting' tile and the sidebar badge stay at their old
+   numbers until refresh."
+
+   EXACTLY THAT: the list below reloaded itself and told nobody. Its three
+   siblings on Reconciliation all took an `onChanged` and this one took no
+   props at all, so of the six actions on that page these two were the only
+   ones that moved no count outside their own section. Awaited rather than
+   fired, because the parent re-hydrates in it and this list is read from
+   the hydrated book. */
+export function NotInNetwork({ onChanged }: { onChanged?: () => void | Promise<void> }) {
   const toast = useToast();
   const { ask, confirmEl } = useConfirm();
   const [rows, setRows] = useState<NotInNetworkAgency[]>([]);
@@ -84,6 +95,11 @@ export function NotInNetwork() {
       setBusy(true);
       try {
         await decideNotInNetwork(r.nameKey, decision, r.typedName);
+        /* THE PARENT FIRST, then this list. `onChanged` re-hydrates and
+           re-reads the five queues, so doing it the other way round
+           would load these rows from the book the decision just
+           invalidated. */
+        await onChanged?.();
         await load();
         toast(decision === 'added'
           ? `${r.typedName} marked as added to HubSpot.`

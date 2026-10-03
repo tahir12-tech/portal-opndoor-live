@@ -17,7 +17,7 @@ import { useConfirm } from '@/components/ui/ConfirmModal';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 
-export function AgencyMatchQueue({ onChanged }: { onChanged?: () => void }) {
+export function AgencyMatchQueue({ onChanged }: { onChanged?: () => void | Promise<void> }) {
   const toast = useToast();
   const [rows, setRows] = useState<AgencyMatchRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +30,13 @@ export function AgencyMatchQueue({ onChanged }: { onChanged?: () => void }) {
 
   useEffect(() => { void reload(); }, [reload]);
 
-  const after = async () => { await reload(); onChanged?.(); };
+  /* THE PARENT FIRST. `onChanged` is Reconciliation's `afterAction`: it
+     re-hydrates (which is what moves Home's tile and the sidebar badge)
+     and then re-reads the page's own five counts. Awaited and called
+     first, so this list is rebuilt from a book that already has the
+     decision in it. It used to be `reload()` then a fire-and-forget
+     `onChanged?.()`, which updated the page and left the badge. */
+  const after = async () => { await onChanged?.(); await reload(); };
 
   return (
     <div className="rq">

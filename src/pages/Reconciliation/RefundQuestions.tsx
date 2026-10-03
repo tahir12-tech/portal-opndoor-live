@@ -52,7 +52,7 @@ const LEVEL_WORD: Record<string, string> = {
   branch: 'Branch',
 };
 
-export function RefundQuestions({ onChanged }: { onChanged?: () => void }) {
+export function RefundQuestions({ onChanged }: { onChanged?: () => void | Promise<void> }) {
   const toast = useToast();
   const { ask, confirmEl } = useConfirm();
   const [rows, setRows] = useState<RefundQuestion[]>([]);
@@ -71,7 +71,8 @@ export function RefundQuestions({ onChanged }: { onChanged?: () => void }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  const after = async () => { await load(); onChanged?.(); };
+  // The parent first, for the reason in AgencyMatchQueue.
+  const after = async () => { await onChanged?.(); await load(); };
 
   /* (b) CARRY IT. The confirmation says where the money will actually
      show up, because "deduct" on its own does not tell the reader that
