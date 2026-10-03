@@ -193,6 +193,13 @@ export function Health() {
 
   const c = data.counts;
   const baseUrlSet = !!data.functions_base_url;
+  /* "6 hours" -> 6. Anything this cannot read is null, and jobAdvice then
+     skips the age test rather than guessing: a wrong number here would
+     silence a genuinely missing response. */
+  const ttlHours = (() => {
+    const m = /^(\d+(?:\.\d+)?)\s*hour/i.exec((data.response_ttl ?? '').trim());
+    return m ? Number(m[1]) : null;
+  })();
   const gatedJobs = data.jobs.filter((j) => j.needs_base_url && j.active);
   // The RPC already returns errors first; this is the same rows, named.
   /* A JOB THAT IS OFF ON PURPOSE IS NOT FAILING. Its responses keep their
@@ -302,7 +309,10 @@ export function Health() {
                 const rp = runPill(j.last_status);
                 const httpBad = j.http_ok === false;
                 const silent = j.last_status === 'succeeded' && httpBad;
-                const advice = jobAdvice(j, baseUrlSet);
+                /* THE RETENTION, so a weekly job's missing response reads
+                   as "the database deleted it six hours later" rather than
+                   as a warning nobody can act on. */
+                const advice = jobAdvice(j, baseUrlSet, ttlHours);
                 return (
                   <tr key={j.jobname} className={advice ? `hrow hrow--${advice.tone}` : undefined}>
                     <td>

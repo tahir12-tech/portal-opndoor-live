@@ -19,7 +19,7 @@
 -- matters: a read of an unposted month leaves the counter where it was.
 
 begin;
-select plan(8);
+select plan(9);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
                              is_house_route, refers_own_stock, portal_referrals_enabled,
@@ -92,9 +92,27 @@ select set_config('request.jwt.claims',
   '{"sub":"99000000-0000-0000-0000-0000000000d3","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
 
+/* AND MINTING ALONE IS STILL NOT ENOUGH, since 20261007770000. Matt, after
+   a screenshot of an October statement carrying a number: "don't show a
+   reference even if one was assigned before the reference fix." The reader
+   joins `commission_statement_sends`, so a number reserved by the run but
+   not yet SENT is still invisible. This assertion used to expect the number
+   here and is corrected rather than deleted: the two rules stack, and
+   showing both in one file is the point. */
 select is(
   public.commission_statement_ref('2027-03','99000000-0000-0000-0000-0000000000d1|agency:99000000-0000-0000-0000-0000000000d2'),
-  'STMT-2027-03-0001', 'and the reader now sees exactly that number');
+  null, 'a number that is reserved but not yet sent is still not shown');
+
+reset role;
+insert into public.commission_statement_sends (statement_month, payee_key, recipients, total)
+values ('2027-03','99000000-0000-0000-0000-0000000000d1|agency:99000000-0000-0000-0000-0000000000d2', 1, 123.45);
+select set_config('request.jwt.claims',
+  '{"sub":"99000000-0000-0000-0000-0000000000d3","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+
+select is(
+  public.commission_statement_ref('2027-03','99000000-0000-0000-0000-0000000000d1|agency:99000000-0000-0000-0000-0000000000d2'),
+  'STMT-2027-03-0001', 'and once it is posted the reader sees exactly that number');
 
 -- ===========================================================================
 -- 3. AND NOBODY BUT THE RUN MAY TAKE ONE.

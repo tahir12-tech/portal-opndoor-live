@@ -24,10 +24,16 @@
 export interface Advice {
   /** What the row means, in one line. */
   meaning: string;
-  /** What to do, naming the thing: a secret, a function, an application. */
-  action: string;
-  /** How loudly to show it. 'error' is broken; 'warn' is working but wrong. */
-  tone: 'error' | 'warn';
+  /** What to do, naming the thing: a secret, a function, an application.
+      Null where there is nothing to do, which is a real answer and not an
+      omission: 'ok' lines explain an absence rather than ask for work. */
+  action: string | null;
+  /** How loudly to show it. 'error' is broken; 'warn' is working but wrong;
+      'ok' is working and explains why a column is empty, which a reader
+      scanning for faults would otherwise stop on. Added 2026-10-03 for the
+      two jobs that make no call and for a response the database has already
+      deleted. */
+  tone: 'error' | 'warn' | 'ok';
 }
 
 /** The fields of a cron row this reads. Structural, so a test needs no fixture
@@ -43,6 +49,11 @@ export interface JobLike {
   http_ok: boolean | null;
   /** True when the job's command is gated on ops_functions_base_url(). */
   needs_base_url?: boolean;
+  /** True when the job's command actually calls something
+      (`net.http_post`). False for a job that is a bare DELETE and will
+      never have an HTTP response to match. Read off the command by
+      cron_health, not from a list of names. */
+  makes_call?: boolean;
 }
 
 /**
@@ -53,7 +64,14 @@ export interface JobLike {
  * be correlated" would send the operator looking for a timing problem when the
  * answer is an unset secret.
  */
-export function jobAdvice(job: JobLike, baseUrlSet: boolean): Advice | null {
+export function jobAdvice(
+  job: JobLike,
+  baseUrlSet: boolean,
+  /* How long `net._http_response` keeps a row, from `pg_net.ttl`. Null when
+     the caller does not know, and then the age test is skipped rather than
+     guessed: a wrong number here would silence a real missing response. */
+  ttlHours?: number | null,
+): Advice | null {
   // A paused job is a decision somebody took, not a fault.
   if (!job.active) return null;
 
@@ -115,10 +133,46 @@ export function jobAdvice(job: JobLike, baseUrlSet: boolean): Advice | null {
     };
   }
 
+  /* A JOB THAT CALLS NOTHING CANNOT HAVE A RESPONSE. Matt, 2026-10-03:
+     "For jobs that run purely inside the database and make no call
+     (job-log-trim-nightly, and any others), show 'Runs in the database;
+     no call expected' instead of the 'no HTTP response could be matched'
+     warning."
+
+     NOT A WARNING, AND NOT NOTHING. A line saying so is worth keeping:
+     the absence of a response is the ordinary state here, and a reader
+     scanning the column needs to know that rather than wonder. */
+  if (job.makes_call === false) {
+    return {
+      tone: 'ok',
+      meaning: `${job.jobname} runs in the database; no call expected.`,
+      action: null,
+    };
+  }
+
   /* RAN, BUT NOTHING CAME BACK. Only worth saying for a job that HAS run:
      correlation is by time and can genuinely miss, so this is a warning about
-     what we know rather than an assertion that the call failed. */
+     what we know rather than an assertion that the call failed.
+
+     AND NOT WHEN THE RESPONSE IS SIMPLY TOO OLD TO EXIST. `pg_net` keeps
+     `net._http_response` for `pg_net.ttl`, six hours on this project, so a
+     WEEKLY job's response is always gone before anybody looks -- which is
+     why `weekly-digest-0700/0800` showed "no match" for 28 Sep and why no
+     amount of correlating could ever have found one. It had in fact run,
+     succeeded and sent: `partner_digest_sends` holds the row. Warning
+     about a response the database deleted on purpose is the same fault as
+     warning about a job that was never going to call. */
   if (job.last_run && job.last_status === 'succeeded' && job.http_ok === null) {
+    const ageHours = (Date.now() - new Date(job.last_run).getTime()) / 3_600_000;
+    if (ttlHours != null && ageHours > ttlHours) {
+      return {
+        tone: 'ok',
+        meaning: `${job.jobname} last ran ${Math.round(ageHours / 24) >= 1
+          ? `${Math.round(ageHours / 24)} days ago`
+          : `${Math.round(ageHours)} hours ago`}, and responses are only kept for ${ttlHours} hours, so there is nothing left to match.`,
+        action: null,
+      };
+    }
     return {
       tone: 'warn',
       meaning: `${job.jobname} ran and no HTTP response could be matched to it. Either it made no call, or the response fell outside the five-minute window responses are matched in.`,

@@ -152,6 +152,13 @@
 .hadvice { margin-top: 6px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.45; border-left: 3px solid var(--line-strong); background: var(--white-lilac); }
 .hadvice--error { border-left-color: var(--danger, #c0392b); }
 .hadvice--warn { border-left-color: var(--warn, #b8860b); }
+/* 'ok' EXPLAINS AN ABSENCE RATHER THAN REPORTING A FAULT. Matt, 2026-10-03:
+   a job that runs in the database and makes no call should say so instead of
+   warning. It is a line, not an alarm, so it takes the muted rule the rest of
+   the page uses for things that are working. */
+.hadvice--ok { border-left-color: var(--line, #d6d6e0); }
+.hadvice--ok .hadvice__means { color: var(--muted, #6b6b80); }
+.hrow--ok { background: none; }
 .hadvice__means { color: var(--ink); }
 .hadvice__do { color: var(--ink-soft); margin-top: 3px; }
 .hadvice__link { font-weight: 700; color: var(--heliotrope-deep); }

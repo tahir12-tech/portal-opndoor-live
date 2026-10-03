@@ -31,6 +31,12 @@ export interface CronJobHealth {
       off the command text by the RPC, so a job that gains or loses the guard
       describes itself correctly without anything here being edited. */
   needs_base_url: boolean;
+  /** True when the job's command calls something (`net.http_post`). False for
+      a job that is a bare DELETE -- job-log-trim-nightly and
+      rate-limit-cleanup today -- which will never have a response to match
+      and must not be warned about. Read off the command by the RPC, so a
+      third such job is covered the day it is added. */
+  makes_call?: boolean;
   /** True when this job is switched off for this environment on purpose. A
       job that is off by choice is not a job that is failing. */
   disabled_here: boolean;
@@ -88,6 +94,11 @@ export interface CronHealth {
       ops_secrets row, never inferred). Its failures are expected and are
       reported as "disabled" rather than alerted on. */
   hubspot_disabled: boolean;
+  /** How long `net._http_response` keeps a row, from `pg_net.ttl` (six
+      hours here). A job that runs less often than this can NEVER have a
+      matched response, which is why the weekly digest showed "no match"
+      for a run that had in fact sent. A string, as pg_settings gives it. */
+  response_ttl: string | null;
   jobs: CronJobHealth[];
   /** Errors first, then newest: what the page exists for, at the top. */
   recent_http: RecentHttp[];

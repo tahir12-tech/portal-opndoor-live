@@ -1686,6 +1686,38 @@ would leave two holes. They stay.
 - Part 1 is an answer first. "If it's broken, fix it before Monday's
   run" is the only deadline in the queue earlier than Wednesday.
 
+### THE ANSWER TO PART 1: IT IS NOT BROKEN. Nothing to fix before Monday.
+
+**Did it send on 28 September?** Yes, once. `partner_digest_sends` holds
+exactly one row, 28 Sep 07:00 UTC = **08:00 Europe/London**.
+
+**Both cron jobs ran and succeeded**, 07:00 and 08:00 UTC. The function
+self-gates to 08:00 London, so the 08:00 UTC run (09:00 London) returned
+`skipped: not 08:00 Europe/London` and sent nothing. That is the designed
+BST/GMT pair, working: two jobs, one send.
+
+**Does it make an HTTP call?** Yes -- `net.http_post` to
+`/functions/v1/weekly-digest`. It is one of the 14 jobs that call; the
+only two that do not are `job-log-trim-nightly` and
+`rate-limit-cleanup`.
+
+**To whom?** 10 agencies had activity that week. On dev every recipient
+is replaced by `EMAIL_REVIEW_ADDRESS`, so all of it went to
+mdwyer@opndoor.co. No `cron_error:weekly-digest` alert has ever been
+raised, on any run.
+
+**So why "no match"?** `pg_net` keeps `net._http_response` for
+`pg_net.ttl`, which is **6 hours** on this project -- the oldest row in
+that table right now is 6 hours old, and there are 545 of them. A
+**weekly** job's response is therefore always deleted long before anybody
+opens Health. It was structurally impossible for that row ever to show a
+match, and the page was warning about something the database throws away
+on purpose.
+
+Part 2's fix covers this too: a run older than the retention now reads
+"last ran 7 days ago, and responses are only kept for 6 hours, so there
+is nothing left to match" instead of a warning.
+
 ## CLEAR THE ENTIRE QUEUE (instruction, 2026-10-03, verbatim).
 
 > clear the entire queue dont stop
