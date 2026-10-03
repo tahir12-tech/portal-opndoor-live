@@ -25,7 +25,7 @@ import {
   getBordereauRate, getBordereauRateMeta, setBordereauRate,
   type PartnerScope, type Role,
 } from '@/data';
-import { formatLondonDate, gbpPence, formatDate } from '@/lib/format';
+import { gbpPence, formatDate } from '@/lib/format';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Eyebrow } from '@/components/ui/Eyebrow';
@@ -35,6 +35,28 @@ import '@/pages/Dashboard/Dashboard.css';
 import { plural, countOf } from '@/lib/plural';
 
 type FinanceProps = { role: Role; partnerScope: PartnerScope };
+
+/**
+ * The last calendar month that has finished, as an `<input type="month">`
+ * value.
+ *
+ * Matt, 2026-10-03: "Monthly bordereau dialog: default the month to the last
+ * complete calendar month (today that's September 2026), not a fixed month."
+ * It was '2026-06' written into the state, which was last month once, in June,
+ * and has been three months stale ever since -- so every export began by
+ * correcting the control, and an export run without looking covered the wrong
+ * month entirely.
+ *
+ * DAY ZERO OF THIS MONTH is the last day of the previous one, which is the one
+ * arithmetic that needs no month-length table and is right across a year end.
+ * The `${y}-${mm}` shape is an ISO value and not a displayed date; see the
+ * hyphen note in oneDateFormat.test.ts.
+ */
+function lastCompleteMonth(): string {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), 0);
+  return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}`;
+}
 
 /* =====================================================================
    THE GATE, in front of the surfaces rather than inside them.
@@ -74,8 +96,17 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
      agency reads and the figure Opndoor reads for them cannot diverge. */
   const live = liveAvailable();
 
-  // Money-reconciliation surface: pence on every row and total so rows always sum.
-  const dmyShort = (x: Date) => formatLondonDate(x);
+  /* Money-reconciliation surface: pence on every row and total so rows always sum.
+
+     AND THE DATES ARE THE PORTAL'S ONE DATE. Matt, 2026-10-03: show
+     "last changed 7 Aug 2026" "in the same date style as the rest of the
+     portal". This was `formatLondonDate`, which is dd/mm/yyyy -- the format
+     src/lib/format.ts exists to have removed from the screen, kept only as a
+     wire format for the one input that parses its own output back. Three call
+     sites on this surface used it, the hint Matt named and the paid-at column
+     of both settlement tables, so fixing only the hint would have left one
+     page printing dates two ways a scroll apart. */
+  const dmyShort = (x: Date) => formatDate(x);
   const settleDate = formatDate(settlement.settlementDate);
   const agentSettleDate = formatDate(agentSettlement.settlementDate);
   // The two summary totals moved into SettlementBlocks with the blocks that
@@ -130,7 +161,7 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
 
   // ---- underwriter bordereau (opndoor admin only) ----
   const [bdxOpen, setBdxOpen] = useState(false);
-  const [bdxMonth, setBdxMonth] = useState('2026-06');
+  const [bdxMonth, setBdxMonth] = useState(lastCompleteMonth);
   const [bdxRate, setBdxRate] = useState(String(getBordereauRate()));
   const [bdxBusy, setBdxBusy] = useState(false);
   function openBordereau() {
@@ -139,7 +170,7 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
   }
   async function exportBordereau() {
     if (bdxBusy) return;
-    const mv = (bdxMonth || '2026-06').split('-');
+    const mv = (bdxMonth || lastCompleteMonth()).split('-');
     const parsed = parseFloat(bdxRate);
     const rate = isNaN(parsed) ? getBordereauRate() : parsed;
     setBdxBusy(true);
@@ -265,7 +296,12 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
             <div className="bdx__body">
               <div className="field">
                 <label htmlFor="bdx-month">Month (cover in force)</label>
-                <input type="month" id="bdx-month" min="2024-09" max="2026-12" value={bdxMonth} onChange={(e) => setBdxMonth(e.target.value)} />
+                {/* AND THE CEILING IS THE SAME MONTH, for the same reason the
+                  default is: there is no bordereau for a month that has not
+                  finished. `max="2026-12"` was a second fixed date, three
+                  months from going live, and it would have started refusing
+                  the default the moment it passed. */}
+              <input type="month" id="bdx-month" min="2024-09" max={lastCompleteMonth()} value={bdxMonth} onChange={(e) => setBdxMonth(e.target.value)} />
               </div>
               <div className="field">
                 <label htmlFor="bdx-rate">Insurance rate applied to every row</label>
@@ -274,7 +310,7 @@ function SettlementSurfaces({ role, partnerScope }: FinanceProps) {
                   <span>%</span>
                 </div>
                 <span className="hint">
-                  {(() => { const m = getBordereauRateMeta(); return `Current rate: ${m.rate}%${m.changedAt ? ` · last changed ${dmyShort(m.changedAt)} by ${m.changedBy ?? 'an administrator'}` : ' (default)'}.`; })()}
+                  {(() => { const m = getBordereauRateMeta(); return `Current rate: ${m.rate}%${m.changedAt ? ` · last changed ${formatDate(m.changedAt)} by ${m.changedBy ?? 'an administrator'}` : ' (default)'}.`; })()}
                   {' '}Changing it here saves the new rate for future exports and records who changed it and when.
                 </span>
               </div>
