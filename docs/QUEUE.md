@@ -1649,6 +1649,15 @@ is a race on a rarer action and the fix means rewriting another function.
   REPORT, which asked whether to delete the three. The answer is better
   than deleting: leave them and stop showing them.
 
+## HEALTH: THE WEEKLY DIGEST, AND JOBS THAT MAKE NO CALL (instruction, 2026-10-03, verbatim).
+
+> Health:
+> 1. weekly-digest-0700/0800 show "no match" for 28 Sep. Tell me whether the weekly digest actually sent on 28 Sep, to whom, and whether it makes an HTTP call at all. If it's broken, fix it before Monday's run; if it works, say why there's no matched response.
+> 2. For jobs that run purely inside the database and make no call (job-log-trim-nightly, and any others), show "Runs in the database; no call expected" instead of the "no HTTP response could be matched" warning. Keep the warning only for jobs that are meant to make a call.
+
+- Part 1 is an answer first. "If it's broken, fix it before Monday's
+  run" is the only deadline in the queue earlier than Wednesday.
+
 ## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > No default deal and the warnings now; the referral refusal goes under "After launch". Then prioritise for Wednesday: 1) "Referrals sent" including expired and "Fee unpaid" (figures people will rely on); 2) the application-detail trio and the ready-to-sign email (what tenants and agents see); 3) supplier Reporting hiding "Commission by route"; 4) real reasons on failed saves. Everything else after those, and anything not done by Sunday evening moves to "After launch".
