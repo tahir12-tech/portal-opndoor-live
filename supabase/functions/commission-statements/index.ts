@@ -36,6 +36,9 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { bytesToBase64, sendMessage } from "../_shared/mailer.ts";
+import {
+  supplierPayableOf, directToAgentNotes, DRAFT_NO_INVOICE, DRAFT_REFERENCE,
+} from "../_shared/supplierPayable.ts";
 import { renderTablePdf, type PdfColumn } from "../_shared/pdf.ts";
 import type { Block, Message } from "../_shared/emailLayout.ts";
 import { timingSafeEqual } from "../_shared/partnerAuth.ts";
@@ -76,6 +79,11 @@ export function paymentTermsLine(total: string, reference: string, invoiceEmail:
   return `Please send an invoice to opndoor for ${total}, quoting statement reference ${reference}, `
     + `to ${invoiceEmail}, including your bank details. Invoices received by the 8th are paid by the 15th.`;
 }
+
+/* supplierPayableOf, paidDirectToAgents, directToAgentNotes and the two draft
+   strings live in _shared/supplierPayable.ts: the portal's Reporting download
+   and the monthly run both reach them through buildSupplierBundle and must
+   agree to the penny, and this file cannot be imported by a vitest test. */
 
 /**
  * The attachment is a PDF, written by _shared/pdf.ts.
@@ -754,6 +762,11 @@ interface SupplierLineRow {
   total_amount: number | string;
   agent_amount: number | string;
   supplier_amount: number | string;
+  /* WHICH ARRANGEMENT THIS LINE WAS FROZEN UNDER (20261007820000). True
+     where the supplier settles its own agents and is therefore owed the
+     total; false where Opndoor pays the agency directly and the supplier is
+     owed its own share only. The amounts cannot be read back to it. */
+  settles_own?: boolean;
 }
 
 interface SupplierScheduleRow {
@@ -823,6 +836,21 @@ export function supplierStatementPdf(
 ): Uint8Array {
   const total = lines.reduce((s, l) => s + num(l.total_amount), 0);
   const agents = lines.reduce((s, l) => s + num(l.agent_amount), 0);
+  /* WHAT THEY INVOICE, WHICH IS NOT ALWAYS THE TOTAL. See supplierPayableOf:
+     where Opndoor pays the agency directly, the agents' share is not the
+     supplier's to bill and putting it in the instruction is that money paid
+     twice. */
+  const payable = supplierPayableOf(lines) - deductedTotal(deductions);
+  const direct = directToAgentNotes(lines);
+  /* POSTED OR NOT, read off the reference itself rather than passed in: the
+     run substitutes REF_ON_SEND until a statement is actually posted, so the
+     reference IS the answer and a second parameter could disagree with it. */
+  const posted = reference !== REF_ON_SEND;
+  /* AND A DRAFT SAYS SO ONCE. Matt, 2026-10-03: the line read "Reference
+     Reference assigned when the statement is poste..." -- the label and a
+     value that begins with the same word, then truncated. A draft has no
+     reference to print, so it says what it is. */
+  const refCell = posted ? reference : DRAFT_REFERENCE;
   const net = total - deductedTotal(deductions);
   const { columns, rows } = dropEmptyColumns(SUPPLIER_STATEMENT_COLUMNS, lines.map(supplierRow), EMPTY_CELL);
   return renderTablePdf({
@@ -831,11 +859,11 @@ export function supplierStatementPdf(
        key-values, then the table. Taken from `buildPartnerStatementDoc`,
        which is the portal's existing branded statement. */
     title: "Commission statement",
-    metaLine: `${label} · Payee: ${payee.org_name} · Supplier commission · Reference ${reference} · GBP`,
+    metaLine: `${label} · Payee: ${payee.org_name} · Supplier commission · ${posted ? `Reference ${reference}` : refCell} · GBP`,
     meta: [
       ["Payee", payee.org_name],
       ["Month", label],
-      ["Statement reference", reference],
+      ["Statement reference", refCell],
       ["Basis", "Commission on fees paid in the month, refunds excluded"],
       ["Applications", String(lines.length)],
       /* THE THREE NUMBERS IN THE HEADER, because the decomposition is the
@@ -845,11 +873,20 @@ export function supplierStatementPdf(
       ["Of which agents' share", gbp(agents)],
       ["Your share", gbp(total - agents)],
       ...deductionMeta(total, deductions),
+      /* THE FIGURE THEY INVOICE, STATED IN THE HEADER rather than left to
+         be worked out of the three above it. Only where it differs from
+         the total: on a wholly carved statement the two are the same
+         number and printing it twice invites the reader to look for a
+         difference. */
+      ...(Math.abs(payable - net) > 0.005 ? [["Payable to you", gbp(payable)] as [string, string]] : []),
     ],
     columns,
     rows,
     total: { label: deductions.length ? "Total payable" : "Total", value: gbp(net) },
-    footer: paymentTermsLine(gbp(net), reference, invoiceEmail),
+    footer: [
+      ...direct,
+      posted ? paymentTermsLine(gbp(payable), reference, invoiceEmail) : DRAFT_NO_INVOICE,
+    ].join(" "),
   });
 }
 
@@ -860,6 +897,14 @@ export function supplierStatementCsv(
   const total = lines.reduce((s, l) => s + num(l.total_amount), 0);
   const agents = lines.reduce((s, l) => s + num(l.agent_amount), 0);
   const net = total - deductedTotal(deductions);
+  /* THE SAME FOUR ANSWERS AS THE PDF, from the same helpers. Matt,
+     2026-10-03: "Check the CSV, the zip of agency schedules and the screen
+     agree." Two documents of one statement that disagree about what is owed
+     is worse than either being wrong on its own. */
+  const payable = supplierPayableOf(lines) - deductedTotal(deductions);
+  const direct = directToAgentNotes(lines);
+  const posted = reference !== REF_ON_SEND;
+  const refCell = posted ? reference : DRAFT_REFERENCE;
   /* THE SAME COLUMNS THE PDF DROPPED. Asked of the same rendered rows,
      so the two documents of one statement cannot disagree about which
      columns exist. */
@@ -868,7 +913,7 @@ export function supplierStatementCsv(
     ["opndoor commission statement"],
     ["Payee", payee.org_name],
     ["Month", label],
-    ["Statement reference", reference],
+    ["Statement reference", refCell],
     ["Basis", "Commission on fees paid in the month, refunds excluded"],
     ["Applications", lines.length],
     [grossLabel(deductions), gbp(total)],
@@ -878,7 +923,9 @@ export function supplierStatementCsv(
       ? [["Less refunds already statemented", "-" + gbp(deductedTotal(deductions))],
          ["Total payable", gbp(net)]]
       : []),
-    [paymentTermsLine(gbp(net), reference, invoiceEmail)],
+    ...(Math.abs(payable - net) > 0.005 ? [["Payable to you", gbp(payable)]] : []),
+    ...direct.map((d) => [d]),
+    [posted ? paymentTermsLine(gbp(payable), reference, invoiceEmail) : DRAFT_NO_INVOICE],
     [],
     columns.map((c) => c.header),
     ...rows,
@@ -1085,6 +1132,9 @@ export function statementPdf(
 ): Uint8Array {
   const gross = num(payee.total);
   const net = gross - deductedTotal(deductions);
+  /* POSTED OR NOT, off the reference itself: the run substitutes REF_ON_SEND
+     until a statement is actually posted, so the reference IS the answer. */
+  const posted = reference !== REF_ON_SEND;
   const shape = shapeOf(lines);
   /* TWO RULES, IN ORDER, AND BOTH ARE WANTED. keepColumns first: drop a
      dimension whose every line shares one value, which is a statement
@@ -1109,9 +1159,14 @@ export function statementPdf(
       // NO "Branch" OR "Source" LINE FOR A COLLAPSED COLUMN. This block is the
       // same six pairs every month whatever the table below drops.
       //
-      // The stored number, so a finance team can reconcile this document by
-      // reference and find the same one in the portal. See REF_ON_SEND.
-      ["Statement reference", reference],
+      /* The stored number, so a finance team can reconcile this document by
+         reference and find the same one in the portal. See REF_ON_SEND.
+
+         AND A DRAFT HAS NONE, so it says what it is rather than printing
+         the placeholder after the label: the line read "Reference Reference
+         assigned when the statement is poste...". Matt reported it on the
+         supplier statement; it is the same two lines here. */
+      ["Statement reference", posted ? reference : DRAFT_REFERENCE],
       ["Basis", "Commission on fees paid in the month, refunds excluded"],
       ["Applications", String(lines.length)],
       [grossLabel(deductions), gbp(gross)],
@@ -1123,9 +1178,14 @@ export function statementPdf(
        is not the table's own sum, and the key-values above show the
        subtraction that gets from one to the other. */
     total: { label: deductions.length ? "Total payable" : "Total", value: gbp(net) },
-    // Along the bottom of every page, which is where a statement carries its
-    // terms, and where a multi-page one still carries them on page three.
-    footer: paymentTermsLine(gbp(net), reference, invoiceEmail),
+    /* Along the bottom of every page, which is where a statement carries its
+       terms, and where a multi-page one still carries them on page three.
+
+       AN AGENCY'S TOTAL IS ITS DEBT, unlike a supplier's: nothing is paid
+       around an agency, so `net` is right here and only the DRAFT case
+       changes. Matt: "For a draft, leave out the invoice instruction
+       entirely." */
+    footer: posted ? paymentTermsLine(gbp(net), reference, invoiceEmail) : DRAFT_NO_INVOICE,
   });
 }
 
@@ -1166,6 +1226,9 @@ export function statementCsv(
 ): string {
   const gross = num(payee.total);
   const net = gross - deductedTotal(deductions);
+  /* POSTED OR NOT, off the reference itself: the run substitutes REF_ON_SEND
+     until a statement is actually posted, so the reference IS the answer. */
+  const posted = reference !== REF_ON_SEND;
   const shape = shapeOf(lines);
   const { columns, rows } = dropEmptyColumns(
     keepColumns(STATEMENT_COLUMNS, shape),
@@ -1183,7 +1246,7 @@ export function statementCsv(
     // No Branch or Source line either, exactly as the PDF above: the two
     // attachments have to head the same statement the same way, and a dropped
     // column leaves nothing behind in either of them.
-    ["Statement reference", reference],
+    ["Statement reference", posted ? reference : DRAFT_REFERENCE],
     ["Basis", "Commission on fees paid in the month, refunds excluded"],
     ["Applications", lines.length],
     [grossLabel(deductions), gbp(gross)],
@@ -1191,7 +1254,7 @@ export function statementCsv(
       ? [["Less refunds already statemented", "-" + gbp(deductedTotal(deductions))],
          ["Total payable", gbp(net)]]
       : []),
-    [paymentTermsLine(gbp(net), reference, invoiceEmail)],
+    [posted ? paymentTermsLine(gbp(net), reference, invoiceEmail) : DRAFT_NO_INVOICE],
     [],
     columns.map((c) => c.header),
     ...rows,
