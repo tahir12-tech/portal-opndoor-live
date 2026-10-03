@@ -1633,6 +1633,10 @@ is a race on a rarer action and the fix means rewriting another function.
 > 4. "Standard terms" should say the actual figures: "No special deal. The tenant pays one month's rent and we pay our standard 10%."
 > 5. Commission tab: remove "2 rates explicitly set" when both rows say "Inherits", and remove the "Set rate" buttons (deals are set with "Set a deal").
 
+## A MANAGER SEES THE WHOLE AGENCY (instruction, 2026-10-03, verbatim).
+
+> People tables: for a Manager, "Sees" should read "The whole agency (no commission)", matching how the Developer row says it.
+
 ## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > No default deal and the warnings now; the referral refusal goes under "After launch". Then prioritise for Wednesday: 1) "Referrals sent" including expired and "Fee unpaid" (figures people will rely on); 2) the application-detail trio and the ready-to-sign email (what tenants and agents see); 3) supplier Reporting hiding "Commission by route"; 4) real reasons on failed saves. Everything else after those, and anything not done by Sunday evening moves to "After launch".
