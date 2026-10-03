@@ -195,7 +195,13 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         'referencing_mode, applicant_id, landlord_name, landlord_email, ' +
         'elig:application_eligibility_payments(paid_at), ' +
         'referrer_id, referrer_name, branch_id, agency_id, partner_id, ' +
-        'branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name, role, sees_commission), partner:partners(slug)',
+        /* partner_id ON THE REFERRER EMBED: who the PERSON works for, which
+           is a different question from which rail the referral came in on.
+           A supplier's own staff hold users.partner_id and no position; our
+           estate's people hold a position and no partner. Matt, 2026-10-03:
+           "a supplier's own staff are labelled with their supplier, not with
+           the agency or branch they last referred for." */
+        'branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name, role, sees_commission, partner_id), partner:partners(slug)',
     ),
     // The frozen commission split, one row per payee. Deliberately OUTSIDE the
     // throw-list below: a row with no lines is a historic row, not a failure, and
@@ -551,6 +557,13 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // a direct signup has one ("Direct signup") without having a referrer.
     referrerId: a.referrer_id ?? null,
     referrerRole: emb(a.referrer)?.role ?? null,
+    /* THE COMPANY THE REFERRER THEMSELVES WORKS FOR, by slug, or null.
+       Only a supplier's staff have one -- our own estate's people are
+       placed by POSITION and carry no partner -- so a value here means
+       "this person is that supplier's", and that is what the referrer
+       boards label them with. Null wherever RLS withholds the users row,
+       which falls back to the agency-and-office line as before. */
+    referrerPartner: partnerSlug.get(emb(a.referrer)?.partner_id) ?? null,
     // The other half of the referrer's LEVEL. Director and Manager are both
     // 'management' and differ only here, so role alone cannot name either.
     referrerSeesCommission: emb(a.referrer)?.sees_commission === true,

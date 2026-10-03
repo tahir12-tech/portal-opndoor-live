@@ -45,7 +45,7 @@ import { deliveryStateOf } from './deliveryState';
 // Walk fix 21: one rule for the line under a referrer's name.
 import { whereTheyWork, type WhereReader } from './whereTheyWork';
 // Walk fixes 8 and 16 share one rule for what is under guarantee, and when.
-import { partyIsAgency, partyIsOurEstate } from './capabilities';
+import { partyIsAgency, partyIsOurEstate, partyIsSupplier } from './capabilities';
 import { coverHeldDuring, coverStartsLater } from './inForce';
 import { isDirectRail, isHousePartner } from './channel';
 import { viaSupplier } from './viaSupplier';
@@ -433,6 +433,13 @@ interface Group {
      their rows: somebody who moved office has two, and the line has to be
      able to say both rather than pick one. Only filled for referrer rows. */
   agencies: Set<string>; branches: Set<string>;
+  /* AND THE SUPPLIER THEY WORK FOR, where they work for one. Matt,
+     2026-10-03: "a supplier's own staff are labelled with their supplier
+     ... not with the agency or branch they last referred for." Read off
+     the REFERRER's own partner, not the application's: Kestrel's director
+     referring for a Kestrel agency produces an application on Kestrel's
+     rail whose agency is Frost, and it is the person who is Kestrel's. */
+  suppliers: Set<string>;
   feesGross: number; refundValue: number;
   partnerComm: number; agentComm: number;
   partnerCommExcl: number; agentCommExcl: number;
@@ -598,7 +605,7 @@ function groupRows(
   const map = new Map<string, Group>();
   const get = (id: string, name: string, sub: string, partner: string): Group => {
     let g = map.get(id);
-    if (!g) { g = { id, name, sub, partner, refs: 0, paid: 0, deed: 0, refLets: new Set(), paidLets: new Set(), agencies: new Set(), branches: new Set(), feesGross: 0, refundValue: 0, partnerComm: 0, agentComm: 0, partnerCommExcl: 0, agentCommExcl: 0 }; map.set(id, g); }
+    if (!g) { g = { id, name, sub, partner, refs: 0, paid: 0, deed: 0, refLets: new Set(), paidLets: new Set(), agencies: new Set(), branches: new Set(), suppliers: new Set(), feesGross: 0, refundValue: 0, partnerComm: 0, agentComm: 0, partnerCommExcl: 0, agentCommExcl: 0 }; map.set(id, g); }
     return g;
   };
   for (const app of set) {
@@ -657,7 +664,17 @@ function groupRows(
     /* AND WHERE A REFERRER WORKS NAMES THE SUPPLIER TOO, on the agency
        and not on the branch: the sub reads "Camden, Frost Partnership"
        and the company is the half that can collide. */
-    if (key === 'referrer') { g.agencies.add(viaSupplier(scope, app.agency, app.partner)); g.branches.add(app.branch ?? ''); }
+    if (key === 'referrer') {
+      g.agencies.add(viaSupplier(scope, app.agency, app.partner));
+      g.branches.add(app.branch ?? '');
+      /* THE PERSON'S OWN COMPANY, WHERE IT IS A SUPPLIER. `referrerPartner`
+         is the partner on the referring USER's row, which only a supplier's
+         staff carry: our own estate's people are placed by position and have
+         none. So a value here that is a supplier means this person is that
+         supplier's, whichever of its agencies the referral went to. */
+      const rp = app.referrerPartner;
+      if (rp && partyIsSupplier(rp)) g.suppliers.add(partnerName(rp));
+    }
     const letId = app.tenancyId ?? `solo:${app.ref}`;
     if (sentIn) { g.refs += 1; g.refLets.add(letId); }
     if (paidIn) {
@@ -677,7 +694,7 @@ function groupRows(
      per row: it is a fact about the book, not about the person. */
   const rows = [...map.values()].map((g) => (
     key === 'referrer'
-      ? emit({ ...g, sub: whereTheyWork({ reader, agencies: [...g.agencies], branches: [...g.branches] }) })
+      ? emit({ ...g, sub: whereTheyWork({ reader, agencies: [...g.agencies], branches: [...g.branches], suppliers: [...g.suppliers] }) })
       : emit(g)));
   // Months sort chronologically (most recent first); entities sort by fees.
   if (key === 'month') return rows.sort((x, y) => monthOrder(y.name) - monthOrder(x.name));

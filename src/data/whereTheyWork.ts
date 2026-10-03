@@ -32,6 +32,16 @@ export interface WhereTheyWork {
   agencies: string[];
   /** The distinct branches. Usually one. */
   branches: string[];
+  /** THE SUPPLIER THIS PERSON WORKS FOR, where they work for one.
+   *
+   *  Matt, 2026-10-03: "Reporting and League, referrer lists: a supplier's
+   *  own staff are labelled with their supplier (e.g. 'Kestrel Lettings'),
+   *  not with the agency or branch they last referred for."
+   *
+   *  A list and not a string for the same reason `agencies` is one: it is
+   *  gathered across the person's rows, and a row whose users join RLS
+   *  withheld contributes nothing rather than an empty name. */
+  suppliers?: string[];
 }
 
 const clean = (xs: string[]): string[] =>
@@ -47,7 +57,27 @@ const clean = (xs: string[]): string[] =>
  * AND NOTHING IS PRINTED RATHER THAN PUNCTUATION. A missing agency must not
  * leave a comma with nothing on one side of it.
  */
-export function whereTheyWork({ reader, agencies, branches }: WhereTheyWork): string {
+export function whereTheyWork({ reader, agencies, branches, suppliers }: WhereTheyWork): string {
+  /* A SUPPLIER'S OWN STAFF ARE THEIR SUPPLIER'S, wherever they referred.
+     Matt, 2026-10-03: Kestrel's own director referred for Frost
+     Partnership, one of Kestrel's agencies, and the board labelled him
+     "Frost Partnership, Frost Mayfair" -- the company whose tenant it was,
+     not the company he works for. Two Kestrel people referring into two
+     different agencies read as two strangers.
+
+     FIRST, AND INSTEAD OF THE REST, because it answers the same question:
+     adding the agency after it would print the place the referral went
+     beside the company the person is from, and the reader has no way to
+     tell which is which. The agency is on the row's own Agency column
+     already, and on the Agencies board.
+
+     AND IT IGNORES `reader`, including 'one-branch'. The three readers are
+     a rule about OUR estate's offices -- a single-office agency gets no
+     line because every row would say the same thing -- and a supplier's
+     name is not an office. An agency reading a board that includes a
+     supplier's staff still needs to know they are not theirs. */
+  const sup = clean(suppliers ?? []);
+  if (sup.length) return sup.join(', ');
   const br = clean(branches);
   // A single-branch agency: every row would say the same thing, which is the
   // definition of a line worth removing. The same reasoning that took the
@@ -66,10 +96,14 @@ export function whereTheyWork({ reader, agencies, branches }: WhereTheyWork): st
   const ag = clean(agencies);
   /* NO ESTATE TO PASS, and none needed. `showsOffices` takes one since
      2026-10-01 so two same-named agencies in two estates can answer
-     differently, and this caller holds names alone. It is the line under a
-     PERSON's name, and only Opndoor's own estate has people: a supplier's
-     agencies never have logins, so there is nobody here whose agency could
-     be the other Frost. */
+     differently, and this caller holds names alone.
+
+     THE REASON GIVEN HERE USED TO BE "only Opndoor's own estate has
+     people", and that was wrong: a supplier's own staff refer, and on
+     2026-10-03 one of them turned up on this line wearing a Kestrel agency's
+     name. They no longer reach this branch at all -- `suppliers` is answered
+     above -- so what is left here really is our estate's people, and the
+     conclusion holds for the narrower reason. */
   const offices = ag.length === 1 && !showsOffices(ag[0]) ? [] : br;
   return [...ag, ...offices].join(', ');
 }

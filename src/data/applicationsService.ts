@@ -84,6 +84,20 @@ export interface FullApp {
   /** The referring user's actual role (superadmin/management/referrer), so the
       league can label who generated the referral truthfully. */
   referrerRole?: Role | null;
+  /** THE COMPANY THE REFERRER THEMSELVES WORKS FOR, by slug, or null.
+   *
+   *  Not `partner`, which is the rail the REFERRAL came in on. The two
+   *  differ exactly where Matt found the bug: Kestrel's own director
+   *  referred for Frost Partnership, a Kestrel agency, so the application's
+   *  partner is Kestrel and its agency is Frost, and the referrer board
+   *  labelled the person "Frost Partnership, Frost Mayfair".
+   *
+   *  Only a supplier's staff have one. Our own estate's people are placed by
+   *  POSITION (public.user_scopes) and carry no partner at all, so a value
+   *  here means "this person belongs to that supplier". Null where RLS
+   *  withholds the users row, which reads as "not known to be a supplier's"
+   *  and falls back to where they referred from. */
+  referrerPartner?: string | null;
   /** The commission half of the referrer's level. With referrerRole it names
       Director, Manager or Negotiator; role alone cannot separate the first two. */
   referrerSeesCommission?: boolean | null;
