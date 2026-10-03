@@ -27,10 +27,22 @@ import { useConfirm } from '@/components/ui/ConfirmModal';
 import { useToast } from '@/components/ui/Toast';
 import { plural } from '@/lib/plural';
 
-export function ApiAccessSwitch({ slug, canEdit, onChanged }: {
+export function ApiAccessSwitch({ slug, canEdit, onChanged, version = 0 }: {
   slug: string;
   canEdit: boolean;
   onChanged?: () => void;
+  /* A COUNTER THE PARENT BUMPS WHEN THE KEY SET CHANGES.
+
+     Matt, 2026-10-03: "after revoking a key, the 'N active keys' count at the
+     top doesn't update until refresh."
+
+     The count is read in an effect keyed on the partner and the on/off switch.
+     A revoke happens in SupplierApiKeys, a SIBLING, and changes neither, so
+     nothing told this component to look again and the number sat stale until
+     the page was reloaded.
+
+     DEFAULTS TO 0, so the one other caller of this component is unchanged. */
+  version?: number;
 }) {
   const toast = useToast();
   const { ask, confirmEl } = useConfirm();
@@ -45,7 +57,11 @@ export function ApiAccessSwitch({ slug, canEdit, onChanged }: {
       .then((n) => { if (!cancelled) setKeys(n); })
       .catch(() => { if (!cancelled) setKeys(null); });
     return () => { cancelled = true; };
-  }, [slug, on]);
+     /* AND WHENEVER THE KEY LIST CHANGES. `version` is bumped by the parent
+        when SupplierApiKeys revokes one: the two are siblings, so this
+        component has no other way to hear about it, and the count sat stale
+        until the page was reloaded. */
+  }, [slug, on, version]);
 
   if (!p) return null;
 

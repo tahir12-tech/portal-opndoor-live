@@ -40,10 +40,25 @@ import { plural } from '@/lib/plural';
 const isActive = (k: AdminApiKey) =>
   !k.revoked_at && (!k.expires_at || new Date(k.expires_at).getTime() > Date.now());
 
-export function SupplierApiKeys({ partnerId, canRevoke }: {
+export function SupplierApiKeys({ partnerId, canRevoke, onChanged }: {
   /** The partner's database id, which is what `dev_api_keys` filters on. */
   partnerId: string | null;
   canRevoke: boolean;
+  /* THE COUNT AT THE TOP OF THE TAB IS SOMEBODY ELSE'S.
+
+     Matt, 2026-10-03: "after revoking a key, the 'N active keys' count at the
+     top doesn't update until refresh. Update it straight away."
+
+     This list reloads itself after a revoke, which is why the list was always
+     right and the count never was: the count lives in `ApiAccessSwitch`, a
+     SIBLING, whose own effect is keyed on the partner and the on/off switch.
+     A revoke changes neither, so nothing told it to look again.
+
+     A CALLBACK RATHER THAN A SHARED STORE, because the two components have a
+     parent in common and the parent is the honest place for a fact they both
+     depend on. Optional, so the Dev Centre's own use of this list -- which
+     has no count beside it -- is unchanged. */
+  onChanged?: () => void;
 }) {
   const toast = useToast();
   const { ask, confirmEl } = useConfirm();
@@ -83,6 +98,7 @@ export function SupplierApiKeys({ partnerId, canRevoke }: {
             ? `“${k.name}” revoked. It stops working immediately.`
             : `“${k.name}” was already revoked.`, r.revoked ? 'ok' : 'error');
           await load();
+          onChanged?.();
         } catch (e) {
           toast(e instanceof Error ? e.message : 'Could not revoke the key.', 'error');
         } finally { setBusy(null); }

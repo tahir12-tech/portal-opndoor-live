@@ -1844,6 +1844,36 @@ off. Check section 6a: the reconciliation must print `mismatches: 0`.
 **Function logs**: Dashboard → Edge Functions → the function → Logs, or
 `npx supabase functions logs <name> --project-ref <REF>`.
 
+### 14.4a The Dev Centre on live: the sandbox banner must be gone
+
+Matt, 2026-10-03: *"on live, confirm the Dev Centre banner 'This project
+reaches nothing real. No card is charged…' does not appear (it's dev-only), and
+that live keys are clearly marked as creating real applications."*
+
+**Why this is in the smoke test and not just a nice-to-have.** That sentence is
+true of dev and is a lie on production. A supplier's developer reading it on
+the live Dev Centre would conclude that nothing they do can charge a card or
+email a tenant, and the first thing they would do is test with a live key
+against a real address. The banner is the one piece of copy on the site whose
+being wrong actively invites the mistake it describes.
+
+**It is gated on the project, not on the key.** `DevCentre.tsx` draws the note
+only when `env.id !== 'production'`, and `env` is resolved from the Supabase
+project the app is pointed at. So on live it should be absent by construction;
+this step is confirming the gate works where it matters, because a gate nobody
+has watched fire is a gate nobody knows about.
+
+| step | what you do | what proves it | box |
+|---|---|---|---|
+| 1 | Sign in to **live** as an opndoor admin and open the Dev Centre | the page loads | ____ |
+| 2 | Read the banner at the top | it says a key's prefix decides the mode: `opnd_test_` creates sandbox applications, `opnd_live_` creates real ones | ____ |
+| 3 | Look for the second paragraph | **"This project reaches nothing real"** is **NOT** there. If it is, the app is pointed at a non-production project, or the env resolver is wrong: **stop and tell us** | ____ |
+| 4 | Look at the environment chip beside it | it reads **Production**, not Sandbox or Development | ____ |
+| 5 | Mint a key and read its row | a live key is labelled as creating **real** applications, and the prefix on it is `opnd_live_` | ____ |
+
+**If step 3 fails, nothing else in this section matters.** A live Dev Centre
+that claims to reach nothing real is worse than one with no banner at all.
+
 ### 14.5 If something still fails, copy these to us
 
 We cannot see production. For each fault, copy **the whole log line including the

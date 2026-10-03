@@ -319,7 +319,14 @@ export function PartnerHome() {
   /* THE KEY COUNT MOVED WITH THE SWITCH. ApiAccessSwitch reads it
      itself, and re-reads it at the moment the switch is flipped rather
      than when the page loaded: a key minted in between is a key the
-     confirmation would otherwise not be counting. */
+     confirmation would otherwise not be counting.
+
+     AND WHEN A KEY IS REVOKED, 2026-10-03. Matt: "after revoking a key, the
+     'N active keys' count at the top doesn't update until refresh." The
+     revoke happens in SupplierApiKeys, which reloads its own list; the count
+     is in ApiAccessSwitch beside it. Two siblings with no way to hear about
+     each other, so the parent holds the fact they share. */
+  const [keysVersion, setKeysVersion] = useState(0);
 
   // getPartner resolves house/plumbing partners too (opndoor-direct etc.), which
   // are never shown as suppliers (their name is an internal route label). Treat
@@ -540,7 +547,7 @@ export function PartnerHome() {
         <Card>
           <CardHead title="API access" sub="Whether this supplier can use the partner API, and how many keys are live." />
           <CardBody>
-            <ApiAccessSwitch slug={partner.id} canEdit={isAdmin} onChanged={refresh} />
+            <ApiAccessSwitch slug={partner.id} canEdit={isAdmin} onChanged={refresh} version={keysVersion} />
             <p className="ph-note muted">
               {/* WHAT THIS SCREEN SHOWS, EXACTLY. It said admin "can see
                   that keys exist", which UNDERSTATES it: the line above
@@ -576,7 +583,7 @@ export function PartnerHome() {
               sub="Every key this supplier has live. Revoking one stops it immediately and leaves their others working."
             />
             <CardBody style={{ padding: 0 }}>
-              <SupplierApiKeys partnerId={partner.dbId ?? null} canRevoke={isAdmin} />
+              <SupplierApiKeys partnerId={partner.dbId ?? null} canRevoke={isAdmin} onChanged={() => setKeysVersion((v) => v + 1)} />
             </CardBody>
           </Card>
         )}
