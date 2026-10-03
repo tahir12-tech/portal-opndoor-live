@@ -20,6 +20,9 @@ import { PositionModal, type ScopeTarget } from './PositionModal';
 import { PersonNotifications } from '@/components/people/PersonNotifications';
 import * as positionsService from '@/data/positionsService';
 import { AGENCY_LEVELS, getAgencies, getGroups, isOpndoorStaff, levelsGrantableBy, mayActOn, mayActOnOrEqual, type Actor, type AgencyLevel } from '@/data';
+import { partyHasApi, partyIsSupplier } from '@/data/capabilities';
+import { SupplierLevelOptions, supplierLevelsFor } from '@/pages/PartnerManagement/SupplierLevels';
+import { supplierLevelBlurb } from '@/data/levelLabel';
 import { isHousePartner } from '@/data/channel';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
@@ -40,7 +43,7 @@ import { useToast } from '@/components/ui/Toast';
 import './UserManagement.css';
 import { changeSentence } from '@/data/changeSentence';
 import { PeopleTable } from '@/components/people/PeopleTable';
-import { deleteAsk, levelChangeAsk, personAsk, resentLine } from '@/components/people/personConfirm';
+import { deleteAsk, levelChangeAsk, peerActionNote, personAsk, resentLine } from '@/components/people/personConfirm';
 
 const ROLE_META: Record<Role, [string, string]> = {
   superadmin: ['opndoor admin', 'role-tag--super'],
@@ -103,13 +106,32 @@ function RoleOptions({ options, selected, onSelect }: { options: RoleOption[]; s
 }
 
 export function UserManagement({ team = false }: { team?: boolean } = {}) {
-  const { role, seesCommission, currentUserId, selectedPartner, setSelectedPartner, refresh: refreshData } = useSession();
+  const { role, seesCommission, currentUserId, selectedPartner, setSelectedPartner, partnerScope, refresh: refreshData } = useSession();
   const toast = useToast();
   const [params] = useSearchParams();
   const partnerParam = params.get('partner');
   // The Opndoor team is its own route (/opndoor-team) now; the legacy ?team=opndoor
   // query param is still honoured so old links keep working.
   const teamMode = (team || params.get('team') === 'opndoor') && role === 'superadmin';
+
+  /* =====================================================================
+     WHICH RAIL'S LEVELS THIS SCREEN IS DESCRIBING.
+
+     Matt, 2026-10-03: "the level key shows agency levels (Director, Manager,
+     Negotiator) instead of the supplier's (Management, Referrer, Developer)."
+
+     THE ROWS WERE ALREADY RIGHT and that is what made it confusing:
+     `personLevelLabel` reads the rail off the person, so Kestrel's people
+     correctly read "Management" and "Referrer" -- under a key explaining
+     Director, Manager and Negotiator, three words that appear nowhere in the
+     table and that nobody on that rail can hold.
+
+     ASKED OF THE VIEWER'S OWN PARTY, not of the rows. An admin's list holds
+     both rails at once and no single key can describe it, which is why the
+     admin keeps the agency key and the Partner column that says which rail
+     each row is on. A supplier's own Management is looking at one company, and
+     it is theirs. */
+  const supplierRail = role !== 'superadmin' && partyIsSupplier(partnerScope);
 
   /* THE OPNDOOR TEAM PAGE IS CALLED THE OPNDOOR TEAM. Matt, 2026-10-03, twice:
      "opndoor team page: breadcrumb and title should say 'opndoor team',
@@ -122,10 +144,22 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
      page headed something else. `teamMode` already tells the two apart four
      lines up and decides the eyebrow, the sentence and both card labels; the
      breadcrumb was the one thing it did not reach. */
+  /* AND A SUPPLIER'S OWN PEOPLE PAGE IS CALLED TEAM. Matt, 2026-10-03: "the
+     sidebar label 'Team' to match agencies." Three pages out of one route now,
+     and the breadcrumb is the one thing that keeps being written for the first
+     of them: `['Home', 'Administration', 'Users']` told a supplier's Management
+     they were in Opndoor's admin section, which is not a place they can be.
+     The agency Team page is `usePageMeta('team', 'Team', ['Home', 'Team'])` and
+     this matches it exactly, because Matt's reason for the label is that the
+     two should read the same. */
   usePageMeta(
+    /* THE NAV ID STAYS 'users' EVEN WHERE THE LABEL SAYS TEAM. This argument
+       is what the sidebar highlights by, and the supplier's item IS 'users' --
+       pointing it at 'team' would hunt for the AGENCY Team item, which is not
+       rendered for this reader, and nothing in the sidebar would light up. */
     teamMode ? 'opteam' : 'users',
-    teamMode ? 'opndoor team' : 'Users',
-    teamMode ? ['Home', 'opndoor team'] : ['Home', 'Administration', 'Users'],
+    teamMode ? 'opndoor team' : supplierRail ? 'Team' : 'Users',
+    teamMode ? ['Home', 'opndoor team'] : supplierRail ? ['Home', 'Team'] : ['Home', 'Administration', 'Users'],
   );
 
   // Drill-in from Partners: ?partner=<id> scopes this view.
@@ -282,7 +316,11 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
     cardTitle = 'opndoor team';
     cardSub = 'opndoor admin staff only';
   } else if (role === 'management') {
-    eyebrow = 'Administration · Management';
+    /* NOT "Administration" ON THE SUPPLIER RAIL. The eyebrow names the
+       section, and a supplier's Management is not in Opndoor's admin section:
+       they are looking at their own company, which is what the agency Team
+       page's eyebrow says. */
+    eyebrow = supplierRail ? 'Your company · Management' : 'Administration · Management';
     sub = 'Your team’s access to the portal. Add colleagues as Management or Referrer; opndoor admin accounts are managed by opndoor.';
     cardTitle = 'All users';
     cardSub = 'Your team';
@@ -509,7 +547,11 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
             <button className="rowmenu__item rowmenu__item--danger" onClick={() => { setMenuOpenId(null); handleAction('delete', u); }}><Icon name="trash" />Delete</button>
           </>
         )
-        : <div className="rowmenu__empty">Nothing you can change here.</div>;
+        /* AND WHY, where the reason is the ladder rather than the state.
+           "Nothing you can change here" is the right answer for a row this
+           reader simply has no business with; a colleague at their own level
+           has a remedy, and the note names it. */
+        : <div className="rowmenu__empty">{isSelf(u) ? 'Nothing you can change here.' : peerActionNote(personLevelLabel(u))}</div>;
     }
     if (u.status === 'pending') {
       return (
@@ -567,6 +609,27 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
           <div className="rowmenu__sep" />
           <button className="rowmenu__item rowmenu__item--danger" onClick={() => { setMenuOpenId(null); handleAction('deactivate', u); }}><Icon name="ban" />Remove access</button>
         </>}
+        {/* AND THE NOTE WHERE THE ACTIONS WOULD HAVE BEEN.
+
+            Matt, 2026-10-03, twice over and about two rails: "on other
+            Directors' rows, show a small note instead of the missing actions"
+            and, of a supplier's own Team page, "the '...' menu on each row
+            opens an empty box, so no actions are possible."
+
+            ONE RULE BEHIND BOTH. Everything above that acts ON somebody is
+            gated on `mayAct`, which is strictly-below and is the client twin
+            of `assert_may_act_on_user`'s closing `v_caller >= v_target`. A
+            peer therefore switches all of it off at once -- two Directors, or
+            two of a supplier's Management, which since 20261007880000 is the
+            top of that rail. What was left was a box containing nothing, or
+            containing Notifications alone, and no way to find out why.
+
+            NOT ON YOUR OWN ROW, which has its own two answers (rename
+            yourself, and an admin resetting their own two-factor) and is not
+            a case of being outranked. */}
+        {!isSelf(u) && !mayAct(u) && (
+          <div className="rowmenu__note">{peerActionNote(personLevelLabel(u))}</div>
+        )}
       </>
     );
   }
@@ -706,7 +769,7 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
       <div className="page-head">
         <div>
           <div className="eyebrow"><span className="eyebrow__dot" /><span>{eyebrow}</span></div>
-          <h1 className="page-head__title" style={{ marginTop: 10 }}>Users</h1>
+          <h1 className="page-head__title" style={{ marginTop: 10 }}>{supplierRail ? 'Team' : 'Users'}</h1>
           <p className="page-head__sub">{sub}</p>
         </div>
         <div className="page-head__actions">
@@ -721,13 +784,32 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
         ) : (
           <>
             {/* The three levels, in the words the rest of the product uses
-                and in ladder order. Taken from AGENCY_LEVELS so the legend
-                and the invite dialog cannot describe a level differently. */}
-            {AGENCY_LEVELS.map((l) => (
-              <span key={l.level} className={`role-tag ${LEVEL_PILL[l.level]}`}>
-                {l.level} · {l.desc.replace(/\.$/, '').toLowerCase()}
-              </span>
-            ))}
+                and in ladder order. Taken from AGENCY_LEVELS or
+                SUPPLIER_LEVELS so the legend and the invite dialog cannot
+                describe a level differently.
+
+                THE SHORT BLURB ON THE SUPPLIER RAIL, because its own `desc`
+                is a paragraph: those strings document a level on the Manage
+                partner screen, where there is room for them, and a key is one
+                line per level. `supplierLevelBlurb` is the short form and is
+                shared with the Add user dialog for the same reason the lists
+                are shared.
+
+                AND THROUGH `supplierLevelsFor`, so the key and the dialog
+                agree about Developer: a supplier with API access off is not
+                offered the level and must not be told it exists in the key
+                above the table it cannot appear in. */}
+            {supplierRail
+              ? supplierLevelsFor(partyHasApi(partnerScope)).map((l) => (
+                <span key={l.level} className={`role-tag ${LEVEL_PILL[l.level] ?? ''}`}>
+                  {l.level} · {supplierLevelBlurb(l.level).replace(/\.$/, '').toLowerCase()}
+                </span>
+              ))
+              : AGENCY_LEVELS.map((l) => (
+                <span key={l.level} className={`role-tag ${LEVEL_PILL[l.level]}`}>
+                  {l.level} · {l.desc.replace(/\.$/, '').toLowerCase()}
+                </span>
+              ))}
           </>
         )}
       </div>
@@ -772,14 +854,20 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
         <div className="table-wrap">
           <PeopleTable
             showFilters={false}
-            extraHeader={showPartner ? 'Partner' : undefined}
+            /* PARTNER FOR AN ADMIN, SEES FOR A SUPPLIER'S OWN MANAGEMENT.
+               Matt asked this page for "the supplier's levels, 'Sees' column
+               and the same confirmed actions". The slot is the same one the
+               supplier People tab on Manage partner already uses for Sees, so
+               the two screens answer with the same words. */
+            extraHeader={showPartner ? 'Partner' : supplierRail ? 'Sees' : undefined}
             emptyText={q ? `No users match “${query.trim()}”.` : 'No users to show yet.'}
             rows={users.map((u) => ({
               id: u.id,
               name: u.name,
               email: userEmail(u),
               level: personLevelLabel(u),
-              extra: showPartner ? userPartnerName(u.partner) : undefined,
+              extra: showPartner ? userPartnerName(u.partner)
+                : supplierRail ? positionsService.supplierSees(u.role) : undefined,
               /* WHERE THEY SIT. Opndoor's own staff hold no position, so
                  this is empty for them and the table drops the column on
                  ?team=opndoor -- which is right: they have no office. It
@@ -817,7 +905,14 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
           <Field label="First name"><input type="text" placeholder="Jane" value={addFirst} onChange={(e) => setAddFirst(e.target.value)} /></Field>
           <Field label="Last name"><input type="text" placeholder="Smith" value={addLast} onChange={(e) => setAddLast(e.target.value)} /></Field>
           <Field label="Work email" span2><input type="email" placeholder="jane@example.co.uk" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} /></Field>
-          {addRole !== 'superadmin' && addRole !== 'opndoor_manager' && (
+          {/* AN ADMIN'S QUESTION, AND ONLY AN ADMIN'S. Matt, 2026-10-03: "no
+              Supplier picker (it's always their own supplier)." A supplier's
+              own Management has exactly one answer -- `openAdd` already sets
+              it to `homePartner()` -- so the control was a select with their
+              own company in it and nothing else to choose, under a label
+              implying there was. The value still goes to the invite; what is
+              gone is asking them for it. */}
+          {role === 'superadmin' && addRole !== 'superadmin' && addRole !== 'opndoor_manager' && (
             <Field label="Supplier" span2 hint="The supplier this person works for.">
               {/* NM-O: "Supplier", not "Partner company". The select below
                   is fed by getPartners(), which strips every house partner
@@ -845,9 +940,35 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
             </select>
           </Field>
         ) : (
+          /* =====================================================================
+             THE SAME COMPONENT THE OTHER SUPPLIER SCREENS USE.
+
+             Matt, 2026-10-03: "Use the same dialog component as the agency
+             Team page", with "short level descriptions" and the supplier's own
+             three levels.
+
+             `SupplierLevelOptions` is that component: SupplierInvite and
+             SupplierRoleDialog have rendered it since it was written, for the
+             reason in its own header -- two copies of one radio list reading
+             the same descriptions is how an invite dialog and a change dialog
+             come to disagree about what a Developer is. This page was the
+             third copy, and it was the one that differed: ROLE_OPTIONS'
+             paragraph-long descriptions, under the label "Role".
+
+             IT ALSO ANSWERS THE DEVELOPER QUESTION, which this page did not
+             ask at all: Developer is offered only once API access is on, and
+             says which switch governs it when it is not. */
+          supplierRail ? (
+            <SupplierLevelOptions
+              value={addRole}
+              onChange={setAddRole}
+              apiAccessEnabled={partyHasApi(partnerScope)}
+            />
+          ) : (
           <Field label="Role">
             <RoleOptions options={addOptions} selected={addRole} onSelect={setAddRole} />
           </Field>
+          )
         )}
         {/* AND A DIRECTOR OR MANAGER HOLDS A POSITION. Everybody on our estate
             does: invite-user refuses the invite without one, and before this

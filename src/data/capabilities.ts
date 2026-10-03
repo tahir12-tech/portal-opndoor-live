@@ -174,6 +174,30 @@ export function partyIsSupplier(scope: PartnerScope): boolean {
  * === true, not a truthy test. Undefined means the partner record did not load,
  * and the safe answer to "may they" when we do not know is no.
  */
+/**
+ * Does this PARTY have API access switched on?
+ *
+ * THE PARTY HALF OF mayUseDevCentre, split out because two different questions
+ * were reading one predicate. "May this reader open the Dev Centre" is about a
+ * person and is `developer` plus the switch. "Is Developer a level worth
+ * offering here" is about the COMPANY: a Developer at a supplier with the API
+ * off would sign in to a Dev Centre that is not there, which is the reason
+ * SUPPLIER_LEVELS marks that level `needsApi` at all.
+ *
+ * ASKING mayUseDevCentre for the second question gives the wrong answer for a
+ * reason that is easy to miss: its first line is `role !== 'developer'`, so an
+ * inviting MANAGER reads false and Developer would vanish from every dialog.
+ */
+export function partyHasApi(scope: PartnerScope): boolean {
+  if (!scope || scope === ALL_PARTNERS) return false;
+  const p = getPartner(scope);
+  if (!p) return false;
+  // An agency of ours is not a party with an API, whoever references its
+  // tenants: the same reasoning mayUseDevCentre spells out below.
+  if (p.kind === 'agency') return false;
+  return p.apiAccessEnabled === true;
+}
+
 export function mayUseDevCentre(role: Role, scope: PartnerScope): boolean {
   /* =====================================================================
      DEVELOPERS ONLY, WHICH IS A ROLE TEST THIS NEVER MADE.

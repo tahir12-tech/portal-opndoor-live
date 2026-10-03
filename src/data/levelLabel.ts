@@ -24,7 +24,7 @@
    person on, and then what do we call them there".
    ===================================================================== */
 import { isHousePartner } from './channel';
-import { agencyLevelOf, type Role } from './types';
+import { agencyLevelOf, SUPPLIER_LEVELS, type Role } from './types';
 
 export interface LabelledPerson {
   role: Role;
@@ -70,4 +70,36 @@ export function personLevelLabel(u: LabelledPerson): string {
 export function holdsAgencyLevel(u: LabelledPerson): boolean {
   return isHousePartner(u.partner ?? '')
     && (u.role === 'management' || u.role === 'referrer');
+}
+
+/* =====================================================================
+   THE SHORT FORM OF A SUPPLIER LEVEL.
+
+   Matt, 2026-10-03: "short level descriptions, e.g. Management 'Sees
+   everything for your company, including commission, and manages the team and
+   agencies'; Referrer 'Sends referrals and sees their own; can add agencies
+   and offices while referring'; Developer 'Uses the Dev Centre and API; no
+   commission'."
+
+   HIS OWN THREE SENTENCES, which is why they are strings here and not derived
+   from anything. SUPPLIER_LEVELS.desc is a paragraph per level: those exist to
+   document a level on the Manage partner screen, where there is room, and they
+   are what the Add user dialog and the level key were printing -- a wall of
+   text where one line was wanted.
+
+   KEYED OFF THE SAME LIST, so a level cannot exist in one place and not the
+   other: a level with no short form falls back to its long one rather than to
+   nothing, which is the behaviour a fourth level would get on the day somebody
+   adds one and forgets this file.
+   ===================================================================== */
+const SUPPLIER_BLURB: Record<string, string> = {
+  Management: 'Sees everything for your company, including commission, and manages the team and agencies.',
+  Referrer: 'Sends referrals and sees their own; can add agencies and offices while referring.',
+  Developer: 'Uses the Dev Centre and API; no commission.',
+};
+
+export function supplierLevelBlurb(level: string): string {
+  return SUPPLIER_BLURB[level]
+    ?? SUPPLIER_LEVELS.find((l) => l.level === level)?.desc
+    ?? '';
 }

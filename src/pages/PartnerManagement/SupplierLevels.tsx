@@ -14,8 +14,15 @@
 
    IT IS A CONVENIENCE, NOT A BOUNDARY. The server decides who may hold
    a role; this decides what is worth offering.
+
+   AND SINCE 2026-10-03 IT IS THREE SCREENS, not two: the supplier's own
+   Team page (/users as its Management sees it) renders this too, which is
+   Matt's "Use the same dialog component as the agency Team page". That page
+   was building its own radio list out of ROLE_OPTIONS -- the paragraph-long
+   descriptions, plus a Supplier picker with one option in it.
    ===================================================================== */
 import { SUPPLIER_LEVELS, type Role } from '@/data/types';
+import { supplierLevelBlurb } from '@/data/levelLabel';
 import { Field } from '@/components/ui/Field';
 
 export function supplierLevelsFor(apiAccessEnabled: boolean) {
@@ -44,7 +51,18 @@ export function SupplierLevelOptions({
               <span className="roleopt__radio" />
               <div>
                 <div className="roleopt__name">{l.level}</div>
-                <div className="roleopt__desc">{l.desc}</div>
+                {/* THE SHORT FORM. Matt, 2026-10-03: "short level
+                    descriptions, e.g. Management 'Sees everything for your
+                    company, including commission, and manages the team and
+                    agencies'."
+
+                    SUPPLIER_LEVELS.desc is a paragraph per level, written to
+                    DOCUMENT a level where there is room for it. Three of them
+                    stacked above a Send invite button is a wall of text, and a
+                    reader choosing between three options wants the difference,
+                    not the specification. The long form still has a home on
+                    the Manage partner screen. */}
+                <div className="roleopt__desc">{supplierLevelBlurb(l.level)}</div>
               </div>
             </label>
           ))}

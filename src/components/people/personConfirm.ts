@@ -150,3 +150,43 @@ export function deleteAsk(who: string): PersonAsk {
 export function resentLine(email: string): string {
   return `Invite sent again to ${email}.`;
 }
+
+/* =====================================================================
+   WHY A PEER'S ROW HAS NO ACTIONS ON IT.
+
+   Matt, 2026-10-03, about the agency Team page: "on other Directors' rows,
+   show a small note instead of the missing actions: 'To change or remove a
+   Director, contact your account manager at partners@opndoor.co.'"
+
+   AND THE SAME SENTENCE ANSWERS THE SUPPLIER COMPLAINT, which is why this is
+   one function and not two. Matt, the same day: "the '...' menu on each row
+   opens an empty box, so no actions are possible." Those are the same rule
+   seen from two rails:
+
+     the LADDER refuses a peer. `assert_may_act_on_user` ends with
+     `v_caller >= v_target` and raises, and `mayActOn` is the client twin of
+     it. Two Directors are level 1 and level 1; so are two of a supplier's
+     Management, which since 20261007880000 is the top of that rail.
+
+   SO THE MENU WAS HONEST AND SAID NOTHING, which is the worst of both: the
+   reader cannot act and cannot find out why, and an empty box reads as a bug
+   rather than as a rule. It IS a rule, and it has a remedy -- ask Opndoor --
+   so the row says both.
+
+   NOT "Nothing you can change here", which the deactivated arm says and which
+   is right there: that row is somebody whose access is already gone and whom
+   this reader may not restore. This row is a colleague at your own level, and
+   the thing to do about it is a different thing.
+
+   THE ARTICLE IS PER LEVEL because "Management" is not a countable person.
+   "To change or remove a Management" is not English; "a Director" is.
+   ===================================================================== */
+const PEER_PHRASE: Record<string, string> = {
+  Management: 'someone at Management level',
+};
+
+/** The note that stands in for the actions a peer's row cannot offer. */
+export function peerActionNote(level: string): string {
+  const who = PEER_PHRASE[level] ?? `a ${level}`;
+  return `To change or remove ${who}, contact your account manager at partners@opndoor.co.`;
+}

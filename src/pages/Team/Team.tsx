@@ -74,7 +74,7 @@ import '@/pages/UserManagement/UserManagement.css';
 import './Team.css';
 import { plural, countOf } from '@/lib/plural';
 import { PeopleTable, type PeopleTableRow } from '@/components/people/PeopleTable';
-import { deleteAsk, levelChangeAsk, personAsk, resentLine } from '@/components/people/personConfirm';
+import { deleteAsk, levelChangeAsk, peerActionNote, personAsk, resentLine } from '@/components/people/personConfirm';
 
 
 /** What to call this person. Opndoor's own roles keep their own names; an
@@ -695,6 +695,29 @@ export function Team() {
               Delete
             </Button>
           )}
+          {/* AND A NOTE WHERE A PEER'S ACTIONS WOULD HAVE BEEN.
+
+              Matt, 2026-10-03: "Agency Team page (Director view): on other
+              Directors' rows, show a small note instead of the missing
+              actions: 'To change or remove a Director, contact your account
+              manager at partners@opndoor.co.'"
+
+              THE COMMENT ABOVE SAID HIDING WAS A COURTESY and it was half
+              right: the ladder refuses in SQL either way, so offering the
+              control would be offering a failure. What it missed is that a
+              reader cannot tell "you may not" from "this is broken" by
+              looking at nothing, and a Director looking at the other Director
+              sees an empty cell on a page full of buttons.
+
+              NOT ON YOUR OWN ROW. `may` is false there too -- self is at your
+              own level -- but your own row is not a case of being outranked,
+              and "contact your account manager" is the wrong answer to it.
+
+              THE SAME SENTENCE THE SUPPLIER TEAM PAGE USES, from
+              personConfirm, because it is the same rule on the other rail:
+              two of a supplier's Management are peers exactly as two
+              Directors are. */}
+          {!may && !isSelf && <span className="tm-peernote">{peerActionNote(pillLabel)}</span>}
         </>
       ),
     };

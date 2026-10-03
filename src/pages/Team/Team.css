@@ -230,3 +230,12 @@
 @media (max-width: 900px) {
   .tm-person__notify { min-width: 0; }
 }
+
+/* "To change or remove a Director, contact your account manager at
+   partners@opndoor.co." It stands where a peer's buttons would be, so it is
+   quieter than they are and it wraps: the actions cell is right-aligned and a
+   sentence on one line would widen the table past the screen. */
+.tm-peernote {
+  display: block; max-width: 260px;
+  font-size: 12px; line-height: 1.45; color: var(--ink-mute); text-align: right;
+}

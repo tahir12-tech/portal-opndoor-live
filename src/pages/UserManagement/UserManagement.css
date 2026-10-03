@@ -341,4 +341,14 @@
 
 /* A row whose person is at or above the reader's level has no controls. Saying
    so beats an empty popover, which reads as a fault. */
-.rowmenu__empty { padding: 10px 14px; font-size: 13px; color: var(--ink-mute); white-space: nowrap; }
+.rowmenu__empty { padding: 10px 14px; font-size: 13px; color: var(--ink-mute); }
+/* THE PEER NOTE. A sentence, not a label, so it WRAPS -- which is why it does
+   not inherit the nowrap the empty state used to carry: "To change or remove a
+   Director, contact your account manager at partners@opndoor.co" on one line
+   would push the menu wider than the screen on a phone. */
+.rowmenu__note {
+  padding: 10px 14px; max-width: 280px;
+  font-size: 12.5px; line-height: 1.45; color: var(--ink-mute);
+  border-top: 1px solid var(--line);
+}
+.rowmenu__note:first-child { border-top: 0; }

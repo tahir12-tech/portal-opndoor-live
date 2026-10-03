@@ -91,12 +91,36 @@ describe('the page', () => {
   /* ONE ROUTE, TWO PAGES, and the meta was written for the other one. The
      sidebar has said "opndoor team" all along, so a reader following it
      arrived at a page headed "Administration / Users". */
+  /* THREE PAGES OUT OF ONE ROUTE SINCE 2026-10-03, not two. Matt: "the
+     sidebar label 'Team' to match agencies", for a supplier's own Management.
+     So the ternary this used to pin grew a middle arm, and the assertion is
+     split into the three answers rather than one string. */
   it('is called the opndoor team in its title and breadcrumb', () => {
-    expect(PAGE).toContain("teamMode ? 'opndoor team' : 'Users',");
-    expect(PAGE).toContain("teamMode ? ['Home', 'opndoor team'] : ['Home', 'Administration', 'Users'],");
+    expect(PAGE).toContain("teamMode ? 'opndoor team' : supplierRail ? 'Team' : 'Users',");
+    expect(PAGE).toContain("teamMode ? ['Home', 'opndoor team'] : supplierRail ? ['Home', 'Team'] : ['Home', 'Administration', 'Users'],");
   });
 
-  it('while a customer’s own staff page is unchanged', () => {
+  /* THE SUPPLIER'S PAGE IS NOW CHANGED ON PURPOSE, which is why this test no
+     longer says "unchanged". It used to read a customer's staff page as one
+     thing; it is two, and only ours still sits in an Administration section:
+
+       a supplier's Management   Home / Team, matching the agency Team page,
+                                 because "Administration" is Opndoor's own
+                                 section and they are not in it
+       an opndoor admin          Home / Administration / Users, unchanged
+
+     The second is what the string below still pins. */
+  it('while the admin\u2019s own view of a customer\u2019s staff is unchanged', () => {
     expect(PAGE).toContain("['Home', 'Administration', 'Users']");
+  });
+
+  /* AND THE NAV AGREES WITH THE BREADCRUMB, which is the whole complaint: the
+     sidebar is what the reader follows, so a page headed something else is the
+     defect whichever of the two is wrong. */
+  it('and the sidebar calls it Team too', () => {
+    const nav = read('src/constants/nav.ts');
+    expect(nav).toContain("{ id: 'users', label: 'Team', to: '/users'");
+    // Not in Opndoor's admin group any more.
+    expect(nav).not.toMatch(/group: 'Administration'/);
   });
 });

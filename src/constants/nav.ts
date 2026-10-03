@@ -119,13 +119,24 @@ export const NAV: NavGroup[] = [
       // off the /team route in the same change, because an item hidden by a role
       // whose route still renders is an unlisted screen, not a hidden one.
       { id: 'team', label: 'Team', to: '/team', icon: 'users', roles: ['management'], capability: 'agencyTeam' },
-    ],
-  },
-  {
-    group: 'Administration',
-    adminGroup: true,
-    items: [
-      { id: 'users', label: 'Users', to: '/users', icon: 'users', roles: ['management'], capability: 'orgSection' },
+      /* AND A SUPPLIER'S MANAGEMENT GETS THE SAME WORD FOR THE SAME THING.
+
+         Matt, 2026-10-03: "Replace it with the shared People table, with the
+         supplier's levels, 'Sees' column and the same confirmed actions, and
+         the sidebar label 'Team' to match agencies."
+
+         IT WAS "Users" UNDER "Administration", which is Opndoor's own section:
+         the group is `adminGroup` and sits with Reconciliation and Health. A
+         supplier's Management is not in Opndoor's admin section, they are
+         looking at their own colleagues, and the page they land on is the same
+         shared people table the agency Team page draws.
+
+         THE TWO ITEMS ARE MUTUALLY EXCLUSIVE, which is why they can share a
+         group with no further gate: `agencyTeam` is `isAgencyUser` and
+         `orgSection` is its exact inverse, so a reader sees one Team item or
+         the other and never both. The id stays 'users' because that is the
+         route and the highlight key; only the word changes. */
+      { id: 'users', label: 'Team', to: '/users', icon: 'users', roles: ['management'], capability: 'orgSection' },
     ],
   },
   {
