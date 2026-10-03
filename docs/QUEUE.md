@@ -1996,6 +1996,19 @@ is nothing left to match" instead of a warning.
 - Named for joint tenancies only: a tenancy of one has no share to
   name, and the existing line is right there.
 
+## EVERY DROPDOWN IS THE SHARED ONE (instruction, 2026-10-03, verbatim).
+
+> Supplier People tab: the "All levels" and "Any status" filters are unstyled browser dropdowns. Use the same styled select as the agency People page, and sweep the portal for any other unstyled dropdowns (filters, forms, dialogs) and switch them to the shared component.
+
+- THE SHARED COMPONENT EXISTS (`StyledSelect` in components/ui/Select,
+  with the PeriodSelect / MeasureSelect / RankSelect wrappers), so this
+  is a sweep of bare `<select>` elements rather than a design job.
+- PeopleTable draws its own filters, so "the same styled select as the
+  agency People page" means the TABLE's two filters, which is one fix
+  for all four People surfaces.
+- A bare `<select>` is also the tell for every other unstyled dropdown,
+  so the sweep is greppable and the guard is a repo check.
+
 ## A FAILED SAVE POINTS AT THE FIRST MISSING FIELD (instruction, 2026-10-03, verbatim). EVERY FORM.
 
 > New application form: when Send is pressed with required fields missing, scroll to the first missing field, highlight every missing field in red with "Required", and show a message at the Send button: "3 fields still need filling in" with a link that jumps to the first one. Same for every form in the portal.
