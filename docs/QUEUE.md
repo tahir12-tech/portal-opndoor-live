@@ -2169,6 +2169,70 @@ roles, with the three refusals that keep those seats Opndoor's
 invite-user is deployed. The invite EMAIL, the accept link and the first
 sign-in are unexercised. Somebody has to click it.
 
+## THE MORNING SUMMARY (2026-10-04, written overnight)
+
+Plain English, as asked. Three sections: what is done, what is waiting on you,
+and what is left.
+
+### All nine items are done, and so are the copy fixes
+
+23 commits, every one with the full test suite green and the drift check clean.
+Nothing is pushed: the branch is `partner-api` and it has no upstream.
+
+| | item | where |
+|---|---|---|
+| 1 | Supplier Management commission (invite and View as) | `6d9d089` |
+| 2 | The opndoor Manager invite | done earlier, `72ce6eb` |
+| 3 | Add agency and office while referring | `c8b753d` + `2305339` |
+| 4 | Supplier statements posting, and Tom Reeve's referral | answered below + `fa46e3f` |
+| 5 | Supplier Users page becomes the shared People table | `9a40d31` |
+| 6 | Help guides rewritten, leaflets as pages | `a6f6b78` |
+| 7 | Form validation across every form | `a1dea71` |
+| 8 | The dropdown sweep | `1799d0f` |
+| 9 | The API creating agencies | `9cdf8d9` |
+
+And the copy fixes: the blank tenancy start, the "negotiator" sweep, the
+saved payment link, the withdrawn application page and its dialog (plus the
+tenant email it promised), the supplier's agency view, the customer-facing
+exports, the key count, the handover's Dev Centre check, the expiries dialog,
+and creation recorded with where-from.
+
+### Three things are waiting on you
+
+**1. September's commission statement for Kestrel.** Not sent, as instructed.
+The monthly run DOES post supplier statements with their per-agency schedules,
+and I proved it with a dry run (sends nothing): Kestrel Lettings, £600, to
+`finance@rm.com`, with the schedules zip attached. It was missed on 1 October
+because the referral did not exist yet -- GR-FROST-KES was inserted at 00:07
+on 2 October with `paid_at` back-dated to 27 September. Say the word and it
+goes; it asks Kestrel to invoice us for £600, which is why it is yours.
+
+**2. GR-FROST-KES's office.** Answered in full below. It is NM-P working
+exactly as you specified it, and your specification rests on an assumption
+that is true of three of our eight single-office agencies and false of five.
+The one-line fix also changes Regent's screens, so it is your call. Three
+options are listed; my preference is to apply it everywhere.
+
+**3. The supplier-management flag on live.** `20261007880000` corrects the
+rows the invite defect created, on dev and on live when it is applied. On dev
+it was two active Kestrel Management users. If the people it names on live
+should NOT see commission, say so before the deploy, because nothing else
+gates it.
+
+### What is left
+
+**Nothing from your list.** Two things I would do next if there is time:
+
+- `admin_update_user_role` still runs the AGENCY ladder on a supplier's
+  people, which is the same shape as the invite blocker. Not reported and not
+  reachable from the supplier People tab today, so it is recorded rather than
+  built.
+- A payee whose data arrives after the monthly send day is never posted
+  automatically. There is a manual reissue; there is no catch-up. It changes
+  money, so it is yours.
+
+---
+
 ## FOR MATT: GR-FROST-KES's OFFICE. ANSWERED, AND IT IS A CONFLICT BETWEEN TWO OF YOUR OWN RULINGS (2026-10-03).
 
 > Kestrel's view: GR-FROST-KES's office shows as "Frost Partnership" (with no agency) on Applications and the League Branches tab and export, but the agency page correctly shows it as the Frost Mayfair office of Frost Partnership. Find why and show office and agency correctly everywhere.
