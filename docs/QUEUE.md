@@ -1331,6 +1331,13 @@ reading the wrong one. No frozen amount changed.
 
 > Add to the corrected-deed blocker: pressing "Resend deed" manually sends the correct corrected deed (29 Dec, "1 of 2 signed"), so the document is right and only the automatic send on signing is blocked as a "replay". Also: the agent's joint-tenancy line says "one more deed follows once the other tenant has paid and signed" even when the other tenant has already paid; say "once the other tenant has signed" in that case.
 
+## THE ORDER, 2026-10-03 (instruction, verbatim). THIS REORDERS THE QUEUE.
+
+> Do these next, before the rest of the queue: 1) the corrected-deed blocker (the agent doesn't receive the corrected signed deed after a start-date correction); 2) the icon-size sweep (League's giant info icon), as I can't continue the walk until it's fixed. Then the statement references, then the rest in order. Tell me as soon as 1 and 2 are done.
+
+- Doing 2 first: it is the one blocking his walk and it is the smaller of
+  the two. Both reported together.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
