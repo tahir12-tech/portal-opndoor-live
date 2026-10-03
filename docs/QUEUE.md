@@ -1789,6 +1789,18 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## A DIRECTOR'S ROW SAYS WHO TO ASK (instruction, 2026-10-03, verbatim).
+
+> Agency Team page (Director view): on other Directors' rows, show a small note instead of the missing actions: "To change or remove a Director, contact your account manager at partners@opndoor.co."
+
+- Team already hides every action against somebody at or above the
+  viewer's level, deliberately ("the ladder refuses in SQL either way"),
+  and a Director looking at another Director therefore sees an empty
+  actions cell with nothing explaining it.
+- Users' own row menu has the equivalent already: "Nothing you can
+  change here." This asks for the agency-facing version, which names
+  the route instead of the refusal.
+
 ## A MONTH IS PAID ON THE 15TH OF THE NEXT MONTH (instruction, 2026-10-03, verbatim).
 
 > Agency Reporting (Director view), commission statement: the October 2026 draft says "Opndoor pays this on 15 Oct 2026". Each month's commission is paid on the 15th of the following month, so October's is 15 Nov 2026. Fix the date for every month shown, and for a draft say "Opndoor pays this on 15 Nov 2026, once the month's statement is posted".
