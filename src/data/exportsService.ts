@@ -2452,6 +2452,63 @@ export async function exportBordereauFile(role: Role, year: number, m0: number, 
  * management + opndoor admin, like the Application export. Live-sourced in
  * Supabase mode; a modelled generator keeps the demo download non-empty.
  */
+/* =====================================================================
+   THE NEXT MONTH THAT HAS ANYTHING EXPIRING.
+
+   Matt, 2026-10-03: "Open on the next month that has any guarantees expiring;
+   if none, next month, with a note 'Nothing expiring yet; your earliest is
+   [month]'."
+
+   THE DIALOG OPENED ON TODAY PLUS 42 DAYS, which is the six weeks the
+   reminder email is sent at, and for a new agency that is a month with nothing
+   in it: a reader pressed Download and got an empty file, which reads as a
+   broken export rather than as an empty cohort.
+
+   "NEXT MONTH" IS THE FALLBACK AND NOT THE ANSWER, which is the care in his
+   sentence: where there is genuinely nothing, the dialog still has to open on
+   SOME month, and next month is the least surprising. The note is what tells
+   the reader the difference between "nothing this month" and "nothing at all
+   yet", and it names their earliest so they can go there in one move.
+
+   THE SAME FILTER THE FILE USES, deliberately: issued, not refunded, and not
+   already expired. A month this says has guarantees is a month that produces
+   rows, or the note is worse than no note.
+   ===================================================================== */
+export interface NextExpiryMonth {
+  /** yyyy-mm, for the month input. Always set. */
+  month: string;
+  /** True when that month really has expiries. False means it is the fallback. */
+  hasAny: boolean;
+  /** Their earliest month with anything, where it is not `month`. yyyy-mm. */
+  earliest: string | null;
+}
+
+export function nextExpiryMonth(role: Role, from = new Date()): NextExpiryMonth {
+  const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const nextMonth = key(new Date(from.getFullYear(), from.getMonth() + 1, 1));
+  if (!readsTheWholeBook(role) || !liveAvailable()) {
+    return { month: nextMonth, hasAny: false, earliest: null };
+  }
+  const today = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const book = scopeFull(allFull(), role, scopeFor(role));
+  /* EVERY EXPIRY STILL AHEAD OF US, soonest first. `daysLeft >= 0` in the
+     file is this same "not already expired" test; already-expired guarantees
+     are never shown, so they must not decide which month opens either. */
+  const future = book
+    .map((a) => ({ a, exp: expiryOf(a) }))
+    .filter(({ a, exp }) => a.status === 'deed' && !a.refunded && exp !== null
+      && new Date(exp.getFullYear(), exp.getMonth(), exp.getDate()) >= today)
+    .map(({ exp }) => exp as Date)
+    .sort((x, y) => x.getTime() - y.getTime());
+  if (!future.length) return { month: nextMonth, hasAny: false, earliest: null };
+  const earliest = key(future[0]);
+  /* THE SOONEST MONTH FROM NOW ON, which is the earliest expiry's month --
+     including THIS month, where something expires later in it. "Next" in
+     Matt's sentence means the next one with anything in it, not the next
+     calendar month. */
+  return { month: earliest, hasAny: true, earliest };
+}
+
 export function buildExpiriesDoc(role: Role, year: number, m0: number): BrandedExport | null {
   if (!readsTheWholeBook(role)) return null;
   const mStart = new Date(year, m0, 1, 0, 0, 0, 0);

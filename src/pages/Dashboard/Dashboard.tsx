@@ -28,8 +28,9 @@ import {
   statementMonths, leagueLink,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
-import { formatLondonDate, gbpPence, possessive, formatDate } from '@/lib/format';
+import { formatLondonDate, formatMonth, gbpPence, possessive, formatDate } from '@/lib/format';
 import { BASIS_META, type ExportBasis } from '@/data';
+import { nextExpiryMonth } from '@/data/exportsService';
 import { getAgentRailFunnel, viewerRunsEligibilityJourney, type AgentRailFunnel } from '@/data/agentFunnel';
 import { isAgencyUser, partyIsSupplier } from '@/data/capabilities';
 import { ORIGIN_ALL, originFromParams, originLabel, selectionIsAgency } from '@/data/origin';
@@ -489,7 +490,21 @@ export function Dashboard() {
   const [appsBasis, setAppsBasis] = useState<ExportBasis>('referred');
   // #86 Expiries export, defaulting to the month ~6 weeks out (the cron cohort).
   const [expOpen, setExpOpen] = useState(false);
-  const [expMonth, setExpMonth] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 42); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
+  /* THE MONTH THAT HAS SOMETHING IN IT. Matt, 2026-10-03: "Open on the next
+     month that has any guarantees expiring; if none, next month, with a note
+     'Nothing expiring yet; your earliest is [month]'."
+
+     IT USED TO OPEN ON TODAY PLUS 42 DAYS, which is the six weeks the
+     reminder email goes out at, and for a new agency that is a month with
+     nothing in it: the reader pressed Download and got an empty file, which
+     reads as a broken export rather than as an empty cohort.
+
+     RESOLVED WHEN THE DIALOG OPENS, not once at mount: the book is hydrated
+     after the first render, so a value computed here would be the fallback
+     for every reader. See the effect below. */
+  const [expMonth, setExpMonth] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
+  const [expEarliest, setExpEarliest] = useState<string | null>(null);
+  const [expHasAny, setExpHasAny] = useState(true);
 
   function exportSummary() {
     void exportBranded(buildPerformanceDoc(role, period as Period));
@@ -566,7 +581,16 @@ export function Dashboard() {
             </Button>
           </RoleOnly>
           <RoleOnly roles={READS_THE_WHOLE_BOOK}>
-            <Button variant="ghost" size="sm" onClick={() => setExpOpen(true)} title="Guarantees expiring in a chosen month, soonest first, for renewal outreach">
+            <Button variant="ghost" size="sm" onClick={() => {
+              /* RESOLVED ON OPEN, not at mount: the book is hydrated after
+                 the first render, so a month computed in a useState
+                 initialiser is the fallback for every reader. */
+              const n = nextExpiryMonth(role);
+              setExpMonth(n.month);
+              setExpHasAny(n.hasAny);
+              setExpEarliest(n.earliest);
+              setExpOpen(true);
+            }} title="Guarantees expiring in a chosen month, soonest first, for renewal outreach">
               <Icon name="calendar" /> Expiries
             </Button>
           </RoleOnly>
@@ -1371,7 +1395,16 @@ export function Dashboard() {
             <div className="bdx__head">
               <div>
                 <div className="bdx__title">Expiring guarantees</div>
-                <div className="bdx__sub">Every in-force guarantee expiring in the chosen month, soonest first. {isOpndoorStaff(role) ? 'The whole book.' : 'Your partner only.'} Already-expired guarantees are never shown.</div>
+                {/* "Your agency's" OR "your company's", NEVER "your partner".
+                    Matt, 2026-10-03: "say 'Your agency's guarantees only' (or
+                    'your company's' for suppliers) instead of 'Your partner
+                    only'."
+
+                    "partner" IS THE SCHEMA'S WORD for two different kinds of
+                    company, and on the agency rail it is the HOUSE partner
+                    that every agency shares -- so "your partner" names
+                    Opndoor to the one reader it was written for. */}
+                <div className="bdx__sub">Every in-force guarantee expiring in the chosen month, soonest first. {isOpndoorStaff(role) ? 'The whole book.' : partyIsSupplier(partnerScope) ? "Your company's guarantees only." : "Your agency's guarantees only."} Already-expired guarantees are never shown.</div>
               </div>
               <button className="bdx__close" aria-label="Close" onClick={() => setExpOpen(false)}><Icon name="x" /></button>
             </div>
@@ -1379,10 +1412,25 @@ export function Dashboard() {
               <div className="field">
                 <label htmlFor="exp-month">Month (by guarantee expiry date)</label>
                 <input type="month" id="exp-month" min="2024-09" max="2028-12" value={expMonth} onChange={(e) => setExpMonth(e.target.value)} />
+                {/* THE NOTE THAT TELLS THE TWO EMPTINESSES APART. Matt: "if
+                    none, next month, with a note 'Nothing expiring yet; your
+                    earliest is [month]'." Without it, a month with no rows
+                    and a book with no guarantees produce the same empty file
+                    and the reader cannot tell which they are looking at. */}
+                {!expHasAny && (
+                  <span className="hint">
+                    {expEarliest
+                      ? <>Nothing expiring yet; your earliest is {formatMonth(expEarliest)}.</>
+                      : <>Nothing expiring yet. Guarantees appear here once a deed has been issued.</>}
+                  </span>
+                )}
               </div>
               <div className="bdx__warn" style={{ background: 'var(--white-lilac)', borderColor: 'rgba(211,100,251,0.25)' }}>
                 <Icon name="info" />
-                <span>Columns: guarantee reference, tenant name, property address, agency and branch, tenancy start, expiry date, days remaining, monthly and annualised rent, and referrer. Management receive this cohort by email six weeks before the month begins.</span>
+                {/* "get this list", not "receive this cohort". Matt,
+                    2026-10-03. "Cohort" is ours: the reader is a Director
+                    being told they will be emailed a list. */}
+                <span>Columns: guarantee reference, tenant name, property address, agency and branch, tenancy start, expiry date, days remaining, monthly and annualised rent, and referrer. Management get this list by email six weeks before the month begins.</span>
               </div>
             </div>
             <div className="bdx__foot">
