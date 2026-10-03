@@ -1789,6 +1789,24 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## THE SUPPLIER STATEMENT PDF, THREE THINGS (instruction, 2026-10-03, verbatim).
+
+> Supplier statement PDF (Kestrel, September 2026):
+> 1. The reference line reads "Reference Reference assigned when the statement is poste…". For an unposted statement show "Draft: not yet posted" once, not truncated; same in the CSV.
+> 2. On referrals frozen under "opndoor pays the agents", the agency's share is paid by Opndoor directly, so it must not be in the supplier's total: GR-FROST-KES should show Kestrel's £600 as the total, with a note "Agency commission of £240 paid by Opndoor directly to Frost Partnership". Only on referrals frozen under "the supplier pays its own agents" does the supplier's total include the agents' share. Check the CSV, the zip of agency schedules and the screen agree.
+> 3. Don't truncate guarantee references or other key columns in the PDF; let the table wrap.
+
+- ITEM 1 IS A LABEL PRINTED TWICE: the value already contains the word
+  "Reference", so the row reads "Reference Reference assigned when...".
+  Mine, from this morning's reference fix.
+- ITEM 2 IS THE SAME RULE as the instruction above it, on the document
+  rather than the screen, and it names the note's exact wording. Four
+  surfaces have to agree: screen, PDF, CSV and the zipped per-agency
+  schedules.
+- ITEM 3 is the PDF's column widths, and "or other key columns" means
+  the sweep is every column that can hold something long, not just the
+  reference.
+
 ## A SUPPLIER'S COMMISSION PAYABLE IS ITS OWN (instruction, 2026-10-03, verbatim).
 
 > Supplier's own Reporting (and View as):
