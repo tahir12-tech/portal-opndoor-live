@@ -310,8 +310,15 @@ export function Dashboard() {
      read as "you are owed £0.00 partner", about money that is not theirs
      and a rail they are not on. What they are owed is the statement
      below, which says so in one line. */
+  /* AND NOT FOR A SUPPLIER EITHER, 2026-10-03. The comment above says
+     "`agencyFacing` already removed it from our own agencies"; it did not
+     remove it from a supplier, and this banner totals OPNDOOR'S SETTLEMENT
+     RUN across both rails -- the process Matt asked to keep off a
+     supplier's Reporting entirely. `canSeeSettlements` beside it has
+     excluded `supplierFacing` since the Reporting fix on 2026-10-01; this
+     line was the one that did not. */
   const naSettlements = d.live && role === 'management' && seesCommission
-    && !agencyFacing && (partnerDue > 0 || agentDue > 0);
+    && !agencyFacing && !supplierFacing && (partnerDue > 0 || agentDue > 0);
   // #93 Deed-delivery failure is ops furniture: management + opndoor admin only.
   const naNoContact = d.live && canSeeSettlements && d.deedsNoContact > 0;
   const naLapsing = d.live && canSeeSettlements && d.lapsing14 > 0;
@@ -959,7 +966,23 @@ export function Dashboard() {
             that is actually about whether there is anything to show. */}
         {opndoorStaff && <CustomersTable rows={customers} seesCommission={seesCommission} />}
 
-        {d.live && partnerBreakdown.length > 0 && !agencyFacing && (
+        {/* OPNDOOR ONLY, 2026-10-03. Matt: "Reporting as a supplier
+            (Kestrel's own login and 'View as'): hide the 'Commission by
+            route' table; it's Opndoor-only. The supplier's commission is
+            already shown in the summary and its statement."
+
+            IT WAS GATED ON `!agencyFacing`, which is the same miss the
+            payable split and the Settlements blocks had on 2026-10-01: the
+            gates were written when the only non-agency reader WAS Opndoor,
+            and a supplier reading its own page is the third case. The
+            table lists the three rails and EVERY supplier, so Kestrel was
+            shown its competitors' names and what Opndoor pays them.
+
+            `opndoorStaff` is the same gate as the Every customer table
+            directly above, and it is the honest one: it also covers an
+            admin under View as, who is looking at the supplier's page and
+            should see the supplier's page. */}
+        {d.live && partnerBreakdown.length > 0 && opndoorStaff && (
           <RoleOnly roles={READS_THE_WHOLE_BOOK} commission>
             <section className="card settle">
               <CardHead

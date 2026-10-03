@@ -301,18 +301,31 @@ describe('Reporting, read by a Manager', () => {
 });
 
 describe("Reporting, read by a supplier's Manager", () => {
-  /* A supplier partner's staff are role 'management' too and they are not an
-     agency: Commission by route is a table ABOUT them, so agencyFacing leaves
-     it on their screen and only the commission predicate can take it off. This
-     is the one commission surface on the page an agency never sees, so it needs
-     a reader who is not agency-facing to be asserted at all. */
+  /* THE PREMISE OF THIS BLOCK WAS OVERRULED, 2026-10-03, and the comment it
+     replaces is worth keeping to say what changed. It read:
+
+       "A supplier partner's staff are role 'management' too and they are not
+        an agency: Commission by route is a table ABOUT them, so agencyFacing
+        leaves it on their screen and only the commission predicate can take
+        it off."
+
+     That was the gate's reasoning, not a decision anybody had taken, and the
+     table is not about them: it lists the three rails and EVERY supplier, so
+     Kestrel's own Director was shown its competitors and what Opndoor pays
+     them. Matt: "hide the 'Commission by route' table; it's Opndoor-only. The
+     supplier's commission is already shown in the summary and its statement."
+
+     SO NEITHER LEVEL SEES IT NOW, and the Manager/Director distinction this
+     block existed to prove moves to a surface a supplier actually has: their
+     own commission tile. That distinction is the thing worth protecting and
+     it is unchanged. */
   beforeEach(() => {
     setHomePartner(SUPPLIER_PARTNER);
     hydrateFull(agencyBook(SUPPLIER_PARTNER));
     stageOrg(["Regent's Lettings"]);
   });
 
-  it('loses Commission by route, and their Director keeps it', async () => {
+  it('never shows Commission by route, at either level, because it is Opndoor’s', async () => {
     beManager();
     const asManager = await openDashboard();
     expect(text(asManager)).not.toMatch(/Commission by route/);
@@ -323,8 +336,21 @@ describe("Reporting, read by a supplier's Manager", () => {
 
     beDirector();
     const asDirector = await openDashboard();
-    expect(text(asDirector)).toMatch(/Commission by route/);
-    expect(asDirector.container.querySelectorAll('.settle table').length).toBeGreaterThan(0);
+    expect(text(asDirector)).not.toMatch(/Commission by route/);
+  });
+
+  /* AND THE LEVEL STILL DECIDES WHAT THEY SEE, which is what this block is
+     for. The Director has a commission tile and the Manager does not; that
+     rule is untouched by the table going. */
+  it('while their Director still sees their own commission and the Manager does not', async () => {
+    beManager();
+    const asManager = await openDashboard();
+    expect(commissionTile(asManager)).toBeNull();
+    cleanup();
+
+    beDirector();
+    const asDirector = await openDashboard();
+    expect(commissionTile(asDirector)).not.toBeNull();
   });
 });
 

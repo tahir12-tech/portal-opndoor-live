@@ -378,3 +378,63 @@ describe('the supplier’s own Reporting', () => {
     );
   });
 });
+
+/* ===========================================================================
+   AND NOTHING ABOUT ROUTES OR OPNDOOR'S SETTLEMENT RUN, 2026-10-03.
+
+   Matt: "Reporting as a supplier (Kestrel's own login and 'View as'): hide
+   the 'Commission by route' table; it's Opndoor-only. The supplier's
+   commission is already shown in the summary and its statement. Check
+   nothing else on a supplier's or agency's Reporting mentions routes, other
+   suppliers, or Opndoor's settlement process."
+
+   THE SAME MISS AS 2026-10-01, TWICE MORE. Both surfaces were gated on
+   `!agencyFacing`, written when the only non-agency reader WAS Opndoor. A
+   supplier reading its own page is the third case, and it fell on Opndoor's
+   side of both gates:
+
+     Commission by route   lists the three rails and EVERY supplier, so
+                           Kestrel saw its competitors and what Opndoor pays
+                           them
+     the settlement banner totals Opndoor's settlement run across both rails
+
+   THE OTHER CUSTOMER'S NAME IS THE ASSERTION, for the reason the top of this
+   file gives: a figure can collide by arithmetic accident and a name cannot.
+   =========================================================================== */
+describe('Commission by route', () => {
+  const routeHeads = (v: View) =>
+    [...v.container.querySelectorAll('.card__head, .card-head, h2, h3')]
+      .map((e) => (e.textContent ?? '').trim())
+      .filter((t) => t.includes('Commission by route'));
+
+  it('is absent on the supplier’s own login', async () => {
+    expect(routeHeads(await asTheSupplier())).toEqual([]);
+  });
+
+  it('and absent under View as of them, which is the same page', async () => {
+    expect(routeHeads(await asAdminViewingThem())).toEqual([]);
+  });
+
+  /* THE HALF THAT MUST NOT MOVE. It is Opndoor's own table and Opndoor keeps
+     it; a fix that simply deleted it would pass the two tests above. */
+  it('while an admin across the estate still has it', async () => {
+    const v = await openReporting({ role: 'superadmin', partner: ALL_PARTNERS });
+    expect(routeHeads(v).length).toBeGreaterThan(0);
+  });
+});
+
+describe('the gates that were written when Opndoor was the only other reader', () => {
+  /* ASSERTED ON THE SOURCE, because what was wrong is WHICH predicate each
+     one asks, and both versions render identically for an agency -- the only
+     reader the old gate was ever tested against. */
+  const DASH = readFileSync(join(process.cwd(), 'src/pages/Dashboard/Dashboard.tsx'), 'utf8');
+
+  it('the route table asks for Opndoor staff, not merely "not an agency"', () => {
+    expect(DASH).toContain('{d.live && partnerBreakdown.length > 0 && opndoorStaff && (');
+    expect(DASH).not.toContain('{d.live && partnerBreakdown.length > 0 && !agencyFacing && (');
+  });
+
+  it('and the settlement banner excludes a supplier as well as an agency', () => {
+    expect(DASH).toContain('&& !agencyFacing && !supplierFacing && (partnerDue > 0 || agentDue > 0);');
+  });
+});
