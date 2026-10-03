@@ -2123,6 +2123,19 @@ is nothing left to match" instead of a warning.
   month with nothing in it, and the "earliest is [month]" note needs a
   query the dialog does not make yet.
 
+## THE LEAGUE EXPORT DROPS THE ROUTE FOR A CUSTOMER (instruction, 2026-10-03, verbatim).
+
+> League exports as an agency or supplier: drop the "Route" column (and "Agency or supplier"), which only mean something in Opndoor's view.
+
+- SAME RULE AS THE APPLICATION EXPORTS above: a column that names the
+  rail is Opndoor's own plumbing. "Route" was itself today's rename of
+  "Detail", and on a customer's own download every row has the same
+  value in it.
+- "Agency or supplier" is the Referrers board's subtitle column, which
+  for a customer is always their own name.
+- The columns are per board in `leagueColumns`, and `agencyFacing` is
+  the predicate that already exists for this.
+
 ## AND THE SUPPLIER'S OWN APPLICATION EXPORT (instruction, 2026-10-03, verbatim).
 
 > Application export as a supplier: drop the "(via [supplier])" labels and the Supplier column in the supplier's own export (it's all theirs), and include their commission columns once the Management commission issue is fixed. Same changes as the agency export otherwise (tenant names, no "Refund policy anomaly", "Joint with" instead of Tenancy ID).
