@@ -1320,6 +1320,13 @@ reading the wrong one. No frozen amount changed.
 
 - Part 2 is an answer first, like the GR-FROST-KES one.
 
+## ONE FAILING RECORD IS NOT FIFTY ALERTS (instruction, 2026-10-03, verbatim).
+
+> HubSpot sync: one record pointing at a HubSpot company that doesn't exist has been failing on every run since, sending a "hubspot_sync_error" alert each time (50 so far). Fix it so that: a record that fails is marked failed with the reason and skipped, never blocking the rest; it's retried a few times with growing gaps, then left for a person; the alert fires once per failing record, not every run; and Health lists failed records with a button to retry or clear each one. Then find the record causing today's failures, tell me what it is, and clear or fix it on dev.
+
+- Supersedes part 2 of "THE CORRECTION NOTE, AND FIFTY HUBSPOT ALERTS":
+  the answer is now known and this is the build.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
