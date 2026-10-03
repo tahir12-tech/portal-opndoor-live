@@ -1789,6 +1789,25 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## CREATION IS RECORDED, NOT JUST EDITS (instruction, 2026-10-03, verbatim).
+
+> Record agency, branch, group and supplier creation in Recent changes and the audit trail (who, when, and from where), the same way edits are recorded.
+
+- THIS COMES STRAIGHT OUT OF THE HARBORVIEW ANSWER. I could date that
+  agency to the second and say what it was for, and could NOT say who
+  made it, because agency creation on 2026-09-23 wrote no `org_audit`
+  row and no `activity_log` entry. The row records no creator. That is
+  the gap this closes.
+- FOUR CREATE PATHS, and they do not share one: `admin_add_agency`,
+  `admin_add_branch`, `admin_create_agency_and_branch`, `create_partner`,
+  plus the referrer's on-the-fly agency/branch creation from New
+  application, which is the one most worth recording.
+- "AND FROM WHERE" is the new fact: `org_audit` has actor and actor_id
+  but nothing saying whether a row came from Add agency, the New
+  application form or the partner API.
+- `create_partner` already writes `partner_audit` on creation; the org
+  side is what is missing.
+
 ## THE CHECKOUT LINE SAYS WHOSE SHARE IT IS (instruction, 2026-10-03, verbatim).
 
 > Stripe checkout description on joint tenancies: "Your 10% share of the guarantee fee (5 weeks of rent for the whole tenancy)".
