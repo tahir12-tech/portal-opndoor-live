@@ -1158,6 +1158,13 @@ you asked for. Say the word and the tenant gets their own wording.
 
 > Applications: when a status tab is empty, say which, e.g. "No direct applications awaiting a decision", instead of "No applications match your filters", and make the selected tab clearly highlighted.
 
+## WHO OPNDOOR PAYS ON GR-FROST-KES (instruction, 2026-10-03, verbatim).
+
+> Settlement check, admin Reporting: Kestrel Lettings is set to "the supplier pays its own agents", but Settlements lists "Agent commission payable to Frost Partnership (via Kestrel Lettings) £240" as an Opndoor payee next to £600 to Kestrel, and "Commission payable" for Kestrel is £840. Tell me in plain English: what was frozen onto GR-FROST-KES when it was created (and what the switch was at that moment), who Opndoor should therefore pay and how much, and whether the screens, statements and settlement agree with that. If the referral was created under "the supplier pays its own agents", Opndoor must pay Kestrel the full amount and list no payment to the agency. Don't change any frozen amounts without telling me first.
+
+- **An answer first, not a change.** Measured on dev and reported before
+  anything is touched.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
