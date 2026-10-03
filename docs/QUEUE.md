@@ -1163,7 +1163,44 @@ you asked for. Say the word and the tenant gets their own wording.
 > Settlement check, admin Reporting: Kestrel Lettings is set to "the supplier pays its own agents", but Settlements lists "Agent commission payable to Frost Partnership (via Kestrel Lettings) £240" as an Opndoor payee next to £600 to Kestrel, and "Commission payable" for Kestrel is £840. Tell me in plain English: what was frozen onto GR-FROST-KES when it was created (and what the switch was at that moment), who Opndoor should therefore pay and how much, and whether the screens, statements and settlement agree with that. If the referral was created under "the supplier pays its own agents", Opndoor must pay Kestrel the full amount and list no payment to the agency. Don't change any frozen amounts without telling me first.
 
 - **An answer first, not a change.** Measured on dev and reported before
-  anything is touched.
+  anything is touched. **Nothing was changed.**
+
+- **THE TIMELINE REVERSES THE PREMISE.** `partner_audit` on Kestrel has
+  exactly two `opndoor_pays_agents` rows: 1 Oct 15:52:55 "the supplier
+  pays its own agents" -> "opndoor pays the agents", and 2 Oct 09:33:06
+  back again. GR-FROST-KES was created 2 Oct **00:07:24**, which is
+  between them. So it was frozen under **"opndoor pays the agents"**,
+  not under "the supplier pays its own agents". Matt's conditional
+  ("Opndoor must pay Kestrel the full amount and list no payment to the
+  agency") is the right rule for the other case and does not apply to
+  this referral.
+
+- **WHAT IS FROZEN, AND IT IS CORRECT.** Basis GBP 2,400 (the rent;
+  `fee_amount` is null). Two lines: agency `Frost Partnership`
+  (org_id ...a002, Kestrel's Frost) 0.10 = GBP 240, and supplier
+  `Kestrel Lettings` 0.25 = GBP 600. **The 240 is a CARVE-OUT of the
+  600, not an addition to it** -- `supplier_statement_lines` on dev says
+  so in its own columns: total 600, agent 240, supplier 360.
+
+- **SO OPNDOOR OWES GBP 600 IN TOTAL**: GBP 240 to Frost Partnership
+  (Kestrel's estate) and GBP 360 to Kestrel.
+
+- **AND THE THREE SURFACES ALL DISAGREE.**
+  - Kestrel's supplier statement: 240 + 360. **Right.**
+  - SQL settlement (`commission_statement_payees`): Kestrel 600, and
+    Kestrel's Frost absent. Total right, split wrong: it pays as though
+    the supplier settled its own agents, which is today's switch and not
+    the frozen one. The Frost 240 it DOES list is `...a001`, OUR Frost,
+    from GR-FROST-OURS, a different referral that also paid 27 Sep.
+  - The screen: `supplierAmountOf` returns the frozen 600 GROSS and
+    `payeesFor` returns the 240 separately, and neither knows about
+    `opndoor_pays_agents`, so Reporting adds them: **GBP 840, which is
+    GBP 240 too much.** That is Matt's figure.
+
+- **NO FROZEN AMOUNT NEEDS CHANGING.** The stored rows are right. Three
+  readers disagree about how to combine them, which is a code fix.
+
+- **AWAITING MATT** on the fix itself, since it moves money on screen.
 
 ## EVERY ADMIN DOWNLOAD IS A BRANDED FILE (instruction, 2026-10-03, verbatim).
 
