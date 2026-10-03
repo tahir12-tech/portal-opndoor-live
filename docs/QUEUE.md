@@ -1819,6 +1819,17 @@ is nothing left to match" instead of a warning.
   go-live. If the answer is "not told", the copy fix ships tonight and
   the email goes under "After launch" with its wording drafted.
 
+## THE JOINT-TENANCY LINE, FINAL WORDING (instruction, 2026-10-03, verbatim). SUPERSEDES THE ONE BELOW.
+
+> Landlord leaflet, joint tenancies: replace the joint-tenancy line with "On a joint tenancy, each tenant has their own deed covering their share of the rent. The £120,000 cap and £10,000 legal costs apply to the whole tenancy, split between the deeds in the same shares." Keep the single-tenancy figures as they are.
+
+- SUPERSEDES the one-sentence version in the message below, and it is
+  also the first thing Matt has said about the two figures other than
+  "leave them": they are now described as WHOLE-TENANCY caps split
+  between the deeds, which is new information, not a rewording.
+- "Keep the single-tenancy figures as they are" keeps the hold on
+  everything else.
+
 ## THE LEAFLET WORDING, CONFIRMED (instruction, 2026-10-03, verbatim, two messages).
 
 > Help and leaflets, confirmed by me:
