@@ -1226,6 +1226,14 @@ you asked for. Say the word and the tenant gets their own wording.
 
 > Reporting and League, referrer lists: a supplier's own staff are labelled with their supplier (e.g. "Kestrel Lettings"), not with the agency or branch they last referred for.
 
+## SEPARATELY MEANS ADDED, NOT CARVED OUT (decision, 2026-10-03, verbatim). THIS CORRECTS MY READING.
+
+> On GR-FROST-KES: it was frozen under "opndoor pays the agents" (the "separately" setting). Per my decision and the Commission tab's own worked example, under that setting the supplier's commission and the agency's commission are separate and the total is their sum: Kestrel £600 (25%) plus Frost via Kestrel £240 (10%) = £840 owed, not £600 with £240 carved out. Confirm that the frozen lines store it that way. If so, Reporting's £840 is right and Kestrel's supplier statement (£360 supplier) and the SQL settlement (Kestrel £600, no Frost) are wrong. Show me what you'd change in each before changing it. If a referral is frozen under "the supplier pays its own agents", the agency's share comes out of the supplier's total and Opndoor pays only the supplier.
+
+- I read the carve-out off `supplier_statement_lines`'s own columns and
+  took the SQL for the rule. The rule is Matt's, and the SQL is one of
+  the things that is wrong.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
