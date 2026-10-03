@@ -77,9 +77,20 @@ describe('never a raw field name or a raw value', () => {
       .toBe('Referrer leaderboard changed from Full to Private');
   });
 
+  /* "No access", not "Deactivated", since 2026-10-03. Matt:
+     "Removed-but-not-deleted people show as 'No access'." The buttons and
+     the pill both use that wording, so the audit trail saying "Deactivated"
+     was a fourth word for one state. */
   it('and a user’s status, which is the other list', () => {
     expect(say('status', 'active', 'deactivated'))
-      .toBe('Status changed from Active to Deactivated');
+      .toBe('Status changed from Active to No access');
+  });
+
+  /* AND THE DELETE, which is a status change like any other and is how it
+     reaches Recent changes. */
+  it('and a delete, which is the second step of removing somebody', () => {
+    expect(say('status', 'deactivated', 'deleted'))
+      .toBe('Status changed from No access to Deleted');
   });
 
   /* A CREATION IS NOT A CHANGE and has no "from". */
@@ -182,7 +193,7 @@ describe('an event rather than a triple', () => {
      the agency's people both use it. */
   it('while a triple is still a triple', () => {
     expect(changeSentence({ field: 'status', oldValue: 'active', newValue: 'deactivated' }))
-      .toBe('Status changed from Active to Deactivated');
+      .toBe('Status changed from Active to No access');
   });
 });
 

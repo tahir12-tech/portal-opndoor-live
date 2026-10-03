@@ -180,7 +180,12 @@ const VALUE_WORDS: Record<string, string> = {
   active: 'Active',
   onboarding: 'Onboarding',
   paused: 'Paused',
-  deactivated: 'Deactivated',
+  /* "No access", the word the buttons and the pill use, since 2026-10-03.
+     Matt: "Removed-but-not-deleted people show as 'No access'." The audit
+     trail saying "Deactivated" for the state every screen calls "No access"
+     is the fourth word for one thing. */
+  deactivated: 'No access',
+  deleted: 'Deleted',
   pending: 'Invited',
 };
 
