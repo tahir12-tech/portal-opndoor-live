@@ -1789,6 +1789,22 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## THE ORDER FOR TONIGHT (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
+
+> Agreed order: 1) the invoice instruction and supplier payable (£600 not £840) across screen, PDF, CSV and zip; 2) the 15th-of-next-month date; 3) the opndoor Manager invite blocker; 4) whether the monthly run posts supplier statements (answer first, send nothing); 5) the open referrals of deleted referrers (who gets the deed); then the rest in order. Drop "Change level everywhere". Work through tonight without waiting for me, small safe changes only; anything large or risky goes under "After launch". Branch must be pushed by Sunday night for Balal at 05:00 Monday. Morning summary in plain English.
+
+- "CHANGE LEVEL EVERYWHERE" IS DROPPED. Its entry below is struck
+  through and nothing was built for it; the supplier People tab keeps
+  "Change role" per D11.
+- "SMALL SAFE CHANGES ONLY" IS THE GOVERNING CONSTRAINT and it outranks
+  the order: an item on the list that turns out to need a migration, a
+  new state or a change to the referral path goes under "After launch"
+  with what it would take, rather than being built at 2am.
+- THE PUSH IS MATT'S. CLAUDE.md: "origin is a third-party live
+  repository. Matt pushes. Claude only commits. Never push." The branch
+  will be committed and green; pushing it before 05:00 Monday is his,
+  unless he says otherwise in as many words.
+
 ## A DEPARTED REFERRER'S OPEN REFERRALS STILL HAVE SOMEBODY (instruction, 2026-10-03, verbatim). ANSWER FIRST.
 
 > When a referrer's access is removed or they're deleted, their open referrals must still have someone to notify and to receive the deed. Tell me what happens today for GR-20837 (Tom Reeve deleted, referral awaiting payment) if the tenant pays and signs: who gets the paid email and the signed deed? It should go to the office's or agency's email if set, otherwise the agency's Directors, and the agency page should say "N open referrals from people who have left; deeds will go to [who]". Also, the activity log still says "guarantor fee still unpaid"; reminders should say "guarantee fee".
@@ -2011,7 +2027,7 @@ is nothing left to match" instead of a warning.
 - PART 2 is the same distinction as the statement heading: posted vs
   not. `commission_statement_sends` is what "emailed" means.
 
-## CHANGE LEVEL EVERYWHERE (instruction, 2026-10-03, verbatim). THIS SUPERSEDES D11'S WORDING.
+## ~~CHANGE LEVEL EVERYWHERE~~ (instruction, 2026-10-03). DROPPED BY MATT THE SAME EVENING: "Drop 'Change level everywhere'." Nothing was built; the supplier People tab keeps "Change role".
 
 > People tables: use "Change level" everywhere (supplier People tab says "Change role").
 
