@@ -2417,10 +2417,37 @@ than reconstructed.
   the empty "..." menu. That last one is the LADDER, not the page, and
   the fix is the note Matt had already specified for the agency rail, so
   his Director-note instruction landed in the same commit.
-- **6. Help guide rewrites and the leaflets as HTML pages.** NEXT. Has an
-  ANSWER FIRST part: FAQ 7, what the portal enforces about changing a
-  tenancy start date.
-- **7 to 9.** Not started.
+- **6. Help guide rewrites and the leaflets as HTML pages. DONE**
+  (`a6f6b78`). All three guides rewritten; the tenant and landlord
+  leaflets are HTML pages now, transcribed from the PDFs so the held
+  wording (cover amounts, claim steps, refunds) is carried word for word
+  and pinned by tests. The .pdf files stay in place because links to
+  them exist outside the portal. FAQ 7 ANSWERED FROM THE CODE: both
+  rails claimed "within 7 days of the payment date" and **no such rule
+  exists** -- `amend_tenancy_start` never reads `paid_at`, the only
+  limit on the date is a five-year sanity range, and what actually
+  decides it is the role and the deed state. The old answer also left
+  the referrer out, who may amend their own referral while the deed is
+  unsigned.
+- **7. Form validation across every form. DONE** (`a1dea71`). The real
+  defect was that submit buttons were disabled while invalid, so there
+  was nothing to press, nothing to count and nowhere to jump. The count
+  is read off the DOM (`.field.is-invalid`), which is what makes "same
+  for every form" true rather than aspirational. Seven forms covered,
+  two deliberately not, all named in the commit.
+- **8. The dropdown sweep. DONE** (`1799d0f`). 49 selects, 24 already
+  styled by `.field select`; the filter bars were the gap. `.sel` is the
+  shared look, taken from the agency People page because Matt named it.
+  Three selects keep their own, named in the guard.
+- **9. The API creating agencies. DONE** (`9cdf8d9`), all eight approved
+  rules plus the similarity check. The near miss went into
+  `reconciliation_queue`, because "Might already exist" is a filter over
+  that queue rather than a query of its own, and its lateral could not
+  see a transposition. Threshold 0.55, set by Matt's own example (0.565).
+  Documented in PARTNER-DOCS.md and regenerated. partner-api deployed to
+  dev.
+
+**ALL NINE ITEMS ARE DONE.** The small copy fixes follow.
 
 ### Adjacent findings, not fixed, found while doing the above
 
