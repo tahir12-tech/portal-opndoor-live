@@ -1948,6 +1948,23 @@ is nothing left to match" instead of a warning.
 - The em-dash check is a new repo guard, and the existing
   noEmDashesInCustomerText is the one to extend rather than a second.
 
+## A SUPPLIER'S VIEW OF ITS OWN AGENCY (instruction, 2026-10-03, verbatim).
+
+> Supplier view of one of its agencies (e.g. Frost Partnership as Kestrel Management): "1 referrals" should be "1 referral"; remove the People tab and "0 people" (supplier-estate agencies have no logins); in Recent changes and any other customer-facing history, show changes made by Opndoor staff as "opndoor", not the staff member's name.
+
+- THREE THINGS, ALL SMALL, AND ONE OF THEM IS A DISCLOSURE: naming the
+  Opndoor staff member who made a change in a customer's own history
+  tells a customer who works here. It is the same rule as the one
+  recorded above for referrer lists ("opndoor (on your behalf)"), on a
+  different surface, and both have the same answer: customer-facing
+  history says "opndoor".
+- "SUPPLIER-ESTATE AGENCIES HAVE NO LOGINS" is the fact
+  whereTheyWork's comment used to lean on and that I corrected this
+  afternoon -- a supplier's own STAFF refer, but its AGENCIES still
+  have no users. So the People tab on one of them is always empty, and
+  Matt is right that it should not be there.
+- "1 referrals" is `plural`, which exists and is not being used here.
+
 ## AND THE SAME USER'S EXPORT HAS NO COMMISSION EITHER (instruction, 2026-10-03, verbatim).
 
 > Also check: the Kestrel Management user's Performance export has no commission columns or settlement section at all. Confirm whether the new user was created at a level without commission access, or whether supplier Management is being treated as no-commission everywhere.
