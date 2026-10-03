@@ -1624,6 +1624,15 @@ is a race on a rarer action and the fix means rewriting another function.
 
 > Agencies list and agency page: for Opndoor's own agencies with no users, replace "No one at this agency can receive the deed. Invite a manager or nominate a recipient." with a neutral "No users yet. Invite someone to start referring." Only warn about deed delivery when there's an application at that agency whose deed has nowhere to go.
 
+## THE AGENCY COMMISSION FORM, FIVE THINGS (instruction, 2026-10-03, verbatim).
+
+> Agency commission deal form:
+> 1. Commission by volume: the first row starts at 0 but the plain-English line says "Referrals 1 to 50". Start the first row at 1.
+> 2. "1 months' rent" should be "1 month's rent" when the number is 1.
+> 3. The plain-English summary starts lowercase ("any number of tenants…"); capitalise it.
+> 4. "Standard terms" should say the actual figures: "No special deal. The tenant pays one month's rent and we pay our standard 10%."
+> 5. Commission tab: remove "2 rates explicitly set" when both rows say "Inherits", and remove the "Set rate" buttons (deals are set with "Set a deal").
+
 ## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > No default deal and the warnings now; the referral refusal goes under "After launch". Then prioritise for Wednesday: 1) "Referrals sent" including expired and "Fee unpaid" (figures people will rely on); 2) the application-detail trio and the ready-to-sign email (what tenants and agents see); 3) supplier Reporting hiding "Commission by route"; 4) real reasons on failed saves. Everything else after those, and anything not done by Sunday evening moves to "After launch".

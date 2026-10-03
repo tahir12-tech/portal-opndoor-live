@@ -1217,6 +1217,85 @@ an error count of zero over the window, beside `partner-webhooks` doing the
 same. Any other job showing errors is read the same way: the page states what
 each failure means and what to do about it.
 
+#### 8.05a HUBSPOT HAS NEVER RUN END TO END. NOT ONCE.
+
+**Read this before trusting anything above.** Measured on dev, 2026-10-03:
+
+| fact | value |
+|---|---|
+| `ops_secrets.hubspot_access_token` | **does not exist, and never has** |
+| `hubspot_disabled` | `'true'`, set 28 Sep 16:41 |
+| partners marked stuck (`stuck_error`) | none, all eleven |
+| the cron | active, every 2 minutes, 1,440 successes in 2 days |
+
+So **no record has ever been written to HubSpot from this codebase**. The
+sync's happy path -- resolving a company, creating an applicant object,
+associating the two, advancing a pipeline stage -- has been read and
+reviewed and never executed. Everything in 8.05 above tells you how to
+see that it is RUNNING; none of it tells you it WORKS, because nothing
+here could.
+
+That is not a reason to delay the cutover: HubSpot is a reporting
+integration and no tenant, agent or payment depends on it. It is a
+reason not to tick it off on the strength of a 2xx.
+
+**Do this once, on live, before you hand back:**
+
+1. **Confirm the token is set.**
+
+   ```sql
+   select name, (secret is not null and secret <> '') as is_set
+     from public.ops_secrets
+    where name = 'hubspot_access_token';
+   ```
+
+   Empty result or `is_set = false` means the sync will do nothing. It
+   may instead be set as an edge-function env var, which the function
+   also reads; the Edge Functions secrets page is the other place to
+   look.
+
+   - [ ] a token is set, in one of the two places
+
+2. **Confirm the sync is NOT disabled.**
+
+   ```sql
+   select secret from public.ops_secrets where name = 'hubspot_disabled';
+   ```
+
+   **Production should have no such row.** If it returns `true`, the
+   function returns early and syncs nothing, exactly as dev has been
+   doing since 28 September. Dev carries the row deliberately; a clone
+   taken from production will not, unless somebody adds it.
+
+   - [ ] no `hubspot_disabled` row, or it is not `true`
+
+3. **Sync one company and look at it in HubSpot.** This is the step that
+   has never been done. Pick one real agency, let the cron run (it is
+   every two minutes), then open HubSpot and find that company by name.
+
+   - [ ] the company is in HubSpot
+   - [ ] its properties are the ones the field map says, not blanks
+   - [ ] a second run does not create a duplicate of it
+
+4. **Then check the alerting is quiet rather than broken.** Since
+   `20261007740000` the same failure alerts once and not once an hour.
+   A silent `hubspot_sync_error:config` therefore no longer proves the
+   token is fine -- it may mean it was reported yesterday and latched.
+
+   ```sql
+   select alert_type, detail, first_at, last_at
+     from public.ops_alert_state
+    where alert_type like 'hubspot%';
+   ```
+
+   An empty result is the good answer. A row means the sync is failing
+   and has already said so once.
+
+   - [ ] no row, or Matt has seen what it says
+
+**Stop and tell Matt** if step 3 cannot be completed. A HubSpot integration
+that has never moved a record is not a thing to declare working.
+
 ### 8.1 VERIFY THE BASE URL BEFORE YOU TRUST ANY CRON
 
 Four of these jobs end their command with
