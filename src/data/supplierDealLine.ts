@@ -106,6 +106,13 @@ export function supplierDealLine(input: {
     return withAgencies(`${pct(r)}% of the fee`);
   }
 
-  if (standardTotal == null) return agencies ? withAgencies('No rate set') : 'No rate set';
+  /* NO DEAL, WHICH IS NOT THE SAME AS NO RATE. Matt, 2026-10-03: "the
+     Suppliers list shows 'No deal set'". It said "No rate set", which was
+     written when the columns were NOT NULL and could only be missing by
+     accident; now it is the ordinary state of a supplier nobody has
+     agreed terms with yet, and the words have to say that. The agencies'
+     clause is dropped with it: a share of a deal that does not exist is
+     not a thing to print. */
+  if (standardTotal == null) return 'No deal set';
   return withAgencies(`${pct(standardTotal)}% of the fee`);
 }

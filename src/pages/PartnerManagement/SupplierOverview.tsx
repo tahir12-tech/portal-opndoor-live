@@ -36,6 +36,7 @@ import { StatementRecipients } from '@/components/StatementRecipients';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { possessive } from '@/lib/format';
 import { Icon } from '@/components/ui/Icon';
+import { hasNoDeal } from './SupplierDeals';
 import { formatDate } from '@/lib/format';
 import { plural } from '@/lib/plural';
 import './PartnerHome.css';
@@ -90,10 +91,31 @@ export function SupplierOverview({ slug, partnerDbId, name, standardTotal, stand
             card. */}
         <CardHead title="Commission" sub="What opndoor pays this supplier on a referral." />
         <CardBody>
-          <p className="ph-lede">
-            {supplierDealLine({ commission, agentShare, standardTotal, standardShare })}
-          </p>
-          <p className="ph-note muted">The full deal, and any deals for named agencies, are on the Commission tab.</p>
+          {/* A WARNING WHERE THERE IS NO DEAL. Matt, 2026-10-03: "the
+              Commission tab and Overview say 'No commission deal set' as a
+              warning". `hasNoDeal` is the Commission tab's own predicate,
+              imported rather than re-derived: this card is a summary of that
+              tab and the two saying different things about whether a deal
+              exists is the fault this whole change is about. */}
+          {hasNoDeal(commission, standardTotal) ? (
+            <>
+              <p className="ph-lede stmt__err">
+                <Icon name="alert" size={14} />
+                <span>No commission deal set.</span>
+              </p>
+              <p className="ph-note muted">
+                Nothing is charged and nothing is owed on this supplier&rsquo;s referrals until a
+                deal is set, on the Commission tab.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="ph-lede">
+                {supplierDealLine({ commission, agentShare, standardTotal, standardShare })}
+              </p>
+              <p className="ph-note muted">The full deal, and any deals for named agencies, are on the Commission tab.</p>
+            </>
+          )}
         </CardBody>
       </Card>
 

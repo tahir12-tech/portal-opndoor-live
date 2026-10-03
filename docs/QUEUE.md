@@ -1418,6 +1418,40 @@ statement.
   `partner_kind` and did not question. Refusing referrals is the part
   that needs care: it is a new way for the referral path to fail.
 
+- **DONE except the refusal, which Matt moved to After launch.**
+
+### Which dev suppliers got their deal from the default. NOTHING CHANGED.
+
+A deal is really a `pricing_agreements` row. Measured on dev: a
+partner-level `commission` agreement exists for Kestrel, Letly, Test
+Supplier and the house partners, and for nobody else. The rest were
+running on the column default alone.
+
+| supplier | rates | partner-level commission agreement | verdict |
+|---|---|---|---|
+| **ACME TEST** | 25% / 10% | **none** | **from the default** |
+| **New Suplier** | 25% / 10% | **none** | **from the default** |
+| **New Supplier 2** | 25% / 10% | **none** | **from the default** |
+| **New Supplier 3** | 25% / 10% | **none** | **from the default** |
+| Test Supplier | 25% / 10% | yes | agreed, and the columns match |
+| Letly | 0% / 0% | yes | agreed, and deliberately zero |
+| Kestrel Lettings | 25% / 10% | yes | agreed |
+
+Four of the seven, and their `partner_audit` creation rows show the
+25%/10% being written at creation with no edit since (`rate_edits = 0`).
+Kestrel has no creation row at all, so it predates that audit.
+
+**None of them is changed.** Matt asked to be told, not to have them
+altered.
+
+### And agencies: the same default does NOT exist
+
+`agencies` and `agency_groups` carry nullable `partner_rate` /
+`agent_rate` with no column default, and `create_agency` takes no rate
+argument. An agency with no override simply falls through to its group
+and then the partner, which is the precedence `resolve_rates` has always
+had. Nothing to remove.
+
 ## After launch
 
 *(Recorded, NOT built. Nothing in this section is in the go-live scope.)*

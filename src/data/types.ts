@@ -304,9 +304,16 @@ export interface Partner {
       `partnerRate` on the house partner is Opndoor's own margin, which is
       owed to nobody and never appears on a statement, and `agentRate` is
       the agency's cut. The two rails read the same two columns differently,
-      which is why `isHousePartner` guards every place they are spent. */
-  partnerRate: number;
-  agentRate: number;
+      which is why `isHousePartner` guards every place they are spent.
+
+      AND NULL MEANS NO DEAL HAS BEEN SET, since 20261007680000. Matt:
+      "New suppliers must never get a default commission deal." Different
+      from 0, which is a deal of nothing and which Letly actually has.
+      Every reader that spends these already writes `?? 0`; the ones that
+      DESCRIBE them have to tell the two apart, which is what
+      `supplierDealLine` and the two warnings do. */
+  partnerRate: number | null;
+  agentRate: number | null;
   /** Opndoor pays this supplier's agents directly, instead of paying the
       whole total to the supplier for it to settle with its own. Off by
       default. NM-C 5. */

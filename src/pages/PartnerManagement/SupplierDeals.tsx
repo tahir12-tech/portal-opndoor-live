@@ -33,6 +33,7 @@ import {
 import { setSupplierCommission } from '@/data/partnersService';
 import { gbpPence } from '@/lib/format';
 import { plural } from '@/lib/plural';
+import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { useConfirm } from '@/components/ui/ConfirmModal';
@@ -53,10 +54,24 @@ function headlineRate(deal: AgreementView | null, flat: number | null): number |
 }
 
 /** The one-line answer a card leads with: "25% of the fee". */
+/** True when neither a negotiated deal nor a standard rate is in force: this
+    supplier has had no commission agreed at all. Matt, 2026-10-03: "a new
+    supplier starts with no deal at all: the Commission tab and Overview say
+    'No commission deal set' as a warning". */
+export function hasNoDeal(deal: AgreementView | null, flat: number | null): boolean {
+  return !deal && flat == null;
+}
+
 function oneLine(deal: AgreementView | null, flat: number | null, share: boolean): string {
   if (!deal) {
+    /* "Nothing is set" WAS ALREADY HERE AND WAS UNREACHABLE. The columns
+       were NOT NULL with a default of 25% and 10%, so `flat` could never
+       be null and every supplier had a rate whether or not anybody had
+       agreed one. Since 20261007680000 a new supplier genuinely has none,
+       this branch is the ordinary case for one, and it is a WARNING rather
+       than a remark -- nothing can be paid until it is answered. */
     return flat == null
-      ? 'Nothing is set.'
+      ? 'No commission deal set.'
       : `${pctOf(flat)}% of the fee, on every referral.`;
   }
   return dealWords(
@@ -268,7 +283,16 @@ export function SupplierDeals({
           actions={canEdit && <Button variant="quiet" size="sm" onClick={() => setEditing('supplier')}>Change</Button>}
         />
         <CardBody>
-          <p className="sd-summary">{loaded ? oneLine(commission, total, false) : 'Loading…'}</p>
+          <p className={`sd-summary${loaded && hasNoDeal(commission, total) ? ' sd-summary--warn' : ''}`}>
+            {loaded && hasNoDeal(commission, total) && <Icon name="alert" size={14} />}
+            {loaded ? oneLine(commission, total, false) : 'Loading…'}
+          </p>
+          {loaded && hasNoDeal(commission, total) && (
+            <p className="ph-note muted">
+              Nothing is charged and nothing is owed on this supplier&rsquo;s referrals until a deal
+              is set. Press Change to set one.
+            </p>
+          )}
           {commission?.note && <p className="ph-note muted">{commission.note}</p>}
         </CardBody>
       </Card>

@@ -147,9 +147,23 @@ describe('the line under the name is the deal in force', () => {
     })).toBe('25% of the fee');
   });
 
-  it('and says so plainly when there is no rate at all', () => {
+  /* "No deal set", not "No rate set", since 20261007680000. The words
+     changed with the meaning: this branch was written when the columns were
+     NOT NULL with a 25%/10% default, so a missing rate could only be an
+     accident. A new supplier now genuinely has no deal, and that is the
+     ordinary state this line describes. */
+  it('and says so plainly when no deal has been set at all', () => {
     expect(supplierDealLine({
       commission: null, agentShare: null, standardTotal: null, standardShare: null,
-    })).toBe('No rate set');
+    })).toBe('No deal set');
+  });
+
+  /* AND THE AGENCIES' CLAUSE GOES WITH IT. A share of a deal that does not
+     exist is not a thing to print, and the old line would have read
+     "No rate set, agencies 10%". */
+  it('without a share clause, because there is nothing for it to be a share of', () => {
+    expect(supplierDealLine({
+      commission: null, agentShare: null, standardTotal: null, standardShare: 0.1,
+    })).toBe('No deal set');
   });
 });

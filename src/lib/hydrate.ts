@@ -295,8 +295,13 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     ...(isHousePartner(p.slug) ? { isHouse: true } : {}),
     users: usersByPartner[p.slug] || 0,
     apps: appsByPartner[p.slug] || 0,
-    partnerRate: num(p.partner_rate),
-    agentRate: num(p.agent_rate),
+    /* NULL SURVIVES THE HYDRATE, 20261007680000. `num()` coalesces to 0,
+       which would turn "no deal has been set" into "a deal of nothing" --
+       two different facts, and the second one is a real state that Letly
+       is in. The columns are nullable now and the screens have to be able
+       to tell them apart. */
+    partnerRate: p.partner_rate == null ? null : num(p.partner_rate),
+    agentRate: p.agent_rate == null ? null : num(p.agent_rate),
     /* NM-C 5. Not a rate, so it is not behind my_partner_rates: it says
        WHO Opndoor pays rather than how much, and the Commission tab
        needs it to render a switch. */
