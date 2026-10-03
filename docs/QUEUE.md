@@ -2119,6 +2119,16 @@ is nothing left to match" instead of a warning.
 - THE SECOND HALF is a display rule in customer views only: an admin's
   own name must not appear in a customer's referrer list.
 
+## THAT IS EVERYTHING FOR TONIGHT (instruction, 2026-10-03, verbatim). THE WORKING MANDATE.
+
+> That's everything from me tonight. Work through items 1 to 9 in order, then the small copy fixes, without waiting for me. For small choices, make the sensible one and carry on. Only park something under "For Matt in the morning" if it changes money, touches live, or can't be undone. Morning summary in plain English: what's done, what's left, anything waiting on me. Final status at Sunday 18:00 as agreed.
+
+- THE PARKING RULE IS NARROW AND I SHOULD HONOUR IT AS WRITTEN: money,
+  live, or irreversible. Everything else is a decision I make and carry
+  on from, with the reasoning in the commit.
+- ITEMS 1 TO 9 IN ORDER, then the small copy fixes. Item 9 is approved
+  and built after 8.
+
 ## ITEM 9 APPROVED, WITH THE SIMILARITY CHECK (approval, 2026-10-03, verbatim).
 
 > Approved, build it after items 1 to 8 as designed: opt-in flag defaulting to false, suppliers only, agency email required, reuse on an exact (normalised) match, refuse on ambiguous, land in Reconciliation, response says what was created, audited with the key name. One addition: API-created agencies and offices must go through Reconciliation's "Might already exist" similarity check, so a near-miss like "Frost Partnerhsip" is flagged to me as a possible duplicate of "Frost Partnership".
