@@ -1904,6 +1904,24 @@ is nothing left to match" instead of a warning.
 - The em-dash check is a new repo guard, and the existing
   noEmDashesInCustomerText is the one to extend rather than a second.
 
+## A REAL MANAGEMENT LOGIN DIFFERS FROM VIEW AS (instruction, 2026-10-03, verbatim).
+
+> Signed in as a new Kestrel Management user (Matthew Dwyer): Reporting shows no "Commission payable" tile and no commission statements section, though "View as Kestrel" shows both. Management at a supplier must see their commission and statements. Find why a real Management login differs from View as, fix it, and make View as show exactly what that level sees. Also: referrals an Opndoor admin made on a supplier's or agency's behalf show the admin's name in that customer's referrer lists ("Nicholas Dwyer"); show "opndoor (on your behalf)" instead in customer views.
+
+- VIEW AS AND THE REAL LOGIN DISAGREEING IS THE SERIOUS HALF: View as
+  exists so Opndoor can see what a customer sees, and if it shows MORE
+  than the customer gets, every check done through it has been checking
+  the wrong thing.
+- THE LIKELY CAUSE IS `sees_commission`, not the role: a Management row
+  with `sees_commission = false` is a Manager, and `maySeeCommission`
+  is what gates both surfaces. View as is driven by the ADMIN's own
+  answer to that question, which is true. So the fix is probably that
+  View as must read the VIEWED party's level, not the viewer's -- and
+  then what Matthew Dwyer's row actually holds decides whether he
+  should see it at all. Measure first.
+- THE SECOND HALF is a display rule in customer views only: an admin's
+  own name must not appear in a customer's referrer list.
+
 ## THE ORDER FOR TONIGHT (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > Agreed order: 1) the invoice instruction and supplier payable (£600 not £840) across screen, PDF, CSV and zip; 2) the 15th-of-next-month date; 3) the opndoor Manager invite blocker; 4) whether the monthly run posts supplier statements (answer first, send nothing); 5) the open referrals of deleted referrers (who gets the deed); then the rest in order. Drop "Change level everywhere". Work through tonight without waiting for me, small safe changes only; anything large or risky goes under "After launch". Branch must be pushed by Sunday night for Balal at 05:00 Monday. Morning summary in plain English.
