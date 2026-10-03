@@ -51,8 +51,15 @@ describe('the agency People tab', () => {
        supplierSees moved to on the same day. A screen that words it
        itself is how "-" and "Own referrals" came to mean the same thing
        on the two supplier lists. */
+    /* THE THIRD ARGUMENT SINCE 2026-10-03. A Director and a Manager are
+       both `management`, and `sees_commission` is the only thing between
+       them, so the helper cannot say "The whole agency (no commission)"
+       for one and not the other without being told which it is looking
+       at. Asserted here because the helper's default -- unknown reads as
+       a Director -- is silent, so a caller that stopped passing it would
+       quietly promote every Manager on the page. */
     it(`${which} fills it from the shared helper`, () => {
-      expect(call).toContain('extra: agencySees(r.role, r.level)');
+      expect(call).toContain('extra: agencySees(r.role, r.level, r.seesCommission)');
     });
 
     it(`${which} fills Last active`, () => {

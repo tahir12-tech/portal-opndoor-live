@@ -93,3 +93,9 @@
   color: var(--warn-ink, var(--ink));
 }
 .stmt__err svg { flex: none; margin-top: 2px; color: var(--warn); }
+
+/* A statement month that has not been posted. Matt, 2026-10-03: "label them
+   'Draft: month in progress, figures may change'". Warn-coloured rather than
+   muted: it is the one thing on the line a reader must not skim, because the
+   total beside it is still moving. */
+.stmt__draft { color: var(--warn); font-weight: 600; }

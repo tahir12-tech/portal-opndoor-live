@@ -1627,6 +1627,40 @@ function dmyhm(x: Date): string {
  */
 export const REFERENCE_ON_POST = 'Reference assigned when the statement is posted';
 
+/* =====================================================================
+   AND THE STATEMENT ITSELF IS A DRAFT UNTIL IT IS POSTED.
+
+   Matt, 2026-10-03, with a screenshot of an October statement carrying
+   STMT-2026-10-0001: "Statements for a month not yet posted (e.g.
+   October 2026 today): label them 'Draft: month in progress, figures may
+   change' on screen and in exports."
+
+   TWO SENTENCES FOR ONE STATE, AND THEY ARE NOT THE SAME SENTENCE.
+   `REFERENCE_ON_POST` answers "why is there no number here"; this
+   answers "can I rely on these figures". A reader of an unposted
+   statement needs both, and the second is the one that stops a finance
+   team filing a total that is still moving.
+
+   A MONTH THAT HAS ENDED IS NOT "IN PROGRESS". Matt's words describe the
+   current month, which is his example, and the same state exists for a
+   past month the run has not posted yet -- two of September's five
+   payees on dev. Telling somebody September is in progress on 3 October
+   would be false, so that case says what IS true and the current month
+   keeps his wording exactly. */
+export const DRAFT_IN_PROGRESS = 'Draft: month in progress, figures may change';
+export const DRAFT_NOT_POSTED = 'Draft: not yet posted, figures may change';
+
+/** The draft label for a statement month, or null once it is posted.
+ *  `monthKey` is 'YYYY-MM'; `ref` is what statementReference returned. */
+export function draftLabel(monthKey: string, ref: string): string | null {
+  if (isPostedReference(ref)) return null;
+  // `today()` is this file's own clock, fixed in test mode like every other
+  // date here, so a draft label cannot drift between a test and a screen.
+  const now = today();
+  const current = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return monthKey >= current ? DRAFT_IN_PROGRESS : DRAFT_NOT_POSTED;
+}
+
 export async function statementReference(monthKey: string, payeeKey: string): Promise<string> {
   if (!SUPABASE_ENABLED) return EMPTY;
   const { data, error } = await sb().rpc('commission_statement_ref', {
@@ -1738,6 +1772,12 @@ export async function buildPartnerStatementDoc(role: Role, scope: PartnerScope, 
         { label: 'Period (month)', value: st.monthLabel },
         { label: 'Settlement date', value: dmy(st.settlementDate) },
         { label: 'Statement reference', value: ref },
+        /* AND WHETHER THESE FIGURES ARE FINAL. Matt, 2026-10-03: label an
+           unposted month "Draft: month in progress, figures may change"
+           "on screen and in exports". A reference row saying no number
+           has been assigned explains the blank; it does not tell a
+           finance team the total underneath it is still moving. */
+        ...(draftLabel(st.monthKey, ref) ? [{ label: 'Status', value: draftLabel(st.monthKey, ref)! }] : []),
         { label: 'Generated', value: generated },
       ],
     },
@@ -1819,6 +1859,12 @@ export async function buildAgentStatementDoc(role: Role, scope: PartnerScope, pa
         { label: 'Period (month)', value: st.monthLabel },
         { label: 'Settlement date', value: dmy(st.settlementDate) },
         { label: 'Statement reference', value: ref },
+        /* AND WHETHER THESE FIGURES ARE FINAL. Matt, 2026-10-03: label an
+           unposted month "Draft: month in progress, figures may change"
+           "on screen and in exports". A reference row saying no number
+           has been assigned explains the blank; it does not tell a
+           finance team the total underneath it is still moving. */
+        ...(draftLabel(st.monthKey, ref) ? [{ label: 'Status', value: draftLabel(st.monthKey, ref)! }] : []),
         { label: 'Generated', value: generated },
       ],
     },
@@ -2019,6 +2065,12 @@ export async function buildCommissionStatementDoc(
            something that says nothing; relocating it puts the same nothing
            somewhere else. Five labels every month, whatever the table drops. */
         { label: 'Statement reference', value: ref },
+        /* AND WHETHER THESE FIGURES ARE FINAL. Matt, 2026-10-03: label an
+           unposted month "Draft: month in progress, figures may change"
+           "on screen and in exports". A reference row saying no number
+           has been assigned explains the blank; it does not tell a
+           finance team the total underneath it is still moving. */
+        ...(draftLabel(st.monthKey, ref) ? [{ label: 'Status', value: draftLabel(st.monthKey, ref)! }] : []),
         { label: 'Generated', value: generated },
         { label: 'Basis', value: 'Commission on fees PAID in the month, net of refunds' },
       ],

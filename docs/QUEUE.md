@@ -1649,6 +1649,34 @@ is a race on a rarer action and the fix means rewriting another function.
   REPORT, which asked whether to delete the three. The answer is better
   than deleting: leave them and stop showing them.
 
+### DONE. And the report Matt asked for.
+
+**Which unposted months already hold a reference:**
+
+| month | seq | payee | minted | posted |
+|---|---|---|---|---|
+| 2026-09 | 4 | Frost Partnership, Kestrel's estate | 02 Oct 16:38 | no |
+| 2026-09 | 5 | Kestrel Lettings itself | 03 Oct 11:20 | no |
+| **2026-10** | **1** | **Regent's Lettings** | **26 Sep 13:13** | **no** |
+
+**One correction.** STMT-2026-10-0001 was NOT assigned this morning: it
+was minted on **26 September 13:13**, in the same second as September's
+0001 and 0002. The one taken this morning (03 Oct 11:20) is September's
+seq 5, Kestrel's own.
+
+**Keeping them causes NO gaps.** `mint_commission_statement_ref` looks a
+payee up before allocating, so when the real run posts it finds the
+reserved number and reuses it. October's only payee so far is **Regent's
+Lettings** -- the very payee holding seq 1 -- so October's first posted
+statement will BE STMT-2026-10-0001. September's 4 and 5 are likewise
+reserved for the two Kestrel payees that have not been posted.
+
+**Deleting them is what would risk a gap**, not keeping them: the next
+number is always `max(seq) + 1`, so removing 1 from October would leave
+the next posting at 1 again only if nothing else had been taken
+meanwhile, and removing September's 4 and 5 after a sixth was issued
+would leave two holes. They stay.
+
 ## HEALTH: THE WEEKLY DIGEST, AND JOBS THAT MAKE NO CALL (instruction, 2026-10-03, verbatim).
 
 > Health:
@@ -1657,6 +1685,15 @@ is a race on a rarer action and the fix means rewriting another function.
 
 - Part 1 is an answer first. "If it's broken, fix it before Monday's
   run" is the only deadline in the queue earlier than Wednesday.
+
+## CLEAR THE ENTIRE QUEUE (instruction, 2026-10-03, verbatim).
+
+> clear the entire queue dont stop
+
+- Everything recorded and not yet done, in order, without stopping to
+  report between items. Standing rules unchanged: commit each
+  separately, full tests and drift after each, deploy edge functions to
+  dev after any function change, never push.
 
 ## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 

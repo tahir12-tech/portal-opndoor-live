@@ -26,7 +26,7 @@ import {
   buildAllStatementsCsv, buildCommissionStatementDoc, downloadCsv, exportBranded,
   getCommissionStatements, maySeeCommission,
   statementMonths, type CommissionStatement as Statement, statementReference,
-  isPostedReference } from '@/data';
+  isPostedReference, draftLabel } from '@/data';
 import type { PartnerScope, Role } from '@/data';
 import { SOURCE_LABEL } from '@/data/commissionSplit';
 import type { CommissionSource } from '@/data/types';
@@ -365,9 +365,19 @@ function StatementPanel({
                     {(() => {
                       const r = refs[refKey(st.monthKey, st.payeeKey)];
                       if (!r) return null;
-                      return isPostedReference(r)
-                        ? <> · <span className="stmt__ref">{r}</span></>
-                        : <> · <span className="muted">{r}</span></>;
+                      if (isPostedReference(r)) return <> · <span className="stmt__ref">{r}</span></>;
+                      /* NOT POSTED, so two things are true and the reader
+                         needs both: there is no number yet, and the figures
+                         are still moving. Matt, 2026-10-03: "label them
+                         'Draft: month in progress, figures may change' on
+                         screen and in exports." */
+                      const draft = draftLabel(st.monthKey, r);
+                      return (
+                        <>
+                          {' '}· <span className="muted">{r}</span>
+                          {draft && <> · <b className="stmt__draft">{draft}</b></>}
+                        </>
+                      );
                     })()}
                   </div>
                   {/* TWO LINES, ALWAYS. A third used to appear here whenever a

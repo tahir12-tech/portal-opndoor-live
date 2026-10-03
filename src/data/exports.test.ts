@@ -106,8 +106,15 @@ describe('the commission statement an agency exports for a month', () => {
        relocation is withdrawn: a header that changes shape month to month as the
        table narrows costs the reader something and tells them nothing they do
        not already know about their own branches. */
+    /* 'Status' SINCE 2026-10-03, and only while the month is unposted.
+       Matt: "label them 'Draft: month in progress, figures may change' on
+       screen and in exports." The reference row explains the blank where
+       the number should be; it does not tell a finance team the total
+       underneath is still moving. This fixture has no send row, so the
+       row is present -- and it disappears the moment the run posts, which
+       is the half the assertion below pins. */
     expect(head.items!.map((i) => i.label)).toEqual([
-      'Payee', 'Period', 'Statement reference', 'Generated', 'Basis',
+      'Payee', 'Period', 'Statement reference', 'Status', 'Generated', 'Basis',
     ]);
     // "Payee level: agency" is our word for where a rate hangs, not a fact the
     // payee reads their statement for; currency is on the meta line.

@@ -143,7 +143,23 @@ export const DEVELOPER_SEES = 'Dev Centre and API (no commission)';
 
 /** What a person on OUR estate sees, given their role and the level they
     are positioned at. */
-export function agencySees(role: string, kind: ScopeKind | null | undefined): string {
+/** The clause a Developer's line ends with, and now a Manager's. Matt,
+    2026-10-03: "for a Manager, 'Sees' should read 'The whole agency (no
+    commission)', matching how the Developer row says it." One constant,
+    because two roles wording the same limitation two ways is what
+    DEVELOPER_SEES itself was created to stop. */
+const NO_COMMISSION = ' (no commission)';
+
+export function agencySees(
+  role: string,
+  kind: ScopeKind | null | undefined,
+  /* THE LEVEL, WHICH ROLE ALONE CANNOT GIVE. A Director and a Manager are
+     both `management`; `sees_commission` is the only thing between them,
+     which is the whole of the level ladder on our estate. Optional, so a
+     caller that does not know reads as it always did -- a Director -- and
+     the two people lists that DO know pass it. */
+  seesCommission?: boolean,
+): string {
   if (role === 'superadmin' || role === 'opndoor_manager') return 'Everything';
   if (role === 'developer') return DEVELOPER_SEES;
   if (role === 'referrer') return 'Own referrals';
@@ -158,7 +174,15 @@ export function agencySees(role: string, kind: ScopeKind | null | undefined): st
      do. The dash is "none of the above", as it is for a role off the
      ladder. */
   if (!kind) return '-';
-  return kind === 'group' ? 'Every agency in the group' : 'The whole agency';
+  const reach = kind === 'group' ? 'Every agency in the group' : 'The whole agency';
+  /* AND WHAT THEY DO NOT SEE, on the same line. A Manager reaches exactly
+     as far as a Director across the agency and is refused the commission
+     figures, and a cell that says only "The whole agency" leaves an agency
+     reading its own team list unable to tell the two levels apart --
+     which is the question that list is for. `seesCommission === false`
+     and not `!seesCommission`: undefined means the caller does not know,
+     and guessing "no commission" would understate a Director. */
+  return seesCommission === false ? `${reach}${NO_COMMISSION}` : reach;
 }
 
 /** And on a supplier's rail, where there are no positions: partner_id IS

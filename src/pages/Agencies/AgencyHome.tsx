@@ -834,7 +834,7 @@ export function AgencyHome() {
               name: r.name,
               email: r.email,
               level: r.agencyLevel,
-              extra: agencySees(r.role, r.level),
+              extra: agencySees(r.role, r.level, r.seesCommission),
               /* WHERE THEY SIT, in Matt's words of 2026-10-02: the branch
                  name at a branch, "Whole agency" at the agency, "Whole
                  group" above one. It passed `r.branch`, which is a hyphen
@@ -974,7 +974,7 @@ export function AgencyHome() {
                 name: r.name,
                 email: r.email,
                 level: r.agencyLevel,
-                extra: agencySees(r.role, r.level),
+                extra: agencySees(r.role, r.level, r.seesCommission),
                 status: r.status,
                 lastActive: r.lastActive,
                 actions: (
