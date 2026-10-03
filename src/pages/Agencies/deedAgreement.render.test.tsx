@@ -6,7 +6,20 @@
    had loaded, counting negotiators and ignoring status entirely. Both now read the
    same RPC, so these tests mock that one source and assert the two surfaces agree
    on the cases that used to differ: an agency whose only manager is PENDING, and a
-   branch whose only person is a NEGOTIATOR. */
+   branch whose only person is a NEGOTIATOR.
+
+   AND SINCE 2026-10-03 THE QUESTION HAS A SECOND HALF. Matt: "Only warn about
+   deed delivery when there's an application at that agency whose deed has
+   nowhere to go." Readiness alone is a CAPABILITY, and it is false for an
+   agency onboarded this morning for the most ordinary reason there is, so the
+   alert fired on agencies with no deed, no application and nothing wrong.
+
+   What this file is about is unchanged -- the two surfaces give one answer --
+   so every case below still asserts list === detail. What changed is that
+   each case is now run twice: once with a deed actually stranded at that
+   agency, where both warn, and once without, where neither does. A rule that
+   only ever moved one of the two surfaces would be caught by the equality
+   either way, which is the point of testing it this way round. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -15,6 +28,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { App } from '@/App';
 import { hydrateOrg, hydrateGroups } from '@/data/orgService';
 import { hydratePartners } from '@/data/partnersService';
+import { hydrateFull, type FullApp } from '@/data/applicationsService';
 import type { Agency, AgencyGroup, Partner } from '@/data/types';
 
 const HOUSE = 'opndoor-agents';
@@ -36,6 +50,16 @@ vi.mock('@/data/positionsService', async () => {
         ['br-marina', false],
         ['br-west', false],
         ['br-quay', true],
+      ]),
+      /* PEOPLE COUNTS, added to the RPC by 20261007800000. Each of these
+         agencies HAS somebody -- that is what makes them the interesting
+         cases -- so none of them is the "No users yet" case, which has its
+         own describe at the bottom. */
+      agencyPeople: new Map<string, number>([
+        ['ag-harborview', 1], ['ag-northgate', 1], ['ag-southbank', 1],
+      ]),
+      branchPeople: new Map<string, number>([
+        ['br-marina', 1], ['br-west', 1], ['br-quay', 1],
       ]),
     }),
   };
@@ -72,13 +96,29 @@ function renderAt(path: string) {
   );
 }
 
+/* A DEED WITH NOWHERE TO GO: executed, and queued for a staff send because
+   nobody active could receive it. `deedsWithNowhereToGo` reads exactly this
+   off the hydrated book. */
+function strandedAt(agencyId: string, branchId: string): FullApp {
+  return {
+    ref: `GR-${agencyId}`, partner: HOUSE, agency: agencyId, agencyId, branch: branchId, branchId,
+    referrer: 'Someone', owner: 0, status: 'deed', rent: 2000, fee: 2000,
+    partnerRate: 0, agentRate: 0.1,
+    sentAt: null, paidAt: null, deedAt: null, tenancyStart: null, expiry: null,
+    refunded: false, refundedAt: null, refundedAmount: null, refundAfterStart: false,
+    deedState: null, deedSentAt: null, deedViewedAt: null,
+    awaitingStaffSend: true,
+  } as unknown as FullApp;
+}
+
 beforeEach(() => {
   sessionStorage.clear();
   hydratePartners(PARTNERS);
   hydrateGroups(GROUPS);
   hydrateOrg(AGENCIES);
+  hydrateFull([]);
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); hydrateFull([]); });
 
 /** Does the LIST warn for this agency? Expand everything, then read its row. */
 async function listWarnsFor(agencyName: string): Promise<boolean> {
@@ -110,8 +150,9 @@ async function detailWarnsFor(agencyId: string, agencyName: string): Promise<boo
   return text.includes(AGENCY_WARN);
 }
 
-describe('list and detail agree on who can receive a deed', () => {
-  it('agree on an agency whose only manager is PENDING (Harborview)', async () => {
+describe('with a deed actually stranded there, both surfaces warn', () => {
+  it('on an agency whose only manager is PENDING (Harborview)', async () => {
+    hydrateFull([strandedAt('ag-harborview', 'br-marina')]);
     const onList = await listWarnsFor('Harborview Lettings');
     const onDetail = await detailWarnsFor('ag-harborview', 'Harborview Lettings');
     expect(onList).toBe(true);
@@ -119,19 +160,49 @@ describe('list and detail agree on who can receive a deed', () => {
     expect(onList).toBe(onDetail);
   });
 
-  it('agree on an agency whose only person is a NEGOTIATOR (Northgate)', async () => {
+  it('and on an agency whose only person is a NEGOTIATOR (Northgate)', async () => {
+    hydrateFull([strandedAt('ag-northgate', 'br-west')]);
     const onList = await listWarnsFor('Northgate Lettings');
     const onDetail = await detailWarnsFor('ag-northgate', 'Northgate Lettings');
     expect(onList).toBe(true);
     expect(onDetail).toBe(true);
     expect(onList).toBe(onDetail);
   });
+});
 
-  it('agree that an agency with an ACTIVE manager does NOT warn (Southbank)', async () => {
-    const onList = await listWarnsFor('Southbank Residential');
-    const onDetail = await detailWarnsFor('ag-southbank', 'Southbank Residential');
+describe('with no deed waiting, neither surface warns', () => {
+  /* THE SAME TWO AGENCIES, same readiness, no application. Matt, 2026-10-03:
+     "Only warn about deed delivery when there's an application at that agency
+     whose deed has nowhere to go." */
+  it('not on Harborview', async () => {
+    const onList = await listWarnsFor('Harborview Lettings');
+    const onDetail = await detailWarnsFor('ag-harborview', 'Harborview Lettings');
     expect(onList).toBe(false);
     expect(onDetail).toBe(false);
-    expect(onList).toBe(onDetail);
+  });
+
+  it('and not on Northgate', async () => {
+    const onList = await listWarnsFor('Northgate Lettings');
+    const onDetail = await detailWarnsFor('ag-northgate', 'Northgate Lettings');
+    expect(onList).toBe(false);
+    expect(onDetail).toBe(false);
+  });
+
+  /* A STRANDED DEED AT ONE AGENCY IS NOT A WARNING AT ANOTHER, which is the
+     whole reason the fact is per-org rather than a count of the book. */
+  it('and not on Harborview because Northgate has one', async () => {
+    hydrateFull([strandedAt('ag-northgate', 'br-west')]);
+    expect(await listWarnsFor('Harborview Lettings')).toBe(false);
+    expect(await detailWarnsFor('ag-harborview', 'Harborview Lettings')).toBe(false);
+  });
+});
+
+describe('and an agency that can receive one never warned anyway', () => {
+  it('Southbank, with and without a deed on the book', async () => {
+    expect(await listWarnsFor('Southbank Residential')).toBe(false);
+    expect(await detailWarnsFor('ag-southbank', 'Southbank Residential')).toBe(false);
+    hydrateFull([strandedAt('ag-southbank', 'br-quay')]);
+    expect(await listWarnsFor('Southbank Residential')).toBe(false);
+    expect(await detailWarnsFor('ag-southbank', 'Southbank Residential')).toBe(false);
   });
 });

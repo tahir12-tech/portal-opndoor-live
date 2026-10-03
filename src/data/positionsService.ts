@@ -557,6 +557,14 @@ export interface DeedReadiness {
   agencies: Map<string, boolean>;
   /** branch id -> the ladder resolves for this branch specifically. */
   branches: Map<string, boolean>;
+  /* HOW MANY PEOPLE ARE THERE AT ALL, which is a different question and the
+     reason 20261007800000 added a column. `ready` is false both for an
+     agency nobody has been invited to yet and for one with people whom the
+     ladder does not reach, and those are not the same problem: the first
+     wants "invite somebody" and has nothing to do with deeds. Every status
+     counts here, where `ready` counts only active people. */
+  agencyPeople: Map<string, number>;
+  branchPeople: Map<string, number>;
 }
 
 /** Agent-rail deed readiness for every agency and branch the caller can see, in ONE
@@ -576,11 +584,14 @@ export async function getOrgDeedReadiness(): Promise<DeedReadiness | null> {
   if (error) throw new Error(error.message);
   const agencies = new Map<string, boolean>();
   const branches = new Map<string, boolean>();
-  for (const r of (data ?? []) as Array<{ agency_id: string; branch_id: string | null; ready: boolean }>) {
-    if (r.branch_id) branches.set(String(r.branch_id), !!r.ready);
-    else agencies.set(String(r.agency_id), !!r.ready);
+  const agencyPeople = new Map<string, number>();
+  const branchPeople = new Map<string, number>();
+  for (const r of (data ?? []) as Array<{ agency_id: string; branch_id: string | null; ready: boolean; people: number | null }>) {
+    const n = Number(r.people ?? 0);
+    if (r.branch_id) { branches.set(String(r.branch_id), !!r.ready); branchPeople.set(String(r.branch_id), n); }
+    else { agencies.set(String(r.agency_id), !!r.ready); agencyPeople.set(String(r.agency_id), n); }
   }
-  return { agencies, branches };
+  return { agencies, branches, agencyPeople, branchPeople };
 }
 
 /** Records that somebody works at an agency. The bootstrap for cross-route reach. */

@@ -18,6 +18,7 @@ export * from './analyticsService';
 export * from './activityService';
 export * from './leagueService';
 export * from './leagueLink';
+export * from './deedsStuck';
 export * from './exportsService';
 export * from './usersService';
 // notificationMatrixService and opsRoutingService went with the two grids

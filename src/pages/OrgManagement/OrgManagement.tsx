@@ -627,6 +627,7 @@ import { showsOffices } from '@/data/agencyOffices';
 import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { getOrgDeedReadiness, type DeedReadiness } from '@/data/positionsService';
+import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import {
   ALL_PARTNERS, addContactLive, createBranchLive, effectivePrimary, findAgency,
   getAgencies, getGroups, getRatesFor, createAgencyGroup, maySeeCommission, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
@@ -716,7 +717,17 @@ const realName = (name: string, email: string): string => {
     for the whole list in one call (it must scale to thousands of rows, so it is
     not recomputed here per row). It is undefined for supplier-introduced orgs and
     in mock mode, and that case keeps the mailbox warning exactly as before. */
-function ContactSummary({ agency, branch, canManage, onManage, ready }: { agency: Agency; branch: Branch | null; canManage: boolean; onManage: () => void; ready?: boolean }) {
+function ContactSummary({ agency, branch, canManage, onManage, ready, people, stuck }: {
+  agency: Agency; branch: Branch | null; canManage: boolean; onManage: () => void; ready?: boolean;
+  /* HOW MANY PEOPLE ARE AT OR UNDER THIS ORG, and whether a deed is actually
+     stuck here. Matt, 2026-10-03: "for Opndoor's own agencies with no users,
+     replace 'No one at this agency can receive the deed...' with a neutral
+     'No users yet. Invite someone to start referring.' Only warn about deed
+     delivery when there's an application at that agency whose deed has
+     nowhere to go." `ready` alone cannot tell the two apart; see
+     20261007800000 and data/deedsStuck.ts. */
+  people?: number; stuck?: boolean;
+}) {
   const ep = effectivePrimary(agency, branch);
   /* AN AGENCY ROW ASKS A DIFFERENT QUESTION FROM A BRANCH ROW.
 
@@ -788,6 +799,23 @@ function ContactSummary({ agency, branch, canManage, onManage, ready }: { agency
     // Agent rail. No Manage button on the warning: the fix is inviting a manager or
     // nominating a recipient on the agency's own page, not editing a mailbox.
     if (!ready) {
+      /* A CAPABILITY IS NOT A PROBLEM. The deed warning now needs a deed:
+         without one, an org nobody has been invited to yet reads as what it
+         is, and an org that HAS people whom the ladder does not reach says
+         nothing here -- there is no document waiting and nothing to do
+         today. The alert returns the moment a deed is actually stranded. */
+      if (!stuck) {
+        if (people === 0) {
+          return (
+            <div className="contact-line">
+              <Icon name="users" />
+              <span className="cl-none">{NO_USERS_YET}</span>
+              {manageBtn}
+            </div>
+          );
+        }
+        return contactLine;
+      }
       return (
         <div className="contact-line contact-line--none">
           <Icon name="alert" />
@@ -870,6 +898,10 @@ export function OrgManagement() {
       .catch(() => { if (alive) setReadiness(null); });
     return () => { alive = false; };
   }, [dataVersion]);
+  /* AND WHETHER A DEED IS ACTUALLY WAITING, which is the other half of the
+     deed warning's condition. Off the hydrated book, so it costs no call on
+     a list that has to work at thousands of rows. */
+  const stuckDeeds = useMemo(() => deedsWithNowhereToGo(), [dataVersion]);
 
   // add-agency modal (+ its required default contact)
   // add-branch modal (+ its optional own contact)
@@ -1400,7 +1432,7 @@ function requestCloseContacts() {
           <div className="agency__txt">
             <Link className="agency__name agency__namelink" to={`/agencies/${encodeURIComponent(a.id ?? a.name)}`} data-stop title={`Open ${a.name}`}>{highlight(a.name, q)}</Link>
             {meta && <div className="agency__meta">{meta}</div>}
-            <ContactSummary agency={a} branch={null} canManage={canManageContacts} onManage={() => openContacts(a.name, null)} ready={a.id ? readiness?.agencies.get(a.id) : undefined} />
+            <ContactSummary agency={a} branch={null} canManage={canManageContacts} onManage={() => openContacts(a.name, null)} ready={a.id ? readiness?.agencies.get(a.id) : undefined} people={a.id ? readiness?.agencyPeople.get(a.id) : undefined} stuck={!!a.id && stuckDeeds.agencies.has(a.id)} />
           </div>
           {/* BY ID. Matt, 2026-10-02: "Links must filter by the agency's
               or branch's id, everywhere." A name stopped being an identity
@@ -1450,7 +1482,7 @@ function requestCloseContacts() {
                 <div className="branch__txt">
                   <div className="branch__name">{highlight(b.name, q)}</div>
                   <div className="branch__meta">{b.area}</div>
-                  <ContactSummary agency={a} branch={b} canManage={canManageContacts} onManage={() => openContacts(a.name, b.name)} ready={b.id ? readiness?.branches.get(b.id) : undefined} />
+                  <ContactSummary agency={a} branch={b} canManage={canManageContacts} onManage={() => openContacts(a.name, b.name)} ready={b.id ? readiness?.branches.get(b.id) : undefined} people={b.id ? readiness?.branchPeople.get(b.id) : undefined} stuck={!!b.id && stuckDeeds.branches.has(b.id)} />
                 </div>
                 <Link className="statlink statlink--branch" to={b.id ? `/applications?branchId=${encodeURIComponent(b.id)}` : `/applications?branch=${encodeURIComponent(b.name)}`} title={`View applications for ${b.name}`}>
                   <div className="branch__stat"><b>{b.referrals}</b>referrals</div>

@@ -58,6 +58,7 @@ import { PersonNotifications } from '@/components/people/PersonNotifications';
 import { CustomerReport } from '@/components/CustomerReport';
 import { liveByCustomer } from '@/data/liveAnalytics';
 import { agencyLevelOf, AGENCY_LEVELS, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
+import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions } from '@/components/people/PersonActions';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
@@ -451,6 +452,11 @@ export function AgencyHome() {
     getOrgDeedReadiness().then((r) => { if (alive) setReadiness(r); }).catch(() => { if (alive) setReadiness(null); });
     return () => { alive = false; };
   }, [dataVersion, tick]);
+  /* AND WHETHER THERE IS ACTUALLY A DEED STUCK, which is the second half of
+     the readiness question. Readiness says "could a deed reach somebody";
+     this says "is one waiting". See data/deedsStuck.ts for why the warning
+     needs both. Read off the hydrated book, so it costs no call. */
+  const stuckDeeds = useMemo(() => deedsWithNowhereToGo(), [dataVersion, tick]);
 
   /* ---- per-node rate editor. Every level can hold a line now, including a
      branch. The editor previews the worst branch total the change produces and
@@ -1458,6 +1464,19 @@ export function AgencyHome() {
                          than from a second RPC: a pending row is exactly
                          what `status === 'pending'` is. */
                       (() => {
+                        /* A STUCK DEED COMES FIRST, ahead of the invite line
+                           below. Matt, 2026-10-03: "Only warn about deed
+                           delivery when there's an application at that
+                           agency whose deed has nowhere to go." Where there
+                           is one, it is the actionable fact and it outranks
+                           "deeds will reach them once they accept" -- which
+                           is not true of a deed that is already executed and
+                           already queued for a staff send. */
+                        if (stuckDeeds.agencies.has(a.id ?? '')) {
+                          return (
+                            <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this agency can receive the deed. Invite a manager or nominate a recipient.</div>
+                          );
+                        }
                         const waiting = agencyPeople.filter((u) => u.status === 'pending');
                         if (waiting.length && waiting.length === agencyPeople.length) {
                           const who = waiting.length === 1
@@ -1472,9 +1491,30 @@ export function AgencyHome() {
                             </div>
                           );
                         }
-                        return (
-                          <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this agency can receive the deed. Invite a manager or nominate a recipient.</div>
-                        );
+                        /* AND A CAPABILITY IS NOT A PROBLEM. Matt,
+                           2026-10-03: "for Opndoor's own agencies with no
+                           users, replace 'No one at this agency can receive
+                           the deed...' with a neutral 'No users yet. Invite
+                           someone to start referring.'"
+
+                           The readiness RPC answers "could a deed reach
+                           somebody here", and an agency onboarded this
+                           morning answers no for the most ordinary reason
+                           there is. So a new agency wore an alert about a
+                           document that does not exist, and the one line an
+                           admin needed -- invite somebody -- was the second
+                           half of a sentence about deeds.
+
+                           CONDITIONED ON THERE BEING NOBODY, not on the
+                           readiness answer: readiness is also false for an
+                           agency with several people none of whom can
+                           receive, and "No users yet" would be a lie there.
+                           That case now says nothing at all, which is what
+                           Matt's second sentence asks for. */
+                        if (!agencyPeople.length) {
+                          return <div className="ah-node-note">{NO_USERS_YET}</div>;
+                        }
+                        return null;
                       })()
                     )}
                     {open && PeopleInline({ level: 'agency', list: agencyPeople, ctx: { level: 'brand', partner, agencyId: a.id, name: a.name } })}
@@ -1578,8 +1618,17 @@ export function AgencyHome() {
                         </div>
                         {/* The whole question in one line, whoever is paid. */}
                         {canSeeCommission && b.id && splits.has(b.id) && <div className="ah-payout">{payoutSentence(splits.get(b.id)!)}</div>}
+                        {/* THE SAME RULE ONE LEVEL DOWN. The Agencies list and
+                            this tree both draw a line per branch as well as per
+                            agency, so gating only the agency's would have left
+                            every branch of a new agency wearing the alert the
+                            agency had just lost. */}
                         {agentRailFor(a) && branchReady === false && (
-                          <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this branch can receive the deed. Invite a branch manager or nominate a recipient.</div>
+                          stuckDeeds.branches.has(b.id ?? '')
+                            ? <div className="ah-deed-warn"><Icon name="alert" size={14} /> No one at this branch can receive the deed. Invite a branch manager or nominate a recipient.</div>
+                            : bPeople.length === 0
+                              ? <div className="ah-node-note">{NO_USERS_YET}</div>
+                              : null
                         )}
                       </div>
                     );
