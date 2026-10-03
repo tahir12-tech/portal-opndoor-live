@@ -1440,6 +1440,14 @@ statement.
 
 > Add agency (supplier Agencies tab): adding an agency whose name already exists in that supplier's estate (e.g. "Frost Partnership" under Kestrel) fails with the generic "Something went wrong saving that change." Show the real reason inside the form, next to the name: "Kestrel Lettings already has an agency called Frost Partnership. Open it instead?" with a link to it. Sweep the portal for other saves that show the generic message when the real reason is known (duplicate name, duplicate email, invalid input) and show the reason instead. Error toasts use the error icon, not the green tick. Deploy to dev and check there.
 
+## NO REAL-SOUNDING NAMES IN EXAMPLES (instruction, 2026-10-03, verbatim).
+
+> Sweep every placeholder and example in the portal, emails and docs (form hints, "e.g." text, empty states, help pages) and replace any real or real-sounding company, agency or person names with obviously invented ones, e.g. "Example Lettings", "Jane Smith", "jane@example.co.uk". Don't change test data, only examples shown to users.
+
+- "Only examples shown to users" is the whole difficulty: the same
+  strings appear in fixtures, in seeds and in `docs/reference`. The
+  sweep has to tell a placeholder from a test row.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
