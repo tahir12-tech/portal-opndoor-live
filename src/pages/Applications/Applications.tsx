@@ -44,6 +44,8 @@ import { RoleNote } from '@/components/ui/RoleNote';
 import { Pager } from '@/components/ui/Pager';
 import './Applications.css';
 import { formatDate } from '@/lib/format';
+import { originLabelFor } from '@/data/origin';
+import { emptyTabSentence } from '@/data/emptyTabSentence';
 
 const PAGE_SIZE = 20;
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Awaiting decision', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
@@ -161,6 +163,15 @@ export function Applications() {
      fix a filter that leaks, and the leak is fixed by deciding the value
      on arrival. */
   const origin = scopeSel;
+  /* THE ORIGIN IN THE READER'S OWN WORDS, lowercased to sit inside a
+     sentence: the chip says "Direct" and the sentence wants "No direct
+     applications ...". Null for the whole book, which drops the word
+     rather than printing "No everything applications". */
+  const originWord = useMemo(() => {
+    if (!origin) return null;
+    const l = originLabelFor(origin);
+    return !l || l === 'Everything' ? null : l.toLowerCase();
+  }, [origin]);
   const setOrigin = setScopeSel;
   useEffect(() => {
     /* AN ID NAMES ITS ESTATE, which a name does not. Matt, 2026-10-02:
@@ -826,7 +837,16 @@ export function Applications() {
             </tbody>
           </table>
         </div>
-        {visibleRows.length === 0 && <div className="empty is-shown">No applications match your filters.</div>}
+        {/* SAY WHICH TAB IS EMPTY. Matt, 2026-10-03: "when a status tab is
+            empty, say which, e.g. 'No direct applications awaiting a
+            decision', instead of 'No applications match your filters'."
+            The old sentence was true and sent the reader back to the chips
+            to work out which of seven things it meant. */}
+        {visibleRows.length === 0 && (
+          <div className="empty is-shown">
+            {emptyTabSentence(status, originWord, !!q.trim())}
+          </div>
+        )}
         <Pager page={safePage} pageSize={PAGE_SIZE} total={visibleRows.length} pageCount={pageCount} range={pageRange} onPage={setPage} noun="applications" />
       </Card>
     </>

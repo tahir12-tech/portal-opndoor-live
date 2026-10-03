@@ -440,6 +440,14 @@ table.dt { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .ftab.is-active { background: var(--valhalla); color: #fff; }
 .ftab__count { font-size: 11px; font-weight: 700; opacity: 0.7; }
 .ftab.is-active .ftab__count { opacity: 0.9; }
+/* THE SELECTED TAB HAS TO LOOK SELECTED. Matt, 2026-10-03: "make the selected
+   tab clearly highlighted." `.is-active` already paints the dark ground, but
+   every label on this strip is a <Pill> carrying its own colour -- sent blue,
+   paid green, declined red -- and the pill's rule is more specific than the
+   button's, so the text kept its status colour on a dark background and the
+   selected tab read as just another one. Inheriting puts it back to the white
+   the button asked for, without touching the pill anywhere else it is used. */
+.ftab.is-active .pill { color: inherit; }
 
 /* ============ FORM CONTROLS ============ */
 .field { display: grid; gap: 7px; }
