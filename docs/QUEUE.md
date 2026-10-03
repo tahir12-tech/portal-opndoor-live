@@ -1761,6 +1761,44 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## THE QUEUE IS CLEAR (2026-10-03, evening).
+
+Everything on the list is built, tested and on dev. In the order it was
+cleared, newest last:
+
+| | measured, or decided |
+|---|---|
+| "View all" carries the period and the measure | the link said only which board, and the board is the one thing the chart title already said |
+| the four admin downloads are one branded family | expiries was the only CSV; "All partners" and "Whole estate" were one scope said two ways |
+| a supplier's staff wear their supplier | Kestrel's director referred for Frost Partnership, so the board called him Frost's. The fact was not on the row at all: it is on the referring USER |
+| the corrected-deed note is a paragraph | and it had stopped being produced at all: 20261007640000 nulled the column correctedFromLabel read |
+| "once the other tenant has signed" | the sentence asserted a payment outstanding without ever asking |
+| the bordereau opens on last month | '2026-06' in the state, three stale constants, and one phone hint in a live London range |
+| "How are this supplier's tenants checked?" | a dropdown of three answers that each need a sentence can only explain the one already chosen |
+| every example is obviously invented | three hints named live parties, and five example domains were registrable |
+| "No users yet" is not a deed problem | Harbour Lets, one branch, zero people, wearing an alert about a document that does not exist |
+| the deal form's five corrections | the volume table's 0 is real and stays in the database; the FORM now reads 1 |
+| the Agreement card in plain English | its subtitle was three of our own words and none of them a term of the deal |
+| Every customer: top ten by the chosen measure | the ten were always the ten biggest by fees, whichever column you came for |
+| the statement payee list | the other list that grew with the estate, and the one people open to find who is owed most |
+| every person action asks first | two of the four surfaces asked nothing at all, for all six actions |
+| Delete is the second step | a deactivated row offered Restore and nothing else, so the only way to tidy somebody off was to leave them on |
+
+Two things left alone and reported rather than changed, both named in their
+own tests:
+
+- Home's "Awaiting a decision" table takes the first 8 and states no count,
+  so it does stop silently. It grows with APPLICATIONS, not with agencies,
+  which is not what the top-ten instruction asked about.
+- `org_deed_readiness` still selects agencies by
+  `referencing_mode = 'opndoor_referenced'`, the pattern `partner_kind`
+  replaced on 2026-10-02. Changing it changes which agencies appear in the
+  list, which is not a thing to fold into a copy fix two days before go-live.
+
+And one decision that is still Matt's, recorded above: whether Resend invite
+should join the five actions that ask. It is not in his list, and it sends the
+same invitation again without changing anything about the person.
+
 ## THE ORDER FOR WEDNESDAY (instruction, 2026-10-03, verbatim). THIS REORDERS EVERYTHING.
 
 > No default deal and the warnings now; the referral refusal goes under "After launch". Then prioritise for Wednesday: 1) "Referrals sent" including expired and "Fee unpaid" (figures people will rely on); 2) the application-detail trio and the ready-to-sign email (what tenants and agents see); 3) supplier Reporting hiding "Commission by route"; 4) real reasons on failed saves. Everything else after those, and anything not done by Sunday evening moves to "After launch".
