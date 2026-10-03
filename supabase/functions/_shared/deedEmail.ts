@@ -130,19 +130,32 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
      or not its own state has been written yet: the completion webhook sends
      this email in the same breath as recording the signature, and the order
      of those two is not something the sentence should depend on. */
-  let joint: { signed: number; count: number; coTenants: string } | null = null;
+  /* AND WHO HAS PAID, which the sentence was asserting without asking.
+     Matt, 2026-10-03: "the agent's joint-tenancy line says 'one more deed
+     follows once the other tenant has paid and signed' even when the other
+     tenant has already paid; say 'once the other tenant has signed' in that
+     case." `paid_at` is the test, which is the column every other tally on
+     this tenancy counts (see referrerNotify). */
+  let joint: { signed: number; count: number; paid: number; coTenants: string } | null = null;
   const { data: me } = await service.from("applications")
     .select("tenancy_id, tenancy_position").eq("id", target.appId).maybeSingle();
   if (me?.tenancy_id && me?.tenancy_position) {
     const { data: mates } = await service.from("applications")
-      .select("id, tenancy_position, tenant_first_name, tenant_last_name, deed_state")
+      .select("id, tenancy_position, tenant_first_name, tenant_last_name, deed_state, paid_at")
       .eq("tenancy_id", me.tenancy_id)
       .order("tenancy_position");
     if (mates && mates.length > 1) {
       const signed = mates.filter((m: { id: string; deed_state: string | null }) =>
         m.id === target.appId || m.deed_state === "executed").length;
+      /* THIS ROW COUNTS AS PAID WHATEVER ITS OWN STAMP SAYS, for the same
+         reason it counts as signed: a tenant whose deed has just been
+         executed paid to get it, and the order in which the webhook writes
+         the two is not something the sentence should depend on. */
+      const paid = mates.filter((m: { id: string; paid_at: string | null }) =>
+        m.id === target.appId || !!m.paid_at).length;
       joint = {
         signed,
+        paid,
         count: mates.length,
         coTenants: mates
           .filter((m: { tenancy_position: number }) => Number(m.tenancy_position) !== Number(me.tenancy_position))

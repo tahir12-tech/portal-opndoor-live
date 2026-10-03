@@ -636,7 +636,7 @@ export function executedDeedAgentEmail(p: {
       tenants in: the second tenant's deed was "2 of 2" however many had
       signed, and the closing sentence followed the same number. An ordinal
       read as a count. */
-  joint?: { signed: number; count: number; coTenants: string } | null;
+  joint?: { signed: number; count: number; paid?: number; coTenants: string } | null;
   /** Set when this deed replaces one already sent, after a tenancy-start
       correction: the date the earlier copy went out. */
   correctedFrom?: string | null;
@@ -670,9 +670,26 @@ export function executedDeedAgentEmail(p: {
     if (p.joint.coTenants) rows.push(["Also on this tenancy", p.joint.coTenants]);
   }
   const outstanding = p.joint ? p.joint.count - p.joint.signed : 0;
+  /* WHAT THE OTHERS STILL HAVE TO DO, and it is not always both.
+     Matt, 2026-10-03: "the agent's joint-tenancy line says 'one more deed
+     follows once the other tenant has paid and signed' even when the other
+     tenant has already paid; say 'once the other tenant has signed' in that
+     case."
+
+     ASKED OF THE UNPAID COUNT, not of a boolean, because the sentence has to
+     be right on a three-way let as well: one of two outstanding tenants
+     having paid still leaves somebody to pay, and "paid and signed" is the
+     truthful wording for that set. Only when NOBODY is left to pay does the
+     payment half come off.
+
+     `paid` is optional on the shape, so a caller that does not supply it
+     keeps today's wording -- unknown reads as "there may be a payment
+     outstanding", which is the safe half of the sentence to be wrong about. */
+  const stillToPay = p.joint?.paid == null ? outstanding : p.joint.count - p.joint.paid;
+  const theyMust = stillToPay > 0 ? "paid and signed" : "signed";
   const jointLine = p.joint && p.joint.count > 1
     ? (outstanding > 0
-      ? ` This is a joint tenancy: each tenant signs their own deed for their own share, so ${outstanding === 1 ? "one more deed follows" : `${outstanding} more deeds follow`} once ${outstanding === 1 ? "the other tenant has" : "the other tenants have"} paid and signed.`
+      ? ` This is a joint tenancy: each tenant signs their own deed for their own share, so ${outstanding === 1 ? "one more deed follows" : `${outstanding} more deeds follow`} once ${outstanding === 1 ? "the other tenant has" : "the other tenants have"} ${theyMust}.`
       : " This is the last of this tenancy's deeds: every tenant has now signed their own.")
     : "";
 
