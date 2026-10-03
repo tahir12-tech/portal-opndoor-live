@@ -1515,6 +1515,16 @@ Suppliers list. The half deferred is the rest of his sentence:
 
 > Add to HANDOVER-BALAL.md's rehearsal checks: after migrations on the clone, confirm Rightmove (and every live supplier) still has its commission rates and agreement exactly as before, and that a test referral through Rightmove freezes the right rates, not 0. If any live supplier has rates without an agreement row (like New Supplier 2 on dev), list it for me before go-live.
 
+## A MISSING DEAL IS LOUD (instruction, 2026-10-03, verbatim).
+
+> Make a missing deal loud, not silent: when a referral is created for a supplier with no commission deal set (rates null, coalesced to 0), raise an ops alert once per supplier and show it on Health and the supplier's Overview ("Referrals are coming in with no commission deal set"). A deliberate 0% deal like Letly's must not alert.
+
+- Answers the risk I flagged when `resolve_rates` gained its 0 fallback:
+  the fallback stops the referral being refused, and this stops it being
+  silent. The two halves belong together.
+- "A deliberate 0% deal like Letly's must not alert" is the whole
+  difficulty: the test is "nothing resolved", not "the answer was 0".
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
