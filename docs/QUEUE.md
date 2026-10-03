@@ -2062,6 +2062,18 @@ is nothing left to match" instead of a warning.
   month with nothing in it, and the "earliest is [month]" note needs a
   query the dialog does not make yet.
 
+## AND THE SUPPLIER'S OWN APPLICATION EXPORT (instruction, 2026-10-03, verbatim).
+
+> Application export as a supplier: drop the "(via [supplier])" labels and the Supplier column in the supplier's own export (it's all theirs), and include their commission columns once the Management commission issue is fixed. Same changes as the agency export otherwise (tenant names, no "Refund policy anomaly", "Joint with" instead of Tenancy ID).
+
+- SAME SHAPE AS THE AGENCY EXPORT ITEM below it, plus two of its own:
+  no "(via Kestrel Lettings)" on Kestrel's own download, and no
+  Supplier column, because every row is theirs.
+- "ONCE THE MANAGEMENT COMMISSION ISSUE IS FIXED" MAKES IT DEPENDENT:
+  the commission columns are gated on `maySeeCommission`, which is the
+  very thing the Kestrel Management item is about, so this waits on
+  that rather than being fixed twice.
+
 ## THE AGENCY'S OWN APPLICATION EXPORT (instruction, 2026-10-03, verbatim).
 
 > Application export as seen by an agency or supplier: include the tenant's name (it's their own client); drop the "Refund policy anomaly" column; replace "Tenancy ID" with "Joint with" listing the other tenants' references, as the expiries file does. Keep Opndoor's own export as it is unless the same changes make sense there.
