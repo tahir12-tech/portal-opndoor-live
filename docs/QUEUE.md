@@ -1969,6 +1969,20 @@ is nothing left to match" instead of a warning.
 - The em-dash check is a new repo guard, and the existing
   noEmDashesInCustomerText is the one to extend rather than a second.
 
+## THE KEY COUNT UPDATES AFTER A REVOKE (instruction, 2026-10-03, verbatim).
+
+> Supplier Integration tab (admin): after revoking a key, the "N active keys" count at the top doesn't update until refresh. Update it straight away, and check the same on the Dev Centre after mint, revoke and delete.
+
+- THE SAME SHAPE AS THIS MORNING'S RECONCILIATION INSTRUCTION ("every
+  count on the page, on Home and in the sidebar must update straight
+  after any action"), on a different page: a count read once into state
+  and an action that changes the thing it counts.
+- "AND CHECK THE SAME ON THE DEV CENTRE after mint, revoke and delete"
+  makes it three actions on a second page, so the check is wider than
+  the fix.
+- Small and safe: it is a refresh of a derived figure, no schema and no
+  new behaviour.
+
 ## THE HANDOVER CHECKS THE DEV BANNER IS DEV-ONLY (instruction, 2026-10-03, verbatim).
 
 > Add to HANDOVER-BALAL.md: on live, confirm the Dev Centre banner "This project reaches nothing real. No card is charged…" does not appear (it's dev-only), and that live keys are clearly marked as creating real applications.
