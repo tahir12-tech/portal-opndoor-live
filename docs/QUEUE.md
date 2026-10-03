@@ -1181,6 +1181,10 @@ you asked for. Say the word and the tenant gets their own wording.
 
 > League: the info icon beside the "Conversion is period throughput" note renders at full page size (same bug as the supplier Overview warning icon). Sweep the whole portal for every icon that can render without a size, give them all a size, and add a check that fails the build if an icon is used without one. Also on League, Kestrel Central's subtitle still shows "Kestrel Lettings (via Kestrel Lettings)"; drop the "(via …)" where the supplier tag is already shown. Deploy to dev and check there.
 
+## VIEW ALL CARRIES THE PERIOD (instruction, 2026-10-03, verbatim).
+
+> Reporting's "View all" links (Volume by branch, agency, referrer) open League on its default period instead of the period selected on Reporting. Carry the period (and the chosen measure, e.g. Referral count) across in the link, so League shows the same rows. Deploy to dev and check there.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
