@@ -2401,10 +2401,26 @@ than reconstructed.
   an org_audit line, before the referral is sent. The admin keeps the
   old row. "Add agency" is now on a supplier Management's own Agencies
   page, which is what its banner has promised since 2026-10-01.
-- **4. Supplier statements posting, and Tom Reeve's open referral.** NEXT.
-  Both are ANSWER FIRST: send nothing for Kestrel's September without
-  telling Matt.
-- **5 to 9.** Not started.
+- **4. Supplier statements posting, and Tom Reeve's open referral. DONE
+  (both answered).** The run DOES post supplier statements with their
+  per-agency schedules; Kestrel's September was missed because the data
+  was inserted 17 hours after the run, back-dated. Full answer under
+  "ITEM 4, BOTH ANSWERS" below, including the one decision left for Matt
+  (whether to send September now) and a real gap not fixed because it
+  changes money (no automatic catch-up for data that arrives after the
+  send day). Tom Reeve's half: `fa46e3f`, plus `78c0903` for the
+  "guarantor fee" rows already written.
+- **5. The supplier Users page replaced by the shared People table. DONE**
+  (`9a40d31`). It was already using the shared table; what was wrong was
+  the level KEY (the agency ladder), the missing Sees column, the Add
+  user dialog (paragraph descriptions, a one-option Supplier picker) and
+  the empty "..." menu. That last one is the LADDER, not the page, and
+  the fix is the note Matt had already specified for the agency rail, so
+  his Director-note instruction landed in the same commit.
+- **6. Help guide rewrites and the leaflets as HTML pages.** NEXT. Has an
+  ANSWER FIRST part: FAQ 7, what the portal enforces about changing a
+  tenancy start date.
+- **7 to 9.** Not started.
 
 ### Adjacent findings, not fixed, found while doing the above
 
