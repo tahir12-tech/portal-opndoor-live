@@ -1789,6 +1789,28 @@ is nothing left to match" instead of a warning.
 - Answers the one question I raised: the League has a board of agencies
   and a board of suppliers and no board of both.
 
+## NO TENANCY START UNTIL THE TENANT GIVES ONE (instruction, 2026-10-03, verbatim).
+
+> Application export: GR-20626 (unfinished, no tenancy details given) shows Tenancy start date 04/10/2026. Leave Tenancy start blank until the tenant has given one; check the screen and other exports for the same.
+
+- The same application and the same shape as this morning's four money
+  blanks (`b776588`): an unfinished direct draft printing a value it was
+  never given. 04/10 is tomorrow, which says the date is being
+  DERIVED from something rather than read.
+
+## DO SUPPLIERS' STATEMENTS GO OUT AT ALL (instruction, 2026-10-03, verbatim). ANSWER FIRST, AND SEND NOTHING.
+
+> Kestrel Lettings' September 2026 supplier statement is still unposted ("Reference assigned when the statement is posted"), though the 1 Oct run posted the agencies' statements. Tell me whether the monthly run posts and emails supplier statements (with the per-agency schedules) at all, and why Kestrel's wasn't sent. If it's missing, fix it so suppliers' statements go out in the same run, and tell me what will happen for Rightmove on 1 November. Don't send September's for Kestrel without telling me first.
+
+- THREE THINGS ASKED, IN ORDER: does the run do it at all, why did
+  Kestrel's not go, and what happens to Rightmove on 1 November. A fix
+  only if the answer to the first is no.
+- "Don't send September's for Kestrel without telling me first" is an
+  explicit hold: nothing is to be sent while answering this.
+- RIGHTMOVE ON 1 NOVEMBER is the part that matters most. It is the live
+  supplier, and 1 November is the first monthly run after Wednesday's
+  go-live.
+
 ## AN EMPTY TAB SAYS WHAT THAT TAB HOLDS (instruction, 2026-10-03, verbatim).
 
 > Applications empty-tab messages: the Paid tab should say "No [direct] applications paid and waiting for a deed", not "No … applications paid". Check each tab's empty message matches exactly what that tab holds.
