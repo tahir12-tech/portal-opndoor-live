@@ -2119,6 +2119,22 @@ is nothing left to match" instead of a warning.
 - THE SECOND HALF is a display rule in customer views only: an admin's
   own name must not appear in a customer's referrer list.
 
+## ITEM 9 APPROVED, WITH THE SIMILARITY CHECK (approval, 2026-10-03, verbatim).
+
+> Approved, build it after items 1 to 8 as designed: opt-in flag defaulting to false, suppliers only, agency email required, reuse on an exact (normalised) match, refuse on ambiguous, land in Reconciliation, response says what was created, audited with the key name. One addition: API-created agencies and offices must go through Reconciliation's "Might already exist" similarity check, so a near-miss like "Frost Partnerhsip" is flagged to me as a possible duplicate of "Frost Partnership".
+
+- THE ADDITION ANSWERS THE RISK I FLAGGED. I said a typo creates a
+  company and Reconciliation catches it after the fact; Matt's answer
+  is to put it through the EXISTING similarity check so a near-miss is
+  flagged as a possible duplicate rather than sitting in the queue
+  looking like a new office.
+- SO THE DESIGN IS NOW: exact normalised match REUSES, ambiguous
+  REFUSES, and anything created goes through the similarity check and
+  can come out the other side flagged.
+- WORTH CONFIRMING WHEN BUILDING: the "Might already exist" check is
+  Reconciliation's own, so the API path has to enter the same queue in
+  the same shape rather than a parallel one.
+
 ## ITEM 9 SHIPS IN THIS RELEASE, DESIGN FIRST (instruction, 2026-10-03, verbatim, two messages).
 
 > On item 9: once I've seen the design, build it in this release, not later.
