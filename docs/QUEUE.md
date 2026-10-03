@@ -1154,6 +1154,10 @@ you asked for. Say the word and the tenant gets their own wording.
 
 > Reconciliation: after pressing Ignore on a "Not in network" agency, the section empties but the tab count ("Not in network 1"), the "Waiting" tile and the sidebar badge stay at their old numbers until refresh. Every count on the page, on Home and in the sidebar must update straight after any action on this page (Ignore, Added to HubSpot, Add email, confirm, dismiss). Deploy to dev and check there.
 
+## AN EMPTY TAB SAYS WHICH TAB (instruction, 2026-10-03, verbatim).
+
+> Applications: when a status tab is empty, say which, e.g. "No direct applications awaiting a decision", instead of "No applications match your filters", and make the selected tab clearly highlighted.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
