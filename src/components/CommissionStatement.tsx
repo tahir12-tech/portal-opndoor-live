@@ -40,6 +40,11 @@ import { PeriodSelect } from '@/components/ui/Select';
 import './CommissionStatement.css';
 import { plural } from '@/lib/plural';
 
+/* TEN, the same default the other two lists on Reporting use: the volume
+   charts and the Every customer table. A reader moving between them should
+   not have to learn a different number of rows for each. */
+const TOP_PAYEES = 10;
+
 const money = gbpPence;
 const pct = (n: number) => `${Number((n * 100).toFixed(2))}%`;
 // One format, shared. See lib/format.
@@ -203,6 +208,7 @@ function StatementPanel({
      numbers are meant to be a record of statements issued. */
   const [refs, setRefs] = useState<Record<string, string>>({});
   const [q, setQ] = useState('');
+  const [showAllPayees, setShowAllPayees] = useState(false);
   const single = !!orgId || statements.length === 1;
   const shown = single ? statements : statements.filter((s) => s.payeeKey === openPayee);
 
@@ -243,10 +249,34 @@ function StatementPanel({
   useEffect(() => {
     if (openPayee && !statements.some((s) => s.payeeKey === openPayee)) setOpenPayee(null);
   }, [statements, openPayee]);
-  const listed = useMemo(() => {
+  /* THE BIGGEST TEN, AND THE REST BEHIND A CHOICE.
+
+     Matt, 2026-10-03: "Same for any other list on Reporting or Home that
+     grows with the number of agencies." This is that list. Every payee owed
+     anything in the month gets a row, one per agency, group, branch and
+     supplier, so it is the one table on Reporting whose length is the size of
+     the estate -- and the figure a reader comes here for is who is owed the
+     most, which was at the top and then eleven more screens of tail.
+
+     BY TOTAL OWED, which is the only measure this table has: it is a list of
+     amounts, not of performance, so there is nothing to choose between.
+
+     AND NO LEAGUE LINK HERE, deliberately. The League ranks what each party
+     SOLD; this is what each party is OWED for one month. Sending a reader
+     from "who do we pay" to a performance board would answer a different
+     question in the same number of clicks. Show all is the way to the rest,
+     and the search already reaches any payee whether or not they are in the
+     ten -- which is the half of this rule that matters most on a page where
+     somebody is looking for one name. */
+  const matchingPayees = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return needle ? statements.filter((s) => s.payeeName.toLowerCase().includes(needle)) : statements;
+    const list = needle ? statements.filter((s) => s.payeeName.toLowerCase().includes(needle)) : statements;
+    return [...list].sort((a, b) => b.total - a.total || a.payeeName.localeCompare(b.payeeName));
   }, [statements, q]);
+  const searchingPayees = q.trim() !== '';
+  // A search is itself a narrowing, so it shows everything it found.
+  const listed = showAllPayees || searchingPayees ? matchingPayees : matchingPayees.slice(0, TOP_PAYEES);
+  const hiddenPayees = matchingPayees.length - listed.length;
 
   if (!months.length) {
     return (
@@ -305,8 +335,15 @@ function StatementPanel({
                 aria-label="Search payee" value={q} onChange={(e) => setQ(e.target.value)}
               />
               <span className="muted" style={{ fontSize: 12.5 }}>
-                {listed.length} of {statements.length} {plural(statements.length, 'payee')}
+                {hiddenPayees > 0
+                  ? `Top ${listed.length} by amount owed, of ${matchingPayees.length} ${plural(matchingPayees.length, 'payee')}`
+                  : `${listed.length} of ${statements.length} ${plural(statements.length, 'payee')}`}
               </span>
+              {hiddenPayees > 0 && (
+                <button type="button" className="stmt-list__showall" onClick={() => setShowAllPayees(true)}>
+                  Show all {matchingPayees.length}
+                </button>
+              )}
             </div>
             {listed.length === 0 ? (
               <p className="muted" style={{ fontSize: 13.5 }}>No payee matches that search.</p>

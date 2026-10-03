@@ -71,6 +71,13 @@
 .stmt__tools { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .stmt-list__tools { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .stmt-list__q { flex: 1 1 200px; max-width: 280px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+/* The way to the rest of the payees, beside the count that says how many
+   there are. Same quiet link as the Every customer table's "Show top 10". */
+.stmt-list__showall {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; font-size: 12.5px; color: var(--heliotrope-deep); text-decoration: underline;
+}
+.stmt-list__showall:hover { text-decoration: none; }
 .stmt-list__row { cursor: pointer; }
 .stmt-list__row:hover { background: var(--white-lilac); }
 .stmt-list__name { border: none; background: none; padding: 0; font-size: 13.5px; font-weight: 700; color: var(--heliotrope-deep); cursor: pointer; text-align: left; }
