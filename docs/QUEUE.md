@@ -1389,6 +1389,18 @@ statement.
   "a supplier's own staff are labelled with their supplier", this is one
   piece of work on one function.
 
+## DETAIL BECOMES NAMED COLUMNS (instruction, 2026-10-03, verbatim, two messages).
+
+> League exports: rename the "Detail" column to "Route" on the Agencies and Branches exports; on Suppliers drop it.
+
+> League exports: replace "Detail" with separate "Agency" and "Route" columns on the Branches export (e.g. Kestrel Central | Kestrel Lettings | Kestrel Lettings), "Route" alone on the Agencies export, and no Detail column on Suppliers.
+
+- The second supersedes the first and supersedes "leave Detail blank" in
+  the message before it. Note the example: on a branch row the agency
+  and the route are both "Kestrel Lettings" and BOTH are shown, because
+  named columns say which is which. The repeat was only wrong where
+  nothing said what the second one was.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
