@@ -54,6 +54,12 @@ exactly as it did before**, and that is the property that makes this safe.
 **Only bite 1 plus Regent's keying has to be true on the day.** The other
 five can follow that week.
 
+**One ordering rule inside that, and it is absolute: bite 1 before bite 2.**
+The front end asks for a column that migration `20261007600000` adds, in the
+select that runs at sign-in, so the new bundle against the old schema locks
+every user out rather than degrading. Section 3.5 is the step, with the SQL
+check to run before you deploy it.
+
 ---
 
 ## 0a. Read this before anything else: 2026-09-29
@@ -380,6 +386,11 @@ Deploy functions and secrets to the clone (sections 6 and 7 with `$CLONE`), then
 run the clone walk in section 11. That is the rehearsal proper: the migrations
 applying cleanly is necessary and not sufficient.
 
+**Point the new front end at the clone for this, and do it in the cutover order:
+migrations (1.3), then the front end.** This is where the 3.5 dependency gets
+rehearsed rather than discovered. Signing in to the clone on the new bundle is
+the test, and it is the same single action that proves it on the day.
+
 ---
 
 ## 2. Knowing what is applied where
@@ -474,7 +485,90 @@ where abs(fee_amount - monthly_rent) > 0.005
 select count(*) as out_of_order from public.applications where sequence_anomaly;
 ```
 
-### 3.5 Rollback
+### 3.5 Deploy the front end, and NOT before the migrations
+
+**This is bite 2 (section 5), and it has a hard dependency on bite 1 that the
+earlier wording did not state.** Do it after 3.3 has succeeded and 3.4 is clean.
+Not alongside, not first.
+
+**Why the order is mandatory, not tidy.** The new bundle asks the `partners`
+table for a column called `partner_kind`, by name, in the select that runs
+immediately after sign-in (`src/lib/hydrate.ts`). It is added by migration
+`20261007600000`. Against a database that has not had that migration applied,
+PostgREST answers that select with an error, `hydrateFromSupabase` throws, and
+`SessionContext` deliberately does not set `ready` when hydration fails. The
+symptom is not a missing Suppliers list or a blank chart:
+
+> **Nobody can sign in.** Every user who authenticates is returned to the
+> sign-in screen with no way forward, including you.
+
+It is the same fail-closed shape as `generateDeed` and its lease in 6b, and it
+fails for the whole estate rather than one journey. There is no partial state
+and nothing to notice early: the first person to try is the first to find out.
+
+The reverse order is harmless. The migration on its own changes nothing a user
+can see, because the old bundle never asks for the column.
+
+```bash
+# ONLY after 3.3 succeeded and 3.4 returned zeros.
+npm run typecheck && npm run build
+# then publish dist/ the way this project publishes it,
+# keeping the previous build's artefact (see "Why bite 2 is the one to watch").
+```
+
+#### The check, before you deploy the front end
+
+Run this against **production**. It must return `t`. If it returns `f`, or no
+row, stop: 3.3 has not finished and the bundle will lock everyone out.
+
+```sql
+select exists (
+  select 1 from information_schema.columns
+   where table_schema = 'public'
+     and table_name   = 'partners'
+     and column_name  = 'partner_kind'
+) as safe_to_deploy_the_front_end;
+```
+
+Belt and braces, because the column existing is not quite the same as the
+migration having been recorded:
+
+```sql
+-- Should return one row. If it returns none, the column came from somewhere
+-- other than the migration and you want to know why before you ship.
+select version from supabase_migrations.schema_migrations
+ where version = '20261007600000';
+```
+
+> **Run that second one on production or the clone, NOT on dev.** Both of those
+> get their migrations through `supabase db push`, which records every file it
+> applies, so the ledger is trustworthy there. Dev does not: its
+> `schema_migrations` stops at `20260922110000` while the branch has 411 files,
+> because everything since has been applied to dev directly. That is the
+> standing reason `npm run drift` is the authority on this project and the
+> ledger is not. On dev the first check returns `t` and the second returns
+> nothing, and neither tells you anything is wrong.
+
+If you want the bluntest possible version of the first check, ask the database
+the same question the app asks. It errors rather than returning `f`, which on a
+pre-deploy gate is the more useful shape:
+
+```sql
+select partner_kind from public.partners limit 1;
+```
+
+#### And the check after it
+
+Sign in as one real user on the new bundle before you let anyone else in. A
+successful sign-in is the whole test: it is the thing that breaks, and it
+cannot half-work.
+
+- [ ] `safe_to_deploy_the_front_end` returned `t`
+- [ ] `20261007600000` is in `schema_migrations`
+- [ ] front end deployed, previous artefact kept
+- [ ] signed in successfully on the new bundle
+
+### 3.6 Rollback
 
 **There is no "unapply migrations" button, and you should not go looking for
 one.** 178 migrations include column drops, type changes and data backfills; a
@@ -559,7 +653,7 @@ you start: **after the push, production behaves exactly as it did before.**
 | # | bite | what you do | user-visible effect | Monday? |
 |---|---|---|---|---|
 | **1** | **Schema** | `db push`. All 268, in filename order, in one run. | **None.** New tables, columns and functions nothing yet calls. | **YES** |
-| **2** | **The app** | Deploy the built front end. | Everything the UI does: the estate screens, Team, the new Applications and Reporting, agreements. **This is the big one to watch.** | **YES** |
+| **2** | **The app** | Deploy the built front end. **Only after bite 1: see 3.5.** | Everything the UI does: the estate screens, Team, the new Applications and Reporting, agreements. **This is the big one to watch.** | **YES** |
 | **3** | **Regent** | Run the keying script (section 4), invite Rosa. | Regent exists and can refer. | **YES** |
 | 4 | Core functions | Deploy the 12 new edge functions; set their secrets; point the webhooks. | The tenant journey end to end: payment page, deeds, tenant portal, partner API. | only what Regent's journey touches |
 | 5 | Scheduled work | Schedule `commission-statements-0700/0800`. Everything else is already scheduled. | The monthly statement email. | no, first send 1 November |
@@ -576,6 +670,13 @@ screen at once, and it is the only step with no partial state: a user has either
 the old bundle or the new one. If something is wrong, rolling back is
 redeploying the previous build, which is fast and costs nothing. **Keep the
 previous build's artefact.**
+
+**And it depends on bite 1, which is new in this release.** The bundle asks
+`partners` for `partner_kind` (migration `20261007600000`) in the select that
+runs at sign-in, and that select failing stops sign-in for everybody rather
+than breaking one screen. Deploy bite 2 against a database without bite 1 and
+nobody can get in, you included. **Section 3.5 is the step and the check.** The
+table above is in dependency order for this reason, not only for nerves.
 
 ### A dependency worth knowing
 
@@ -657,6 +758,11 @@ the file first, or deploy that one on its own with the flag it needs.
 > functions against a database without that migration and *every* deed stops,
 > loudly. The order in section 1.3 and 3.3 already puts migrations first; this is
 > the reason not to improvise.
+>
+> **The front end has the same shape, and worse reach.** It asks `partners` for
+> `partner_kind` (`20261007600000`) at sign-in, and against a database without
+> it nobody can sign in at all. See 3.5. Two fail-closed dependencies on the
+> same push, in the same direction: schema, then everything that reads it.
 >
 > Fail-closed is the deliberate choice. A delayed deed parks as needs-attention
 > after three attempts and a person fixes it in minutes. Two live signable
