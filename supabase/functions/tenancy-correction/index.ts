@@ -100,7 +100,13 @@ Deno.serve(async (req) => {
 
       // Full deed state for the lifecycle decision. Read with the service role:
       // the token is the authorisation here, there is no signed-in user.
-      const COLS = "id, guarantee_ref, status, deed_state, pandadoc_document_id, executed_pdf_path, tenancy_start, livemode, withdrawn_at, tenancy_id, tenant_first_name, tenant_last_name";
+      const COLS = "id, guarantee_ref, status, deed_state, pandadoc_document_id, executed_pdf_path, tenancy_start, livemode, withdrawn_at, tenancy_id, tenant_first_name, tenant_last_name, "
+        // The delivery columns, because a correction moves the old deed's
+        // delivery aside (20261007640000). Selected rather than assumed: a
+        // column the update references and the select omits reads as
+        // undefined, which would write null and silently lose the
+        // superseded delivery this change exists to keep.
+        + "deed_delivered_at, deed_delivered_to, deed_delivery_superseded_at, deed_delivery_superseded_to";
       const { data: full } = await service.from("applications")
         .select(COLS)
         .eq("id", tok.application_id).maybeSingle();
@@ -231,9 +237,23 @@ Deno.serve(async (req) => {
             await service.storage.from("deeds").copy(app.executed_pdf_path, archivePath);
             await service.from("activity_log").insert({ application_id: app.id, kind: "deed_archived", message: `Signed deed archived before an agent correction of the tenancy start ${dateChange}.`, actor: "Agent", visibility: "business" });
           }
+          /* AND THE DELIVERY GOES WITH THE DEED. 20261007640000.
+             This update cleared everything about the executed document and
+             left `deed_delivered_at` pointing at the delivery of the deed it
+             had just archived, so the application went on claiming a
+             delivery of a superseded PDF -- and the completion guard, asking
+             "has this been delivered", refused the corrected deed as a
+             replay. GR-23853: signed 03 Oct 11:28:43, "Completion replayed;
+             the signed deed already went to joe", and the agent never got
+             it. The earlier delivery is MOVED rather than dropped: it really
+             happened, the agent holds that PDF, and the Delivery panel has
+             to be able to say it is superseded. */
           await service.from("applications").update({
             status: "paid", deed_state: null, deed_issued_at: null, deed_executed_at: null,
             issue_date: null, executed_pdf_path: null, pandadoc_document_id: null, deed_viewed_at: null,
+            deed_delivery_superseded_at: app.deed_delivered_at ?? app.deed_delivery_superseded_at ?? null,
+            deed_delivery_superseded_to: app.deed_delivered_to ?? app.deed_delivery_superseded_to ?? null,
+            deed_delivered_at: null, deed_delivered_to: null, deed_resent_at: null,
           }).eq("id", app.id);
           const gen = await generateDeed(service, app.id, true);
           appReissued = gen.ok;

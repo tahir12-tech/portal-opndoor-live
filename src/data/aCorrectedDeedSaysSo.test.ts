@@ -63,12 +63,37 @@ describe('the delivery guard a correction has to pass', () => {
   const migration = readFileSync(
     'supabase/migrations/20261007350000_a_corrected_deed_is_a_new_deed.sql', 'utf8');
 
-  /* THE BUG THIS WOULD HAVE BEEN: a corrected deed signed and never sent. */
-  it('the webhook asks which is newer, not whether anything was sent', () => {
-    expect(webhook).toContain('new Date(app.deed_issued_at) > new Date(app.deed_delivered_at)');
+  /* THE BUG THIS WOULD HAVE BEEN: a corrected deed signed and never sent.
+     Which is the bug it then WAS, on GR-23853, 2026-10-03 -- and this
+     assertion is why it is worth rewriting rather than deleting.
+
+     IT PINNED THE IMPLEMENTATION, NOT THE RULE. The rule is "a corrected
+     deed has not been delivered". What was asserted here was one way of
+     working that out: compare `deed_issued_at` against
+     `deed_delivered_at`. That comparison cannot work in the webhook,
+     because `deed_issued_at` is written by the very handler that reads
+     the row at the top and tests it at the bottom, so the value under
+     test is always the row as it stood BEFORE this completion. The test
+     passed, the comparison was present, and the deed was still refused.
+
+     So the assertion now names the RULE and the fact that carries it:
+     the correction moves the delivery aside (20261007640000) and the
+     webhook asks one column. See aCorrectedDeedIsDeliveredToo.test.ts,
+     which is the fuller statement of this. */
+  it('the webhook asks whether THIS deed was sent, not when the last one was', () => {
+    expect(webhook).toContain('} else if (deliverable && mayEmail && app.deed_delivered_at) {');
+    expect(webhook).not.toContain('new Date(app.deed_issued_at) > new Date(app.deed_delivered_at)');
   });
 
-  it('and so does the manual send', () => {
+  /* THE MANUAL SEND KEEPS ITS COMPARISON, and that is deliberate rather
+     than an oversight. `send_deed_to_agent` selects the row itself, at
+     the moment it tests it, so the stale-read that broke the webhook
+     cannot happen there. With the correction now clearing the delivery
+     the clause is belt-and-braces: it still answers correctly for any
+     reissue path that forgets to clear, which is exactly the mistake
+     that caused this. Left alone two days before go-live for that
+     reason. */
+  it('and the manual send keeps its own, which reads the row as it tests it', () => {
     expect(migration).toContain('coalesce(a.deed_issued_at, a.deed_delivered_at) <= a.deed_delivered_at');
   });
 

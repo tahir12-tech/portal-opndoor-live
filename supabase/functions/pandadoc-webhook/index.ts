@@ -310,8 +310,25 @@ Deno.serve(async (req) => {
               p_type: "deed_delivery_target_unreadable",
               p_detail: `Application ${app.id} (${app.guarantee_ref}): the deed is executed but deed_delivery_target failed (${targetErr.message}), so it could not be delivered and is queued for a staff send.`,
             }).then(() => {}, () => {});
-          } else if (deliverable && mayEmail && app.deed_delivered_at
-              && !(app.deed_issued_at && new Date(app.deed_issued_at) > new Date(app.deed_delivered_at))) {
+          } else if (deliverable && mayEmail && app.deed_delivered_at) {
+            /* ONE FACT, NOT A COMPARISON ACROSS TWO HANDLERS.
+               20261007640000. This used to read
+
+                 app.deed_delivered_at && !(app.deed_issued_at >
+                                            app.deed_delivered_at)
+
+               meaning "delivered, and not reissued since". The intent was
+               right and the fact was wrong: `deed_issued_at` is when the
+               deed was EXECUTED and it is written by THIS handler, while
+               `app` was read at the top of it. So on a corrected deed the
+               value in hand was the row before this completion -- nulled by
+               the correction, or the previous signing seconds before the
+               previous delivery -- and the test said "not reissued" about
+               the very deed that had just been reissued.
+
+               A correction now moves the delivery aside, so "has the
+               CURRENT deed been delivered" is one column and there is no
+               window between a write and a read in which to be wrong. */
             /* ALREADY DELIVERED, SO NOT AGAIN. Matt, 2026-10-01: "one
                delivery per signed deed unless someone presses Resend."
 
