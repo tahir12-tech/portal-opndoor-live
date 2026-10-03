@@ -61,6 +61,7 @@ import { liveByCustomer } from '@/data/liveAnalytics';
 import { agencyLevelOf, AGENCY_LEVELS, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
 import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import { getOrgDepartedReferrals, departedReferralsLine, type DepartedReferrals } from '@/data/positionsService';
+import { partyIsSupplier } from '@/data/capabilities';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions, type PersonAction } from '@/components/people/PersonActions';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
@@ -573,6 +574,16 @@ export function AgencyHome() {
      then the honest answer is every agency in it, totalled by the tiles and
      broken down by the table. */
   const isOpndoorStaff = role === 'superadmin' || role === 'opndoor_manager';
+  /* DOES AN AGENCY ON THIS ESTATE HAVE LOGINS AT ALL?
+
+     Matt, 2026-10-03: "remove the People tab and '0 people' (supplier-estate
+     agencies have no logins)."
+
+     ASKED OF THE ESTATE THIS AGENCY IS IN, not of the reader: an Opndoor
+     admin looking at Kestrel's Frost must see the same absence a Kestrel
+     manager does, because the fact is about the agency. `partner` is the
+     agency's own partner, resolved above. */
+  const hasLogins = !partyIsSupplier(partner);
   const reportPeriods = getPeriods();
   const [reportPeriod, setReportPeriod] = useState(
     () => reportPeriods.find((p) => p.id === 'last12m') ?? reportPeriods[reportPeriods.length - 1],
@@ -1430,12 +1441,31 @@ export function AgencyHome() {
                   <span className="ah-fig-sep">·</span>
                 </>
               )}
-              <button className="ah-fig" onClick={() => setTab('people')}>
-                <b>{people.total}</b> {plural(people.total, 'person')}
-              </button>
-              <span className="ah-fig-sep">·</span>
+              {/* NO PEOPLE ON A SUPPLIER'S AGENCY, so no figure and no tab.
+                  Matt, 2026-10-03: "remove the People tab and '0 people'
+                  (supplier-estate agencies have no logins)."
+
+                  AND HE IS RIGHT THAT IT IS STRUCTURAL rather than empty:
+                  `create_invited_user` refuses a developer off the supplier
+                  rail and `user_must_hold_a_position` returns early there,
+                  because on that rail the SUPPLIER's own staff do the
+                  referring and its agencies never get logins at all. So "0
+                  people" is not a count that might one day be 1; it is a
+                  question that does not apply, and a tab behind it opens an
+                  empty list with an Invite button that could only fail. */}
+              {hasLogins && (
+                <>
+                  <button className="ah-fig" onClick={() => setTab('people')}>
+                    <b>{people.total}</b> {plural(people.total, 'person')}
+                  </button>
+                  <span className="ah-fig-sep">·</span>
+                </>
+              )}
               <button className="ah-fig" onClick={() => setTab('referrals')}>
-                <b>{referrals.length}</b> referrals
+                {/* "1 referrals". Matt, 2026-10-03. Through `plural`, which
+                    `theCountsReadAsEnglish` requires and which the two
+                    figures above it were already using. */}
+                <b>{referrals.length}</b> {plural(referrals.length, 'referral')}
               </button>
             </span>
           </p>
@@ -1488,7 +1518,11 @@ export function AgencyHome() {
            supplier page, this route is reachable by an agency's own people,
            so the gate is real here and not belt-and-braces. */
         tabs={([['overview', 'Overview'], ['people', 'People'], ['reporting', 'Reporting'], ['commission', 'Commission'], ['referrals', 'Referrals']] as [Tab, string][])
-          .filter(([id]) => (id !== 'commission' || canSeeCommission) && (id !== 'reporting' || isOpndoorStaff))}
+          .filter(([id]) => (id !== 'commission' || canSeeCommission)
+            && (id !== 'reporting' || isOpndoorStaff)
+            /* See the People figure above: an agency in a supplier's estate
+               never has logins, so the tab is not empty, it does not apply. */
+            && (id !== 'people' || hasLogins))}
       />
 
       {/* OVERVIEW — the tree, or the one node opened out of it. */}
