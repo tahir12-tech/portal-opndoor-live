@@ -22,7 +22,7 @@ import { stripeSecretFor, stripePublishableFor } from "../_shared/livemodeCreden
 // The same two functions the tenant's emails price themselves with. Imported
 // rather than reimplemented so the email, this page and the Stripe line item
 // cannot describe one fee three different ways.
-import { feeBasisPhrase, feeBasisWeeksOf } from "../_shared/emailTemplates.ts";
+import { feeBasisPhrase, feeBasisWeeksOf, feeLineDescriptionFor } from "../_shared/emailTemplates.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       // measured against. referencing_mode, agency_id, the agency's own name and
       // the partner's refers_own_stock are the four facts that decide whose
       // decision this page is describing: see the rail block below.
-      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, fee_amount, share_amount, tenancy_start, status, payment_state, livemode, referencing_mode, agency_id, agency:agencies(name), partner:partners(slug, name, refers_own_stock), tenancy_id")
+      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_addr2, prop_city, prop_postcode, monthly_rent, fee_amount, share_amount, tenancy_start, status, payment_state, livemode, referencing_mode, agency_id, agency:agencies(name), partner:partners(slug, name, refers_own_stock), tenancy_id")
       .eq("id", tok.application_id).maybeSingle();
     if (!app) return json({ ok: false, error: "This link is not valid." }, 404);
 
@@ -194,9 +194,21 @@ Deno.serve(async (req) => {
        on Stripe while their email called it a month's rent. One phrase, from the
        same helper the email uses. A fee whose basis cannot be worked out still
        claims nothing: it is described as agreed, which is always true. */
-    const feeLineDescription = feeBasis
-      ? `${feeBasis.charAt(0).toUpperCase()}${feeBasis.slice(1)}, for the opndoor Deed of Guarantee.`
-      : "The agreed guarantee fee for this tenancy, for the opndoor Deed of Guarantee.";
+    /* AND ON A JOINT TENANCY IT SAYS WHOSE SHARE IT IS. Matt, 2026-10-03:
+       "Stripe checkout description on joint tenancies: 'Your 10% share of the
+       guarantee fee (5 weeks of rent for the whole tenancy)'."
+
+       THE SENTENCE IS IN _shared/emailTemplates.ts, with feeBasisPhrase and
+       the ruling that this wording is the same on every surface. This line
+       item was the one place still composing its own, and it was the one
+       surface that still had the joint-tenancy defect: "5 weeks of rent"
+       above £1,061.54, at the card screen. */
+    const feeLineDescription = feeLineDescriptionFor(feeBasisWeeks, tenantCount);
+    /* Trimmed and only when it looks like an address: Stripe rejects the
+       whole session on a malformed customer_email, and a referral with a
+       typo in it must still be payable. */
+    const rawEmail = ((app.tenant_email ?? "") as string).trim();
+    const tenantEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(rawEmail) ? rawEmail : null;
     const tenantName = [app.tenant_title, app.tenant_first_name, app.tenant_last_name].filter((x) => (x ?? "").toString().trim()).join(" ").trim();
     // #8 Display-layer title-casing of the property address (postcode left raw).
     const propFull = [titleCaseAddress(app.prop_addr1), titleCaseAddress(app.prop_addr2), titleCaseAddress(app.prop_city), app.prop_postcode].filter(Boolean).join(", ");
@@ -312,6 +324,20 @@ Deno.serve(async (req) => {
         }],
         metadata: { application_id: app.id, guarantee_ref: app.guarantee_ref, utm_source: utm },
         client_reference_id: app.id,
+        /* THE TENANT'S OWN ADDRESS, PREFILLED. Matt, 2026-10-03: "prefill the
+           tenant's own email from the application (it currently shows
+           email@example.com for GR-25236)."
+
+           Nothing was passed, so Stripe showed its own placeholder and the
+           tenant had to retype an address we already hold -- and whatever
+           they typed is where Stripe's receipt went, which is how a receipt
+           ends up somewhere the application has never heard of. GR-25236
+           holds kelly@test.com.
+
+           `customer_email` PREFILLS AND STAYS EDITABLE, which is the right
+           one of the two: a tenant paying from a shared mailbox can still
+           correct it, where `customer` would lock it. */
+        ...(tenantEmail ? { customer_email: tenantEmail } : {}),
         // A signed-in tenant paying from the portal asks for a portal return, so
         // Stripe lands them back on their own status screen rather than the
         // referral confirmation page. One checkout, two return destinations.
@@ -345,6 +371,9 @@ Deno.serve(async (req) => {
       const session = await stripe.checkout.sessions.create({
         ui_mode: "embedded",
         redirect_on_completion: "never",
+        // The inline card form is the same purchase as the hosted one above
+        // and prefills the same address; see the note there.
+        ...(tenantEmail ? { customer_email: tenantEmail } : {}),
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
         mode: "payment",
         line_items: [{

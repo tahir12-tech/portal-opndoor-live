@@ -68,6 +68,50 @@ export function feeBasisPhrase(weeks: number | null | undefined): string | null 
   return `${n} weeks of rent`;
 }
 
+/**
+ * The ONE LINE a tenant reads at the card screen, which is the last thing they
+ * read before paying.
+ *
+ * Matt, 2026-10-03, verbatim: "joint tenancies: describe it as 'Your share of
+ * the guarantee fee (5 weeks of rent for the whole tenancy)'."
+ *
+ * HIS FIRST VERSION, half an hour earlier, NAMED THE PERCENTAGE: "Your 10%
+ * share of the guarantee fee (...)". This one drops it, and the later wording
+ * wins. The figure is no loss: share_percent is a snapshot of the SPLIT, and
+ * the amount Stripe is charging is already on the line beside this sentence,
+ * so the percentage was the one number a tenant could not act on.
+ *
+ * IT LIVES HERE BECAUSE THIS FILE ALREADY OWNS THE RULE. The comment on
+ * `feeBasisPhrase` above says it: "The phrase is the SAME on every surface by
+ * ruling: the Stripe line item a tenant reads at the card screen, this email,
+ * the pay page and the agency screens. One basis, one wording." The line item
+ * was the one surface still composing its own sentence, and it was the one
+ * that still had the joint-tenancy defect `isJoint` below describes.
+ *
+ * WHAT A JOINT TENANT NEEDS IS THE SECOND HALF: that the amount they are
+ * being charged is a SHARE, and what the whole tenancy's fee is measured
+ * against. Without it, £1,061.54 beside "5 weeks of rent" invites the tenant
+ * to divide one by the other, get nothing like five weeks of anything, and
+ * conclude we have made an arithmetic error -- with their card in their hand.
+ *
+ * A TENANCY OF ONE IS BYTE FOR BYTE WHAT SHIPPED. One tenant has no share to
+ * name.
+ */
+export function feeLineDescriptionFor(
+  feeBasisWeeks: number | null | undefined,
+  tenantCount: number | null | undefined,
+): string {
+  const basis = feeBasisPhrase(feeBasisWeeks);
+  const tail = ", for the opndoor Deed of Guarantee.";
+  if (tenantCount != null && tenantCount > 1) {
+    const whole = basis ? ` (${basis} for the whole tenancy)` : "";
+    return `Your share of the guarantee fee${whole}${tail}`;
+  }
+  return basis
+    ? `${basis.charAt(0).toUpperCase()}${basis.slice(1)}${tail}`
+    : `The agreed guarantee fee for this tenancy${tail}`;
+}
+
 /** The opening sentence of the small print under a fee. "Payable once" is true
     of every fee, so only the basis clause comes and goes.
 
