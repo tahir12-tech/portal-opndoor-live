@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>opndoor Guarantee Referral Portal — opndoor admin guide</title>
+<title>opndoor admin guide</title>
 <style>
 :root{--ink:#271D5F;--ink-soft:#5B4D86;--ink-mute:#8B80AD;--helio:#B54DE0;--helio-deep:#9A3ACB;--lilac:#F5EEFB;--lilac-line:#E9DEF5;--paper:#fff;--gold:#C99A2E;--gold-bg:#FBF6EC}
 *{box-sizing:border-box}
@@ -59,24 +59,24 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
   <hr class="rule">
 
   <h2>Reconciliation</h2>
-  <p>Agencies and branches created on the fly by referrers land in <b>Reconciliation</b> for review. For each, confirm it as a new canonical record, or (in a later release) merge a likely duplicate.</p>
+  <p>Agencies and branches created on the fly by referrers land in <b>Reconciliation</b> for review. For each, confirm it, or merge a likely duplicate.</p>
   <ul>
-    <li><b>Head-office folding</b> — a single-office agency's automatic "[Agency], Head office" branch folds into the agency card; confirming the agency confirms both. The queue counts <b>decisions</b>, not raw rows.</li>
-    <li><b>Sync nudge</b> — confirming a record fires an immediate CRM sync (fire-and-forget) so it appears within seconds; the couple-of-minutes cron remains the backstop.</li>
+    <li><b>Head-office folding.</b> A single-office agency's automatic "[Agency], Head office" branch folds into the agency card; confirming the agency confirms both. The queue counts <b>decisions</b>, not raw rows.</li>
+    <li><b>Sync nudge.</b> Confirming a record fires an immediate CRM sync (fire-and-forget) so it appears within seconds; the couple-of-minutes cron remains the backstop.</li>
   </ul>
 
   <h2>Partners &amp; rate management</h2>
   <p>Partners carry a partner commission rate and an agent commission rate. You manage these on the partner record.</p>
   <div class="law">
     <div class="law__label">The rate-snapshot law</div>
-    <p>Every commission, settlement, league and export figure reads the rates <b>snapshotted onto the application at creation</b> — never the partner's current rate. Editing a partner's rate changes future referrals only; it never moves history. This is deliberate and load-bearing across the money surfaces.</p>
+    <p>Every commission, settlement, league and export figure reads the rates <b>snapshotted onto the application at creation</b>, never the party's current rate. Editing a party's rate changes future referrals only; it never moves history. This is deliberate and load-bearing across the money surfaces.</p>
   </div>
 
   <h2>The premium bordereau</h2>
   <p>The <b>bordereau</b> export (opndoor superadmin only) is the underwriter's monthly schedule, produced verbatim to the underwriter template: grouped two-row headers (Reference / Tenant Details / Property Details / Guarantee Details), the fixed 18-column order, Landlord Name, DOB always populated, the premium rate in the header block, and the premium amount per policy (monthly rent × rate), with the template's status vocabulary.</p>
 
   <h2>Health</h2>
-  <p>The <b>Health</b> screen is the operational status view for the platform's integrations and background jobs — the place to confirm the money and sync paths are running before you rely on them.</p>
+  <p>The <b>Health</b> screen is the operational status view for the platform's integrations and background jobs. It is the place to confirm the money and sync paths are running before you rely on them.</p>
 
   <h2>The opndoor team</h2>
   <p>The <b>opndoor team</b> screen manages internal opndoor staff accounts, separate from partner users. Actions taken by opndoor staff appear as "opndoor" on partner-facing screens, never as a referrer.</p>
@@ -88,10 +88,10 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
     <tr><td>Cadence</td><td>Automatic every couple of minutes (cron), plus an immediate nudge when you confirm a record.</td></tr>
     <tr><td>Manual</td><td>The <b>Sync CRM</b> button on Reconciliation runs it on demand.</td></tr>
     <tr><td>What syncs</td><td>Applicants, companies (agencies/branches) and their associations; portal-minted companies carry their commission rate across.</td></tr>
-    <tr><td>What never syncs</td><td>CRM-owned finance, owner and attribution fields — a defensive filter drops them even if they ever appear in a payload. The sync never writes Contacts; tenants never become Contacts.</td></tr>
+    <tr><td>What never syncs</td><td>CRM-owned finance, owner and attribution fields. A defensive filter drops them even if they ever appear in a payload. The sync never writes Contacts; tenants never become Contacts.</td></tr>
   </table>
 
-  <div class="foot">This guide describes opndoor-internal capabilities in the shipped portal. It's a practical guide, not a finance, legal or security specification. © opndoor.</div>
+  <div class="foot">opndoor-internal. A practical guide, not a finance, legal or security specification. © opndoor.</div>
 </div></div>
 </body>
 </html>

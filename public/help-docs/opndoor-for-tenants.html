@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>opndoor for tenants</title>
+<style>
+:root{--ink:#271D5F;--ink-soft:#5B4D86;--ink-mute:#8B80AD;--helio:#B54DE0;--helio-deep:#9A3ACB;--lilac:#F5EEFB;--lilac-line:#E9DEF5;--paper:#fff}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact;scroll-behavior:smooth}
+body{margin:0;font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:#EFE9F6;line-height:1.65;font-size:15.5px;-webkit-font-smoothing:antialiased}
+.sheet{max-width:860px;margin:0 auto;background:var(--paper);min-height:100vh}
+.pad{padding:56px 64px 72px}
+.lockup{display:flex;align-items:center;gap:14px;margin-bottom:40px}
+.lockup__mark{font-family:'Sora',sans-serif;font-weight:800;font-size:26px;letter-spacing:-.02em;color:var(--helio)}
+.lockup__bar{width:1.5px;height:28px;background:var(--lilac-line)}
+.lockup__sub{font-size:10.5px;font-weight:700;letter-spacing:.14em;line-height:1.35;text-transform:uppercase;color:var(--helio)}
+.eyebrow{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--helio);margin:0 0 14px}
+.eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--helio)}
+h1{font-family:'Sora',sans-serif;font-weight:800;font-size:46px;line-height:1.04;letter-spacing:-.025em;color:var(--ink);margin:0 0 20px}
+.lead{font-size:19px;line-height:1.5;color:var(--ink-soft);margin:0;max-width:60ch}
+.rule{height:2px;background:var(--ink);border:0;margin:38px 0 6px}
+h2{font-family:'Sora',sans-serif;font-weight:800;font-size:25px;letter-spacing:-.01em;color:var(--ink);margin:40px 0 12px}
+h3{font-family:'Sora',sans-serif;font-weight:700;font-size:16.5px;color:var(--ink);margin:24px 0 6px}
+p{margin:0 0 14px;max-width:70ch}
+strong,b{font-weight:700;color:var(--ink)}
+ul,ol{margin:0 0 16px;padding-left:24px;max-width:70ch}
+li{margin:8px 0}
+a{color:var(--helio);font-weight:600;text-decoration:none}
+.callout{background:var(--lilac);border-radius:20px;padding:24px 28px;margin:24px 0}
+.callout__label{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;color:var(--helio);margin:0 0 10px}
+.callout ul{margin:0;padding-left:22px}
+.callout li{margin:9px 0}
+.callout li::marker{color:var(--helio)}
+.steps{counter-reset:s;list-style:none;padding:0;margin:16px 0}
+.steps>li{counter-increment:s;position:relative;padding-left:48px;margin:16px 0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:-3px;width:31px;height:31px;border-radius:9px;background:var(--ink);color:#fff;font-family:'Sora',sans-serif;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14.5px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--lilac-line);vertical-align:top}
+th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink);background:var(--lilac)}
+.foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--lilac-line);color:var(--ink-mute);font-size:12.5px}
+.printbtn{position:fixed;top:22px;right:22px;background:var(--helio);color:#fff;border:0;border-radius:999px;padding:12px 22px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(181,77,224,.38);font-family:inherit;z-index:50}
+.printbtn:hover{background:var(--helio-deep)}
+@media print{body{background:#fff;font-size:11pt}.sheet{max-width:none}.pad{padding:0}.printbtn{display:none}h1{font-size:32pt}h2{page-break-after:avoid}.callout,table,.steps>li{page-break-inside:avoid}a{color:var(--ink)}@page{margin:16mm 18mm}}
+@media(max-width:640px){.pad{padding:32px 24px 48px}h1{font-size:34px}.lead{font-size:17px}}
+
+/* ---- LEAFLET ADDITIONS. The guides are long documents; a leaflet is one
+   sheet a tenant or a landlord is handed, so it gets a hero, a row of
+   figures and a grid of short cards rather than running prose. Everything
+   above is the guides' own stylesheet, unchanged, so the two read as the
+   same family and a change to the house colours reaches both. ---- */
+.hero{background:var(--ink);color:#fff;padding:56px 64px 52px}
+.hero .lockup__mark{color:#fff}
+.hero .lockup__bar{background:rgba(255,255,255,.28)}
+.hero .lockup__sub{color:#E7D6F5}
+.hero h1{color:#fff;font-size:42px;max-width:22ch}
+.hero .lead{color:#E7D6F5;max-width:58ch}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--lilac-line)}
+.stat{background:var(--lilac);padding:26px 24px}
+.stat__n{font-family:'Sora',sans-serif;font-weight:800;font-size:34px;line-height:1;letter-spacing:-.02em;color:var(--helio-deep)}
+.stat__l{font-size:12.5px;line-height:1.45;color:var(--ink-soft);margin-top:8px;max-width:22ch}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:20px 0 8px}
+.card{border:1px solid var(--lilac-line);border-radius:18px;padding:22px 24px}
+.card__ic{width:34px;height:34px;border-radius:10px;background:var(--lilac);color:var(--helio-deep);display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:800;font-size:17px;margin-bottom:12px}
+.card h3{margin:0 0 6px}
+.card p{margin:0;font-size:14.5px;color:var(--ink-soft)}
+.card--wide{grid-column:1 / -1}
+.plain{list-style:none;padding:0;margin:14px 0}
+.plain li{position:relative;padding-left:26px;margin:10px 0}
+.plain li::before{content:"";position:absolute;left:4px;top:9px;width:8px;height:8px;border-radius:50%;background:var(--helio)}
+.cta{background:var(--lilac);border-radius:20px;padding:28px 30px;margin:34px 0 0}
+.cta h2{margin:0 0 8px;font-size:22px}
+.cta p{margin:0 0 4px;color:var(--ink-soft)}
+@media print{.hero{padding:0 0 18px;background:#fff;color:var(--ink)}.hero h1,.hero .lead{color:var(--ink)}.hero .lockup__mark,.hero .lockup__sub{color:var(--helio)}.hero .lockup__bar{background:var(--lilac-line)}.stats{page-break-inside:avoid}.cards{gap:12px}.card,.cta,.stat{page-break-inside:avoid}}
+@media(max-width:640px){.hero{padding:30px 24px 28px}.hero h1{font-size:30px}.stats{grid-template-columns:1fr}.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<button class="printbtn" onclick="window.print()">Save as PDF</button>
+<div class="sheet">
+  <div class="hero">
+    <div class="lockup">
+      <span class="lockup__mark">opndoor</span>
+      <span class="lockup__bar"></span>
+      <span class="lockup__sub">Guarantee<br>Service</span>
+    </div>
+    <div class="eyebrow" style="color:#E7D6F5">For tenants</div>
+    <h1>Didn't pass referencing? There's still a way to get the home.</h1>
+  </div>
+
+  <div class="pad">
+    <div class="eyebrow">What it is</div>
+    <h2 style="margin-top:0">opndoor acts as guarantor for your tenancy</h2>
+    <p>A guarantor promises the landlord the rent will be covered. If you don't have one, opndoor can act as guarantor for you, so the tenancy you applied for can go ahead.</p>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card__ic">&pound;</div>
+        <h3>A one-off fee, usually one month's rent</h3>
+        <p>Split between you if you're renting jointly. You pay it once to set up the guarantee, and there's nothing more to pay after that.</p>
+      </div>
+      <div class="card">
+        <div class="card__ic">&#10003;</div>
+        <h3>You get a copy of the deed</h3>
+        <p>Once the guarantee is issued, you receive a copy of the Deed of Guarantee for your records.</p>
+      </div>
+    </div>
+
+    <hr class="rule">
+
+    <div class="eyebrow" style="margin-top:28px">Being straight with you</div>
+    <h2 style="margin-top:0">What the fee is, and what it isn't</h2>
+    <ul class="plain">
+      <li>It is not rent, and not rent paid in advance.</li>
+      <li>It is not a deposit, and doesn't come off your rent.</li>
+      <li>It is a one-off guarantee fee for opndoor acting as guarantor.</li>
+      <li>It is what makes the tenancy possible when you can't provide your own guarantor.</li>
+    </ul>
+    <div class="callout">
+      <div class="callout__label">One important thing</div>
+      <p style="margin:0">The guarantee protects the landlord, not you. You still pay your rent as normal. What it does for you is open the door to a home you'd otherwise miss out on.</p>
+    </div>
+
+    <div class="eyebrow" style="margin-top:34px">Good to know</div>
+    <div class="cards">
+      <div class="card">
+        <div class="card__ic">&#8634;</div>
+        <h3>Full refund if it falls through</h3>
+        <p>If the tenancy doesn't go ahead, you get a full refund of the fee.</p>
+      </div>
+      <div class="card">
+        <div class="card__ic">&#9889;</div>
+        <h3>Simple and quick</h3>
+        <p>Setting it up is fast. You'll get a secure link, and the guarantee can be issued quickly.</p>
+      </div>
+    </div>
+
+    <div class="cta">
+      <h2>Take your time, then decide</h2>
+      <p>If this feels like the right way forward, your letting agent can talk you through the next step. Take the time you need and ask anything you're unsure about.</p>
+    </div>
+
+    <div class="foot">Any questions? Speak to your letting agent, who can explain how it works for your tenancy. A plain-English summary, not a legal document: the Deed of Guarantee governs the guarantee in full. &copy; opndoor.</div>
+  </div>
+</div>
+</body>
+</html>
