@@ -95,6 +95,14 @@ export function hydrateCommissionVisibility(sees: boolean): void {
   SEES_COMMISSION = sees;
 }
 
+/** What it currently says. Added for View as, which swaps this to the viewed
+    party's answer and has to put the reader's own answer back afterwards --
+    and must not do that by recomputing it, because in mock and demo mode
+    there is no row to recompute from and the default is deliberate. */
+export function commissionVisibility(): boolean {
+  return SEES_COMMISSION;
+}
+
 /** The three levels an agency person can hold, as the product names them.
     Opndoor's own roles are not agency levels and answer null. */
 export type AgencyLevel = 'Director' | 'Manager' | 'Negotiator';
@@ -152,8 +160,29 @@ export const SUPPLIER_LEVELS: {
   needsApi?: boolean;
   desc: string;
 }[] = [
-  { level: 'Management', role: 'management', seesCommission: false,
-    desc: "Supplier management. The same screens and tools as a referrer, but across the whole supplier with full visibility of all tracking and analytics. Manages the supplier's own agencies, branches and team, with edits applying straight away. Cannot change portal settings." },
+  /* MANAGEMENT SEES COMMISSION, AND IT IS THE TOP OF THIS RAIL.
+
+     Matt, 2026-10-03: "I invited Matthew Dwyer as 'Management' from Kestrel's
+     own Add user dialog, whose only options are Management, Referrer and
+     Developer. So supplier 'Management' invited that way gets
+     sees_commission = false, which is the defect: supplier Management must
+     see commission."
+
+     THIS WAS `false` AND I HAD READ IT AS DELIBERATE. On the AGENCY rail
+     Director and Manager are both `role = 'management'` and
+     `sees_commission` is the only thing between them, so false there means
+     "a Manager". THE SUPPLIER RAIL HAS NO SUCH LADDER -- this list is the
+     whole of it, three levels, and Management is the top. False here did not
+     mean a junior level; it meant nobody invited through this dialog could
+     ever see their own company's commission, which is the one figure a
+     supplier's management is there for.
+
+     Measured on dev: two of Kestrel's three management users hold false
+     (joe@bloggs.com and Matthew Dwyer, both invited through this dialog) and
+     only Kestrel Director holds true -- and that one was seeded, not
+     invited. */
+  { level: 'Management', role: 'management', seesCommission: true,
+    desc: "Supplier management. The same screens and tools as a referrer, but across the whole supplier with full visibility of all tracking and analytics, including commission and statements. Manages the supplier's own agencies, branches and team, with edits applying straight away. Cannot change portal settings." },
   { level: 'Referrer', role: 'referrer', seesCommission: false,
     desc: 'Sees and tracks only their own referrals. Can add agencies and branches on the fly while referring.' },
   { level: 'Developer', role: 'developer', seesCommission: false, needsApi: true,

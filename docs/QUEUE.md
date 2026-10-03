@@ -2119,6 +2119,43 @@ is nothing left to match" instead of a warning.
 - THE SECOND HALF is a display rule in customer views only: an admin's
   own name must not appear in a customer's referrer list.
 
+## FOR MATT IN THE MORNING: TWO SUPPLIER USERS NEED THEIR FLAG SET (2026-10-03).
+
+**This changes what two people can see, so it is parked rather than done.**
+
+Matt asked: *"Tell me which existing supplier users would be affected on
+live."* The code fix means every supplier Management invited FROM NOW ON gets
+`sees_commission = true`. It does not touch rows that already exist.
+
+**ON DEV, exactly two, both at Kestrel Lettings and both invited through that
+dialog:**
+
+| name | email | created |
+|---|---|---|
+| joe bloggs | joe@bloggs.com | 1 Oct 2026 17:16 |
+| Matthew Dwyer | test@kestrel.com | 3 Oct 2026 16:28 |
+
+Kestrel Director (`director@kestrel.dev.test`) holds `true` and is unaffected:
+it was seeded, not invited, which is why the defect went unnoticed.
+
+**ON LIVE I CANNOT LOOK.** CLAUDE.md: the live project is never touched, read
+or written. The query to run against live is:
+
+```sql
+select u.full_name, u.email, u.status, u.created_at, p.slug
+  from public.users u join public.partners p on p.id = u.partner_id
+ where p.partner_kind = 'supplier'
+   and u.role = 'management'
+   and u.sees_commission is not true
+ order by p.slug, u.created_at;
+```
+
+Every row it returns is a supplier's management user who cannot see their own
+company's commission or statements. The correction is
+`admin_set_user_level`-equivalent per row, or one UPDATE; I have not written
+either, because it changes what somebody can see and Matt's parking rule names
+money.
+
 ## THAT IS EVERYTHING FOR TONIGHT (instruction, 2026-10-03, verbatim). THE WORKING MANDATE.
 
 > That's everything from me tonight. Work through items 1 to 9 in order, then the small copy fixes, without waiting for me. For small choices, make the sensible one and carry on. Only park something under "For Matt in the morning" if it changes money, touches live, or can't be undone. Morning summary in plain English: what's done, what's left, anything waiting on me. Final status at Sunday 18:00 as agreed.

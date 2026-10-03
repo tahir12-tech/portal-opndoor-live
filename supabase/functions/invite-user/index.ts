@@ -176,7 +176,21 @@ Deno.serve(async (req) => {
          same shape create_invited_user uses for set_user_scope below.
          Agency levels only: a developer invite carries no level and is governed
          by the allowlist above. */
-      if (role === "management" || role === "referrer") {
+      /* OUR ESTATE ONLY, since 2026-10-03. `assert_may_grant_level` knows
+         exactly three words -- Director, Manager, Negotiator -- and they are
+         the AGENCY ladder. A supplier's rail has no such ladder: its levels
+         are Management, Referrer and Developer, and which of them a caller
+         may grant is the `allowed` list above, keyed on the partner's kind.
+
+         Running the ladder on a supplier invite did two wrong things at
+         once. It translated "Management" into an agency level through
+         `seesCommission`, which is how supplier Management came to be
+         invited as a "Manager"; and `level_rank_of` is null for a supplier's
+         own people, who hold no position, so a supplier's Management
+         inviting a colleague would have been refused outright with "You can
+         only give someone a level at or below your own" -- a sentence about
+         a ladder they are not on. */
+      if (onOurEstate && (role === "management" || role === "referrer")) {
         const level = role === "referrer" ? "Negotiator" : (seesCommission ? "Director" : "Manager");
         const { error: levelErr } = await userClient.rpc("assert_may_grant_level", { p_level: level });
         if (levelErr) return json({ ok: false, error: levelErr.message }, 403);

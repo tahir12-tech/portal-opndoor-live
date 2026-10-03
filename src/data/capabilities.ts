@@ -253,3 +253,29 @@ export function mayUseDevCentre(role: Role, scope: PartnerScope): boolean {
   if (p.kind === 'agency') return false;
   return p.apiAccessEnabled === true;
 }
+
+/* =====================================================================
+   DOES THE TOP OF THIS PARTY'S RAIL SEE COMMISSION?
+
+   Matt, 2026-10-03: "fix View as to read the viewed person's access, not the
+   admin's."
+
+   View as looks at a PARTY, not a person, so there is no one person's access
+   to read. What there is is the party's RAIL, and each rail has a top level:
+   a supplier's is Management, one of our agencies' is Director, and since the
+   same day both are shown commission. So this answers true for every party we
+   carry -- which is the point. It is true by construction rather than by the
+   admin's own level happening to be generous, and a rail whose management did
+   not see commission would be reflected rather than overridden.
+
+   THE DIRECT RAIL IS NOBODY'S PARTY. `opndoor-direct` is Opndoor's own
+   business and has no customer management to stand in for, so it answers
+   false: there is no reader there to be truthful to.
+   ===================================================================== */
+export function topLevelSeesCommission(scope: PartnerScope): boolean {
+  if (!scope || scope === ALL_PARTNERS) return true;
+  if (isDirectRail(scope)) return false;
+  // Both rails' top level sees commission. Asked of the party so that the
+  // answer follows the rail rather than the reader.
+  return partyIsSupplier(scope) || partyIsAgency(scope);
+}

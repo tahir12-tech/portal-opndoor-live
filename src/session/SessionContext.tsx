@@ -14,10 +14,10 @@ import {
   ALL_PARTNERS, authService, getSelectedPartner, homePartner, setHomePartner,
   setSelectedPartner as persistPartner, getSelectedPeriod, setSelectedPeriod as persistPeriod,
   logViewAs, partnerName,
-  LEAST_PRIVILEGED_ROLE, type PartnerScope, type Period, type Role, hydrateCommissionVisibility,
+  LEAST_PRIVILEGED_ROLE, type PartnerScope, type Period, type Role, hydrateCommissionVisibility, commissionVisibility,
   agencyLevelOf, maySeeCommission,
 } from '@/data';
-import { isAgencyUser } from '@/data/capabilities';
+import { topLevelSeesCommission, isAgencyUser } from '@/data/capabilities';
 import { KEYS, loadString, saveString } from '@/data/storage';
 import { ORIGIN_ALL, figuresFollow, partnerFor, type OriginScope } from '@/data/origin';
 import { clearScopeRecents, rememberScope } from '@/data/scopeRecents';
@@ -411,6 +411,56 @@ export function SessionProvider({ children }: { children: ReactNode }) {
      will ask again the moment the figures follow the selection. Deleting it
      and re-deriving it later is how the distinction gets lost. */
   const viewingAs = role === 'superadmin' && figuresFollow(scopeSel) ? scopeSel : null;
+
+  /* AND WHILE VIEWING AS SOMEBODY, COMMISSION IS THEIR ANSWER, NOT OURS.
+
+     Matt, 2026-10-03: "fix View as to read the viewed person's access, not the
+     admin's."
+
+     WHAT WAS WRONG. `maySeeCommission` answers true for `superadmin`
+     unconditionally and reads the signed-in user's own `sees_commission` for
+     management. Under View as the ROLE does not change -- only the scope does
+     -- so an admin viewing Kestrel was answered as an admin. Kestrel's own
+     Management users hold sees_commission false (the invite defect fixed the
+     same day), so View as showed a page no real Kestrel user could open. View
+     as exists to check what a customer sees, and it was showing more.
+
+     WHAT IT READS INSTEAD: the TOP LEVEL OF THAT PARTY'S OWN RAIL, which is
+     the most any of their people can be shown. A supplier's is Management and
+     an agency's is Director, and since the same day both see commission -- so
+     today this answers true for every party and the fix is a no-op on screen.
+     That is the point: it is now true BY CONSTRUCTION rather than by the
+     admin's own level happening to be generous, and a rail whose management
+     does not see commission would be reflected rather than overridden.
+
+     NOT "DO THIS PARTY'S USERS SEE IT", which was the other candidate and is
+     worse: it would make View as depend on whether a customer happens to have
+     invited a Director yet, so the same page would answer differently on
+     Monday and Tuesday. The level is a property of the rail; the people are
+     not. */
+  /* RESTORED ON THE WAY OUT, BY THE EFFECT'S OWN CLEANUP.
+
+     RESTORED, NOT RECOMPUTED. Recomputing the reader's answer from their
+     profile looked equivalent and is not: in mock and demo mode there is no
+     row to recompute from, and the default this file documents as deliberate
+     ("blanking the figures for every Director in mock and demo mode is a
+     visible fault to fix a risk that does not exist") would have been
+     overwritten with false on every mount.
+
+     AND CLEANUP RATHER THAN AN else ARM, because `SEES_COMMISSION` is MODULE
+     state and this effect mutates it. An else arm restores it when View as is
+     switched off and leaves it swapped when the provider UNMOUNTS while
+     viewing -- so the next reader in the same runtime inherits a stranger's
+     answer. Caught by two render tests in this repo that mount a provider per
+     case: an agency reading its own Reporting lost "Your commission" because
+     an earlier case in the same file had been viewing as somebody. The same
+     leak is reachable in the product by signing out from inside View as. */
+  useEffect(() => {
+    if (!viewingAs) return undefined;
+    const own = commissionVisibility();
+    hydrateCommissionVisibility(topLevelSeesCommission(viewingAs));
+    return () => { hydrateCommissionVisibility(own); };
+  }, [viewingAs]);
 
   /* THE LABEL UNDER THE NAME, in the words the agency uses for itself.
 
