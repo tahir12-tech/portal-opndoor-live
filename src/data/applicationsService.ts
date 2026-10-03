@@ -111,6 +111,14 @@ export interface FullApp {
   shareAmount?: number | null;
   /** The frozen split, one entry per payee. Absent on historic rows. */
   commissionLines?: CommissionLine[];
+  /** Whether Opndoor paid the agencies directly, as at the moment this
+      referral was created and its commission frozen. true: the supplier
+      line and the agency lines are SEPARATE payees and Opndoor owes their
+      sum. false: the agency share comes out of the supplier total and
+      Opndoor owes the supplier only. Null off a supplier estate, and for
+      any row with no snapshot, where the live flag is the fallback.
+      Mirrors applications.opndoor_pays_agents_at_freeze. */
+  opndoorPaysAgentsAtFreeze?: boolean | null;
   sentAt: Date | null;
   paidAt: Date | null;
   deedAt: Date | null;

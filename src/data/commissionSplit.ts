@@ -18,7 +18,8 @@
 import type { CommissionLine, CommissionSource } from './types';
 import type { FullApp } from './applicationsService';
 import { isDirectRail } from './channel';
-import { partyIsOurEstate } from './capabilities';
+import { partyIsOurEstate, partyIsSupplier } from './capabilities';
+import { getPartner } from './partnersService';
 import { plural } from '@/lib/plural';
 
 /**
@@ -247,7 +248,42 @@ export function totalRate(app: FullApp): number {
     The fallback is feeBase x rate for a line frozen before the column existed,
     which is exactly what those rows have always been worth, and is also what the
     reconstructed single agency line for a historic row with no split is worth. */
+/* =====================================================================
+   DID THE SUPPLIER SETTLE ITS OWN AGENTS, AS FROZEN?
+
+   The client's mirror of `settles_its_own_agents_frozen` in SQL, and it
+   must stay one with it: the screen and the statement are the same money
+   read twice.
+
+   Matt, 2026-10-03: "If a referral is frozen under 'the supplier pays its
+   own agents', the agency's share comes out of the supplier's total and
+   Opndoor pays only the supplier." Under the other arrangement the two
+   are separate payees and Opndoor owes their sum, which is what the
+   Commission tab's worked example says and what the frozen rows store.
+
+   OFF A SUPPLIER ESTATE THERE IS NOTHING TO DECIDE. Our own agencies and
+   the direct rail have no supplier to carve anything out of, so this is
+   false there and every agency line stays Opndoor's to pay.
+
+   THE SNAPSHOT, THEN THE LIVE FLAG. A row frozen before the column
+   existed has no snapshot, and for those the live flag is the same answer
+   the product gave yesterday, so nothing regresses. `!= null` and not a
+   truthiness test: `false` is a real answer here and the common one. */
+function settlesItsOwnAgentsFrozen(app: FullApp): boolean {
+  if (!partyIsSupplier(app.partner)) return false;
+  if (app.opndoorPaysAgentsAtFreeze != null) return !app.opndoorPaysAgentsAtFreeze;
+  return getPartner(app.partner)?.opndoorPaysAgents === false;
+}
+
 export function payeesFor(app: FullApp, feeBase: number): PayeeAmount[] {
+  /* WHO OPNDOOR PAYS, WHICH IS NOT WHO EARNED IT. Under "the supplier
+     pays its own agents" the frozen agency line still EXISTS and is
+     still right -- it is the supplier's own record of what it owes that
+     agency, and the per-agency schedules are built from it -- but it is
+     not a thing Opndoor pays, so it is not a payee here. Exactly the
+     filter `commission_statement_lines` applies in SQL, asking the same
+     frozen fact. */
+  if (settlesItsOwnAgentsFrozen(app)) return [];
   return linesFor(app).map((l) => ({
     key: payeeKey(l.level as AgencyLevel, l.orgId, l.orgName),
     level: l.level as AgencyLevel,

@@ -182,6 +182,11 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         // authoritative flag never reached a screen and the Applications
         // filter guessed from the agent_contacts tree instead.
         'awaiting_staff_send, delivery_failed_at, delivery_attempted_to, delivery_source, delivery_reason, ' +
+        // WHICH ARRANGEMENT THIS REFERRAL WAS SOLD UNDER, snapshotted at
+        // creation (20261007610000). Not the partner's live flag: that one
+        // is mutable and has already moved twice under live referrals, and
+        // reading it made a past month's statement change shape.
+        'opndoor_pays_agents_at_freeze, ' +
         'referencing_mode, applicant_id, landlord_name, landlord_email, ' +
         'elig:application_eligibility_payments(paid_at), ' +
         'referrer_id, referrer_name, branch_id, agency_id, partner_id, ' +
@@ -555,6 +560,11 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     partnerRate: rateById.get(a.id)?.partner ?? (partnerRateById.get(a.partner_id) ?? 0),
     agentRate: rateById.get(a.id)?.agent ?? (agentRateById.get(a.partner_id) ?? 0),
     commissionLines: linesByApp.get(a.id),
+    /* Null off a supplier estate, where there is no supplier and nothing
+       for the arrangement to decide. `?? null` rather than a boolean
+       coalesce, because "not recorded" and "the supplier settles its own
+       agents" are different answers and only one of them is false. */
+    opndoorPaysAgentsAtFreeze: a.opndoor_pays_agents_at_freeze ?? null,
     sentAt: toDate(a.sent_at),
     paidAt: toDate(a.paid_at),
     deedAt: toDate(a.deed_issued_at),

@@ -229,8 +229,19 @@ select is(
 -- ===========================================================================
 -- 2d. AND WITH THE SETTING ON, WHICH IS THE OTHER HALF OF NM-C 5
 -- ===========================================================================
+/* THE ARRANGEMENT IS NOW FROZEN ONTO THE REFERRAL, 20261007610000, so the
+   shape is changed where the readers actually look. This used to flip the
+   partner's `opndoor_pays_agents` and nothing else, which worked only while
+   every money reader asked that column at read time -- the fault Matt had
+   measured on GR-FROST-KES: a referral frozen under one arrangement had its
+   statement and its settlement rewritten under the other the moment an admin
+   changed the switch. The partner flag is set too, because that is what a real
+   change of arrangement does and leaving it would make this fixture a state
+   the product cannot reach. */
 update public.partners set opndoor_pays_agents = true
  where id = 'e5000000-0000-0000-0000-0000000000f1';
+update public.applications set opndoor_pays_agents_at_freeze = true
+ where partner_id = 'e5000000-0000-0000-0000-0000000000f1';
 
 /* =========================================================================
    THESE THREE SAID THE OPPOSITE UNTIL 20261007230000, AND THE COMMENT THEY
@@ -269,8 +280,12 @@ select is(
     where p.id = 'e5000000-0000-0000-0000-0000000000f1'),
   'so under this shape the total is the SUM of the two deals, not a fixed figure divided');
 
+-- And back, both halves, so section 3 below reads the carved shape this
+-- file's fixture was built on.
 update public.partners set opndoor_pays_agents = false
  where id = 'e5000000-0000-0000-0000-0000000000f1';
+update public.applications set opndoor_pays_agents_at_freeze = false
+ where partner_id = 'e5000000-0000-0000-0000-0000000000f1';
 
 -- ===========================================================================
 -- 3. WHO RECEIVES IT
