@@ -1327,6 +1327,41 @@ reading the wrong one. No frozen amount changed.
 - Supersedes part 2 of "THE CORRECTION NOTE, AND FIFTY HUBSPOT ALERTS":
   the answer is now known and this is the build.
 
+### THE DIAGNOSIS, AND IT IS NOT WHAT THE INSTRUCTION ASSUMED (2026-10-03)
+
+**There is no record pointing at a HubSpot company that does not exist.**
+No such row is on dev. Measured:
+
+| fact | value |
+|---|---|
+| alert type | `hubspot_sync_error:config`, **47** of them |
+| the message | *"no HubSpot access token (HUBSPOT_ACCESS_TOKEN edge env, x-hubspot-token header, or ops_secrets 'hubspot_access_token'). Nothing is syncing."* |
+| window | 28 Sep 11:24 to 30 Sep 09:00, one an hour |
+| `ops_secrets.hubspot_access_token` | **does not exist** |
+| partners marked stuck (`stuck_error`) | **none**, all eleven |
+| `hubspot_disabled` | `'true'`, set 28 Sep 16:41 |
+| the cron | **still active**, every 2 minutes, 1,440 successes in 2 days |
+
+**So HubSpot has never synced on dev: there has never been a token.** The
+47 alerts are one unchanging configuration fact, repeated hourly --
+hourly rather than every two minutes only because
+`report_ops_incident` dedupes on `(type, application, hour_bucket)`.
+
+**They stopped on 30 Sep because the sync was DISABLED, not fixed.**
+`hubspot_disabled` was set on 28 Sep 16:41 but the alerts ran on for
+another 40 hours, so the flag did nothing until the function that reads
+it was deployed on the 30th. The cron still runs every two minutes and
+succeeds, doing nothing.
+
+**Nothing to clear or fix on dev**, which is the half of the instruction
+that cannot be carried out: the record does not exist. Dev cannot
+exercise the per-record path at all without a token.
+
+**But the instruction's PRINCIPLE applies exactly to what did happen.**
+"The alert fires once per failing record, not every run" -- 47 alerts
+about one condition that never changed is the same fault in its
+config form.
+
 ## THE REPLAY GUARD BLOCKS THE AUTOMATIC SEND ONLY (instruction, 2026-10-03, verbatim).
 
 > Add to the corrected-deed blocker: pressing "Resend deed" manually sends the correct corrected deed (29 Dec, "1 of 2 signed"), so the document is right and only the automatic send on signing is blocked as a "replay". Also: the agent's joint-tenancy line says "one more deed follows once the other tenant has paid and signed" even when the other tenant has already paid; say "once the other tenant has signed" in that case.
