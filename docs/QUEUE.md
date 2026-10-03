@@ -1327,6 +1327,10 @@ reading the wrong one. No frozen amount changed.
 - Supersedes part 2 of "THE CORRECTION NOTE, AND FIFTY HUBSPOT ALERTS":
   the answer is now known and this is the build.
 
+## THE REPLAY GUARD BLOCKS THE AUTOMATIC SEND ONLY (instruction, 2026-10-03, verbatim).
+
+> Add to the corrected-deed blocker: pressing "Resend deed" manually sends the correct corrected deed (29 Dec, "1 of 2 signed"), so the document is right and only the automatic send on signing is blocked as a "replay". Also: the agent's joint-tenancy line says "one more deed follows once the other tenant has paid and signed" even when the other tenant has already paid; say "once the other tenant has signed" in that case.
+
 ## CLEAR THE QUEUE (instruction, 2026-10-02, verbatim).
 
 > just clear the queue
