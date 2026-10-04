@@ -89,9 +89,12 @@ export function NewApplication() {
   const [busy, setBusy] = useState(false);
   const [dupWarn, setDupWarn] = useState<DuplicateMatch | null>(null); // #5 duplicate soft warning
   const [fee, setFee] = useState<FeePreview | null>(null);
-  // THE RAIL the selected origin runs on. A joint tenancy is an agent-rail
-  // thing: a pre-referenced referral arrives with its references already done
-  // and covers one tenant, and create_joint_referral refuses the rest.
+  // THE RAIL the selected origin runs on. A joint tenancy needs an agency for
+  // the tenancy to sit under, which is what this asks. It is NOT the old
+  // "agent rail only" rule: since 20261006970000 create_joint_referral
+  // refuses only the two house routes, opndoor-direct and
+  // referencing-partner, because a direct signup is one person applying for
+  // themselves and has no staff referrer to create it.
   //
   // Three states, not two, and the difference matters: "no origin chosen yet"
   // and "asked, and the answer is not the agent rail" must not be confused,
@@ -203,14 +206,13 @@ export function NewApplication() {
     || referredBy === 'agency'
     || (referredBy === 'supplier' && !!routeSupplier);
 
-  /* A JOINT TENANCY NEEDS AN AGENCY OF OURS TO SIT UNDER, which is the ESTATE
-     question -- not the journey, and not the rail the form drew last. Where an
-     admin has said the referral came through a SUPPLIER, the answer is no
-     before the server is asked: Matt's words for that path are "single tenant
-     (no Add another tenant)". Stated here rather than waiting for the estate
-     probe, because the probe answers about the BRANCH and the admin has just
-     told us the route, and those are the two things that can disagree for an
-     agency a supplier introduced. */
+  /* A JOINT TENANCY NEEDS AN AGENCY FOR THE TENANCY TO SIT UNDER, which is
+     the ESTATE question: not the journey, and not the rail the form drew
+     last. Where an admin has said the referral came through a SUPPLIER the
+     answer is YES and is known before the server is asked, because the admin
+     has just told us the route. That is the half the probe cannot answer: it
+     answers about the BRANCH, and the route and the branch are exactly what
+     disagree for an agency a supplier introduced. */
   /* WALK FIX 26 REVERSED THIS. It read `estate && referredBy !== 'supplier'`,
      which was Q-06 item H's rule: "single tenant (no Add another tenant)" on
      the supplier path. Batch 16 says the opposite and is newer.
@@ -634,7 +636,7 @@ export function NewApplication() {
                     </select>
                     <span className="hint">
                       {referredBy === 'supplier'
-                        ? 'A supplier referral covers one tenant, is priced at one month’s rent, and pays supplier commission.'
+                        ? 'A supplier referral pays supplier commission, at the fee that supplier’s own deal sets.'
                         : referredBy === 'agency'
                         ? 'An agency referral goes on the agent rail with agency commission, even where a supplier introduced the agency.'
                         : 'Required. Everything below stays closed until this is answered.'}
