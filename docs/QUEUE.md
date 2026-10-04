@@ -4339,6 +4339,33 @@ both estates, the dialog, and FAQ 9 on both rails.
   send becoming several must not turn into several conflicting records of
   who the deed went to.
 
+### (bl) Every tenant-facing signing email drops the claim-contact line
+
+> Every tenant-facing signing email (resend, corrected deed, any reissue): remove "You remain the claim contact" (agent wording only).
+
+- **ALL THREE ARE ONE TEMPLATE, which is what makes this one edit rather
+  than three.** Resend, the corrected deed after a start-date change, and
+  any reissue all go through `deliverSigningInvite` -> `deedToSignEmail`
+  since (ai). Removing it there covers the lot, and (bj) already did.
+- WHERE IT SURVIVES IT IS CORRECT: `executedDeedAgentEmail` is addressed to
+  the agent or landlord, who IS the claim contact. Matt's instruction says
+  "agent wording only", so that one stays.
+
+### (bm) A change opndoor made was made by opndoor
+
+> Customer-facing emails and screens: when Opndoor staff make a change (start date, withdrawal, anything), say "by opndoor", never the staff member's name. Check every email template and activity line shown to agency and supplier users.
+
+- **THE SAME RULE AS THE REFERRAL BYLINE, which Matt already asked for once:
+  a referral an admin made on a customer's behalf shows "opndoor (on your
+  behalf)". This extends it from who SENT a thing to who CHANGED one.
+- IT IS A PRIVACY RULE AS MUCH AS A COPY ONE. An agency has no business
+  knowing which member of opndoor staff touched their record, and a name
+  invites them to ask for that person next time.
+- **"CHECK EVERY EMAIL TEMPLATE AND ACTIVITY LINE" IS THE WORK**, not the
+  one case: `actor` is threaded into amend, withdraw, correction and
+  delivery messages, and each composes its own sentence. A sweep, with the
+  question asked once: is this reader a customer, and is this actor us.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
