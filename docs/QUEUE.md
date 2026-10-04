@@ -3587,6 +3587,28 @@ and the three creation paths say no. Not guessing on a money record.
 - A LIVE DATA MIGRATION AGAIN, like (ac), so the same care: scoped,
   idempotent, and it must not touch a line that already exists.
 
+### (ak) A refunded fee cancels that tenant's guarantee
+
+> Refunds (done in Stripe, picked up by the portal): when a tenant's fee is fully refunded, their guarantee ends. 1) Mark their deed "Cancelled: fee refunded" everywhere (application page, tenancy box, exports, bordereau from the refund date), never "Deed executed". 2) In the tenancy box show "Refunded · deed cancelled", and the count as "2 of 3 tenants paid, 1 refunded". 3) Email the agent who received the deed (and any landlord it was sent to): "The guarantee for [tenant] at [property] (GR-…) has been cancelled because their fee was refunded. The other tenants' guarantees are unaffected." 4) Tenant email: "Your guarantee fee has been refunded and your Deed of Guarantee is cancelled." 5) Remove its commission from the month's statement if not yet posted; if already posted, it goes on the next statement as a deduction, per the refund rule. Co-tenants' guarantees stay as they are. Show me GR-25235 after the change.
+
+- **THE BIGGEST ITEM SINCE SUPPLIER JOINT TENANCIES, and it touches the
+  underwriter.** "the bordereau from the refund date" means a cancelled
+  guarantee stops being ON COVER, which is a statement to the insurer about
+  risk, not a label on a screen.
+- **"CO-TENANTS' GUARANTEES STAY AS THEY ARE" IS THE SENTENCE THAT MAKES IT
+  HARD.** One tenant of a joint tenancy cancelling must leave the others
+  untouched, which rules out anything keyed on the TENANCY and requires
+  everything to be per APPLICATION. The counts, the emails and the
+  bordereau rows all have to respect that.
+- ITEM 5 IS THE MONEY AND IT ALREADY HAS MACHINERY: posted-or-not is
+  `commission_statement_sends`, and "goes on the next statement as a
+  deduction" is `statement_deductions` plus
+  `raise_refund_after_statement`, which exists. So this is wiring an
+  existing mechanism to the refund rather than inventing one.
+- "NEVER 'Deed executed'" IS A SWEEP: the deed state is rendered in several
+  places and each must learn the cancelled case.
+- GR-25235 IS THE WORKED EXAMPLE to show afterwards.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
