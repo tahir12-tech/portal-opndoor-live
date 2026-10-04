@@ -3685,6 +3685,34 @@ and the three creation paths say no. Not guessing on a money record.
   named as its own test.
 - RELATED TO (ai): the corrected-deed flow must also send opndoor's email.
 
+### (ap) Notification rules, and the two that can never be switched off
+
+> Notifications and start-date changes:
+> 1. When a tenancy start date is changed (by anyone, signed or unsigned deed), email the referrer and anyone copied on that referral who has "Tenancy start corrected" on: "[Tenant]'s tenancy start at [property] has changed from 16 Oct 2026 to 17 Oct 2026 by [who]. A corrected deed has been sent to the tenant to sign." GR-25834's change at 18:00 didn't email barb; fix and test.
+> 2. Every email to a portal user is on by default, and each person can switch any of it off, including their copy of the signed deed, plus a "Turn off all" switch. Two things can never be switched off: account emails (invites, password resets, two-factor), and delivery of the signed deed to the agency it's for (the office's email, or the agency email), which always happens regardless of anyone's settings.
+> 3. For supplier referrals (e.g. Rightmove), the deed always goes to the agency's or office's email; the supplier's own staff only get copies if they keep them on. If an agency or office has no email, show the existing warning in Reconciliation and on the supplier's Agencies tab.
+> 4. Explain these rules in plain English in each Notifications dialog.
+
+- **ITEM 2 IS A SAFETY INVARIANT AND BELONGS IN SQL, not in a dialog that
+  hides a toggle.** "Two things can never be switched off" is the kind of
+  rule that has to be unrepresentable: an account email nobody can stop,
+  and the signed deed reaching the agency it is FOR. The second is the
+  product's whole purpose, and a per-person preference must not be able to
+  stop a deed reaching the party the guarantee is in favour of.
+- **THE DISTINCTION IN ITEM 2 IS PERSON VERSUS PARTY.** A person's COPY is
+  theirs to switch off; delivery to the AGENCY'S OWN ADDRESS is not a copy
+  and is not anybody's preference. Item 3 says the same thing for the
+  supplier rail: the agency's address always, the supplier's staff only by
+  choice.
+- ITEM 1 HAS A FAILING CASE TO REPRODUCE: GR-25834's 18:00 change emailed
+  nobody. Related to (ao), which is the same amendment seen from the
+  application page.
+- AND THE SENTENCE NAMES THE OLD DATE, which (ao) proves is not currently
+  recorded: the log said "from 17/10/2026 to 17/10/2026". So item 1 cannot
+  be written truthfully until (ao) item 1 is fixed. They are one piece of
+  work.
+- ITEM 4 IS THE COPY, and it depends on 2 and 3 being true first.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
