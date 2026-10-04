@@ -4758,6 +4758,44 @@ both estates, the dialog, and FAQ 9 on both rails.
   "Keep both". A warning with no verb leaves the reader where they
   were.
 
+### (cl) An opndoor manager on a supplier page sees "no deal" for "not allowed"
+
+> opndoor manager on a supplier page (Kestrel): because managers can't read commission, the Overview wrongly says "Referrals are coming in with no commission deal set. 5 referrals have been priced at 0%". For managers, hide the Commission and statement-address sections entirely (and the Commission tab), never show "no deal" when the truth is "not allowed to see". Users shows 0 (Kestrel has 5): managers can see who's there, read-only. Remove every edit control for managers (Add address, Remove, Save, Change, Revoke, Turn off, Invite), and make the server refuse them too. Check every tab as test@123.com.
+
+- **"NEVER SHOW 'NO DEAL' WHEN THE TRUTH IS 'NOT ALLOWED TO SEE'" IS THE
+  GENERAL RULE**, and it is worth more than the instance: a refusal
+  that returns zero, rendered by a screen that reads zero as an
+  absence, invents a fact. The same shape will be lurking wherever a
+  commission read is gated and the caller treats null as none.
+- USERS SHOWING 0 IS THE SAME FAULT ON A SECOND FIGURE.
+- "AND MAKE THE SERVER REFUSE THEM TOO" is the binding half again, as
+  in (ci): hidden controls are not a permission.
+
+### (cm) A supplier-estate agency's back link goes to a list it is not on
+
+> Supplier-estate agency page (e.g. Frost Partnership under Kestrel): the "← Agencies" back link and the breadcrumb go to Opndoor's own Agencies list, where this agency isn't listed. For supplier-estate agencies, both should read "← Kestrel Lettings" and return to Kestrel's Agencies tab (for admins and managers), or the supplier's own Agencies page for supplier users.
+
+- THE EXCEPTION (bo) PROTECTED, NOW WRONG IN THE OTHER DIRECTION: the
+  back link is right to exist on a detail page and is pointing at the
+  wrong list.
+- IT DIFFERS BY READER, which is the part not to miss: Kestrel's
+  Agencies TAB for us, the supplier's own Agencies PAGE for them.
+
+### (cn) An opndoor manager's New application is not the admin form
+
+> opndoor manager New application is not the admin form. It has no "Referred by" step, and the Agency picker is one long list of every agency on every route, with two indistinguishable "Frost Partnership"s (ours and Kestrel's) and nothing showing which supplier each belongs to. A referral could be booked on the wrong route, paying commission to the wrong party. Give managers exactly the admin form: "Referred by" first (Opndoor's own agencies, or a named supplier, then the referrer), and the Agency picker then lists only that route's agencies, each labelled with its supplier where relevant. The same server checks as for admins. Also make the admin picker label the supplier on every agency, so two of the same name can't be confused. Test as test@123.com: a Kestrel referral through Test Lettings asda goes straight to payment and freezes Kestrel's commission.
+
+- **THE CONSEQUENCE IS MONEY ON THE WRONG ROUTE**, in Matt's own words,
+  which makes this the most serious of the manager items: two
+  identically named agencies in different estates, and the picker says
+  nothing about which is which.
+- IT IS ALSO THE SECOND HALF OF (bb). I gave managers the New
+  application ROUTE and did not check that the form they land on is
+  the admin one.
+- THE ADMIN PICKER NEEDS THE SAME LABEL, so this is not only a manager
+  fix. `findAgencyByName` already refuses to guess between two estates;
+  the picker still offers them as two identical rows.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
