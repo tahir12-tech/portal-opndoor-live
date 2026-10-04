@@ -96,6 +96,30 @@ export function PersonNotifications({ userId, personName, viewerIsTop = false, o
     >
       {loading ? <p className="soft">Loading…</p> : failed ? <p className="soft">{failed}</p> : (
         <div className="pn">
+          {/* THE RULES, IN PLAIN ENGLISH, ONCE AT THE TOP. Matt (ap) item 4:
+              "Explain these rules in plain English in each Notifications
+              dialog."
+
+              THE DIALOG WAS A LIST OF SWITCHES WITH NO STATED POLICY, so a
+              reader could see that two boxes were locked and not know why,
+              or what the default was for the rest. Both of those are rules
+              rather than properties of a box, and a reason printed beside
+              one checkbox cannot say "everything else is on by default".
+
+              THE TWO THAT CAN NEVER BE SWITCHED OFF ARE NAMED HERE, not
+              only where they are locked: somebody reading this to decide
+              what to turn off needs to know the floor before they start,
+              and "the signed deed always reaches the agency it is for" is
+              the one that would otherwise look like a bug when it keeps
+              arriving. */}
+          <section className="pn__sec pn__rules">
+            <h4 className="pn__h">How these work</h4>
+            <ul className="pn__rulelist">
+              <li>Everything here is <b>on by default</b>. Switch off anything this person does not want, including their copy of the signed deed.</li>
+              <li>Two things can never be switched off: <b>account emails</b> (invites, password resets, two-factor), and <b>delivery of the signed deed to the agency it is for</b>, which goes to the office or agency email whatever anybody here has set.</li>
+              <li>These settings only cover referrals this person can already see. Switching something on does not widen what they have access to.</li>
+            </ul>
+          </section>
           {panel.copiedApplies && (
             <section className="pn__sec">
               <h4 className="pn__h">Copied on colleagues’ referrals</h4>

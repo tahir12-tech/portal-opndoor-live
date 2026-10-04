@@ -1339,7 +1339,23 @@ function requestCloseContacts() {
          keeping its own records in step, which is true and is not this
          reader's business on this screen. */
       : role === 'management' ? <>You can view, add and edit the agencies and branches you manage. Changes apply straight away.</>
-        : <>You can view every agency and branch. Adding and editing records is handled by your management team and <b>opndoor</b>.</>;
+        /* A SUPPLIER'S REFERRER CAN ADD ONE, AND NOT FROM HERE. Matt (uu):
+           "You can view every agency and office. To add a new one, use 'Add
+           a new agency' while sending a referral; editing is done by your
+           Management team."
+
+           THE OLD SENTENCE WAS WRONG BY OMISSION rather than by fact.
+           "Adding and editing records is handled by your management team"
+           is true of editing and false of adding: a supplier's Referrer
+           adds agencies all the time, from the referral form, which is how
+           every one of Kestrel's got there. A reader who believes the
+           banner waits for somebody else to do what they could do in the
+           next thirty seconds.
+
+           OFFICE, NOT BRANCH, on a supplier's screen: it is their word. */
+        : partyIsSupplier(partnerScope)
+          ? <>You can view every agency and office. To add a new one, use <b>Add a new agency</b> while sending a referral; editing is done by your Management team.</>
+          : <>You can view every agency and branch. Adding and editing records is handled by your management team and <b>opndoor</b>.</>;
 
   // Real groups (agency_groups) for the current scope, keyed by id — used both to
   // match a group-name search and to build the group -> brand -> branch tree.
