@@ -27,11 +27,11 @@ import { dealWords, pctOf, AgreementEditor } from '@/pages/Agencies/AgreementEdi
 import { AgencyPercentEditor } from './AgencyPercentEditor';
 import { ShareDeals, type ShareDealAgency } from './ShareDeals';
 import {
-  getSupplierDeal, getSupplierShareDeals,
-  type AgreementView, type ShareDealView,
+  getSupplierDeal, getSupplierShareDeals, getSupplierOfftabDeals,
+  type AgreementView, type ShareDealView, type OfftabDeal,
 } from '@/data/orgService';
 import { setSupplierCommission } from '@/data/partnersService';
-import { gbpPence } from '@/lib/format';
+import { gbpPence, formatDate } from '@/lib/format';
 import { plural } from '@/lib/plural';
 import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
@@ -106,6 +106,12 @@ export function SupplierDeals({
      named agencies and call it everybody's. `supplier_share_deals` marks
      the default, so this card and the list below cannot disagree. */
   const [shares, setShares] = useState<ShareDealView[]>([]);
+  /* (gg) AND THE ONES THIS TAB DID NOT WRITE. Not merged into `shares`:
+     they are a different kind of record -- an agency- or group-scope deal,
+     possibly of the commission kind -- and folding them into the list of
+     this supplier's own share deals would make the screen claim it set
+     them. They get their own card, which says it did not. */
+  const [offtab, setOfftab] = useState<OfftabDeal[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<'supplier' | 'agencies' | null>(null);
@@ -115,12 +121,14 @@ export function SupplierDeals({
      on its own. */
   const load = useCallback(async () => {
     try {
-      const [c, s] = await Promise.all([
+      const [c, s, o] = await Promise.all([
         getSupplierDeal(slug, 'commission'),
         getSupplierShareDeals(slug),
+        getSupplierOfftabDeals(slug),
       ]);
       setCommission(c);
       setShares(s);
+      setOfftab(o);
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not read the deals.', 'error');
     } finally {
@@ -368,6 +376,54 @@ export function SupplierDeals({
       </div>
       <ShareDeals partnerId={partnerId} deals={bespoke} agencies={agencies}
         canEdit={canEdit} onChanged={saved} />
+
+      {/* (gg) ANY DEAL THIS TAB DID NOT WRITE, so nothing can be hidden.
+          Matt: "The Commission tab must also still show any agency- or
+          group-scope deal that already exists."
+
+          DRAWN ONLY WHEN THERE IS ONE. An empty card headed "deals set
+          somewhere else" on every supplier teaches the reader to skip it,
+          and this is the card that must be read on the one supplier where
+          it is not empty.
+
+          READ-ONLY AND NO LINK TO AN EDITOR. (gg) removes the editor that
+          wrote these; offering a way back to it here would reopen the
+          door this card exists to report. */}
+      {offtab.length > 0 && (
+        <Card>
+          <CardHead
+            title="Deals set somewhere else"
+            sub="Not set on this tab, and still pricing referrals"
+          />
+          <CardBody>
+            <p className="ph-note muted">
+              {offtab.length === 1 ? 'This deal is' : 'These deals are'} written against one agency
+              or office rather than against {name}, so {offtab.length === 1 ? 'it does' : 'they do'} not
+              appear in the list above. {offtab.length === 1 ? 'It is' : 'They are'} shown here because
+              a deal nobody can see is still paid. To change one, ask an opndoor administrator.
+            </p>
+            <ul className="sd-memberlist">
+              {offtab.map((d) => (
+                <li key={d.agreementId} className="sd-member">
+                  <span className="sd-member__name">{d.scopeName}</span>
+                  <div className="ph-note muted">
+                    {d.kind === 'agent_share'
+                      ? `What ${d.scopeName} gets: `
+                      : `What opndoor pays on referrals from ${d.scopeName}: `}
+                    {dealWords(
+                      d.bands.map((b) => ({ min: b.min, max: b.max, weeks: b.weeks, unit: b.unit ?? 'weeks', rate: b.rate })),
+                      d.tiers,
+                      d.kind === 'agent_share',
+                    )}
+                    {d.effectiveFrom ? ` · in force since ${formatDate(d.effectiveFrom)}` : ''}
+                  </div>
+                  {d.note && <div className="ph-note muted">{d.note}</div>}
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      )}
 
       {editing === 'supplier' && (
         <AgreementEditor

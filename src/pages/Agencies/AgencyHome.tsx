@@ -62,7 +62,7 @@ import { liveByCustomer } from '@/data/liveAnalytics';
 import { agencyLevelOf, AGENCY_LEVELS, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
 import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import { getOrgDepartedReferrals, departedReferralsLine, type DepartedReferrals } from '@/data/positionsService';
-import { partyIsSupplier, readerIsTopOfEstate, mayEditOwnEstateOrg } from '@/data/capabilities';
+import { partyIsSupplier, readerIsTopOfEstate, mayEditOwnEstateOrg, dealIsSetBySupplier } from '@/data/capabilities';
 import { EditOrgDetails, type EditOrgTarget } from './EditOrgDetails';
 import { bandSentence } from '@/data/orgService';
 import { PageTabs } from '@/components/ui/PageTabs';
@@ -594,6 +594,26 @@ export function AgencyHome() {
      manager does, because the fact is about the agency. `partner` is the
      agency's own partner, resolved above. */
   const hasLogins = !partyIsSupplier(partner);
+  /* (gg) AN AGENCY IN A SUPPLIER'S ESTATE HAS NO DEAL OF ITS OWN.
+     Matt: "Remove the deal editor from supplier-estate agency pages (show
+     'Commission for this agency is set on [supplier]'s Commission tab',
+     linking there)." Asked of the estate, like hasLogins above, so an
+     Opndoor admin loses the editor too -- the admin is who created the
+     hidden deal this closes the door on. */
+  const dealSetBySupplier = dealIsSetBySupplier(partner);
+  const supplierName = dealSetBySupplier ? (getPartner(partner)?.name ?? 'the supplier') : '';
+  /* THE SENTENCE AND THE LINK, once, so the two places that replace an
+     editor cannot word it differently. */
+  const dealSetElsewhere = dealSetBySupplier ? (
+    <span className="ah-comm-wrap">
+      <span className="soft" style={{ fontSize: 12.5 }}>
+        Commission for this agency is set on{' '}
+        <Link to={`/partners/${encodeURIComponent(String(partner))}?tab=commission`}>
+          {supplierName}&rsquo;s Commission tab
+        </Link>.
+      </span>
+    </span>
+  ) : null;
   const reportPeriods = getPeriods();
   const [reportPeriod, setReportPeriod] = useState(
     () => reportPeriods.find((p) => p.id === 'last12m') ?? reportPeriods[reportPeriods.length - 1],
@@ -801,10 +821,17 @@ export function AgencyHome() {
             being drawn rather than removed: the tab keeps it, the tree
             shows the figure and a way to the tab. A second control for
             one setting is two places for it to be half-changed. */}
-        {isAdmin && rowKey && !editing && onCommissionTab && (
+        {/* (gg) AND NOT AT ALL IN A SUPPLIER'S ESTATE. Both arms below are
+            editors -- one opens the field, the other walks you to it -- so
+            both go, and the sentence says where the deal actually lives.
+            Only on the Commission tab: the Overview tree prints the figure
+            beside every node, and repeating the same link on each would
+            bury the tree in it. */}
+        {dealSetBySupplier && onCommissionTab && !editing && dealSetElsewhere}
+        {!dealSetBySupplier && isAdmin && rowKey && !editing && onCommissionTab && (
           <button className="ah-linkbtn" onClick={() => openRate(rowKey, own)}>{own != null ? 'Change rate' : 'Set rate'}</button>
         )}
-        {isAdmin && rowKey && !editing && !onCommissionTab && (
+        {!dealSetBySupplier && isAdmin && rowKey && !editing && !onCommissionTab && (
           <button className="ah-linkbtn" onClick={() => setTab('commission')} title="Open the Commission tab">
             {own != null ? 'Change on Commission' : 'Set on Commission'}
           </button>
@@ -1123,7 +1150,13 @@ export function AgencyHome() {
       agreement && !agreement.isStandard && agreement.scopeLevel === 'group' && group?.id
         ? { level: 'group', id: group.id, name: group.name }
         : agencies[0]?.id ? { level: 'agency', id: agencies[0].id, name: agencies[0].name } : null;
-    const editBtn = isAdmin && target
+    /* (gg) NO "SET A DEAL" ON A SUPPLIER'S AGENCY. This is the button that
+       wrote e4b75778 -- an agency-scope deal on Kestrel's own Kestrel
+       Lettings, invisible to the supplier's tab and to everybody but the
+       resolver. Removing it is the half of (gg) that closes the door; the
+       other half is that the tab still SHOWS such a deal where one
+       already exists. */
+    const editBtn = isAdmin && target && !dealSetBySupplier
       ? <Button variant="ghost" size="sm" onClick={() => editAgreementFor(target.level, target.id, target.name)}>
           <Icon name="edit" size={13} /> {agreement && !agreement.isStandard ? 'Edit' : 'Set a deal'}
         </Button>
@@ -1136,8 +1169,10 @@ export function AgencyHome() {
           <CardBody>
             <p className="ah-agr__std">
               This org is on standard terms: the guarantee fee is one month's rent and the agency earns
-              the Opndoor standard rate. A negotiated deal is the exception, and is set here.
+              the Opndoor standard rate.{' '}
+              {dealSetBySupplier ? 'A deal for this agency is the exception, and is set by its supplier.' : 'A negotiated deal is the exception, and is set here.'}
             </p>
+            {dealSetElsewhere}
           </CardBody>
         </Card>
       );
@@ -1186,6 +1221,11 @@ export function AgencyHome() {
         <CardBody>
           {agreement.note && <p className="ah-agr__note">{agreement.note}</p>}
           <p className="ah-agr__std"><b>Agreed deal:</b> {agreed}</p>
+          {/* (gg) READ-ONLY, AND SAYING SO. A supplier-estate agency that
+              already holds a deal still shows it -- "nothing can be
+              hidden" -- with the editor gone and the place it is changed
+              named, so the reader is not left looking for a button. */}
+          {dealSetElsewhere && <p className="ah-agr__std">{dealSetElsewhere}</p>}
           {/* An all-in deal is the whole commission for everything beneath it.
               Showing the bands without saying so describes half the deal, and
               somebody will then wonder why a branch rate cannot be set. */}

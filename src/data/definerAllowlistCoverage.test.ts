@@ -385,7 +385,17 @@ describe('the definer allowlist', () => {
        the same code that refuses one switch, and turn_off_all.test.sql
        asserts exactly that. It returns an integer -- how many were on --
        and nothing else. */
-    expect(allowlist.length).toBeLessThanOrEqual(162);
+    /* 162 -> 163, RAISED IN THE SAME COMMIT AS supplier_offtab_deals.
+
+       WHY IT IS SAFE TO HAND TO EVERY SIGNED-IN USER. It is not: the
+       function refuses everybody but an admin, inside, after is_aal2().
+       That is the same pair supplier_share_deals holds and the reason it
+       is on this list rather than service_role only -- the Commission tab
+       calls it as the reader. A supplier's own Management is refused,
+       which a_deal_a_supplier_cannot_see asserts, because the card
+       reports a fault in opndoor's record-keeping and widening who reads
+       a supplier's commercial terms is not part of fixing it. */
+    expect(allowlist.length).toBeLessThanOrEqual(163);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

@@ -835,6 +835,53 @@ export async function getSupplierDeal(
 }
 
 /* ===========================================================================
+   DEALS IN THIS SUPPLIER'S ESTATE THAT THIS TAB DID NOT WRITE.
+
+   Matt (gg): "The Commission tab must also still show any agency- or
+   group-scope deal that already exists, so nothing can be hidden."
+
+   `getSupplierShareDeals` cannot answer this. It asks the supplier's own
+   partner-scope agents'-share deals, which is precisely the set this tab
+   writes -- so it is the one set that cannot contain a deal written
+   somewhere else. The agency page's own editor could write a deal against
+   an agency inside a supplier's estate, and nothing then showed it: not
+   this tab, not the agency's, only the resolver, which priced from it.
+   =========================================================================== */
+export interface OfftabDeal {
+  agreementId: string;
+  /** 'agency' or 'group' -- never 'partner', which this tab already shows. */
+  scopeLevel: 'agency' | 'group';
+  /** The agency or group the deal is written against. */
+  scopeName: string;
+  /** 'commission' is what opndoor pays; 'agent_share' is the agency's cut. */
+  kind: 'commission' | 'agent_share';
+  coverage: string;
+  period: string;
+  effectiveFrom: string | null;
+  note: string | null;
+  bands: AgreementView['bands'];
+  tiers: AgreementView['tiers'];
+}
+
+export async function getSupplierOfftabDeals(slug: string): Promise<OfftabDeal[]> {
+  if (!orgLive()) return [];
+  const { data, error } = await sb().rpc('supplier_offtab_deals', { p_slug: slug });
+  if (error) throw new Error(cleanRpcError(error.message));
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    agreementId: String(r.agreement_id),
+    scopeLevel: r.scope_level === 'group' ? 'group' : 'agency',
+    scopeName: String(r.scope_name ?? ''),
+    kind: r.kind === 'agent_share' ? 'agent_share' : 'commission',
+    coverage: String(r.coverage ?? ''),
+    period: String(r.period ?? ''),
+    effectiveFrom: (r.effective_from as string) ?? null,
+    note: (r.note as string) ?? null,
+    bands: (r.bands ?? []) as AgreementView['bands'],
+    tiers: (r.tiers ?? []) as AgreementView['tiers'],
+  }));
+}
+
+/* ===========================================================================
    SEVERAL AGENTS' SHARE DEALS, AND WHO IS ON EACH.
 
    Matt, 2026-10-01: "One default deal for all agencies, plus extra deals

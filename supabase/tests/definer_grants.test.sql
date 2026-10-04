@@ -287,6 +287,17 @@ insert into allowed(name) values
      keeps is that supplier's commercial business, not something Opndoor
      publishes to its staff. Covered by a_supplier_has_two_deals.test.sql. */
   ('supplier_deal'),
+  /* Deals in a supplier's estate that its own Commission tab did not
+     write -- agency- or group-scope rows that supplier_share_deals, which
+     asks only for partner-scope agents'-share deals, can never return.
+     (gg): "the Commission tab must also still show any agency- or
+     group-scope deal that already exists, so nothing can be hidden."
+     Admin only and MFA'd inside the function, the same audience as
+     supplier_share_deals beside it: this reports a fault in opndoor's own
+     record-keeping and is not a reason to widen who reads a supplier's
+     commercial terms. 20261008230000, covered by
+     a_deal_a_supplier_cannot_see.test.sql. */
+  ('supplier_offtab_deals'),
   ('supplier_share_deals'),
   /* Every supplier taking referrals with no commission deal, for Health
      and the supplier's Overview. Opndoor's own commercial admin -- it

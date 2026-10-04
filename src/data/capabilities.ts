@@ -382,6 +382,30 @@ export function mayEditOwnEstateOrg(role: Role, scope: PartnerScope): boolean {
 }
 
 /**
+ * IS THIS AGENCY'S DEAL SET SOMEWHERE ELSE -- on the supplier's tab?
+ *
+ * Matt, (gg): "an agency or office inside a supplier's estate must not have
+ * its own commission editor; its deal is set only on the supplier's
+ * Commission tab under 'Agencies on different terms'."
+ *
+ * ASKED OF THE AGENCY'S ESTATE, NOT OF THE READER, which is the same shape
+ * as `hasLogins` on the agency page and for the same reason: where an
+ * agency's terms are written is a fact about the agency. An Opndoor admin
+ * must see the editor gone too, because the admin is exactly who created
+ * the deal this rule exists to prevent. A rule that only hid the button
+ * from the supplier would leave the door that was actually used.
+ *
+ * AND IT IS NOT A PERMISSION. Nothing here stops the SQL; `create_agreement`
+ * will still write an agency-scope deal if something calls it. This is the
+ * UI half of (gg), and the screen that reads the deal afterwards is the
+ * other half -- "the Commission tab must also still show any agency- or
+ * group-scope deal that already exists, so nothing can be hidden."
+ */
+export function dealIsSetBySupplier(scope: PartnerScope): boolean {
+  return partyIsSupplier(scope);
+}
+
+/**
  * May this reader add an agency or office WHILE REFERRING?
  *
  * Both levels that can refer, which is Matt's instruction in his own words:
