@@ -350,7 +350,7 @@ export function DevCentre() {
           A banner is read once, before minting a key, so it carries the single
           fact needed at that moment: the prefix decides the mode. It used to
           stack that with a paragraph about this being a disposable project,
-          which is true for us and irrelevant to a partner's developer looking
+          which is true for us and irrelevant to a supplier's developer looking
           at production, and then a third sentence listing what sandbox does not
           touch. Two of those are documentation, and they now live in the
           getting-started guide where they can be read in full. */}
@@ -387,7 +387,7 @@ export function DevCentre() {
           a developer needs to read them. */}
       {apiOff && (
         <div className="devwarn" style={{ marginTop: 0, marginBottom: 14 }}>
-          <strong>API access is off for {apiOffPartnerName ?? 'this partner'}.</strong>{' '}
+          <strong>API access is off for {apiOffPartnerName ?? 'this supplier'}.</strong>{' '}
           Keys cannot be minted while it is off, and any key that already exists will be refused at
           authentication rather than only at creation. Everything else here still works: read the
           documentation, plan the integration, and ask an opndoor administrator to enable API access on the
@@ -397,8 +397,8 @@ export function DevCentre() {
 
       {keysOnly && (
         <p className="soft devnote">
-          You can see and revoke this partner&rsquo;s API keys so a leaked key can be killed quickly.
-          Endpoints, delivery history and the documentation are for the partner&rsquo;s developers.
+          You can see and revoke this supplier&rsquo;s API keys so a leaked key can be killed quickly.
+          Endpoints, delivery history and the documentation are for the supplier&rsquo;s developers.
         </p>
       )}
 
@@ -450,7 +450,7 @@ export function DevCentre() {
       <Modal
         open={bgOpen}
         onClose={() => { setBgOpen(false); setBgResult(null); setBgPrefix(''); setBgReason(''); }}
-        title="Break glass: revoke a partner's API key"
+        title="Break glass: revoke a supplier's API key"
         sub="Exceptional. Recorded against your name."
         width={640}
         footer={
@@ -467,9 +467,9 @@ export function DevCentre() {
         <div className="sbxwarn sbxwarn--tight">
           <Icon name="alert" />
           <div>
-            <strong>This stops a partner's integration immediately.</strong>
+            <strong>This stops a supplier's integration immediately.</strong>
             <p>
-              Use it when a key has been exposed and the partner's own developers cannot act quickly
+              Use it when a key has been exposed and the supplier's own developers cannot act quickly
               enough. They can mint a replacement themselves; you cannot do it for them.
             </p>
           </div>
@@ -495,7 +495,7 @@ export function DevCentre() {
         <Field label="Reason">
           <input
             type="text"
-            placeholder="Posted in a public repository, reported by the partner at 14:20"
+            placeholder="Posted in a public repository, reported by the supplier at 14:20"
             value={bgReason}
             onChange={(e) => setBgReason(e.target.value)}
           />

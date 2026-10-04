@@ -295,6 +295,15 @@ insert into allowed(name) values
      by a_missing_deal_is_loud.test.sql. */
   ('suppliers_with_no_commission_deal'),
   ('trigger_crm_sync'),
+  /* "Turn off all" on one person's notifications dialog (ap item 2). It
+     holds no permission of its own: it repeats set_notification_for's
+     test and then calls set_notification_for, so a Referrer still cannot
+     touch a colleague's. It is a definer because it loops
+     notification_types() and reads the target's partner to decide which
+     rail's locked cell to skip. 20261008210000, corrected by
+     20261008220000 to count what it changed. Covered by
+     turn_off_all.test.sql. */
+  ('turn_off_all_notifications'),
   ('update_partner_settings'),
   ('user_notification_enabled'),
   ('user_within_caller_scope'),

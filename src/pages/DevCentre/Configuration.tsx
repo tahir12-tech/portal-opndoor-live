@@ -98,7 +98,7 @@ export function Configuration(props: {
                 how a reader stops believing either. So this one says what
                 is true of this screen and names where the count is. */}
             <p>
-              <strong>You cannot see this partner&rsquo;s API keys or webhook endpoints here.</strong> Not
+              <strong>You cannot see this supplier&rsquo;s API keys or webhook endpoints here.</strong> Not
               the list, not the prefixes, not how many, and never a signing secret. Their developers manage
               their own credentials.
             </p>
@@ -125,7 +125,7 @@ export function Configuration(props: {
                 <Icon name="alert" /> Break glass: revoke a key
               </Button>
               <div className="soft" style={{ marginTop: 8, fontSize: 12.5 }}>
-                For an exposed credential that cannot wait for the partner. You will need the key prefix
+                For an exposed credential that cannot wait for the supplier. You will need the key prefix
                 from wherever it was exposed, and a reason. Both are recorded against your name.
               </div>
             </div>

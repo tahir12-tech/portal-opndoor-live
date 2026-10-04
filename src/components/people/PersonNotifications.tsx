@@ -26,7 +26,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   EMPTY_PANEL, getPersonPanel, setPersonEvent, setPersonInternal,
-  whoDecidesThis, whoDecidesCopies,
+  turnOffAllNotifications, whoDecidesThis, whoDecidesCopies,
   type InternalRow, type PersonPanel,
 } from '@/data/personNotifications';
 import {
@@ -62,6 +62,28 @@ export function PersonNotifications({ userId, personName, viewerIsTop = false, o
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
+  /* OFFERED ONLY WHERE THERE IS SOMETHING TO TURN OFF. A reader who may
+     not change any of this person's settings gets no button, rather than
+     one that fails; and a panel whose every switchable row is already off
+     has nothing for it to do. */
+  const canTurnOffAll = (panel.mayEditEvents || panel.mayEditCopied || panel.mayEditStatements)
+    && (panel.events.some((e) => !e.lockReason && e.enabled) || panel.copiedOn || panel.statementsOn);
+
+  const turnOffAll = async () => {
+    setBusy(true);
+    try {
+      const n = await turnOffAllNotifications(userId);
+      await load();
+      toast(n === 0
+        ? 'There was nothing left to switch off.'
+        : `${n === 1 ? '1 notification' : `${n} notifications`} switched off. The two that cannot be are still on.`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not switch these off.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const load = useCallback(async () => {
     try {
       setPanel(await getPersonPanel(userId));
@@ -92,7 +114,22 @@ export function PersonNotifications({ userId, personName, viewerIsTop = false, o
       onClose={() => { if (!busy) onClose(); }}
       title={`Notifications for ${panel.name || personName}`}
       sub="What this person is emailed, for the referrals they can already see."
-      footer={<Button variant="ghost" onClick={onClose} disabled={busy}>Close</Button>}
+      footer={
+        <>
+          {/* TURN OFF ALL, and it says how many. Matt (ap) item 2 asks for
+              the switch; the two locked rows are why it cannot simply
+              report success. A control called "Turn off all" that leaves
+              two on without saying so is lying about what it did, so the
+              toast gives the count and the locked rows stay visible with
+              their reasons beside them. */}
+          {canTurnOffAll && (
+            <Button variant="ghost" onClick={() => void turnOffAll()} disabled={busy}>
+              {busy ? 'Working…' : 'Turn off all'}
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onClose} disabled={busy}>Close</Button>
+        </>
+      }
     >
       {loading ? <p className="soft">Loading…</p> : failed ? <p className="soft">{failed}</p> : (
         <div className="pn">

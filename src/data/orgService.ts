@@ -1029,6 +1029,41 @@ export interface SplitLine {
       explicit rate set on that party. A screen that infers it gets an agreement
       party wrong, because their explicit rate is null by design. */
   source: 'standard' | 'agreement' | 'rate';
+  /** Every tenant-count band of the deal behind this line, in tenant
+      order, or null where one rate covers every count. (v): the payout
+      table has to show "20% (1 tenant), 25% (2 or more)" rather than the
+      one-tenant rate of a deal that charges differently at two. */
+  bands?: { from: number; to: number | null; rate: number }[] | null;
+}
+
+/* THE BANDS AS A SENTENCE. Matt (v)'s own example: "20% (1 tenant), 25%
+ * (2 or more)".
+ *
+ * "2 OR MORE" RATHER THAN "2+", and "1 tenant" rather than "1": this sits
+ * in a table an agency reads, beside a rate it is owed, and the compact
+ * forms read as notation. The existing deal editor already says "2 or
+ * more", so this is reaching that wording rather than inventing one.
+ *
+ * NULL FOR A FLAT DEAL, which the RPC already decides by returning no
+ * bands: a caller that rendered "25% (1 or more)" on every ordinary line
+ * would make every agency look banded.
+ */
+export function bandSentence(
+  bands: { from: number; to: number | null; rate: number }[] | null | undefined,
+  pct: (r: number) => string,
+): string | null {
+  if (!bands || bands.length < 2) return null;
+  return bands
+    .map((b, i) => {
+      const last = i === bands.length - 1;
+      const count = b.to != null && b.to !== b.from
+        ? `${b.from} to ${b.to} tenants`
+        : last
+          ? `${b.from} or more`
+          : b.from === 1 ? '1 tenant' : `${b.from} tenants`;
+      return `${pct(b.rate)} (${count})`;
+    })
+    .join(', ');
 }
 
 /** Every payee line for a page of branches, in ONE call.
@@ -1046,6 +1081,7 @@ export async function getCommissionSplits(branchIds: string[]): Promise<Map<stri
     const id = String(r.branch_id);
     const list = out.get(id) ?? [];
     list.push({
+      bands: (r.bands as SplitLine['bands']) ?? null,
       branchId: id,
       level: r.level as SplitLine['level'],
       orgId: (r.org_id as string) ?? null,

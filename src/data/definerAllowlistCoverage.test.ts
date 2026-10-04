@@ -375,7 +375,17 @@ describe('the definer allowlist', () => {
        already supplied and return void; there is nothing to read back and
        nothing to leak. a_supplier_may_correct_its_own_agencies asserts the
        three refusals. */
-    expect(allowlist.length).toBeLessThanOrEqual(161);
+    /* 161 -> 162, RAISED IN THE SAME COMMIT AS turn_off_all_notifications.
+
+       WHY IT IS SAFE TO HAND TO EVERY SIGNED-IN USER. It adds no
+       permission: its first act is the same whole-condition test
+       set_notification_for applies, and then it calls
+       set_notification_for for each unlocked type rather than writing the
+       table itself. So a Referrer pressing it on a colleague is refused by
+       the same code that refuses one switch, and turn_off_all.test.sql
+       asserts exactly that. It returns an integer -- how many were on --
+       and nothing else. */
+    expect(allowlist.length).toBeLessThanOrEqual(162);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

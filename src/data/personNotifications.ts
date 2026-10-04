@@ -149,6 +149,29 @@ export async function setPersonEvent(userId: string, type: string, enabled: bool
   if (error) throw new Error(error.message);
 }
 
+/* TURN OFF EVERYTHING THAT CAN BE TURNED OFF.
+ *
+ * Matt (ap) item 2: each person can switch any of it off "plus a 'Turn off
+ * all' switch".
+ *
+ * IT RETURNS A COUNT because "all" cannot mean all: account emails and
+ * delivery of the signed deed to the agency it is for are locked on by the
+ * next sentence of the same instruction. A control labelled "Turn off all"
+ * that silently left two on would be lying about what it did, so the screen
+ * says how many it switched off and the dialog still shows the two locked
+ * rows with their reasons.
+ *
+ * ONE CALL, not one per notification from here: a client-side loop is a
+ * partial failure waiting to happen, with half off, half on and nothing to
+ * tell the reader which half.
+ */
+export async function turnOffAllNotifications(userId: string): Promise<number> {
+  if (!SUPABASE_ENABLED) return 0;
+  const { data, error } = await sb().rpc('turn_off_all_notifications', { p_user: userId });
+  if (error) throw new Error(error.message);
+  return typeof data === 'number' ? data : 0;
+}
+
 /* WHO DECIDES A SETTING THE READER CANNOT CHANGE, in their estate's words.
  *
  * Matt, 2026-10-04 (qq): 'on supplier people, "A Director, or Opndoor,

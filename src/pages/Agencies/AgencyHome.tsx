@@ -64,6 +64,7 @@ import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import { getOrgDepartedReferrals, departedReferralsLine, type DepartedReferrals } from '@/data/positionsService';
 import { partyIsSupplier, readerIsTopOfEstate, mayEditOwnEstateOrg } from '@/data/capabilities';
 import { EditOrgDetails, type EditOrgTarget } from './EditOrgDetails';
+import { bandSentence } from '@/data/orgService';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions, type PersonAction } from '@/components/people/PersonActions';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
@@ -1373,13 +1374,25 @@ export function AgencyHome() {
                     return (
                       <tr key={b.id ?? b.name}>
                         <td className="dt__name">{b.name}<span className="dt__sub">{a.name}</span></td>
+                        {/* EVERY BAND, WHERE THE DEAL HAS MORE THAN ONE.
+                            Matt (v): "when the deal varies by tenant count,
+                            show both, e.g. '20% (1 tenant), 25% (2 or
+                            more)', not just 20%."
+
+                            THE SCREEN COULD NOT HAVE SHOWN THEM: the RPC
+                            resolved one rate at a tenant count of one, so
+                            this cell was printing the first band of a deal
+                            that charges differently at two and at three --
+                            Kestrel's has three -- with nothing to say so.
+                            `bands` is null on a flat deal, so an ordinary
+                            line is unchanged. */}
                         <td>
                           {lines.length === 0 ? <span className="soft">{EMPTY}</span>
                             : soleLine
-                              ? <>{SOURCE_LABEL[soleLine.source]} {pctLabel(soleLine.rate)} · paid to {soleLine.orgName}</>
+                              ? <>{SOURCE_LABEL[soleLine.source]} {bandSentence(soleLine.bands, pctLabel) ?? pctLabel(soleLine.rate)} · paid to {soleLine.orgName}</>
                               : lines.map((l, i) => (
                                   <span key={`${l.level}:${l.orgId ?? l.orgName}`}>
-                                    {i > 0 ? ' + ' : ''}{l.orgName} {pctLabel(l.rate)}
+                                    {i > 0 ? ' + ' : ''}{l.orgName} {bandSentence(l.bands, pctLabel) ?? pctLabel(l.rate)}
                                   </span>
                                 ))}
                         </td>
