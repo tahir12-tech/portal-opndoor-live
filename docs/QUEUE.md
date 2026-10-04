@@ -2487,6 +2487,74 @@ I have not changed anything yet.
 - BEFORE AND AFTER FIGURES FOR THE 3-TENANT KESTREL CASE is an explicit
   deliverable, not a courtesy. The before figures are in the audit above.
 
+
+#### Items 1, 2, 3 and the new guard are done. Item 4 is not, and two things I told you were wrong
+
+**TWO CORRECTIONS TO THE AUDIT, both found by trying to do item 4.**
+
+**(i) The partner API has no joint path at all.** I wrote that "the partner API
+already hands any multi-tenant body to create_joint_referral". That is wrong. I
+read `supabase/functions/create-referral/index.ts`, which is the PORTAL's edge
+function, and attributed it to the partner API. The partner API is
+`supabase/functions/partner-api/index.ts`, which goes through
+`_shared/partnerApplications.ts` and reads a SINGULAR `body.tenant`, then calls
+`create_referral_api`. That function's own last comment says it: "An API
+referral is always a tenancy of one today." There is no
+`create_joint_referral_api`. So the API half of item 1 is unbuilt, not done.
+
+**(ii) The 0.26 against 0.25 has a deeper cause than a missing guard.**
+`create_joint_referral` omits the `v_estate` gate that BOTH single paths
+apply. `create_referral` and `create_referral_api` each do:
+
+    select partner_rate, agent_rate from resolve_rates(...)
+    if v_estate then agent_rate := commission_total(...) end if
+
+so on a supplier the share is the supplier's own agent_share deal.
+`create_joint_referral` has no such test and always takes `commission_total`,
+which is the AGENCY ESTATE's additive split. MEASURED on the same Kestrel
+branch, same agency, same rent, rolled back:
+
+| path | total | agents' share |
+| --- | --- | --- |
+| single, 1 tenant | 0.2500 | **0.1000** |
+| joint, 2 tenants | 0.2500 | **0.2000** |
+
+The agents' share doubles because the referral has two tenants rather than
+one. Nothing decided that. It is the same supplier under the same deal, and
+the two numbers come from two different arrangements being read by two code
+paths. The guard I built is still right and still closes a real hole, but it
+is defending against a state that this is what creates.
+
+**THIS CHANGES MONEY, SO I HAVE NOT TOUCHED IT.** Three ways to go:
+
+1. **Gate the joint path like the two single paths.** Kestrel's joint share
+   becomes 0.1000, consistent with its single referrals, and the breach
+   disappears on its own. This is what I think is right: `commission_split` is
+   the estate's additive mechanism, and `resolve_rates` already treats an
+   agency-scope AGENT_SHARE deal as the per-agency override on the supplier
+   rail (20261007200000 says so). An agency-scope COMMISSION deal under a
+   supplier is then a mis-entry rather than an override, and dev has one.
+2. **Leave the joint path and accept that the override applies.** Then single
+   referrals are the ones reading the wrong deal and they should move to
+   `commission_total` too, which raises what Opndoor pays on every existing
+   single supplier referral.
+3. **Neither, and the 26% band is simply corrected to 24%.** The guard then
+   refuses it next time it is saved. This fixes the figure and leaves the two
+   paths disagreeing.
+
+**ITEM 4 CANNOT BE FINISHED FROM HERE, and the reason is not the code.**
+
+- **Portal.** The DB path is exercised against dev for real, through
+  `create_joint_referral` with real auth claims: a 2-tenant Kestrel joint gave
+  fees 1,153.85 + 1,153.84 = GBP 2,307.69, five weeks of a GBP 2,000 rent, and
+  shares summing to the rent. What I CANNOT drive is the edge function's own
+  joint branch, the per-applicant Stripe sessions, page tokens and emails: it
+  needs an aal2 user JWT, MFA means a password sign-in gives aal1, and there is
+  no JWT secret on this machine to mint one with. Not claiming an end-to-end I
+  did not run.
+- **Sandbox API.** Nothing to test yet: no joint path, and no sandbox key on
+  dev either. The only key is a revoked LIVE key for Kestrel.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
