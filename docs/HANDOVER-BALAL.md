@@ -1634,6 +1634,36 @@ which names a company and asserts that company arranged the guarantee. Send
 one sandbox referral through Rightmove and read the opening line of the
 tenant's email; it must be the first row of that table.
 
+#### Rightmove's agencies must inherit Rightmove's checking setting
+
+Matt, 2026-10-04, after a Kestrel referral sent its tenant opndoor's full
+application email under an arrangement where opndoor checks nothing.
+
+`agencies.referencing_mode` was NOT NULL DEFAULT 'opndoor_referenced', so
+every agency always had its own opinion and `resolve_referencing_mode`'s
+inheritance arm was unreachable. 20261008050000 drops the default, allows
+null, and sets every agency in a supplier estate to inherit EXCEPT any whose
+audit trail records a deliberate change.
+
+**After migrating the clone, both of these:**
+
+```sql
+-- 1. Every Rightmove agency inherits. Expect no rows.
+select a.name, a.referencing_mode
+  from public.agencies a join public.partners p on p.id = a.partner_id
+ where p.partner_kind = 'supplier' and a.referencing_mode is not null;
+```
+
+Any row that DOES come back is an agency whose setting somebody changed on
+purpose; the migration spared it and said so in a NOTICE as it applied. Read
+that notice in the apply output and check each one is intended rather than
+assuming the empty result.
+
+**2. Send a test Rightmove referral and watch where the tenant lands.** It
+must go STRAIGHT TO PAYMENT, with no application form and no request for
+address history, income or documents. That is the behaviour the SQL above
+only predicts.
+
 ### 11.2 On production, after the cutover
 
 A short confidence walk, not the full 1,396 lines. In order:

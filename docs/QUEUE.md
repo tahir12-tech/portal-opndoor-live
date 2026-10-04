@@ -3493,6 +3493,16 @@ the one real assertion that has never run.
   it is answered from the migrations, the queue and git rather than from
   the code alone. It also unblocks FAQ 9, which (pp) holds.
 
+### (af) The joint tenancy header says what actually happens
+
+> New application, joint tenancy header: say "2 tenants on one tenancy. Each signs their own Deed of Guarantee for their share." instead of "one guarantee".
+
+- "ONE GUARANTEE" IS LEFT OVER FROM WHEN IT WAS TRUE. 20261005110000 made
+  each tenant sign their own deed for their own share, and the header kept
+  describing the arrangement before that.
+- MATTERS MORE THAN A HEADER USUALLY WOULD, because it is the sentence an
+  agent reads just before telling a tenant what they are signing.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
