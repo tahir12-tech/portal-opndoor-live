@@ -1491,6 +1491,57 @@ had. Nothing to remove.
 
 *(Recorded, NOT built. Nothing in this section is in the go-live scope.)*
 
+### Joint tenancies through the partner API (2026-10-04)
+
+Matt, verbatim: *"Joint tenancies through the API go under 'After launch'."*
+
+**NOT BUILT. This entry is the specification.** The PORTAL half is live and
+tested; this is the API half of instruction (b) item 1, parked.
+
+**WHY IT IS NOT A SMALL CHANGE.** The API does not share the portal's door.
+`supabase/functions/partner-api/index.ts` goes through
+`_shared/partnerApplications.ts`, which reads a SINGULAR `body.tenant` and
+calls `create_referral_api`, a different RPC from the portal's
+`create_referral`. That function's closing comment states the rule it was
+built on: "An API referral is always a tenancy of one today." There is no
+`create_joint_referral_api`.
+
+**WHAT IT WOULD TAKE, in the order it would be done.**
+
+1. **`create_joint_referral_api`**, a new RPC. It is `create_joint_referral`'s
+   body with `create_referral_api`'s authorisation model: the partner and
+   referrer passed in and verified rather than read from `auth.uid()`, the
+   cross-partner branch guard with its deliberately identical "not found"
+   message, `assert_tenant_pays`, and the sandbox reference sequence
+   (`GR-TEST-`) chosen by `p_livemode`. Carrying the estate check from
+   20261008010000 is not optional: the two doors must freeze the same rates
+   for the same tenancy or the API becomes a second pricing policy.
+2. **`_shared/partnerApplications.ts`** to accept `tenants: [...]`, validate
+   that the shares total 100 and the emails are distinct BEFORE the RPC so the
+   errors are the API's shaped errors rather than Postgres prose, then run the
+   existing per-applicant tail once per application: page token, Stripe
+   session, email, webhook event.
+3. **Idempotency.** `POST /applications` claims its key before creating. A
+   joint request is ONE claim producing N applications, so the recorded
+   response has to carry all of them and a retry must replay the set. This is
+   the part most likely to be got wrong, and it is the part that bills a
+   tenant twice if it is.
+4. **The API reference**, `docs/reference/PARTNER-API.md`: the `tenants` array,
+   the share rules, that the fee is resolved once for the tenancy and split,
+   and that each applicant gets their own reference, link and deed.
+5. **A sandbox key on dev**, which does not exist today. The only key dev holds
+   is a REVOKED LIVE key for Kestrel, so there is nothing to rehearse against
+   until one is minted through the Dev Centre.
+6. **Tests**: pgTAP for the new RPC on both rails, and the vitest guards that
+   already hold the API's error shapes.
+
+**AND THE THING TO CHECK FIRST.** `create_referral_api` freezes commission
+lines only on our own estate, as both single paths do. A SIBLINGS supplier,
+where Opndoor pays each agency directly, therefore gets no frozen agency line
+from either single path, and `commission_statement_lines` has a fallback arm
+for applications with no frozen split. Worth confirming that arm is the
+intended behaviour and not a gap, before a new door is built that inherits it.
+
 ### Late commission lines roll into the next month (2026-10-04)
 
 Matt's decision, verbatim: *"Catch-up decision: roll late payees into the next
@@ -2574,6 +2625,44 @@ is defending against a state that this is what creates.
   passing yet" means the harness keeps setting its status from `not ok` lines;
   the plan comparison is run beside it and reported, not wired in.
 - "THEN STOP EDITING AND TELL ME" is the end of the session's work.
+
+
+#### Item 4, the plan-versus-ran check, run once in report-only mode
+
+The harness is UNTOUCHED: `scripts/pgtap-against-dev.py` still sets pass and
+fail from `not ok` lines alone, as Matt asked. The comparison was run beside it
+from `plancheck.py` in the session scratchpad, reusing the harness's own
+`run()` so both read the same output from the same database.
+
+**113 files, 1,628 assertions planned, 1,627 ran, 0 failing. ONE file is short:**
+
+| file | planned | ran | not ok |
+| --- | --- | --- | --- |
+| `a_refund_after_a_statement_is_a_question.test.sql` | 33 | 32 | 0 |
+
+**The missing one is assertion 8**, at
+`supabase/tests/a_refund_after_a_statement_is_a_question.test.sql:200`: an
+`alike()` check that the stored statement reference is in the house format,
+`STMT-2026-08-%`. It is not failing. It is not being run.
+
+**THE CAUSE IS THE HARNESS, NOT pgTAP OR THE TEST.** `TAP_FNS` at
+`scripts/pgtap-against-dev.py:37-44` is an allow-list of pgTAP function names
+the statement splitter recognises, and `alike` is not on it, so that
+statement's result is never collected. pgTAP has `alike`: it is installed in
+the `extensions` schema along with the rest of pgTAP, and the test file calls
+it unqualified and correctly.
+
+**AND A CORRECTION TO WHAT I SAID EARLIER.** I reported that this pgTAP has no
+`throws_like`. It has one. My call failed because I wrote
+`public.throws_like`, and pgTAP is in `extensions`, not `public`. So the two
+symptoms I saw have one cause between them after all: the allow-list, not a
+missing function. `throws_like` is also absent from `TAP_FNS`, which is why my
+own assertion vanished the same way.
+
+**NOT CHANGED, AS INSTRUCTED.** Three things would need deciding together, and
+they are Matt's: whether a plan mismatch becomes a failure, whether `TAP_FNS`
+becomes an allow-list at all rather than being derived, and what to do about
+the one real assertion that has never run.
 
 ### (c) The form validation does not reach the org section
 
