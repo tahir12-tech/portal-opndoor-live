@@ -4567,6 +4567,25 @@ both estates, the dialog, and FAQ 9 on both rails.
 - THE TEST IS SPECIFIED, not left to me: full and partial reference,
   tenant name, postcode, joint tenancies.
 
+### (bx) GR-26263's signed deed still carries the old date
+
+> GR-26263 (John Smith) still has its old signed deed dated 20 Nov while the tenancy now starts 29 Nov; the (bn) fix was for future changes only. Reissue GR-26263's deed now through the same path a joint start-date change uses (void the signed one, corrected deed to John to sign, agency gets it once signed), and check dev for any other application whose signed deed's dates don't match its tenancy start.
+
+- **CORRECT, AND I SHOULD HAVE SAID IT.** (bn) made a joint start-date
+  change move every tenant's date and reissue every tenant's deed. I
+  reported that GR-26263's DATE had moved -- it had -- without saying
+  that its already-signed DEED still carried the old one. The code fix
+  does not reach a document signed before it.
+- "THROUGH THE SAME PATH" IS THE INSTRUCTION AND THE SAFEGUARD: not a
+  hand-edited row. The reissue must be the one amend-tenancy-start
+  performs, so whatever it does to delivery, notifications and the
+  superseded-delivery columns happens here too.
+- **AND THE SWEEP IS THE REAL ASK:** "check dev for any other
+  application whose signed deed's dates don't match its tenancy start."
+  One known case does not need a sweep; Matt is asking whether there are
+  others, which is a different question and the one worth answering
+  first.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
