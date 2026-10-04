@@ -2942,6 +2942,22 @@ the one real assertion that has never run.
 - RAW FORMATTING IS THE REST: unformatted money, a fraction where a
   percentage belongs, and a machine month.
 
+### (u) Recent changes everywhere: every entry a plain sentence
+
+> Recent changes everywhere (agencies, suppliers, people): sweep every entry type for raw or garbled text and make each a plain sentence, e.g. "Password reset sent to manager2@regent.dev.test", "Tom Reeve's access removed", "Tom Reeve deleted".
+
+- **SUBSUMES (m)'s SWEEP CLAUSE.** (m) asked for the supplier "Created"
+  entry in English and said "check other Recent changes entries for the same
+  raw text". This is that check, widened to every feed and every entry type.
+  (m)'s first half, the no-deal sentence on Overview, is still its own.
+- "RAW OR GARBLED" NAMES TWO FAULTS, not one. Raw is a stored value printed
+  as-is. Garbled is a sentence assembled from parts that do not read as
+  English once joined, which is the one his three examples are about:
+  possessives, a name where an id was, an action with no subject.
+- SO THE UNIT OF WORK IS THE ENTRY TYPE, not the screen: `org_audit` and the
+  activity feed carry an action plus a detail, and each action needs a
+  sentence. Sweeping screens would find the same entry three times.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
