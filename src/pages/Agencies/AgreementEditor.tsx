@@ -479,7 +479,38 @@ export function AgreementEditor({
         onSaved();
         return;
       }
-      const bandInput: AgreementBandInput[] = shownBands.map((b) => ({
+      /* ONE PRICE MEANS EVERY TENANCY, AND THE RANGE HAS TO SAY SO.
+
+         Matt, 2026-10-04: "switching to 'One price for everything' keeps the
+         first tenant band ('1 to 1'), so the deal only prices single
+         tenancies. One price must cover any number of tenants: a single row
+         with no tenant range."
+
+         `shownBands` narrows a banded deal to its FIRST row, deliberately, so
+         an administrator who looks at Flat and clicks back still has their
+         bands. What it cannot do is carry that row's RANGE into a flat save:
+         a first band of "1 to 1" then stored min 1 max 1, and
+         resolve_pricing_agreement matches a band with
+         `min_tenants <= n and (max_tenants is null or max_tenants >= n)`,
+         which matches NOTHING at two tenants. The fee basis and the rate both
+         resolve null and the referral falls back to standard terms without a
+         word: the wrong fee charged and the wrong commission paid, from a
+         deal that reads as "one price for everything".
+
+         So a flat deal states the range it means rather than inheriting one.
+         `tenantsWords(1, null)` already words that as "any number of
+         tenants", so the plain English follows from the stored row instead of
+         being a second description of it. */
+      const flatBand = shownBands[0];
+      const bandInput: AgreementBandInput[] = model === 'flat' && flatBand
+        ? [{
+            min: 1,
+            max: null,
+            weeks: Number(flatBand.weeks),
+            unit: flatBand.unit,
+            rate: toRate(flatBand.rate),
+          }]
+        : shownBands.map((b) => ({
         min: Number(b.min) || 1,
         max: b.max.trim() === '' ? null : Number(b.max),
         weeks: Number(b.weeks),
@@ -489,7 +520,7 @@ export function AgreementEditor({
            is the thing that makes an agreement unreadable a year later: the row
            says 20% and every referral was priced at 25%. */
         rate: model === 'tiered' ? null : toRate(b.rate),
-      }));
+          }));
       const tierInput: AgreementTierInput[] = model === 'tiered'
         ? tiers.map((t) => ({ from: toStoredFrom(t.from), to: t.to.trim() === '' ? null : Number(t.to), rate: Number(t.rate) / 100 }))
         : [];
