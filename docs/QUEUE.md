@@ -4586,6 +4586,17 @@ both estates, the dialog, and FAQ 9 on both rails.
   others, which is a different question and the one worth answering
   first.
 
+### (by) The refunded application page: no Amend, and one date format
+
+> Refunded application page: hide "Amend start date" (nothing to amend on a cancelled guarantee); date formats consistent ("Refunded on 4 Oct 2026", "Cancelled on 4 Oct 2026", not "04/10/2026" or "4 October 2026").
+
+- THE AMEND HALF IS A CAPABILITY, not a hidden button: `can_amend_tenancy_start`
+  already takes the deed state, so the screen and the SQL should agree
+  that a cancelled guarantee has nothing to amend.
+- **THREE FORMATS ON ONE PAGE IS THE FAULT**, and Matt has named the one
+  that wins: "4 Oct 2026". `oneDateFormat` is already a repo guard, so
+  the question is which of these escaped it.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
