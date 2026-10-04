@@ -207,35 +207,82 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
   }
 
   const correctedFrom = await correctedFromLabel(service, target.appId);
-  const message = executedDeedAgentEmail({
+
+  /* ONE EMAIL PER RECIPIENT, EACH WRITTEN FOR THEM. Matt (bk): "send one
+     email per recipient, never several addresses on one email. The agency's
+     version keeps 'Contact Kestrel Lettings, who referred this tenant'; the
+     referrer's version (a portal user) gets the portal link and 'Wrong
+     tenancy start date? Change it here.'"
+ 
+     THIS REVERSES A STATED DECISION, and the comment that used to sit at the
+     send said why it was made: "the deed is a single event, and the people
+     on it should see who else has it." That was written when every recipient
+     was on one agency's ladder and could reasonably see each other. Since
+     (bg) the supplier rail puts an AGENCY and the SUPPLIER'S OWN STAFF on
+     one message, and those two should not be shown each other's addresses.
+ 
+     IT ALSO RESOLVES THE TENSION I LEFT IN (bf). That stripped the portal
+     and correction lines from this email because the ADDRESSEE on a
+     supplier's estate has no login -- and the referrer, who does, lost them
+     too. I noted the trade-off and chose the addressee. The answer was to
+     stop sending one email to two kinds of reader.
+ 
+     THE ADDRESSEE IS THE MAILBOX, THE COPIES ARE PEOPLE, on the rail where
+     the two differ: deed_delivery_target puts the agency's contact first on
+     a supplier referral and the referrer after it. On the agency rail every
+     rung is a person and nothing changes but the envelope. */
+  const buildFor = (forPortalUser: boolean) => {
+    const m = executedDeedAgentEmail({
     correctedFrom,
     guaranteeRef: target.ref,
     tenantName: `${target.tenantTitle ?? ""} ${target.tenantName ?? ""}`.trim() || target.tenantName,
     propertyAddr: [target.addr1, target.postcode].filter(Boolean).join(", "),
-    tenancyStartLabel: target.tenancyStartLabel ?? formatTenancyStart(target.tenancyStart),
-    portalUrl,
-    joint,
-  });
-  // The correction link sits in the small print as its own line.
-  if (correctionUrl) {
-    message.blocks = [...message.blocks, {
-      small: `Wrong tenancy start date? <a href="${correctionUrl}">Change it here</a>.`,
-    }];
-  } else if (supplierName) {
-    /* WHO CAN, instead of a link that cannot. Matt's own sentence. Somebody
-       who spots a wrong start date and is given nothing to do about it does
-       nothing, and the deed stays wrong -- which is the whole reason this
-       line exists at all. */
-    message.blocks = [...message.blocks, {
-      small: `Wrong tenancy start date? Contact ${supplierName}, who referred this tenant.`,
-    }];
-  }
-  // One message with each of them as a recipient, not one message each: the
-  // deed is a single event, and the people on it should see who else has it.
-  const everyone = [recipient.email, ...(recipient.also ?? [])]
-    .map((e) => (e ?? '').trim())
+      tenancyStartLabel: target.tenancyStartLabel ?? formatTenancyStart(target.tenancyStart),
+      portalUrl: forPortalUser ? portalUrl : "",
+      joint,
+    });
+    if (forPortalUser && correctionUrl) {
+      m.blocks = [...m.blocks, {
+        small: `Wrong tenancy start date? <a href="${correctionUrl}">Change it here</a>.`,
+      }];
+    } else if (supplierName) {
+      /* WHO CAN, instead of a link that cannot. Matt's own sentence. Somebody
+         who spots a wrong start date and is given nothing to do about it does
+         nothing, and the deed stays wrong -- which is the whole reason this
+         line exists at all. */
+      m.blocks = [...m.blocks, {
+        small: `Wrong tenancy start date? Contact ${supplierName}, who referred this tenant.`,
+      }];
+    }
+    return m;
+  };
+
+  const copies = (recipient.also ?? []).map((e) => (e ?? '').trim()).filter(Boolean);
+  const addressee = (recipient.email ?? '').trim();
+  const everyone = [addressee, ...copies]
     .filter((e, i, xs) => e.length > 0 && xs.indexOf(e) === i);
-  const res = await sendMessage({ to: everyone, message, attachments });
+
+  /* THE ADDRESSEE'S VERSION IS THE ONE WITHOUT THE PORTAL on a supplier's
+     estate, and the one WITH it everywhere else: on the agency rail the
+     addressee is the referrer. Everyone copied is a person on a ladder, so
+     they get the portal version on both rails. */
+  const sends = await Promise.all(everyone.map((to, i) =>
+    sendMessage({ to, message: buildFor(i === 0 ? !inSupplierEstate : true), attachments })));
+  /* ONE OUTCOME FOR THE DELIVERY RECORD, because `deed_delivered_to` and
+     record_delivery_attempt describe one event and must not become several
+     conflicting answers to "where did the deed go". The addressee's send is
+     the one that decides it: a failed copy to a colleague is not a failed
+     delivery of the deed. */
+  const res = sends[0] ?? { ok: false, error: "No recipient." } as typeof sends[number];
+  const failedCopies = everyone.filter((_, i) => i > 0 && !sends[i]?.ok);
+  if (failedCopies.length) {
+    await service.from("activity_log").insert({
+      application_id: target.appId,
+      kind: "deed_delivery_failed",
+      message: `The signed deed reached the agency but a copy could not be sent to ${failedCopies.join(", ")}.`,
+      actor: "System", visibility: "internal",
+    });
+  }
 
   // Partner-safe business entry names the intended agent contact; the test-mode
   // redirect target stays admin-only (a separate internal entry).

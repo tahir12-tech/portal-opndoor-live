@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PayFrame } from './PayFrame';
 import { requestSigningLinkByToken, getPayPage, startCheckout, declineApplication, type PayPageData } from './paymentPageApi';
+import { referralIntro } from '@/data/referralIntro';
 import { Icon } from '@/components/ui/Icon';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { countOf } from '@/lib/plural';
@@ -315,7 +316,21 @@ export function PayLanding() {
         </>
       ) : (
         <>
-          <p className="pay__lead">You've been referred via {d.partnerName} for opndoor's professional guarantor service, for your tenancy at {d.propFull}.</p>
+          {/* THE AGENCY FIRST, THE SUPPLIER AS THE ROUTE. Matt (bi): "Test
+              Lettings asda has referred you, through Kestrel Lettings, for
+              opndoor's professional guarantor service".
+
+              THIS SAID "referred via Kestrel Lettings", which asks a tenant
+              to recognise a company they have never dealt with, at the
+              moment they are being asked for a month's rent. The agency is
+              who they know. The supplier still appears, because the agency
+              may not be able to answer a question about the guarantee.
+
+              FALLS BACK TO THE OLD SENTENCE where we can name nobody --
+              referredByPhrase returns null rather than hedging, and the
+              direct rail has no referrer at all. */}
+          <p className="pay__lead">{referralIntro({ agencyName: d.agencyName, supplierName: d.partnerName, propertyAddr: d.propFull })
+            ?? `You've been referred for opndoor's professional guarantor service, for your tenancy at ${d.propFull}.`}</p>
           <p className="pay__lead">opndoor stands as your professional guarantor: we provide a Deed of Guarantee in favour of the property, covering 12 months from your tenancy start, so your tenancy can proceed.</p>
         </>
       )}

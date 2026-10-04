@@ -59,13 +59,39 @@ describe('"not insurance" is said once, in the footer', () => {
      screen, eight words apart. */
   const footerSays = /professional guarantor service, not insurance/;
 
-  it('and the deed-to-sign email keeps only the half the footer does not say', () => {
+  /* THIS KEPT "You remain the claim contact" UNTIL 2026-10-04, and losing
+     it is not a regression in the sweep this file guards.
+
+     Matt (bj): "remove 'You remain the claim contact' (that's agent
+     wording)." And (bl), for every tenant-facing signing email. It is not a
+     tone objection: the claim contact is the agent or landlord, who claims
+     UNDER the deed; the tenant is the person guaranteed. The line was
+     correct when this template served a mixed audience and became wrong
+     when (ai) pointed it at tenants, which is my doing.
+
+     WHAT THIS FILE IS ABOUT IS UNCHANGED and is still asserted: the
+     "not insurance" sentence appears once, in the footer. The claim-contact
+     half simply has no successor here -- it survives in
+     executedDeedAgentEmail, where the reader really is the claim contact,
+     and that is asserted below so the sweep still has both ends. */
+  it('and the deed-to-sign email says "not insurance" once, in the footer alone', () => {
     const t = renderText(deedToSignEmail({
       guaranteeRef: 'GR-23853', tenantName: 'Tess Tenant',
       propertyAddr: '1 Example Road, N1 1AA', signUrl: 'https://example.test/sign',
     }));
-    expect(t).toContain('You remain the claim contact');
+    expect(t).not.toContain('You remain the claim contact');
     expect(t.match(footerSays) ?? []).toHaveLength(1);
+  });
+
+  it('while the AGENT\'s email keeps it, because they are the claim contact', () => {
+    const agent = read('supabase/functions/_shared/emailTemplates.ts');
+    /* BOUNDED BY THE NEXT EXPORT, not by a character count. My first
+       version took 4,000 characters from the function's start and the line
+       sits about 6,000 in, so the assertion failed on a template that was
+       entirely correct -- a slice length is not a scope. */
+    const from = agent.indexOf('export function executedDeedAgentEmail');
+    const to = agent.indexOf('export function', from + 10);
+    expect(agent.slice(from, to)).toContain('You remain the claim contact');
   });
 
   it('and the PandaDoc signing email drops the line altogether', () => {

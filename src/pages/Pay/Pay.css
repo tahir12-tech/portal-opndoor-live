@@ -51,9 +51,41 @@
   margin: 0 0 22px;
   text-align: left;
 }
-.pay__rrow { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; font-size: 14px; }
-.pay__rk { color: #5b4d86; }
-.pay__rv { font-weight: 700; color: #271d5f; }
+/* THE DETAILS BOX HAD NO LAYOUT, only a space-between. Matt (bh): the
+   "Property" row has no gap between label and value and the address wraps
+   under the label; give it the same layout as the other rows, on desktop
+   and mobile.
+
+   WHY ONLY THAT ROW LOOKED BROKEN. Reference, Amount and the rest are short
+   enough that two flex items pushed to opposite edges read as a laid-out
+   row. An address is not. With no `gap`, nothing to say which item takes
+   the slack, and `min-width: auto` on both -- which is the flexbox default
+   and means neither can shrink below its longest word -- the two met in the
+   middle with no space between them, and the value's wrapped lines ran back
+   under the label because the value had no column of its own to wrap in.
+
+   THREE DECLARATIONS AND NO FIXED WIDTHS, which is what makes it hold at
+   every screen size: the label keeps its natural width, the value takes
+   everything left, and `min-width: 0` is what finally lets it wrap rather
+   than overflow. `anywhere` because a postcode-less single-token address
+   has no space to break at. */
+.pay__rrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 5px 0;
+  font-size: 14px;
+}
+.pay__rk { color: #5b4d86; flex: 0 0 auto; }
+.pay__rv {
+  font-weight: 700;
+  color: #271d5f;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
 .pay__rv--amt { font-size: 18px; }
 
 .pay__deed {

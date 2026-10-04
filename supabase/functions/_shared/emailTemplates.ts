@@ -816,9 +816,13 @@ export function deedToSignEmail(p: {
        has already signed once and gets an identical "ready to sign" message
        files it as a repeat and never signs the corrected one -- leaving two
        deeds disagreeing about the date on a live tenancy. */
+    /* AND THE SUBJECT ASKS, RATHER THAN ANNOUNCES. Matt (bj): subject
+       "Please sign your Deed of Guarantee, GR-26263". "Deed of Guarantee
+       issued for GR-26263" describes an event that has already happened,
+       which is a notification; this email exists to get one thing done. */
     subject: p.reissue
-      ? `Corrected Deed of Guarantee for ${p.guaranteeRef}, please sign`
-      : `Deed of Guarantee issued for ${p.guaranteeRef}`,
+      ? `Please sign your corrected Deed of Guarantee, ${p.guaranteeRef}`
+      : `Please sign your Deed of Guarantee, ${p.guaranteeRef}`,
     heading: p.reissue
       ? "A corrected Deed of Guarantee is ready to sign"
       : "The Deed of Guarantee is ready to sign",
@@ -834,9 +838,22 @@ export function deedToSignEmail(p: {
          tenancy agreement", so this printed it twice on one screen. What
          is kept is the half the footer does not say, exactly as on the
          signed-deed email. */
-      { small: "You remain the claim contact." },
+      /* "YOU REMAIN THE CLAIM CONTACT" IS GONE, and it was not a tone
+         problem. Matt (bj): "that's agent wording". The claim contact is
+         the agent or landlord, who claims UNDER the deed; the tenant is the
+         person guaranteed. Telling them they are the claim contact is
+         wrong, not merely stiff.
+
+         IT GOT HERE BY MY DOING. This template was written for a mixed
+         audience and (ai) pointed it at tenants this evening, when opndoor
+         took over sending the signing email from PandaDoc.
+
+         WHAT REPLACES IT IS THE LINE THE RECEIPT ALREADY CARRIES, for the
+         same reason: a resend can cross with a signature, and a tenant who
+         has just signed should not be left wondering what they missed. */
+      { small: "Already signed? Then you're all set and can ignore this." },
     ],
-    action: { label: "Review and sign", href: p.signUrl },
+    action: { label: "Sign your Deed of Guarantee", href: p.signUrl },
   };
 }
 
