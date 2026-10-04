@@ -3665,6 +3665,26 @@ and the three creation paths say no. Not guessing on a money record.
   changing anything, or there is nothing to compare with.
 - ORDER: the export, then (al), then the rest.
 
+### (ao) Amending a start date: the log, the deed state, and the co-tenant
+
+> Amend start date on GR-25834 (joint, paid, deed unsigned), changed 16 → 17 Oct at 18:00: 1) the activity log says "amended from 17/10/2026 to 17/10/2026"; record the real old date, and use "16 Oct 2026" format. 2) After saving, the deed section says "Deed not yet issued" with no new "sent for signature" entry, while the tenancy box says "Awaiting signature". Confirm whether a new deed with 17 Oct was created and sent to Jane, and make the page and tenancy box show the true state. 3) Confirm the co-tenant GR-25833 moved to 17 Oct too. Then test the same on a signed deed (GR-25832).
+
+- **ITEM 1 IS AN AUDIT ROW THAT RECORDS NOTHING.** "amended from 17/10/2026
+  to 17/10/2026" means the old value was read AFTER the write, so the log
+  cannot answer the only question it exists to answer. On a date that moves
+  money and cover, that is the worst of the three.
+- **ITEM 2 IS TWO SCREENS DISAGREEING ABOUT A DEED, and the first question
+  is which is true**: Matt asks to "confirm whether a new deed with 17 Oct
+  was created and sent to Jane" before either is believed. If the deed was
+  sent, the deed section is wrong; if it was not, the tenancy box is, and
+  a tenant is waiting for something that does not exist.
+- ITEM 3 IS THE JOINT RULE: one tenancy, one start date, so the co-tenant
+  must have moved. Checkable.
+- AND THE SIGNED CASE IS A SEPARATE JOURNEY: a signed deed has to be voided
+  and reissued rather than amended, so GR-25832 is a different path and is
+  named as its own test.
+- RELATED TO (ai): the corrected-deed flow must also send opndoor's email.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
