@@ -2734,6 +2734,24 @@ the one real assertion that has never run.
 - The stack named `CommissionStatement.tsx:252` and a passive effect, and the
   file PASSES, so these are errors thrown outside an assertion's reach.
 
+### (j) An unreadable reference is not a draft
+
+> When a statement's reference can't be read, don't label it a draft. Show "Reference couldn't be loaded. Refresh to try again." in place of the reference and status, and log it to Health.
+
+- ANSWERS THE QUESTION I LEFT OPEN in acf2351: today every failure renders as
+  a draft, which is the safe direction but is a guess presented as a fact.
+- **IT NEEDS A THIRD STATE.** The function has two sentinels today, EMPTY for
+  "nothing to say" and REFERENCE_ON_POST for "not posted yet", and a failure
+  currently borrows EMPTY. "Not posted" and "we could not find out" are
+  different facts and only one of them is a draft.
+- THE REAL-WORLD PATH IS THE `error` CHANNEL, not the throw I fixed: a
+  dropped connection arrives there, so the error arm is the one that has to
+  become unreadable or this changes nothing a user can reach.
+- MOCK AND DEMO MODE MUST NOT BE AFFECTED. `!SUPABASE_ENABLED` is not a
+  failure, and turning it into one would put a red sentence across every
+  screenshot taken without a back end.
+- "IN PLACE OF THE REFERENCE AND STATUS" is two places, not one.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
