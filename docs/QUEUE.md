@@ -3651,6 +3651,20 @@ and the three creation paths say no. Not guessing on a money record.
   Frost Partnership, so a reconciliation row naming only the agency cannot
   be acted on safely.
 
+### (an) Both design points confirmed, and the statement reads the lines
+
+> Yes to both: idempotency key per application so a redelivered webhook can never refund twice, and per-tenant, recorded, resumable refunds with ops alert and Home warning for any that fail. Also yes: switch supplier statements to read the stored commission lines, as everything else does; show me Kestrel's September statement before and after (it should be identical). Order now: the dead Application export first, then (al), then the rest.
+
+- CONFIRMS THE TWO THINGS I ASKED BEFORE BUILDING (al), so that design is
+  now his and can be built: an idempotency key per application, and a
+  per-tenant resumable cascade with ops alert and a Home warning.
+- **"IT SHOULD BE IDENTICAL" IS THE TEST, and saying so is what makes the
+  change safe**: the stored lines and the computed figures derive from the
+  same frozen rates, so a difference would mean one of them is wrong and
+  the before/after is how we would find out. Capture the statement BEFORE
+  changing anything, or there is nothing to compare with.
+- ORDER: the export, then (al), then the rest.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
