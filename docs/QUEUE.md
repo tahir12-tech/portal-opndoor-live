@@ -3609,6 +3609,31 @@ and the three creation paths say no. Not guessing on a money record.
   places and each must learn the cancelled case.
 - GR-25235 IS THE WORKED EXAMPLE to show afterwards.
 
+### (al) A full refund on a joint tenancy refunds the whole tenancy
+
+> Replace what I said about co-tenants: on a joint tenancy, when one tenant's fee is fully refunded in Stripe, the tenancy isn't going ahead, so automatically refund every other paid tenant on that tenancy through Stripe, cancel all their deeds, and treat the whole tenancy as refunded. Only a full refund triggers this, never a partial one. Record who and what triggered each automatic refund in the activity log; if any co-tenant's refund fails, alert ops and show it on Home. Emails: each tenant gets "Your guarantee fee has been refunded and your Deed of Guarantee is cancelled"; the agent (and any landlord sent a deed) gets one email listing every tenant on the tenancy and saying all guarantees for the property are cancelled. Commission for all of them comes off the unposted month, or goes on the next statement as a deduction if already posted. Test it on dev with GR-25235's tenancy (GR-25234 and GR-25236 should now be refunded automatically) and show me the result.
+
+- **REPLACES (ak)'s "co-tenants' guarantees stay as they are" WITH ITS
+  OPPOSITE.** (ak) stands for everything else; this governs the joint case.
+- **THIS IS THE ONLY INSTRUCTION TODAY THAT MOVES MONEY OUTWARD BY ITSELF.**
+  Everything else has changed what a screen says, what a column holds or
+  what a guard refuses. This issues REAL REFUNDS to real people,
+  automatically, triggered by a webhook, with no human in the loop.
+- SO THE DANGEROUS STATE IS THE HALF-DONE CASCADE, and Matt has already
+  thought about it: alert ops, show it on Home. That means the cascade
+  cannot be all-or-nothing in one transaction, because Stripe calls are not
+  transactional; it has to be per tenant, recorded per tenant, and
+  resumable.
+- **IDEMPOTENCY IS THE THING TO GET RIGHT BEFORE ANYTHING ELSE.** A Stripe
+  webhook is delivered more than once as a matter of course. Without an
+  idempotency key on each refund, a redelivery refunds a co-tenant twice.
+  Stripe's refund API takes one; it has to be derived from the application
+  so a retry reuses it.
+- "ONLY A FULL REFUND TRIGGERS THIS, NEVER A PARTIAL ONE" is the guard that
+  keeps a 50 GBP goodwill refund from unwinding a tenancy.
+- THE WORKED EXAMPLE IS GR-25235's TENANCY: GR-25234 and GR-25236 should
+  come out refunded.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
