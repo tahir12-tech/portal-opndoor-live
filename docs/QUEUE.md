@@ -2337,6 +2337,136 @@ sign-in are unexercised. Somebody has to click it.
 - END TO END ON DEV, portal AND sandbox API, is part of the instruction and
   not a courtesy.
 
+#### The answer to item 4, measured on dev before anything was changed
+
+**Short version: items 1 and 2 are mostly already built. The single-tenant
+assumption that is still live is not in the fee, it is in the COMMISSION, and
+it was unreachable until the supplier rail was opened to joint tenancies.
+There is also a wrong sentence on the New application form today.**
+
+**1. Joint tenancies through suppliers already work, both ways in.** The rail
+guard was narrowed on 2026-10-06 by `20261006970000_a_supplier_may_refer_a_joint_tenancy.sql`
+(batch 16, walk fix 26), which refuses only `opndoor-direct` and
+`referencing-partner` now. `src/pages/NewApplication/jointAllowed.ts` opens
+"Add another tenant" the moment a supplier is named, and the partner API hands
+any body with more than one `tenants` entry to the same
+`create_joint_referral` (`supabase/functions/create-referral/index.ts:455`),
+so the API needed nothing for the rail. MEASURED: a real 3-tenant joint
+referral through Kestrel Central, rolled back, gave 3 applications on 1
+tenancy, fees 1,107.69 + 830.77 + 830.77 = GBP 2,769.23 (6 weeks of a GBP
+2,000 rent) and shares 800 + 600 + 600 = GBP 2,000, the rent exactly.
+
+**2. The tenant fee is NOT hard-coded to one month's rent in the database.**
+`resolve_fee` has resolved a tenant-count band on either rail since
+agreements landed, and the supplier Commission tab already opens the FULL
+`AgreementEditor` with `kind="commission"`, which asks what the tenant pays
+(`src/pages/PartnerManagement/SupplierDeals.tsx:373`). MEASURED: Matt's own
+example set as a partner-scope deal on Kestrel -- 1 tenant one month, 2 or
+more 5 weeks -- repriced a supplier referral to GBP 2,000 at one tenant and
+GBP 2,307.69 at two and three. Rolled back.
+
+What makes every supplier read "one month's rent" today is narrower than a
+hard-code: their deal is the SEEDED agreement, `is_standard = true`, and
+`resolve_fee` short-circuits a standard agreement to the rent exactly, never
+recomputing it from weeks. `create_agreement` writes `is_standard = false`, so
+"existing suppliers keep one month's rent until changed, so nothing on live
+moves" is already true for free, and it is the seed flag that delivers it, not
+a default worth defending.
+
+The one real gap on this item: `set_supplier_commission`, the flat two-rate
+save, writes only `partners.partner_rate` and `partners.agent_rate` and never
+a basis -- so the flat path cannot express a fee. That is correct as far as it
+goes; the banded path is the one that prices.
+
+**3. THE LIVE DEFECT, and it is in commission, not in the fee.**
+`create_joint_referral` freezes the two rates from two different tenant
+counts. The agents' share goes through `commission_total(branch, route, v_n)`
+and bands on the real count. The supplier's own total goes through
+`resolve_rates(p_branch, v_route)` -- two arguments, so `p_tenant_count`
+defaults to **1**. MEASURED on Kestrel Central, same rolled-back referral:
+
+| tenants | fee | total commission (`partner_rate`) | agents' share (`agent_rate`) |
+| --- | --- | --- | --- |
+| 1 | 2,000.00 | 0.2500 | 0.1200 |
+| 2 | 2,307.69 | 0.2500 | 0.2000 |
+| 3 | 2,769.23 | 0.2500 | **0.2600** |
+
+At three tenants the agents' share exceeds the supplier's own total, which is
+the exact thing Matt's own rule forbids: "The agents' share can never exceed
+the supplier's total on any referral, checked on save."
+
+**Why no guard fires.** `supplier_share_breaches` checks every breakpoint of
+the PARTNER-scope commission deal against the PARTNER-scope `agent_share`
+deal. The deal doing the damage here is an AGENCY-scope `commission`
+agreement, which `20261007190000` deliberately left unbuilt ("PER-AGENCY
+OVERRIDES NEEDS NOTHING AT ALL") because agency scope already wins the resolve
+order. It wins the resolve order in `commission_split`, and `resolve_rates`
+deliberately ignores it for the total -- for a stated and correct reason, that
+putting an agency's own rate in the supplier's margin column would
+double-count it on every statement. So the two halves read different deals and
+nothing compares them.
+
+**What a reader is shown.** Kestrel is `settles_own = true`, the CARVED shape,
+where `supplier_agent_rate` applies `least(agent_rate, partner_rate)`. So the
+breach does not print a negative: it silently clamps. At three tenants
+Kestrel's statement would show total 0.25, agents 0.25 and the supplier owed
+GBP 0.00 on that referral, with the agency's 26% quietly cut to 25% and no
+warning anywhere. On a `settles_own = false` supplier there is no `least()`,
+and the total becomes partner_rate + agent_rate, so Opndoor would book 51% of
+the fee out.
+
+**This was unreachable before batch 16.** While a supplier referral was one
+tenant, only the `min_tenants = 1` band could ever resolve, and at one tenant
+0.12 is comfortably inside 0.25. Opening the rail to joint tenancies is what
+made bands 2 and 3 reachable. So it is precisely an assumption that a supplier
+referral is single-tenant, and it is in commission and statements.
+
+**4. A WRONG SENTENCE ON THE FORM TODAY, which is more than item 3 asked for.**
+`feeBasisLabel` (`src/data/feePreview.ts:61`) words the basis from
+`feeBasisWeeks` alone and never reads `fee_basis_unit` -- because
+`referral_fee_preview` does not return one, and `src/lib/hydrate.ts:585` does
+not map one either. A band stored in MONTHS keeps its quantity in
+`fee_basis_weeks`, so 1 month is stored as 1. MEASURED, live on dev right now,
+no fixture: the preview for Kestrel Central with one tenant returns
+`fee_amount 2000.00, fee_basis_weeks 1.00, is_standard false`, and the form
+therefore prints **"1 weeks of rent"** under **GBP 2,000.00**. One week of
+that rent is GBP 461.54. The figure is right and the sentence under it is
+wrong by a factor of about four, and wrong in grammar as well.
+`20261006120000_a_fee_basis_has_a_unit.sql` gave `resolve_fee` the unit and
+the preview RPC was never extended to pass it on.
+
+This is squarely inside item 3 ("show the actual fee from the deal on the
+form, as agency referrals do") and it bites the agency rail too: Regent's
+bands are the same shape.
+
+**5. A LATENT ONE, worth knowing before the form is touched.** The preview
+resolves the route as `resolve_route_partner(v_branch, null)`, the branch's own
+partner, and ignores the chosen supplier; `create_referral` honours the
+explicit `p_route`, whose second permitted arm is a `partner_agency_relationships`
+row rather than the branch's own partner. So an admin choosing a supplier for
+an agency it merely introduced would be priced on one deal and shown the
+other. NOT reachable on dev today: measured, there is no
+`partner_agency_relationships` row whose partner differs from the branch's own
+partner, out of 11 rows. It becomes reachable the moment one is recorded,
+which is what the feature exists for.
+
+**6. Clean, and why.** The BORDEREAU has no single-tenant assumption on either
+rail: it is one row per deed on `shareAmount ?? rent`, and the premium is a
+percentage of the RENT, so a supplier's fee basis cannot reach it. STATEMENTS
+are share-aware per line (`share_percent`, `tenancy_place`) and read the
+frozen arrangement per line, so a month straddling a change holds both kinds
+correctly. The API reports each applicant their own share and their own basis
+and needed nothing for the rail.
+
+**What I propose to do, in this order, once you have read this.** Fix the
+commission freeze first, because it is the only one that moves money:
+`resolve_rates` called with the real tenant count, and
+`supplier_share_breaches` extended to the agency-scope commission deals so the
+save-time check covers the per-agency overrides it currently cannot see. Then
+the basis unit through `referral_fee_preview` and `feeBasisLabel`. Then item
+3's sentence. Then the Kestrel end-to-end on dev, portal and sandbox API.
+I have not changed anything yet.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
