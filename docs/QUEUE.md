@@ -3124,6 +3124,41 @@ the one real assertion that has never run.
 - SO THREE PARTS: remove the editor and link out; surface existing non-
   partner deals on the tab; and the conversion, which waits.
 
+**Matt, 2026-10-05, releasing the hold:**
+
+> On e4b75778 (Kestrel Lettings' hidden deal): it was just a test. No conversion plan needed. End it on dev so Kestrel Lettings is back on Kestrel's own pricing, and carry on with the rest of the list.
+
+- THE HOLD IS LIFTED AND THE THIRD PART IS ANSWERED: no conversion. Ended
+  on dev with `end_agreement`, the product's own path, as the admin -- not
+  with a migration, because dev data is dev's and never reaches live.
+- NOTHING WAS EVER PRICED BY IT. Zero applications carry
+  `pricing_agreement_id = e4b75778`; the only referral on either Kestrel
+  Lettings branch, GR-22162 (29 Sep), was priced by Kestrel's own
+  partner-scope deal. So ending it moves no money.
+- WHAT IT WAS DOING, measured on dev before it was ended, at a GBP 1,000
+  rent. Its headline 12/20/24 reached NOTHING: `resolve_rates` takes the
+  commission rate only `where scope_level = 'partner'`, and an
+  agency-scope row is not that, so the rates stayed 25% and 10%
+  throughout. What it actually moved was the TENANT'S FEE on joint
+  tenancies.
+
+  | tenants | fee with it | fee without |
+  | --- | --- | --- |
+  | 1 | 1,000.00 (one month) | 1,000.00 |
+  | 2 | 1,153.85 (5 weeks) | 1,000.00 |
+  | 3 | 1,384.62 (6 weeks) | 1,000.00 |
+
+  A deal whose visible numbers did one thing and whose effect was another,
+  written from a page that is not where deals are agreed. That is the
+  whole argument for (gg), and it is now recorded rather than lost with
+  the row.
+- AFTER ENDING: Kestrel Lettings resolves to Kestrel's own pricing at
+  every tenant count -- one month's rent, 25% to Kestrel, 10% to the
+  agency -- and `supplier_offtab_deals('kestrel-lettings')` returns 0, so
+  the new card does not draw.
+- RECORDED AFTER THE FACT, not before: the instruction arrived mid-run
+  and the ending was done in the same turn.
+
 ### (hh) The Application export does nothing as a supplier
 
 > Signed in as Kestrel Management (test@kestrel.com), Reporting → Application export: pressing it does nothing, with no download and no message. Find why (browser console error, the export query for supplier users, or the recent supplier export changes), fix it, and make any export that fails show a clear message instead of doing nothing. Test the Application export for every level: admin, opndoor manager, agency Director/Manager/Negotiator, supplier Management/Referrer/Developer.
