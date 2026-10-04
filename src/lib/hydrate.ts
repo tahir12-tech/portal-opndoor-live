@@ -32,10 +32,32 @@ function money(n: number): string {
   return `£${Math.round(n)}`;
 }
 
-/** Property display string: "addr1, OUTCODE" (upcoming rows already embed the area). */
-function propStr(addr1: string, postcode: string | null): string {
-  if (!postcode) return addr1;
-  return `${addr1}, ${String(postcode).split(' ')[0]}`;
+/* Property display string: "addr1, OUTCODE" (upcoming rows already embed
+   the area).
+
+   IT RETURNED null AND ITS TYPE SAID string, which is the whole of (bw).
+
+   `addr1` was typed `string` and the column is nullable, so the early
+   return handed `null` straight out whenever there was no postcode
+   either. Dev has four such rows -- expired referrals that never got as
+   far as an address -- and every one of them carried `prop: null` on a
+   summary whose type promises a string.
+
+   NOTHING NOTICED FOR AS LONG AS NOBODY CALLED A STRING METHOD ON IT.
+   The list renders {r.prop}, and React draws null as nothing;
+   matchesQuery interpolates it, and a template literal writes "null".
+   GlobalSearch calls `a.prop.toLowerCase()` over allSummaries() -- the
+   whole book, unscoped -- inside a useMemo, so the throw happens during
+   render, React unmounts the tree, and the page goes white. Two
+   characters in the header search box was enough, on any page.
+
+   The fix is here rather than at the three readers: the boundary is
+   where the type was broken. */
+export function propStr(addr1: string | null, postcode: string | null): string {
+  const line = (addr1 ?? '').trim();
+  const outcode = postcode ? String(postcode).split(' ')[0] : '';
+  if (!outcode) return line;
+  return line ? `${line}, ${outcode}` : outcode;
 }
 
 function isoDate(ts: string | null): string {
