@@ -4670,6 +4670,20 @@ both estates, the dialog, and FAQ 9 on both rails.
   that all of these are one fold read in six places.
 - (3) "AS THE DESCRIPTION SAYS" means the screen already promises it.
 
+### (cf) Kestrel's October statement: Payable to you, and the invoice line
+
+> Kestrel's October statement (PDF and CSV in the zip): where the supplier pays its own agencies, add "Payable to you £947.25" (as September's statement has), and word the agency line "Your agencies' share, included above for you to pass on £378.90". The invoice instruction, once posted, must say the payable figure (£947.25), never "Your share".
+
+- **SEPTEMBER'S STATEMENT IS THE SPECIFICATION**, which is the useful
+  part: the right shape already exists on one month's document and
+  October's is missing it.
+- £947.25 AND £378.90 ARE THE SAME TWO FIGURES AS (bp)(1) AND (ce)(2).
+  Three reports of one fold, now with the exact wording for both lines.
+- THE INVOICE INSTRUCTION IS THE SHARP EDGE: it tells a supplier what to
+  invoice us for. "Your share" there would have Kestrel invoice the
+  wrong number, which is the one place this stops being a presentation
+  bug.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
