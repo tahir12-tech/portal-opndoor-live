@@ -3013,6 +3013,22 @@ the one real assertion that has never run.
 - ORDER NOW: (x), (o) answer, then (q)+(s)+(t) together, then (r)'s schedule
   sentence, (l), (m), (u), (n), (v), (w), (y).
 
+### (aa) The weekly digest, which runs tomorrow morning
+
+> Weekly digest: did it actually send on 28 Sep, and to whom? It runs again tomorrow (Monday) at 07:00/08:00, just before go-live. Tell me what it will send and to whom, and confirm it works, without changing anything unless it's broken.
+
+- **TIME-BOXED BY SOMETHING OUTSIDE THIS SESSION.** It fires tomorrow at
+  07:00/08:00, hours before Regent go live, so an answer after the build
+  queue is an answer after the send. Taken out of order on that ground
+  alone, and it is READ ONLY: "without changing anything unless it's
+  broken".
+- THREE QUESTIONS, ALL ANSWERABLE FROM RECORDS rather than opinion: did the
+  28 Sep run send, to whom, and what will tomorrow's carry.
+- "AND TO WHOM" IS THE PART THAT MATTERS MOST the day before go-live,
+  because the digest goes to real people at real agencies. A wrong audience
+  is worse than no send.
+- IF IT IS BROKEN, FIXING IT IS IN SCOPE. If it is not, touching it is not.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
