@@ -67,8 +67,17 @@ describe('every path that archives and reissues a deed', () => {
   it('moves the old delivery aside rather than leaving it on the row', () => {
     for (const p of CORRECTION_PATHS) {
       const src = read(p);
+      /* THE FIELD, NOT THE RECEIVER. This pinned
+         `deed_delivery_superseded_at: app.deed_delivered_at`, and (bn)
+         moved amend-tenancy-start's deed lifecycle into a per-application
+         helper so a joint tenancy reissues every tenant's deed -- the row
+         it works on is now the loop's `a`, while tenancy-correction still
+         calls its own `app`. The BEHAVIOUR asserted here is unchanged in
+         both, so the test stops caring what the variable is called and
+         keeps caring that the superseded delivery is recorded from the
+         current one. */
       expect(src, `${p}: does not record the superseded delivery`)
-        .toContain('deed_delivery_superseded_at: app.deed_delivered_at');
+        .toMatch(/deed_delivery_superseded_at:\s*\w+\.deed_delivered_at/);
       expect(src, `${p}: does not clear the current delivery`)
         .toContain('deed_delivered_at: null, deed_delivered_to: null, deed_resent_at: null,');
     }
