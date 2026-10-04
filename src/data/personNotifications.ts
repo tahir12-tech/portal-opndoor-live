@@ -165,17 +165,31 @@ export async function setPersonEvent(userId: string, type: string, enabled: bool
  * is lowercase here as it is everywhere else in this product's copy, which
  * the old string got wrong too.
  */
-export function whoDecidesThis(kind: PartyKind): string {
+/* AND THE VIEWER'S OWN LEVEL IS THE SECOND HALF, which is a different case
+ * rather than different wording. Matt (qq): '"A Director, or Opndoor,
+ * decides this" should say "Management, or opndoor, decides this" (or
+ * "opndoor decides this" when it's a peer the viewer can't change)'.
+ *
+ * NAMING MANAGEMENT TO SOMEBODY WHO IS MANAGEMENT IS A DEAD END. They read
+ * "Management decides this", look round the room, and find that the only
+ * Management is them and the colleague whose row they are reading. On the
+ * supplier rail that is the whole ladder: Management is the top, so when a
+ * supplier's Management cannot change something, opndoor is the only answer
+ * there is.
+ *
+ * THE SAME SHAPE AS peerActionNote, deliberately. Both ask "is there a rung
+ * above the READER", not "what level is the reader", so neither re-derives a
+ * ladder it should not know about.
+ */
+export function whoDecidesThis(kind: PartyKind, viewerIsTop = false): string {
+  if (kind === 'opndoor' || viewerIsTop) return 'opndoor decides this.';
   if (kind === 'supplier') return 'Management, or opndoor, decides this.';
-  // opndoor's own staff see this panel for their colleagues; there is no
-  // customer ladder above them, so opndoor is the only answer.
-  if (kind === 'opndoor') return 'opndoor decides this.';
   return 'A Director, or opndoor, decides this.';
 }
 
 /** The same question about who is copied in. One sentence per estate. */
-export function whoDecidesCopies(kind: PartyKind): string {
+export function whoDecidesCopies(kind: PartyKind, viewerIsTop = false): string {
+  if (kind === 'opndoor' || viewerIsTop) return 'opndoor decides who is copied in.';
   if (kind === 'supplier') return 'Management decides who is copied in.';
-  if (kind === 'opndoor') return 'opndoor decides who is copied in.';
   return 'A Director decides who is copied in.';
 }

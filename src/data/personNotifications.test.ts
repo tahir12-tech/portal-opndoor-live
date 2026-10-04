@@ -13,7 +13,8 @@
  * way through. Each assertion is one answer that must survive.
  */
 import { describe, expect, it } from 'vitest';
-import { shapePanel } from './personNotifications';
+import { shapePanel, whoDecidesThis, whoDecidesCopies } from './personNotifications';
+import { readerIsTopOfEstate } from './capabilities';
 
 const RAW = {
   user_id: 'u-1',
@@ -83,5 +84,74 @@ describe('nothing is invented', () => {
     expect(p.mayEditEvents).toBe(false);
     expect(p.mayEditCopied).toBe(false);
     expect(p.mayEditStatements).toBe(false);
+  });
+});
+
+/* WHO DECIDES A SETTING THE READER CANNOT CHANGE.
+ *
+ * Matt (qq): 'on supplier people, "A Director, or Opndoor, decides this"
+ * should say "Management, or opndoor, decides this" (or "opndoor decides
+ * this" when it's a peer the viewer can't change)'.
+ *
+ * TWO FAULTS IN ONE SENTENCE, and the parenthesis is the harder one. The
+ * first is the agency ladder in supplier copy -- the fifth site of that
+ * today. The second is that naming Management to somebody who IS Management
+ * is a dead end: they look round the room and find the only Management is
+ * them and the colleague whose row they are reading.
+ *
+ * ON THE SUPPLIER RAIL THAT IS ALWAYS THE CASE for a Management reader,
+ * because Management is the top of that ladder. On the agency rail it
+ * depends: a Manager has a Director above them, a Director does not.
+ */
+describe('whoDecidesThis', () => {
+  it('names the agency ladder to an agency reader', () => {
+    expect(whoDecidesThis('agency')).toBe('A Director, or opndoor, decides this.');
+  });
+
+  it('and the supplier ladder to a supplier reader, in lowercase opndoor', () => {
+    expect(whoDecidesThis('supplier')).toBe('Management, or opndoor, decides this.');
+    expect(whoDecidesThis('supplier')).not.toContain('Director');
+    expect(whoDecidesThis('supplier')).not.toContain('Opndoor');
+  });
+
+  /* THE PEER CASE. A supplier's Management reading another Management's row
+     is Matt's exact scenario, and "Management decides this" tells them to
+     ask themselves. */
+  it('but names opndoor alone when the reader is already the top', () => {
+    expect(whoDecidesThis('supplier', true)).toBe('opndoor decides this.');
+    expect(whoDecidesThis('agency', true)).toBe('opndoor decides this.');
+  });
+
+  /* OPNDOOR'S OWN STAFF are not on a customer ladder at all, whichever way
+     the viewer flag is set. */
+  it('and always for opndoor staff, who have no customer ladder', () => {
+    expect(whoDecidesThis('opndoor')).toBe('opndoor decides this.');
+    expect(whoDecidesThis('opndoor', false)).toBe('opndoor decides this.');
+  });
+
+  it('with the copies sentence following the same two rules', () => {
+    expect(whoDecidesCopies('agency')).toBe('A Director decides who is copied in.');
+    expect(whoDecidesCopies('supplier')).toBe('Management decides who is copied in.');
+    expect(whoDecidesCopies('supplier', true)).toBe('opndoor decides who is copied in.');
+  });
+});
+
+/* AND WHO COUNTS AS THE TOP, which is the fact the sentence turns on.
+ * The two ladders END differently and that is the whole of it. */
+describe('readerIsTopOfEstate', () => {
+  it('a supplier Management is the top of their rail', () => {
+    expect(readerIsTopOfEstate('management', false, 'harbourside')).toBe(true);
+  });
+
+  it('an agency Director is, and an agency Manager is not', () => {
+    expect(readerIsTopOfEstate('management', true, 'opndoor-agents')).toBe(true);
+    expect(readerIsTopOfEstate('management', false, 'opndoor-agents')).toBe(false);
+  });
+
+  /* A REFERRER IS NEVER THE TOP, on either rail, however the other two
+     arguments fall. */
+  it('and a referrer never is, on either rail', () => {
+    expect(readerIsTopOfEstate('referrer', false, 'harbourside')).toBe(false);
+    expect(readerIsTopOfEstate('referrer', true, 'opndoor-agents')).toBe(false);
   });
 });

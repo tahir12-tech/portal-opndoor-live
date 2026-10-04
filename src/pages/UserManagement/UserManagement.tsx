@@ -20,7 +20,7 @@ import { PositionModal, type ScopeTarget } from './PositionModal';
 import { PersonNotifications } from '@/components/people/PersonNotifications';
 import * as positionsService from '@/data/positionsService';
 import { AGENCY_LEVELS, getAgencies, getGroups, isOpndoorStaff, levelsGrantableBy, mayActOn, mayActOnOrEqual, type Actor, type AgencyLevel } from '@/data';
-import { partyHasApi, partyIsSupplier } from '@/data/capabilities';
+import { partyHasApi, partyIsSupplier, readerIsTopOfEstate } from '@/data/capabilities';
 import { SupplierLevelOptions, supplierLevelsFor } from '@/pages/PartnerManagement/SupplierLevels';
 import { supplierLevelBlurb } from '@/data/levelLabel';
 import { isHousePartner } from '@/data/channel';
@@ -1139,6 +1139,11 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
           nothing on this table reads what it changes. */}
       {notifUser && (
         <PersonNotifications
+          /* (qq) Whether opndoor is the only level above this reader, which
+             decides whether a locked setting says "Management decides this"
+             or "opndoor decides this". The page knows the session; the
+             dialog is presentational and is told. */
+          viewerIsTop={readerIsTopOfEstate(role, seesCommission === true, partnerScope)}
           userId={notifUser.id}
           personName={notifUser.name || userEmail(notifUser)}
           onClose={() => setNotifUser(null)}

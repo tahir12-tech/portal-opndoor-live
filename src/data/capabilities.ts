@@ -398,3 +398,25 @@ export function whoSeesEverything(scope: PartnerScope): string {
     // the sentence still has to name a level the reader recognises.
     : 'Management sees all of your referrals';
 }
+
+/* IS THIS READER THE TOP OF THEIR OWN ESTATE?
+ *
+ * Matt (qq): when the subject of a locked setting is a peer the viewer
+ * cannot change, naming Management as the decider is wrong, because the
+ * viewer IS Management. Then it is opndoor alone.
+ *
+ * THE TWO LADDERS END DIFFERENTLY, which is the whole of it. A supplier's
+ * Management is the top of its rail -- nothing above them but us. An agency
+ * Manager has a Director above them; an agency Director does not, and
+ * `sees_commission` is what separates those two, as it does everywhere else.
+ *
+ * OPNDOOR'S OWN STAFF ARE NOT ON A CUSTOMER LADDER and are handled by the
+ * party kind at the call site, not here: this answers "top of their estate",
+ * and opndoor's estate is not one of the two shapes above.
+ */
+export function readerIsTopOfEstate(
+  role: Role, seesCommission: boolean, scope: PartnerScope,
+): boolean {
+  if (role !== 'management') return false;
+  return partyIsSupplier(scope) || seesCommission === true;
+}

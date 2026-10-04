@@ -62,6 +62,7 @@ import { PersonNotifications } from '@/components/people/PersonNotifications';
 import { viewerShape, type ViewerShape } from '@/data/viewerShape';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
 import { useSession } from '@/session/SessionContext';
+import { readerIsTopOfEstate } from '@/data/capabilities';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHead } from '@/components/ui/Card';
@@ -946,6 +947,11 @@ export function Team() {
 
       {notifUser && (
         <PersonNotifications
+          /* (qq) Whether opndoor is the only level above this reader, which
+             decides whether a locked setting says "Management decides this"
+             or "opndoor decides this". The page knows the session; the
+             dialog is presentational and is told. */
+          viewerIsTop={readerIsTopOfEstate(role, seesCommission === true, partnerScope)}
           userId={notifUser.id}
           personName={notifUser.name || userEmail(notifUser)}
           onClose={() => setNotifUser(null)}

@@ -42,10 +42,20 @@ export interface PersonNotificationsProps {
   userId: string;
   /** Used only until the panel loads, so the title is right immediately. */
   personName: string;
+  /* IS THERE ANYBODY ABOVE THE READER IN THEIR OWN ESTATE? Matt (qq): when
+     the subject is a peer the viewer cannot change, naming Management as the
+     decider is wrong, because the viewer IS Management.
+
+     A PROP RATHER THAN useSession, and the tests are why. Reading the
+     session in here made a presentational dialog depend on a provider, and
+     fourteen render tests that had never needed one broke at once. The
+     callers are pages; they already hold the session and the question is
+     about the reader, not about this dialog. */
+  viewerIsTop?: boolean;
   onClose: () => void;
 }
 
-export function PersonNotifications({ userId, personName, onClose }: PersonNotificationsProps) {
+export function PersonNotifications({ userId, personName, viewerIsTop = false, onClose }: PersonNotificationsProps) {
   const toast = useToast();
   const [panel, setPanel] = useState<PersonPanel>(EMPTY_PANEL);
   const [loading, setLoading] = useState(true);
@@ -102,7 +112,7 @@ export function PersonNotifications({ userId, personName, onClose }: PersonNotif
                 {/* SAID WHERE THE CONTROL IS. A disabled box with no
                     explanation is the thing item 9 objected to. */}
                 {!panel.mayEditCopied && (
-                  <span className="pn__locked">{whoDecidesCopies(panel.partyKind)}</span>
+                  <span className="pn__locked">{whoDecidesCopies(panel.partyKind, viewerIsTop)}</span>
                 )}
               </label>
             </section>
@@ -122,7 +132,7 @@ export function PersonNotifications({ userId, personName, onClose }: PersonNotif
                 />
                 <span className="pn__lbl">{COMMISSION_STATEMENT_LABEL}</span>
                 {!panel.mayEditStatements && (
-                  <span className="pn__locked">{whoDecidesThis(panel.partyKind)}</span>
+                  <span className="pn__locked">{whoDecidesThis(panel.partyKind, viewerIsTop)}</span>
                 )}
               </label>
             </section>

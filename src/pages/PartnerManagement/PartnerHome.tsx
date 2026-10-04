@@ -141,6 +141,7 @@ function AgencyContactLine({ agency }: { agency: Agency }) {
    applicationStatusLabel and applicationStageClass are the one answer, and
    every list that shows a stage now asks them. */
 import { agencyContactState } from '@/data/deedContact';
+import { readerIsTopOfEstate } from '@/data/capabilities';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions } from '@/components/people/PersonActions';
 import { useToast } from '@/components/ui/Toast';
@@ -201,7 +202,7 @@ const modeLabel = (m: ReferencingMode | undefined) => REFERENCING_MODES.find((x)
 
 export function PartnerHome() {
   const { key } = useParams<{ key: string }>();
-  const { role, dataVersion, refresh } = useSession();
+  const { role, seesCommission, partnerScope, dataVersion, refresh } = useSession();
   usePageMeta('partner-home', 'Supplier', ['Home', 'Relationships', 'Suppliers', 'Supplier']);
 
   const decoded = decodeURIComponent(key ?? '');
@@ -883,6 +884,11 @@ export function PartnerHome() {
       )}
       {notifFor && (
         <PersonNotifications
+          /* (qq) Whether opndoor is the only level above this reader, which
+             decides whether a locked setting says "Management decides this"
+             or "opndoor decides this". The page knows the session; the
+             dialog is presentational and is told. */
+          viewerIsTop={readerIsTopOfEstate(role, seesCommission === true, partnerScope)}
           userId={notifFor.id}
           personName={notifFor.name}
           onClose={() => setNotifFor(null)}

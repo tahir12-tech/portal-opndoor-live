@@ -62,7 +62,7 @@ import { liveByCustomer } from '@/data/liveAnalytics';
 import { agencyLevelOf, AGENCY_LEVELS, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
 import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import { getOrgDepartedReferrals, departedReferralsLine, type DepartedReferrals } from '@/data/positionsService';
-import { partyIsSupplier } from '@/data/capabilities';
+import { partyIsSupplier, readerIsTopOfEstate } from '@/data/capabilities';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions, type PersonAction } from '@/components/people/PersonActions';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
@@ -1948,6 +1948,11 @@ export function AgencyHome() {
           longer reads any of what it changes. */}
       {notifFor && (
         <PersonNotifications
+          /* (qq) Whether opndoor is the only level above this reader, which
+             decides whether a locked setting says "Management decides this"
+             or "opndoor decides this". The page knows the session; the
+             dialog is presentational and is told. */
+          viewerIsTop={readerIsTopOfEstate(role, seesCommission === true, partnerScope)}
           userId={notifFor.id}
           personName={notifFor.name}
           onClose={() => setNotifFor(null)}

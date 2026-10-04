@@ -19,16 +19,47 @@
    warn about. */
 
 .pn__list { list-style: none; margin: 0; padding: 0; }
-.pn__row { display: flex; align-items: flex-start; gap: 8px; padding: 5px 0; font-size: 13.5px; }
-.pn__row--ev { flex-wrap: wrap; }
+
+/* WRAPPING IS NOT DECORATION HERE, IT IS WHAT MAKES .pn__locked WORK.
+ *
+ * Matt, 2026-10-04 (qq): "the dialog's content is cut off on the left, with
+ * the title and labels clipped ('tions for Kestrel Director', 'tements').
+ * Fix the layout so the whole dialog shows at every screen width."
+ *
+ * `.pn__locked` below is `flex: 1 0 100%`, which is the idiom for "put me on
+ * my own line" -- and it only means that inside a WRAPPING flex container.
+ * This row did not wrap. So instead of dropping to its own line, the reason
+ * text became a 100%-wide item with flex-shrink 0 sitting alongside the
+ * checkbox and the label, and the row overflowed its container by about its
+ * own width. The modal is centred, so the overflow is split between the two
+ * sides and the left of the dialog goes off-screen: exactly the "cut off on
+ * the left" Matt saw, and exactly the characters missing from the title.
+ *
+ * WHICH IS WHY HE ONLY SAW IT ON SOMEBODY ELSE'S ROW. `.pn__locked` is
+ * rendered only when the viewer may NOT edit the setting, so the dialog is
+ * fine on every person you can change and breaks on every peer. Kestrel
+ * Management opening another Management user is precisely that case.
+ *
+ * THE MODIFIER THAT USED TO CARRY THE WRAP was `.pn__row--ev`, on the event
+ * rows -- which also hold a `.pn__locked`, so this had been met once and
+ * fixed in one of the two places it occurs. Wrapping belongs on the row, so
+ * the rule is gone from here. The CLASS stays in the markup:
+ * personNotifications.render.test.tsx selects `.pn__row--ev input` to count
+ * the event checkboxes, so it is a test hook now rather than a style. */
+.pn__row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; padding: 5px 0; font-size: 13.5px; }
 .pn__row input { margin-top: 2px; flex: 0 0 auto; }
-.pn__lbl { flex: 1 1 auto; }
+/* AND THE LABEL MUST BE ALLOWED TO BE NARROW. `flex: 1 1 auto` lets it
+   shrink, but its min-width is auto, so a long unbroken label still pushes
+   the row wider than the dialog. */
+.pn__lbl { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 
 /* ITEM 9: "ticked boxes can't be unticked and nothing says why". The reason
    sits with the box, on its own line under the label, rather than being a
    badge whose meaning the reader has to guess. */
 .pn__locked {
   flex: 1 0 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin-left: 22px;
   font-size: 12px;
   color: var(--ink-mute);
