@@ -4105,6 +4105,40 @@ both estates, the dialog, and FAQ 9 on both rails.
 - SINGULAR AND PLURAL BOTH: "1 paid referral (1 refunded)" has to read as
   English, which is what theCountsReadAsEnglish exists to enforce.
 
+### (az) The cascade works; now tidy how a refund shows
+
+> Refund cascade works (GR-23853 refunded in Stripe, GR-23854 followed automatically). Tidy how refunds show:
+> 1) Applications list and application header: a refunded application shows one status, "Refunded", not "Deed Issued / Paid + Refunded + Not paid" (e.g. GR-25235, GR-23853, GR-23854). The status timeline's last step says "Cancelled: fee refunded", not "Awaiting deed".
+> 2) Application page: hide Send deed / Resend deed on a cancelled deed; keep Download as "Download cancelled deed"; guarantee details show "Cancelled on 4 Oct 2026" instead of expiry, "Pending" or guaranteed rent.
+> 3) A deed that was never signed and got cancelled by a refund says "Signing cancelled: fee refunded", not "Deed document voided in PandaDoc. Review required." Only show "Review required" when something actually needs a person.
+> 4) Tenancy box: every refunded tenant shows "Cancelled: fee refunded" (not "Deed voided").
+> 5) Replace "The Sent to Paid transition is not reversed (by design)" with plain English or remove it; "listing all 2 tenants" → "listing both tenants".
+> 6) Check Reporting's rent in force and the bordereau leave cancelled deeds out.
+> GR-25235 was refunded before the cascade existed, so its co-tenants weren't refunded; leave them as they are.
+
+- **THE CASCADE IS CONFIRMED WORKING END TO END**, by Matt in Stripe test
+  mode: GR-23853 refunded by hand, GR-23854 followed automatically. That
+  closes the one leg of (al) I could not pull.
+- **ITEM 1 IS THE REAL ONE AND IT IS NOT A LABEL.** "Deed Issued / Paid +
+  Refunded + Not paid" on one row is three facts from three different
+  columns rendered side by side, each true in isolation. The row needs ONE
+  answer, which means something has to decide which fact wins, and that
+  decision does not exist yet.
+- ITEM 3 IS A DISTINCTION I DID NOT DRAW. A deed voided because the tenant
+  was refunded is a settled outcome; a deed voided for any other reason
+  needs somebody. I put cancelled on its own card but left the never-signed
+  case in the anomaly branch, so it still shouts.
+- ITEM 6 IS A CHECK, NOT A CHANGE, and I believe both already hold:
+  `inForceDuring` now ends cover at the refund date, so a cancelled deed
+  drops out of every period after it. Worth proving rather than asserting,
+  because I changed that rule today.
+- ITEM 5's FIRST HALF IS INTERNAL VOCABULARY ON A CUSTOMER SCREEN, the same
+  fault as "partner"; the second half is the countOf idiom missing a case.
+- **"LEAVE GR-25235's CO-TENANTS AS THEY ARE" IS AN INSTRUCTION NOT TO
+  TIDY.** It was refunded before the cascade existed, so Wayne and Kelly are
+  still paid with live deeds. That is a true record of what happened and
+  must not be back-filled.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
