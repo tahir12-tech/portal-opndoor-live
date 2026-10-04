@@ -2304,6 +2304,23 @@ sign-in are unexercised. Somebody has to click it.
   would take" means the After launch entry has to be good enough to build
   from.
 
+## OFFICES WITH THE SAME NAME ARE DIFFERENT OFFICES (instruction, 2026-10-04, verbatim).
+
+> Applications Branch filter (admin, Origin: Everything): offices with the same name in different estates are merged into one entry (two "Frost Mayfair" offices show as one). List each office separately and label supplier-estate ones, e.g. "Frost Mayfair (via Kestrel Lettings)", and filter by the office's id, not its name.
+> Check the same on every filter and picker that lists agencies or offices.
+
+- THIS IS A CORRECTNESS BUG, not a labelling one, and the second half of his
+  sentence is the half that matters: filtering BY NAME means choosing one
+  Frost Mayfair filters both of them. An admin narrowing to Kestrel's office
+  is shown our own Frost's referrals as well.
+- IT IS THE SAME ROOT AS THE OFFICE-NAMING WORK, one level up: a name stopped
+  being an identity on 2026-10-01 when the two estates landed, and every
+  surface that still keys on one has to be found.
+- "EVERY FILTER AND PICKER" IS THE DELIVERABLE, so the sweep is listed by
+  name and anything left keyed on a name is said out loud rather than missed.
+- `viaSupplier` ALREADY EXISTS for exactly this label and is used in the
+  exports; the filters are where it was never applied.
+
 ## THE CATCH-UP DECISION (instruction, 2026-10-04, verbatim). STAYS UNDER AFTER LAUNCH.
 
 > Catch-up decision: roll late payees into the next month's statement and settlement, with a line on the statement saying which month the late item belongs to. Keep it under "After launch".
