@@ -3634,6 +3634,50 @@ and the three creation paths say no. Not guessing on a money record.
 - THE WORKED EXAMPLE IS GR-25235's TENANCY: GR-25234 and GR-25236 should
   come out refunded.
 
+#### (ak) + (al) BUILT, with one leg I cannot pull
+
+Five migrations, three pgTAP files, the webhook, two email templates and
+every screen that renders a deed state.
+
+- **GR-25235 IS FIXED ON DEV, for real and not in a transaction.** It was
+  sitting there refunded this afternoon and still reading "Deed executed".
+  It now reads `deed_state = 'cancelled'`, dated, with a business-visible
+  activity row. Its two co-tenants are untouched and still executed.
+- **THE STRIPE LEG IS NOT EXERCISED, and that is the one thing outstanding.**
+  Taking the real test-mode refunds needs either the Stripe secret key or a
+  signed webhook, and fetching credentials was refused earlier in the session
+  -- correctly. **The way to finish it in two minutes: refund GR-25234 in the
+  Stripe test dashboard.** That fires a real `charge.refunded` at the
+  deployed webhook, which cancels its deed and cascades to GR-25236. Nothing
+  else is needed from me.
+- WHAT THE CASCADE WOULD DO, measured on dev and rolled back: enrols exactly
+  GR-25234 (pi_3UMVK4..., GBP 346.15) and GR-25236 (pi_3UMVOu..., GBP
+  2,423.08), each with a derived idempotency key, triggered by GR-25235.
+  Nobody else, and not GR-25235 itself.
+- THE ONE-PER-PROPERTY EMAIL resolves to hello@example.com for "3 Waldorf
+  Heights, GU17 9JQ", listing all three tenants, no landlord (none was ever
+  sent a deed). Note the agent address is the dev seed one, so this is also
+  a reminder that dev's contact data is dev's.
+- **MOST OF (ak) ITEM 5 WAS ALREADY BUILT AND I NEARLY REBUILT IT.** Refunded
+  rows have always been excluded from an unposted month's statement, and
+  20261007180000 already wires `raise_refund_after_statement` into
+  `apply_stripe_refund` for a posted one. Nothing in these commits touches
+  commission; two assertions prove it rather than a comment claiming it.
+- A RETRY CEILING I HAD MISSED: a permanent Stripe refusal would have been
+  retried on every refund webhook forever, raising an alert each time and
+  burying itself. Five attempts, then it stops asking and stays on Home.
+- THE BORDEREAU CHANGE IS BIGGER THAN A LABEL. "from the refund date" is a
+  different rule from what was there: a refunded guarantee used to vanish
+  from EVERY month including the ones it ran in. It now comes off from the
+  refund date, so the months the underwriter was actually on risk still
+  report.
+
+#### STILL TO DO on these two
+
+- **Exports.** (ak) says "exports" and they still render the old deed
+  labels. Next, in block 3.
+- The Stripe leg above.
+
 ### (am) Reconciliation should say whose, what, and who
 
 > Reconciliation: 1) show which supplier each new agency or office belongs to ("Kestrel Lettings · Test Test Test"); 2) an agency's automatic first office (created with it) is confirmed together with the agency, not listed separately; offices added later are listed on their own; 3) "created by A referrer" must name the person who created it.
