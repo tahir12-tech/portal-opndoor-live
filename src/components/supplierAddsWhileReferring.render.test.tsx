@@ -70,6 +70,21 @@ const OURS: OrgShape = {
   mayAddAgency: false,
 };
 
+/* KESTREL'S SHAPE, AND THE REASON THIS FILE WENT GREEN WHILE THE SCREEN WAS
+   WRONG. Every fixture here had refersOwnStock and mayAddAgency agreeing:
+   FULL_PICKER has both false-ish, OURS has own-stock true and may-add false.
+   Kestrel is the combination nobody had written down -- a supplier that OWNS
+   some of the stock it refers and still holds an estate of agencies it does
+   not own -- so the picker's `ownStockViewer` test, which read ownership
+   alone, sent them to the form built for people who cannot add. */
+const OWN_STOCK_SUPPLIER: OrgShape = {
+  ...FULL_PICKER,
+  refersOwnStock: true,
+  agencyCount: 4,
+  branchCount: 5,
+  mayAddAgency: true,
+};
+
 import { AgentBranchPicker } from './AgentBranchPicker';
 import { SessionProvider } from '@/session/SessionContext';
 
@@ -234,6 +249,42 @@ describe('a supplier’s own management', () => {
     fireEvent.change(field, { target: { value: AGENCY } });
     fireEvent.keyDown(field, { key: 'Enter' });
     await waitFor(() => expect(btn(/Add a new office/)).toBeTruthy());
+  });
+});
+
+describe('a supplier that also owns stock', () => {
+  /* Matt, 2026-10-04: "Signed in as Kestrel Management (test@kestrel.com),
+     New application still says 'Your own agencies. A new agency is set up by
+     opndoor, not here' with no way to add an agency or office, though item 3
+     was reported done."
+
+     Measured on dev as that user: may_add_agency false, refers_own_stock
+     true. 20261008040000 fixes the server's half, and ownStockViewer the
+     client's. */
+  it('is offered the add route, not the no-add form', async () => {
+    role = 'management';
+    scope = SUPPLIER;
+    shapeAnswer = OWN_STOCK_SUPPLIER;
+    open(SUPPLIER);
+    await settled();
+    /* BOTH HALVES. The sentence going is the branch changing; the button
+       arriving is the feature actually reachable. Asserting only the absence
+       would pass on a form that offers nothing and explains nothing, which is
+       a worse screen than the one being fixed. */
+    expect(body()).not.toMatch(/A new agency is set up by opndoor, not here/);
+    expect(btn(/Add a new agency/)).toBeTruthy();
+  });
+
+  /* THE REFERRER TOO, which Matt's proof asks for by name: adding the agency
+     you are referring for is not a management-only act. */
+  it('and so is a supplier Referrer', async () => {
+    role = 'referrer';
+    scope = SUPPLIER;
+    shapeAnswer = OWN_STOCK_SUPPLIER;
+    open(SUPPLIER);
+    await settled();
+    expect(body()).not.toMatch(/A new agency is set up by opndoor, not here/);
+    expect(btn(/Add a new agency/)).toBeTruthy();
   });
 });
 

@@ -139,7 +139,21 @@ export async function loadOrgShape(partnerId?: string | null): Promise<OrgShape>
 
 /** One of OUR agencies, on the agent rail, referring its own stock. */
 export function ownStockViewer(shape: OrgShape): boolean {
-  return shape.resolved && shape.refersOwnStock;
+  /* THE PLAIN-SELECT FORM IS FOR A VIEWER WHO CANNOT ADD, which is not the
+     same set as "refers its own stock" and was being treated as if it were.
+
+     That branch exists because our own agencies' people cannot invent an
+     agency: `agencies_insert` and `create_referral_target` refuse it in SQL,
+     so a type-ahead offering to create one would offer something the database
+     turns down. The test for it is therefore "may not add", and ownership is
+     only a proxy for that.
+
+     IT STOPPED BEING A GOOD PROXY AT KESTREL, who own stock they refer AND
+     hold an estate of agencies they do not own. They got the form built for
+     people who cannot add, and the sentence "A new agency is set up by
+     opndoor, not here", while being exactly the party the add route was built
+     for. 20261008040000 fixes the server's half; this is the client's. */
+  return shape.resolved && shape.refersOwnStock && !shape.mayAddAgency;
 }
 
 /** May this viewer invent an agency while filing a referral? A supplier, yes:
