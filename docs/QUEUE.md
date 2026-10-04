@@ -4711,6 +4711,22 @@ both estates, the dialog, and FAQ 9 on both rails.
   supplier Referrals, for every level that can see the tab. Two of
   those combinations are the ones he has now reported twice.
 
+### (ci) A supplier-estate agency inherits, and the server must enforce it
+
+> Supplier-estate agency Overview (e.g. Test Lettings asda under Kestrel, as admin): 1) remove the "How are [agency]'s tenants checked?" choice. It follows the supplier's setting; show "Checked as Kestrel Lettings sets it: they check tenants, Opndoor accepts them as sent" with a link to Kestrel's Settings. Make the server refuse setting a referencing mode on any supplier-estate agency or office, so the inheritance fix can't be undone by a click. 2) remove "Invite agency manager" and "Add another agency (creates a group)" for supplier-estate agencies; they have no logins and sit under the supplier.
+
+- **"SO THE INHERITANCE FIX CAN'T BE UNDONE BY A CLICK" IS THE WHOLE
+  INSTRUCTION.** Hiding the control is the cosmetic half; the binding
+  half is `set_agency_referencing_mode` refusing a supplier-estate
+  target. Exactly the shape of (gg): remove the editor AND close the
+  door behind it.
+- IT IS THE SAME RULE AS (gg) AND (kk) ON A THIRD FIELD -- deal,
+  commission display, now referencing mode -- so `dealIsSetBySupplier`
+  has a sibling, or a better name.
+- (2) FOLLOWS FROM "THEY HAVE NO LOGINS", which `hasLogins` already
+  knows and the People tab already obeys. Two more controls that the
+  same predicate should have taken away.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
