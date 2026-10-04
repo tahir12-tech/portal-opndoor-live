@@ -1050,6 +1050,39 @@ export function referrerPaidEmail(p: {
   }, p.portalUrl);
 }
 
+/**
+ * THE TENANCY START MOVED, told to the people who are answerable for it.
+ *
+ * Matt, 2026-10-04, verbatim: "[Tenant]'s tenancy start at [property] has
+ * changed from 16 Oct 2026 to 17 Oct 2026 by [who]. A corrected deed has been
+ * sent to the tenant to sign."
+ *
+ * THE LAST SENTENCE IS CONDITIONAL, which his example cannot show because his
+ * example had a deed. An amendment before the fee is paid reissues nothing,
+ * and promising a corrected deed that was never sent would have the agent
+ * waiting for a signature nobody was asked for.
+ *
+ * `tenancy_correction` HAS BEEN IN THE PREFERENCE MATRIX SINCE 20261006510000
+ * and nothing ever sent it, so every agent has had a switch for a
+ * notification that did not exist.
+ */
+export function referrerCorrectedEmail(p: {
+  guaranteeRef: string; tenantName: string; propertyAddr: string; portalUrl?: string;
+  oldDate: string; newDate: string; by: string; deedReissued: boolean;
+}): Message {
+  const deedLine = p.deedReissued
+    ? " A corrected deed has been sent to the tenant to sign."
+    : "";
+  return withAction({
+    subject: `Tenancy start corrected for ${p.tenantName}`,
+    heading: "The tenancy start date has changed",
+    blocks: [
+      { p: `${p.tenantName}'s tenancy start at ${p.propertyAddr} has changed from ${p.oldDate} to ${p.newDate} by ${p.by}.${deedLine}` },
+      { rows: referrerRows(p.guaranteeRef, p.tenantName, p.propertyAddr) },
+    ],
+  }, p.portalUrl);
+}
+
 /* ---- partner and staff --------------------------------------------------- */
 
 /* Google Authenticator's own store pages. Mirrored in src/pages/Login/Login.tsx,

@@ -1,7 +1,7 @@
 import { sendMessage } from "./mailer.ts";
-import { referrerSubmittedEmail, referrerDecisionEmail, referrerPaidEmail } from "./emailTemplates.ts";
+import { referrerSubmittedEmail, referrerDecisionEmail, referrerPaidEmail, referrerCorrectedEmail } from "./emailTemplates.ts";
 
-export type ReferrerEvent = "submitted" | "approved" | "declined" | "paid";
+export type ReferrerEvent = "submitted" | "approved" | "declined" | "paid" | "corrected";
 
 /* The lifecycle event, as the matrix names it. One map, so a send path and a
    switch on a screen cannot mean different things by the same word. */
@@ -10,6 +10,12 @@ const NOTIFICATION_TYPE: Record<ReferrerEvent, string> = {
   approved: "approved",
   declined: "decline",
   paid: "paid",
+  /* THE TYPE ALREADY EXISTED AND NOTHING SENT IT. 'tenancy_correction',
+     "Tenancy start corrected", has been in the preference matrix since
+     20261006510000, so every agent has had a switch for a notification that
+     was never sent. Matt, 2026-10-04: "GR-25834's change at 18:00 didn't
+     email barb." */
+  corrected: "tenancy_correction",
 };
 
 // Email the referrer (the agent who made the referral) at a lifecycle point:
@@ -21,7 +27,13 @@ const NOTIFICATION_TYPE: Record<ReferrerEvent, string> = {
 // address in test mode). Never throws into the caller: the lifecycle transition
 // has already committed, so a notification failure is logged, not propagated.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function notifyReferrer(service: any, appId: string, event: ReferrerEvent): Promise<void> {
+/** What a correction has to say that the other four do not: the two dates,
+    who moved them, and whether a replacement deed is now waiting. */
+export interface CorrectionFacts { oldDate: string; newDate: string; by: string; deedReissued: boolean }
+
+export async function notifyReferrer(
+  service: any, appId: string, event: ReferrerEvent, facts?: CorrectionFacts,
+): Promise<void> {
   try {
     const { data: app } = await service.from("applications")
       .select("guarantee_ref, livemode, tenant_first_name, tenant_last_name, prop_addr1, prop_postcode, tenancy_id")
@@ -58,6 +70,10 @@ export async function notifyReferrer(service: any, appId: string, event: Referre
       .map((r) => (r.email ?? "").trim())
       .filter((e) => e.length > 0);
     if (!recipients.length) return;
+    /* A CORRECTION WITHOUT ITS DATES CANNOT BE WRITTEN, and a half-written
+       one is worse than none: the whole value of this notice is the two
+       dates. Refuse rather than send "changed from undefined". */
+    if (event === "corrected" && !facts) return;
     const tenantName = `${app.tenant_first_name ?? ""} ${app.tenant_last_name ?? ""}`.trim() || "your tenant";
     const propertyAddr = [app.prop_addr1, app.prop_postcode].filter(Boolean).join(", ");
     const appBase = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
@@ -82,6 +98,7 @@ export async function notifyReferrer(service: any, appId: string, event: Referre
     }
     const message = event === "submitted" ? referrerSubmittedEmail(common)
       : event === "paid" ? referrerPaidEmail({ ...common, joint })
+      : event === "corrected" ? referrerCorrectedEmail({ ...common, ...facts! })
       : referrerDecisionEmail({ ...common, approved: event === "approved" });
     // ONE SEND WITH EACH AS A RECIPIENT, the shape every other
     // per-application notification uses and the one the deed rule specified.

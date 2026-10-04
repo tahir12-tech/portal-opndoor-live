@@ -13,6 +13,7 @@
 //   - otherwise (Sent, or Paid with no live deed): the date update alone.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { notifyReferrer } from "../_shared/referrerNotify.ts";
 import { voidDocument, generateDeed } from "../_shared/pandadoc.ts";
 
 const cors = {
@@ -168,6 +169,19 @@ Deno.serve(async (req) => {
         return json({ ok: false, error: `Tenancy start amended${archived ? " and the signed deed archived" : ""}, but the replacement failed: ${gen.error}` }, 200);
       }
       await logAmend(` ${archivePhrase} replacement was reissued for signing.`);
+    /* AND TELL THE PEOPLE ANSWERABLE FOR IT. Matt, 2026-10-04: "email the
+       referrer and anyone copied on that referral who has 'Tenancy start
+       corrected' on ... GR-25834's change at 18:00 didn't email barb."
+
+       NOTHING EVER SENT THIS. The type has been in the preference matrix
+       since 20261006510000, so every agent has had a switch for a
+       notification that did not exist. notifyReferrer applies the matrix, so
+       who hears is their setting rather than this code's opinion, and it
+       refuses to email about a sandbox application.
+
+       AFTER the deed work, so `deedReissued` states what actually happened
+       rather than what was about to be attempted. */
+      await notifyReferrer(service, app.id, "corrected", { oldDate: oldDmy, newDate: newDmy, by: actor, deedReissued: true });
       return json({ ok: true, message: `Tenancy start amended.${archived ? " The signed deed was archived and a replacement" : " A replacement deed was"} sent to the tenant to sign.` });
     }
 
@@ -202,11 +216,13 @@ Deno.serve(async (req) => {
       // row, matching the executed branch and the one-business-entry-per-amend rule.
       await service.from("activity_log").insert({ application_id: app.id, kind: "deed_regenerated", message: "Deed regenerated after tenancy amendment.", actor, visibility: "internal" });
       await logAmend(" The outstanding deed was replaced with a corrected one for signing.");
+      await notifyReferrer(service, app.id, "corrected", { oldDate: oldDmy, newDate: newDmy, by: actor, deedReissued: true });
       return json({ ok: true, message: "Tenancy start amended. The outstanding deed was replaced with a corrected one." });
     }
 
     // Sent, or Paid with no live deed (error / declined / voided / none): no reissue.
     await logAmend("");
+    await notifyReferrer(service, app.id, "corrected", { oldDate: oldDmy, newDate: newDmy, by: actor, deedReissued: false });
     return json({ ok: true, message: "Tenancy start amended." });
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "Unexpected error." }, 500);
