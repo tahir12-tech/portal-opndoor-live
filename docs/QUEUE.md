@@ -3325,6 +3325,18 @@ the one real assertion that has never run.
   offering to narrow by something that never differs is worse than a column
   that merely repeats.
 
+### (uu) The Agencies page for a supplier Referrer
+
+> Agencies page for supplier Referrers: "You can view every agency and office. To add a new one, use 'Add a new agency' while sending a referral; editing is done by your Management team."
+
+- STATES THE THREE FACTS A REFERRER NEEDS on one screen: they see
+  everything, they add from the referral form, and editing is Management's.
+- DEPENDS ON (ii) AND (ll) BEING TRUE: the add route is the one fixed in
+  20261008040000, and "editing is done by your Management team" is the
+  permission (ll) introduces. Writing it before those are real would be
+  promising something the product does not do.
+- "Management team", correctly, not Director: the supplier ladder again.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
