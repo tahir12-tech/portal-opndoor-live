@@ -3503,6 +3503,46 @@ the one real assertion that has never run.
 - MATTERS MORE THAN A HEADER USUALLY WOULD, because it is the sentence an
   agent reads just before telling a tenant what they are signing.
 
+### (ag) The payment-received email should let them sign, and name the agency
+
+> Tenant "Payment received" email: add a "Sign your Deed of Guarantee" button that opens their signing page (the same as "Sign your deed now" on the payment confirmation page), and say "Once you've signed, Regent's Lettings receives the signed deed" (naming the agency) instead of "the contact on your tenancy".
+
+- THE BUTTON EXISTS ALREADY on two surfaces: the post-checkout page
+  (`requestSigningLink`, from a Stripe session) and the saved pay link
+  (`requestSigningLinkByToken`, added for exactly this reason). The EMAIL is
+  the third place a tenant arrives from and has neither, so this is giving
+  the email the door the pages already have.
+- "THE CONTACT ON YOUR TENANCY" IS A HEDGE WE NO LONGER NEED: the agency is
+  known, and the tenant knows the agency's name rather than ours.
+- THE AGENCY, NOT THE GROUP, as in every other tenant-facing sentence.
+
+### (ah) FOUND WHILE TESTING: a supplier referral writes no supplier line
+
+NOT AN INSTRUCTION. Raised by one failing pgTAP assertion after Matt created
+GR-25831 through the portal.
+
+`the_supplier_commission_is_stored` asserts that every supplier-estate
+application with a fee carries its 'supplier' commission line. GR-25831 does
+not, and it is the first supplier referral ever created on dev through the
+portal's own single path: the others were seeded.
+
+`create_referral` calls `freeze_commission_lines` only `if v_estate`, and
+v_estate is FALSE for a supplier. So the supplier's own record of what
+opndoor owes it is never written for a portal-created supplier referral.
+`create_referral_api` does the same. And 20261008010000 made
+`create_joint_referral` match them, on Matt's instruction to apply the same
+estate check, so the joint path now behaves the same way.
+
+**THE IMPACT IS NARROWER THAN IT LOOKS AND IS WORTH SAYING: the supplier
+STATEMENT does not read these lines.** `supplier_statement_lines` computes
+from the application's own fee and rates, so the money is right. What is
+missing is the stored per-agency record the schedules are described as being
+built from.
+
+SO THE QUESTION IS MATT'S, and it is not one his instruction answered:
+should a supplier referral freeze its commission lines? The test says yes
+and the three creation paths say no. Not guessing on a money record.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
