@@ -13,7 +13,7 @@
    ===================================================================== */
 import { gbpPence, formatDate, formatLongDate } from '@/lib/format';
 import type { CommissionLine, ApplicationDetail, ApplicationSummary, DeedState, PartnerScope, Role, Status, WithdrawReason } from './types';
-import { ALL_PARTNERS } from './types';
+import { ALL_PARTNERS, isOpndoorStaff } from './types';
 import { AGENT_ADDR, APPLICATION_RECORDS as RECORDS_SEED, APPLICATIONS_LIST as LIST_SEED, type AppRecord } from './mock/applications';
 import { getPartner, partnerName } from './partnersService';
 import { channelOf, type Channel } from './channel';
@@ -1152,7 +1152,7 @@ export async function sendDeedToLandlord(ref: string, name: string, email: strin
  *   whether or not the deed is signed. While a deed is awaiting signature the
  *   outstanding document is voided and regenerated; a signed one is archived
  *   and replaced. Both still happen, they just no longer decide WHO may ask.
- * - On or after the start date: an opndoor ADMIN only. `expiry_date` is
+ * - On or after the start date: opndoor staff only. `expiry_date` is
  *   GENERATED from this date, so moving it changes the cover on a live
  *   guarantee the underwriter already holds on the bordereau.
  *
@@ -1160,12 +1160,13 @@ export async function sendDeedToLandlord(ref: string, name: string, email: strin
  * deed before the tenancy begins, which was management-only; and nobody
  * outside opndoor may touch one after it begins, which anybody in role could.
  *
- * NOT isOpndoorStaff(), WHICH WOULD INCLUDE opndoor_manager. The RPC's reach
- * guard is is_admin(), and an opndoor manager has never been able to amend a
- * start date on any application, started or not. Writing the wider predicate
- * here would offer them a dialog the server then refuses. Flagged for Matt in
- * 20261008090000 rather than quietly widened; if the answer is that they
- * should, it is this line and the RPC's reach guard.
+ * isOpndoorStaff, WHICH INCLUDES opndoor_manager. Matt, 2026-10-04: "any
+ * Opndoor staff (admins and opndoor managers) can change a start date at any
+ * time ... Widen amend_tenancy_start's guard to match." I first wrote this as
+ * superadmin alone, because the RPC's reach guard was is_admin() and the
+ * wider predicate would have offered a manager a dialog the server refused.
+ * 20261008100000 moved the guard to is_opndoor_staff() instead, so the two
+ * now say the same thing -- which is the only reason this line is safe.
  *
  * `started` IS ABOUT THE DATE ON THE RECORD, never the one being typed.
  *
@@ -1176,7 +1177,7 @@ export function canAmendTenancyStart(
   role: Role, _status: Status, ownedByReferrer: boolean,
   _deedState: string | null = null, started = false,
 ): boolean {
-  if (started) return role === 'superadmin';
+  if (started) return isOpndoorStaff(role);
   return mayAmendBeforeStart(role, ownedByReferrer);
 }
 
@@ -1190,7 +1191,10 @@ export function canAmendTenancyStart(
 /** The rule before the tenancy begins, shared so there is one copy of it. */
 function mayAmendBeforeStart(role: Role, ownedByReferrer: boolean): boolean {
   // Positive. The bare `true` granted this to every non-referrer role.
-  return role === 'referrer' ? ownedByReferrer : role === 'superadmin' || role === 'management';
+  // "At any time" covers before the start too, so opndoor staff are in here
+  // as well, where an opndoor manager used to be excluded along with everyone
+  // outside the agency's own management.
+  return role === 'referrer' ? ownedByReferrer : isOpndoorStaff(role) || role === 'management';
 }
 
 /**
@@ -1208,7 +1212,7 @@ function mayAmendBeforeStart(role: Role, ownedByReferrer: boolean): boolean {
  */
 export function amendStartBlockedReason(role: Role, ownedByReferrer: boolean, started: boolean): string | null {
   if (!started) return null;
-  if (role === 'superadmin') return null;
+  if (isOpndoorStaff(role)) return null;
   // Would they have been allowed before the start date? Only then is the start
   // date the thing standing in their way, and only then is it worth saying.
   if (!mayAmendBeforeStart(role, ownedByReferrer)) return null;

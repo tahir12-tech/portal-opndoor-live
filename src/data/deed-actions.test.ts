@@ -60,10 +60,17 @@ describe('Amend boundary (canAmendTenancyStart) turns on the start date', () => 
     // THE NARROWING. All three of these could amend the day before.
     expect(canAmendTenancyStart('referrer', 'paid', true, null, true)).toBe(false);
     expect(canAmendTenancyStart('management', 'deed', false, 'executed', true)).toBe(false);
-    // Not isOpndoorStaff: the RPC's reach guard is is_admin(), so an opndoor
-    // manager has never been able to amend a start date at all.
-    expect(canAmendTenancyStart('opndoor_manager', 'paid', false, null, true)).toBe(false);
+    // BOTH STAFF ROLES. Matt, 2026-10-04: "any Opndoor staff (admins and
+    // opndoor managers) can change a start date at any time". This asserted
+    // false until 20261008100000 widened the RPC's reach guard from
+    // is_admin() to is_opndoor_staff(); the predicate could not say yes
+    // before the guard did.
+    expect(canAmendTenancyStart('opndoor_manager', 'paid', false, null, true)).toBe(true);
     expect(canAmendTenancyStart('superadmin', 'deed', false, 'executed', true)).toBe(true);
+  });
+  it('and opndoor staff may before the start as well, which "at any time" covers', () => {
+    expect(canAmendTenancyStart('opndoor_manager', 'paid', false, null, false)).toBe(true);
+    expect(canAmendTenancyStart('opndoor_manager', 'deed', false, 'executed', false)).toBe(true);
   });
   it('management still amends a signed deed before the start', () => {
     expect(canAmendTenancyStart('management', 'deed', false, 'executed')).toBe(true);
@@ -91,8 +98,9 @@ describe('amendStartBlockedReason says why, to the right people', () => {
   });
   it('says nothing to someone who may still do it, or never could', () => {
     expect(amendStartBlockedReason('superadmin', false, true)).toBeNull();
+    // Staff, so nothing is blocking them and there is nothing to explain.
+    expect(amendStartBlockedReason('opndoor_manager', false, true)).toBeNull();
     // Not theirs. The start date is not what is stopping them.
     expect(amendStartBlockedReason('referrer', false, true)).toBeNull();
-    expect(amendStartBlockedReason('opndoor_manager', false, true)).toBeNull();
   });
 });

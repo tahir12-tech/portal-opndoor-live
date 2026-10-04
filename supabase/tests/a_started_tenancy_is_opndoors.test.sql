@@ -21,12 +21,13 @@
 --         SIGNED deed, which used to be refused outright
 --   5, 6  after the start, neither may, which used to be allowed
 --   7, 8  after the start, an opndoor ADMIN still may, because somebody has to
---   9     and an opndoor MANAGER does not, which is not this rule's doing:
---         amend_tenancy_start's reach guard is is_admin(), so they could
---         never amend a start date on any application. Asserted because
---         "only Opndoor staff can" reads wider than what the estate does,
---         and the next person to read the rule deserves to find that here
---         rather than in a support ticket.
+--   9     and so may an opndoor MANAGER, which is Matt's 2026-10-04 ruling:
+--         "any Opndoor staff (admins and opndoor managers) can change a
+--         start date at any time". That assertion used to say the opposite,
+--         and it is the reason this one exists: the reach guard was
+--         is_admin(), so an opndoor manager was refused before the
+--         predicate was consulted. Guard and predicate now agree, and this
+--         is where that is proved rather than assumed.
 --
 -- DATES ARE RELATIVE TO current_date throughout. A fixture with a hardcoded
 -- 2026-08-01 in it tests "started" today and "not started" if anyone ever
@@ -34,7 +35,7 @@
 -- relationship between two dates, so the fixture states the relationship.
 
 begin;
-select plan(10);
+select plan(11);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
                              is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled, partner_kind)
@@ -111,10 +112,10 @@ select is(
      from (values ('referrer'),('management'),('opndoor_manager'),('superadmin')) as a(r)
      cross join (values (false),(true)) as b(st)),
   'management/before=true management/started=false '
-  || 'opndoor_manager/before=false opndoor_manager/started=false '
+  || 'opndoor_manager/before=true opndoor_manager/started=true '
   || 'referrer/before=true referrer/started=false '
   || 'superadmin/before=true superadmin/started=true',
-  'the rule in full: before the start everyone in role may, after it the admin alone');
+  'the rule in full: before the start everyone in role may, after it opndoor staff alone');
 
 -- ===========================================================================
 -- 2-3. BEFORE THE START, A SIGNED DEED IS AMENDABLE BY THE AGENCY. This is
@@ -187,26 +188,32 @@ select is(
   'and it moved');
 
 -- ===========================================================================
--- 9. AN OPNDOOR MANAGER IS NOT "OPNDOOR STAFF" ON THIS PATH, and saying so
---    out loud is the point of the assertion. is_opndoor_staff() and the
---    client's isOpndoorStaff() both include opndoor_manager; the reach guard
---    in amend_tenancy_start is is_admin() and always has been, so they have
---    never been able to amend a start date on any application, before or
---    after it begins. Today's rule did not take this away and does not give
---    it. If Matt wants them included, this assertion is where it shows.
+-- 9. AN OPNDOOR MANAGER IS OPNDOOR STAFF, which is the whole of Matt's
+--    2026-10-04 ruling and the thing this file previously asserted the
+--    opposite of.
+--
+--    IT IS A GUARD TEST, NOT A PREDICATE TEST, and that is why it goes
+--    through the RPC rather than calling can_amend_tenancy_start directly
+--    like assertion 1. The predicate said "no" for a reason that lived
+--    somewhere else: amend_tenancy_start's reach guard was is_admin(). A
+--    test that only exercised the predicate would have gone green on the
+--    widening while an opndoor manager was still refused in the portal.
 -- ===========================================================================
 select set_config('request.jwt.claims',
   '{"sub":"ce000000-0000-0000-0000-00000000c003","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
-select throws_ok(
+select lives_ok(
   $$select public.amend_tenancy_start('ce000000-0000-0000-0000-0000000000f2', current_date - 10)$$,
-  '42501',
-  'not permitted',
-  'an opndoor MANAGER is refused by the older reach guard, started or not');
+  'an opndoor MANAGER may amend a started tenancy, reach guard and predicate agreeing');
 reset role;
 
+select is(
+  (select tenancy_start from public.applications where id='ce000000-0000-0000-0000-0000000000f2'),
+  current_date - 10,
+  'and it moved, so the reach guard really did widen');
+
 -- ===========================================================================
--- 10. THE BOUNDARY IS TODAY ITSELF, not tomorrow. A tenancy starting today has
+-- 11. THE BOUNDARY IS TODAY ITSELF, not tomorrow. A tenancy starting today has
 --    started: the tenant is in the property and the cover is running. Off by
 --    one here is a day in which an agency can still move a live guarantee.
 -- ===========================================================================
