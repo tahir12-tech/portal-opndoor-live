@@ -3002,6 +3002,17 @@ the one real assertion that has never run.
   checked in both directions and for volume tiers as well as bands.
 - WORTH MEASURING ON DEV: whether any live deal already has this shape.
 
+### (z) The order again: (x) first
+
+> Pull (x) forward to next, before (o): measure whether any deal on dev already leaves a tenant count unpriced, refuse to save any deal that does, and make "one price for everything" cover any number of tenants. Then (o), then (q), (s) and (t) together, then the rest in order.
+
+- CONFIRMS THE ORDER I PROPOSED with (x) moved to the front, and confirms
+  that (q), (s) and (t) are one piece of work on three surfaces.
+- THE THREE PARTS OF (x) ARE IN HIS SENTENCE, in order: measure dev, refuse
+  on save, fix the switch. The measurement is answer-first.
+- ORDER NOW: (x), (o) answer, then (q)+(s)+(t) together, then (r)'s schedule
+  sentence, (l), (m), (u), (n), (v), (w), (y).
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
