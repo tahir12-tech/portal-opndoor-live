@@ -2982,6 +2982,26 @@ the one real assertion that has never run.
 - THE CAPITALS ARE SENTENCE CASE in running text: these are phrases inside
   sentences, not labels or headings.
 
+### (x) A deal that prices nothing above one tenant
+
+> Deal dialog: switching to "One price for everything" keeps the first tenant band ("1 to 1"), so the deal only prices single tenancies. One price must cover any number of tenants: a single row with no tenant range, and the plain English "Any number of tenants pay 3 weeks of rent, and we pay 20%". Check every switch between deal types for leftover rows from the previous type, and refuse to save a deal that leaves any tenant count or volume unpriced.
+
+- **THE MOST SERIOUS THING IN THIS BATCH, AND IT IS A MONEY DEFECT, NOT
+  COPY.** `resolve_pricing_agreement` picks a band with
+  `min_tenants <= n and (max_tenants is null or max_tenants >= n)`. A deal
+  whose only band is 1 to 1 matches NOTHING at two tenants, so the fee and
+  the rate both resolve to null and the referral silently falls back to
+  standard terms. A joint tenancy under a "one price for everything" deal is
+  therefore charged the wrong fee and pays the wrong commission.
+- IT IS REACHABLE BY DOING WHAT THE DIALOG INVITES: choose banded, then
+  change your mind.
+- "REFUSE TO SAVE A DEAL THAT LEAVES ANY TENANT COUNT OR VOLUME UNPRICED" is
+  the real fix and belongs in `create_agreement`, beside the breach guard,
+  because the dialog is not the only way in.
+- THE OTHER HALF IS THE SWITCH ITSELF: leftover rows from the previous type,
+  checked in both directions and for volume tiers as well as bands.
+- WORTH MEASURING ON DEV: whether any live deal already has this shape.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
