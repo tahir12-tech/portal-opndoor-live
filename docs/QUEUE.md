@@ -2304,6 +2304,56 @@ sign-in are unexercised. Somebody has to click it.
   would take" means the After launch entry has to be good enough to build
   from.
 
+## THREE MORE, ALL 2026-10-04, VERBATIM. IN THE ORDER THEY ARRIVED.
+
+### (a) The admin New application form: supplier list, email help, and the words
+
+> Admin New application, new agency for a supplier: the Supplier dropdown includes "Harbour Lets", which is an agency; list suppliers only (partner_kind supplier). Change the email help text to "Required for a new agency. Signed deeds go here unless the office has its own email." Also use "Agency" and "Office" instead of "Agent" and "Branch" on this form, matching the supplier and agency forms.
+
+- THE DROPDOWN IS THE BUG, the rest is copy. `getPartners()` strips house
+  partners but not agency-kind ones, and Harbour Lets is `partner_kind
+  'agency'`. An admin fly-creating an agency could put it under another
+  AGENCY, which is not a party that can own one.
+- "matching the supplier and agency forms" is the test for the rename: the
+  words have to agree with what those two already say, not merely change.
+
+### (b) Supplier joint tenancies and supplier pricing
+
+> Supplier referrals:
+> 1. Allow joint tenancies through suppliers, on the portal form and the partner API, working exactly as agency joint tenancies do (each tenant pays their share, signs their own deed, one tenancy).
+> 2. Don't hard-code supplier pricing to one month's rent. Each supplier's deal sets what the tenant pays, using the same "price by number of tenants" options as agency deals (e.g. 1 tenant one month, 2 or more 5 weeks), set on the supplier's Commission tab. Existing suppliers keep one month's rent until changed, so nothing on live moves.
+> 3. Remove the "A supplier referral covers one tenant, is priced at one month's rent" text, and show the actual fee from the deal on the form, as agency referrals do.
+> 4. Tell me if anything in commission, statements, the bordereau or the API assumes a supplier referral is single-tenant before changing it.
+> Test a joint tenancy through Kestrel end to end on dev (portal and sandbox API).
+
+- **THIS IS THE BIGGEST THING ASKED FOR SINCE THE RAILS LANDED**, and item 4
+  is ANSWER FIRST and explicitly before changing anything: every place that
+  assumes a supplier referral is one tenant, across commission, statements,
+  the bordereau and the API.
+- IT TOUCHES THE REFERRAL PATH on both rails and the money surfaces behind
+  it. "Existing suppliers keep one month's rent until changed, so nothing on
+  live moves" is the constraint that makes it shippable: the default is the
+  current behaviour and the deal is opt-in.
+- END TO END ON DEV, portal AND sandbox API, is part of the instruction and
+  not a courtesy.
+
+### (c) The form validation does not reach the org section
+
+> Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
+
+- **THIS IS A GAP IN WHAT I BUILT FOR ITEM 7 AND HE IS RIGHT.** The count and
+  the jump read `.field.is-invalid`, which `Field` sets. The org section's
+  three errors are not in a `Field` at all: they are a bare
+  `<p className="na-form-error">` and a `<span className="field-error">`
+  rendered under the picker. So they were invisible to the count, the jump
+  skipped them, and from the bottom of the page pressing Send did nothing --
+  which is the exact complaint item 7 was meant to remove.
+- "N THINGS", not "N fields", in his words this time: the org errors are not
+  all fields ("whether this is a single-office agency" is a radio pair), so
+  the sentence has to cover both.
+- "every form for every level, including admin" is the sweep, and admin is
+  named because that is the one he was on.
+
 ## OFFICES WITH THE SAME NAME ARE DIFFERENT OFFICES (instruction, 2026-10-04, verbatim).
 
 > Applications Branch filter (admin, Origin: Everything): offices with the same name in different estates are merged into one entry (two "Frost Mayfair" offices show as one). List each office separately and label supplier-estate ones, e.g. "Frost Mayfair (via Kestrel Lettings)", and filter by the office's id, not its name.
