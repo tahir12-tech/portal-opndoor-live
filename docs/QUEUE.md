@@ -3634,6 +3634,23 @@ and the three creation paths say no. Not guessing on a money record.
 - THE WORKED EXAMPLE IS GR-25235's TENANCY: GR-25234 and GR-25236 should
   come out refunded.
 
+### (am) Reconciliation should say whose, what, and who
+
+> Reconciliation: 1) show which supplier each new agency or office belongs to ("Kestrel Lettings · Test Test Test"); 2) an agency's automatic first office (created with it) is confirmed together with the agency, not listed separately; offices added later are listed on their own; 3) "created by A referrer" must name the person who created it.
+
+- THREE FAULTS ON ONE QUEUE, and all three are the same kind: the row does
+  not say enough to decide on.
+- ITEM 2 IS THE REAL ONE. An agency's first office is created WITH it and
+  named after it, so listing it separately asks the reviewer to confirm the
+  same decision twice and invites them to accept one and not the other.
+  Later offices are a genuine second decision and stay separate.
+- **"created by A referrer" IS A ROLE WHERE A NAME BELONGS**, and the third
+  instance today of a level word standing in for a person after the
+  notifications dialog and the Reporting note.
+- ITEM 1 MATTERS BECAUSE OF THE NAME TRAP: dev holds two agencies called
+  Frost Partnership, so a reconciliation row naming only the agency cannot
+  be acted on safely.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
