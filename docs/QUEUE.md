@@ -4655,6 +4655,21 @@ both estates, the dialog, and FAQ 9 on both rails.
   column and "level" is the word the product uses to readers. This is
   the last people list still saying the column name.
 
+### (ce) Kestrel's Reporting: the headline, the carved line, the schedules
+
+> Kestrel's Reporting (View as): 1) the headline label still reads "Commission payable"; it must read "Owed to you". 2) The "Your agencies' share, included above for you to pass on" line is missing: GR-26262/3 are frozen as "supplier pays its own agents", so it should show £378.90. Check the tile uses the frozen flag for live data. 3) "Agency schedules" lists only Kestrel Lettings for October; it should list each agency with referrals (Test Lettings asda), as the description says.
+
+- (1) AND (2) ARE (q) ON THE SCREEN, where I only did the data layer:
+  `commHeadline`, `commSecondLbl`, `commThirdLbl` exist in
+  analyticsService, and Reporting is still drawing the old label. So
+  this is not new work so much as work I left half-connected.
+- **(2) NAMES THE TEST: "Check the tile uses the frozen flag for live
+  data."** `opndoor_pays_agents_at_freeze` per referral, not the
+  partner's current setting. £378.90 is the number to reconcile to, and
+  it is the same £378.90 as (bp)(1), which is the strongest evidence yet
+  that all of these are one fold read in six places.
+- (3) "AS THE DESCRIPTION SAYS" means the screen already promises it.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
