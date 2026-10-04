@@ -3435,6 +3435,29 @@ the one real assertion that has never run.
 - THE AGENCY, NOT THE GROUP: a person invited to Regent's has never heard
   of the holding company, which is the rule the tenant emails already keep.
 
+### (ac) Supplier-estate agencies inherit, and the migration says so on live
+
+> Yes to both parts:
+> 1. Agencies inside a supplier's estate inherit the supplier's checking setting (allow null, stop defaulting on all creation paths).
+> 2. Correct dev's five Kestrel agencies to inherit. The migration must do the same on live: every agency in a supplier's estate set to inherit, unless a deliberate per-agency setting is recorded in the audit trail (list any such exceptions for me rather than overwriting them). Add a check to HANDOVER-BALAL.md's rehearsal: after migrating the clone, every Rightmove agency inherits Rightmove's setting, and a test Rightmove referral goes straight to payment.
+> Your own agencies keep their own settings. Then confirm (yy) clears with it, commit the supplier joint-tenancy fix, and do item 2 (the export).
+
+- **A DATA MIGRATION THAT RUNS ON LIVE, which is rarer here than a schema
+  one and needs more care.** Every other correction today has been dev-only
+  or additive.
+- **THE EXCEPTION RULE IS THE CAREFUL PART: "unless a deliberate per-agency
+  setting is recorded in the audit trail (list any such exceptions for me
+  rather than overwriting them)."** So the migration cannot be a blanket
+  UPDATE. It must spare any agency whose mode was set on purpose, and I
+  must report those rather than decide for them. There is at least one
+  candidate on dev: an org_audit row from 2026-10-03,
+  "Opndoor checks eligibility -> Agency has already referenced".
+- "YOUR OWN AGENCIES KEEP THEIR OWN SETTINGS": the migration is scoped to
+  supplier estates and must not touch opndoor-agents.
+- NULLABLE IS THE SCHEMA HALF, and the column is NOT NULL DEFAULT
+  'opndoor_referenced' today, which is why no agency has ever inherited.
+- THEN: confirm (yy) clears, commit the joint fix, and item 2.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
