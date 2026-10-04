@@ -32,6 +32,7 @@ import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, fi
 import { Modal } from '@/components/ui/Modal';
 import { useMissingFields } from '@/lib/useMissingFields';
 import { MissingFields } from '@/components/ui/MissingFields';
+import { partyIsSupplier } from '@/data/capabilities';
 import { TITLE_OPTIONS, validateReferral, validateTenant, parseFlexibleDate, toISODate, type ReferralValues, type TenantErrors, type TenantValues } from '@/lib/validation';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -223,7 +224,12 @@ export function NewApplication() {
      disagreeing, so the moment the rail probe settled it would have wiped
      the tenants an admin had just added on the one path this opens. See
      jointAllowed.ts. */
-  const jointAllowed = mayAddAnotherTenant({ referredBy, routeSupplier, railState, estate });
+  const jointAllowed = mayAddAnotherTenant({
+    referredBy, routeSupplier, railState, estate,
+    /* The viewer's OWN party, not the origin's: a supplier's staff refer
+       within their own estate, and an admin is handled by the arm above. */
+    viewerIsSupplier: role !== 'superadmin' && partyIsSupplier(partnerScope),
+  });
   const rentNum = Number(values.rent);
   const pctNums = percents.map((p) => Number(p));
 

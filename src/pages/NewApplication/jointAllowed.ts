@@ -36,9 +36,36 @@ export interface JointInputs {
   railState: 'none' | 'loading' | 'ready';
   /** Is that branch one of our own agencies? */
   estate: boolean;
+  /** Is the person filling this in a SUPPLIER's own staff? Their referrals
+      are their estate's by construction, so there is nothing to probe. */
+  viewerIsSupplier?: boolean;
 }
 
 export function mayAddAnotherTenant(i: JointInputs): boolean {
   if (i.referredBy === 'supplier') return !!i.routeSupplier;
+  /* A SUPPLIER'S OWN STAFF, WHICH THIS FORGOT.
+
+     Matt, 2026-10-04: "Joint tenancies are blocked ... though suppliers may
+     refer joint tenancies ... Allow joint tenancies for suppliers through
+     the portal regardless of that setting."
+
+     An ADMIN who names a supplier has been allowed since batch 16, in the
+     arm above. A supplier's OWN people fell through to the estate test, and
+     `estate` is is_our_estate_partner, which is `partner_kind = 'agency' or
+     slug = 'opndoor-direct'` and so is false for every supplier. They were
+     therefore told "This supplier sends us referrals one tenant at a time",
+     which the database stopped being true on 2026-10-06.
+
+     NOT CAUSED BY refers_own_stock GOING FALSE, which is the natural
+     suspicion and is worth recording as checked: that flag feeds
+     my_org_shape, and `estate` comes from is_our_estate_partner, which
+     reads partner_kind alone. Kestrel has been partner_kind 'supplier'
+     throughout, so this arm answered false before that change and after it.
+     A long-standing gap, surfaced by looking.
+
+     NO PROBE NEEDED. A supplier's staff refer within their own estate by
+     construction, so unlike the agency path there is no branch whose rail
+     could disagree with the viewer's. */
+  if (i.viewerIsSupplier) return true;
   return i.railState === 'ready' && i.estate;
 }
