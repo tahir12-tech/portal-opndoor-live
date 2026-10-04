@@ -2752,6 +2752,26 @@ the one real assertion that has never run.
   screenshot taken without a back end.
 - "IN PLACE OF THE REFERENCE AND STATUS" is two places, not one.
 
+### (k) A posted statement is still reading as a draft on the downloads
+
+> Reporting → Supplier commission settlement → Download statement (Kestrel, September 2026) still says "Reference assigned when the statement is posted / Draft: not yet posted", but it was posted this morning as STMT-2026-09-0006. Make every download and screen read the posted reference and status, check the agency settlement downloads too (Frost via Kestrel was posted as STMT-2026-09-0007), and tell me why this path missed it.
+
+- **THIS IS NOT THE STATE I JUST BUILT.** "Reference assigned when the
+  statement is posted" is REFERENCE_ON_POST, which means the lookup
+  SUCCEEDED and came back empty. It is not REFERENCE_UNREADABLE and not the
+  failure path; the read worked and asked the wrong question.
+- SO THE SUSPECT IS THE PAYEE KEY. `statementReference(monthKey, payeeKey)`
+  is called with a key built three different ways in exportsService: one for
+  the supplier settlement, one for the agency settlement, one from
+  `st.payeeKey`. A key that does not match what the posting minted finds
+  nothing and reports "not posted yet", truthfully answering a different
+  question.
+- "AND TELL ME WHY THIS PATH MISSED IT" is part of the instruction. Two
+  references exist for September and both are real, so this is reproducible
+  on dev rather than a matter of opinion.
+- HE NAMES BOTH SURFACES: the supplier settlement download AND the agency
+  settlement downloads, plus "every download and screen".
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
