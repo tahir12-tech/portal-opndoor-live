@@ -3979,6 +3979,51 @@ acted on.
 - (1) IS THE BIG ONE and dev being Stripe TEST MODE is what makes it
   testable end to end.
 
+#### (2) DONE, with one thing Matt should read
+
+`20261008090000_a_started_tenancy_is_opndoors_to_amend.sql`, the predicate on
+both estates, the dialog, and FAQ 9 on both rails.
+
+- **"OPNDOOR STAFF" CAME OUT AS SUPERADMIN ONLY, and that is not what the
+  phrase means anywhere else.** I first wrote the arm as `is_opndoor_staff`
+  (superadmin + opndoor_manager) and my own test caught it: an opndoor
+  manager was still refused. The reason predates this rule.
+  `amend_tenancy_start`'s reach guard has exactly three arms, `is_admin()`,
+  management-in-reach, and an owning referrer. **An opndoor manager has never
+  been able to amend a start date on any application, started or not.** So
+  the choice was to widen the reach guard, granting a new write on live cover
+  that was not asked for, or to write the new arm to match what the function
+  will actually permit. I did the second: a predicate that says yes where the
+  guard says no is a button that opens a dialog that fails on save.
+  **Recommendation: leave it at admins only.** Moving the start date of a
+  tenancy that has begun changes the expiry on a signed deed the underwriter
+  is holding. If you want opndoor managers included it is one line in each of
+  two places, and `a_started_tenancy_is_opndoors.test.sql` assertion 9 is
+  where it shows.
+- THE DIALOG STILL OPENS FOR A BLOCKED AGENCY. "Show the reason in the
+  dialog" only works if there is a dialog, so the Amend button stays for
+  anybody who would have been allowed but for the start date; the date field
+  and the save button are gone and the sentence is there instead. Hiding the
+  button would have left them hunting for it.
+- MIDNIGHT ON THE START DATE COUNTS AS STARTED, client and server both. A
+  tenancy starting today has started.
+- THE EXISTING SIBLING TEST HAD TO BE REBASED, not extended.
+  `a_tenancy_has_one_start_date.test.sql` proved "all or nothing" using a
+  pair where one deed was executed and the other was not, which was the
+  per-row divergence under the OLD rule. That pair no longer diverges. It now
+  uses ownership, two negotiators in one office, which is the more realistic
+  joint tenancy anyway. Its dates were also fixed at 2026-08-01, which this
+  rule turned into "a tenancy that started two months ago", so they are
+  relative to `current_date` now.
+- `deed-actions.test.ts`'s amend block was REPLACED for the same reason: a
+  suite holding both rules holds neither.
+- The FAQ gives `partners@opndoor.co`, which tripped the "never says partner"
+  sweep on the agency rail. Email addresses are now stripped before that
+  check. The address is the real one, from the topbar help menu.
+- STILL PARKED FROM THE EARLIER ANSWER, not part of this decision: the range
+  check in `amend_tenancy_start` is 2000-01-01 to today + 5 years. I
+  recommended +/- 12 months. Not changed.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
