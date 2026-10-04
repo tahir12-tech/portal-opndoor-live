@@ -72,7 +72,12 @@ const ROLE_OPTIONS: RoleOption[] = [
      description is where it leaked furthest -- "every referral across all
      partners" and "cannot change partner settings". */
   { id: 'superadmin', name: 'opndoor admin', desc: "opndoor's internal admin. Full control of the portal: manages suppliers, agencies, offices and users, keeps opndoor's own records in step, edits help resources, and sees every referral." },
-  { id: 'opndoor_manager', name: 'opndoor manager', desc: "opndoor operations staff. Sees every referral across every supplier and agency and works the day-to-day queues: the eligibility decision, reconciliation and direct-agency matches. Cannot change a supplier's or agency's settings or commission, add a supplier, or manage the opndoor team." },
+  /* THE DESCRIPTION IS A PROMISE ABOUT ACCESS, so it moves with the access
+     or it becomes the thing somebody onboards against. Matt (cc) took
+     Reconciliation away from this level, and the two queues it named --
+     reconciliation and direct-agency matches -- are both tabs of that one
+     page. The eligibility decision is not, and stays. */
+  { id: 'opndoor_manager', name: 'opndoor manager', desc: "opndoor operations staff. Sees every referral across every supplier and agency, works the eligibility decision queue, and can send a referral on any supplier's or agency's behalf. Cannot change a supplier's or agency's settings or commission, add a supplier, see commission, settlements or the bordereau, work Reconciliation, or manage the opndoor team." },
   { id: 'management', name: 'Management', desc: "Supplier management. The same screens and tools as a referrer, but across the whole supplier with full visibility of all tracking and analytics. Manages the supplier's own agencies, branches and team, with edits applying straight away. Cannot change portal settings." },
   { id: 'referrer', name: 'Referrer', desc: 'Sees and tracks only their own referrals. Can add agencies and branches on the fly while referring.' },
   // "Sees the Dev Centre only" read as seeing nothing, which made the role look
@@ -315,9 +320,11 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
   let cardSub = selectedPartner === ALL_PARTNERS ? 'Every partner, with a Partner column' : 'Users for this partner';
   if (teamMode) {
     eyebrow = 'opndoor · internal team';
-    sub = 'opndoor’s own staff. They see every supplier and agency, and never appear in a customer’s own people list.';
+    sub = 'opndoor staff. They see every supplier and agency, and never appear in a customer’s own people list.';
     cardTitle = 'opndoor team';
-    cardSub = 'opndoor admin staff only';
+    // AND NOT "admin staff only", which stopped being true when opndoor
+    // managers arrived: this page lists both levels, and the card said one.
+    cardSub = 'opndoor admin and opndoor manager accounts';
   } else if (role === 'management') {
     /* NOT "Administration" ON THE SUPPLIER RAIL. The eyebrow names the
        section, and a supplier's Management is not in Opndoor's admin section:
@@ -782,7 +789,12 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
       <div className="page-head">
         <div>
           <div className="eyebrow"><span className="eyebrow__dot" /><span>{eyebrow}</span></div>
-          <h1 className="page-head__title" style={{ marginTop: 10 }}>{supplierRail ? 'Team' : 'Users'}</h1>
+          {/* THE PAGE IS NAMED FOR WHAT IT IS, not for the table behind it.
+              Matt, 2026-10-04 (y): heading "opndoor team" (not "Users");
+              subtitle "opndoor staff". "Users" is a model word; nobody at
+              opndoor calls their colleagues users. Lowercase "opndoor"
+              throughout, as every other line of this product's copy. */}
+          <h1 className="page-head__title" style={{ marginTop: 10 }}>{teamMode ? 'opndoor team' : supplierRail ? 'Team' : 'Users'}</h1>
           <p className="page-head__sub">{sub}</p>
         </div>
         <div className="page-head__actions">
@@ -793,7 +805,18 @@ export function UserManagement({ team = false }: { team?: boolean } = {}) {
       {/* role legend */}
       <div className="toolbar" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
         {teamMode ? (
-          <span className="role-tag role-tag--super">opndoor admin · full control of the portal</span>
+          /* BOTH OPNDOOR LEVELS, which is the only part of (y) with any
+             thinking in it. The key described one of the two levels this
+             page can show, so an opndoor manager's row carried a tag the
+             legend below it did not explain -- and theirs is the level whose
+             limits somebody actually needs to look up. The second line says
+             what they do NOT get, because that is the question being asked
+             of a key: commission, settlements, the bordereau, the opndoor
+             team page and Health are all admin-only. */
+          <>
+            <span className="role-tag role-tag--super">opndoor admin · full control of the portal</span>
+            <span className="role-tag role-tag--super">opndoor manager · suppliers, agencies and applications, and can refer on anybody’s behalf. No commission, settlements, bordereau, Reconciliation, opndoor team or Health.</span>
+          </>
         ) : (
           <>
             {/* The three levels, in the words the rest of the product uses

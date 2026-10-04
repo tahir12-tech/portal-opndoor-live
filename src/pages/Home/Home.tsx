@@ -195,9 +195,19 @@ export function Home() {
      sitting in a queue at this moment, and nothing on the page said so, so
      a reader had no way to tell them from a total for some period. Matt's
      own words, on the meta line each tile already has. */
+  /* THE TWO TILES THAT LAND ON /reconciliation ARE ADMINS ONLY, because the
+     route is. Matt (cc): "remove Reconciliation from opndoor managers
+     (sidebar, Home tile and the page itself)".
+
+     BOTH, NOT JUST THE ONE CALLED RECONCILIATION. Agency matches is a TAB of
+     that page, so leaving its tile up would offer an opndoor manager a count
+     of work they cannot open: the route redirects them to Reporting and the
+     tile looks broken rather than absent. `isAdmin` and not `isOpndoorStaff`
+     is the whole point of this change. */
+  const reconcilable = role === 'superadmin';
   const tiles = [
     { label: 'Awaiting decision', n: awaiting, meta: 'waiting now for an eligibility decision', to: '/applications?status=referencing', tone: 'warn' as const },
-    { label: 'Agency matches', n: matches, meta: 'waiting now: direct tenants, unmatched agent', to: '/reconciliation?tab=matches', tone: 'accent' as const },
+    ...(reconcilable ? [{ label: 'Agency matches', n: matches, meta: 'waiting now: direct tenants, unmatched agent', to: '/reconciliation?tab=matches', tone: 'accent' as const }] : []),
     /* ONE TILE, TWO KINDS OF WORK, and the meta names whichever is there.
        A tile that counts both and describes one sends the reader to a
        page looking for rows that are on another tab. */
@@ -206,7 +216,7 @@ export function Home() {
        several do: `reconciliationLandingTab` is the same function the
        page itself uses to decide, so the tile and the page cannot send
        a reader to different places. */
-    { label: 'Reconciliation', n: recon.all, meta: reconMeta(recon), to: `/reconciliation?tab=${reconciliationLandingTab(recon)}`, tone: 'accent' as const },
+    ...(reconcilable ? [{ label: 'Reconciliation', n: recon.all, meta: reconMeta(recon), to: `/reconciliation?tab=${reconciliationLandingTab(recon)}`, tone: 'accent' as const }] : []),
     { label: 'Delivery failed', n: deliveryFailed, meta: 'waiting now: deed not delivered', to: '/applications?deed=delivery-failed', tone: 'danger' as const },
   ];
 

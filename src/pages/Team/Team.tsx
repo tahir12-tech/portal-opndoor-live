@@ -717,7 +717,21 @@ export function Team() {
               personConfirm, because it is the same rule on the other rail:
               two of a supplier's Management are peers exactly as two
               Directors are. */}
-          {!may && !isSelf && <span className="tm-peernote">{peerActionNote(pillLabel)}</span>}
+          {/* AND WHICH SENTENCE DEPENDS ON THE READER. Matt, 2026-10-04:
+              on Director rows a MANAGER is told "Only a Director or opndoor
+              can change a Director"; a Director's own view keeps "contact
+              your account manager".
+
+              The two readers see an identical row and are in different
+              situations. A Director looking at a peer has exhausted their
+              own estate. A Manager has somebody in their own building who
+              can do this, and sending them to opndoor sends them past the
+              person who would have said yes in a minute. */}
+          {!may && !isSelf && (
+            <span className="tm-peernote">
+              {peerActionNote(pillLabel, !seesCommission && u.role === 'management')}
+            </span>
+          )}
         </>
       ),
     };

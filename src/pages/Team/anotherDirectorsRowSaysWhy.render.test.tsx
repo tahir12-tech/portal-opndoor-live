@@ -114,17 +114,33 @@ describe('a Director looking at their own team', () => {
   });
 });
 
+/* AND A MANAGER IS TOLD SOMETHING DIFFERENT, which this file asserted the
+ * opposite of until 2026-10-04.
+ *
+ * Matt (au): 'on Director rows say "Only a Director or opndoor can change a
+ * Director." (A Director's own view keeps "contact your account manager".)'
+ *
+ * THE OLD ASSERTION WAS NOT WRONG WHEN IT WAS WRITTEN. One sentence covered
+ * both readers because both see an identical row with no actions on it and
+ * `mayActOn` refuses both. What it missed is that they are in different
+ * SITUATIONS: a Director looking at a peer has exhausted their own estate,
+ * and opndoor is the only way up. A Manager has not -- there is somebody in
+ * their own building who can do this -- and sending them to us sends them
+ * past the person who would have said yes in a minute.
+ *
+ * REPLACED RATHER THAN ADDED TO: a suite holding both sentences for one row
+ * holds neither rule.
+ */
 describe('a Manager looking at the same team', () => {
-  /* THE NOTE NAMES THE LEVEL IT IS ABOUT, so a Manager reads "a Director" on
-     the row above them. The sentence is Matt's, and the article comes from the
-     level word rather than being hard-coded into one page. */
-  it('is told the same thing about the Director above them', async () => {
+  it('is pointed at a Director, not at opndoor', async () => {
     const v = await openTeam(false);
     /* BY NAME, not by level word: viewing as a Manager leaves the viewer's own
        pinned row still reading "Director", so a search for the word finds that
        one first and the assertion would be about the wrong row. */
     const above = rows(v).find((r) => (r.textContent ?? '').includes('Other Director'));
     expect(above).toBeTruthy();
-    expect(above!.textContent ?? '').toMatch(NOTE);
+    expect(above!.textContent ?? '').toMatch(/Only a Director or opndoor can change a Director\./);
+    // And NOT the Director's own sentence, which is the half that regressed.
+    expect(above!.textContent ?? '').not.toMatch(NOTE);
   });
 });

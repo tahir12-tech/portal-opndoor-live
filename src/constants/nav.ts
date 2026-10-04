@@ -147,7 +147,10 @@ export const NAV: NavGroup[] = [
       // Applications awaiting the eligibility decision. Deep-links to the list's
       // Awaiting-decision cohort; the badge counts how many are waiting.
       { id: 'decisions', label: 'Awaiting decision', to: '/applications?status=referencing', icon: 'clock', roles: ['superadmin', 'opndoor_manager'], badge: 'decisions' },
-      { id: 'reconcile', label: 'Reconciliation', to: '/reconciliation', icon: 'reconcile', roles: ['superadmin', 'opndoor_manager'], badge: 'reconcile' },
+      /* ADMINS ONLY, matching the route. Matt (cc). An opndoor manager
+         works the eligibility decision above; reconciliation is where
+         money and org records are corrected, and that stayed with us. */
+      { id: 'reconcile', label: 'Reconciliation', to: '/reconciliation', icon: 'reconcile', roles: ['superadmin'], badge: 'reconcile' },
       { id: 'health', label: 'Health', to: '/health', icon: 'shield', roles: ['superadmin'] },
       // Internal notifications stood here. Walk fix 10: "Remove the separate
       // Internal notifications page from the menu." Which internal alerts a

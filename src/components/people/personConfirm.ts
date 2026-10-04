@@ -185,8 +185,38 @@ const PEER_PHRASE: Record<string, string> = {
   Management: 'someone at Management level',
 };
 
-/** The note that stands in for the actions a peer's row cannot offer. */
-export function peerActionNote(level: string): string {
+/* AND IT IS A DIFFERENT SENTENCE WHEN THE READER IS BELOW, NOT LEVEL.
+ *
+ * Matt, 2026-10-04 (au): 'on Director rows say "Only a Director or opndoor
+ * can change a Director." (A Director's own view keeps "contact your account
+ * manager".)'
+ *
+ * THE ROW LOOKS IDENTICAL AND THE SITUATION IS NOT. Both readers see a
+ * Director's row with no actions on it, and `mayActOn` refuses both, so one
+ * sentence covered both. But a Director looking at a peer has exhausted
+ * their own estate -- the only way up is us, and "contact your account
+ * manager" is the whole answer. A MANAGER has not: there is somebody in
+ * their own building who can do this, and sending them to opndoor sends them
+ * past the person who would have said yes in a minute.
+ *
+ * WHICH IS WHY THE ARGUMENT IS "could a colleague do this", not the reader's
+ * level: that is the fact that decides the sentence, and asking for it by
+ * name stops a caller passing a role and this function re-deriving a ladder
+ * it should not know about.
+ */
+/** The note that stands in for the actions a peer's row cannot offer.
+ *
+ *  `aLevelExistsAbove` -- is there a rung above the READER that could do
+ *  this? False for a Director or a supplier's Management, who are the top of
+ *  their own estate; true for a Manager looking at a Director. */
+export function peerActionNote(level: string, aLevelExistsAbove = false): string {
   const who = PEER_PHRASE[level] ?? `a ${level}`;
+  /* MATT'S SHAPE EXACTLY: "Only a Director or opndoor can change a
+     Director." Both halves are the same phrase because the rule is that it
+     takes one of their own level, and naming it twice is what makes that
+     readable without a second sentence. In practice `level` here is always
+     Director: a supplier's Management is the top of its rail, so nothing
+     sits above a reader looking at one and this arm never fires for them. */
+  if (aLevelExistsAbove) return `Only ${who} or opndoor can change ${who}.`;
   return `To change or remove ${who}, contact your account manager at partners@opndoor.co.`;
 }

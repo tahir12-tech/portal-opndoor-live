@@ -187,8 +187,14 @@ export function App() {
           <Route path="/opndoor-team" element={<UserManagement team />} />
         </Route>
 
-        {/* The reconciliation + direct-match queues: opndoor ops staff work these. */}
-        <Route element={<RequireRole roles={['superadmin', 'opndoor_manager']} redirectTo="/dashboard" />}>
+        {/* ADMINS ONLY. Matt (cc): "remove Reconciliation from opndoor
+            managers (sidebar, Home tile and the page itself); admins only."
+
+            THE ROUTE IS THE FIX and the two entry points follow from it. A
+            sidebar link and a Home tile are how you GET here; taking them
+            away leaves the address, and an address you can still type is
+            still access. */}
+        <Route element={<RequireRole roles={['superadmin']} redirectTo="/dashboard" />}>
           <Route path="/reconciliation" element={<Reconciliation />} />
         </Route>
 
