@@ -24,6 +24,7 @@ import { originMatches, type OriginScope } from './origin';
 import { reachableAgencyNames } from './orgService';
 import { deliveryStateOf } from './deliveryState';
 import { isPlaceholderOrg } from './agencyOffices';
+import { viaSupplier } from './viaSupplier';
 
 /** Who works the delivery QUEUE, as opposed to who is waiting for a deed.
     "Cannot deliver" means our own record of who can receive is incomplete, which
@@ -247,6 +248,40 @@ function channelOfRow(r: ApplicationSummary): Channel {
 }
 
 /** Role + partner + AGENCY isolation (drives counts and the "total" figure). */
+/* =====================================================================
+   DOES THIS ROW SIT AT THE OFFICE THE FILTER NAMES?
+
+   Matt, 2026-10-04: "filter by the office's id, not its name."
+
+   TWO KINDS OF VALUE REACH THIS, which is why it is a function and not a
+   comparison:
+
+     an ID    from the Branch dropdown, whose options are keyed on the id
+              since the two Frost Mayfairs were found merged into one, and
+              from every `?branchId=` link in the product.
+     a NAME   from a `?branch=` link, which the three surfaces that build one
+              still emit as a fallback where a branch has no id, and from a
+              bookmark somebody saved before 2026-10-02 when all of them did.
+
+   THE MODE IS DECIDED ONCE, OVER THE WHOLE SET, and that is the care in it.
+   Deciding per row -- "this row has an id, so refuse a name" -- looks right
+   and quietly breaks an old bookmark: every row would refuse the name and the
+   list would come back empty with no explanation. Deciding once asks the only
+   question that matters: IS this value one of the ids in the book? If it is,
+   it is an id and only ids match it, so the two Frost Mayfairs stay apart. If
+   it is not, it is a name, and matching on the name is what that bookmark has
+   always done and the best available reading of it.
+
+   AN AMBIGUOUS NAME IS STILL AMBIGUOUS in that second case, and deliberately:
+   a bookmark that says "Frost Mayfair" and nothing else cannot be resolved to
+   one of two, and showing both is better than showing neither.
+   ===================================================================== */
+function branchFilter(set: ApplicationSummary[], value: string): (r: ApplicationSummary) => boolean {
+  const isId = set.some((r) => r.branchId && r.branchId === value);
+  if (isId) return (r) => r.branchId === value;
+  return (r) => r.branch === value;
+}
+
 function scopedSet(opts: AppScopeOpts): ApplicationSummary[] {
   let set = LIST.slice();
   if (opts.scope !== ALL_PARTNERS) set = set.filter((r) => r.partner === opts.scope);
@@ -300,8 +335,13 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
   // must follow the same partner/agency/branch/referrer filters as the rows.
   let set = scopedSet(opts);
   if (opts.partner) set = set.filter((r) => r.partner === opts.partner);
+  /* BY ID, NOT BY NAME. Matt, 2026-10-04. Resolved once over the set rather
+     than per row: see branchFilter for why that distinction is the whole of
+     it. Built from the PARTNER-NARROWED set, which is the same rows the
+     predicate below runs on. */
+  const matchesBranch = branchFilter(set, opts.branch ?? '');
   set = set.filter((r) => {
-    if (opts.branch && r.branch !== opts.branch) return false;
+    if (opts.branch && !matchesBranch(r)) return false;
     if (opts.agency && r.agency !== opts.agency) return false;
     if (opts.agencies && !opts.agencies.includes(r.agency)) return false;
     if (opts.referrer && r.referrer !== opts.referrer) return false;
@@ -438,6 +478,9 @@ export function reachedPayment(r: { status: Status; expiredFrom?: Status | null 
 export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
   let rows = scopedSet(opts);
   if (opts.partner) rows = rows.filter((r) => r.partner === opts.partner);
+  /* THE SAME PREDICATE countByStatus BUILDS, over the same rows, so the chips
+     and the list cannot disagree about which office they are showing. */
+  const matchesBranch = branchFilter(rows, opts.branch ?? '');
   rows = rows.filter((r) => {
     /* "ALL" MEANS ALL, since 2026-10-02. Matt: "the 'All' tab counts and
        shows every application in the current filters, including In
@@ -495,7 +538,9 @@ export function getApplications(opts: AppFilterOpts): ApplicationSummary[] {
        finished. Matt's own list is the three. */
     else if (opts.status === 'fee-unpaid') { if (r.status !== 'sent') return false; }
     else if (opts.status && opts.status !== 'all' && r.status !== opts.status) return false;
-    if (opts.branch && r.branch !== opts.branch) return false;
+    /* BY ID WHERE THE FILTER GIVES ONE. Matt, 2026-10-04: "filter by the
+       office's id, not its name." See branchFilter. */
+    if (opts.branch && !matchesBranch(r)) return false;
     if (opts.agency && r.agency !== opts.agency) return false;
     if (opts.agencies && !opts.agencies.includes(r.agency)) return false;
     // #owner Referrer filter (management + opndoor admin) and period (sent-date).
@@ -566,9 +611,47 @@ export function referrerNamesForScope(opts: AppScopeOpts): string[] {
 }
 
 /** Distinct branch names within a scope, optionally limited to one agency. */
-export function branchNamesForScope(opts: AppScopeOpts, agency?: string): string[] {
-  const rows = scopedSet(opts).filter((r) => (opts.partner ? r.partner === opts.partner : true)).filter((r) => !agency || r.agency === agency);
-  const names: string[] = [];
+/* =====================================================================
+   ONE ENTRY PER OFFICE, NOT PER OFFICE NAME.
+
+   Matt, 2026-10-04: "offices with the same name in different estates are
+   merged into one entry (two 'Frost Mayfair' offices show as one). List each
+   office separately and label supplier-estate ones, e.g. 'Frost Mayfair (via
+   Kestrel Lettings)', and filter by the office's id, not its name."
+
+   THE MERGE WAS THE SMALLER HALF. This deduped on `names.includes(r.branch)`,
+   so the dropdown showed one "Frost Mayfair" -- and because the VALUE was the
+   name, choosing it narrowed to both of them. An admin looking at Kestrel's
+   office was shown our own Frost's referrals in the same list. Dev holds
+   exactly that pair, in two estates, each with one office of that name.
+
+   DEDUPED ON THE ID WHERE THERE IS ONE, on the name where there is not. A
+   mock row and an older fixture have no ids, and keying only on the id would
+   collapse every one of them into a single blank-keyed entry. The name is the
+   fallback, which is what the whole function used to be.
+
+   THE LABEL IS `viaSupplier`, which already exists for this and is already
+   used in the exports and on the league rows: it adds "(via Kestrel
+   Lettings)" only where both estates are in view AND the office is a
+   supplier's, so a supplier reading their own book sees their office named
+   plainly. That is why the scope is passed rather than assumed.
+
+   SORTED BY THE LABEL, so the two Frosts sit next to each other and the
+   difference between them is the thing the reader is looking at.
+   ===================================================================== */
+export interface OrgFilterOption {
+  /** What the filter narrows on: the id where we have one, else the name. */
+  value: string;
+  /** What the reader sees, including "(via …)" where it is needed. */
+  label: string;
+}
+
+export function branchOptionsForScope(opts: AppScopeOpts, agency?: string): OrgFilterOption[] {
+  const rows = scopedSet(opts)
+    .filter((r) => (opts.partner ? r.partner === opts.partner : true))
+    .filter((r) => !agency || r.agency === agency);
+  const seen = new Set<string>();
+  const out: OrgFilterOption[] = [];
   rows.forEach((r) => {
     /* NOT THE PLACEHOLDER. Matt, 2026-10-01: the house rail's "Unattached"
        is dropped "everywhere that label appears", and a filter chip is one
@@ -577,6 +660,22 @@ export function branchNamesForScope(opts: AppScopeOpts, agency?: string): string
        have worked, which is worse than it not being there: it is a real
        value on the rows, so the list would have narrowed to every direct
        signup under a heading naming an office that does not exist. */
+    if (isPlaceholderOrg(r.branch)) return;
+    const value = r.branchId || r.branch;
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    out.push({ value, label: viaSupplier(opts.scope, r.branch, r.partner) });
+  });
+  return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/** The names alone, for the callers that still want them (a heading, a chip). */
+export function branchNamesForScope(opts: AppScopeOpts, agency?: string): string[] {
+  const rows = scopedSet(opts)
+    .filter((r) => (opts.partner ? r.partner === opts.partner : true))
+    .filter((r) => !agency || r.agency === agency);
+  const names: string[] = [];
+  rows.forEach((r) => {
     if (!names.includes(r.branch) && !isPlaceholderOrg(r.branch)) names.push(r.branch);
   });
   return names.sort();

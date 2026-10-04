@@ -581,6 +581,26 @@ export interface ApplicationSummary {
   prop: string;
   branch: string;
   agency: string;
+  /* =====================================================================
+     THE IDS, BECAUSE A NAME IS NOT AN IDENTITY ACROSS ESTATES.
+
+     Matt, 2026-10-04: "Applications Branch filter (admin, Origin:
+     Everything): offices with the same name in different estates are merged
+     into one entry (two 'Frost Mayfair' offices show as one). List each
+     office separately and label supplier-estate ones ... and filter by the
+     office's id, not its name."
+
+     `FullApp` has carried both since the league needed to scope on a
+     position. The LIST rows did not, so every filter over them could only
+     compare names -- and dev holds two agencies called "Frost Partnership",
+     each with an office called "Frost Mayfair", one ours and one Kestrel's.
+     Choosing one in the Branch dropdown filtered BOTH.
+
+     OPTIONAL, because mock rows and older fixtures have no ids and a filter
+     that requires one would empty the demo. Every caller falls back to the
+     name, which is what it did before. */
+  branchId?: string;
+  agencyId?: string;
   /** Legacy beneficiary label retained for search only; the deed is in favour of the property. */
   ben: string;
   rent: number;

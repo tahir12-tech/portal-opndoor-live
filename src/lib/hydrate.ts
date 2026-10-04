@@ -476,6 +476,12 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     prop: propStr(a.prop_addr1, a.prop_postcode),
     branch: emb(a.branch)?.name ?? '',
     agency: emb(a.agency)?.name ?? '',
+    /* THE IDS TOO, SINCE 2026-10-04. `fullOut` below has carried them for a
+       while; the list rows are what every FILTER reads, and without them a
+       filter can only compare names -- which merges two same-named offices
+       in two estates into one entry that narrows to both. */
+    branchId: a.branch_id ?? '',
+    agencyId: a.agency_id ?? '',
     ben: a.beneficiary ?? '',
     rent: num(a.monthly_rent),
     status: a.status as Status,

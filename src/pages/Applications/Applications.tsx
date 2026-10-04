@@ -21,7 +21,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent, type 
 import { officeLabel, showsOffices, isPlaceholderOrg } from '@/data/agencyOffices';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  agencyNamesForScope, agencyOfBranch, agencyRefById, branchNamesForScope, branchRefById, countByStatus, getApplications,
+  agencyNamesForScope, agencyOfBranch, agencyRefById, branchOptionsForScope, branchRefById, countByStatus, getApplications,
   referrerNamesForScope, getPeriods, periodRange, ALL_PARTNERS, type Status, type Period,
   collateTenancies, groupTenancies, pageWithoutSplitting, scopedSummaries, tenancyDeedTally, tenancyPaidTally,
   originOf, originOptions, originToFilter, originFromParams, ORIGIN_KIND_LABEL,
@@ -404,7 +404,11 @@ export function Applications() {
      origin left the Branch chip offering every branch in the book. */
   const originAgency = originQuery.agencies?.length === 1 ? originQuery.agencies[0] : undefined;
   const agencyOptions = agencyNamesForScope(scopeOpts);
-  const branchOptions = branchNamesForScope(scopeOpts, agency || originAgency);
+  /* ONE ENTRY PER OFFICE, KEYED ON ITS ID. Matt, 2026-10-04: "offices with
+     the same name in different estates are merged into one entry ... List each
+     office separately and label supplier-estate ones ... and filter by the
+     office's id, not its name." See branchOptionsForScope. */
+  const branchOptions = branchOptionsForScope(scopeOpts, agency || originAgency);
   const referrerOptions = referrerNamesForScope(scopeOpts);
   // opndoor staff (superadmin + opndoor_manager) view every partner's book, so
   // both get the Origin column and the Origin filter to sub-filter by one party.
@@ -615,11 +619,21 @@ export function Applications() {
               {agencyOptions.map((n) => <option key={n} value={n}>{n}</option>)}
             </FilterChip>
           )}
+          {/* THE CHIP SHOWS THE LABEL, NOT THE VALUE, now that the value is an
+              id: `display={branch}` would have put a uuid on the chip. Looked
+              up in the options, which is the only place that pairs the two,
+              and falls back to the raw value for a `?branch=` link naming an
+              office that is not in this scope's list. */}
+          {/* AND STILL "Branch:". The Agent/Branch to Agency/Office rename Matt
+              asked for on 2026-10-04 is scoped to the New application form --
+              "on this form, matching the supplier and agency forms" -- so
+              renaming this chip too would be a change to the list he has not
+              asked for. The id is the instruction this file carries out. */}
           {showBranch && (
-            <FilterChip icon={<Icon name="home" />} label="Branch:" display={branch || (agency ? 'All branches' : 'All')} value={branch}
+            <FilterChip icon={<Icon name="home" />} label="Branch:" display={branchOptions.find((o) => o.value === branch)?.label || branch || (agency ? 'All branches' : 'All')} value={branch}
               onChange={(e) => setBranch(e.target.value)}>
               <option value="">{agency ? 'All branches' : 'All'}</option>
-              {branchOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+              {branchOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </FilterChip>
           )}
           {showReferrer && (
