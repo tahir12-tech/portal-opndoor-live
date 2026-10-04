@@ -2555,6 +2555,26 @@ is defending against a state that this is what creates.
 - **Sandbox API.** Nothing to test yet: no joint path, and no sandbox key on
   dev either. The only key is a revoked LIVE key for Kestrel.
 
+### (e) The estate check goes on the joint path too, and three more
+
+> 1. Yes: apply the same estate check to joint referrals as single ones, so Kestrel's agency share on a joint referral follows the deal (10%), not the tenant count. Show me the 2-tenant Kestrel figures before and after.
+> 2. Set Kestrel's 3-or-more band on dev to 24% so dev data obeys the new rule.
+> 3. Joint tenancies through the API go under "After launch".
+> 4. Run the pgTAP checker once in report-only mode that compares each file's plan with what ran, and tell me which files, if any, ran fewer assertions than planned. Don't change what counts as passing yet.
+> Then stop editing and tell me, so I can walk.
+
+- **OPTION 1 OF THE THREE I PARKED**, and he has named the number he expects
+  to see: 10%, the deal, not the tenant count. That is the check: Kestrel's
+  joint share must come out at the same rate as its single referrals.
+- ITEM 2 IS A CHANGE TO DEV DATA and he has asked for it explicitly, which is
+  the only reason it is being made: a pricing band is money configuration.
+- ITEM 3 PARKS THE API, so item 1 of instruction (b) is now portal-only and
+  the API half goes under After launch with what it would take.
+- **ITEM 4 IS REPORT ONLY AND SAYS SO TWICE.** "Don't change what counts as
+  passing yet" means the harness keeps setting its status from `not ok` lines;
+  the plan comparison is run beside it and reported, not wired in.
+- "THEN STOP EDITING AND TELL ME" is the end of the session's work.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
