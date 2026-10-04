@@ -348,7 +348,23 @@ describe('the definer allowlist', () => {
        one. The reason it is not admin-only is that the people most likely to
        meet a failed read have the least access, and a report nobody can file
        is not a report. */
-    expect(allowlist.length).toBeLessThanOrEqual(158);
+    /* 158 -> 159, RAISED IN THE SAME COMMIT AS THE FUNCTION THAT WIDENS IT:
+       refund_cascade_failures, 20261008120000.
+
+       WHY IT IS SAFE TO HAND TO EVERY SIGNED-IN USER. It takes no arguments
+       at all, so there is nothing to craft. And it closes itself rather than
+       relying on the caller to ask first: `is_opndoor_staff()` sits in its
+       WHERE, so an agency reader gets an empty set, not a refusal and not
+       somebody else's rows. That shape is deliberate -- the Home tile calls
+       it unconditionally and renders nothing when it is empty, which is one
+       code path instead of a role test the tile could get wrong.
+
+       WHAT IT WOULD LEAK IF THE GATE FAILED, since that is the real
+       question: opndoor's own Stripe failures on co-tenant refunds. The
+       agency already sees, on its own application, an activity row saying
+       the automatic refund could not be taken. So the exposure is the
+       aggregate list, not the fact. */
+    expect(allowlist.length).toBeLessThanOrEqual(159);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

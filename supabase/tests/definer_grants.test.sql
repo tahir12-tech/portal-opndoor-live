@@ -197,6 +197,15 @@ insert into allowed(name) values
   ('referrer_league'),
   /* The open questions themselves. Opndoor staff only: they are other
      companies' commission figures on documents already sent. */
+  /* THE HALF-DONE CASCADE, on Home. Matt (al): "if any co-tenant's refund
+     fails, alert ops and show it on Home." Reachable by any signed-in user
+     because the Home tile calls it unconditionally rather than asking the
+     role first, and the function closes itself: its WHERE carries
+     `is_opndoor_staff()`, so an agency reader gets an empty set rather than
+     a refusal. Nothing to leak either way -- the only rows are opndoor's own
+     Stripe failures, and the agency sees the per-application activity row
+     for its own tenant regardless. */
+  ('refund_cascade_failures'),
   ('refund_questions_open'),
   ('remove_partner_statement_recipient'),
   /* THE BROWSER SAYING IT COULD NOT READ SOMETHING. Reachable by any
