@@ -67,7 +67,12 @@ export const NAV: NavGroup[] = [
       { id: 'dashboard', label: 'Reporting', to: '/dashboard', icon: 'dashboard', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer'] },
       { id: 'applications', label: 'Applications', to: '/applications', icon: 'apps', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'] },
       { id: 'league', label: 'League', to: '/league', icon: 'trend', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer'] },
-      { id: 'new', label: 'New application', to: '/new-application', icon: 'plus', roles: ['superadmin', 'management', 'referrer'] },
+      /* AND THEY MAY SEND ONE. Matt (bb): "New application on behalf of any
+         supplier or agency, the same form admins use." The database learned
+         this in 20261008180000; offering the form without that would have
+         been a choice the server refuses, which is what the queue entry
+         warned about. */
+      { id: 'new', label: 'New application', to: '/new-application', icon: 'plus', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer'] },
     ],
   },
   {
@@ -107,7 +112,17 @@ export const NAV: NavGroup[] = [
     // that plumbs them never appears). Supplier settings stay superadmin-only.
     group: 'Relationships',
     items: [
-      { id: 'partners', label: 'Suppliers', to: '/partners', icon: 'partners', roles: ['superadmin'] },
+      /* READ-ONLY FOR AN OPNDOOR MANAGER. Matt (bb): "give them the
+         Suppliers list and each supplier's page read-only (no editing
+         settings, commission, keys or people)."
+
+         THE LIST IS NOT THE PERMISSION. Everything editable on a supplier's
+         page is gated on its own admin check -- rates, agreements, API
+         keys, people -- so admitting a reader to the page admits them to
+         the reading of it and nothing else. What (bb) withholds is
+         commission, settlements, the bordereau, the opndoor team page and
+         Health, and none of those is this entry. */
+      { id: 'partners', label: 'Suppliers', to: '/partners', icon: 'partners', roles: ['superadmin', 'opndoor_manager'] },
       // Opndoor and a SUPPLIER's staff see Agencies: a supplier has a book of
       // agencies under it and a real reason to browse them. One of OUR agencies
       // does not — it IS the agency — and the screen it was being shown is an

@@ -114,7 +114,16 @@ select throws_ok(
       'a4000000-0000-0000-0000-0000000000b1','Mx','Mo','Manager','1990-01-01',
       'zzz.route.m@r.test','07700900404','4 Route Street',null,'London',null,'RT4 4AA',
       1000, current_date + 30, 'a4000000-0000-0000-0000-0000000000d1')$$,
-  '42501', 'Only an opndoor admin may choose the route for a referral.',
+  '42501',   /* "OPNDOOR STAFF", NOT "an opndoor admin", SINCE (bb). Matt gave opndoor
+     managers New application "on behalf of any supplier or agency, the same
+     form admins use", so the route guard admits them too and its message
+     would otherwise name a group it no longer describes.
+
+     WHAT THIS ASSERTION IS ABOUT IS UNCHANGED and is the reason it is
+     reworded rather than dropped: a PARTNER'S own manager still may not
+     state a route, because theirs is their own partner. The grant widened
+     from one kind of opndoor reader to two; it did not reach customers. */
+  'Only opndoor staff may choose the route for a referral.',
   'a partner''s own manager may not state a route: theirs is their own partner');
 
 reset role;

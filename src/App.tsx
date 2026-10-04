@@ -184,7 +184,9 @@ export function App() {
         <Route element={<RequireCapability roles={['management']} capability="agencyTeam" redirectTo="/dashboard" />}>
           <Route path="/team" element={<Team />} />
         </Route>
-        <Route element={<RequireRole roles={['superadmin', 'management', 'referrer']} redirectTo="/dev-centre" />}>
+        {/* (bb) An opndoor manager may refer on any supplier's or agency's
+            behalf, which create_referral admits as of 20261008180000. */}
+        <Route element={<RequireRole roles={['superadmin', 'opndoor_manager', 'management', 'referrer']} redirectTo="/dev-centre" />}>
           <Route path="/new-application" element={<NewApplication />} />
         </Route>
 
@@ -210,10 +212,23 @@ export function App() {
           <Route path="/reconciliation" element={<Reconciliation />} />
         </Route>
 
-        {/* opndoor admin only: the sensitive-settings surfaces. */}
-        <Route element={<RequireRole roles={['superadmin']} />}>
+        {/* (bb) Suppliers, read-only for an opndoor manager. Everything
+            editable on these pages carries its own admin check, so the
+            route admits them to the reading and to nothing else. */}
+        <Route element={<RequireRole roles={['superadmin', 'opndoor_manager']} redirectTo="/home" />}>
           <Route path="/partners" element={<PartnerManagement />} />
           <Route path="/partners/:key" element={<PartnerHome />} />
+        </Route>
+
+        {/* AND HEALTH STAYS ADMIN-ONLY, which is why this group had to be
+            split rather than widened. (bb) grants the Suppliers pages and
+            withholds Health in the same sentence -- "Still no commission,
+            settlements, bordereau, opndoor team or Health" -- and the two
+            were sharing a guard, so admitting a manager to Suppliers
+            admitted them to Health as well. Caught before it shipped only
+            because the comment above the group said "admin only" and the
+            roles no longer did. */}
+        <Route element={<RequireRole roles={['superadmin']} redirectTo="/home" />}>
           <Route path="/health" element={<Health />} />
           {/* /internal-notifications is gone with walk fix 10. Nothing
               replaces the ROUTE: an old link now falls through to the
