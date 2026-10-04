@@ -4386,6 +4386,74 @@ both estates, the dialog, and FAQ 9 on both rails.
 - 2- AND 3-TENANT TESTS BY NAME, as with (bc), and for the same reason: two
   passes a loop that handles "the other one".
 
+### (bo) Leftover back links
+
+> League: remove the "Back to dashboard" link at the top (it's in the sidebar already). Check other pages for the same leftover back links and remove those too, except on detail pages (an application, agency or supplier), where "back to the list" is useful.
+
+- NOT YET DONE. League has two of them (League.tsx:323 and :593).
+- THE EXCEPTION IS THE WHOLE RULE: a back link on a top-level page
+  duplicates the sidebar; on a DETAIL page it goes somewhere the sidebar
+  cannot, because the sidebar has no entry for "the list I came from".
+
+---
+
+## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
+
+Checked against the code and dev, not against the queue. Where something is
+not built I have said so rather than reporting the instruction as the
+outcome.
+
+1. **(q)(s)(t) Kestrel's "Owed to you" across Reporting, exports, statement
+   PDF/CSV and zip — NOT BUILT.** "Owed to you", "Paid by Opndoor directly
+   to" and "Included as a schedule in" appear ONLY in queue commits, never
+   in `src/`. `git log -S` over `src` and `supabase` returns nothing for any
+   of the three. (t)'s "remove the Source and Payee level columns" is also
+   outstanding: both headers are still at `exportsService.ts:2364-2365`.
+2. **(gg) Supplier-estate agencies have no deal editor — NOT BUILT.** No
+   gate exists; the Commission tab is drawn the same way for an agency in a
+   supplier's estate as for one of ours.
+3. **(gg) Kestrel's hidden deal conversion plan — NOT DELIVERED, but the
+   data is now in hand.** `e4b75778-bb3e-4782-a817-4e2454986b0b`, scope
+   `agency` on Kestrel Lettings, live, three bands: 1+ at 12% on one
+   month's rent; 2+ at 20% on 5 weeks; 3+ at 24% on 6 weeks. That is the
+   12/20/24 Matt measured. The plan still has to be written and shown
+   before anything is converted — that hold stands.
+4. **Supplier Management editing agency/office name, address, email — NOT
+   BUILT.** There is no RPC for it at all: dev has `set_agency_group`,
+   `set_agency_level`, `set_agency_rates`, `set_agency_referencing_mode`
+   and `set_agency_share_deal`, and nothing that changes a name, address or
+   email.
+5. **(bb) opndoor managers get Suppliers read-only and New application —
+   NOT BUILT.** `nav.ts:110` has Suppliers at `['superadmin']`; `App.tsx`
+   guards `/partners` on `['superadmin']`; New application excludes
+   `opndoor_manager` in both the nav and the route. The SQL half flagged in
+   (bb) is therefore also untouched.
+6. **Notification switches — BUILT. "Turn off all" — NOT BUILT.** The
+   per-person, per-event switches exist and work (`person_notification_
+   panel`, `set_notification_for`, locked cells). There is no "Turn off
+   all" anywhere: no function on dev, no string in the client. (ap) item 4,
+   the plain-English rules, is done as of tonight.
+7. **(v) "What each branch pays out" showing every band — NOT BUILT.** The
+   cell renders one rate per payee (`pctLabel(l.rate)`), so a deal that
+   varies by tenant count shows only one of its bands.
+8. **(w) The agency deal dialog — NOW DONE, and it was half done.** The
+   capitals were already right. The DATE was not: `periodStart` is
+   `effective_from` straight off the row and was rendered unformatted, so
+   the dialog printed "2026-10-01". Fixed tonight with the shared formatter,
+   which also avoids the BST bug a naive `new Date()` would have introduced.
+9. **(n) The "partner" sweep — PARTIALLY DONE.** Several customer-readable
+   strings still say it, and the Dev Centre ones matter because a supplier's
+   Developer reads that screen: `DevCentre.tsx:390` "API access is off for
+   this partner", `:470` "This stops a partner's integration immediately",
+   `Configuration.tsx:101` "You cannot see this partner's API keys". The
+   rest of the hits are opndoor-only surfaces (Health, Finance, the admin
+   partner page) where the internal word is defensible.
+
+**THE PATTERN WORTH NAMING:** six of the nine were recorded in this queue
+and never built, and nothing in the process would have surfaced that. (cc)
+was the same, found by accident earlier tonight. A queue cannot catch its
+own gaps.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
