@@ -2909,6 +2909,22 @@ the one real assertion that has never run.
 - (l) CONFIRMED: blank, not "-" and not "Unknown".
 - ORDER CONFIRMED: (k), (o) answer, (p)/(q), (l), (m), (n).
 
+### (s) The statement PDF and CSV: same wording, and stop truncating the reference
+
+> Kestrel's statement PDF (and CSV): use the same wording as (p): for referrals under "opndoor pays the agents", label the agency line "Paid by Opndoor directly to Frost Partnership", not "Of which agents' share". The guarantee reference is still truncated ("GR-FROST…"); let the column wrap so references show in full.
+
+- THE WORDING HALF IS (q) ON A SECOND SURFACE, with the agency NAMED rather
+  than "your agencies": the PDF is addressed to the supplier and names the
+  party it is about.
+- SO (q) AND THIS SHARE A RULE and must share an implementation, or the
+  screen and the document will word the same arrangement differently. The
+  per-referral frozen setting decides the label in both.
+- THE TRUNCATION IS A SEPARATE, SMALL DEFECT and a real one: a guarantee
+  reference is the thing a reader quotes back to us, and "GR-FROST…" cannot
+  be quoted. It is the column, not the data.
+- GR-FROST-KES is a hand-seeded reference longer than the GR-NNNNN the
+  sequence produces, which is why it is the one that overflows.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
