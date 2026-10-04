@@ -4194,6 +4194,23 @@ both estates, the dialog, and FAQ 9 on both rails.
 - MATT ASKS FOR 2- AND 3-TENANT TESTS BY NAME, which is right: a 2-tenant
   cascade passes a naive "is anyone left" check that a 3-tenant one fails.
 
+### (bd) "Refunded" belongs on every list that shows a stage
+
+> "Refunded" must show on every list that shows a stage: Applications, the agency/office/supplier Referrals tabs, League drill-throughs and exports.
+
+- **EXTENDS (az) ITEM 1 FROM ONE LIST TO ALL OF THEM**, and the reason is
+  the reason (az) item 1 existed: `status` stays at 'deed' through a refund,
+  so every list that renders `status` says "Deed Issued" on a cancelled
+  guarantee. Fixing the Applications list alone would have left four other
+  lists saying the opposite of it.
+- **THE FIX IS THE SHARED LABEL, NOT FIVE EDITS.** `applicationStatusLabel`
+  already exists from (az); the work is finding every list that still
+  formats a status itself. Each one that does is a place the next rule will
+  have to be written again.
+- THE EXPORTS ARE THE ONE WITH A SECOND COLUMN. They have a Payment state
+  column alongside Status, so the two have to agree rather than one
+  overriding the other.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
