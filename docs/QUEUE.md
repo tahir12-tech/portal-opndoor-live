@@ -3458,6 +3458,19 @@ the one real assertion that has never run.
   'opndoor_referenced' today, which is why no agency has ever inherited.
 - THEN: confirm (yy) clears, commit the joint fix, and item 2.
 
+### (ad) The leaderboard ranks by something other than it says
+
+> Referrer leaderboard (Negotiator/Referrer view): it says "How you rank… by referrals sent" but ranks by fees collected (Rosa Vance, 4 referrals, is 2nd behind Joe Joe's 3). Rank by what the description says, or change the description to match; keep it consistent with the Referrers tab admins see.
+
+- **A SENTENCE AND AN ORDER THAT DISAGREE, and the reader can SEE the
+  disagreement**: Rosa has more referrals and is below Joe. That is worse
+  than either choice would be on its own, because it makes the board look
+  arbitrary.
+- MATT ALLOWS EITHER FIX, which makes the deciding question what the ADMIN
+  tab does: "keep it consistent with the Referrers tab admins see". So the
+  admin board's order is the fact to establish first, and then the two
+  agree rather than being independently chosen.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
