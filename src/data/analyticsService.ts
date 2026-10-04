@@ -91,6 +91,19 @@ export interface DashboardModel {
       beside deedcount: copy whose noun has to agree with a count cannot be
       written against a formatted string. */
   paidCount: number;
+  /** Paid referrals whose fee is actually IN the net figure: paidCount less
+      the fully refunded ones. Matt, 2026-10-04: Net fees should "count paid
+      referrals excluding refunded ones, e.g. 'across 15 paid referrals (1
+      refunded)'."
+
+      THE TWO HALVES OF THE TILE DISAGREED. The money is net of refunds and
+      the count was not, so a reader dividing one by the other got a fee per
+      referral that no referral was ever charged. Carried as its own number
+      rather than subtracted at the call site, for the reason paidCount
+      exists at all: copy whose noun agrees with a count cannot be written
+      against a formatted string, and nor can it be written against
+      arithmetic done in JSX. */
+  paidNetCount: number;
   fees: string;
   /** The commission tile's own label. It lived in the page as a d.live ternary,
       which is where it could not see WHO was reading: an agency reads a figure
@@ -381,6 +394,10 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     sent: a.sent.toLocaleString('en-GB'),
     paid: a.paid.toLocaleString('en-GB'),
     paidCount: a.paid,
+    // A PART refund is not a refund here, exactly as it is not in the money:
+    // refundCount counts fully refunded applications only, so the two sides
+    // of the tile come off the same rule.
+    paidNetCount: a.paid - a.refundCount,
     deed: a.deed.toLocaleString('en-GB'),
     sp: pct(a.paid, a.sent),
     /* APPLICANT GRAIN ON BOTH SIDES, AGAIN.
@@ -530,6 +547,8 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
     sent: sent.toLocaleString('en-GB'),
     paid: paid.toLocaleString('en-GB'),
     paidCount: paid,
+    // The synthetic book has no refunds, so net equals gross.
+    paidNetCount: paid,
     deed: deed.toLocaleString('en-GB'),
     sp: pct(paid, sent),
     pd: pct(deed, paid),

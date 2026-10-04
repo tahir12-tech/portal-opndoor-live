@@ -847,7 +847,20 @@ export function Dashboard() {
                     number) rather than paid (the display string): a first
                     referral read "across 1 paid referrals" under the old
                     idiom, which is the bug this one was written to avoid. */}
-                Guarantee fees collected across {d.paid} paid {plural(d.paidCount, 'referral')}{d.feeBasisCopy ? `, ${d.feeBasisCopy}` : ''}, net of any refunds.
+                {/* AND THE COUNT IS NET TOO. Matt, 2026-10-04: "count paid
+                    referrals excluding refunded ones, e.g. 'across 15 paid
+                    referrals (1 refunded)'."
+
+                    "NET" ALREADY MEANT REFUNDS WERE OUT OF THE MONEY, and
+                    the denominator still included them, so the two halves of
+                    one sentence counted different sets. A reader dividing
+                    the figure by the count got a fee per referral that no
+                    referral was ever charged.
+
+                    THE PARENTHETICAL IS CONDITIONAL, because almost every
+                    month has no refunds and "(0 refunded)" on all of them
+                    trains people to stop reading the line. */}
+                Guarantee fees collected across {d.paidNetCount.toLocaleString('en-GB')} paid {plural(d.paidNetCount, 'referral')}{d.refundCount ? ` (${d.refundCount} refunded)` : ''}{d.feeBasisCopy ? `, ${d.feeBasisCopy}` : ''}, net of any refunds.
               </p>
               {d.live && (
                 <div className="hero-kpi__split">
