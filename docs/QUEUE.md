@@ -4624,6 +4624,18 @@ both estates, the dialog, and FAQ 9 on both rails.
 - THE MISSING AGENCY IS LIKELY THE SAME ROW AS (bz)'s MISSING BADGE, and
   the two should be looked at together before either is fixed.
 
+### (cb) Suppliers list: who may change it, and "Not live yet"
+
+> Suppliers list: "Visible to opndoor staff only. Managers can view but not change anything." And "Live from -" should read "Not live yet".
+
+- THE FIRST IS THE NOTE (bb) EARNED. Opndoor managers gained read-only
+  Suppliers; the page says who can see it and not who can change it, and
+  a read-only reader with no indication they are read-only hunts for the
+  button.
+- "LIVE FROM -" IS A TEMPLATE WITH A HOLE IN IT, not a date that is
+  missing. Same family as (ca)'s dash: a placeholder printed where the
+  honest answer is a different sentence.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
