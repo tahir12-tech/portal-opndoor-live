@@ -20,7 +20,7 @@ import {
   ANNUAL, APP_BRANCHES, APP_RENTS, APP_REFERRERS, AVG_RENT,
   BX_FIRST, BX_FLATS, BX_LAST, BX_STREETS, BX_TITLES, TREND_MONTHS,
 } from './mock/analyticsModel';
-import { partnerName, getRatesFor, scopeFor } from './partnersService';
+import { partnerName, getPartner, getRatesFor, scopeFor } from './partnersService';
 import { isAgencyUser, partyIsSupplier } from './capabilities';
 import { viewerShape } from './viewerShape';
 // The statement column rule, shared with the screen and (as a copied block) with
@@ -1803,7 +1803,61 @@ export function draftLabel(monthKey: string, ref: string): string | null {
   return monthKey >= current ? DRAFT_IN_PROGRESS : DRAFT_NOT_POSTED;
 }
 
+/* =====================================================================
+   THE PAYEE KEY, BUILT IN ONE PLACE.
+
+   Matt, 2026-10-04: "Reporting -> Supplier commission settlement -> Download
+   statement (Kestrel, September 2026) still says 'Reference assigned when
+   the statement is posted' ... but it was posted this morning as
+   STMT-2026-09-0006. ... tell me why this path missed it."
+
+   BECAUSE IT ASKED A DIFFERENT QUESTION AND GOT A TRUE ANSWER TO IT. The
+   database stores one key per payee per month and `commission_statement_ref`
+   matches it exactly, returning null when there is no row. The shape is
+   `commission_statement_lines`' own expression:
+
+       coalesce(pt.slug,'') || '|' || level || ':' || org_id
+
+   so a supplier is `kestrel-lettings|partner:9ec3cdd0-...`: the SLUG on the
+   left and the UUID on the right. The supplier download built
+   `${partnerId}|partner:${partnerId}`, the same value twice, which can only
+   ever produce slug|partner:slug or uuid|partner:uuid and never the mixed
+   shape that exists. No row, so null, so "assigned when the statement is
+   posted" -- a true statement about a payee nobody has.
+
+   MEASURED ON DEV, the three questions and their answers:
+
+       kestrel-lettings|partner:<uuid>          STMT-2026-09-0006
+       kestrel-lettings|partner:kestrel-lettings      (none)
+       <uuid>|partner:<uuid>                          (none)
+
+   AND THE DATA KEPT THE RECEIPT. `commission_statement_refs` holds a row for
+   `kestrel-lettings|partner:kestrel-lettings` with NO matching send: a
+   number minted by this very question back when reading still minted. A
+   stranded sequence number is what a wrong key leaves behind.
+
+   THREE CALL SITES BUILT THIS BY HAND, one per surface, which is why one of
+   them could be wrong while the others were right. There is one builder now
+   and the call sites pass what they have. */
+export function supplierPayeeKey(partnerSlug: string): string | null {
+  /* THE UUID, WHICH THE SLUG IS NOT. `Partner.id` is the slug every screen
+     compares; `dbId` is what an RPC taking a partner needs, and it is absent
+     in mock mode, where there is no stored statement to find anyway. */
+  const dbId = getPartner(partnerSlug)?.dbId;
+  return dbId ? `${partnerSlug}|partner:${dbId}` : null;
+}
+
+/** An agency, group or branch payee: the slug, the level, and the org uuid. */
+export function orgPayeeKey(partnerSlug: string, level: string, orgId: string | null): string | null {
+  return orgId ? `${partnerSlug}|${level}:${orgId}` : null;
+}
+
 export async function statementReference(monthKey: string, payeeKey: string): Promise<string> {
+  /* A KEY THAT COULD NOT BE BUILT IS NOT A FAILED READ. The builders return
+     null in mock mode and for a payee with no org id, where there is nothing
+     stored to find; asking anyway would report an incident for a state that
+     is not an incident. */
+  if (!payeeKey) return EMPTY;
   if (!SUPABASE_ENABLED) return EMPTY;
   /* IT RETURNS A STRING OR IT RETURNS A STRING. Its type says Promise<string>
      and it handled the `error` channel while leaving a THROW to escape, which
@@ -1997,9 +2051,10 @@ export async function buildPartnerStatementDoc(role: Role, scope: PartnerScope, 
   const ps = st.partners.find((p) => p.partner === partnerId);
   const payee = ps ? ps.partnerName : partnerName(partnerId);
   /* THE STORED REFERENCE, the same STMT-YYYY-MM-NNNN the month statement
-     carries. A supplier is addressed as `partner:<uuid>`, which the reach
-     test learned in 20261006790000. */
-  const ref = await statementReference(st.monthKey, `${partnerId}|partner:${partnerId}`);
+     carries. THE SLUG ON THE LEFT AND THE UUID ON THE RIGHT: this line used
+     to put `partnerId` on both sides, which is the whole of the bug Matt
+     reported on 2026-10-04. See supplierPayeeKey. */
+  const ref = await statementReference(st.monthKey, supplierPayeeKey(partnerId) ?? '');
   const generated = dmyhm(new Date());
   const blocks: BrandedDoc['blocks'] = [
     { kind: 'section', title: 'Commission statement' },
@@ -2069,7 +2124,16 @@ export async function buildAgentStatementDoc(role: Role, scope: PartnerScope, pa
      the same reason the old slug carried it, now settled by the key the
      database already stores statements under rather than by a string built
      here. */
-  const ref = await statementReference(st.monthKey, `${partner}|${ag ? ag.level : 'agency'}:${ag?.orgId ?? agency}`);
+  /* THE PAYEE'S OWN KEY, AND NOTHING WHERE THERE IS NO PAYEE. `ag.key` is
+     built by the same accumulator that produces the statement, so it cannot
+     disagree with it. The hand-built fallback this replaces could, and did:
+     where `ag` was missing it put the agency NAME where a uuid belongs and
+     then reported "not posted" about a payee that exists under no key at
+     all. An agency with no payee row for the month has not failed to be
+     posted; either it earned nothing, or its commission went out as a
+     schedule inside its supplier's statement, which is its own sentence and
+     is still to be built. */
+  const ref = await statementReference(st.monthKey, ag ? ag.key : '');
   const generated = dmyhm(new Date());
   const blocks: BrandedDoc['blocks'] = [
     { kind: 'section', title: 'Commission statement' },
