@@ -4684,6 +4684,19 @@ both estates, the dialog, and FAQ 9 on both rails.
   wrong number, which is the one place this stops being a presentation
   bug.
 
+### (cg) "Fees collected" must mean one thing
+
+> "Fees collected" means the same everywhere: on agency/supplier Reporting tabs and the Agencies list, show fees net of refunds (or label gross as "before refunds"). Regent shows £21,447.75 on its Reporting tab and £15k on the Agencies list.
+
+- TWO FIGURES UNDER ONE NAME, and Matt has given both so the gap is
+  measurable: £21,447.75 against about £15k for the same agency.
+- **HE HAS ALSO GIVEN THE CHOICE: net, or gross labelled as gross.**
+  Either is acceptable; what is not is one of each under the same
+  words. Net is the better default, since (ay) already made Reporting's
+  "Net fees" say how many refunds it counted.
+- SAME FAMILY AS (bp)(2): two surfaces counting different sets and
+  presenting the result as the same measure.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
