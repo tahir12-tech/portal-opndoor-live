@@ -3953,6 +3953,32 @@ mode, and that is a one-line predicate. HELD as instructed.
 Written while he is away, each with a recommendation. Nothing here has been
 acted on.
 
+### (aw) Five decisions: build the cascade, and the start-date rule
+
+> Decisions:
+> 1) Build the refund cascade now; dev is Stripe test mode.
+> 2) Start-date changes: agency and supplier users can change a start date only before the tenancy starts (signed or not); after the start date, only Opndoor staff can. Show the reason in the dialog for everyone else ("The tenancy has started. Contact opndoor to change the date."). Update FAQ 9 to match.
+> 3) £20 application fee: correct as it is. Every tenant who goes through Opndoor's eligibility checks pays it, whether they came direct or were referred by an agency set to "Opndoor checks tenants". Tenants of agencies or suppliers that check their own don't. Make sure the referred tenant's journey says so clearly.
+> 4) Yes, show "Deed regenerated" in the activity log.
+> 5) Confirm (yy): create a Kestrel referral through the portal, single and joint, including through a newly added agency, and show me the tenant goes straight to payment.
+> Then carry on with block 3.
+
+- **(2) IS A SIMPLER RULE THAN THE ONE I RECOMMENDED AND A BETTER ONE.** I
+  proposed splitting on whether the deed is signed AND whether the term has
+  started. Matt's cuts on ONE fact: has the tenancy started. Signed or not
+  stops mattering, which removes a whole axis from a permission that four
+  places have to agree about.
+- IT ALSO WIDENS AND NARROWS AT ONCE: an agency user may now amend a SIGNED
+  deed before the start date, which today is Management-only; and nobody
+  outside opndoor may amend after it, which today anybody may.
+- (3) CONFIRMS THE RULE AND ADDS WORK: "make sure the referred tenant's
+  journey says so clearly" is the GBP 20 being explained to a tenant who
+  was referred rather than one who walked in.
+- (5) IS A JOURNEY PROOF, not a query: through the portal, single and
+  joint, including a newly added agency.
+- (1) IS THE BIG ONE and dev being Stripe TEST MODE is what makes it
+  testable end to end.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
