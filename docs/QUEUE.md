@@ -2925,6 +2925,23 @@ the one real assertion that has never run.
 - GR-FROST-KES is a hand-seeded reference longer than the GR-NNNNN the
   sequence produces, which is why it is the one that overflows.
 
+### (t) The agency statement zip: formatting, internal columns, and one voice
+
+> Kestrel's agency statement zip (the CSV schedules): format money as £2,400.00 and rates as 25%; months as "September 2026"; remove the "Source" and "Payee level" columns (internal), or if a deal name is useful, show the actual deal ("Deal for Frost Partnership"), never "Opndoor standard" or "Not recorded". Make the zip's files match the PDF and CSV statement in wording and formatting.
+
+- THE THIRD SURFACE OF THE SAME SET OF FIGURES, after the screen (q) and the
+  statement PDF/CSV (s). "Make the zip's files match" is the instruction
+  behind all three: one arrangement, one wording, one format.
+- **"SOURCE" AND "PAYEE LEVEL" ARE OUR WORDS FOR OUR MODEL.** `source` is
+  'agreement' or 'rate' or null, and null is what prints as "Not recorded";
+  `level` is agency/group/branch, which is a fact about how we store a payee
+  and not about what anybody is paid.
+- "NEVER 'Opndoor standard' OR 'Not recorded'" rules out the two values that
+  appear when there is no agreement to name. So the column either names a
+  real deal or does not exist; it may not say "nothing in particular".
+- RAW FORMATTING IS THE REST: unformatted money, a fraction where a
+  percentage belongs, and a machine month.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
