@@ -27,7 +27,10 @@ vi.mock('@/lib/supabase', () => ({
   sb: () => { throw new Error('no client'); },
 }));
 
-import { statementReference, isPostedReference, draftLabel } from './exportsService';
+import {
+  statementReference, isPostedReference, draftLabel, referenceClause,
+  isUnreadableReference, REFERENCE_UNREADABLE, DRAFT_NOT_POSTED,
+} from './exportsService';
 
 describe('statementReference when the client is unusable', () => {
   /* RESOLVES. The assertion is the absence of a rejection as much as the
@@ -36,18 +39,64 @@ describe('statementReference when the client is unusable', () => {
     await expect(statementReference('2026-08', 'p|partner:p')).resolves.toBeTypeOf('string');
   });
 
-  /* THE SAME ANSWER THE ERROR CHANNEL ALREADY GAVE. Two kinds of not-knowing
-     should not render differently, and this one was previously a crash. */
-  it('and gives the same answer an RPC error already gave', async () => {
-    expect(await statementReference('2026-08', 'p|partner:p')).toBe('-');
+  /* RETARGETED BY THE NEXT INSTRUCTION, and the reversal is the point.
+
+     This asserted `'-'`, on the reasoning that "two kinds of not-knowing
+     should not render differently". Matt's answer was that they are not two
+     kinds of the same thing at all: "nothing to show" and "we could not find
+     out" are different facts, and only the first is a draft. So the failure
+     now has its own sentinel and the assertion says which it is NOT, since
+     the positive form is covered below. */
+  it('and no longer borrows the empty sentinel', async () => {
+    expect(await statementReference('2026-08', 'p|partner:p')).not.toBe('-');
   });
 
-  /* AND NOT-KNOWING IS NOT POSTED, which is the safe way round: a statement
-     whose reference could not be read is shown as a draft rather than
-     asserted to have been posted. */
+  /* NOT POSTED, because we did not find out that it was. */
   it('and what it returns does not read as posted', async () => {
     const ref = await statementReference('2026-08', 'p|partner:p');
     expect(isPostedReference(ref)).toBe(false);
-    expect(draftLabel('2026-08', ref)).toBeTruthy();
+  });
+});
+
+/* =====================================================================
+   AND IT IS NOT A DRAFT EITHER.
+
+   Matt, 2026-10-04: "When a statement's reference can't be read, don't label
+   it a draft. Show 'Reference couldn't be loaded. Refresh to try again.' in
+   place of the reference and status, and log it to Health."
+
+   THIS FILE USED TO ASSERT THE OPPOSITE, two commits ago, under the heading
+   "not-knowing is not posted, which is the safe way round". It was wrong in
+   the way a safe-looking default usually is: a failed read says nothing
+   about whether the statement went out, and "Draft: not yet posted" asserts
+   that it did not. Safe in direction, false in content, on a money surface.
+   ===================================================================== */
+describe('an unreadable reference is a third state', () => {
+  it('is its own sentinel, not the empty one', async () => {
+    expect(await statementReference('2026-08', 'p|partner:p')).toBe(REFERENCE_UNREADABLE);
+    expect(isUnreadableReference(REFERENCE_UNREADABLE)).toBe(true);
+  });
+
+  it('and says so in Matt\u2019s words', () => {
+    expect(REFERENCE_UNREADABLE).toBe("Reference couldn't be loaded. Refresh to try again.");
+  });
+
+  /* THE INSTRUCTION ITSELF. */
+  it('and carries no draft label', () => {
+    expect(draftLabel('2026-08', REFERENCE_UNREADABLE)).toBeNull();
+  });
+
+  /* THE CONTRAST THAT MAKES THAT MEAN SOMETHING: a month that genuinely has
+     no reference yet is still a draft, and must not have been quietened. */
+  it('while a month with no reference yet is still a draft', () => {
+    expect(draftLabel('2026-08', '-')).toBe(DRAFT_NOT_POSTED);
+  });
+
+  /* A PDF CANNOT BE REFRESHED. The documents get the same fact without an
+     instruction their reader cannot carry out. */
+  it('and a document says it without telling the reader to refresh', () => {
+    const clause = referenceClause(REFERENCE_UNREADABLE);
+    expect(clause).toBe('Reference unavailable');
+    expect(clause).not.toMatch(/refresh/i);
   });
 });

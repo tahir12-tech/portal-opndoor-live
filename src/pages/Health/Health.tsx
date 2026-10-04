@@ -353,6 +353,11 @@ export function Health() {
             { label: 'Webhook failures', value: c.webhook_failures, bad: true },
             { label: 'Deed failures', value: c.deed_failures, bad: true },
             { label: 'Anomalies', value: c.anomalies, bad: true },
+            /* THE PORTAL'S OWN. Everything else on this card is something the
+               back end noticed; this is the browser saying it could not read
+               something it needed, and this page is where the only person who
+               would act on it is looking. */
+            { label: 'Portal errors', value: c.portal_errors ?? 0, bad: true },
             { label: 'HTTP errors', value: c.http_errors, bad: true, href: '#responses' },
           ]} />
         </div>

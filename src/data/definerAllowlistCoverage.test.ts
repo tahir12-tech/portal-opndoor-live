@@ -333,7 +333,22 @@ describe('the definer allowlist', () => {
                                   elevated rights. The list is definer
                                   functions a session can call, and it is
                                   only the first half of that. */
-    expect(allowlist.length).toBeLessThanOrEqual(157);
+    /* 157 -> 158, RAISED DELIBERATELY AND IN THE SAME COMMIT AS THE
+       FUNCTION THAT WIDENS IT: report_portal_incident, 20261008020000.
+
+       A cap raised in its own commit is a cap nobody reviews, which is the
+       whole reason this number is written down rather than computed.
+
+       WHY THIS ONE IS SAFE TO HAND TO EVERY SIGNED-IN USER, which is the
+       question the cap exists to force: it writes an ops alert and nothing
+       else, its type must be on a fixed allowlist inside the function, its
+       only other argument is validated as YYYY-MM, and the alert TEXT is
+       built in the function rather than passed in. So a caller cannot invent
+       an alert type and cannot put their own words in front of whoever reads
+       one. The reason it is not admin-only is that the people most likely to
+       meet a failed read have the least access, and a report nobody can file
+       is not a report. */
+    expect(allowlist.length).toBeLessThanOrEqual(158);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

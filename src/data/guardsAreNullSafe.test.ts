@@ -331,6 +331,20 @@ describe('a raising guard cannot evaluate to NULL', () => {
        `users_partner_by_role` is a CHECK constraint that refuses the same row
        immediately afterwards. So the guard is there to give the reason a
        sentence, and the column constraint is what actually holds. */
-    expect(denyIf.length).toBe(70);
+    /* 70 -> 71 with 20261008020000, report_portal_incident. ONE of its three
+       refusals is a deny-if carrying 42501:
+
+           if auth.uid() is null
+
+       Total for the most direct reason there is: `x is null` is a boolean for
+       every x, NULL included. Uncoalesced on the same principle as the note
+       above -- `coalesce(auth.uid() is null, true)` would imply the test can
+       go NULL, and it cannot.
+
+       Which way it would fail if it somehow were not total: an unauthenticated
+       caller could write an ops alert. The EXECUTE grant is the other half
+       that holds this, and the function is revoked from anon, so the guard
+       gives the reason a sentence and the grant is what actually refuses. */
+    expect(denyIf.length).toBe(71);
   });
 });

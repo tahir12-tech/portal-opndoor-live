@@ -26,7 +26,7 @@ import {
   buildAllStatementsCsv, buildCommissionStatementDoc, downloadCsv, exportBranded,
   getCommissionStatements, maySeeCommission,
   statementMonths, type CommissionStatement as Statement, statementReference,
-  isPostedReference, draftLabel, paidOnSentence } from '@/data';
+  isPostedReference, isUnreadableReference, draftLabel, paidOnSentence } from '@/data';
 import type { PartnerScope, Role } from '@/data';
 import { SOURCE_LABEL } from '@/data/commissionSplit';
 import type { CommissionSource } from '@/data/types';
@@ -416,6 +416,17 @@ function StatementPanel({
                       const r = refs[refKey(st.monthKey, st.payeeKey)];
                       if (!r) return null;
                       if (isPostedReference(r)) return <> · <span className="stmt__ref">{r}</span></>;
+                      /* COULD NOT BE READ, WHICH IS NOT THE SAME AS NOT
+                         POSTED. Matt, 2026-10-04: "don't label it a draft.
+                         Show ... in place of the reference and status."
+                         Both, which is why this returns before the draft
+                         label is even computed: a reference we could not
+                         read says nothing about whether the statement went
+                         out, and printing "Draft: not yet posted" beside it
+                         would assert the thing we just failed to find out. */
+                      if (isUnreadableReference(r)) {
+                        return <> · <span className="stmt__unread">{r}</span></>;
+                      }
                       /* NOT POSTED, so two things are true and the reader
                          needs both: there is no number yet, and the figures
                          are still moving. Matt, 2026-10-03: "label them

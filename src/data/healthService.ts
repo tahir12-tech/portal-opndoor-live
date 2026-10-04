@@ -78,6 +78,10 @@ export interface HealthCounts {
   webhook_failures: number;
   deed_failures: number;
   anomalies: number;
+  /** Raised by the BROWSER, not by a cron: something the portal needed and
+      could not read. Absent on a back end that predates 20261008020000, so
+      it is read with a fallback rather than assumed. */
+  portal_errors?: number;
   /** Non-2xx (or errored) HTTP responses in the window: the silent-401 tally. */
   http_errors: number;
 }

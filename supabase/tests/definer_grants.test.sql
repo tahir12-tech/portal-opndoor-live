@@ -199,6 +199,14 @@ insert into allowed(name) values
      companies' commission figures on documents already sent. */
   ('refund_questions_open'),
   ('remove_partner_statement_recipient'),
+  /* THE BROWSER SAYING IT COULD NOT READ SOMETHING. Reachable by any
+     signed-in user on purpose: the people most likely to hit a failed read
+     are the ones with the least access, and a report that needs MFA or an
+     admin is a report nobody files. Safe to hand out because it takes a type
+     from a fixed allowlist and a month it validates, and BUILDS the alert
+     text itself, so nothing a caller sends reaches a human-read alert.
+     20261008020000. */
+  ('report_portal_incident'),
   ('resolve_agency_match'),
   /* ONE SAVE WRITES A SHARE DEAL AND THE AGENCIES IT APPLIES TO
      (20261007300000). The Commission tab's only way to write a supplier's

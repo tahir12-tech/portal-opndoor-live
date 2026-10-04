@@ -1748,6 +1748,22 @@ function dmyhm(x: Date): string {
  */
 export const REFERENCE_ON_POST = 'Reference assigned when the statement is posted';
 
+/* AND THE THIRD STATE, which is neither a number nor the absence of one.
+   Matt, 2026-10-04: "When a statement's reference can't be read, don't label
+   it a draft. Show 'Reference couldn't be loaded. Refresh to try again.' in
+   place of the reference and status."
+
+   "NOT POSTED YET" AND "WE COULD NOT FIND OUT" ARE DIFFERENT FACTS and until
+   now a failure borrowed the first one, so a dropped connection rendered as
+   "Draft: not yet posted, figures may change" on a money surface: a guess
+   presented as a fact, and in the one direction a reader cannot check. */
+export const REFERENCE_UNREADABLE = "Reference couldn't be loaded. Refresh to try again.";
+
+/** Did the read fail, as opposed to there being nothing to read? */
+export function isUnreadableReference(ref: string): boolean {
+  return ref === REFERENCE_UNREADABLE;
+}
+
 /* =====================================================================
    AND THE STATEMENT ITSELF IS A DRAFT UNTIL IT IS POSTED.
 
@@ -1775,6 +1791,11 @@ export const DRAFT_NOT_POSTED = 'Draft: not yet posted, figures may change';
  *  `monthKey` is 'YYYY-MM'; `ref` is what statementReference returned. */
 export function draftLabel(monthKey: string, ref: string): string | null {
   if (isPostedReference(ref)) return null;
+  /* NOT A DRAFT, WHICH IS THE INSTRUCTION. A reference we could not read
+     tells us nothing about whether the statement was posted, and "Draft: not
+     yet posted" asserts that it was not. No label at all is the honest
+     answer; the sentence in the reference's place carries the news. */
+  if (isUnreadableReference(ref)) return null;
   // `today()` is this file's own clock, fixed in test mode like every other
   // date here, so a draft label cannot drift between a test and a screen.
   const now = today();
@@ -1803,11 +1824,36 @@ export async function statementReference(monthKey: string, payeeKey: string): Pr
     const { data, error } = await sb().rpc('commission_statement_ref', {
       p_month: monthKey, p_payee_key: payeeKey,
     });
-    if (error) return EMPTY;
+    /* THE `error` CHANNEL IS THE ONE A USER ACTUALLY REACHES. postgrest-js
+       turns a dropped connection into an error rather than a rejection, so
+       this arm, not the catch below, is what a train tunnel looks like. */
+    if (error) { reportUnreadable(monthKey); return REFERENCE_UNREADABLE; }
     return typeof data === 'string' && data ? data : REFERENCE_ON_POST;
   } catch {
-    return EMPTY;
+    reportUnreadable(monthKey);
+    return REFERENCE_UNREADABLE;
   }
+}
+
+/* TELL HEALTH, AND NEVER FAIL DOING IT. Matt: "and log it to Health."
+
+   FIRE AND FORGET, in both directions. The caller is already handling a
+   failure and must not acquire a second one; a reporting call that could
+   throw or reject would be the same defect this whole change is about. The
+   RPC takes the month and nothing else: it builds the alert text itself, so
+   nothing from the browser reaches a human-read operational alert.
+
+   SILENT IN MOCK AND DEMO MODE, where there is no back end to tell and no
+   failure to report. */
+function reportUnreadable(monthKey: string): void {
+  if (!SUPABASE_ENABLED) return;
+  try {
+    void sb()
+      .rpc('report_portal_incident', {
+        p_type: 'portal_statement_reference_unreadable', p_month: monthKey,
+      })
+      .then(() => {}, () => {});
+  } catch { /* The client is the thing that failed. Saying so twice helps nobody. */ }
 }
 
 /** Has this statement actually been posted? The reference IS the record of
@@ -1815,7 +1861,8 @@ export async function statementReference(monthKey: string, payeeKey: string): Pr
     caller that needs a filename or a sort key asks it this way rather than
     comparing against the sentence. */
 export function isPostedReference(ref: string): boolean {
-  return !!ref && ref !== REFERENCE_ON_POST && ref !== EMPTY;
+  return !!ref && ref !== REFERENCE_ON_POST && ref !== EMPTY
+    && ref !== REFERENCE_UNREADABLE;
 }
 
 /* =====================================================================
@@ -1870,6 +1917,11 @@ export function paidOnSentence(monthKey: string, posted: boolean): string | null
     "Reference Reference assigned when the statement is posted", which is the
     kind of thing three call sites each discover separately. */
 export function referenceClause(ref: string): string {
+  /* A PDF CANNOT BE REFRESHED. The screen's sentence ends "Refresh to try
+     again", which is an instruction to somebody looking at a browser; this
+     clause goes into the meta-line of a generated document, where the same
+     state has to be said without a verb the reader cannot perform. */
+  if (isUnreadableReference(ref)) return 'Reference unavailable';
   return isPostedReference(ref) ? `Reference ${ref}` : ref;
 }
 

@@ -106,3 +106,8 @@
    muted: it is the one thing on the line a reader must not skim, because the
    total beside it is still moving. */
 .stmt__draft { color: var(--warn); font-weight: 600; }
+/* A FAILED READ, NOT A WARNING ABOUT THE MONEY. `--warn` is what a draft
+   wears and means "these figures are still moving"; this means "we could not
+   find out", which is a fault on our side and reads as one. Not bold: it is
+   already the longest thing on the line. */
+.stmt__unread { color: var(--danger); }
