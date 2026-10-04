@@ -2842,6 +2842,27 @@ the one real assertion that has never run.
 - "WHETHER IT WAS SET THROUGH THE PORTAL" is answerable from created_by and
   the org_audit trail, not from opinion.
 
+### (p) The supplier's own Reporting headline, and the paid-on sentence
+
+> Supplier's own Reporting (View as Kestrel): the "Commission payable" headline still shows £840; it must show what Opndoor owes the supplier itself (£600), as the statement does, excluding agency commission Opndoor pays directly. Also, "once the month's statement is posted" must only appear for unposted months; September is posted, so say "Opndoor pays this on 15 Oct 2026."
+
+- SIXTH MID-TURN INSTRUCTION.
+- **THE SECOND HALF IS THE SAME BUG AS (k), NOT A NEW ONE.** The paid-on
+  sentence takes a `posted` boolean; the panel computes it as
+  `shown.every(st => isPostedReference(refs[...]))`, and `refs` is filled by
+  the very lookup that (k) proves is asking with the wrong key. A posted
+  September reads as unposted, so the sentence adds "once the month's
+  statement is posted". Fix the key and this half goes with it, which is
+  worth knowing before anybody writes a second fix for it.
+- THE FIRST HALF IS SEPARATE AND IS ARITHMETIC: 840 is the TOTAL,
+  600 is what Opndoor owes the supplier itself. `supplierPayableOf` in
+  `_shared/supplierPayable.ts` already makes exactly this distinction for
+  the statement and the invoice instruction, from Matt's own 2026-10-03
+  words, "600 here, not 840". The Reporting headline is a THIRD reader of
+  the same figures that did not get the memo.
+- SO THE RISK IS A FOURTH IMPLEMENTATION. The right fix routes the headline
+  through the shared helper rather than repeating the subtraction.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
