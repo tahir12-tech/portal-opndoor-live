@@ -3124,6 +3124,25 @@ the one real assertion that has never run.
 - SO THREE PARTS: remove the editor and link out; surface existing non-
   partner deals on the tab; and the conversion, which waits.
 
+### (hh) The Application export does nothing as a supplier
+
+> Signed in as Kestrel Management (test@kestrel.com), Reporting → Application export: pressing it does nothing, with no download and no message. Find why (browser console error, the export query for supplier users, or the recent supplier export changes), fix it, and make any export that fails show a clear message instead of doing nothing. Test the Application export for every level: admin, opndoor manager, agency Director/Manager/Negotiator, supplier Management/Referrer/Developer.
+
+- **A DEAD BUTTON ON A GO-LIVE SURFACE, which outranks the copy items.** It
+  is also the same shape as the fault the whole missing-fields thread was
+  about: a control that does nothing teaches the reader the product is
+  broken.
+- THE SECOND CLAUSE IS THE BIGGER FIX: "make any export that fails show a
+  clear message instead of doing nothing." That is a rule for every export,
+  not a patch for this one, and it belongs where exports are triggered
+  rather than in each builder.
+- NINE LEVELS NAMED, and that list is the test. Suppliers have no ladder
+  (Management, Referrer, Developer) while agencies do, so the matrix is not
+  symmetrical.
+- MY OWN RECENT WORK IS A SUSPECT and he says so: exportsService changed
+  today in 3427bcd and f2b5c13. Worth checking against the previous commit
+  before looking further afield.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
