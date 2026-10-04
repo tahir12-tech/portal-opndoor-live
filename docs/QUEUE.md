@@ -3543,6 +3543,25 @@ SO THE QUESTION IS MATT'S, and it is not one his instruction answered:
 should a supplier referral freeze its commission lines? The test says yes
 and the three creation paths say no. Not guessing on a money record.
 
+### (ai) opndoor sends the signing email, not PandaDoc
+
+> Stop PandaDoc emailing tenants: create and send deeds silently so PandaDoc sends no email of its own, and make Opndoor's "Payment received" email the one with the "Sign your Deed of Guarantee" button (plus "Already signed? Then you're all set and can ignore this."). "Resend signature request" on the application must send Opndoor's email with a fresh signing link. The button opens the signing page, or "Your deed is already signed" if done. Check the corrected-deed flow (start-date changes) also uses Opndoor's email. Test on dev.
+
+- **SUPERSEDES AND WIDENS (ag)**, which asked only for the button. This
+  says who sends the email at all.
+- A TENANT CURRENTLY GETS TWO EMAILS from two senders about one deed, one of
+  them in PandaDoc's voice and branding. That is the real complaint.
+- **IT TOUCHES THE DEED PATH, WHICH IS THE MOST CAREFUL PART OF THE
+  PRODUCT.** "Silently" is a PandaDoc API setting (silent send); getting it
+  wrong either leaves PandaDoc emailing or stops the deed being sendable at
+  all. The fallback must be that the deed still exists.
+- THREE SENDERS TO COVER, and he names them: the first send, "Resend
+  signature request", and the corrected-deed flow after a start-date
+  change. Missing one leaves PandaDoc emailing on that path only, which is
+  the hardest kind of half-fix to notice.
+- THE BUTTON MUST HANDLE THE ALREADY-SIGNED CASE, which the pay page
+  already does through requestSigningLinkByToken.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
