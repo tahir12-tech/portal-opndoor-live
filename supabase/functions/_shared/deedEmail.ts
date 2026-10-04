@@ -63,12 +63,47 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
 
   const appBase = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
 
+  /* AN AGENCY INSIDE A SUPPLIER'S ESTATE HAS NO LOGIN AND NO SAY.
+   *
+   * Matt (bf): "Signed-deed email to an agency without portal access (any
+   * agency in a supplier's estate, e.g. Test Lettings asda for Kestrel):
+   * remove 'You can also view it any time in the portal' and the 'Wrong
+   * tenancy start date? Change it here' link. Instead: 'Wrong tenancy start
+   * date? Contact [supplier name], who referred this tenant.'"
+   *
+   * TWO DEAD INVITATIONS IN ONE EMAIL, to the person holding the guarantee.
+   * The supplier refers; the agency is a record in the supplier's book and
+   * has no account at all.
+   *
+   * THE SECOND IS WORSE THAN A DEAD LINK. The correction link is a TOKEN and
+   * would actually work -- but on this rail the amendment is not the
+   * agency's to make. The supplier owns the relationship, holds the portal
+   * access, and can change the date themselves before the tenancy starts.
+   * An agency that corrects a date behind its supplier's back is a worse
+   * outcome than one that is told who to ring.
+   *
+   * THE TEST IS THE ESTATE, NOT THE RECIPIENT'S ROLE, because this email has
+   * more than one recipient since (bg): it is addressed to the agency and
+   * copies the supplier's referrer, who does have a login. The ADDRESSEE
+   * decides the wording, and the referrer can reach the application from
+   * their own portal without being told. */
+  const { data: estate } = await service
+    .from("applications")
+    .select("partner:partners(name, partner_kind)")
+    .eq("id", target.appId).maybeSingle();
+  // deno-lint-ignore no-explicit-any
+  const pt = (Array.isArray(estate?.partner) ? (estate?.partner as any)[0] : (estate?.partner as any)) ?? null;
+  const supplierName: string | null = pt?.partner_kind === "supplier"
+    ? (typeof pt?.name === "string" && pt.name.trim() ? pt.name.trim() : null)
+    : null;
+  const inSupplierEstate = pt?.partner_kind === "supplier";
+
   // "You can also view it in the portal" is only for a recipient who has a login.
   // A private landlord has none, so the line is omitted for them; a letting agent
   // (and a referral-rail branch contact, whose delivery-contact kind is null here)
-  // gets it.
+  // gets it. An agency in a supplier's estate has none either.
   let portalUrl = "";
-  if (appBase) {
+  if (appBase && !inSupplierEstate) {
     const kind = await managedByFor(service, target.appId);
     if (kind !== "private_landlord") portalUrl = `${appBase}/applications/${encodeURIComponent(target.ref)}`;
   }
@@ -77,7 +112,11 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
   // applies the correction automatically (void + reissue), so the wording invites
   // a change rather than promising a review.
   let correctionUrl = "";
-  if (appBase) {
+  // NOT MINTED AT ALL on a supplier's estate, rather than minted and hidden:
+  // an unused seven-day correction token is a live way to amend a tenancy
+  // sitting in a table, and the point of (bf) is that this agency is not the
+  // one who should be amending it.
+  if (appBase && !inSupplierEstate) {
     /* ONE LIVE CORRECTION LINK PER APPLICATION. Round 6, M4.
        This minted a NEW seven-day token on EVERY call, and it is called by the
        completion webhook, by every manual "Send deed to agent", and by every
@@ -181,6 +220,14 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
   if (correctionUrl) {
     message.blocks = [...message.blocks, {
       small: `Wrong tenancy start date? <a href="${correctionUrl}">Change it here</a>.`,
+    }];
+  } else if (supplierName) {
+    /* WHO CAN, instead of a link that cannot. Matt's own sentence. Somebody
+       who spots a wrong start date and is given nothing to do about it does
+       nothing, and the deed stays wrong -- which is the whole reason this
+       line exists at all. */
+    message.blocks = [...message.blocks, {
+      small: `Wrong tenancy start date? Contact ${supplierName}, who referred this tenant.`,
     }];
   }
   // One message with each of them as a recipient, not one message each: the
