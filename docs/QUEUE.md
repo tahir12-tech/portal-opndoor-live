@@ -2823,6 +2823,25 @@ the one real assertion that has never run.
 - THE PARTNER API IS A PUBLISHED CONTRACT. Its field names and its
   documentation of them are not user-facing copy in this sense.
 
+### (o) Every deal under a supplier must appear on its Commission tab
+
+> Kestrel's Commission tab lists "Kestrel Lettings" (the agency) as on the default agency deal (10% / 15%), but you measured Kestrel Central at 12% / 20% / 24% by tenant count, from an agency-scope deal. Every deal that affects a supplier's agencies or offices must appear on that supplier's Commission tab, under "Agencies on different terms", showing exactly what it pays. Tell me where the 12/20/24 deal is stored, whether it was set through the portal, and whether any other hidden deals exist on dev.
+
+- FIFTH MID-TURN INSTRUCTION, and it is ANSWER FIRST again: where it is
+  stored, whether the portal made it, and whether there are others.
+- **HE HAS FOUND THE SAME SPLIT I REPORTED FROM THE OTHER END.** My audit
+  said an AGENCY-scope COMMISSION deal fills the agency's slot in
+  commission_split while the Commission tab reads the partner-scope
+  agent_share deals. Matt is looking at the screen and seeing the
+  consequence: the tab says 10% / 15% and the referral charges 12/20/24.
+- SO THE SCREEN IS NOT MERELY INCOMPLETE, IT IS WRONG. It states terms for
+  an agency whose terms are something else.
+- THE 12/20/24 DEAL IS THE ONE FROM THE AUDIT: agency-scope, kind
+  'commission', on the agency named "Kestrel Lettings" inside Kestrel's
+  estate, and its third band is the one he had me set to 24% earlier today.
+- "WHETHER IT WAS SET THROUGH THE PORTAL" is answerable from created_by and
+  the org_audit trail, not from opinion.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
