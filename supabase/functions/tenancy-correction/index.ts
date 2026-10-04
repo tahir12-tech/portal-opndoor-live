@@ -19,6 +19,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { voidDocument, generateDeed } from "../_shared/pandadoc.ts";
+import { deliverSigningInvite } from "../_shared/signingInvite.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -257,6 +258,9 @@ Deno.serve(async (req) => {
           }).eq("id", app.id);
           const gen = await generateDeed(service, app.id, true);
           appReissued = gen.ok;
+          // OPNDOOR SENDS IT. Matt (ai): PandaDoc is silent, so a corrected
+          // deed nobody emails about is a corrected deed nobody signs.
+          if (gen.ok) await deliverSigningInvite(service, app.id, { reissue: true, by: "Agent" });
         } else if (app.deed_state === "awaiting_tenant" && app.pandadoc_document_id) {
           // One-live-deed invariant: clear the id first (a late webhook for the old
           // document is then inert), void best-effort, regenerate regardless.
@@ -266,6 +270,7 @@ Deno.serve(async (req) => {
           await service.from("activity_log").insert({ application_id: app.id, kind: "deed_voided", message: voided.ok ? `Outstanding deed voided for an agent correction of the tenancy start ${dateChange}.` : `Outstanding deed could not be voided for an agent correction ${dateChange}; it is superseded by the reissued deed. Detail: ${voided.error}`, actor: "Agent", visibility: "internal" });
           const gen = await generateDeed(service, app.id, true);
           appReissued = gen.ok;
+          if (gen.ok) await deliverSigningInvite(service, app.id, { reissue: true, by: "Agent" });
         } else {
           // Sent, or Paid with no live deed (error / declined / voided / none):
           // the date change alone, no reissue.

@@ -27,6 +27,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateDeed } from "../_shared/pandadoc.ts";
+import { deliverSigningInvite } from "../_shared/signingInvite.ts";
 import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 const cors = {
@@ -127,6 +128,14 @@ Deno.serve(async (req) => {
         failed.push({ ref: c.guarantee_ref, error: gen.error ?? "unknown" });
         continue;
       }
+      /* AND TELL THE TENANT, which nobody did. This sweep exists for a deed
+         that failed to generate at payment time: the tenant has their
+         receipt, and its button worked only once the deed existed. Before
+         `silent: true` PandaDoc emailed them when it finally did; now
+         nothing would, and a tenant who pressed the button early and was
+         told "not ready yet" would never hear again. */
+      await deliverSigningInvite(service, c.application_id, { by: "System" })
+        .then(() => {}, () => {/* a failed email must not fail the sweep */});
       generated.push(c.guarantee_ref);
     }
 

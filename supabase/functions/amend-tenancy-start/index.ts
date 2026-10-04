@@ -15,6 +15,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { notifyReferrer } from "../_shared/referrerNotify.ts";
 import { voidDocument, generateDeed } from "../_shared/pandadoc.ts";
+import { deliverSigningInvite } from "../_shared/signingInvite.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -168,6 +169,18 @@ Deno.serve(async (req) => {
         await logAmend(`${archived ? " The signed deed was archived." : ""} The replacement deed could not be issued automatically; opndoor has been notified.`);
         return json({ ok: false, error: `Tenancy start amended${archived ? " and the signed deed archived" : ""}, but the replacement failed: ${gen.error}` }, 200);
       }
+      /* AND OPNDOOR SENDS THE SIGNING EMAIL. Matt (ai): "Check the
+         corrected-deed flow (start-date changes) also uses Opndoor's
+         email." Since `silent: true`, generateDeed issues the document and
+         PandaDoc tells nobody, so without this the tenant is never asked to
+         sign the corrected deed and the two copies disagree about the date
+         for ever.
+
+         BEST EFFORT, AFTER the deed exists. The date change and the
+         regeneration have both committed by here; a failure to EMAIL must
+         not report the amendment as failed, because it did not. It is
+         logged by deliverSigningInvite and the agent can press Resend. */
+      await deliverSigningInvite(service, app.id, { reissue: true, by: actor });
       await logAmend(` ${archivePhrase} replacement was reissued for signing.`);
     /* AND TELL THE PEOPLE ANSWERABLE FOR IT. Matt, 2026-10-04: "email the
        referrer and anyone copied on that referral who has 'Tenancy start
@@ -211,6 +224,18 @@ Deno.serve(async (req) => {
         await logAmend(" The corrected deed could not be issued automatically; opndoor has been notified.");
         return json({ ok: false, error: `Tenancy start amended, but the corrected deed failed: ${gen.error}` }, 200);
       }
+      /* AND OPNDOOR SENDS THE SIGNING EMAIL. Matt (ai): "Check the
+         corrected-deed flow (start-date changes) also uses Opndoor's
+         email." Since `silent: true`, generateDeed issues the document and
+         PandaDoc tells nobody, so without this the tenant is never asked to
+         sign the corrected deed and the two copies disagree about the date
+         for ever.
+
+         BEST EFFORT, AFTER the deed exists. The date change and the
+         regeneration have both committed by here; a failure to EMAIL must
+         not report the amendment as failed, because it did not. It is
+         logged by deliverSigningInvite and the agent can press Resend. */
+      await deliverSigningInvite(service, app.id, { reissue: true, by: actor });
       // Audit line the ruling requires, kept as an INTERNAL supporting step so the
       // single business tenancy_amended entry (below) is the only partner-visible
       // row, matching the executed branch and the one-business-entry-per-amend rule.

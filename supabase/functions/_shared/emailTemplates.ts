@@ -653,18 +653,47 @@ export function draftClosingEmail(p: {
   };
 }
 
+/* THE RECEIPT IS NOW THE EMAIL WITH THE BUTTON.
+ *
+ * Matt (ag): add a "Sign your Deed of Guarantee" button, and say "Once you've
+ * signed, Regent's Lettings receives the signed deed" naming the agency
+ * instead of "the contact on your tenancy".
+ * Matt (ai), which supersedes and widens it: PandaDoc sends nothing, so this
+ * is the ONLY email telling the tenant there is something to sign.
+ *
+ * THE AGENCY NAME BEATS THE HEDGE WHERE WE HAVE IT. "The contact on your
+ * tenancy" was written for a tenant whose counterparty we did not know, and
+ * it is still the fallback, but a tenant placed by Regent knows "Regent's
+ * Lettings" and does not know what a contact on a tenancy is.
+ *
+ * "ALREADY SIGNED?" IS MATT'S OWN LINE and earns its place: this email is
+ * sent on payment, and a direct tenant can sign on the confirmation page
+ * seconds later. Without it they read a button telling them to do something
+ * they have just done and wonder what went wrong.
+ */
 export function paymentReceiptEmail(p: {
   propertyAddr: string; guaranteeRef: string; amount: string; managedBy: string;
+  /** The agency's own name where it is known. Beats `managedBy`. */
+  agencyName?: string | null;
+  /** Their door to the deed. Absent only where no link could be minted, and
+      then the email goes without a button rather than not at all: the receipt
+      for their money is worth sending on its own. */
+  signUrl?: string | null;
 }): Message {
+  const who = p.agencyName?.trim() ? p.agencyName.trim() : p.managedBy;
   return {
     audience: "tenant",
     subject: `Payment received for ${p.guaranteeRef}`,
     heading: "Thank you, your payment has cleared",
     blocks: [
-      { p: `We have received your guarantee fee for ${p.propertyAddr}. Your Deed of Guarantee is on its way to you to sign electronically.` },
+      { p: p.signUrl
+        ? `We have received your guarantee fee for ${p.propertyAddr}. There is one thing left to do: sign your Deed of Guarantee.`
+        : `We have received your guarantee fee for ${p.propertyAddr}. Your Deed of Guarantee is on its way to you to sign electronically.` },
       { rows: [["Reference", p.guaranteeRef], ["Amount paid", p.amount]] },
-      { small: `Once you have signed, ${p.managedBy} receives the executed deed and your tenancy can proceed.` },
+      ...(p.signUrl ? [{ small: "Already signed? Then you're all set and can ignore this." }] : []),
+      { small: `Once you have signed, ${who} receives the signed deed and your tenancy can proceed.` },
     ],
+    ...(p.signUrl ? { action: { label: "Sign your Deed of Guarantee", href: p.signUrl } } : {}),
   };
 }
 
@@ -751,6 +780,9 @@ export function guaranteesCancelledEmail(p: {
 export function deedToSignEmail(p: {
   guaranteeRef: string; tenantName: string; propertyAddr: string;
   tenancyStartLabel?: string | null; signUrl: string;
+  /** A corrected deed after a start-date change, which needs different words
+      or it reads as a duplicate of one the tenant has already signed. */
+  reissue?: boolean;
 }): Message {
   const rows: [string, string][] = [
     ["Reference", p.guaranteeRef],
@@ -760,10 +792,21 @@ export function deedToSignEmail(p: {
   if (p.tenancyStartLabel) rows.push(["Tenancy starts", p.tenancyStartLabel]);
   return {
     audience: "tenant",
-    subject: `Deed of Guarantee issued for ${p.guaranteeRef}`,
-    heading: "The Deed of Guarantee is ready to sign",
+    /* A CORRECTED DEED IS NOT A DUPLICATE, and must not read as one. Matt
+       (ai) asks the start-date path to use Opndoor's email too; a tenant who
+       has already signed once and gets an identical "ready to sign" message
+       files it as a repeat and never signs the corrected one -- leaving two
+       deeds disagreeing about the date on a live tenancy. */
+    subject: p.reissue
+      ? `Corrected Deed of Guarantee for ${p.guaranteeRef}, please sign`
+      : `Deed of Guarantee issued for ${p.guaranteeRef}`,
+    heading: p.reissue
+      ? "A corrected Deed of Guarantee is ready to sign"
+      : "The Deed of Guarantee is ready to sign",
     blocks: [
-      { p: "opndoor has issued a Deed of Guarantee for the tenancy below. It needs signing before it takes effect." },
+      { p: p.reissue
+        ? "The tenancy start date has changed, so the Deed of Guarantee below has been reissued with the new date. Please sign this one. Any earlier copy is void and can be discarded."
+        : "opndoor has issued a Deed of Guarantee for the tenancy below. It needs signing before it takes effect." },
       { rows },
       /* THE FOOTER ALREADY SAYS THE FIRST HALF. Matt, 2026-10-02: "remove
          the duplicate 'not insurance' sentences." Every email built by

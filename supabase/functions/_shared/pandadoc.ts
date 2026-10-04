@@ -20,7 +20,7 @@
 // field. Six tokens are merged from the application record; the template has one
 // Signature field (Tenant) and no Date field.
 // =====================================================================
-import { titleCaseAddress } from "./text.ts";
+import { titleCaseAddress, spelledDate } from "./text.ts";
 import { pandadocConfigFor, pandadocConfiguredFor, pandadocWebhookKeys } from "./livemodeCredentials.ts";
 import { timingSafeEqual } from "./partnerAuth.ts";
 import { sendMessage } from "./mailer.ts";
@@ -88,11 +88,7 @@ function longDate(iso: string): string {
   return `${Number(m[3])} ${MONTH_LONG[Number(m[2]) - 1] ?? m[2]} ${m[1]}`;
 }
 
-function spelledDate(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
-  if (!m) return iso || "";
-  return `${Number(m[3])} ${MONTH_SHORT[Number(m[2]) - 1] ?? m[2]} ${m[1]}`;
-}
+
 
 /** Today's date in Europe/London, as both dd/mm/yyyy (deed) and yyyy-mm-dd (DB). */
 function londonToday(): { dmy: string; iso: string } {
@@ -237,7 +233,51 @@ export async function createAndSend(a: DeedApp, livemode: boolean): Promise<Deed
     const sendRes = await fetch(`${API}/documents/${docId}/send`, {
       method: "POST",
       headers: headers(key),
-      body: JSON.stringify({ silent: false, subject, message }),
+      /* SILENT. Matt, 2026-10-04 (ai): "Stop PandaDoc emailing tenants:
+         create and send deeds silently so PandaDoc sends no email of its
+         own."
+
+         A tenant was getting two emails about one deed from two senders
+         within a minute of each other, and the one with the button was
+         PandaDoc's, in PandaDoc's voice. Opndoor now sends it, through
+         `deliverSigningInvite`, from all three paths: the payment receipt,
+         Resend signature request, and the corrected deed after a start-date
+         change.
+
+         THE DOCUMENT IS STILL SENT, which is the half not to get wrong.
+         `silent` suppresses PandaDoc's notification email; it does not
+         suppress the send, so the document still leaves draft and is still
+         signable. If this were read as "do not send", the deed would sit in
+         draft and nothing downstream would work at all -- which is loud,
+         and is the failure mode to prefer over a silent one.
+
+         THE SUBJECT AND MESSAGE ARE KEPT rather than removed. They are
+         still what a recipient sees inside the PandaDoc signing page, and
+         they are what a reminder sent from PandaDoc's own UI would carry if
+         anybody ever used it. */
+      /* SILENT IN LIVE, NOT IN SANDBOX, and the split is forced rather than
+         chosen. Matt (ai): "Stop PandaDoc emailing tenants."
+
+         LIVE: silent. A tenant was getting two emails about one deed from
+         two senders within a minute, and the one with the button was
+         PandaDoc's, in PandaDoc's voice. Opndoor now sends it, from every
+         path that issues a deed (see everyDeedTellsItsTenant.test.ts).
+
+         SANDBOX: not silent, because making it silent would leave a
+         developer with NO signing email from anybody. `maySendOpndoorEmail`
+         is `livemode` and says so in terms -- "Sandbox sends none. Not a
+         different from address, not a redirect to a review mailbox: none"
+         -- and its own comment already records that PandaDoc's signing
+         email is the deliberate exception, "because rehearsing the tenant's
+         signing journey is most of the point". Silent everywhere would have
+         quietly deleted that rehearsal, which nobody asked for and which
+         the Dev Centre would then be documenting falsely.
+
+         FOR MATT: if sandbox should fall silent too, it is this line plus
+         an exemption in maySendOpndoorEmail, and the Dev Centre warning
+         changes again. My recommendation is to leave it: sandbox has no
+         tenants, only developers using their own addresses. */
+      body: JSON.stringify({ silent: livemode, subject, message }),
     });
    if (!sendRes.ok) return { ok: false, documentId: docId, error: `PandaDoc send ${sendRes.status}: ${(await sendRes.text()).slice(0, 300)}` };
 

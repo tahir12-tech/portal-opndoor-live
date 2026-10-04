@@ -80,8 +80,26 @@ describe('how the resend knows it was a correction', () => {
     expect(RESEND).toContain('replacesEarlierDeed,');
   });
 
-  it('and passes the corrected tenancy start with it', () => {
-    expect(RESEND).toContain('tenancyStart: app.tenancy_start,');
-    expect(RESEND).toContain('livemode, tenancy_start"');
+  /* AND IT STILL CARRIES, THROUGH A DIFFERENT DOOR. Rewritten 2026-10-04.
+     This used to assert `tenancyStart: app.tenancy_start` on the
+     remindSignature call, which was how the corrected date reached
+     PandaDoc's message. Matt (ai) moved the send to Opndoor, so there is no
+     remindSignature call to inspect: `deliverSigningInvite` reads the date
+     off the application itself, which is a strictly better place for it --
+     the row cannot be stale by the time the email is built.
+
+     WHAT MUST STILL HOLD is the fact underneath, and it is the same fact:
+     the resend knows this is a correction, and the email says so with the
+     corrected date on it. Asserted at both ends rather than on one call's
+     argument list, because the argument list was the implementation and the
+     two ends are the behaviour. */
+  it('and the corrected date reaches the email, now read off the application', () => {
+    // This end: the resend tells the invite it is a reissue.
+    expect(RESEND).toContain('reissue: replacesEarlierDeed,');
+    // The other end: the invite reads and spells the date itself.
+    const INVITE = read('supabase/functions/_shared/signingInvite.ts');
+    expect(INVITE).toContain('tenancy_start');
+    expect(INVITE).toContain('spelledDate(app.tenancy_start)');
+    expect(INVITE).toContain('reissue: opts.reissue === true');
   });
 });

@@ -150,6 +150,22 @@ export function Sandbox({ partnerId, readOnly = false }: {
       {!readOnly && (
       <div className="sbxwarn">
         <Icon name="alert" />
+        {/* UPDATED AFTER THE PANDADOC CHANGE. Matt, 2026-10-04 (as): "update
+            the Dev Centre Sandbox warning to match how signing emails work
+            after the PandaDoc change."
+
+            WHAT CHANGED IS LIVE, NOT SANDBOX, and saying so is the whole
+            point of the new last sentence. In live, PandaDoc is now sent
+            `silent: true` and Opndoor's own email carries the signing
+            button. Sandbox is deliberately left as it was, because
+            `maySendOpndoorEmail` is livemode and absolute, so silencing
+            PandaDoc here too would leave a developer with no signing email
+            from anybody and no way to rehearse the journey at all.
+
+            SO THE WARNING IS STILL TRUE, and would have quietly stopped
+            being the whole truth: a developer who rehearses here and then
+            reads about Opndoor's signing email needs to know why their
+            sandbox run looked different. */}
         <div>
           <strong>Sandbox sends real email through PandaDoc.</strong>
           <p>
@@ -158,6 +174,11 @@ export function Sandbox({ partnerId, readOnly = false }: {
             whatever address you send as <code>tenant.email</code>, so use an address you own. Opndoor
             sends no email of its own for sandbox: no payment link, no receipt, no reminders, and nothing
             to the agent.
+          </p>
+          <p>
+            Live works the other way round. There, PandaDoc sends nothing and opndoor sends the signing
+            email itself, so a real tenant gets one message about their deed rather than two. Sandbox
+            keeps PandaDoc's email because it is the only one you would otherwise receive here.
           </p>
         </div>
       </div>
