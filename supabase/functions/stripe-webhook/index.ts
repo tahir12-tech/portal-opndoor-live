@@ -460,6 +460,21 @@ Deno.serve(async (req) => {
             deedCancelled = didCancel === true;
           }
 
+          /* WAS THIS REFUND OURS OR THEIRS? Matt (bb): a tenant the cascade
+             refunded needs to be told WHY, and a tenant who asked for a
+             refund does not need telling the let is off.
+
+             THE LEDGER ALREADY KNOWS. `refund_cascades` holds a row only for
+             a co-tenant we refunded automatically, so its presence is the
+             answer, and it is durable -- a redelivery weeks later still gets
+             the same email rather than the generic one. Inferring it from
+             "did a sibling get refunded first" would be a guess that goes
+             wrong the moment two tenants are refunded by hand. */
+          const { data: cascadeRow } = await service
+            .from("refund_cascades").select("application_id")
+            .eq("application_id", appRow.id).maybeSingle();
+          const wasCascaded = !!cascadeRow;
+
           if (maySendOpndoorEmail(appRow.livemode === true)) await deliverRefund(service, {
             appId: appRow.id,
             tenantEmail: appRow.tenant_email,
@@ -470,6 +485,7 @@ Deno.serve(async (req) => {
             amount: amountGBP,
             guaranteeRef: appRow.guarantee_ref,
             deedCancelled,
+            cascaded: wasCascaded,
           });
 
           /* AND THE REST OF THE TENANCY. Matt (al): "the tenancy isn't going
@@ -509,16 +525,31 @@ Deno.serve(async (req) => {
               }).then(() => {}, () => {});
             }
 
-            /* ONE EMAIL FOR THE PROPERTY, to the agent and any landlord who
-               was actually sent a deed. Matt (al): "one email listing every
-               tenant on the tenancy and saying all guarantees for the
-               property are cancelled."
+            /* ONE EMAIL FOR THE PROPERTY, AND ONCE. Matt (al): "one email
+               listing every tenant on the tenancy and saying all guarantees
+               for the property are cancelled." Matt (bc), after it went
+               twice: "Send it exactly once per tenancy, after the last
+               tenant's refund, and never again on webhook redeliveries."
 
-               AFTER the cascade, so that by the time the agent reads the
-               list, every tenant on it really has been refunded. Sending it
-               first would name tenants whose money had not moved yet. */
+               MY BUG, AND THE CAUSE WAS THE THING I WAS PLEASED ABOUT. Each
+               cascaded refund raises its own charge.refunded and runs this
+               whole block, deliberately, so a refund taken by hand and one
+               taken by the cascade go down one path. Everything else in
+               here is per TENANT and belongs on that path. This is per
+               PROPERTY and did not.
+
+               THE CLAIM ANSWERS BOTH HALVES. `claim_cancellation_notice`
+               returns true only when no paid tenant on the tenancy is still
+               unrefunded (it is time) AND no row has been written for it
+               before (it has not been done). The insert is the claim, so
+               two co-tenants' webhooks landing together cannot both win,
+               and a redelivery next week still finds the row. */
             if (maySendOpndoorEmail(appRow.livemode === true)) {
-              await deliverCancellationNotice(service, appRow.id, appRow.guarantee_ref);
+              const { data: mayNotify } = await service
+                .rpc("claim_cancellation_notice", { p_application: appRow.id });
+              if (mayNotify === true) {
+                await deliverCancellationNotice(service, appRow.id, appRow.guarantee_ref);
+              }
             }
           }
         }

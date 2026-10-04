@@ -713,8 +713,18 @@ export function paymentReceiptEmail(p: {
  * hear it from the agent. */
 export function refundEmail(p: {
   propertyAddr: string; guaranteeRef: string; amount: string; deedCancelled?: boolean;
+  /* THE TENANT WHO DID NOTHING NEEDS THE MOST EXPLANATION. Matt (bb): a
+     tenant refunded automatically by the cascade "gets the plain 'Your
+     guarantee fee has been refunded' email with no explanation".
+
+     They did not ask for a refund and did not fail anything. Their
+     co-tenant's refund ended the let and we took their money back without
+     being asked, which from their side is money moving for no stated
+     reason. The first thing they do is ring the agent. */
+  cascaded?: boolean;
 }): Message {
   const cancelled = p.deedCancelled === true;
+  const cascaded = p.cascaded === true;
   return {
     audience: "tenant",
     subject: cancelled
@@ -724,10 +734,19 @@ export function refundEmail(p: {
       ? "Your guarantee fee has been refunded and your Deed of Guarantee is cancelled"
       : "Your guarantee fee has been refunded",
     blocks: [
-      { p: `Your guarantee fee for ${p.propertyAddr} has been refunded. The refund is on its way back to the card you paid with.` },
-      ...(cancelled
-        ? [{ p: "Your Deed of Guarantee has been cancelled, so you are no longer guaranteed for this tenancy. Your letting agent has been told." }]
-        : []),
+      /* "TO THE WAY YOU PAID", NOT "the card you paid with". Matt (bb):
+         "Klarna and Revolut Pay exist". It is a factual correction rather
+         than a style one -- somebody who paid by Klarna reading about a
+         card refund goes looking for one that is never coming. */
+      { p: cascaded
+        ? `Your guarantee fee for ${p.propertyAddr} has been refunded, because the tenancy at ${p.propertyAddr} is not going ahead. The refund is on its way back to you, the way you paid.`
+        : `Your guarantee fee for ${p.propertyAddr} has been refunded. The refund is on its way back to you, the way you paid.` },
+      ...(cascaded
+        // Matt's own closing line, and the one that stops the phone call.
+        ? [{ p: "Your Deed of Guarantee is cancelled, so you are no longer guaranteed for this tenancy. You don't need to do anything." }]
+        : cancelled
+          ? [{ p: "Your Deed of Guarantee has been cancelled, so you are no longer guaranteed for this tenancy. Your letting agent has been told." }]
+          : []),
       { rows: [["Reference", p.guaranteeRef], ["Amount refunded", p.amount]] },
       { small: "It usually appears within five to ten working days, depending on your bank." },
     ],

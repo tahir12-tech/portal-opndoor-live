@@ -23,6 +23,7 @@ import {
   ALL_PARTNERS, getPartner, getPeriods,  getAgencies, getUsers, maySeeCommission,
   statementMonths,
   REFERENCING_MODES, type Agency, type ManagedUser, type ReferencingMode, type Role,
+  applicationStatusLabel, applicationStageClass,
 } from '@/data';
 // Walk fix 15: this customer's report, on this customer's page.
 import { liveByCustomer } from '@/data/liveAnalytics';
@@ -55,7 +56,7 @@ import { usePageMeta } from '@/components/layout/pageMeta';
 import { getApplications } from '@/data/applicationsService';
 import { effectivePrimary } from '@/data/orgService';
 import { supplierSees } from '@/data/positionsService';
-import type { Status, Branch } from '@/data';
+import type { Branch } from '@/data';
 
 /* The same words the agency page and the applications list use. Copied
    rather than imported because AgencyHome does not export them; lifting them
@@ -133,13 +134,12 @@ function AgencyContactLine({ agency }: { agency: Agency }) {
   );
 }
 
-const PH_STATUS_LABEL: Record<Status, string> = {
-  draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent',
-  paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired',
-};
-const PH_STATUS_ST: Partial<Record<Status, string>> = {
-  referencing: 'st-wait', sent: 'st-live', paid: 'st-live', deed: 'st-ok',
-};
+/* THE LOCAL STATUS MAPS ARE GONE, which is the useful half of (bd). There
+   were four copies across four files, and three of them spelled "Deed
+   issued" differently from the fourth -- so the refund rule would have had
+   to be written four times, and the next rule after it four times again.
+   applicationStatusLabel and applicationStageClass are the one answer, and
+   every list that shows a stage now asks them. */
 import { agencyContactState } from '@/data/deedContact';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions } from '@/components/people/PersonActions';
@@ -785,7 +785,7 @@ export function PartnerHome() {
                       <td><Link to={`/applications/${encodeURIComponent(r.ref)}`}>{r.ref}</Link></td>
                       <td>{r.tenant}</td>
                       <td className="soft">{r.prop}</td>
-                      <td><span className={`ph-st ${PH_STATUS_ST[r.status] ?? 'st-neutral'}`}>{PH_STATUS_LABEL[r.status]}</span></td>
+                      <td><span className={`ph-st ${applicationStageClass(r)}`}>{applicationStatusLabel(r)}</span></td>
                       <td className="soft">{formatDate(r.date)}</td>
                     </tr>
                   ))}

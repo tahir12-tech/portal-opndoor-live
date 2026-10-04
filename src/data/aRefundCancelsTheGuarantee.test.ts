@@ -16,7 +16,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import { MEMBER_DEED_LABEL, memberDeedTone, groupTenancies, tenancyProgress, tenancyPaidTally } from './tenancyGroups';
-import { deedCardState } from './paymentService';
+import { deedCardState, cancelledByRefund, CANCELLED_BY_REFUND_LABEL } from './paymentService';
+import { applicationStatusLabel, applicationStatusTone, applicationStageClass } from './applicationsService';
+import { inForceDuring } from './inForce';
 import type { ApplicationSummary } from './types';
 
 const app = (over: Partial<ApplicationSummary>): ApplicationSummary => ({
@@ -155,5 +157,130 @@ describe('the application export', () => {
     expect(live).toContain('Deed Issued');
 
     hydrateFull([]);
+  });
+});
+
+
+/* HOW A REFUND READS, AFTER MATT WALKED IT. (az), 2026-10-04.
+ *
+ * GR-23853 refunded in Stripe and GR-23854 followed automatically, which is
+ * the cascade working. What he found wrong was all presentation, and all one
+ * cause: every screen was reading `deed_state` and answering what happened to
+ * the DOCUMENT, where the reader is asking what happened to the GUARANTEE.
+ *
+ * THE TWO SHAPES, measured on dev and used as the fixtures below:
+ *   GR-23853  signed, then cancelled  -> status 'deed',  deed_state 'cancelled'
+ *   GR-23854  never signed, voided    -> status 'paid',  deed_state 'voided'
+ * Both refunded. Three deed states (counting 'error'), one outcome.
+ */
+describe('a refund ends the guarantee, whatever became of the document', () => {
+  it('reads the signed case and the abandoned one apart', () => {
+    expect(cancelledByRefund({ refunded: true, deedState: 'cancelled' })).toBe('signed');
+    expect(cancelledByRefund({ refunded: true, deedState: 'voided' })).toBe('unsigned');
+    expect(cancelledByRefund({ refunded: true, deedState: 'awaiting_tenant' })).toBe('unsigned');
+    expect(cancelledByRefund({ refunded: true, deedState: 'error' })).toBe('unsigned');
+  });
+
+  /* NOTHING TO SAY WHERE NO DEED EXISTED. "Signing cancelled" would describe
+     a signing that never started; the status pill says Refunded and that is
+     the whole story. */
+  it('says nothing about a deed where there never was one', () => {
+    expect(cancelledByRefund({ refunded: true, deedState: null })).toBeNull();
+  });
+
+  /* A PART REFUND LEAVES THE GUARANTEE STANDING (R2), on this path as on
+     every other. The caller passes `refunded`, which is false for a partial
+     one, so this is really a test that no caller is tempted to pass "some
+     money went back". */
+  it('and an unrefunded deed is not cancelled by anything here', () => {
+    expect(cancelledByRefund({ refunded: false, deedState: 'executed' })).toBeNull();
+  });
+
+  it('with Matt\'s two labels', () => {
+    expect(CANCELLED_BY_REFUND_LABEL.signed).toBe('Cancelled: fee refunded');
+    expect(CANCELLED_BY_REFUND_LABEL.unsigned).toBe('Signing cancelled: fee refunded');
+  });
+});
+
+describe('every list that shows a stage says Refunded', () => {
+  /* THE PILE-UP MATT SAW: "Deed Issued / Paid + Refunded + Not paid", three
+     facts from three columns, each true. One answer now, and the same one in
+     every list -- there were four copies of the status map before this. */
+  it('on the two shapes, whatever their underlying status', () => {
+    expect(applicationStatusLabel({ status: 'deed', refunded: true })).toBe('Refunded');
+    expect(applicationStatusLabel({ status: 'paid', refunded: true })).toBe('Refunded');
+  });
+
+  it('and leaves every other row alone', () => {
+    expect(applicationStatusLabel({ status: 'deed', refunded: false })).toBe('Deed Issued');
+    expect(applicationStatusLabel({ status: 'sent' })).toBe('Sent');
+  });
+
+  /* WITHDRAWN AND EXPIRED STILL WIN. They are terminal states of the
+     APPLICATION; a refund on one is a footnote to it, not a replacement. */
+  it('but does not overwrite a terminal state', () => {
+    expect(applicationStatusLabel({ status: 'withdrawn', refunded: true })).toBe('Withdrawn');
+    expect(applicationStatusLabel({ status: 'expired', refunded: true })).toBe('Expired');
+  });
+
+  /* THE COLOUR MOVES WITH THE WORD. A refund must not wear the green of an
+     issued deed, in either the pill or the CSS-class lists. */
+  it('and the colour follows the word, in both kinds of list', () => {
+    expect(applicationStatusTone({ status: 'deed', refunded: true })).toBe('muted');
+    expect(applicationStatusTone({ status: 'deed', refunded: false })).toBe('deed');
+    expect(applicationStageClass({ status: 'deed', refunded: true })).toBe('st-neutral');
+    expect(applicationStageClass({ status: 'deed', refunded: false })).toBe('st-ok');
+  });
+});
+
+describe('the tenancy box, after the walk', () => {
+  /* GR-23854's SHAPE: refunded while out for signature, so deed_state is
+     'voided'. It read "Deed voided", which is a filing action, not an
+     outcome. */
+  it('calls an unsigned refunded deed cancelled, not voided', () => {
+    const g = groupTenancies([
+      app({ ref: 'GR-A', tenancyPosition: 1, status: 'deed', deedState: 'cancelled', refunded: true }),
+      app({ ref: 'GR-B', tenancyPosition: 2, status: 'paid', deedState: 'voided', refunded: true }),
+    ]).get('T1')!;
+    for (const m of g.members) {
+      expect(m.deed, `${m.ref} should read cancelled`).toBe('cancelled');
+      expect(MEMBER_DEED_LABEL[m.deed]).toBe('Cancelled: fee refunded');
+    }
+  });
+
+  /* A VOIDED DEED THAT WAS NOT REFUNDED IS STILL VOIDED. The rule is about
+     refunds, not about the word; a deed voided to be reissued must keep
+     saying so. */
+  it('and leaves a voided deed that was not refunded alone', () => {
+    const g = groupTenancies([
+      app({ ref: 'GR-A', tenancyPosition: 1, status: 'paid', deedState: 'voided', refunded: false }),
+      app({ ref: 'GR-B', tenancyPosition: 2 }),
+    ]).get('T1')!;
+    expect(g.members.find((m) => m.ref === 'GR-A')!.deed).toBe('voided');
+  });
+});
+
+/* ITEM 6 IS A CHECK, NOT A CHANGE, and Matt asked for it as one: "Check
+ * Reporting's rent in force and the bordereau leave cancelled deeds out."
+ * Both read inForceDuring, which I changed this afternoon to end cover at
+ * the refund date rather than exclude the row outright -- so the answer is
+ * yes for every period AFTER the refund and deliberately no for the ones it
+ * ran in. Proved rather than asserted, because I am the one who changed it.
+ */
+describe('rent in force and the bordereau, after a cancellation', () => {
+  const D = (s: string) => new Date(`${s}T12:00:00Z`);
+  const NOV: [Date, Date] = [D('2026-11-01'), D('2026-11-30')];
+  const row = {
+    deedState: 'cancelled' as const, tenancyStart: D('2026-08-01'), expiry: D('2027-07-31'),
+    refunded: true, refundedAt: D('2026-10-20'), partiallyRefunded: false,
+    withdrawn: false, rent: 1800, shareAmount: null,
+  };
+
+  it('a cancelled deed is out of every period after the refund', () => {
+    expect(inForceDuring(row, ...NOV)).toBe(false);
+  });
+
+  it('and still in the ones it actually ran in', () => {
+    expect(inForceDuring(row, D('2026-09-01'), D('2026-09-30'))).toBe(true);
   });
 });

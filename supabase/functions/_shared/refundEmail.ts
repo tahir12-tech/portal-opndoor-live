@@ -1,11 +1,11 @@
 import { sendMessage } from "./mailer.ts";
 import { refundEmail, guaranteesCancelledEmail } from "./emailTemplates.ts";
 
-export async function deliverRefund(service: any, p: { appId: string; tenantEmail: string; title: string; lastName: string; propertyAddr: string; amount: string; guaranteeRef: string; deedCancelled?: boolean }): Promise<void> {
+export async function deliverRefund(service: any, p: { appId: string; tenantEmail: string; title: string; lastName: string; propertyAddr: string; amount: string; guaranteeRef: string; deedCancelled?: boolean; cascaded?: boolean }): Promise<void> {
   if (!p.tenantEmail) return;
   const res = await sendMessage({
     to: p.tenantEmail,
-    message: refundEmail({ propertyAddr: p.propertyAddr, guaranteeRef: p.guaranteeRef, amount: p.amount, deedCancelled: p.deedCancelled }),
+    message: refundEmail({ propertyAddr: p.propertyAddr, guaranteeRef: p.guaranteeRef, amount: p.amount, deedCancelled: p.deedCancelled, cascaded: p.cascaded }),
   });
   await service.from("activity_log").insert({
     application_id: p.appId,
@@ -102,7 +102,14 @@ export async function deliverCancellationNotice(service: any, appId: string, gua
     kind: failed.length ? "cancellation_notice_failed" : "cancellation_notice_sent",
     message: failed.length
       ? `Cancellation notice could not be sent to ${failed.join(", ")}.`
-      : `Cancellation notice sent to ${sent.join(", ")}, listing ${tenants.length === 1 ? "1 tenant" : `all ${tenants.length} tenants`} on the tenancy.`,
+      /* "BOTH TENANTS", NOT "ALL 2 TENANTS". Matt (az). The countOf idiom
+         this estate uses elsewhere has a case for two and this sentence was
+         built by hand without it. "All 2" is the kind of phrasing that
+         tells a reader a machine wrote the line. */
+      : `Cancellation notice sent to ${sent.join(", ")}, listing ${
+          tenants.length === 1 ? "1 tenant"
+          : tenants.length === 2 ? "both tenants"
+          : `all ${tenants.length} tenants`} on the tenancy.`,
     actor: "System",
     visibility: failed.length ? "internal" : "business",
   });

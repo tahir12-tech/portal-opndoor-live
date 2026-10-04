@@ -216,14 +216,25 @@ export function groupTenancies(rows: ApplicationSummary[]): Map<string, TenancyG
  * know about is not evidence of a deed.
  */
 function deedOf(r: ApplicationSummary): MemberDeed {
-  /* CANCELLED IS TESTED BEFORE THE STATUS, and this is the ordering bug the
-     cancellation would otherwise have walked straight into. Cancelling does
-     NOT move `status` off 'deed' -- the application still reached the deed
-     stage and every status filter, count and export depends on it staying
-     there. So the status shortcut below, which exists for rows hydrated
-     before deed_state arrived, would have reported a cancelled guarantee as
-     "Deed executed": precisely what Matt asked never to happen, produced by
-     a line written for an unrelated reason two months earlier. */
+  /* A REFUND ENDS IT, WHATEVER STATE IT CAUGHT THE DOCUMENT IN. Matt (az):
+     'Tenancy box: every refunded tenant shows "Cancelled: fee refunded"
+     (not "Deed voided").'
+
+     GR-23854 IS THE CASE and it is why this asks about the refund rather
+     than about deed_state alone. Refunded while still out for signature, so
+     the webhook voided the document and deed_state is 'voided' -- a true
+     fact about the document, and the wrong answer to the question a reader
+     is asking, which is what happened to the guarantee. The two outcomes
+     differ for the tenant (cover lost vs never had) but neither of them is
+     "voided", which describes a filing action.
+
+     AND BEFORE THE STATUS SHORTCUT, which is the ordering bug the
+     cancellation would otherwise have walked into. Cancelling does NOT move
+     `status` off 'deed' -- the application still reached the deed stage and
+     every filter, count and export depends on it staying there. So the line
+     below, written for rows hydrated before deed_state arrived, would have
+     reported a cancelled guarantee as "Deed executed". */
+  if (r.refunded && r.deedState) return 'cancelled';
   if (r.deedState === 'cancelled') return 'cancelled';
   if (r.status === 'deed') return 'executed';
   switch (r.deedState) {

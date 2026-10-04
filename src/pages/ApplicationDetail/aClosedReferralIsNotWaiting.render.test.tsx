@@ -63,9 +63,19 @@ describe('the timeline and the guarantee card', () => {
 
   /* DROPPED, NOT ZEROED. The assertion is on the guard, because a £0 row
      would satisfy "no rent to be guaranteed" read loosely and is a claim of
-     its own. */
+     its own.
+
+     THE GUARD GAINED A SECOND CLAUSE on 2026-10-04 and this had pinned the
+     first one's exact text. Matt (az): a cancelled guarantee shows no
+     guaranteed rent either, for the same reason a withdrawn one does not --
+     it is a figure about cover somebody has, and nobody has this. The
+     assertion now names both conditions rather than the whole line, so the
+     next clause added for the next terminal state does not break it while
+     the rule it guards is still being kept. */
   it('and the rent row is gone rather than zero', () => {
-    expect(PAGE).toContain('{!timelineTerminated && (\n                <div className="gsum__row">');
+    const guard = PAGE.slice(PAGE.indexOf('{!timelineTerminated'), PAGE.indexOf('Rent to be guaranteed'));
+    expect(guard, 'the rent row is still behind a guard').toContain('!timelineTerminated');
+    expect(guard, 'and a cancelled guarantee is behind it too').toContain('!refundEnded');
     expect(PAGE).not.toMatch(/Rent to be guaranteed[\s\S]{0,120}£0/);
   });
 });

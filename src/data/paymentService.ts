@@ -53,6 +53,11 @@ export interface PaymentInfo {
   paidAmount: number | null;
   paymentRef: string | null;
   refundedAt: string | null;
+  /** When the Deed of Guarantee was cancelled after a refund. Null on every
+      other application, and on a refund that caught the deed before it was
+      signed -- there was no instrument to cancel, so the refund date is
+      what the screen shows instead. */
+  deedCancelledAt: string | null;
   refundRef: string | null;
   /** True when the refund happened on or after the tenancy start (policy anomaly). */
   refundAfterStart: boolean;
@@ -82,6 +87,54 @@ export interface PaymentInfo {
    state in the seconds after payment.
    ===================================================================== */
 export type DeedCard = 'awaiting_tenant' | 'preparing' | 'declined' | 'voided' | 'error' | 'cancelled';
+
+/* A REFUND ENDS THE GUARANTEE, WHATEVER BECAME OF THE DOCUMENT.
+ *
+ * Matt, 2026-10-04 (az), items 1, 3 and 4 at once:
+ *   - the timeline's last step says "Cancelled: fee refunded", not
+ *     "Awaiting deed"
+ *   - 'A deed that was never signed and got cancelled by a refund says
+ *     "Signing cancelled: fee refunded", not "Deed document voided in
+ *     PandaDoc. Review required." Only show "Review required" when something
+ *     actually needs a person.'
+ *   - 'Tenancy box: every refunded tenant shows "Cancelled: fee refunded"
+ *     (not "Deed voided").'
+ *
+ * THE THREE COMPLAINTS ARE ONE CAUSE, which is why this is one function.
+ * Every screen was reading `deed_state` and asking what happened to the
+ * DOCUMENT. The reader's question is what happened to the GUARANTEE, and a
+ * refund answers that identically whether the deed was signed and cancelled
+ * (GR-23853), voided while still out for signature (GR-23854), or errored.
+ * Three deed states, three different sentences, one outcome.
+ *
+ * WHY TWO LABELS AND NOT ONE. A signed deed that is cancelled and a signing
+ * that is abandoned are different events for the tenant and for the
+ * underwriter: the first had cover and lost it, the second never had any.
+ * Matt's own wording keeps them apart, and the bordereau depends on the
+ * difference.
+ *
+ * NULL WHERE NO DEED EXISTED. A tenant refunded before any document was
+ * raised has nothing to say about signing, and "Signing cancelled" would
+ * describe a signing that never started. The status pill says Refunded and
+ * that is the whole story.
+ */
+export type CancelledByRefund = 'signed' | 'unsigned' | null;
+
+export function cancelledByRefund(
+  p: { refunded?: boolean | null; deedState?: string | null },
+): CancelledByRefund {
+  if (!p.refunded) return null;
+  if (p.deedState === 'cancelled') return 'signed';
+  // voided, awaiting_tenant, error: a document existed and will not be signed.
+  if (p.deedState) return 'unsigned';
+  return null;
+}
+
+/** Matt's words, kept together so no screen writes its own variant. */
+export const CANCELLED_BY_REFUND_LABEL: Record<'signed' | 'unsigned', string> = {
+  signed: 'Cancelled: fee refunded',
+  unsigned: 'Signing cancelled: fee refunded',
+};
 
 export function deedCardState(pi: Pick<PaymentInfo, 'deedState' | 'pandadocDocumentId'>): DeedCard {
   /* FIRST, BECAUSE THE FALLBACK IS 'preparing'. A cancelled deed matches none
@@ -156,7 +209,7 @@ export async function getPaymentInfo(ref: string): Promise<PaymentInfo | null> {
   const client = sb();
   const { data, error } = await client
     .from('applications')
-    .select('id, status, payment_state, payment_url, paid_at, paid_amount, stripe_payment_intent_id, refunded_at, stripe_refund_id, refund_after_start, deed_state, deed_sent_at, deed_viewed_at, pandadoc_document_id, executed_pdf_path')
+    .select('id, status, payment_state, payment_url, paid_at, paid_amount, stripe_payment_intent_id, refunded_at, deed_cancelled_at, stripe_refund_id, refund_after_start, deed_state, deed_sent_at, deed_viewed_at, pandadoc_document_id, executed_pdf_path')
     .eq('guarantee_ref', ref)
     .maybeSingle();
   if (error || !data) return null;
@@ -181,6 +234,7 @@ export async function getPaymentInfo(ref: string): Promise<PaymentInfo | null> {
     paidAmount: data.paid_amount != null ? Number(data.paid_amount) : null,
     paymentRef: data.stripe_payment_intent_id ?? null,
     refundedAt: data.refunded_at ?? null,
+    deedCancelledAt: data.deed_cancelled_at ?? null,
     refundRef: data.stripe_refund_id ?? null,
     refundAfterStart: !!data.refund_after_start,
     deedState: data.deed_state ?? null,

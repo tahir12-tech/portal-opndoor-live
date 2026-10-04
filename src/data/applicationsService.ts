@@ -195,6 +195,64 @@ export function isHydrated(): boolean {
 
 const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Awaiting decision', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
 
+/* ONE STATUS, NOT THREE TRUE FACTS SIDE BY SIDE.
+ *
+ * Matt, 2026-10-04 (az): 'a refunded application shows one status,
+ * "Refunded", not "Deed Issued / Paid + Refunded + Not paid"'.
+ *
+ * NONE OF THE THREE WAS WRONG, which is why it survived. The pill reads
+ * `status`, which stays at 'deed' because the application really did reach
+ * that stage; the Refunded tag reads `payment_state`; and "Not paid" reads
+ * the per-tenant share, where `isPaid` correctly answers false because a
+ * refunded share has not been settled. Three columns, three renderers,
+ * three correct answers, and a row that looks like a contradiction.
+ *
+ * THE REFUND IS THE LAST THING THAT HAPPENED, so it is the one that reads.
+ * Everything else is history the row no longer needs to narrate: a reader
+ * who wants the detail opens the application, where the timeline has it in
+ * order.
+ *
+ * WITHDRAWN AND EXPIRED STILL WIN, because they are terminal states of the
+ * APPLICATION and a refund on one of those is a footnote to it, not a
+ * replacement for it. In practice neither can be refunded -- both carry
+ * `paid_at is null` by constraint -- so this is a rule about what the
+ * sentence means rather than a case anybody meets.
+ */
+export function applicationStatusLabel(r: { status: Status; refunded?: boolean }): string {
+  if (r.refunded && r.status !== 'withdrawn' && r.status !== 'expired') return 'Refunded';
+  return STATUS_LABEL[r.status];
+}
+
+/* AND THE SAME ANSWER FOR THE LISTS THAT USE CSS CLASSES RATHER THAN PILLS.
+ *
+ * Matt (bd): '"Refunded" must show on every list that shows a stage:
+ * Applications, the agency/office/supplier Referrals tabs, League
+ * drill-throughs and exports.'
+ *
+ * THERE WERE FOUR COPIES OF THE STATUS MAP, in four files, written at four
+ * times, and three of them spelled "Deed issued" differently from the
+ * fourth. That is why (bd) exists as a separate instruction: fixing the
+ * Applications list alone would have left the Referrals tab an agency reads
+ * saying "Deed issued" on the same guarantee.
+ */
+export function applicationStageClass(r: { status: Status; refunded?: boolean }): string {
+  if (r.refunded && r.status !== 'withdrawn' && r.status !== 'expired') return 'st-neutral';
+  if (r.status === 'referencing') return 'st-wait';
+  if (r.status === 'sent' || r.status === 'paid') return 'st-live';
+  if (r.status === 'deed') return 'st-ok';
+  return 'st-neutral';
+}
+
+/** The pill's colour for that one status. Muted: a refund is an ending, and
+ *  must not wear the green of an issued deed. */
+export function applicationStatusTone(r: { status: Status; refunded?: boolean }): 'muted' | 'warn' | 'danger' | Status {
+  if (r.refunded && r.status !== 'withdrawn' && r.status !== 'expired') return 'muted';
+  if (r.status === 'withdrawn' || r.status === 'expired' || r.status === 'draft') return 'muted';
+  if (r.status === 'referencing') return 'warn';
+  if (r.status === 'declined') return 'danger';
+  return r.status;
+}
+
 export interface AppScopeOpts {
   role: Role;
   scope: PartnerScope;
@@ -872,7 +930,7 @@ export function getApplicationDetail(ref: string | null): ApplicationDetail {
   return {
     ref: r.ref,
     status: r.status,
-    statusLabel: STATUS_LABEL[r.status],
+    statusLabel: applicationStatusLabel(r),
     referencingMode: r.referencingMode,
     channel: channelOf({ partnerSlug: summarySlug, partnerMode: getPartner(summarySlug)?.referencingMode }),
     withdrawnReason: r.withdrawnReason ?? null,

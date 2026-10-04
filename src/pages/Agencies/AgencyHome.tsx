@@ -34,7 +34,8 @@ import { Link, useParams } from 'react-router-dom';
 import {
   getAgencies, getGroup, getGroups, getPartner,
   getApplications, getPeriods, getUsers, maySeeCommission, ALL_PARTNERS,
-  type Agency, type AgencyGroup, type ManagedUser, type Status,
+  type Agency, type AgencyGroup, type ManagedUser,
+  applicationStatusLabel, applicationStageClass,
 } from '@/data';
 import {
   getPositionsForUsers, getDeedRecipients, getOrgDeedReadiness, agencySees, officeOf,
@@ -73,8 +74,12 @@ import './AgencyHome.css';
 import { plural } from '@/lib/plural';
 import { AgencyChanges } from './AgencyChanges';
 
-const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Referencing', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed issued', withdrawn: 'Withdrawn', expired: 'Expired' };
-const STATUS_ST: Partial<Record<Status, string>> = { referencing: 'st-wait', sent: 'st-live', paid: 'st-live', deed: 'st-ok' };
+/* THE LOCAL STATUS MAPS ARE GONE, which is the useful half of (bd). There
+   were four copies across four files, and three of them spelled "Deed
+   issued" differently from the fourth -- so the refund rule would have had
+   to be written four times, and the next rule after it four times again.
+   applicationStatusLabel and applicationStageClass are the one answer, and
+   every list that shows a stage now asks them. */
 const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
 /** The glyph for a cell with nothing in it. A single hyphen, everywhere, and
@@ -1085,7 +1090,7 @@ export function AgencyHome() {
                   <tr key={r.ref}>
                     <td><Link className="ah-tenant" to={`/applications/${encodeURIComponent(r.ref)}`}><span className="who__av">{initials(r.tenant)}</span><span><span className="dt__name">{r.tenant}</span><span className="dt__sub">{r.ref}</span></span></Link></td>
                     {!isBranch && <td className="soft">{r.branch}</td>}
-                    <td><span className={`ah-st ${STATUS_ST[r.status] ?? 'st-neutral'}`}>{STATUS_LABEL[r.status]}</span></td>
+                    <td><span className={`ah-st ${applicationStageClass(r)}`}>{applicationStatusLabel(r)}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -1894,7 +1899,7 @@ export function AgencyHome() {
                     <tr key={r.ref}>
                       <td><Link className="ah-tenant" to={`/applications/${encodeURIComponent(r.ref)}`}><span className="who__av">{initials(r.tenant)}</span><span><span className="dt__name">{r.tenant}</span><span className="dt__sub">{r.ref}</span></span></Link></td>
                       <td className="soft">{r.branch}</td>
-                      <td><span className={`ah-st ${STATUS_ST[r.status] ?? 'st-neutral'}`}>{STATUS_LABEL[r.status]}</span></td>
+                      <td><span className={`ah-st ${applicationStageClass(r)}`}>{applicationStatusLabel(r)}</span></td>
                     </tr>
                   ))}
                 </tbody>

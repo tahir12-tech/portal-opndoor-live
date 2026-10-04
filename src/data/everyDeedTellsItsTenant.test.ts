@@ -131,3 +131,86 @@ describe('the receipt is the email with the button', () => {
     expect(receipt).toContain('p.signUrl ?');
   });
 });
+
+/* THE REFUND EMAILS, AND THE TWO THINGS MATT FOUND WRONG WITH THEM.
+ *
+ * (bb): 'a tenant refunded automatically by the cascade (e.g. GR-23854) gets
+ * the plain "Your guarantee fee has been refunded" email with no
+ * explanation ... Every refund email says the money goes back "to the way
+ * you paid", not "the card you paid with" (Klarna and Revolut Pay exist).'
+ *
+ * (bc): 'the "These guarantees have been cancelled" email went twice each to
+ * joe@joe.com and landlord@landlord.com (once per refunded tenant). Send it
+ * exactly once per tenancy, after the last tenant's refund, and never again
+ * on webhook redeliveries.'
+ */
+describe('refund emails', () => {
+  const templates = read(`${FNS}/_shared/emailTemplates.ts`);
+  const refund = templates.slice(
+    templates.indexOf('export function refundEmail'),
+    templates.indexOf('export function guaranteesCancelledEmail'),
+  );
+
+  /* A FACTUAL CORRECTION, not a style one: somebody who paid by Klarna and
+     reads about a card refund goes looking for one that never comes. */
+  it('say the money goes back the way it came, not to a card', () => {
+    expect(refund).toContain('the way you paid');
+    // Only the comment explaining the change may still carry the old phrase.
+    const code = refund.split('\n').filter((l) => !l.trim().startsWith('/*') && !l.trim().startsWith('*')).join('\n');
+    expect(code).not.toContain('the card you paid with');
+  });
+
+  it('and tell a cascaded tenant why their money came back', () => {
+    expect(refund).toContain('is not going ahead');
+    expect(refund).toContain("You don't need to do anything.");
+  });
+
+  /* THE THREE ARMS MUST STAY THREE. A tenant who asked for a refund must not
+     be told the let is off, and a tenant whose deed was never issued must
+     not be told it is cancelled. */
+  it('without telling a tenant who asked for one that the let is off', () => {
+    /* THREE ARMS, AND THEY MUST STAY THREE. My first version of this
+       assertion matched the string "cascaded\n", which is a line ending
+       rather than a rule: it would have passed on any file mentioning the
+       word. What has to hold is that the branch exists and that the two
+       wrong pairings cannot happen -- a self-requested refund told the let
+       is off, or a cascaded one told to contact the agent. */
+    expect(refund).toContain('const cascaded = p.cascaded === true;');
+    // The branch exists in the blocks, not merely as a declared parameter.
+    expect(refund).toContain('...(cascaded');
+    // And the plain arm is still reachable: not every refund is a cascade.
+    expect(refund).toContain(': cancelled');
+    // And the agent-told line belongs to the non-cascaded cancellation only.
+    const agentLine = 'Your letting agent has been told.';
+    const idxAgent = refund.indexOf(agentLine);
+    const idxCascade = refund.indexOf("You don't need to do anything.");
+    expect(idxAgent).toBeGreaterThan(0);
+    expect(idxCascade).toBeGreaterThan(0);
+    expect(idxCascade, 'the cascaded arm comes first, before the plain cancelled one')
+      .toBeLessThan(idxAgent);
+  });
+});
+
+describe('the per-property notice goes once', () => {
+  const webhook = read(`${FNS}/stripe-webhook/index.ts`);
+
+  /* MY BUG. Each cascaded refund raises its own charge.refunded and runs the
+     whole per-tenant path -- deliberately -- and the per-PROPERTY email was
+     inside it. Two tenants, two notices. */
+  it('is claimed before it is sent', () => {
+    const i = webhook.indexOf('deliverCancellationNotice(');
+    expect(i).toBeGreaterThan(0);
+    const before = webhook.slice(Math.max(0, i - 600), i);
+    expect(before, 'the notice is sent without claiming it first').toContain('claim_cancellation_notice');
+    expect(before).toContain('mayNotify === true');
+  });
+
+  /* THE CLAIM IS A DATABASE INSERT, not a variable. A flag held in the
+     function dies with it, and Stripe redelivers. */
+  it('and the claim is durable, so a redelivery next week still finds it', () => {
+    const mig = read(resolve(process.cwd(),
+      'supabase/migrations/20261008150000_one_cancellation_notice_per_tenancy.sql'));
+    expect(mig).toContain('create table if not exists public.cancellation_notices');
+    expect(mig).toContain('on conflict (subject_id) do nothing');
+  });
+});

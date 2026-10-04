@@ -25,6 +25,7 @@ import {
   referrerNamesForScope, getPeriods, periodRange, ALL_PARTNERS, type Status, type Period,
   collateTenancies, groupTenancies, pageWithoutSplitting, scopedSummaries, tenancyDeedTally, tenancyPaidTally,
   originOf, originOptions, originToFilter, originFromParams, ORIGIN_KIND_LABEL,
+  applicationStatusLabel, applicationStatusTone,
 } from '@/data';
 import type { Role } from '@/data/types';
 import { useSession } from '@/session/SessionContext';
@@ -48,7 +49,12 @@ import { originLabelFor } from '@/data/origin';
 import { emptyTabSentence } from '@/data/emptyTabSentence';
 
 const PAGE_SIZE = 20;
-const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing: 'Awaiting decision', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
+/* THE LOCAL COPY OF THE STATUS MAP IS GONE, and that is the useful half of
+   this change. It was a second, identical copy of applicationsService's
+   STATUS_LABEL, which is exactly how the list and the application header come
+   to disagree -- the refund rule would have had to be written into both.
+   `applicationStatusLabel` is now the only answer to "what does this row
+   say", and both screens ask it. */
 /* Every id the status strip can hold: the eight real statuses, the cross-cuts
    that keep their row's own status (refunded, awaiting signature, the two draft
    sub-states) and the two DELIVERY states, which are two different questions
@@ -828,12 +834,22 @@ export function Applications() {
                     </td>
                     <td>
                       <span className="status-cell">
-                        <Pill variant={r.status === 'withdrawn' || r.status === 'expired' || r.status === 'draft' ? 'muted' : r.status === 'referencing' ? 'warn' : r.status === 'declined' ? 'danger' : (r.status as PillVariant)}>{STATUS_LABEL[r.status]}</Pill>
-                        {r.refunded && <span className="refund-tag" title="Guarantee fee refunded">Refunded</span>}
+                        {/* ONE STATUS. Matt (az): a refunded application shows
+                            "Refunded", not "Deed Issued + Refunded + Not paid".
+                            All three were true and came from three different
+                            columns; the refund is the last thing that happened,
+                            so it is the one that reads. The separate tag and the
+                            unpaid tag are suppressed below rather than deleted,
+                            because both are right on every other row. */}
+                        <Pill variant={applicationStatusTone(r) as PillVariant}>{applicationStatusLabel(r)}</Pill>
                         {/* Payment is per applicant: each tenant pays their own
                             share through their own link, so it is theirs to show
-                            even where the status is the tenancy's. */}
-                        {me && !me.paid && <span className="jt-unpaid" title="This tenant has not paid their share">Not paid</span>}
+                            even where the status is the tenancy's. Not on a
+                            refunded row: "Not paid" is literally true there --
+                            isPaid treats a refund as unsettled -- and reads as
+                            a tenant who never paid rather than one who was paid
+                            back. */}
+                        {me && !me.paid && !r.refunded && <span className="jt-unpaid" title="This tenant has not paid their share">Not paid</span>}
                         {/* The status says "Deed Issued" whether the deed arrived
                             or not, which is how a filter could find a row that
                             showed no sign of the thing it was filtered on. */}

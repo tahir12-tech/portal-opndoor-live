@@ -34,7 +34,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { showsOffices, officeLabel, isPlaceholderOrg } from '@/data/agencyOffices';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ALL_PARTNERS, addApplicationNote, addContact, amendStartBlockedReason, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedCardState, deedDownloadUrl, deedIsOverdue, mayGenerateDeed, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
+import { ALL_PARTNERS, applicationStatusLabel, applicationStatusTone, addApplicationNote, addContact, amendStartBlockedReason, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, cancelledByRefund, CANCELLED_BY_REFUND_LABEL, deedCardState, deedDownloadUrl, deedIsOverdue, mayGenerateDeed, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { isOpndoorStaff } from '@/data/types';
@@ -705,6 +705,16 @@ export function ApplicationDetail() {
 
   // #105 Withdrawn/Expired are terminal pre-payment exits: only Sent was reached,
   // and the timeline must render the termination, never a false Paid/Deed tick.
+  /* WHAT A REFUND DID TO THE GUARANTEE, asked once and answered everywhere.
+     'signed' where a signed deed was cancelled, 'unsigned' where the signing
+     was abandoned, null where there was never a deed or never a refund. */
+  const refundEnded = cancelledByRefund({
+    // paymentState, not a `refunded` flag: ApplicationDetail carries no such
+    // field, and 'partially_refunded' must NOT read as a refund here -- a
+    // part refund leaves the guarantee standing (R2).
+    refunded: paymentInfo?.paymentState === 'refunded',
+    deedState: paymentInfo?.deedState ?? null,
+  });
   const timelineTerminated = d.status === 'withdrawn' || d.status === 'expired';
   const reached = timelineTerminated ? 1 : d.status === 'referencing' ? 0 : d.status === 'sent' ? 1 : d.status === 'paid' ? 2 : 3;
   // Third-node caption: on completion it states the outcome; while awaiting it
@@ -732,15 +742,23 @@ export function ApplicationDetail() {
     deedNote = d.status === 'expired'
       ? 'Not issued: application expired'
       : 'Not issued: application withdrawn';
-  } else if (paymentInfo?.deedState === 'cancelled') {
+  } else if (refundEnded) {
     /* BEFORE THE STATUS TEST, because cancelling does not move `status` off
        'deed' -- the application did reach the deed stage, and every status
        filter, count and export depends on it staying there. Without this
        line the next branch says "Signed by tenant and issued" about a
        guarantee that has ended, which is the sentence (ak) was written to
-       get rid of. Both halves are true and the second is what matters. */
+       get rid of. Both halves are true and the second is what matters.
+
+       AND IT ASKS ABOUT THE REFUND, NOT THE DEED STATE. Matt (az): the last
+       step says "Cancelled: fee refunded", not "Awaiting deed". GR-23854 is
+       why: refunded while still out for signature, so its deed_state is
+       'voided' and it matched none of these arms at all, falling through to
+       the default "Awaiting deed" -- a promise, on a guarantee that ended
+       three hours ago. `cancelledByRefund` answers for every deed state a
+       refund can leave behind. */
     deedDate = 'Cancelled';
-    deedNote = 'Signed and issued, then cancelled because the fee was refunded';
+    deedNote = CANCELLED_BY_REFUND_LABEL[refundEnded];
   } else if (d.status === 'deed') {
     deedNote = 'Signed by tenant and issued';
   } else if (paymentInfo?.deedState === 'awaiting_tenant') {
@@ -818,6 +836,16 @@ export function ApplicationDetail() {
   const isDeed = d.status === 'deed';
   const deedName = `Guarantee_Deed_${d.ref}${deedVersion > 1 ? `_v${deedVersion}` : ''}.pdf`;
   const deedMeta = deedVersion > 1 ? `PDF · 248 KB · reissued ${fmtShort(NOW)}` : `PDF · 248 KB · issued ${d.issue}`;
+  /* WHEN THE GUARANTEE ENDED, for the Cancelled on row. deedCancelledAt
+     where the deed was signed and cancelled; the refund date where the
+     signing was stopped, because no deed was ever cancelled in that case.
+     Falls back to the other if one is missing rather than printing nothing
+     next to the word "Cancelled". */
+  const cancelledOn = fmtLong(
+    paymentInfo?.deedCancelledAt
+      ? new Date(paymentInfo.deedCancelledAt)
+      : paymentInfo?.refundedAt ? new Date(paymentInfo.refundedAt) : new Date(),
+  );
   const gsumIssue = isDeed ? amendedDates?.issue ?? d.issue : 'Pending';
   const gsumExpiry = isDeed ? amendedDates?.expiry ?? d.expiry : 'Pending';
   /* AND THE CARD SAYS THE SAME THING. "Reserved, confirmed once the deed is
@@ -898,8 +926,15 @@ export function ApplicationDetail() {
 
   // Withdraw is offered only at Sent, before payment, to the owner / management / admin.
   const showWithdraw = canWithdraw(role, d.status, owned) && !isTerminal;
-  const pillVariant: PillVariant = d.status === 'withdrawn' || d.status === 'expired' || d.status === 'draft' ? 'muted' : d.status === 'referencing' ? 'warn' : d.status === 'declined' ? 'danger' : d.status;
-  const statusLabel = d.statusLabel;
+  /* ONE STATUS IN THE HEADER TOO. Matt (az): "a refunded application shows
+     one status, 'Refunded'". The same shared answer the Applications list
+     uses, so the row and the page it opens cannot disagree -- which they
+     did, because each formatted its own status from its own copy of the
+     map. `statusLabel` off the record is already the shared one;
+     `pillVariant` was still the page's own ternary. */
+  const refundedNow = paymentInfo?.paymentState === 'refunded';
+  const pillVariant: PillVariant = applicationStatusTone({ status: d.status, refunded: refundedNow }) as PillVariant;
+  const statusLabel = applicationStatusLabel({ status: d.status, refunded: refundedNow });
 
   // ---- direct-tenant delivery contact + inline match ----
   const isDirect = d.channel === 'Direct';
@@ -1321,7 +1356,16 @@ export function ApplicationDetail() {
               (who sees no commission anywhere) has always read this line. Gating
               it would take the second sentence away too, which is the only thing
               on the card that explains why a refunded record still says Paid. */}
-          <div className="pay-note">No commission or premium accrues on a refunded fee. The Sent to Paid transition is not reversed (by design).</div>
+          {/* PLAIN ENGLISH. Matt (az): 'Replace "The Sent to Paid transition
+              is not reversed (by design)" with plain English or remove it.'
+
+              IT WAS A NOTE TO OURSELVES ON A CUSTOMER SCREEN -- the same
+              fault as "partner". "The Sent to Paid transition" is a state
+              machine an agent has never seen, "is not reversed" describes
+              code, and "(by design)" is an engineer reassuring a reviewer.
+              What an agent wants to know is whether the referral still
+              counts as theirs, which the replacement says. */}
+          <div className="pay-note">No commission or premium is earned on a refunded fee. The referral still counts as one you sent.</div>
         </>
       )}
       {payAwaiting && (
@@ -1362,10 +1406,22 @@ export function ApplicationDetail() {
           <div className="deed-file__name">{deedName}</div>
           <div className="deed-file__meta">{deedMeta}</div>
         </div>
+        {/* DOWNLOAD STAYS, NAMED FOR WHAT IT IS. Matt (az): "hide Send deed
+            / Resend deed on a cancelled deed; keep Download as 'Download
+            cancelled deed'." The instrument existed and somebody signed it;
+            the record of that is the whole reason cancelling is not
+            deleting, and an agent asked to prove what happened needs it. */}
         <div style={{ marginTop: 12 }}>
-          <Button variant="primary" block onClick={doDownloadDeed}><Icon name="download" /> Download deed</Button>
+          <Button variant="primary" block onClick={doDownloadDeed}>
+            <Icon name="download" /> {refundEnded ? 'Download cancelled deed' : 'Download deed'}
+          </Button>
         </div>
-        {canSend && (
+        {/* AND SENDING DOES NOT. Delivering a cancelled Deed of Guarantee to
+            a landlord is sending them an instrument that no longer covers
+            anything, over our own signature. The button was offered because
+            `canSend` asks about the reader's permission, which has not
+            changed; what changed is that there is nothing fit to send. */}
+        {canSend && !refundEnded && (
           <div style={{ marginTop: 10 }}>
             {/* Agency staff are the agent, so they send to their client, the
                 landlord. Opndoor staff keep the send-to-agent path. */}
@@ -1466,18 +1522,28 @@ export function ApplicationDetail() {
                 </div>
               );
             }
-            /* NOT AN ANOMALY. A cancelled guarantee is a settled outcome, not
-               something for somebody to review, and the alert styling below
-               would have an agent ringing us about a let they already know
-               fell through. It is the one state in this card that is FINISHED
-               rather than stuck. */
-            if (card === 'cancelled') {
+            /* NOT AN ANOMALY, AND NOT ONLY WHEN THE DEED WAS SIGNED.
+               Matt (az): 'A deed that was never signed and got cancelled by
+               a refund says "Signing cancelled: fee refunded", not "Deed
+               document voided in PandaDoc. Review required." Only show
+               "Review required" when something actually needs a person.'
+
+               GR-23854 IS THE CASE. Refunded while still out for signature,
+               so the document was voided and `card` is 'voided' -- which
+               fell to the anomaly branch below and shouted for review about
+               a let everybody already knows fell through. A refund is a
+               settled outcome whichever state it caught the deed in; the
+               two labels differ because the tenant either had cover and
+               lost it, or never had any. */
+            if (refundEnded) {
               return (
                 <div className="deed" style={{ opacity: 0.95 }}>
                   <span className="deed__ic" style={{ color: 'var(--ink-mute, #7a7a8c)' }}><Icon name="info" strokeWidth={1.8} /></span>
                   <div className="grow">
-                    <div className="deed__t">Deed of Guarantee cancelled</div>
-                    <div className="deed__s">The guarantee fee was refunded, so this guarantee has ended. The signed deed is kept on the record.</div>
+                    <div className="deed__t">{CANCELLED_BY_REFUND_LABEL[refundEnded]}</div>
+                    <div className="deed__s">{refundEnded === 'signed'
+                      ? 'The guarantee fee was refunded, so this guarantee has ended. The signed deed is kept on the record.'
+                      : 'The guarantee fee was refunded before the deed was signed, so the signing was stopped. Nothing further is needed.'}</div>
                   </div>
                 </div>
               );
@@ -1675,7 +1741,10 @@ export function ApplicationDetail() {
       {!delivery.autoSend && isAdmin && (
         <div className="pay-note">This one is not sent automatically. It goes out when a member of staff sends it.</div>
       )}
-      {canSend && isDeed && (
+      {/* SAME RULE, SECOND SITE. This is the delivery panel's own Send /
+          Resend, which asks dlvState rather than canSend alone and so is a
+          separate gate to close. */}
+      {canSend && isDeed && !refundEnded && (
         <div style={{ marginTop: 12 }}>
           {dlvState === 'cannot_deliver'
             // Nothing to resend TO: a blind retry would resolve the same empty
@@ -1741,7 +1810,7 @@ export function ApplicationDetail() {
         <div className="rec-head__actions">
           {d.status === 'referencing' && isAdmin && <Button variant="primary" size="sm" onClick={doApprove} disabled={approveBusy || declineBusy}><Icon name="check" /> {approveBusy ? 'Approving…' : 'Approve'}</Button>}
           {d.status === 'referencing' && isAdmin && <Button variant="ghost" size="sm" className="btn--danger" onClick={() => { setDeclineReason(''); setDeclineOpen(true); }} disabled={approveBusy || declineBusy}><Icon name="x" /> Decline</Button>}
-          {isDeed && <Button variant="dark" size="sm" onClick={doDownloadDeed}><Icon name="download" /> Download deed</Button>}
+          {isDeed && <Button variant="dark" size="sm" onClick={doDownloadDeed}><Icon name="download" /> {refundEnded ? 'Download cancelled deed' : 'Download deed'}</Button>}
           {showWithdraw && <Button variant="ghost" size="sm" onClick={() => { setWReason(''); setWNote(''); setWithdrawOpen(true); }}><Icon name="ban" /> Withdraw</Button>}
         </div>
       </div>
@@ -2065,8 +2134,25 @@ export function ApplicationDetail() {
               <div className="gsum__ref">{d.ref}</div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4, marginBottom: 14 }}>{gsumNote}</div>
               <div className="gsum__row"><span className="k">Issue date</span><span className="v">{gsumIssue}</span></div>
-              <div className="gsum__row"><span className="k">Expiry date</span><span className="v">{gsumExpiry}</span></div>
-              <div className="gsum__row"><span className="k">Guarantee period</span><span className="v">12 months</span></div>
+              {/* A CANCELLED GUARANTEE HAS NO EXPIRY, IT HAS AN END. Matt
+                  (az): 'guarantee details show "Cancelled on 4 Oct 2026"
+                  instead of expiry, "Pending" or guaranteed rent.'
+
+                  An expiry date is a promise about how long cover runs, and
+                  on a cancelled guarantee it is a date nothing happens on.
+                  Worse on the unsigned case, where it read "Pending": cover
+                  that is not coming, described as on its way.
+
+                  THE DATE IS WHEN IT ENDED, not when the fee went back. They
+                  are usually the same minute and occasionally not -- a
+                  cascade runs after its trigger, a hand-cancellation later
+                  still -- and the row is about the instrument. */}
+              {refundEnded
+                ? <div className="gsum__row"><span className="k">Cancelled on</span><span className="v">{cancelledOn}</span></div>
+                : <>
+                    <div className="gsum__row"><span className="k">Expiry date</span><span className="v">{gsumExpiry}</span></div>
+                    <div className="gsum__row"><span className="k">Guarantee period</span><span className="v">12 months</span></div>
+                  </>}
               {/* NOTHING IS GUARANTEED UNTIL THE DEED IS. Matt, 2026-10-01:
                   "before the deed is issued, label the rent figure 'Rent to
                   be guaranteed' instead of 'Guaranteed annual rent'." The
@@ -2080,7 +2166,10 @@ export function ApplicationDetail() {
                   no such guarantee, and printing £12,000 against one reads
                   as cover somebody has. The row is DROPPED rather than
                   zeroed: £0 is a different claim and an equally wrong one. */}
-              {!timelineTerminated && (
+              {/* AND NO RENT FIGURE ON A CANCELLED ONE EITHER, for the same
+                  reason it is dropped on a withdrawn one: it is a figure
+                  about cover somebody has, and nobody has this. */}
+              {!timelineTerminated && !refundEnded && (
                 <div className="gsum__row">
                   <span className="k">{isDeed ? 'Guaranteed annual rent' : 'Rent to be guaranteed'}</span>
                   <span className="v">{d.annual}</span>

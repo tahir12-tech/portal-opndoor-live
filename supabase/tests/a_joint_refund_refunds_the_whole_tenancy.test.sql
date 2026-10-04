@@ -109,9 +109,16 @@ values
 select is(public.start_refund_cascade('d0000000-0000-0000-0000-0000000000f1'), 1,
   'one co-tenant is enrolled out of three: the paid, unrefunded one');
 
+/* SCOPED TO THIS FIXTURE'S TENANCY, and it was not until 2026-10-04.
+   Matt's real cascade on dev wrote a refund_cascades row for GR-23854, and
+   this assertion read the WHOLE table, so it started failing with
+   "GR-23854,GR-ZZJR02". The test was only ever passing because the table
+   happened to be empty -- a dependence on the rest of the database that a
+   pgTAP file inside a rolled-back transaction has no business having. */
 select is(
   (select string_agg(a.guarantee_ref, ',' order by a.guarantee_ref)
-     from public.refund_cascades c join public.applications a on a.id = c.application_id),
+     from public.refund_cascades c join public.applications a on a.id = c.application_id
+    where c.tenancy_id = 'd0000000-0000-0000-0000-00000000aa01'),
   'GR-ZZJR02',
   'by name, so "one" cannot be the right count for the wrong tenant');
 
@@ -135,8 +142,11 @@ select is(
 select is(public.start_refund_cascade('d0000000-0000-0000-0000-0000000000f1'), 0,
   'a second delivery of the same event enrols nobody new');
 
-select is((select count(*) from public.refund_cascades), 1::bigint,
-  'and the ledger still holds exactly one row');
+select is(
+  (select count(*) from public.refund_cascades
+    where tenancy_id = 'd0000000-0000-0000-0000-00000000aa01'),
+  1::bigint,
+  'and the ledger still holds exactly one row for this tenancy');
 
 -- ===========================================================================
 -- 7-8. THE TWO CASES THAT MUST NOT CASCADE AT ALL.
@@ -152,8 +162,12 @@ select is(public.start_refund_cascade('d0000000-0000-0000-0000-0000000000f4'), 0
 -- ===========================================================================
 -- 9-11. RESUMABLE. A failure comes back round; a success does not.
 -- ===========================================================================
+/* refund_cascade_work() IS DELIBERATELY ESTATE-WIDE -- that is what makes
+   the cascade resumable without a cron -- so these counts are scoped to the
+   fixture rather than the function being changed. Same lesson as above. */
 select is(
-  (select count(*) from public.refund_cascade_work()),
+  (select count(*) from public.refund_cascade_work() w
+    where w.guarantee_ref like 'GR-ZZJR%'),
   1::bigint,
   'the pending row is work to do');
 
@@ -162,7 +176,8 @@ select lives_ok(
   'a failure is recorded rather than thrown away');
 
 select is(
-  (select count(*) from public.refund_cascade_work()),
+  (select count(*) from public.refund_cascade_work() w
+    where w.guarantee_ref like 'GR-ZZJR%'),
   1::bigint,
   'AND COMES BACK AS WORK, which is the whole of "resumable"');
 
@@ -181,7 +196,8 @@ update public.refund_cascades set attempts = 5
  where application_id='d0000000-0000-0000-0000-0000000000f2';
 
 select is(
-  (select count(*) from public.refund_cascade_work()),
+  (select count(*) from public.refund_cascade_work() w
+    where w.guarantee_ref like 'GR-ZZJR%'),
   0::bigint,
   'after five attempts it stops being retried');
 
@@ -194,7 +210,7 @@ set local role authenticated;
 select is(
   (select count(*) from public.refund_cascade_failures()),
   0::bigint,
-  'an agency Negotiator sees no half-done cascade: it is opndoor''s to clear up');
+  'an agency Negotiator sees NO half-done cascade at all: it is opndoor''s to clear up');
 reset role;
 
 /* READ AS A REAL OPNDOOR READER, not as the table owner. The first draft of
@@ -208,12 +224,14 @@ select set_config('request.jwt.claims',
   '{"sub":"d0000000-0000-0000-0000-00000000c002","role":"authenticated","aal":"aal2"}', true);
 set local role authenticated;
 select is(
-  (select guarantee_ref from public.refund_cascade_failures()),
+  (select f.guarantee_ref from public.refund_cascade_failures() f
+    where f.guarantee_ref like 'GR-ZZJR%'),
   'GR-ZZJR02',
   'and opndoor sees it, named, for the Home warning');
 
 select is(
-  (select attempts from public.refund_cascade_failures()),
+  (select f.attempts from public.refund_cascade_failures() f
+    where f.guarantee_ref like 'GR-ZZJR%'),
   5,
   'STILL on Home after it stopped being retried, which is the point of the cap');
 reset role;
