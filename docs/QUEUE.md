@@ -4489,6 +4489,22 @@ both estates, the dialog, and FAQ 9 on both rails.
   lists what happened in the window; a refund is the most consequential
   thing that can happen in one, and it was not on the list.
 
+### (bs) The Export-all statement CSV: month, tenancy, and an Agency column
+
+> Admin "Export all" commission statement CSV: month as "October 2026" (not "Oct-26", which Excel produces from a date; write it as text); tenancy as "Joint (2)" on every row, including supplier ones; add an Agency column so supplier rows show the agency (Test Lettings asda) as well as the office.
+
+- **"WHICH EXCEL PRODUCES FROM A DATE" IS THE DIAGNOSIS, NOT A GUESS.**
+  The cell is not wrong in the file; Excel is parsing it as a date and
+  reformatting it. So the fix is to write a value Excel will not take
+  for a date, not to change the format string.
+- TENANCY "Joint (2)" ON EVERY ROW, INCLUDING SUPPLIER ONES: the same
+  shape of omission as (ba), where the supplier rail did not get the
+  share suffix the agency rail had. A field computed on one rail and
+  left blank on the other reads as "not a joint tenancy".
+- THE AGENCY COLUMN IS AN ADDITION, not a replacement: "the agency ... as
+  well as the office". On a supplier's statement the office alone does
+  not say whose it is.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
