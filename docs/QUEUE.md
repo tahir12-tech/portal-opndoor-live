@@ -2789,6 +2789,21 @@ the one real assertion that has never run.
   header string is fixed: the C&C template owns it, and only the VALUES
   change.
 
+### (m) Supplier Overview with no deal, and the Created entry in English
+
+> Supplier Overview with no deal: say "No commission is owed on this supplier's referrals until a deal is set on the Commission tab." (tenants are still charged). Recent changes "Created" entry in plain English, e.g. "Supplier created: active; tenants checked by them and accepted as sent; portal and API on; no commission deal yet." Check other Recent changes entries for the same raw text.
+
+- ARRIVED MID-TURN, third in the queue. (k) first, then (l), then this.
+- "(TENANTS ARE STILL CHARGED)" IS THE WHOLE POINT OF THE SENTENCE. No deal
+  means nobody is PAID commission; it does not mean the referral is free.
+  The old wording presumably left that open.
+- THE CREATED ENTRY IS A TRANSLATION JOB: raw column values rendered as a
+  sentence. His example maps four facts: status, referencing mode, the
+  portal/API switches, and the absence of a deal.
+- **"CHECK OTHER RECENT CHANGES ENTRIES FOR THE SAME RAW TEXT"** is a sweep
+  and is the larger half: wherever else that feed prints stored values
+  instead of English, it has the same fault.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
