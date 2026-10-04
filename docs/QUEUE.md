@@ -2268,6 +2268,21 @@ sign-in are unexercised. Somebody has to click it.
   would take" means the After launch entry has to be good enough to build
   from.
 
+## THE CATCH-UP DECISION (instruction, 2026-10-04, verbatim). STAYS UNDER AFTER LAUNCH.
+
+> Catch-up decision: roll late payees into the next month's statement and settlement, with a line on the statement saying which month the late item belongs to. Keep it under "After launch".
+
+- **NOT BUILT.** "Keep it under 'After launch'" is explicit, so this is a
+  specification change and nothing else ships.
+- HIS CHOICE IS NOT THE OPTION 2 I OFFERED, and it is better: I described
+  putting late payees in the next month's SETTLEMENT only, which would have
+  left a month's statement and its settlement disagreeing. He puts them in
+  the next month's STATEMENT as well, which keeps the two in step and means
+  a closed month is never reopened.
+- IT REPLACES MOST OF THE SPEC RATHER THAN SETTLING ONE POINT OF IT. See the
+  rewritten entry below: three of the five things I said it would take are no
+  longer needed, and one new question becomes the whole of the work.
+
 ## SENT: KESTREL'S SEPTEMBER STATEMENT, ON DEV (2026-10-04).
 
 Matt: *"Send Kestrel's September 2026 statement on dev now (it goes to the
