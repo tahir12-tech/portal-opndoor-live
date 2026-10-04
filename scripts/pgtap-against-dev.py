@@ -34,9 +34,20 @@ REF = "nfufwcpgrhfgwtphegca"          # dev. never the live ref.
 # directory this script lives in.
 REPO = os.environ.get("REPO") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# AN ASSERTION MISSING FROM THIS LIST DOES NOT FAIL. IT DISAPPEARS.
+# Only the statements this matches are wrapped and collected, so a pgTAP
+# function spelled correctly, existing in `extensions` and called correctly by
+# a test is simply never counted: the file reports one fewer `ok` than it
+# planned and still passes, because the status is set from `not ok` lines
+# alone. `alike` was in exactly that state, and
+# a_refund_after_a_statement_is_a_question.test.sql:200 had never run.
+# `throws_like` is here for the same reason before anybody needs it.
+# Found by comparing each file's plan with what ran; that comparison is NOT
+# wired in here, deliberately, and remains Matt's call.
 TAP_FNS = (
-    "plan|finish|is|isnt|ok|nok|is_empty|isnt_empty|throws_ok|lives_ok|"
-    "matches|imatches|doesnt_match|cmp_ok|pass|fail|diag|todo|skip|"
+    "plan|finish|is|isnt|ok|nok|is_empty|isnt_empty|throws_ok|throws_like|"
+    "lives_ok|matches|imatches|alike|doesnt_match|cmp_ok|pass|fail|diag|"
+    "todo|skip|"
     "has_table|has_column|has_function|hasnt_function|col_is_null|"
     "col_not_null|results_eq|results_ne|set_eq|bag_eq|row_eq|"
     "function_privs_are|table_privs_are|column_privs_are|policies_are|"
