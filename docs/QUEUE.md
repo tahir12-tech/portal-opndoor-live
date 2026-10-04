@@ -3143,6 +3143,24 @@ the one real assertion that has never run.
   today in 3427bcd and f2b5c13. Worth checking against the previous commit
   before looking further afield.
 
+### (ii) A supplier still cannot add an agency on the referral form
+
+> Signed in as Kestrel Management (test@kestrel.com), New application still says "Your own agencies. A new agency is set up by opndoor, not here" with no way to add an agency or office, though item 3 was reported done. Find why the supplier form doesn't show it (wrong form, a role check, or not deployed), fix it, and show it working as Kestrel Management and as a Kestrel Referrer: add a new agency and office, send a referral through it, and see it land in Reconciliation.
+
+- **REPORTED DONE AND IT IS NOT, WHICH IS THE PART TO TAKE SERIOUSLY.** The
+  capability exists in `capabilities.ts` as `mayAddWhileReferring` and there
+  is a render test, `supplierAddsWhileReferring.render.test.tsx`, which
+  PASSES. So a green test is asserting something the screen does not do, and
+  finding out why that test passes is as important as fixing the screen.
+- HE NAMES THE THREE CANDIDATES: wrong form, a role check, or not deployed.
+  Worth adding a fourth, because it is the one a passing test points at: the
+  test renders a component the page does not use.
+- **THE PROOF REQUIRED IS A JOURNEY, NOT A UNIT TEST**: add an agency and an
+  office, send a referral through it, see it reach Reconciliation, at TWO
+  levels, Management and Referrer.
+- A new agency from a supplier goes to Reconciliation for review rather than
+  straight in, which is why that is the last step of the proof.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
