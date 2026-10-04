@@ -4554,6 +4554,19 @@ both estates, the dialog, and FAQ 9 on both rails.
   from the queue: Matt has proposed a rule in the question and the
   honest answer may be that the code does something else.
 
+### (bw) BLOCKER: searching Applications for "26262" blanks the page
+
+> Blocker: Admin → Applications, typing "26262" in the search box turns the whole page blank (crash). Find the error (browser console), fix it, and add a test that searches by full and partial guarantee reference, tenant name and postcode, including joint tenancies, without crashing.
+
+- A WHITE SCREEN IS AN UNCAUGHT THROW IN RENDER, so the fix is the throw
+  and not a try/catch around the search: catching it would leave the
+  list silently wrong instead of visibly broken.
+- "26262" IS A JOINT TENANCY'S REFERENCE and Matt says to cover joint
+  tenancies explicitly, which is the clue: a sibling lookup that assumes
+  the other half resolves.
+- THE TEST IS SPECIFIED, not left to me: full and partial reference,
+  tenant name, postcode, joint tenancies.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
