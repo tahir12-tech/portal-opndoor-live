@@ -3301,6 +3301,17 @@ the one real assertion that has never run.
   both are needed: the flag is right because of what it MEANS, and the
   permission no longer depends on it.
 
+### (ss) The referrer Reporting note names the wrong ladder
+
+> Referrer Reporting note: for supplier referrers say "You are viewing your own referrals only. Management sees all of [supplier]'s referrals." (Directors and Managers is agency wording.)
+
+- **THE FOURTH INSTANCE TODAY of the agency ladder appearing in supplier
+  copy**, after the Commission tab, the FAQs and the notifications dialog.
+  Four sites and one cause, so the fix should be a shared way of naming the
+  level above the reader rather than four corrected strings.
+- THE SUPPLIER IS NAMED IN THE SENTENCE ("all of [supplier]'s referrals"),
+  so it is not a constant: it takes the party.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
