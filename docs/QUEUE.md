@@ -4609,6 +4609,21 @@ both estates, the dialog, and FAQ 9 on both rails.
   per row, correct for every row except the one whose agency name
   equals its supplier's.
 
+### (ca) The League Branches tab: the measure's name, the agency, and zero
+
+> League Branches tab: call the measure "Fees collected" as on every other tab; every office shows its agency underneath (Test Lettings asda's is missing); show £0, not "-", for no commission.
+
+- ALL THREE ARE "THIS TAB DISAGREES WITH THE OTHERS", which makes the
+  other tabs the specification.
+- **"-" IS NOT ZERO, and the difference matters on a commission column.**
+  A dash reads as "not applicable" or "not known"; this office earned
+  nothing, which is a figure. Same distinction as (bq)(3) in the
+  opposite direction: there a zero was being printed where there is no
+  party at all, and the answer was blank; here a blank is printed where
+  there is a party that earned nothing, and the answer is £0.
+- THE MISSING AGENCY IS LIKELY THE SAME ROW AS (bz)'s MISSING BADGE, and
+  the two should be looked at together before either is fixed.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
