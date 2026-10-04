@@ -4636,6 +4636,17 @@ both estates, the dialog, and FAQ 9 on both rails.
   missing. Same family as (ca)'s dash: a placeholder printed where the
   honest answer is a different sentence.
 
+### (cc2) The supplier page is headed "Supplier", not the supplier
+
+> Supplier page: breadcrumb and page title show the supplier's name ("Kestrel Lettings"), not "Supplier"; the header tag uses the plain wording of the checking setting ("They check tenants; Opndoor accepts them as sent").
+
+- A PAGE TITLED WITH ITS OWN TYPE tells the reader what kind of page
+  they opened, which they know, instead of which one, which is the
+  question. The agency page already titles itself with the agency.
+- THE TAG IS THE REFERENCING MODE IN OUR VOCABULARY. Matt has given the
+  plain sentence; `pre_referenced_open` is the stored value and must
+  not be what the header says.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
