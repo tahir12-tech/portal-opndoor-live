@@ -59,24 +59,28 @@ export const HELP_SEED: HelpContent = {
     // a single tenant and 5 shared between joint ones), and stating one figure
     // for everybody was wrong for every agency that negotiated.
     { id: 'f8', q: 'How are the guarantee fee and commission calculated?', a: 'The guarantee fee is set by the fee basis agreed with each agency, shown on every application and on the referral form before you send it. Commission is a percentage of that fee, and the percentages are in your agreement. Commission figures are visible to Directors and opndoor only.', needsCommission: true, rail: 'supplier' },
-    /* WHAT THE PORTAL ACTUALLY ENFORCES. Matt, 2026-10-03: "FAQ 7 (changing the
-       start date): tell me exactly what the portal enforces today (how long after
-       payment, and any limit on how far the date can move), then make the FAQ say
-       exactly that in plain English."
+    /* THE RULE MATT DECIDED, after asking what it was. 2026-10-04: "agency and
+       supplier users can change a start date only before the tenancy starts
+       (signed or not); after the start date, only Opndoor staff can. Show the
+       reason in the dialog for everyone else ... Update FAQ 9 to match."
 
-       BOTH ANSWERS SAID "within 7 days of the payment date" AND NO SUCH RULE
-       EXISTS. Read off dev before writing this: `amend_tenancy_start` never
-       mentions `paid_at` at all, and `can_amend_tenancy_start` is about the ROLE
-       and the DEED STATE. The only limit on the date is a sanity range, not
-       before 2000 and not more than five years ahead. So the FAQ invented a
-       deadline, and an agency reading it would have rung us rather than
-       correcting a date they were entitled to correct.
+       HELD BACK UNTIL HE RULED, which is why this answer was the one FAQ left
+       alone in the rewrite: "Leave FAQ 9 (changing the start date) as it is
+       until I confirm the rule."
 
-       AND IT UNDERSTATED WHO. "opndoor admins and management" left out the
-       referrer, who may amend their OWN referral while the deed is unsigned,
-       which is the commonest case of all: the person who typed the date wrong
-       fixing it ten minutes later. */
-    { id: 'f9', q: 'Can a tenancy start date be changed after a referral?', a: 'Yes. There is <b>no deadline</b>: a start date can be corrected at any time, before or after the tenant has paid, and before or after the deed is signed. There is no limit on how far it can move either, beyond having to be a real date within the next five years. Use <b>Amend start date</b> on the application. Who can do it depends on where the referral has got to: while the deed is still unsigned, the person who sent the referral can change it, and so can your management and opndoor. Once the deed is signed, <b>management and opndoor</b> can change it and the referrer cannot. Changing it reissues the deed: an unsigned one is replaced, and a signed one is kept on the record and replaced with a corrected deed, so the deed and the tenancy never disagree. On a joint tenancy every tenant moves together. A withdrawn or expired referral cannot be changed.', rail: 'supplier' },
+       WHAT THE PREVIOUS VERSION FIXED AND THIS ONE KEEPS. Both answers used to
+       say "within 7 days of the payment date", and no such rule existed:
+       `amend_tenancy_start` never mentions `paid_at`. They also left out the
+       referrer, who may amend their own. Those corrections stand. What changes
+       is the boundary, which is now the start date rather than the signature.
+
+       IT SAYS WHY, NOT JUST NO. The reason an agency cannot move a date after
+       the tenancy begins is that the 12 months of cover run from it, and the
+       underwriter is already holding that period. An answer that says "only
+       opndoor can" without that reads as a permissions quirk; with it, the
+       email to the account manager is an obvious next step rather than a
+       complaint. The dialog on the application says the same thing. */
+    { id: 'f9', q: 'Can a tenancy start date be changed after a referral?', a: 'Yes, up to the day the tenancy starts. Until then there is no deadline and no limit on how far the date can move, and it makes no difference whether the tenant has paid or whether the deed has been signed. Use <b>Amend start date</b> on the application: the person who sent the referral can change their own, and your management can change any of them. <b>From the start date onwards, only opndoor can change it.</b> The guarantee runs for 12 months from the start date, so moving it once the tenancy is under way changes the cover your landlord is relying on, and that is a conversation rather than a form. Email your account manager at partners@opndoor.co with the guarantee reference and the right date. Changing the date reissues the deed: an unsigned one is replaced, and a signed one is kept on the record and replaced with a corrected deed, so the deed and the tenancy never disagree. On a joint tenancy every tenant moves together. A withdrawn or expired referral cannot be changed.', rail: 'supplier' },
     { id: 'f10', q: 'How do I find a specific application?', a: 'Use the search and status filters on the <b>Applications</b> screen, or click any figure on the Agencies and branches screen to drill through to the applications behind it.', rail: 'supplier' },
     { id: 'f11', q: 'What time period does the dashboard cover?', a: 'Use the period selector at the top of the dashboard, from the last 7 days through to all time. Every figure and chart updates to match, and the <b>Export CSV</b> button downloads the analytics for the selected period.', rail: 'supplier' },
     { id: 'f12', q: 'I have a question that is not answered here.', a: 'Contact your opndoor account manager using the details in the panel on this page, and the partnerships team will help.', rail: 'supplier' },
@@ -117,7 +121,7 @@ export const HELP_SEED: HelpContent = {
        see the note on f9. The two sets had copied one another's invented
        seven-day deadline. */
     { id: 'af7', rail: 'agency', q: 'Can a tenancy start date be changed after a referral?',
-      a: 'Yes. There is <b>no deadline</b>: a start date can be corrected at any time, before or after the tenant has paid, and before or after the deed is signed. There is no limit on how far it can move either, beyond having to be a real date within the next five years. Use <b>Amend start date</b> on the application. Who can do it depends on where the referral has got to: while the deed is still unsigned, the person who sent the referral can change it, and so can your management and opndoor. Once the deed is signed, <b>management and opndoor</b> can change it and the referrer cannot. Changing it reissues the deed: an unsigned one is replaced, and a signed one is kept on the record and replaced with a corrected deed, so the deed and the tenancy never disagree. On a joint tenancy every tenant moves together. A withdrawn or expired referral cannot be changed.' },
+      a: 'Yes, up to the day the tenancy starts. Until then there is no deadline and no limit on how far the date can move, and it makes no difference whether the tenant has paid or whether the deed has been signed. Use <b>Amend start date</b> on the application: the person who sent the referral can change their own, and your management can change any of them. <b>From the start date onwards, only opndoor can change it.</b> The guarantee runs for 12 months from the start date, so moving it once the tenancy is under way changes the cover your landlord is relying on, and that is a conversation rather than a form. Email your account manager at partners@opndoor.co with the guarantee reference and the right date. Changing the date reissues the deed: an unsigned one is replaced, and a signed one is kept on the record and replaced with a corrected deed, so the deed and the tenancy never disagree. On a joint tenancy every tenant moves together. A withdrawn or expired referral cannot be changed.' },
     { id: 'af8', rail: 'agency', q: 'How do I find an application?',
       a: 'Search by the tenant\u2019s name or the guarantee reference on <b>Applications</b>, or filter by status to see everything still waiting on a tenant. Every figure on Reporting and on the League tables clicks through to the applications behind it.' },
   ],

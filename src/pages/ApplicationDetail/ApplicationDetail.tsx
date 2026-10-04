@@ -34,7 +34,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { showsOffices, officeLabel, isPlaceholderOrg } from '@/data/agencyOffices';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ALL_PARTNERS, addApplicationNote, addContact, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedCardState, deedDownloadUrl, deedIsOverdue, mayGenerateDeed, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
+import { ALL_PARTNERS, addApplicationNote, addContact, amendStartBlockedReason, amendTenancyStart, amendTenancyStartDb, applicationDocumentUrl, approveApplication, canAmendTenancyStart, canSendDeed, canWithdraw, contactForApplication, declineApplication, deedCardState, deedDownloadUrl, deedIsOverdue, mayGenerateDeed, dismissAgencyMatch, effectiveContacts, getApplicationDetail, getApplicationNotes, getPaymentInfo, listApplicationDocuments, loadAgencyMatchQueue, loadMatchBranchOptions, pandadocSandbox, resendDeed, resendPaymentEmail, resolveAgencyMatch, sendDeedToAgent, sendDeedToLandlord, stripeMode, tenancySiblings, groupTenancies, tenancyDeedProgress, tenancyProgress, MEMBER_DEED_LABEL, memberDeedTone, withdrawApplication, type AgencyMatchRow, type AppNote, type MatchBranch, type PaymentInfo, type StaffDocument, type WithdrawReason } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { useConfirm } from '@/components/ui/ConfirmModal';
 import { isOpndoorStaff } from '@/data/types';
@@ -907,9 +907,27 @@ export function ApplicationDetail() {
   // #82 Amending a SIGNED (executed) deed is destructive: void + reissue + agent
   // re-notification. It needs an explicit consequence confirmation before saving.
   const executed = d.status === 'deed' || paymentInfo?.deedState === 'executed';
-  // Who may amend: Sent -> any viewing role (Referrer only their own); Paid/Deed -> Management + opndoor admin.
-  // A withdrawn or expired application is terminal: no amend (or other action) offered.
-  const canAmend = !isTerminal && canAmendTenancyStart(role, d.status, owned, paymentInfo?.deedState ?? null);
+  /* HAS THE TENANCY STARTED, which is now the whole of the amend rule.
+     Matt, 2026-10-04: "agency and supplier users can change a start date only
+     before the tenancy starts (signed or not); after the start date, only
+     Opndoor staff can."
+
+     MIDNIGHT ON THE START DATE COUNTS AS STARTED, matching the server's
+     `tenancy_start <= current_date`. `currentStart` is the date on the
+     record, parsed at local midnight, so comparing it to today at midnight
+     asks the same question the RPC will ask. Reading the typed date instead
+     would let somebody out of a started tenancy by moving it forward. */
+  const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+  const tenancyHasStarted = currentStart.getTime() <= todayMidnight.getTime();
+  const mayAmend = canAmendTenancyStart(role, d.status, owned, paymentInfo?.deedState ?? null, tenancyHasStarted);
+  /* The sentence for everybody the start date is standing in the way of. Null
+     for opndoor staff (who may), and for anyone who was never offered the
+     button anyway. */
+  const amendBlocked = amendStartBlockedReason(role, owned, tenancyHasStarted);
+  /* THE BUTTON STAYS FOR A BLOCKED AGENCY so the dialog can say why, which is
+     what Matt asked for. Saving is what the block removes, not asking.
+     A withdrawn or expired application is terminal: no amend offered at all. */
+  const canAmend = !isTerminal && (mayAmend || amendBlocked !== null);
 
   // ---- amend validation ----
   // Any valid calendar date is allowed. We only require a real dd/mm/yyyy date
@@ -938,6 +956,15 @@ export function ApplicationDetail() {
         : reissues ? 'Valid. A new deed will be issued with this date.' : 'Valid. The tenancy start date will be updated.';
       canSave = true;
     }
+  }
+  /* AND THE BLOCK OVERRIDES ALL OF IT. Last, deliberately: the branches above
+     decide whether the DATE is usable, this decides whether this reader may
+     use it, and a perfectly valid date must not read "Valid" to somebody the
+     server is going to refuse. */
+  if (amendBlocked) {
+    amendTone = 'err';
+    amendText = amendBlocked;
+    canSave = false;
   }
 
   //Old code
@@ -2075,10 +2102,18 @@ export function ApplicationDetail() {
         onClose={() => setAmendOpen(false)}
         width={460}
         title="Amend tenancy start date"
-        sub={reissues ? 'Amending the tenancy start date will reissue the Deed of Guarantee with the new date, and the expiry updates to 12 months on.' : 'Correct the tenancy start date. There is no deed yet, so this just updates the application.'}
+        /* THE SUBTITLE TELLS A BLOCKED READER WHY BEFORE IT TELLS THEM WHAT
+           WOULD HAPPEN. Leaving the reissue promise up for somebody who
+           cannot save would be describing a consequence that is not on
+           offer. The guarantee runs from the start date, so saying so is
+           what makes "contact opndoor" sound like a step rather than a
+           brush-off. */
+        sub={amendBlocked
+          ? 'This tenancy has already started, and the guarantee runs for 12 months from that date. Opndoor can still correct it: email your account manager at partners@opndoor.co with the guarantee reference and the right date.'
+          : reissues ? 'Amending the tenancy start date will reissue the Deed of Guarantee with the new date, and the expiry updates to 12 months on.' : 'Correct the tenancy start date. There is no deed yet, so this just updates the application.'}
         footer={
           <>
-            <Button variant="ghost" onClick={() => setAmendOpen(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setAmendOpen(false)}>{amendBlocked ? 'Close' : 'Cancel'}</Button>
             {/* <Button variant="primary" onClick={() => saveAmend()} disabled={!canSave}>{executed ? 'Review consequences' : reissues ? 'Save and reissue deed' : 'Save start date'}</Button> */}
              {/* PRESSABLE WITH THE DATE EMPTY, so the refusal can be read.
                  Matt, 2026-10-03: "Same for every form in the portal." It was
@@ -2087,7 +2122,7 @@ export function ApplicationDetail() {
                  `canSave` is the PERMISSION half and stays in the gate: a
                  button the server will refuse outright should not be offered
                  at all, which is a different rule from a field left blank. */}
-             <Button variant="primary" onClick={() => saveAmend()} disabled={!canSave}>{executed ? 'Review consequences' : reissues ? 'Save and reissue deed' : 'Save start date'}</Button>
+             {!amendBlocked && <Button variant="primary" onClick={() => saveAmend()} disabled={!canSave}>{executed ? 'Review consequences' : reissues ? 'Save and reissue deed' : 'Save start date'}</Button>}
           </>
         }
       >
@@ -2095,10 +2130,16 @@ export function ApplicationDetail() {
           {PAYMENT && <div className="amend-fact"><div className="k">Payment date</div><div className="v">{fmtLong(PAYMENT)}</div></div>}
           <div className="amend-fact"><div className="k">Current start</div><div className="v">{fmtLong(currentStart)}</div></div>
         </div>
-        <div className="field">
-          <label htmlFor="amend-input">New tenancy start date</label>
-          <input id="amend-input" type="text" inputMode="numeric" placeholder="dd/mm/yyyy" autoComplete="off" value={amendInput} onChange={(e) => setAmendInput(e.target.value)} />
-        </div>
+        {/* NO FIELD WHEN THERE IS NOTHING TO TYPE INTO IT. An input that
+            cannot be saved invites somebody to fill it in and press a dead
+            button, which is the same "pressing nothing" the footer comment
+            below was written to end. */}
+        {!amendBlocked && (
+          <div className="field">
+            <label htmlFor="amend-input">New tenancy start date</label>
+            <input id="amend-input" type="text" inputMode="numeric" placeholder="dd/mm/yyyy" autoComplete="off" value={amendInput} onChange={(e) => setAmendInput(e.target.value)} />
+          </div>
+        )}
         <div className={`amend-msg${amendTone === 'ok' ? ' amend-msg--ok' : amendTone === 'err' ? ' amend-msg--err' : ''}`} style={amendTone === 'neutral' ? { color: 'var(--ink-mute)' } : undefined}>
           <Icon name={amendTone === 'err' ? 'info' : 'check'} strokeWidth={2.4} style={amendTone === 'neutral' ? { color: 'var(--ink-mute)' } : amendTone === 'ok' ? { color: 'var(--deed)' } : undefined} />
           {amendText}

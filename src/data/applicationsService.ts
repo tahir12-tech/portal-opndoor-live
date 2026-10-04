@@ -1140,22 +1140,79 @@ export async function sendDeedToLandlord(ref: string, name: string, email: strin
 }
 
 /**
- * Who may amend the tenancy start date, by deed state:
- * - Sent, or Paid-but-unexecuted (deed_state not 'executed'): any viewing role
- *   may amend; a Referrer only their own. While a deed is awaiting signature the
- *   outstanding document is voided and regenerated so the corrected date prints.
- * - Executed deed (status 'deed' / deed_state 'executed'): Management and opndoor
- *   admin only, and the signed PDF is archived before a replacement is issued.
- * The back end (amend_tenancy_start RPC + amend-tenancy-start Edge Function)
- * enforces this rule independently.
+ * Who may amend the tenancy start date. The cut is HAS THE TENANCY STARTED,
+ * and nothing else.
+ *
+ * Matt, 2026-10-04, after asking what the rule was and being told nobody had
+ * ever chosen it: "agency and supplier users can change a start date only
+ * before the tenancy starts (signed or not); after the start date, only
+ * Opndoor staff can."
+ *
+ * - Before the start date: an owning Referrer, or anyone at management level,
+ *   whether or not the deed is signed. While a deed is awaiting signature the
+ *   outstanding document is voided and regenerated; a signed one is archived
+ *   and replaced. Both still happen, they just no longer decide WHO may ask.
+ * - On or after the start date: an opndoor ADMIN only. `expiry_date` is
+ *   GENERATED from this date, so moving it changes the cover on a live
+ *   guarantee the underwriter already holds on the bordereau.
+ *
+ * WHAT CHANGED, in both directions: an agency user may now correct a signed
+ * deed before the tenancy begins, which was management-only; and nobody
+ * outside opndoor may touch one after it begins, which anybody in role could.
+ *
+ * NOT isOpndoorStaff(), WHICH WOULD INCLUDE opndoor_manager. The RPC's reach
+ * guard is is_admin(), and an opndoor manager has never been able to amend a
+ * start date on any application, started or not. Writing the wider predicate
+ * here would offer them a dialog the server then refuses. Flagged for Matt in
+ * 20261008090000 rather than quietly widened; if the answer is that they
+ * should, it is this line and the RPC's reach guard.
+ *
+ * `started` IS ABOUT THE DATE ON THE RECORD, never the one being typed.
+ *
+ * The back end (can_amend_tenancy_start + the amend_tenancy_start RPC)
+ * enforces this independently; this is the same rule for the screen.
  */
-export function canAmendTenancyStart(role: Role, status: Status, ownedByReferrer: boolean, deedState: string | null = null): boolean {
-  // Once the deed is executed (issued), only Management and opndoor admin may
-  // amend (the signed deed is archived and replaced). Before that - Sent, or
-  // Paid-but-unexecuted - the owning Referrer may amend too.
-  if (status === 'deed' || deedState === 'executed') return role === 'superadmin' || role === 'management';
+export function canAmendTenancyStart(
+  role: Role, _status: Status, ownedByReferrer: boolean,
+  _deedState: string | null = null, started = false,
+): boolean {
+  if (started) return role === 'superadmin';
+  return mayAmendBeforeStart(role, ownedByReferrer);
+}
+
+/* `_status` and `_deedState` ARE KEPT AND DELIBERATELY UNREAD. Every caller
+   still passes them and the SQL mirror still takes them, so dropping them
+   would be a signature churn across both estates to no effect. Underscored
+   because what they are now is evidence: the rule used to turn on the deed
+   state and no longer does, and a reader who sees them ignored here learns
+   that faster than from a paragraph. */
+
+/** The rule before the tenancy begins, shared so there is one copy of it. */
+function mayAmendBeforeStart(role: Role, ownedByReferrer: boolean): boolean {
   // Positive. The bare `true` granted this to every non-referrer role.
   return role === 'referrer' ? ownedByReferrer : role === 'superadmin' || role === 'management';
+}
+
+/**
+ * Why this person cannot amend, where the reason is worth saying out loud.
+ *
+ * Matt asked for the sentence to appear "in the dialog for everyone else",
+ * which only works if the dialog can still be opened. So the Amend button
+ * stays for anybody who would have been allowed but for the start date, and
+ * the dialog explains instead of offering a field that would be refused.
+ * Hiding the control would leave an agency wondering where it went.
+ *
+ * Null means either that they may amend, or that they were never offered it
+ * in the first place (wrong role, not their referral) -- those readers get no
+ * button and so have no dialog to read a reason in.
+ */
+export function amendStartBlockedReason(role: Role, ownedByReferrer: boolean, started: boolean): string | null {
+  if (!started) return null;
+  if (role === 'superadmin') return null;
+  // Would they have been allowed before the start date? Only then is the start
+  // date the thing standing in their way, and only then is it worth saying.
+  if (!mayAmendBeforeStart(role, ownedByReferrer)) return null;
+  return 'The tenancy has started. Contact opndoor to change the date.';
 }
 
 /**

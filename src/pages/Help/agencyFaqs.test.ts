@@ -105,8 +105,43 @@ describe('the sweep', () => {
   /* THE FOUR BANNED THINGS, on the agency set only. The supplier set keeps
      "partner" because a supplier IS one, and keeps its own fee wording. */
 
+  /* AN EMAIL ADDRESS IS NOT THE WORD. `partners@opndoor.co` is the real
+     address agency staff are given in the topbar help menu, and it is the
+     one an answer should hand them rather than a vaguer "contact opndoor".
+     Matt's sweep was about calling a supplier a partner to a reader who is
+     an agency, which an address does not do. Stripped before the check so
+     the rule keeps applying to every other word in the sentence. */
+  const prose = (f: { q: string; a: string }) => text(f).toLowerCase().replace(/\S+@\S+/g, '');
+
   it('never says partner, which is our word for a supplier', () => {
-    for (const f of agency) expect(text(f).toLowerCase(), f.q).not.toContain('partner');
+    for (const f of agency) expect(prose(f), f.q).not.toContain('partner');
+  });
+
+  /* FAQ 9 AND THE RPC MUST AGREE, because this is the one answer a reader
+     acts on before they find out the server disagrees.
+
+     Matt, 2026-10-04: "agency and supplier users can change a start date only
+     before the tenancy starts (signed or not); after the start date, only
+     Opndoor staff can ... Update FAQ 9 to match."
+
+     BOTH RAILS, because the answer is duplicated for the supplier and agency
+     audiences and the previous version of it drifted apart exactly that way.
+     The old text promised that management could change a signed deed with
+     "no deadline", which is now false after the start date, so the assertion
+     names the thing that must not come back as well as the thing that must
+     be there. */
+  it('FAQ 9 states the start date as the boundary, on both rails', () => {
+    const nine = HELP_SEED.faqs.filter((f) => /tenancy start date be changed/i.test(f.q));
+    expect(nine).toHaveLength(2);
+    for (const f of nine) {
+      const a = f.a.toLowerCase();
+      expect(a, `${f.rail}: must say opndoor alone can change it after the start`)
+        .toContain('from the start date onwards, only opndoor can change it');
+      expect(a, `${f.rail}: must say the deed state no longer decides`)
+        .toContain('whether the deed has been signed');
+      expect(a, `${f.rail}: the old no-deadline promise is false after the start`)
+        .not.toContain('there is <b>no deadline</b>');
+    }
   });
 
   /* The fee basis is per agreement: Regent's is 3 weeks for a single tenant and
