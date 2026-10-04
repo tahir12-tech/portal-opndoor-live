@@ -2169,6 +2169,34 @@ roles, with the three refusals that keep those seats Opndoor's
 invite-user is deployed. The invite EMAIL, the accept link and the first
 sign-in are unexercised. Somebody has to click it.
 
+## MATT'S ANSWERS TO THE THREE, PLUS ONE (instruction, 2026-10-04, verbatim).
+
+> 1. Send Kestrel's September 2026 statement on dev now (it goes to the review inbox) so I can check the email, PDF and agency schedules.
+> 2. Office naming: apply it everywhere; show the office's own name wherever an office is shown.
+> 3. Supplier Management seeing commission on live is correct. Proceed.
+> 4. The catch-up for data arriving after the monthly send day goes under "After launch"; tell me there what it would take.
+
+- **1 IS A REAL SEND**, on dev, redirected to the review address. It is the
+  monthly run for 2026-09, so it posts every payee that is not already
+  posted -- which on dev is Kestrel (£600) AND Frost Partnership on our own
+  estate (£240), because both were missed for the same reason. Matt asked
+  for Kestrel's; the run cannot be narrowed to one payee, so the second one
+  goes with it and he is told that rather than finding out.
+  It also MINTS THE REFERENCES and writes the send rows, so September stops
+  being a draft on dev. That is what "send it" means and it is the point of
+  checking it.
+- **2 IS OPTION 1 OF THE THREE I OFFERED**, which is the one that changes
+  Regent's screens: their office column reads "Regent's Park" where it read
+  "Regent's Lettings". He has now asked for exactly that, in wider terms than
+  I proposed: "wherever an office is shown", not only in the two places he
+  reported. Nine existing assertions pin the old rule and are rewritten.
+- **3 IS AN APPROVAL, not a change.** `20261007880000` already corrects the
+  rows when applied. The entry under "For Matt in the morning" is marked
+  approved rather than deleted, so the decision is on the record.
+- **4 IS A PARK WITH A SPECIFICATION**, not a park. "Tell me there what it
+  would take" means the After launch entry has to be good enough to build
+  from.
+
 ## THE MORNING SUMMARY (2026-10-04, written overnight)
 
 Plain English, as asked. Three sections: what is done, what is waiting on you,
