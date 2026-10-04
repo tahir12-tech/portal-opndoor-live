@@ -3805,6 +3805,52 @@ BLOCK 3, the wording sweeps, guides and copy: everything else.
 Written while he is away, each with a recommendation. Nothing here has been
 acted on.
 
+### ANSWER: who is asked for the GBP 20 application fee today
+
+Matt asked (yy), answer only, change nothing. Measured on dev.
+
+**NOT DIRECT SIGN-UPS ONLY.** The GBP 20 belongs to the ELIGIBILITY JOURNEY,
+and a referral takes that journey when its mode resolves to
+`opndoor_referenced`. Where the referral came from does not enter into it.
+`viewer_runs_eligibility_journey` asks exactly that, and
+`resolve_referencing_mode` resolves it as the agency's own setting, else its
+partner's.
+
+So TODAY, on dev, these tenants are asked for GBP 20:
+
+| estate | effective mode | agencies | asked? |
+| --- | --- | --- | --- |
+| opndoor-direct | opndoor_referenced | Unattached | YES, the direct rail |
+| opndoor-agents | opndoor_referenced | 5 of 7, including Frost Partnership, Harborview, Northgate | **YES** |
+| opndoor-agents | pre_referenced_open | Regent's Lettings, New Independent | no |
+| kestrel-lettings | pre_referenced_open | all 5 | no, since 20261008050000 |
+| harbour-lets | opndoor_referenced | Harbour Lets | YES |
+| referencing-partner | opndoor_referenced | Unattached | YES |
+
+**SO YES: a tenant referred by an agency set to "Opndoor checks tenants" is
+asked for GBP 20, exactly as a direct sign-up is.** Five of our own seven
+agencies are set that way.
+
+AND NOBODY HAS ACTUALLY PAID ONE EXCEPT A DIRECT SIGN-UP. Of the applications
+on dev that have paid the fee, all six are channel Direct. So the agency-
+referred case is reachable and untravelled, which is probably why it has not
+come up.
+
+**REGENT IS NOT AFFECTED**, which is the one that matters for Wednesday:
+Regent's Lettings is pre_referenced_open, so their tenants go straight to the
+guarantee fee and are never asked for GBP 20.
+
+RECOMMENDATION, and it is a commercial question rather than a technical one:
+the charge follows "who checks the tenant", which is coherent -- we charge
+for the check we do. If that is not what you intend for AGENCY-referred
+tenants, the change is to gate the fee on the DIRECT rail rather than on the
+mode, and that is a one-line predicate. HELD as instructed.
+
+
+
+Written while he is away, each with a recommendation. Nothing here has been
+acted on.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
