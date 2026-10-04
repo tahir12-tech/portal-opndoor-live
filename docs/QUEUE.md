@@ -3233,6 +3233,22 @@ the one real assertion that has never run.
   does not scan it. Worth checking rather than just fixing the title.
 - AND THE SWEEP: the agent one-pager, for the same fixed rates.
 
+### (oo) Print styles: no browser furniture, one page stays one page
+
+> "Save as PDF" on the help leaflets and guides: the PDF includes the browser's own header and footer (date, page title, localhost address) and the one-page tenant leaflet spills onto two pages. Set the print styles so no browser header or footer appears, and one-page leaflets fit on one A4 page.
+
+- **ONE HALF IS FULLY IN OUR CONTROL AND THE OTHER IS NOT, and that has to
+  be said rather than quietly half-done.** The spill is ours: @page size,
+  margins and the content's own measurements. The browser's header and
+  footer are a PRINT DIALOG setting; `@page { margin: 0 }` suppresses them
+  in Chrome and Edge in practice, which is what the reader will use, but it
+  is not a guarantee in every browser and it is not a CSS property that
+  says "no header".
+- SO THE HONEST FIX is @page with zero margin plus our own padding inside
+  the page box, and a note about what remains browser-dependent.
+- "ONE-PAGE LEAFLETS FIT ON ONE A4 PAGE" is measurable and testable: the
+  leaflet's own CSS has to fit 297mm less our padding.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
