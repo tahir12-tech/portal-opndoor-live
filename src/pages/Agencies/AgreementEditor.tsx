@@ -26,7 +26,7 @@
    SQL, which audits it. Every other refusal is final and is simply stated.
    ===================================================================== */
 // Walk fix 19: the possessive is formed in one place.
-import { possessive } from '@/lib/format';
+import { formatDate, possessive } from '@/lib/format';
 import { useMemo, useState } from 'react';
 import {
   agreementConfirmKind, createAgreement, endAgreement,
@@ -807,7 +807,16 @@ export function AgreementEditor({
             which is stated rather than implied by an absent field. */}
         <p className="agr-hint">
           {live
-            ? <>Agreed on <b>{live.periodStart ?? 'the day it was signed'}</b>. Saving replaces it from today; choose <b>Standard terms</b> to end it. A deal cannot be dated in the future, so enter it on the day it starts.</>
+            /* "23 Sep 2026", NOT "2026-09-23". Matt (w): "Agency deal dialog:
+               dates as '23 Sep 2026', not '2026-09-23'."
+
+               `periodStart` is `effective_from` straight off the row, so
+               this printed the database's own spelling at the reader. The
+               shared formatter takes a bare YYYY-MM-DD apart rather than
+               parsing it, which matters here: `new Date('2026-10-01')` is
+               midnight UTC and reads as 30 September once the clocks go
+               back, so a deal would appear to start the day before it did. */
+            ? <>Agreed on <b>{live.periodStart ? formatDate(live.periodStart) : 'the day it was signed'}</b>. Saving replaces it from today; choose <b>Standard terms</b> to end it. A deal cannot be dated in the future, so enter it on the day it starts.</>
             : <>This starts today and runs until it is ended or replaced. A deal cannot be dated in the future, so enter it on the day it starts.</>}
         </p>
       </Modal>
