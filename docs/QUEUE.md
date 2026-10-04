@@ -2720,6 +2720,20 @@ the one real assertion that has never run.
   to mark. The marking has to be built before the count can count it.
 - SAME WORDS AS EVERYWHERE ELSE: "N things still need filling in".
 
+### (i) The 10 unhandled errors in agencyDashboard.render.test.tsx
+
+> Look at the 10 unhandled errors in agencyDashboard.render.test.tsx: tell me in plain English what they are and whether they point at anything a real user could hit. Fix them if it's quick and safe.
+
+- I HAVE BEEN REPORTING THESE AS "PRE-EXISTING" FOR SEVERAL COMMITS, which is
+  true and is not the same as harmless. Pre-existing was offered as a reason
+  not to look at them, and Matt has asked for the look.
+- **ANSWER FIRST, THEN A CONDITIONAL FIX.** "Whether they point at anything a
+  real user could hit" is the question; "fix them if it's quick and safe" is
+  explicitly conditional, so a fix that is neither should be described rather
+  than made.
+- The stack named `CommissionStatement.tsx:252` and a passive effect, and the
+  file PASSES, so these are errors thrown outside an assertion's reach.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
