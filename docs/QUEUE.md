@@ -3785,6 +3785,26 @@ BLOCK 3, the wording sweeps, guides and copy: everything else.
   Manager is told who can, a Director is told where to go. One string per
   reader rather than one string.
 
+### (av) Away for an hour: carry on, park decisions, summarise at the end
+
+> I'm away for about an hour. Carry straight on through blocks 1, 2 and 3 without waiting for me. If you hit a decision that's mine, write it down with your recommendation and move on to the next item rather than stopping. Commit as you go. When I'm back, give me one short summary: what's done, what's waiting on me, and what I should re-test.
+
+- **"WRITE IT DOWN WITH YOUR RECOMMENDATION AND MOVE ON" CHANGES WHAT A
+  PARKED DECISION COSTS.** Until now parking an item meant stopping on it.
+  For the next hour a decision goes into a DECISIONS FOR MATT section with
+  a recommendation, and the next item starts.
+- IT DOES NOT MAKE THE DECISION MINE. Money moving outward, live data and
+  anything irreversible still waits; what changes is that the queue keeps
+  moving around it.
+- COMMIT AS I GO, so an hour of work is not one commit.
+- THE SUMMARY IS THREE THINGS AND SHORT: done, waiting on him, what to
+  re-test.
+
+## DECISIONS FOR MATT
+
+Written while he is away, each with a recommendation. Nothing here has been
+acted on.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
