@@ -2886,6 +2886,29 @@ the one real assertion that has never run.
 - THE PAID-ON CLAUSE IS (k) AGAIN, now asked for a third time. It is one
   defect: the posted test reads a lookup that asks with the wrong key.
 
+### (r) The order, and a schedule is not an unposted statement
+
+> Your order is right: (k), then (o)'s answer, then (p), (l), (m), (n). Two answers:
+> 1. Frost Partnership in Kestrel's estate (…a002) correctly has no statement of its own; its commission is a schedule inside Kestrel's statement. Its settlement download and anywhere else it appears should say "Included as a schedule in Kestrel Lettings' statement STMT-2026-09-0006", not "not yet posted".
+> 2. For (p), use my latest wording: "Owed to you", the agencies' commission always shown and worded by who pays it (per referral's frozen setting), and "Total commission on your referrals".
+> For (l): leave Landlord Name blank for direct tenants with no agent.
+
+- **ANSWER 1 ADDS A FOURTH STATE TO THE REFERENCE**, and it is the one I
+  nearly got wrong by calling a002 "correctly not posted". It is not
+  unposted and it is not pending: its money went out inside somebody else's
+  statement, and the screen must name that statement.
+- THE FOUR STATES ARE NOW: posted (the number), a schedule inside another
+  party's statement (name it and its number), not posted yet (draft), and
+  unreadable (f2b5c13's sentence).
+- THE TEST FOR THE NEW ONE IS ALREADY IN THE MODEL. commission_statement_
+  lines drops the agency line where `settles_its_own_agents_frozen` is true,
+  which is exactly why a002 has no payee row: in the carved shape Opndoor
+  pays the supplier the whole total and the agency's share is a schedule.
+  Where Opndoor pays the agency directly it gets a statement of its own.
+  FROZEN per referral, not read from the supplier's current switch.
+- (l) CONFIRMED: blank, not "-" and not "Unknown".
+- ORDER CONFIRMED: (k), (o) answer, (p)/(q), (l), (m), (n).
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
