@@ -4366,6 +4366,26 @@ both estates, the dialog, and FAQ 9 on both rails.
   delivery messages, and each composes its own sentence. A sweep, with the
   question asked once: is this reader a customer, and is this actor us.
 
+### (bn) BLOCKER: a joint start-date change reissued one deed of two
+
+> Blocker: joint tenancy GR-26262/GR-26263 (both signed). Changing Jane's start date (20 Nov → 29 Nov, 22:37) reissued only Jane's deed; John got no corrected-deed email. On a joint tenancy, a start-date change must move every tenant's date together and reissue every tenant's deed (signed or not). Emails: each tenant gets their own corrected-deed email; the referrer (and anyone copied) gets ONE "start date changed" email for the tenancy listing every tenant; the agency receives each corrected deed once signed, as now. Check whether GR-26263's date moved, fix, and add a test for a 2- and 3-tenant start-date change.
+
+- **"CHECK WHETHER GR-26263'S DATE MOVED" IS THE FIRST QUESTION AND DECIDES
+  THE REST.** `amend_tenancy_start` has moved the whole tenancy since
+  20261006860000 and `a_tenancy_has_one_start_date` asserts it, so the DATE
+  probably did move and only the DEED did not -- which is a different and
+  worse bug than the one it looks like: two signed deeds stating different
+  dates for one let, with the expiry generated from each.
+- THE REISSUE LOOP IS THE SUSPECT. The RPC is tenancy-wide; the edge
+  function that voids and regenerates reads one application.
+- **EMAILS ARE THREE DIFFERENT GRAINS and he names all three**: per TENANT
+  (their own corrected deed), per TENANCY (one notice to the referrer
+  listing everybody), per DEED once signed (the agency). Getting the middle
+  one wrong is how the referrer gets two or three identical notices, which
+  is exactly the fault (bc) was about.
+- 2- AND 3-TENANT TESTS BY NAME, as with (bc), and for the same reason: two
+  passes a loop that handles "the other one".
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
