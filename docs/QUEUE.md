@@ -4459,6 +4459,36 @@ both estates, the dialog, and FAQ 9 on both rails.
 - (3) is one line of formatting: the "(via X)" suffix and the "(agency)"
   kind label are composed separately and meet.
 
+### (bq) The Application export's status, carved share, blanks and voided deeds
+
+> Admin Application export: 1) every fully refunded application's Status is "Refunded" (GR-23854 says "Paid", GR-23853 "Deed cancelled"); 2) where the supplier passes on the agencies' share, show the agency's share as "Included in supplier commission" consistently with the Performance export fix; 3) agency-route rows leave the supplier commission and rate blank, not "£0.00 / 0%"; 4) an application whose deed was voided for a correction and awaits re-signing shows "Awaiting signature", not "Paid" (GR-26262). Same rules in every export and on screen.
+
+### (br) "Activity in period" must mention the refund
+
+> Application export "Activity in period" column: include "Refunded" (and "Deed cancelled" where it applies) when that happened in the period.
+
+- **(bq)(1) IS (bd) NOT REACHING THE EXPORT.** (bd) put "Refunded" on
+  every list that shows a stage; the export composes its own Status
+  string and was not one of them. The two examples differ, which is the
+  diagnosis: GR-23854 says "Paid" (the refund is not consulted at all)
+  and GR-23853 says "Deed cancelled" (the deed state wins over the
+  refund). One rule, applied once, has to beat both.
+- **(bq)(2) IS THE SAME FOLD AS (bp)(1)** and says so: "consistently with
+  the Performance export fix". So the two are one piece of work, and
+  whatever expresses carved-versus-siblings has to be shared by both
+  exports rather than written twice.
+- (bq)(3): a blank is not a zero. On the agency rail there IS no supplier,
+  so "£0.00 / 0%" states a fact about a party that does not exist.
+- **(bq)(4) IS A REAL STATE WE ALREADY HOLD.** A correction voids the deed
+  and reissues it; between those the application is awaiting signature,
+  and the export reads the payment status instead. GR-26262 is the
+  example and it is the tenancy (bn) was about.
+- **"SAME RULES IN EVERY EXPORT AND ON SCREEN"** is the scope line, and it
+  is the one most easily under-read: not the Application export alone.
+- (br) IS THE SAME OMISSION IN A SECOND COLUMN. "Activity in period"
+  lists what happened in the window; a refund is the most consequential
+  thing that can happen in one, and it was not on the list.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
