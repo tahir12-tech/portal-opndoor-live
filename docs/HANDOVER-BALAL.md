@@ -1597,6 +1597,43 @@ Then:
 
 `EMAIL_REVIEW_ADDRESS` must be set on the clone for both.
 
+#### Rightmove's rail, which decides which email their tenants get
+
+Matt, 2026-10-04. Two checks, and they are one question asked at both ends.
+
+**1. `refers_own_stock` must be FALSE for Rightmove on live.**
+
+```sql
+select slug, name, partner_kind, refers_own_stock
+  from public.partners where partner_kind = 'supplier';
+```
+
+It is `false` for every supplier except one on dev, and Kestrel's `true` was
+set to `false` on 2026-10-04 to match how Rightmove is configured. The column
+means ownership only: true for a party referring stock it manages itself,
+false for one referring on behalf of agencies it does not own, which is what
+a supplier is.
+
+**2. A Rightmove referral's tenant email must be the SUPPLIER wording.**
+
+This is what the flag decides, which is why it is worth checking rather than
+assuming. `create-referral` picks the rail from it, and the rail picks the
+opening sentence:
+
+| `refers_own_stock` | rail | the tenant reads |
+|---|---|---|
+| false | `supplier` | "opndoor is acting as guarantor for your tenancy at ADDRESS. The last step is the guarantee fee." |
+| true | `agency` | "AGENCY has arranged an opndoor guarantee for your tenancy at ADDRESS. To put it in place, ..." |
+
+The first is the approved supplier wording. The second names the agency and
+is for a pre-referenced AGENCY referral, where the agency made the decision
+and opndoor took no view.
+
+**So a `true` on live would put Rightmove's tenants on the agency email**,
+which names a company and asserts that company arranged the guarantee. Send
+one sandbox referral through Rightmove and read the opening line of the
+tenant's email; it must be the first row of that table.
+
 ### 11.2 On production, after the cutover
 
 A short confidence walk, not the full 1,396 lines. In order:
