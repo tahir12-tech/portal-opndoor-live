@@ -4024,6 +4024,25 @@ both estates, the dialog, and FAQ 9 on both rails.
   check in `amend_tenancy_start` is 2000-01-01 to today + 5 years. I
   recommended +/- 12 months. Not changed.
 
+### (ax) Opndoor staff may amend a start date at any time
+
+> Answer to the bracket: any Opndoor staff (admins and opndoor managers) can change a start date at any time, including after the tenancy starts; agency and supplier users only before it starts. Widen amend_tenancy_start's guard to match and test it as the dev opndoor manager. I'm stepping away: carry on unattended through the refund cascade and block 3. If you hit a decision that's mine, write it down with your recommendation and move on. Commit as you go, and give me one short summary when I'm back.
+
+- **THIS OVERTURNS MY RECOMMENDATION, AND IT IS THE BETTER CALL.** I argued
+  for admins only on the grounds that it granted no new permission. Matt's
+  answer is that "Opndoor staff" should mean what it means everywhere else
+  in the estate, and a rule whose words do not match `is_opndoor_staff()`
+  is a rule somebody will misread.
+- IT IS WIDER THAN THE BRACKET LOOKED. "at any time" also covers BEFORE the
+  start, where an opndoor manager was excluded as well: the old arm was
+  superadmin plus management. Both arms change, not just the started one.
+- THE REACH GUARD IS THE REAL CHANGE. `can_amend_tenancy_start` is only a
+  predicate; what actually refused an opndoor manager was
+  `amend_tenancy_start`'s own guard, `public.is_admin()`. That becomes
+  `public.is_opndoor_staff()`.
+- TESTED AS test@123.com, the dev opndoor manager, which is what Matt asked
+  for and is also the only way to prove the guard and the predicate agree.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
