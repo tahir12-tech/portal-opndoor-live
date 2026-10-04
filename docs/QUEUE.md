@@ -3161,6 +3161,15 @@ the one real assertion that has never run.
 - A new agency from a supplier goes to Reconciliation for review rather than
   straight in, which is why that is the last step of the proof.
 
+### (jj) The order from now
+
+> Order from now: 1) the add-agency/office feature missing from the supplier New application form (most important for Rightmove); 2) (hh) the dead Application export; 3) (q)+(s)+(t)+(ff) together; 4) (gg) conversion plan for me; then the rest. Tell me when 1 and 2 are done so I can re-test.
+
+- (ii) IS FIRST AND HE SAYS WHY: Rightmove. A supplier who cannot add the
+  agency they are referring for cannot use the form at all.
+- "TELL ME WHEN 1 AND 2 ARE DONE SO I CAN RE-TEST" is a reporting
+  instruction: report after (hh), not after the whole queue.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
