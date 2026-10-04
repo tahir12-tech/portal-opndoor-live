@@ -183,9 +183,22 @@ export function newApplicationSectionCopy(
   isOpndoorAdmin: boolean, shape: OrgShape,
 ): { title: string; sub: string } {
   if (isOpndoorAdmin) {
+    /* "AGENCY AND OFFICE", and not "on the fly". Matt, 2026-10-04: "use
+       'Agency' and 'Office' instead of 'Agent' and 'Branch' on this form,
+       matching the supplier and agency forms."
+
+       The heading below for a supplier said the same thing and is changed
+       with it: they are one sentence rendered to two readers, and the
+       agency-user headings a few lines down have said "office" all along,
+       which is what "matching" means here.
+
+       "on the fly" GOES WITH IT, because it is jargon and because it stopped
+       being accurate on 2026-10-03: a supplier's own people now create a real
+       agency that waits for review, rather than a name attached to a
+       referral. */
     return {
-      title: 'Agency and branch',
-      sub: 'Which agency is letting this property, and which branch. You can add either on the fly.',
+      title: 'Agency and office',
+      sub: 'Which agency is letting this property, and which office. You can add either here.',
     };
   }
   return orgSectionCopy(shape);
@@ -203,9 +216,10 @@ export function orgSectionCopy(shape: OrgShape): { title: string; sub: string } 
     return { title: 'Your office', sub: 'Working out which office this referral is against.' };
   }
   if (!shape.refersOwnStock) {
+    // The supplier's own reading of the same question. See the note above.
     return {
-      title: 'Agency and branch',
-      sub: 'Which agency is letting this property, and which branch. You can add either on the fly.',
+      title: 'Agency and office',
+      sub: 'Which agency is letting this property, and which office. You can add either here.',
     };
   }
   if (orgNotSetUp(shape)) {

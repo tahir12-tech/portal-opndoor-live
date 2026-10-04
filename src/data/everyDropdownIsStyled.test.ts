@@ -71,7 +71,18 @@ describe('every dropdown in the portal', () => {
         const before = src.slice(Math.max(0, m.index! - 1200), m.index!);
         // Inside the <Field> component, or inside a div carrying .field.
         if (before.lastIndexOf('<Field') > before.lastIndexOf('</Field>')) continue;
-        if (before.lastIndexOf('className="field') > before.lastIndexOf('</div>')) continue;
+        /* A FIELD WHOSE CLASS IS COMPUTED IS STILL A FIELD. Since 2026-10-04
+           three wrappers in AgentBranchPicker add `is-invalid` when the form
+           has been submitted, so their class is a template literal --
+           `className={`field span-2${missing ? ' is-invalid' : ''}`}` -- and a
+           scan for the literal `className="field` stopped seeing them. The
+           selects inside them are styled exactly as they were; what changed is
+           how the class is written. */
+        const fieldOpens = Math.max(
+          before.lastIndexOf('className="field'),
+          before.lastIndexOf('className={`field'),
+        );
+        if (fieldOpens > before.lastIndexOf('</div>')) continue;
         // Or inside one of the three wrappers that style their own.
         if (EXEMPT_CLASSES.some((c) => {
           const at = before.lastIndexOf(`className="${c}`);

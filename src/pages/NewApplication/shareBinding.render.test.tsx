@@ -90,7 +90,7 @@ describe.each(['management', 'superadmin'] as const)('multi-tenant needs one of 
   it('will not offer a second tenant before an origin is chosen, and says what is missing', async () => {
     const { addBtn, view } = await openForm(role);
     expect(addBtn()?.disabled).toBe(true);
-    expect(view.container.textContent).toMatch(/Choose the agent and branch first/i);
+    expect(view.container.textContent).toMatch(/Choose the agency and office first/i);
   });
 
   it('offers it for one of our agencies, EVEN THOUGH they reference their own tenants', async () => {

@@ -4,7 +4,7 @@
    Matt, 2026-10-03: "New application form: when Send is pressed with required
    fields missing, scroll to the first missing field, highlight every missing
    field in red with 'Required', and show a message at the Send button: '3
-   fields still need filling in' with a link that jumps to the first one."
+   things still need your attention' with a link that jumps to the first one."
 
    WHAT IT DID INSTEAD, and this is the behaviour the file is really about:
    `disabled = busy || (submitted && !isValid)`. So the first press revealed
@@ -50,7 +50,7 @@ describe('an empty form', () => {
     await waitFor(() => expect(sendButton()).toBeTruthy());
     // A form nobody has typed in yet is being filled in, not failing.
     expect(invalid(v).length).toBe(0);
-    expect(body()).not.toMatch(/still need[s]? filling in/);
+    expect(body()).not.toMatch(/still need[s]? your attention/);
   });
 
   it('marks every missing field once it has', async () => {
@@ -70,8 +70,8 @@ describe('an empty form', () => {
     const v = open();
     await waitFor(() => expect(sendButton()).toBeTruthy());
     fireEvent.click(sendButton());
-    await waitFor(() => expect(body()).toMatch(/\d+ fields still need filling in/));
-    const shown = Number(/(\d+) fields still need filling in/.exec(body())![1]);
+    await waitFor(() => expect(body()).toMatch(/\d+ things still need your attention/));
+    const shown = Number(/(\d+) things still need your attention/.exec(body())![1]);
     expect(shown).toBe(invalid(v).length);
   });
 
@@ -92,7 +92,7 @@ describe('an empty form', () => {
     const v = open();
     await waitFor(() => expect(sendButton()).toBeTruthy());
     fireEvent.click(sendButton());
-    await waitFor(() => expect(body()).toMatch(/still need[s]? filling in/));
+    await waitFor(() => expect(body()).toMatch(/still need[s]? your attention/));
     const jump = screen.getAllByRole('button').find((b) => b.textContent === 'Go to the first one')!;
     expect(jump).toBeTruthy();
     expect(jump.tagName).toBe('BUTTON');
@@ -109,14 +109,14 @@ describe('as the form is filled in', () => {
     const v = open();
     await waitFor(() => expect(sendButton()).toBeTruthy());
     fireEvent.click(sendButton());
-    await waitFor(() => expect(body()).toMatch(/fields still need filling in/));
+    await waitFor(() => expect(body()).toMatch(/things? still needs? your attention/));
     const before = invalid(v).length;
 
     fireEvent.change(v.container.querySelector('#t-first')!, { target: { value: 'Ada' } });
     fireEvent.change(v.container.querySelector('#t-last')!, { target: { value: 'Lovelace' } });
     await waitFor(() => expect(invalid(v).length).toBe(before - 2));
     await waitFor(() => {
-      const n = Number(/(\d+) fields? still needs? filling in/.exec(body())?.[1] ?? '0');
+      const n = Number(/(\d+) things? still needs? your attention/.exec(body())?.[1] ?? '0');
       expect(n).toBe(before - 2);
     });
   });

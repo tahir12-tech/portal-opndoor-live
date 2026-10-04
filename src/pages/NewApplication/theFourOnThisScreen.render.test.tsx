@@ -6,7 +6,8 @@
  *     Lettings): the last section says 'Your office' and sits on 'Working
  *     out which office this referral is against' without ever resolving.
  *     That's the supplier user's own wording and behaviour. For Opndoor
- *     admin it should be 'Agency and branch': choose from the chosen
+ *     admin it should be 'Agency and office' (renamed from branch,
+ *     2026-10-04): choose from the chosen
  *     supplier's agencies and branches, as specified in the Referred by
  *     fold-in. The side navigation should match the section names."
  * 29. "after choosing Supplier, Kestrel Lettings, then an agency and branch,
@@ -113,10 +114,14 @@ describe('item 27: the sections are numbered in order', () => {
 });
 
 describe('item 28: an admin is asked the admin question', () => {
-  it('names the section Agency and branch, not Your office', async () => {
+  it('names the section Agency and office, not Your office', async () => {
     const v = await openForm('superadmin');
     await chooseSupplier(v);
-    expect(titles(v)).toContain('Agency and branch');
+    /* "Agency and office" SINCE 2026-10-04. Matt: "use 'Agency' and 'Office'
+       instead of 'Agent' and 'Branch' on this form, matching the supplier and
+       agency forms." The agency-user headings beside it had said office all
+       along, which is what matching meant. */
+    expect(titles(v)).toContain('Agency and office');
     expect(titles(v)).not.toContain('Your office');
   });
 
@@ -135,7 +140,7 @@ describe('item 28: an admin is asked the admin question', () => {
     for (const label of railLinks(v)) {
       expect(shown, `rail says "${label}" and no section does`).toContain(label);
     }
-    expect(railLinks(v)).toContain('Agency and branch');
+    expect(railLinks(v)).toContain('Agency and office');
   });
 });
 
@@ -152,8 +157,12 @@ describe('item 28: an admin is asked the admin question', () => {
 describe('item 28: the copy does not wait for a shape an admin does not have', () => {
   it('asks the admin question even when nothing has resolved', () => {
     expect(newApplicationSectionCopy(true, UNRESOLVED)).toEqual({
-      title: 'Agency and branch',
-      sub: 'Which agency is letting this property, and which branch. You can add either on the fly.',
+      title: 'Agency and office',
+      /* RENAMED WITH THE TITLE, 2026-10-04. "on the fly" went too: it is
+         jargon, and it stopped being accurate on 2026-10-03 when a
+         supplier's own people began creating a real agency that waits for
+         review rather than a name attached to one referral. */
+      sub: 'Which agency is letting this property, and which office. You can add either here.',
     });
   });
 
@@ -257,7 +266,7 @@ describe('item 29: every choice stays visible and changeable', () => {
     const section = v.container.querySelector('#sec-branch');
     expect(section, 'no agency and branch section').toBeTruthy();
     expect(section!.className).not.toMatch(/sec-quiet/);
-    expect(titles(v)).toContain('Agency and branch');
+    expect(titles(v)).toContain('Agency and office');
   });
 
   /* AND CHANGING NOTHING CHANGES NOTHING. Re-selecting the value already

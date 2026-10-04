@@ -82,9 +82,9 @@ describe('the disabled button', () => {
      really does cover one tenant. What changed is that its reason is now
      above it rather than below. */
   it('still says why, and the reason is now a section the reader has passed', () => {
-    expect(SRC).toContain('Choose the agent and branch first');
+    expect(SRC).toContain('Choose the agency and office first');
     const branchAt = SRC.indexOf('id="sec-branch"');
-    const gateAt = SRC.indexOf('Choose the agent and branch first');
+    const gateAt = SRC.indexOf('Choose the agency and office first');
     expect(branchAt).toBeGreaterThan(0);
     expect(branchAt).toBeLessThan(gateAt);
   });

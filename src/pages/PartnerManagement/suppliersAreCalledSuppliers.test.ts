@@ -81,11 +81,24 @@ describe("a supplier's own staff", () => {
   });
 });
 
-describe('the picker that chooses which company an agent belongs to', () => {
-  it('calls it a Supplier, because getPartners() strips the house route and returns only companies', () => {
+describe('the picker that chooses which company an agency belongs to', () => {
+  /* "AGENCY", NOT "AGENT", SINCE 2026-10-04. Matt: "use 'Agency' and 'Office'
+     instead of 'Agent' and 'Branch' on this form, matching the supplier and
+     agency forms." The option read "this agent belongs to", which is the old
+     word for the thing being created.
+
+     AND THE SENTENCE IN THIS TEST'S OWN NAME WAS WRONG IN A SECOND WAY:
+     `getPartners()` strips the house route and returns "only companies", which
+     was true and not enough. It returns AGENCY-kind companies too, and Harbour
+     Lets turned up in this very dropdown. The list is filtered on
+     `partyIsSupplier` now; see the assertion below. */
+  it('calls it a Supplier, and offers only suppliers', () => {
     const s = code('src/components/AgentBranchPicker.tsx');
     expect(s).toMatch(/>Supplier <span className="req"/);
-    expect(s).toMatch(/Select the supplier this agent belongs to/);
+    expect(s).toMatch(/Select the supplier this agency belongs to/);
+    /* THE BUG MATT REPORTED. Without the filter the dropdown offered Harbour
+       Lets, an agency, as a company an agency could belong to. */
+    expect(s).toMatch(/getPartners\(\)\.filter\(\(p\) => partyIsSupplier\(p\.id\)\)/);
     expect(s).not.toMatch(/Select the partner this agent belongs to/);
   });
 });

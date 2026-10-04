@@ -158,10 +158,14 @@ function expectNothingOffered() {
   expect(body()).not.toMatch(/Search agencies or add a new one/i);
   expect(body()).not.toMatch(/add a new one/i);
   expect(body()).not.toMatch(/on the fly/i);
+  /* BOTH SPELLINGS REFUSED. The row was renamed to "Create new agency" on
+     2026-10-04; its absence is the claim, so the old name is kept here in case
+     it returns and the new one is added because that is what it is called. */
   expect(body()).not.toMatch(/Create new agent/i);
+  expect(body()).not.toMatch(/Create new agency/i);
   expect(body()).not.toMatch(/Create new branch/i);
   // The supplier form's heading and its sub, which promise the same thing.
-  expect(body()).not.toMatch(/You can add either on the fly/i);
+  expect(body()).not.toMatch(/You can add either/i);
 }
 
 beforeEach(() => { answers = [ONE_OFFICE]; calls = 0; feeCalls.length = 0; });
@@ -292,11 +296,23 @@ describe('an agency with several offices', () => {
    AND THE FORM THAT IS ALLOWED THE PICKER STILL HAS IT.
    ===================================================================== */
 describe('a supplier is unchanged', () => {
-  it('still searches agencies and may add one on the fly', async () => {
+  /* "on the fly" IS GONE FROM THE COPY, 2026-10-04, so this asserts the
+     CONTROL rather than the phrase: the search box and the create row are what
+     the supplier keeps, and the words for them changed with Matt's Agent/Branch
+     to Agency/Office rename. */
+  it('still searches agencies and may add one', async () => {
     answers = [FULL_PICKER];
     open();
     await waitFor(() => expect(document.getElementById('ag-name')).toBeTruthy());
-    expect(body()).toMatch(/on the fly/i);
+    /* THE PROMISE THE FIELD MAKES, which is what "may add one" means before
+       anybody has typed anything. The type-ahead's create row is conditional
+       on an unknown name being typed, and the dialog button belongs to a
+       SUPPLIER's own scope -- this fixture is the supplier SHAPE under the
+       default scope, which is a different thing. The placeholder is what the
+       shape's `mayAddAgency` actually controls, and asserting it needs no
+       typing and no scope. */
+    expect((document.getElementById('ag-name') as HTMLInputElement).placeholder)
+      .toMatch(/Search agencies or add a new one/);
   });
 
   it('still waits for an answer before offering a second tenant', async () => {

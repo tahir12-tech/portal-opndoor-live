@@ -30,12 +30,18 @@ describe('the count sentence', () => {
      field left is what a reader usually has, and "1 fields still need filling
      in" is the sort of thing that makes a careful person distrust the page. */
   it('agrees with itself on one', () => {
-    expect(missingFieldsLine(1)).toBe('1 field still needs filling in');
+    expect(missingFieldsLine(1)).toBe('1 thing still needs your attention');
   });
 
   it('and uses Matt’s own wording on more', () => {
-    expect(missingFieldsLine(3)).toBe('3 fields still need filling in');
-    expect(missingFieldsLine(11)).toBe('11 fields still need filling in');
+    /* "THINGS", NOT "FIELDS", SINCE 2026-10-04: Matt's own word the second
+       time he asked for this sentence. The reason is in what it counts now --
+       the org section's missing answers include "whether this is a
+       single-office agency", a radio pair nobody fills IN, so "fields still
+       need filling in" was wrong about two of the four things on the form he
+       was looking at. */
+    expect(missingFieldsLine(3)).toBe('3 things still need your attention');
+    expect(missingFieldsLine(11)).toBe('11 things still need your attention');
   });
 
   // Nothing to say, so nothing is said: the component renders null on ''.

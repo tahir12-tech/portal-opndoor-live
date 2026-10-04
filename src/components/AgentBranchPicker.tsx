@@ -61,7 +61,7 @@
    ===================================================================== */
 import { useEffect, useRef, useState } from 'react';
 import { ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFly, findAgency, getPartners, loadOrgShape, mayInventAgency, mayInventBranch, orgNotSetUp, ownStockViewer, searchAgencies, searchBranches, FULL_PICKER, UNRESOLVED, type OrgShape } from '@/data';
-import { mayAddWhileReferring } from '@/data/capabilities';
+import { mayAddWhileReferring, partyIsSupplier } from '@/data/capabilities';
 import { SupplierAddOrg } from '@/pages/PartnerManagement/SupplierAddOrg';
 import { useSession } from '@/session/SessionContext';
 import { Icon } from '@/components/ui/Icon';
@@ -95,8 +95,32 @@ export interface AgentBranchValue {
   shape: OrgShape;
 }
 
-export function AgentBranchPicker({ onChange, scopePartner }: {
+export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }: {
   onChange?: (value: AgentBranchValue) => void;
+  /* =====================================================================
+     SHOW YOUR OWN ERRORS, BECAUSE THE FORM CANNOT REACH THEM.
+
+     Matt, 2026-10-04: "with required fields missing, pressing Send shows the
+     messages ('Tell us whether this is a single-office agency', 'Enter a
+     contact email...') only in the sections above, so from the bottom of the
+     page nothing seems to happen. On Send, scroll to the first missing field,
+     mark every missing field, and show 'N things still need filling in' next
+     to the Send button with a link to the first."
+
+     WHY THE MECHANISM MISSED THESE and he is right that it did. The count
+     and the jump read `.field.is-invalid`, which `Field` sets. These three
+     controls live in here, and the form rendered their errors as bare
+     paragraphs UNDER the picker: not fields, not marked, invisible to the
+     count, skipped by the jump. So on the one form where the org section is
+     step 1 and the button is at the bottom, pressing Send did nothing
+     visible -- which is the exact failure the mechanism was built to remove.
+
+     THE FIX IS THE CONTROL, NOT THE PARAGRAPH. The error belongs on the
+     thing that has to be fixed, which is in here, so the picker is told when
+     to show them and marks its own. The form's paragraphs go with it: two
+     statements of one problem is how they come to disagree.
+     ===================================================================== */
+  showErrors?: boolean;
   /* A SCOPE PASSED IN, RATHER THAN READ FROM THE SESSION.
      Q-06 item H: once an admin has chosen a supplier at the top of the
      form, "Agency and Branch search only that supplier's agencies and
@@ -206,6 +230,15 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
      "usable straight away for the referral" with nothing deferred to submit.
      ===================================================================== */
   const addsViaDialog = mayAddWhileReferring(role, partnerScope);
+
+  /* THE FOUR THINGS THIS PICKER CAN BE MISSING, named here so the marks below
+     and the form's own validity test cannot drift apart. `showErrors` decides
+     whether to SAY them; these decide what is true. */
+  const missingPartner = showErrors && agencyNew && isAdmin && !adminPartner;
+  const missingSingleOffice = showErrors && agencyNew && singleOffice === null;
+  const missingAgencyEmail = showErrors && agencyNew
+    && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(agEmail.trim());
+  const missingOrg = showErrors && (!selectedAgency || !selectedBranch);
   const [addOrg, setAddOrg] = useState<'agency' | 'branch' | null>(null);
 
   // The partner the referral resolves to.
@@ -420,7 +453,7 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
     id: `${a.partner}:${a.name}`,
     icon: <Icon name="building" />,
     main: highlightMatch(a.name, agentQuery),
-    sub: `${a.branches.length} ${plural(a.branches.length, 'branch')}${isAdmin ? ` · ${partnerName(a.partner)}` : ''}`,
+    sub: `${a.branches.length} ${plural(a.branches.length, 'office')}${isAdmin ? ` · ${partnerName(a.partner)}` : ''}`,
     onSelect: () => chooseAgency(a.name, false, a.partner),
   }));
   // Only a supplier invents an agency mid-referral. For an agent a new agency
@@ -430,7 +463,7 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
     agentOptions.push({
       id: '__create-agent',
       icon: <Icon name="plus" />,
-      main: <>Create new agent &quot;{agentQuery}&quot;</>,
+      main: <>Create new agency &quot;{agentQuery}&quot;</>,
       sub: 'Add an agency not in the list',
       isNew: true,
       onSelect: () => { createAgencyOnTheFly(agentQuery, partnerScope); createdAgencies.current.add(agentQuery.toLowerCase()); chooseAgency(agentQuery, true); },
@@ -491,8 +524,8 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
     branchOptions.push({
       id: '__create-branch',
       icon: <Icon name="plus" />,
-      main: <>Create new branch &quot;{branchQuery}&quot; in {selectedAgency}</>,
-      sub: 'Add a branch to this agent',
+      main: <>Create new office &quot;{branchQuery}&quot; in {selectedAgency}</>,
+      sub: 'Add an office to this agency',
       isNew: true,
       onSelect: () => { createBranchOnTheFly(selectedAgency, branchQuery); chooseBranch(branchQuery, true); },
     });
@@ -511,9 +544,9 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
 
   const branchEmpty = selectedAgency
     ? (agencyRec && agencyRec.branches.length === 0
-        ? 'This agency has no branches yet. Leave "Head office" or type a branch name.'
-        : 'No branches found. Type a name to add one.')
-    : 'Select an agent first';
+        ? 'This agency has no offices yet. Leave "Head office" or type an office name.'
+        : 'No offices found. Type a name to add one.')
+    : 'Select an agency first';
 
   /* THE CHOSEN AGENT HAS ONE OFFICE. The same ruling one level down: the scope
      collapse above answers "which of your agencies", this answers "which of
@@ -673,8 +706,14 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
           </div>
         </div>
       ) : (
-        <div className="field span-2">
-          <label htmlFor="ag-name">{shape.refersOwnStock ? 'Agency' : 'Agent'}</label>
+        <div className={`field span-2${missingOrg && !selectedAgency ? ' is-invalid' : ''}`}>
+          {/* "Agency", NOT "Agent". Matt, 2026-10-04: "use 'Agency' and
+              'Office' instead of 'Agent' and 'Branch' on this form, matching
+              the supplier and agency forms." Those two forms have said Agency
+              and Office since they were written; this one said Agent to an
+              admin and Agency to a supplier's own staff, for the same
+              control. One word, both readers. */}
+          <label htmlFor="ag-name">Agency</label>
           <TypeAhead
             id="ag-name"
             value={agentValue}
@@ -695,11 +734,15 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
               <Icon name="plus" size={13} /> Add a new agency
             </button>
           )}
+          {/* THE PAIR, MARKED ON THE AGENCY FIELD, because that is the first of
+              the two and the jump goes to the first missing thing. The form
+              printed "Select an agent and a branch" in a paragraph below. */}
+          {missingOrg && !selectedAgency && <span className="field-error">Required</span>}
         </div>
       )}
       {/* #74 New agency: ask explicitly (no default) whether it is single-office. */}
       {agencyNew && (
-        <div className="field span-2">
+        <div className={`field span-2${missingSingleOffice ? ' is-invalid' : ''}`}>
           <label>Is this a single-office agency? <span className="req" aria-hidden="true">*</span></label>
           <div className="radio-row" role="radiogroup" aria-label="Is this a single-office agency?">
             <label className="radio-opt">
@@ -716,6 +759,9 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
               ? <>A branch named <b>{selectedAgency}, Head office</b> will be created automatically, inheriting the agency contact.</>
               : 'A single-office agency gets one Head office branch automatically. Choose No to name a branch.'}
           </span>
+          {/* Matt's own words for this one, which the form used to print in a
+              paragraph underneath where nobody standing at the button saw it. */}
+          {missingSingleOffice && <span className="field-error">Tell us whether this is a single-office agency.</span>}
         </div>
       )}
 
@@ -725,7 +771,7 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
           Head office branch (read-only) and skips it. */}
       {collapseChosenBranch ? (
         <div className="field span-2">
-          <label>Branch</label>
+          <label>Office</label>
           <div className="hint" style={{ fontSize: 14, color: 'var(--ink)' }}>
             This referral is against <b>{selectedBranch}</b>. It is the only branch listed for {selectedAgency}.
           </div>
@@ -735,35 +781,35 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
             <button type="button" className="linkish" onClick={() => setRevealBranch(true)}
               style={{ background: 'none', border: 0, padding: 0, marginTop: 4, cursor: 'pointer',
                        color: 'var(--heliotrope-deep, #5b3fd9)', font: 'inherit', textDecoration: 'underline' }}>
-              Use a different branch
+              Use a different office
             </button>
           )}
         </div>
       ) : agencyNew && singleOffice === true ? (
         <div className="field span-2">
-          <label htmlFor="br-name">Branch</label>
+          <label htmlFor="br-name">Office</label>
           <input id="br-name" type="text" readOnly value={`${selectedAgency}, Head office`} />
-          <span className="hint">Auto-created for this single-office agency. Answer No above to name a branch instead.</span>
+          <span className="hint">Auto-created for this single-office agency. Answer No above to name an office instead.</span>
         </div>
       ) : (!agencyNew || singleOffice === false) ? (
         <div className="field span-2">
-          <label htmlFor="br-name">Branch</label>
+          <label htmlFor="br-name">Office</label>
           <TypeAhead
             id="br-name"
             value={branchValue}
             onChange={onBranchInput}
             onEnter={commitBranchEnter}
             options={branchOptions}
-            placeholder={!selectedAgency ? 'Select an agent first' : mayAddBranch ? 'Search branches or add a new one' : 'Search your offices'}
+            placeholder={!selectedAgency ? 'Select an agency first' : mayAddBranch ? 'Search offices or add a new one' : 'Search your offices'}
             disabled={!selectedAgency}
             emptyText={branchEmpty}
           />
           {branchAuto ? (
-            <span className="hint">Single-office agent. A <b>Head office</b> branch will be used, inheriting the agency contact. Type a branch name to change it.</span>
+            <span className="hint">Single-office agency. A <b>Head office</b> will be used, inheriting the agency contact. Type an office name to change it.</span>
           ) : (
             <span className="hint">
               {mayAddBranch
-                ? 'Branches are filtered to the selected agent. Add a new branch on the fly if it is not listed.'
+                ? 'Offices are filtered to the selected agency. Add a new one if it is not listed.'
                 : addsViaDialog
                   ? 'Offices are filtered to the agency above. Use Add a new office if it is not listed.'
                   : 'Referrals go against one of your own offices. A new office is set up by opndoor, not here.'}
@@ -788,18 +834,43 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>New agency contact</div>
           <div className="form-grid">
             {isAdmin && (
-              <div className="field span-2" style={fieldStyle}>
+              <div className={`field span-2${missingPartner ? ' is-invalid' : ''}`} style={fieldStyle}>
                 <label htmlFor="ag-partner">Supplier <span className="req" aria-hidden="true">*</span></label>
+                {/* =====================================================================
+                    SUPPLIERS ONLY. Matt, 2026-10-04: "the Supplier dropdown
+                    includes 'Harbour Lets', which is an agency; list suppliers
+                    only (partner_kind supplier)."
+
+                    `getPartners()` STRIPS THE HOUSE PARTNERS AND NOTHING ELSE,
+                    which was the whole of the filtering here: opndoor-agents,
+                    opndoor-direct and referencing-partner are excluded because
+                    their names are internal route labels. An AGENCY-kind
+                    partner is a real company with a real name and sailed
+                    through -- so an admin creating an agency could file it
+                    under another agency, which is not a party that can own
+                    one, and its commission would land nowhere anybody reads.
+
+                    `partyIsSupplier` reads the partner's own `kind`, which is
+                    the fact that means it. Not `!partyIsAgency`: that was the
+                    reading that put a supplier set to "opndoor referenced" on
+                    the wrong side of a gate once already. */}
                 <select id="ag-partner" value={adminPartner} onChange={(e) => setAdminPartner(e.target.value)}>
-                  <option value="">Select the supplier this agent belongs to</option>
-                  {getPartners().map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  <option value="">Select the supplier this agency belongs to</option>
+                  {getPartners().filter((p) => partyIsSupplier(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
                 <span className="hint">The referral and its commission land under this supplier.</span>
+                {missingPartner && <span className="field-error">Select the supplier this agency belongs to.</span>}
               </div>
             )}
-            <div className="field span-2" style={fieldStyle}>
-              <label htmlFor="ag-email">Contact email <span className="req" aria-hidden="true">*</span></label>
+            <div className={`field span-2${missingAgencyEmail ? ' is-invalid' : ''}`} style={fieldStyle}>
+              <label htmlFor="ag-email">Agency email <span className="req" aria-hidden="true">*</span></label>
               <input id="ag-email" type="email" placeholder="jane@example.co.uk" value={agEmail} onChange={(e) => setAgEmail(e.target.value)} />
+              {/* MATT'S OWN SENTENCE, 2026-10-04, replacing "Required for a new
+                  agency. Becomes its default contact for deed delivery and the
+                  bordereau." His says the same thing in the reader's terms and
+                  names the one exception that matters. */}
+              <span className="hint">Required for a new agency. Signed deeds go here unless the office has its own email.</span>
+              {missingAgencyEmail && <span className="field-error">{agEmail.trim() ? 'That is not an email address.' : 'Required'}</span>}
             </div>
             <div className="field" style={fieldStyle}>
               <label htmlFor="ag-cname">Contact name <span className="hint">(optional)</span></label>
@@ -816,9 +887,9 @@ export function AgentBranchPicker({ onChange, scopePartner }: {
 
       {branchNew && !branchAuto && (
         <div className="field span-2" style={{ background: 'var(--white-lilac)', border: '1px solid var(--line)', borderRadius: 'var(--r-md, 10px)', padding: 14 }}>
-          <label htmlFor="br-email">New branch contact email <span className="hint">(optional)</span></label>
+          <label htmlFor="br-email">New office contact email <span className="hint">(optional)</span></label>
           <input id="br-email" type="email" placeholder="lettings@example.co.uk" value={brEmail} onChange={(e) => setBrEmail(e.target.value)} />
-          <span className="hint">Optional. If left blank, this branch inherits the agency's default contact.</span>
+          <span className="hint">Optional. If left blank, this office inherits the agency's default contact.</span>
         </div>
       )}
 

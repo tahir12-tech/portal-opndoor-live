@@ -143,7 +143,13 @@ describe('who may invent an org mid-referral', () => {
 describe('the wording follows the shape', () => {
   it('asks a supplier whose property it is', () => {
     const c = orgSectionCopy(SUPPLIER_ONE_AGENCY);
-    expect(c.title).toBe('Agency and branch');
+/* "Agency and office", and "Create new agency", SINCE 2026-10-04. Matt: "use
+       'Agency' and 'Office' instead of 'Agent' and 'Branch' on this form, matching
+       the supplier and agency forms." The agency-user headings had said "office"
+       all along, which is what "matching" meant. "on the fly" went with it: it is
+       jargon, and it stopped being accurate on 2026-10-03 when a supplier's own
+       people began creating a real agency that waits for review. */
+    expect(c.title).toBe('Agency and office');
     expect(c.sub).toMatch(/which agency is letting this property/i);
   });
 

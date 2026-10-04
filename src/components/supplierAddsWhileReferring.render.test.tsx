@@ -114,9 +114,13 @@ describe('a supplier’s own referrer', () => {
     await settled();
     const field = document.getElementById('ag-name') as HTMLInputElement;
     fireEvent.change(field, { target: { value: 'Nowhere Lettings' } });
+    /* RENAMED 2026-10-04 to "Create new agency", per Matt's Agent/Branch to
+       Agency/Office instruction. The row's ABSENCE is what this asserts, so
+       both spellings are refused: the old one in case it comes back, the new
+       one because that is what it is called now. */
     expect(body()).not.toMatch(/Create new agent/i);
+    expect(body()).not.toMatch(/Create new agency/i);
     expect(body()).not.toMatch(/add a new one/i);
-    expect(body()).not.toMatch(/on the fly/i);
   });
 
   /* AND ENTER IS NOT A BACK DOOR. commitAgentEnter created an agency on a
@@ -262,6 +266,6 @@ describe('an opndoor admin', () => {
     expect(btn(/Add a new agency/)).toBeFalsy();
     const field = document.getElementById('ag-name') as HTMLInputElement;
     fireEvent.change(field, { target: { value: 'Nowhere Lettings' } });
-    await waitFor(() => expect(body()).toMatch(/Create new agent/i));
+    await waitFor(() => expect(body()).toMatch(/Create new agency/i));
   });
 });

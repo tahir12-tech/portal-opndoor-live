@@ -562,7 +562,7 @@ export function NewApplication() {
      and bare in the form where there is not. Written once so the two cannot
      drift on what the form does with the answer. */
   const picker = (
-    <AgentBranchPicker scopePartner={referredBy === 'supplier' ? routeSupplier : null} onChange={(v) => {
+    <AgentBranchPicker showErrors={submitted} scopePartner={referredBy === 'supplier' ? routeSupplier : null} onChange={(v) => {
       setOrgShape(v.shape);
       setValues((prev) => ({ ...prev, agency: v.agency, branch: v.branch }));
       setOrg({ agencyNew: v.agencyNew, branchNew: v.branchNew, agencyContactEmail: v.agencyContactEmail, agencyContactName: v.agencyContactName, agencyContactPhone: v.agencyContactPhone, branchContactEmail: v.branchContactEmail, partner: v.partner, singleOffice: v.singleOffice });
@@ -685,15 +685,25 @@ export function NewApplication() {
               <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div><div className="sec__title">{orgCopy.title} <Req /></div><div className="sec__sub">{orgCopy.sub}</div></div></div>
             )}
             <CardBody>
+              {/* THE PICKER SAYS ITS OWN ERRORS NOW, 2026-10-04.
+
+                  Matt: "pressing Send shows the messages ... only in the
+                  sections above, so from the bottom of the page nothing seems
+                  to happen."
+
+                  FOUR PARAGRAPHS STOOD HERE and every one of them was the
+                  same mistake: an error about a control inside the picker,
+                  printed underneath it, in a `<p>` that no `Field` owns. The
+                  count and the jump read `.field.is-invalid`, so none of the
+                  four was counted and the jump stepped over all of them --
+                  on the one form where this section is step 1 and the Send
+                  button is at the bottom of the page.
+
+                  The picker is told when to show them (`showErrors`) and
+                  marks its own controls, so the error is on the thing that
+                  has to be fixed and the mechanism finds it like any other
+                  field. Two statements of one problem is how they drift. */}
               {picker}
-              {!oneOffice && <>
-                {submitted && orgPartnerError && <p className="na-form-error" style={{ marginTop: 8 }}>Select the partner this new agency belongs to.</p>}
-                {submitted && orgOfficeError && <p className="na-form-error" style={{ marginTop: 8 }}>Tell us whether this is a single-office agency.</p>}
-                {submitted && orgContactError && <p className="na-form-error" style={{ marginTop: 8 }}>Enter a contact email for the new agency.</p>}
-                {submitted && !orgOfficeError && (errors.agency || errors.branch) && (
-                  <span className="field-error" style={{ marginTop: 10 }}>Select an agent and a branch.</span>
-                )}
-              </>}
             </CardBody>
           </section>
           {/* Outside the hidden section, because it has to be readable. The
@@ -767,7 +777,7 @@ export function NewApplication() {
                     {referredBy === 'supplier'
                       ? 'Choose the supplier first.'
                       : railState === 'none'
-                      ? 'Choose the agent and branch first: whether a referral can cover more than one tenant depends on who it is for.'
+                      ? 'Choose the agency and office first: whether a referral can cover more than one tenant depends on who it is for.'
                       : railState === 'loading'
                         ? 'Checking this agent\u2026'
                         : 'This supplier sends us referrals one tenant at a time. Refer each tenant separately.'}
