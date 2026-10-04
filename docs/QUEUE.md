@@ -3394,6 +3394,21 @@ the one real assertion that has never run.
 - THE DELIVERABLE IS THREE THINGS: what GR-25831 and the existing Kestrel
   referrals would each get, the fix, and single AND joint tested end to end.
 
+### (yy) The referred tenant landed in the direct sign-up, and who pays GBP 20
+
+> Also: the referred tenant's link led into the direct sign-up ("a few details about the property, then a £20 application fee"), asking again for details the referral already holds, and the invite page shows "Tenancy starts 2026-11-20" (use "20 Nov 2026"). Tell me which tenants are asked for the £20 application fee today (direct sign-ups only, or also tenants referred by agencies set to "Opndoor checks tenants"), and don't change it until I confirm.
+
+- **DOWNSTREAM OF (xx) AND PROBABLY THE SAME CAUSE.** A referral frozen as
+  `opndoor_referenced` takes the opndoor-referenced journey, which is the
+  full application and the fee. Fix the mode and this tenant never sees
+  that page. Worth proving rather than assuming, because if it is NOT the
+  same cause there are two faults.
+- **"DON'T CHANGE IT UNTIL I CONFIRM" IS A HOLD on the GBP 20 question
+  specifically.** Answer who is charged it today; change nothing.
+- THE DATE FORMAT IS A THIRD, SMALL THING, and oneDateFormat is supposed to
+  catch exactly that, so this is the second screen today showing a raw
+  ISO date past a guard that exists to stop it. See (w).
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
