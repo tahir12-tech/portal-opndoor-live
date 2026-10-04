@@ -2958,6 +2958,30 @@ the one real assertion that has never run.
   activity feed carry an action plus a detail, and each action needs a
   sentence. Sweeping screens would find the same entry three times.
 
+### (v) "What each branch pays out" must show every band
+
+> Agency Commission tab, "What each branch pays out": when the deal varies by tenant count, show both, e.g. "20% (1 tenant), 25% (2 or more)", not just 20%.
+
+- A ONE-FIGURE SUMMARY OF A BANDED DEAL IS WRONG, not merely terse: Regent's
+  pay 20% at one tenant and 25% at two or more, and the line showing 20%
+  states the lower of two real rates as if it were the rate.
+- THE BAND WORDING ALREADY EXISTS. 20261007990000 words a band as "1
+  tenant" / "2 or more tenants" for the breach message, so the screen and
+  the refusal should read the same way rather than inventing a second
+  phrasing.
+- SAME FAMILY AS (o): a screen summarising a deal it has not fully read.
+
+### (w) The agency deal dialog's dates and capitals
+
+> Agency deal dialog: dates as "23 Sep 2026", not "2026-09-23"; "number of tenants" and "number of referrals" in normal case, not capitals.
+
+- THE DATE IS A ONE-FORMAT RULE THE REPO ALREADY ENFORCES. `oneDateFormat`
+  is a vitest guard, so a raw YYYY-MM-DD on a screen is something it either
+  does not cover or is reading past; worth finding out which, because the
+  same hole would hide others.
+- THE CAPITALS ARE SENTENCE CASE in running text: these are phrases inside
+  sentences, not labels or headings.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
