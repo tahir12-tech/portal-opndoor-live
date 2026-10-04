@@ -1491,6 +1491,77 @@ had. Nothing to remove.
 
 *(Recorded, NOT built. Nothing in this section is in the go-live scope.)*
 
+### The catch-up for data arriving after the send day (2026-10-04)
+
+Matt: *"The catch-up for data arriving after the monthly send day goes under
+'After launch'; tell me there what it would take."*
+
+**THE FAULT, IN ONE SENTENCE.** `commission-statements` runs only on the send
+day (the 1st, or the next working day). A payee whose lines arrive after that
+is never posted for that month, and nothing says so.
+
+**IT IS NOT HYPOTHETICAL AND WE HAVE SEEN IT.** Kestrel's September was missed
+exactly this way: the referral was recorded at 00:07 on 2 October with
+`paid_at` back-dated to 27 September, seventeen hours after the run. On live
+the same shape is a late Stripe webhook, a correction, a back-dated amendment,
+or an integrator posting last month's referrals in a batch.
+
+**MOST OF THE MECHANISM ALREADY EXISTS**, which is why this is a small build
+with one hard part. `commission_statement_sends` holds one row per (month,
+payee) and the loop skips anybody already in it, so a second run of the same
+month posts only what is missing. That is the whole of the idempotency and it
+is already load-bearing: the function runs twice a day as it is.
+
+#### What it would take
+
+1. **A third gate, not a new function.** Today: `if (!test && !dry) { hour
+   check; isSendDay check }`. A catch-up keeps the hour and replaces the day
+   rule with "this month is CLOSED and is not fully posted". Same function,
+   same loop, same idempotency.
+
+2. **A bounded look-back.** Two months, not all of history: without a bound,
+   the first run after deploy posts every month a partner has ever been owed,
+   including months that were deliberately never sent. Two is enough for a
+   late webhook and short enough that a mistake is visible.
+
+3. **THE SETTLEMENT ROW IS THE HARD PART, and it is the reason this is not a
+   two-line change.** `@settlement` is posted once per month and September's
+   has gone, saying £3,231.54. Posting Kestrel's £600 afterwards makes the
+   month £3,831.54, and the settlement nobody will re-read still says the old
+   figure. Three options, and this is the decision to make before building:
+   - re-issue the settlement, with a line saying it supersedes;
+   - leave it and put the late payees in the NEXT month's settlement, which
+     is what a ledger would do but makes a month's statement and its
+     settlement disagree on purpose;
+   - post the payee and alert Opndoor to settle it by hand.
+
+4. **A late statement should say it is late.** Its reference is out of
+   sequence for the month and finance will query it. One line: "Sent on 9
+   October for September 2026, after a late record." Nothing else in the
+   document changes.
+
+5. **Opndoor is told.** A payee arriving after the send day usually means
+   something upstream was late, so the catch-up posting anything is worth an
+   ops alert rather than a silent success.
+
+6. **Deductions need no work.** `settle_statement_deductions` runs per payee
+   at the moment of posting, so a catch-up inherits the right behaviour.
+
+#### What it does NOT need
+
+- No new table, no new state on a statement, no change to the documents.
+- No change to the per-payee idempotency, which is what makes it safe.
+
+#### The test that would have to come with it
+
+A pgTAP that posts a month, adds a payee's lines afterwards, runs the
+catch-up, and asserts: the new payee is posted once, the three already posted
+are untouched, their references do not move, and a second catch-up run posts
+nothing at all.
+
+**Estimate: half a day for 1, 2, 4, 5 and the tests. Point 3 is yours to
+decide first and is most of the risk.**
+
 ### Refusing referrals for a supplier with no deal (2026-10-03)
 
 Matt's own split, verbatim: *"No default deal and the warnings now; the
@@ -2423,10 +2494,11 @@ each with a `user_audit` line (actor 'opndoor', "Management (no commission)" to
 dev: all four supplier Management rows now hold the flag, and the developer
 does not.
 
-**WHAT IS STILL YOURS TO DECIDE:** the same migration runs the same correction
-on live when it is applied there. Nothing else does. If the people it names on
-live should NOT see commission, say so before the deploy, because there is no
-second gate after it.
+**APPROVED BY MATT, 2026-10-04: "Supplier Management seeing commission on live
+is correct. Proceed."** So `20261007880000` runs the same correction on live
+when it is applied, and whoever it names there gets their own commission. The
+entry is kept rather than deleted so the decision is on the record next to the
+measurement that prompted it.
 
 Matt asked: *"Tell me which existing supplier users would be affected on
 live."* The code fix means every supplier Management invited FROM NOW ON gets
