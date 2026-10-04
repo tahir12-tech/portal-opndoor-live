@@ -4430,6 +4430,35 @@ both estates, the dialog, and FAQ 9 on both rails.
   duplicates the sidebar; on a DETAIL page it goes somewhere the sidebar
   cannot, because the sidebar has no entry for "the list I came from".
 
+### (bp) The Performance export double-counts a carved share
+
+> Admin Performance export:
+> 1) Agency/branch breakdowns double-count commission on referrals where the supplier passes on the agencies' share (e.g. Test Lettings asda: Supplier £947.25 and Agent £378.90, but the £378.90 is inside the £947.25). The breakdown's agent column must reconcile to the summary (£4,208.66); show a carved-out share as "Included in supplier commission: £378.90" or similar, never as a second payable amount. Make the referrer breakdown consistent with the agency one.
+> 2) "Stuck at Paid (awaiting deed)" says 15 while Reporting says 4 awaiting signature. Check what it counts; refunded and cancelled ones must not be included.
+> 3) "Frost Partnership (via Kestrel Lettings) (agency)": drop the double brackets.
+
+- **(1) IS A MONEY BUG AND THE ONLY ONE OF THE THREE THAT IS.** It is the
+  carved/siblings distinction, which `opndoor_pays_agents_at_freeze`
+  already records per referral and which (q) worded on the statement:
+  when opndoor pays the agencies directly the two figures ADD, and when
+  the supplier passes the share on the agent's figure is already inside
+  the supplier's. A breakdown that sums both has invented money.
+- **THE SUMMARY IS THE TEST, AND MATT HAS GIVEN THE NUMBER: £4,208.66.**
+  "The breakdown's agent column must reconcile to the summary" is a
+  checkable assertion, not a wording preference, so it is the assertion.
+- "NEVER AS A SECOND PAYABLE AMOUNT" is the rule; "Included in supplier
+  commission: £378.90" is his example of the wording, not necessarily the
+  words.
+- AND THE REFERRER BREAKDOWN TOO: same fold, same fault, and two
+  breakdowns of one export disagreeing is worse than either being wrong.
+- **(2) IS A COUNT THAT DISAGREES WITH ANOTHER SCREEN**, 15 against 4.
+  Refunded and cancelled must come out, which is the same exclusion (az)
+  item 6 applied to Reporting's rent in force and the bordereau. The
+  honest answer may be that these two counts are not the same question,
+  in which case they must not read as though they are.
+- (3) is one line of formatting: the "(via X)" suffix and the "(agency)"
+  kind label are composed separately and meet.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
