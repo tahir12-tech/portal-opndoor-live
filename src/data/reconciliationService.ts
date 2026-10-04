@@ -26,6 +26,10 @@ export interface ReconRow {
   type: 'agency' | 'branch';
   name: string;
   parent: string | null;
+  /** The supplier whose estate this belongs to, where it is one. Null on our
+      own agency rail, where the partner is the house route and naming it
+      would put "Opndoor Agents" on a reviewer's screen. (am) item 1. */
+  supplier: string | null;
   by: string;
   when: string;
   refs: number;
@@ -44,14 +48,14 @@ function fmtWhen(ts: string): string {
 
 // Mock/demo queue (mock mode only). Illustrative pending entities.
 const MOCK_QUEUE: ReconRow[] = [
-  { id: 'branch:m1', entityId: 'm1', type: 'branch', name: 'Sth Kensington', parent: 'Foxglove Residential', by: 'James Okafor', when: '18/06/2026 · 14:22', refs: 1, match: 'South Kensington', matchExact: false },
-  { id: 'agency:m2', entityId: 'm2', type: 'agency', name: 'Marylebone and Co.', parent: null, by: 'Aisha Khan', when: '17/06/2026 · 09:48', refs: 2, match: 'Marylebone & Co', matchExact: false },
-  { id: 'branch:m3', entityId: 'm3', type: 'branch', name: 'Wandsworth', parent: 'Hartwell Estates', by: 'Marcus Lin', when: '16/06/2026 · 16:05', refs: 3, match: null, matchExact: false },
-  { id: 'agency:m4', entityId: 'm4', type: 'agency', name: 'Camden Town Lettings', parent: null, by: 'Daniel Wright', when: '13/06/2026 · 10:12', refs: 1, match: null, matchExact: false },
+  { id: 'branch:m1', entityId: 'm1', type: 'branch', name: 'Sth Kensington', parent: 'Foxglove Residential', supplier: null, by: 'James Okafor', when: '18/06/2026 · 14:22', refs: 1, match: 'South Kensington', matchExact: false },
+  { id: 'agency:m2', entityId: 'm2', type: 'agency', name: 'Marylebone and Co.', parent: null, supplier: null, by: 'Aisha Khan', when: '17/06/2026 · 09:48', refs: 2, match: 'Marylebone & Co', matchExact: false },
+  { id: 'branch:m3', entityId: 'm3', type: 'branch', name: 'Wandsworth', parent: 'Hartwell Estates', supplier: null, by: 'Marcus Lin', when: '16/06/2026 · 16:05', refs: 3, match: null, matchExact: false },
+  { id: 'agency:m4', entityId: 'm4', type: 'agency', name: 'Camden Town Lettings', parent: null, supplier: null, by: 'Daniel Wright', when: '13/06/2026 · 10:12', refs: 1, match: null, matchExact: false },
   // #117 A single-office fly-created agency: its auto "[Agency], Head office" branch
   // folds into the agency card (confirming the agency sweeps it), so it is not a
   // separate queue item — the card notes the folded head office.
-  { id: 'agency:m5', entityId: 'm5', type: 'agency', name: 'Bracken & Vale', parent: null, by: 'Priya Nair', when: '12/06/2026 · 11:30', refs: 1, match: null, matchExact: false, foldedHeadOffice: true },
+  { id: 'agency:m5', entityId: 'm5', type: 'agency', name: 'Bracken & Vale', parent: null, supplier: null, by: 'Priya Nair', when: '12/06/2026 · 11:30', refs: 1, match: null, matchExact: false, foldedHeadOffice: true },
 ];
 
 /** The pending-review queue (admin only). Async: live RPC or the mock queue. */
@@ -66,6 +70,7 @@ export async function loadReconciliationQueue(): Promise<ReconRow[]> {
       type: r.entity_type,
       name: r.name,
       parent: r.parent ?? null,
+      supplier: (r as { supplier?: string | null }).supplier ?? null,
       by: r.created_by_name ?? 'A referrer',
       when: r.created_at ? fmtWhen(r.created_at) : '',
       refs: Number(r.referral_count ?? 0),

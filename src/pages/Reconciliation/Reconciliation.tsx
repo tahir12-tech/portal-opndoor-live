@@ -272,6 +272,16 @@ export function Reconciliation() {
       ) : (
       <div className="rq">
         {visible.map((item) => {
+          /* WHOSE ESTATE, BEFORE WHAT IT IS. Matt (am): show which supplier
+             each new agency or office belongs to, "Kestrel Lettings · Test
+             Test Test".
+
+             IT IS THE NAME TRAP THAT MAKES THIS MATTER rather than tidiness:
+             dev holds two agencies called Frost Partnership, one on our own
+             rail and one in Kestrel's estate, so a row naming only the
+             agency cannot be acted on safely. Null on our own rail, where
+             the partner is the house route and printing it would put
+             "Opndoor Agents" in front of a reviewer. */
           const parent = item.type === 'branch' ? <>Under <b>{item.parent}</b> · </> : null;
           return (
             <div className="rqitem" key={item.id} style={busyId === item.id ? { opacity: 0.5 } : undefined}>
@@ -280,12 +290,13 @@ export function Reconciliation() {
               </span>
               <div className="rqitem__main">
                 <div className="rqitem__top">
+                  {item.supplier && <span className="rqitem__owner">{item.supplier} ·&nbsp;</span>}
                   <span className="rqitem__name">{item.name}</span>
                   {item.type === 'agency' ? <span className="tag tag--admin">New agency</span> : <span className="tag">New branch</span>}
                 </div>
                 <div className="rqitem__meta">{parent}created by <b>{item.by}</b> · {item.when} · {item.refs} {plural(item.refs, 'referral')} attached</div>
                 {item.foldedHeadOffice && (
-                  <div className="rqitem__meta" style={{ color: 'var(--ink-mute)' }}>Includes its “Head office” branch. Confirming the agency confirms both.</div>
+                  <div className="rqitem__meta" style={{ color: 'var(--ink-mute)' }}>Includes its first office. Confirming the agency confirms both.</div>
                 )}
 
                 {item.match ? (

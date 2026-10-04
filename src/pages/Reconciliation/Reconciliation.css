@@ -133,6 +133,18 @@
   font-size: 16px;
   letter-spacing: -0.01em;
 }
+/* WHOSE ESTATE, in front of the name and quieter than it. (am) item 1: the
+   reviewer needs to know a Frost Partnership is Kestrel's before they can
+   act on it -- dev holds two of that name -- but the thing they are
+   confirming is still the agency, so the owner reads as a prefix and not as
+   a second heading. */
+.rqitem__owner {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  color: var(--ink-mute);
+}
 .rqitem__meta {
   font-size: 12.5px;
   color: var(--ink-soft);
