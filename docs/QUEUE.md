@@ -3739,6 +3739,23 @@ BLOCK 2, the answers he is waiting on:
 
 BLOCK 3, the wording sweeps, guides and copy: everything else.
 
+### (ar) The export throws: find it, log it, fix it
+
+> As Kestrel Management (test@kestrel.com), Reporting → Application export now shows "The export could not be built. Please try again, and tell opndoor if it keeps happening." So the build is throwing. Find the actual error (log it to the console and Health's portal errors), fix it, and show me the export downloading as Kestrel Management, plus every other level.
+
+- **THE PREVIOUS FIX DID ITS JOB: it told us WHICH path.** It is the thrown
+  case, not the empty one, so the reader's book is fine and the workbook
+  builder is falling over on a supplier's data. That is a much smaller
+  search than "the export does nothing".
+- "LOG IT TO THE CONSOLE AND HEALTH'S PORTAL ERRORS" is the general fix and
+  outlives this bug: a caught exception that nobody can see is only
+  marginally better than a silent one. `report_portal_incident` and the
+  Health tile already exist from f2b5c13, and the allowlist there is
+  deliberately narrow, so this needs a second type adding to it.
+- THE MESSAGE TO THE READER DOES NOT CHANGE. They cannot act on a stack
+  trace; the console and Health are where it belongs.
+- "PLUS EVERY OTHER LEVEL" is the same nine-level matrix as (hh).
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
