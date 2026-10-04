@@ -3267,6 +3267,24 @@ the one real assertion that has never run.
   three levels, suppliers have three different ones, and who sees
   commission differs.
 
+### (qq) The notifications dialog is clipped, and a supplier has no Director
+
+> Notifications dialog (seen as Kestrel Management opening another Management user's notifications): the dialog's content is cut off on the left, with the title and labels clipped ("tions for Kestrel Director", "tements"). Fix the layout so the whole dialog shows at every screen width. Also, on supplier people, "A Director, or Opndoor, decides this" should say "Management, or opndoor, decides this" (or "opndoor decides this" when it's a peer the viewer can't change).
+
+- CLIPPED ON THE LEFT, WHICH IS THE DIAGNOSTIC. Content lost off the LEFT
+  edge is usually a negative margin, a fixed width wider than its container,
+  or a transform centring trick, not simple overflow. "At every screen
+  width" makes it a responsive fix rather than a nudge.
+- **THE SECOND HALF IS THE LADDER MISTAKE AGAIN, in copy.** A supplier has
+  no Director: its levels are Management, Referrer and Developer, and
+  Director belongs to the agency ladder. The same confusion has now
+  appeared in the Commission tab, the FAQs and here.
+- AND THE PARENTHESIS IS A SECOND CASE, not an alternative wording: when
+  the subject is a PEER the viewer cannot change, naming Management as the
+  decider is wrong because the viewer IS Management. Then it is opndoor
+  alone.
+- "opndoor" lowercase, as everywhere else in the copy.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
