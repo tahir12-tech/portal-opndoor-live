@@ -3805,6 +3805,60 @@ BLOCK 3, the wording sweeps, guides and copy: everything else.
 Written while he is away, each with a recommendation. Nothing here has been
 acted on.
 
+### ANSWER: the start-date rule today, where it came from, and what I would change
+
+Matt asked (ae) item 5: what the rule is, who can change it, how late, how
+far, where it came from, and what I would recommend for guarantees already
+signed. Answer only; nothing changed. This unblocks FAQ 9, which (pp) holds.
+
+**WHO CAN CHANGE IT.** `can_amend_tenancy_start(role, status, owned,
+deed_state)`:
+
+| the deed | who may change the start date |
+| --- | --- |
+| not yet signed | the Negotiator or Referrer who OWNS the referral, and any Manager, Director or opndoor admin |
+| signed (executed) | Management and opndoor admin ONLY. The owning Negotiator loses it. |
+
+**HOW LATE: there is no time limit at all.** Nothing tests the date against
+today, the tenancy's progress or whether the guarantee has started running.
+A signed, live guarantee six months into its term can have its start date
+moved, by a Manager, with no extra question beyond the reissue confirmation.
+
+**HOW FAR: one range check, and it is a sanity bound rather than a policy.**
+`amend_tenancy_start` refuses before 2000-01-01 or more than FIVE YEARS
+ahead. Those are the only limits in the product.
+
+**WHERE IT CAME FROM: a default, not your decision.** I traced it. The role
+rule was written in `20260703103841_amend_deed_state_aware` as part of the
+deed lifecycle work, and its header is engineering reasoning about deed
+states rather than a quoted instruction. The 5-year bound arrived in the same
+commit (01a0ddd, "Deed lifecycle: PandaDoc e-signature, issue_date token,
+amend boundary"). There is NO entry in this queue recording a decision from
+you about who may move a start date or how far. So the rule is a sensible
+default somebody chose while building the deed lifecycle, and has never been
+put to you. That is the honest answer to "my decision, a spec, or a default".
+
+**WHAT I WOULD RECOMMEND FOR GUARANTEES ALREADY SIGNED**, which is the part
+that worries me:
+
+1. **A signed guarantee whose term has already STARTED should not be
+   amendable in the portal at all.** Moving the start date moves the expiry,
+   which is a generated column, so it silently changes the period of cover on
+   a deed somebody has signed and an underwriter has on the bordereau. That
+   is a contract variation, not a correction. It should need opndoor, and it
+   should say what it is doing to the cover.
+2. **Before the term starts, a signed deed is fine to amend as it is today**:
+   void, reissue, re-sign. That is a genuine correction and the machinery
+   already does it properly.
+3. **Keep the owning referrer's access only while unsigned.** That is already
+   the rule and it is the right one.
+4. **Replace the 5-year bound with something meaningful**, for example no
+   more than 12 months either side of today. Five years is wide enough that a
+   typo in the year passes it.
+
+Point 1 is the one I would do first, and it is a product decision rather
+than a technical one, which is why it is here rather than built.
+
 ### ANSWER: (ao), and one duplicate call explains all three symptoms
 
 **ITEM 3, THE CO-TENANT: YES.** GR-25833's tenancy_start is 2026-10-17,
