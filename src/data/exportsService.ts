@@ -1399,7 +1399,17 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
       ...(forCustomer ? [findRecord(a.ref)?.name ?? ''] : []),
       ...(showAgency ? [viaSupplier(ALL_PARTNERS, orgCell(a.agency), a.partner)] : []),
       ...(showBranch ? [viaSupplier(ALL_PARTNERS, orgCell(a.branch), a.partner)] : []),
-      a.referrer, STATUS[a.status], payState,
+      /* "NEVER 'Deed executed'", IN THE EXPORT. Matt (ak) lists exports among
+         the everywheres. STATUS reads `status`, which deliberately stays at
+         'deed' through a cancellation -- the application did reach that
+         stage and every filter and count depends on it -- so the cell said
+         "Deed Issued" on a guarantee that had ended. The Payment state
+         column beside it already said "Refunded", which made the row
+         self-contradicting rather than merely wrong: a reader could take
+         either half as the live fact. */
+      a.referrer,
+      a.deedState === 'cancelled' ? 'Deed cancelled' : STATUS[a.status],
+      payState,
       a.sentAt ? dmy(a.sentAt) : '', a.paidAt ? dmy(a.paidAt) : '', a.deedAt ? dmy(a.deedAt) : '',
       a.refundedAt ? dmy(a.refundedAt) : '', a.refundedAmount != null ? moneyText(a.refundedAmount) : '',
       /* THE OTHERS, not this one, and blank where there are none, which is

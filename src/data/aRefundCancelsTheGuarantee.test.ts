@@ -103,3 +103,57 @@ describe('the tenancy box', () => {
     expect(tenancyProgress(all)).toBe('Both tenants have been refunded');
   });
 });
+
+/* AND IN THE EXPORT, which (ak) names among the everywheres.
+ *
+ * THE ROW USED TO CONTRADICT ITSELF, which is worse than being plainly
+ * wrong: the Status column read "Deed Issued" (because `status` stays at
+ * 'deed' through a cancellation) while the Payment state column beside it
+ * read "Refunded". A reader could take either half as the live fact, and
+ * the two columns are inches apart.
+ */
+describe('the application export', () => {
+  it('says the deed was cancelled, not issued', async () => {
+    const { buildRealApplicationDoc } = await import('./exportsService');
+    const { hydrateFull } = await import('./applicationsService');
+    const base = {
+      partner: 'opndoor-agents', agency: 'An Agency', branch: 'An Office',
+      rent: 1800, fee: 600, agentRate: 0.25, partnerRate: 0.25,
+      status: 'deed' as const, tenancyStart: new Date('2026-06-01'),
+      deedAt: new Date('2026-06-01'), expiry: null,
+      sentAt: new Date('2026-06-01'), paidAt: new Date('2026-06-01'),
+      referrer: 'A Referrer', partiallyRefunded: false,
+    };
+    hydrateFull([
+      { ...base, ref: 'GR-CANX', refunded: true, refundedAt: new Date('2026-06-10'),
+        refundedAmount: 600, deedState: 'cancelled' },
+      { ...base, ref: 'GR-LIVE', refunded: false, refundedAt: null,
+        refundedAmount: null, deedState: 'executed' },
+    ] as never[]);
+
+    const built = buildRealApplicationDoc(
+      'superadmin',
+      { from: new Date('2026-06-01'), to: new Date('2026-06-30') },
+      'referred',
+      { label: 'June 2026', recon: '', hint: '' },
+    );
+    /* THE ROWS LIVE IN THE SHEET'S DOC, as a table block. Reading
+       `sheet.rows` returns undefined and every assertion below would then
+       pass vacuously on an empty array -- which is how a test that proves
+       nothing looks from the outside. */
+    const table = built?.sheets?.[0]?.doc?.blocks?.find((b) => b.kind === 'table');
+    const rows = ((table as { rows?: (string | number)[][] } | undefined)?.rows ?? []);
+    expect(rows.length, 'the export produced rows at all').toBeGreaterThan(0);
+    const cancelled = rows.find((r) => r.includes('GR-CANX'));
+    const live = rows.find((r) => r.includes('GR-LIVE'));
+
+    expect(cancelled, 'the cancelled row is still exported: it happened').toBeTruthy();
+    expect(cancelled).toContain('Deed cancelled');
+    expect(cancelled).not.toContain('Deed Issued');
+    // And the row it sits next to is untouched, so this is the cancellation
+    // and not the export losing its status column.
+    expect(live).toContain('Deed Issued');
+
+    hydrateFull([]);
+  });
+});
