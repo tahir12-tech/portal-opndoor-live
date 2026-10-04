@@ -4518,6 +4518,15 @@ both estates, the dialog, and FAQ 9 on both rails.
   supplier already sees the tenant's full name on the referral, the
   payment page and the signed deed.
 
+**Matt, widening it in the next breath:**
+
+> All settlement statement downloads on Reporting (supplier and agent): show tenants' full names, matching the statements on each Commission tab and in the monthly emails, not initials.
+
+- SO IT IS BOTH RAILS AND THE WHOLE OF REPORTING, not one download. The
+  comparison is named twice now -- the Commission tabs and the monthly
+  emails -- which makes those the definition of right, and Reporting the
+  only place that disagrees.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
