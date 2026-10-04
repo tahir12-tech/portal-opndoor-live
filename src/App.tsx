@@ -139,11 +139,23 @@ export function App() {
         {/* opndoor_manager is Opndoor ops staff: it reads the whole book like an
             admin (its RLS read arms mirror superadmin) but cannot create referrals
             or reach the sensitive-settings routes below. */}
+        {/* APPLICATIONS, FOR EVERYBODY WHO READS THE BOOK, developers
+            included: they are the person debugging what the API produced. */}
         <Route element={<RequireRole roles={['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer']} redirectTo="/dev-centre" />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/league" element={<League />} />
           <Route path="/applications" element={<Applications />} />
           <Route path="/applications/:ref" element={<ApplicationDetail />} />
+        </Route>
+
+        {/* AND REFERRAL PERFORMANCE, WHICH A DEVELOPER HAS NONE OF. Matt
+            (at): hide League and Reporting from a supplier Developer, "they're
+            for referral performance and show nothing useful to a developer".
+
+            THE ROUTE, NOT ONLY THE TABS. Taking them out of the sidebar
+            leaves two addresses a developer can still type, and both pages
+            would then show them somebody else's figures counted as theirs. */}
+        <Route element={<RequireRole roles={['superadmin', 'opndoor_manager', 'management', 'referrer']} redirectTo="/applications" />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/league" element={<League />} />
         </Route>
 
         {/* Staff tools for people who work the book. opndoor_manager works the

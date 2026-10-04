@@ -416,9 +416,12 @@ export function Applications() {
      office's id, not its name." See branchOptionsForScope. */
   const branchOptions = branchOptionsForScope(scopeOpts, agency || originAgency);
   const referrerOptions = referrerNamesForScope(scopeOpts);
-  // opndoor staff (superadmin + opndoor_manager) view every partner's book, so
-  // both get the Origin column and the Origin filter to sub-filter by one party.
-  const showPartner = isOpsStaff;
+  /* `showPartner` and `showRoute` are gone with the expression that used
+     them. Origin replaced both columns and is now gated on `isOpsStaff`
+     directly, so a derived flag that said "opndoor staff" the long way round
+     and a shape flag that said "this book spans two rails" are both dead
+     weight -- and the second was the one quietly showing the column to a
+     supplier. */
   const showReferrer = role !== 'referrer';
 
   /* WHAT DOES THIS VIEWER HAVE MORE THAN ONE OF?
@@ -447,17 +450,23 @@ export function Applications() {
      stay for the right reason instead of by exemption. */
   const shape = useMemo(() => viewerShape(role, effectiveScope), [role, effectiveScope, dataVersion]);
   const measured = shape.agencies > 0;
-  const showRoute = !(measured && shape.oneRoute);
   const showAgency = !(measured && shape.oneAgency);
   const showBranch = !(measured && shape.oneBranch);
   /* Branch and agency share one column (the branch, its agency underneath), so
      the column survives while either half still varies. */
   const showOrgCol = showBranch || showAgency;
-  /* ORIGIN IS SHOWN WHERE EITHER OF THE TWO COLUMNS IT REPLACES WAS: opndoor
-     staff, who read across every partner, and anybody else whose book runs
-     across more than one rail. An agency user has one of each and gets neither,
-     exactly as before. */
-  const showOrigin = showPartner || showRoute;
+  /* ORIGIN IS OPNDOOR'S OWN VIEW, AND NOW SAYS SO IN ONE TEST.
+     Matt (tt): "Applications for supplier and agency users: hide the
+     'Origin' filter and column (it's Opndoor's own view)."
+
+     IT USED TO BE `showPartner || showRoute`, which is a SHAPE test wearing
+     an audience test's clothes. It happened to hide the column from an
+     agency with one route, and happened to show it to any customer whose
+     own book spanned two rails -- a supplier with agencies on more than one
+     route being the obvious case, and exactly the reader Matt is naming.
+     The answer never depended on the shape of somebody's book; it depends
+     on whether they are us. */
+  const showOrigin = isOpsStaff;
   /* AND IT SUBSUMES THE AGENCY CHIP where it is shown, because it lists every
      agency and group in the book itself. Two chips both offering agencies is the
      same word twice, which is what this page takes columns off for. The Branch

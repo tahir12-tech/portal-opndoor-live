@@ -54,9 +54,19 @@ export const NAV: NavGroup[] = [
       // refuses them in SQL regardless of what the nav shows.
       // opndoor staff land here (queues first); partners land on Reporting.
       { id: 'home', label: 'Home', to: '/home', icon: 'home', roles: ['superadmin', 'opndoor_manager'] },
-      { id: 'dashboard', label: 'Reporting', to: '/dashboard', icon: 'dashboard', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'] },
+      /* NO REPORTING OR LEAGUE FOR A DEVELOPER. Matt (at): "they're for
+         referral performance and show nothing useful to a developer; keep
+         Applications and Dev Centre."
+
+         A DEVELOPER IS NOT ON THE REFERRAL LADDER AT ALL, which is the
+         reason rather than the tidiness: they create nothing (the comment
+         above this block already notes they are not on 'new'), so every
+         figure on both screens is somebody else's work counted for them.
+         Applications stays because they are the person debugging what the
+         API produced. */
+      { id: 'dashboard', label: 'Reporting', to: '/dashboard', icon: 'dashboard', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer'] },
       { id: 'applications', label: 'Applications', to: '/applications', icon: 'apps', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'] },
-      { id: 'league', label: 'League', to: '/league', icon: 'trend', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer', 'developer'] },
+      { id: 'league', label: 'League', to: '/league', icon: 'trend', roles: ['superadmin', 'opndoor_manager', 'management', 'referrer'] },
       { id: 'new', label: 'New application', to: '/new-application', icon: 'plus', roles: ['superadmin', 'management', 'referrer'] },
     ],
   },
