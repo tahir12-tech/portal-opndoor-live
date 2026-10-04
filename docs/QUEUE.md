@@ -3312,6 +3312,19 @@ the one real assertion that has never run.
 - THE SUPPLIER IS NAMED IN THE SENTENCE ("all of [supplier]'s referrals"),
   so it is not a constant: it takes the party.
 
+### (tt) Origin is Opndoor's own view
+
+> Applications for supplier and agency users: hide the "Origin" filter and column (it's Opndoor's own view).
+
+- ORIGIN IS WHICH RAIL A REFERRAL CAME DOWN, which is a fact about how WE
+  route work and means nothing to the party reading it: every row a
+  supplier or agency can see has the same origin, theirs.
+- SO IT IS A COLUMN THAT CANNOT VARY FOR ITS READER, the same argument as
+  dropping "Commission by supplier" from a supplier's own export in (ff).
+- BOTH THE FILTER AND THE COLUMN, and the filter matters more: a control
+  offering to narrow by something that never differs is worse than a column
+  that merely repeats.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
