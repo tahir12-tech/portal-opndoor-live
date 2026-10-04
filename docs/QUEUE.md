@@ -3029,6 +3029,24 @@ the one real assertion that has never run.
   is worse than no send.
 - IF IT IS BROKEN, FIXING IT IS IN SCOPE. If it is not, touching it is not.
 
+### (bb) What an opndoor manager may see and do
+
+> opndoor managers: give them the Suppliers list and each supplier's page read-only (no editing settings, commission, keys or people), and New application on behalf of any supplier or agency, the same form admins use. Still no commission, settlements, bordereau, opndoor team or Health. Test as the dev opndoor manager (test@123.com).
+
+- **THE ONLY ITEM IN THIS BATCH THAT WIDENS WHAT SOMEBODY CAN REACH**, so it
+  is the only one that is a security change rather than copy or arithmetic.
+  It needs the `app_may_reach_*` predicates and the isolation suite, not a
+  client-side role check: a page that merely hides a button is not read-only.
+- THE LIST OF WHAT STAYS SHUT IS PART OF THE INSTRUCTION and has to be
+  tested as such: commission, settlements, bordereau, opndoor team, Health.
+  A test that only proves the new access is half a test.
+- "THE SAME FORM ADMINS USE" means New application unchanged, with the
+  admin's Referred by and route choice, which is itself a privileged control
+  (only an admin may state a route: create_referral refuses anyone else).
+  **So that server guard has to learn about opndoor_manager, or the form
+  will offer a choice the database refuses.**
+- TEST ACCOUNT NAMED: test@123.com.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
