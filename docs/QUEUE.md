@@ -3170,6 +3170,22 @@ the one real assertion that has never run.
 - "TELL ME WHEN 1 AND 2 ARE DONE SO I CAN RE-TEST" is a reporting
   instruction: report after (hh), not after the whole queue.
 
+### (kk) A supplier-estate agency's Commission tab shows the wrong deal
+
+> Commission tab of an agency inside a supplier's estate (e.g. Example Lettings as Kestrel Management): it shows Opndoor's agency standard ("Opndoor standard 10% · paid to Example Lettings", "Opndoor pays this on 15 Oct"), which is wrong. Show the supplier's deal for this agency instead, e.g. "On Kestrel Lettings' agency deal: 10% (1 to 5 tenants), 15% (6 to 10)", and who pays it per the supplier's current setting ("Kestrel Lettings pays this agency" or "Opndoor pays this agency directly"). Read-only for everyone; deals are set on the supplier's Commission tab (part of (gg)). Also, an agency added from the Agencies page says "added while referring"; say "added by [name]".
+
+- THE SAME SCREEN AS (gg) AND THE SAME RULE: an agency inside a supplier's
+  estate has no deal of its own, so its tab must READ the supplier's and
+  edit nothing. (gg) removes the editor; this says what goes in its place.
+- **"PER THE SUPPLIER'S CURRENT SETTING" IS DELIBERATE AND IS THE OPPOSITE
+  OF (q).** On a statement the wording follows the setting FROZEN on each
+  referral, because that is what was paid. On a deal page there is no
+  referral to freeze: the page describes the arrangement as it stands. Two
+  rules that look contradictory and are not, and the difference is whether
+  the subject is money already moved or terms now in force.
+- THE PROVENANCE LINE IS SEPARATE AND SMALL: "added while referring"
+  describes the ROUTE somebody used, and the reader wants the PERSON.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
