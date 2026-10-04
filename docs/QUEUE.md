@@ -4043,6 +4043,24 @@ both estates, the dialog, and FAQ 9 on both rails.
 - TESTED AS test@123.com, the dev opndoor manager, which is what Matt asked
   for and is also the only way to prove the guard and the predicate agree.
 
+### (ay) Net fees should say how many referrals it counted
+
+> Reporting "Net fees": count paid referrals excluding refunded ones, e.g. "across 15 paid referrals (1 refunded)".
+
+- A FIGURE WITH NO DENOMINATOR. "Net fees" is a sum, and the line under it
+  is what tells a reader whether the number is large because the fees are
+  large or because the month was busy.
+- **"NET" ALREADY MEANT REFUNDS WERE OUT OF THE MONEY, and the count did not
+  say so.** That is the actual fault: if the sum excludes a refunded
+  referral but the count includes it, the two disagree and the average a
+  reader computes in their head is wrong.
+- THE PARENTHETICAL IS CONDITIONAL. "(1 refunded)" must not appear as
+  "(0 refunded)" on the overwhelming majority of months that have none.
+- LANDS NEXT TO THE REFUND CASCADE, which is what makes the refunded count
+  non-zero in the first place, so the two want checking together.
+- SINGULAR AND PLURAL BOTH: "1 paid referral (1 refunded)" has to read as
+  English, which is what theCountsReadAsEnglish exists to enforce.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
