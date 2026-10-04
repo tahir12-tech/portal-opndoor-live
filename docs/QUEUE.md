@@ -4139,6 +4139,23 @@ both estates, the dialog, and FAQ 9 on both rails.
   still paid with live deeds. That is a true record of what happened and
   must not be back-filled.
 
+### (ba) A supplier's joint tenant is not told it is a share
+
+> Supplier joint referrals: the Payment section says "£1,250.37 · one month's rent" without "(this tenant's 33% share)"; match the agency wording, also in the tenant's payment email and Stripe description.
+
+- **THE FIGURE IS RIGHT AND THE SENTENCE IS WRONG, which is the dangerous
+  shape.** £1,250.37 is a third of the fee; calling it "one month's rent"
+  tells a tenant they are paying the whole thing, and the next thing they do
+  is ask the agent why three people are each paying a month's rent.
+- THREE SURFACES AND MATT NAMES ALL THREE: the Payment section, the tenant's
+  email, and the STRIPE DESCRIPTION, which is the one that turns up on a
+  bank statement and the only one we cannot correct afterwards.
+- "MATCH THE AGENCY WORDING" IS THE SPEC, as with (ab): there is a working
+  sentence to reach rather than a new one to write. The agency rail already
+  says "(this tenant's 33% share)".
+- THE SIXTH SITE TODAY where the supplier rail reads differently from the
+  agency rail for no reason anybody chose.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
