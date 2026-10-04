@@ -2467,6 +2467,26 @@ the basis unit through `referral_fee_preview` and `feeBasisLabel`. Then item
 3's sentence. Then the Kestrel end-to-end on dev, portal and sandbox API.
 I have not changed anything yet.
 
+### (d) The go-ahead on (b), and a guard on every deal save
+
+> Agreed, in your order: 1) freeze the supplier's total commission using the same real tenant count as the agency share; 2) the fee basis unit ("1 month", not "1 weeks"); 3) item 3's sentence; 4) Kestrel joint tenancy end to end on portal and sandbox API. Also: when any deal is saved (supplier or agency-level within a supplier), refuse it if the agency's share could exceed the supplier's total at any tenant count or volume, with a plain message saying which band breaks it. Show me the before and after figures for the 3-tenant Kestrel case.
+
+- THE FOUR ARE THE ORDER I PROPOSED and he has taken it as it stands, so the
+  reasoning behind the order is his now too: the commission freeze first
+  because it is the only one that moves money.
+- **THE FIFTH IS NEW AND IS THE REAL ADDITION.** "when any deal is saved
+  (supplier or agency-level within a supplier)" is the gap the audit found:
+  `supplier_share_breaches` compares PARTNER-scope deals only, and the deal
+  that breached was an AGENCY-scope one. "at any tenant count or volume" is
+  the same breakpoint sweep the existing check does, widened to the agency
+  scope. "saying which band breaks it" means the message names the
+  combination, not just that one exists.
+- "ANY DEAL" INCLUDES THE SAVE PATHS, not only the checker: the supplier's own
+  Commission tab, the agencies' % default, and the bespoke per-agency deals.
+  All three must refuse.
+- BEFORE AND AFTER FIGURES FOR THE 3-TENANT KESTREL CASE is an explicit
+  deliverable, not a courtesy. The before figures are in the audit above.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
