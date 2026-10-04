@@ -26,6 +26,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   EMPTY_PANEL, getPersonPanel, setPersonEvent, setPersonInternal,
+  whoDecidesThis, whoDecidesCopies,
   type InternalRow, type PersonPanel,
 } from '@/data/personNotifications';
 import {
@@ -101,7 +102,7 @@ export function PersonNotifications({ userId, personName, onClose }: PersonNotif
                 {/* SAID WHERE THE CONTROL IS. A disabled box with no
                     explanation is the thing item 9 objected to. */}
                 {!panel.mayEditCopied && (
-                  <span className="pn__locked">A Director decides who is copied in.</span>
+                  <span className="pn__locked">{whoDecidesCopies(panel.partyKind)}</span>
                 )}
               </label>
             </section>
@@ -121,7 +122,7 @@ export function PersonNotifications({ userId, personName, onClose }: PersonNotif
                 />
                 <span className="pn__lbl">{COMMISSION_STATEMENT_LABEL}</span>
                 {!panel.mayEditStatements && (
-                  <span className="pn__locked">A Director, or Opndoor, decides this.</span>
+                  <span className="pn__locked">{whoDecidesThis(panel.partyKind)}</span>
                 )}
               </label>
             </section>

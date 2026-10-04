@@ -148,3 +148,34 @@ export async function setPersonEvent(userId: string, type: string, enabled: bool
     { p_user: userId, p_type: type, p_enabled: enabled });
   if (error) throw new Error(error.message);
 }
+
+/* WHO DECIDES A SETTING THE READER CANNOT CHANGE, in their estate's words.
+ *
+ * Matt, 2026-10-04 (qq): 'on supplier people, "A Director, or Opndoor,
+ * decides this" should say "Management, or opndoor, decides this".'
+ *
+ * THE FIFTH SITE TODAY with the agency ladder in supplier copy, after the
+ * Commission tab, the FAQs, the Reporting note and the Team page. Same cause
+ * every time: a sentence written for the agency rail, correct when it was
+ * written, then shown to a supplier whose estate has no Director in it.
+ *
+ * AND THE SAME FIX AS whoSeesEverything in capabilities.ts, which is its
+ * sibling: name the rung, do not translate the word. An agency has a
+ * Director above a Manager; a supplier's top rung is Management. "opndoor"
+ * is lowercase here as it is everywhere else in this product's copy, which
+ * the old string got wrong too.
+ */
+export function whoDecidesThis(kind: PartyKind): string {
+  if (kind === 'supplier') return 'Management, or opndoor, decides this.';
+  // opndoor's own staff see this panel for their colleagues; there is no
+  // customer ladder above them, so opndoor is the only answer.
+  if (kind === 'opndoor') return 'opndoor decides this.';
+  return 'A Director, or opndoor, decides this.';
+}
+
+/** The same question about who is copied in. One sentence per estate. */
+export function whoDecidesCopies(kind: PartyKind): string {
+  if (kind === 'supplier') return 'Management decides who is copied in.';
+  if (kind === 'opndoor') return 'opndoor decides who is copied in.';
+  return 'A Director decides who is copied in.';
+}

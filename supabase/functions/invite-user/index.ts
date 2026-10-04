@@ -482,7 +482,39 @@ Deno.serve(async (req) => {
        each name it one join away. Read with the SERVICE client because this
        is a display name for an email and the invitee cannot read it yet. */
     let agencyName: string | null = null;
-    if (effectiveScopeKind === "agency" && effectiveScopeTarget) {
+    /* A RESEND HAS NO SCOPE TO READ, which is why Matt named resends
+       separately. Matt (ab): "Invite emails for agency users (including
+       resends) should name the agency."
+
+       `resendInvite` posts no scopeKind and no scopeTarget -- deliberately,
+       because the person already holds a position and re-granting one is
+       round 5's H3. So `effectiveScopeKind` is null on every resend, both
+       branches below find nothing, and `namedParty` fell back to the
+       partner: "Opndoor Agents" on the agency rail, which is the house
+       plumbing this whole block exists to keep out of an email.
+
+       SO THE POSITION THEY ALREADY HOLD IS THE ANSWER, read here rather
+       than inferred. Their first invite named their agency correctly; a
+       resend of it must say the same thing, and the only reason it did not
+       is that the scope arrived in the request last time and not this. */
+    if (!effectiveScopeKind && existing) {
+      const { data: held } = await service
+        .from("user_scopes")
+        .select("kind, agency_id, branch_id")
+        .eq("user_id", existing.id)
+        .limit(1).maybeSingle();
+      if (held?.agency_id) {
+        agencyName = (await service.from("agencies").select("name").eq("id", held.agency_id).maybeSingle()).data?.name ?? null;
+      } else if (held?.branch_id) {
+        const { data: br } = await service.from("branches").select("agency:agencies(name)").eq("id", held.branch_id).maybeSingle();
+        // deno-lint-ignore no-explicit-any
+        const ag = (Array.isArray(br?.agency) ? (br?.agency as any)[0] : (br?.agency as any)) ?? null;
+        agencyName = ag?.name ?? null;
+      }
+    }
+    if (agencyName) {
+      // Already answered from the position they hold.
+    } else if (effectiveScopeKind === "agency" && effectiveScopeTarget) {
       agencyName = (await service.from("agencies").select("name").eq("id", effectiveScopeTarget).maybeSingle()).data?.name ?? null;
     } else {
       /* A branch position, or a home branch, names the agency one join
