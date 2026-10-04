@@ -3805,6 +3805,54 @@ BLOCK 3, the wording sweeps, guides and copy: everything else.
 Written while he is away, each with a recommendation. Nothing here has been
 acted on.
 
+### ANSWER: (ao), and one duplicate call explains all three symptoms
+
+**ITEM 3, THE CO-TENANT: YES.** GR-25833's tenancy_start is 2026-10-17,
+alongside GR-25834. One tenancy, one date, as it should be.
+
+**ITEM 2, THE DEED: IT WAS CREATED AND SENT.** GR-25834 holds
+deed_state 'awaiting_tenant', a pandadoc document id, and deed_sent_at
+17:00:27. So the TENANCY BOX was right and the DEED SECTION was wrong.
+
+**ITEM 1, AND IT IS THE CAUSE OF ITEM 2 AS WELL.** The log was not a
+read-after-write: `oldDmy` is taken before the RPC. The function RAN TWICE,
+and dev's log proves it:
+
+    17:00:21  tenancy_amended  from 17/10/2026 to 17/10/2026
+    17:00:21  deed_voided      ... amendment from 16/10/2026 ...
+    17:00:27  tenancy_amended  from 16/10/2026 to 17/10/2026
+
+One call read 16, moved it, and spent six seconds voiding and regenerating
+the deed. A second call arrived while the first was still working, read the
+date the first had ALREADY WRITTEN, found nothing to do, and logged that it
+had done it. The meaningless row was written first and is the one at the top.
+
+AND THE SECOND CALL IS WHY THE PAGE WAS STALE. The client calls
+`loadPayment()` after the amendment returns. The no-op call returned
+immediately, at 17:00:21, so the page re-read the deed state while the real
+call was still regenerating, saw a voided deed, and said "Deed not yet
+issued". Nothing refreshed it again.
+
+FIXED by making the no-op a no-op: amending a date to the date it already
+has writes no audit row, voids no deed and sends no email. One call, one
+log, and `loadPayment()` runs after the deed work rather than during it.
+The date format is "16 Oct 2026" now, as asked.
+
+### DECISION FOR MATT: should "deed regenerated" be visible to the agent?
+
+You noted "no new 'sent for signature' entry". There IS one, as
+`deed_regenerated` at 17:00:27, but it is written `visibility: 'internal'`
+and a deliberate comment says the single business `tenancy_amended` entry is
+meant to be the only partner-visible row for an amendment.
+
+So this is a decision rather than a bug, and I have not changed it.
+
+RECOMMENDATION: make it business-visible. A tenant being asked to sign a
+second deed is a thing the agent is answerable for, and the amendment row
+says the date changed without saying a new signature is now outstanding. The
+risk the internal setting was guarding against is noise, and one extra row
+per amendment is not noise.
+
 ### ANSWER: who is asked for the GBP 20 application fee today
 
 Matt asked (yy), answer only, change nothing. Measured on dev.

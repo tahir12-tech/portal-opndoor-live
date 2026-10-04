@@ -24,9 +24,16 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
 /** yyyy-mm-dd (or ISO) -> dd/mm/yyyy for the activity message. */
+/* "16 Oct 2026", not "16/10/2026". Matt, 2026-10-04: 'use "16 Oct 2026"
+   format'. This is the portal's one date format, and an audit row a human
+   reads a year later should not need the reader to know whether we write
+   days or months first. */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 function dmy(iso: string | null): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? "");
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso ?? "");
+  if (!m) return iso ?? "";
+  const mi = Number(m[2]) - 1;
+  return `${Number(m[3])} ${MONTHS[mi] ?? m[2]} ${m[1]}`;
 }
 
 Deno.serve(async (req) => {
@@ -65,6 +72,33 @@ Deno.serve(async (req) => {
     const oldDmy = dmy(app.tenancy_start);
     const newDmy = dmy(newStart);
     const dateChange = `from ${oldDmy} to ${newDmy}`;
+
+    /* A DATE THAT IS NOT MOVING IS NOT AN AMENDMENT.
+
+       Matt, 2026-10-04: the activity log said "amended from 17/10/2026 to
+       17/10/2026". It was not a read-after-write: `oldDmy` is taken above,
+       before the RPC. It was this function running TWICE, and the log on dev
+       proves it. Two tenancy_amended rows six seconds apart:
+
+         17:00:21  tenancy_amended  from 17/10/2026 to 17/10/2026
+         17:00:21  deed_voided      ... amendment from 16/10/2026 ...
+         17:00:27  tenancy_amended  from 16/10/2026 to 17/10/2026
+
+       One call read 16 and moved it, taking six seconds over voiding and
+       regenerating the deed. A second call, arriving while the first was
+       still working, read the date the first had ALREADY WRITTEN, found
+       nothing to do, and logged that it had done it. The correct row is the
+       17:00:27 one; the meaningless one was written first and is the one a
+       reader sees at the top.
+
+       SO THE GUARD IS THE RULE ITSELF rather than a lock: amending a date to
+       the date it already has is a no-op, and a no-op writes no audit row,
+       voids no deed and sends no email. That is true whatever caused the
+       second call -- a double click, a retry, two tabs -- and it is worth
+       saying even with one caller. */
+    if (app.tenancy_start === newStart) {
+      return json({ ok: true, unchanged: true, message: "That is already the tenancy start date, so nothing was changed." });
+    }
 
     // #82 Amending a SIGNED (executed) deed is destructive: it voids/supersedes the
     // signed deed, reissues it to the tenant, and re-notifies the agent once
