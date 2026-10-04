@@ -668,15 +668,80 @@ export function paymentReceiptEmail(p: {
   };
 }
 
-export function refundEmail(p: { propertyAddr: string; guaranteeRef: string; amount: string }): Message {
+/* THE DEED HALF IS CONDITIONAL, and it is the half that matters most.
+ *
+ * Matt (al): each tenant gets "Your guarantee fee has been refunded and your
+ * Deed of Guarantee is cancelled".
+ *
+ * NOT EVERY REFUND CANCELS A DEED. A tenant refunded before they signed has
+ * nothing to cancel, and telling them their Deed of Guarantee is cancelled
+ * would be the first they had heard of one existing. So the caller passes
+ * what actually happened rather than the template assuming it.
+ *
+ * AND IT SAYS WHAT IT MEANS FOR THEM. "Your deed is cancelled" is a fact
+ * about a document; "you are no longer guaranteed for this tenancy" is what
+ * the tenant needs to act on, and they should hear it from us before they
+ * hear it from the agent. */
+export function refundEmail(p: {
+  propertyAddr: string; guaranteeRef: string; amount: string; deedCancelled?: boolean;
+}): Message {
+  const cancelled = p.deedCancelled === true;
   return {
     audience: "tenant",
-    subject: `Refund issued for ${p.guaranteeRef}`,
-    heading: "Your guarantee fee has been refunded",
+    subject: cancelled
+      ? `Refund issued and guarantee cancelled for ${p.guaranteeRef}`
+      : `Refund issued for ${p.guaranteeRef}`,
+    heading: cancelled
+      ? "Your guarantee fee has been refunded and your Deed of Guarantee is cancelled"
+      : "Your guarantee fee has been refunded",
     blocks: [
       { p: `Your guarantee fee for ${p.propertyAddr} has been refunded. The refund is on its way back to the card you paid with.` },
+      ...(cancelled
+        ? [{ p: "Your Deed of Guarantee has been cancelled, so you are no longer guaranteed for this tenancy. Your letting agent has been told." }]
+        : []),
       { rows: [["Reference", p.guaranteeRef], ["Amount refunded", p.amount]] },
       { small: "It usually appears within five to ten working days, depending on your bank." },
+    ],
+  };
+}
+
+/* ONE EMAIL TO THE AGENT FOR THE WHOLE PROPERTY, not one per tenant.
+ *
+ * Matt (al): "the agent (and any landlord sent a deed) gets one email
+ * listing every tenant on the tenancy and saying all guarantees for the
+ * property are cancelled."
+ *
+ * WHY ONE AND NOT THREE. Three emails about one property, arriving within a
+ * minute of each other, read as three separate problems. The agent has one
+ * problem: the let is off. The list is what tells them the scale of it.
+ *
+ * IT NAMES EVERY TENANT INCLUDING THE ONE WHO STARTED IT, because from the
+ * agent's side there is no trigger and no cascade, only a tenancy that is
+ * not going ahead. */
+export function guaranteesCancelledEmail(p: {
+  propertyAddr: string;
+  tenants: Array<{ name: string; guaranteeRef: string }>;
+  audience?: "agent" | "landlord";
+}): Message {
+  const many = p.tenants.length > 1;
+  return {
+    audience: "partner",
+    subject: many
+      ? `Guarantees cancelled for ${p.propertyAddr}`
+      : `Guarantee cancelled for ${p.propertyAddr}`,
+    heading: many ? "These guarantees have been cancelled" : "This guarantee has been cancelled",
+    blocks: [
+      {
+        p: many
+          ? `The guarantee fees for ${p.propertyAddr} have been refunded, so all guarantees for the property are cancelled. The tenancy is not going ahead.`
+          : `The guarantee fee for ${p.propertyAddr} has been refunded, so the guarantee is cancelled.`,
+      },
+      { rows: p.tenants.map((t) => [t.name, t.guaranteeRef] as [string, string]) },
+      {
+        small: p.audience === "landlord"
+          ? "Any Deed of Guarantee you were sent for this property no longer applies. Your letting agent can tell you more."
+          : "Any Deed of Guarantee issued for this property no longer applies. Each tenant has been emailed separately.",
+      },
     ],
   };
 }

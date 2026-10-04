@@ -58,6 +58,10 @@ function feedText(kind: string, tenant: string) {
     case 'deed_delivered_landlord': return <>Deed of Guarantee sent to the landlord for {t}</>;
     case 'deed_undelivered': return <>Deed issued for {t}, no agent contact on file</>;
     case 'deed_regenerated': return <>Deed regenerated for {t}</>;
+    /* THE GUARANTEE ENDED. Not "refunded", which is the money: a tenant can
+       be refunded before signing, and then there is no deed to cancel. */
+    case 'deed_cancelled': return <>Deed of Guarantee cancelled for {t} after a refund</>;
+    case 'refund_cascade_started': return <>Refund started for {t} because a co-tenant was refunded</>;
     case 'deed_reissued': return <>Deed reissued for {t}</>;
     case 'tenancy_amended': return <>Tenancy start amended for {t}</>;
     case 'tenancy_correction_applied': return <>Tenancy start corrected by the agent for {t}</>;
@@ -69,6 +73,9 @@ function feedDot(kind: string): string {
   if (kind === 'payment_received') return 'var(--paid)';
   if (kind === 'refunded' || kind === 'deed_undelivered') return 'var(--danger, #d64545)';
   if (kind === 'deed_signed' || kind === 'deed_issued' || kind === 'deed_reissued' || kind === 'deed_regenerated' || kind === 'deed_delivered' || kind === 'deed_delivered_landlord') return 'var(--deed)';
+  // NOT the deed colour. A cancelled guarantee and a delivered one must
+  // not read the same at a glance, which is the whole job of the dot.
+  if (kind === 'deed_cancelled' || kind === 'refund_cascade_started') return 'var(--ink-mute, #7a7a8c)';
   return 'var(--sent)'; // referral_created, deed_sent, deed_viewed, tenancy_amended
 }
 interface FeedRow { id: string; ref: string; dot: string; text: ReactNode; meta: string; }

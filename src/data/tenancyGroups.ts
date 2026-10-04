@@ -49,7 +49,7 @@ import { countOf } from '@/lib/plural';
  * recipient to wait on. Signed and executed are one event today, so inventing a
  * 'signed' rung would give a screen a state nothing can ever put it in.
  */
-export type MemberDeed = 'none' | 'awaiting' | 'executed' | 'declined' | 'voided' | 'error';
+export type MemberDeed = 'none' | 'awaiting' | 'executed' | 'declined' | 'voided' | 'error' | 'cancelled';
 
 /** What each deed state is called on screen. Plain words: nobody outside this
     file should have to know what awaiting_tenant is. */
@@ -60,6 +60,12 @@ export const MEMBER_DEED_LABEL: Record<MemberDeed, string> = {
   declined: 'Declined to sign',
   voided: 'Deed voided',
   error: 'Deed could not be issued',
+  /* MATT'S OWN WORDS, (ak): the deed must read "Cancelled: fee refunded"
+     everywhere, "never 'Deed executed'". The reason is on the label rather
+     than only in the row beside it, because this string is what a reader
+     scanning a tenancy box sees, and "Cancelled" alone invites the question
+     the second half answers. */
+  cancelled: 'Cancelled: fee refunded',
 };
 
 /** How a deed state should read: not started, in flight, done, or wrong. Kept
@@ -68,6 +74,9 @@ export function memberDeedTone(d: MemberDeed): 'none' | 'progress' | 'done' | 'p
   if (d === 'executed') return 'done';
   if (d === 'awaiting') return 'progress';
   if (d === 'none') return 'none';
+  // 'cancelled' falls here with declined, voided and error. It is NOT 'done':
+  // a guarantee that ended is not a guarantee that completed, and colouring
+  // it like an executed deed is the exact confusion (ak) exists to end.
   return 'problem';
 }
 
@@ -95,6 +104,10 @@ export interface TenancyMember {
   deedState: string | null;
   /** The same fact, reduced to what a row prints. */
   deed: MemberDeed;
+  /** Has this member's fee gone back? Separate from `paid`, which is false
+      for a refunded member AND for one who never paid. The tenancy's count
+      has to tell those two apart: one needs chasing, the other does not. */
+  refunded: boolean;
 }
 
 /** A tenancy, and the applications that make it up. */
@@ -117,6 +130,11 @@ export interface TenancyGroup {
       is still the answer to "is this tenancy settled". */
   fullyPaid: boolean;
   unpaidCount: number;
+  /** How many members have had their fee returned. Matt (ak): the count must
+      read "2 of 3 tenants paid, 1 refunded". Kept as its own tally rather
+      than folded into unpaidCount, because "has not paid yet" and "paid and
+      got it back" are different things to an agent chasing a tenancy. */
+  refundedCount: number;
   /** How many members HAVE paid. The complement of unpaidCount, kept beside it
       because the two tallies a heading prints are "2 of 2 paid" and "1 of 2
       deeds": deriving the first as members.length - unpaidCount at each call
@@ -167,6 +185,7 @@ export function groupTenancies(rows: ApplicationSummary[]): Map<string, TenancyG
       status: r.status,
       deedState: r.deedState ?? null,
       deed: deedOf(r),
+      refunded: r.refunded === true,
     }));
     out.set(tenancyId, {
       tenancyId,
@@ -177,6 +196,7 @@ export function groupTenancies(rows: ApplicationSummary[]): Map<string, TenancyG
       prop: lead.prop,
       fullyPaid: members.every((m) => m.paid),
       unpaidCount: members.filter((m) => !m.paid).length,
+      refundedCount: members.filter((m) => m.refunded).length,
       paidCount: members.filter((m) => m.paid).length,
       deedsExecuted: members.filter((m) => m.deed === 'executed').length,
     });
@@ -196,8 +216,18 @@ export function groupTenancies(rows: ApplicationSummary[]): Map<string, TenancyG
  * know about is not evidence of a deed.
  */
 function deedOf(r: ApplicationSummary): MemberDeed {
+  /* CANCELLED IS TESTED BEFORE THE STATUS, and this is the ordering bug the
+     cancellation would otherwise have walked straight into. Cancelling does
+     NOT move `status` off 'deed' -- the application still reached the deed
+     stage and every status filter, count and export depends on it staying
+     there. So the status shortcut below, which exists for rows hydrated
+     before deed_state arrived, would have reported a cancelled guarantee as
+     "Deed executed": precisely what Matt asked never to happen, produced by
+     a line written for an unrelated reason two months earlier. */
+  if (r.deedState === 'cancelled') return 'cancelled';
   if (r.status === 'deed') return 'executed';
   switch (r.deedState) {
+    case 'cancelled': return 'cancelled';
     case 'executed': return 'executed';
     case 'awaiting_tenant': return 'awaiting';
     case 'declined': return 'declined';
@@ -308,8 +338,29 @@ export function everyTenant(n: number): string {
 
 export function tenancyProgress(g: TenancyGroup): string {
   const n = g.members.length;
+  /* THE REFUNDED TAIL, and it changes the shape of the whole sentence.
+     Matt (ak): the count reads "2 of 3 tenants paid, 1 refunded".
+
+     "All 3 tenants have paid" CANNOT BE SAID once one of them has been
+     refunded, which is why the fullyPaid branch is now guarded: isPaid()
+     already returns false for a refunded member, so fullyPaid goes false the
+     moment a refund lands -- but the sentence below it would then have read
+     "2 of 3 tenants have paid", which is true and useless. It leaves the
+     agent to work out whether the third has not paid yet or has had the
+     money back, and those call for opposite actions. */
   if (g.fullyPaid) return `${everyTenant(n).charAt(0).toUpperCase()}${everyTenant(n).slice(1)} have paid`;
   const paid = n - g.unpaidCount;
+  /* THE REFUND-FREE SENTENCE IS LEFT EXACTLY AS IT WAS, which is most of the
+     book. My first pass rewrote "1 of 2 tenants have paid" to "1 of 2
+     tenants paid" so that both branches shared one shape, and its own test
+     caught it: that is a change to every tenancy on the estate, made to tidy
+     a branch that fires on almost none of them. */
+  if (g.refundedCount > 0) {
+    // Matt's exact words, (ak): "2 of 3 tenants paid, 1 refunded". Dropping
+    // "have" is his, not a slip, and the sentence is tighter for it.
+    if (g.refundedCount === n) return `${everyTenant(n).charAt(0).toUpperCase()}${everyTenant(n).slice(1)} have been refunded`;
+    return `${paid} of ${countOf(n, 'tenant')} paid, ${g.refundedCount} refunded`;
+  }
   if (paid === 0) return `No tenant has paid yet`;
   return `${paid} of ${countOf(n, 'tenant')} have paid`;
 }
@@ -336,7 +387,11 @@ export function tenancyDeedProgress(g: TenancyGroup): string {
 
 /** "2 of 2 paid". */
 export function tenancyPaidTally(g: TenancyGroup): string {
-  return `${g.paidCount} of ${g.members.length} paid`;
+  // The heading version keeps its fixed shape, with the refunded tally
+  // appended rather than rewritten: it shares a line with the address and
+  // the deed tally, and a sentence there would unbalance all three.
+  const tail = g.refundedCount > 0 ? `, ${g.refundedCount} refunded` : '';
+  return `${g.paidCount} of ${g.members.length} paid${tail}`;
 }
 
 /** "1 of 2 deeds". */

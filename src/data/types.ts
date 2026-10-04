@@ -294,7 +294,7 @@ export const ALL_PARTNERS = 'all';
 export type Status = 'draft' | 'referencing' | 'declined' | 'sent' | 'paid' | 'deed' | 'withdrawn' | 'expired';
 export type WithdrawReason = 'another_guarantor' | 'tenancy_fell_through' | 'duplicate' | 'other';
 /** Deed sub-state while Paid (DB-enforced set), or null before a deed exists. */
-export type DeedState = 'awaiting_tenant' | 'executed' | 'declined' | 'voided' | 'error';
+export type DeedState = 'awaiting_tenant' | 'executed' | 'declined' | 'voided' | 'error' | 'cancelled';
 /** Guarantor-fee payment state (DB-enforced set). */
 export type PaymentState = 'awaiting' | 'paid' | 'refunded';
 export type PartnerStatus = 'active' | 'onboarding' | 'paused';

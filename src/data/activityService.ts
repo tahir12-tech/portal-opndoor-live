@@ -256,6 +256,15 @@ const FEED_KINDS = [
   'deed_delivered', 'deed_delivered_landlord', 'deed_undelivered',
   'deed_regenerated', 'deed_reissued', 'tenancy_amended', 'tenancy_correction_applied',
   'renewal_notice_sent',
+  /* A GUARANTEE ENDING IS A MILESTONE, and arguably the one a reader
+     scanning this page most needs to catch. Matt (ak): the deed must read
+     "Cancelled: fee refunded" everywhere, and a feed that showed the deed
+     being signed but not cancelled is one of the everywheres.
+
+     `refunded` was already here and is not the same event: the money going
+     back and the instrument ending are separate facts, and on a tenancy
+     refunded before signature only the first of them happens. */
+  'deed_cancelled', 'refund_cascade_started',
 ];
 
 /**

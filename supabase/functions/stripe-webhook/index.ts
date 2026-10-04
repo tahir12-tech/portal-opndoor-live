@@ -30,7 +30,8 @@
 import Stripe from "npm:stripe@^17";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateDeed, voidDocument } from "../_shared/pandadoc.ts";
-import { deliverRefund } from "../_shared/refundEmail.ts";
+import { deliverRefund, deliverCancellationNotice } from "../_shared/refundEmail.ts";
+import { runRefundCascade } from "../_shared/refundCascade.ts";
 import { deliverPaymentReceipt } from "../_shared/paymentReceiptEmail.ts";
 import { notifyReferrer } from "../_shared/referrerNotify.ts";
 import { titleCaseAddress } from "../_shared/text.ts";
@@ -433,6 +434,32 @@ Deno.serve(async (req) => {
           // runs once per event via the stripe_events dedup above.
           // Whole pounds show no decimals; a partial refund shows exactly two.
           const amountGBP = `£${refundAmount.toLocaleString("en-GB", { minimumFractionDigits: refundAmount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}`;
+
+          /* THE GUARANTEE ENDS. Matt (ak): "when a tenant's fee is fully
+             refunded, their guarantee ends ... never 'Deed executed'."
+
+             FULL REFUNDS ONLY, which `payment_state` already decides for us:
+             apply_stripe_refund writes 'refunded' for the whole fee and
+             'partially_refunded' otherwise, so testing the state rather than
+             the amount keeps Matt's part-refund rule in ONE place.
+
+             BEFORE THE EMAIL, because the email has to say whether there was
+             a deed to cancel, and the honest way to know is to have tried. */
+          let deedCancelled = false;
+          if (appRow.payment_state === "refunded") {
+            const { data: didCancel, error: cancelErr } = await service
+              .rpc("cancel_guarantee_for_refund", { p_application: appRow.id });
+            if (cancelErr) {
+              await service.rpc("report_ops_incident", {
+                p_type: "guarantee_cancel_failed",
+                p_detail: `${appRow.guarantee_ref}: the fee was refunded but the Deed of Guarantee could not be cancelled (${cancelErr.message}). `
+                  + `The application may still read "Deed executed" on screen. Cancel it by hand.`,
+                p_application_id: appRow.id,
+              }).then(() => {}, () => {});
+            }
+            deedCancelled = didCancel === true;
+          }
+
           if (maySendOpndoorEmail(appRow.livemode === true)) await deliverRefund(service, {
             appId: appRow.id,
             tenantEmail: appRow.tenant_email,
@@ -442,7 +469,58 @@ Deno.serve(async (req) => {
             propertyAddr: [titleCaseAddress(appRow.prop_addr1), appRow.prop_postcode].filter(Boolean).join(", "),
             amount: amountGBP,
             guaranteeRef: appRow.guarantee_ref,
+            deedCancelled,
           });
+
+          /* AND THE REST OF THE TENANCY. Matt (al): "the tenancy isn't going
+             ahead, so automatically refund every other paid tenant on that
+             tenancy through Stripe."
+
+             LAST, DELIBERATELY. Every step above concerns the tenant whose
+             refund this event is about, and each of them must have happened
+             before we start moving other people's money -- if the cascade
+             throws, the tenant who was actually refunded has still had their
+             guarantee cancelled and still been told.
+
+             THE CASCADE DOES NOT CANCEL DEEDS OR SEND TENANT EMAILS. Each
+             refund it takes raises its own charge.refunded event, which
+             arrives here and runs everything above for that co-tenant. One
+             code path for "a tenant was refunded", whether a person did it
+             in Stripe or we did it automatically.
+
+             NEVER FAILS THE WEBHOOK. A 5xx here would have Stripe redeliver
+             an event whose refund HAS been applied, and the resend buys
+             nothing the ledger does not already give us: the open rows are
+             swept by the next refund event, and any failure is on Home and
+             with ops already. */
+          if (appRow.payment_state === "refunded") {
+            try {
+              await service.rpc("start_refund_cascade", { p_trigger: appRow.id });
+              const outcome = await runRefundCascade(service, stripe);
+              if (outcome.refunded.length || outcome.failed.length || outcome.skipped.length) {
+                console.log("[opndoor] refund cascade", JSON.stringify(outcome));
+              }
+            } catch (e) {
+              await service.rpc("report_ops_incident", {
+                p_type: "refund_cascade_failed",
+                p_detail: `${appRow.guarantee_ref}: the co-tenant refund cascade could not run (${e instanceof Error ? e.message : String(e)}). `
+                  + `Check refund_cascades for open rows and refund the remaining tenants by hand if needed.`,
+                p_application_id: appRow.id,
+              }).then(() => {}, () => {});
+            }
+
+            /* ONE EMAIL FOR THE PROPERTY, to the agent and any landlord who
+               was actually sent a deed. Matt (al): "one email listing every
+               tenant on the tenancy and saying all guarantees for the
+               property are cancelled."
+
+               AFTER the cascade, so that by the time the agent reads the
+               list, every tenant on it really has been refunded. Sending it
+               first would name tenants whose money had not moved yet. */
+            if (maySendOpndoorEmail(appRow.livemode === true)) {
+              await deliverCancellationNotice(service, appRow.id, appRow.guarantee_ref);
+            }
+          }
         }
       }
     }

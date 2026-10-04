@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import {
   awaitingDecisionCount, loadAgencyMatchQueue, countByStatus,
-  getApplications, ALL_PARTNERS, canPostStatements,
+  getApplications, ALL_PARTNERS, canPostStatements, countFailedRefundCascades,
   loadReconciliationTotals, reconciliationLandingTab, NO_RECONCILIATION_WORK,
   type ReconciliationTotals,
 } from '@/data';
@@ -132,6 +132,29 @@ export function Home() {
     return () => { cancelled = true; };
   }, [dataVersion, isOpndoorStaff]);
 
+  /* CO-TENANT REFUNDS STRIPE WOULD NOT TAKE. Matt (al): "if any co-tenant's
+     refund fails, alert ops and show it on Home."
+
+     THE HALF-DONE CASCADE IS THE DANGEROUS STATE and the reason this warning
+     exists at all. Two of three tenants refunded and their guarantees
+     cancelled, the third still holding a live deed and our money: nothing on
+     any screen says so unless this does, because each application on its own
+     looks consistent. The failure is only visible from above.
+
+     ABOVE THE TILES, with the invoice-email stop, not among them. A tile is
+     a queue somebody works through today; this is money that has not moved
+     and a tenant who has not been told why. */
+  const [failedRefunds, setFailedRefunds] = useState(0);
+  useEffect(() => {
+    if (!isOpndoorStaff) { setFailedRefunds(0); return; }
+    let cancelled = false;
+    void countFailedRefundCascades()
+      .then((n) => { if (!cancelled) setFailedRefunds(n); })
+      // A question we could not ask is not an alarm.
+      .catch(() => { if (!cancelled) setFailedRefunds(0); });
+    return () => { cancelled = true; };
+  }, [dataVersion, isOpndoorStaff]);
+
   // The direct-match backlog is an async, superadmin-scoped RPC (see Sidebar).
   const [matches, setMatches] = useState(0);
   useEffect(() => {
@@ -240,6 +263,21 @@ export function Home() {
             <b>The invoice email is not set, so no commission statement can be posted.</b>{' '}
             Every statement tells the payee where to send their invoice, and the monthly run
             refuses rather than sending one that cannot. Set it on Health, under Settings.
+          </span>
+          <Icon name="arrowRight" size={13} />
+        </Link>
+      )}
+
+      {failedRefunds > 0 && (
+        <Link to="/health" className="home-stop" role="alert">
+          <Icon name="alert" />
+          <span>
+            <b>{failedRefunds === 1
+              ? 'One co-tenant refund could not be taken through Stripe.'
+              : `${failedRefunds} co-tenant refunds could not be taken through Stripe.`}</b>{' '}
+            The other tenants on those tenancies have been refunded and their guarantees cancelled,
+            so each of these is a tenant still holding a live deed and our money. Refund them in
+            Stripe by hand. The detail is on each application and in the ops alert.
           </span>
           <Icon name="arrowRight" size={13} />
         </Link>

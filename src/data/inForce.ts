@@ -58,6 +58,11 @@ export interface InForceRow {
   /** The stored guarantee expiry, or null where it was never written back. */
   expiry?: Date | null;
   refunded: boolean;
+  /** WHEN the money went back, which is when cover stopped. Matt (ak): the
+      deed reads cancelled on the "bordereau from the refund date". Optional
+      because not every row shape carries it; absent, a refunded row is
+      excluded outright, which is where this rule started. */
+  refundedAt?: Date | null;
   /** R2. Money back, guarantee intact. Not a reason to exclude. */
   partiallyRefunded?: boolean;
   withdrawn: boolean;
@@ -75,9 +80,16 @@ export interface InForceRow {
  * so the filter cannot quietly start dating cover differently from the
  * document it is filtering.
  */
-export function coverEnds(a: Pick<InForceRow, 'expiry' | 'tenancyStart'>): Date | null {
-  if (a.expiry) return a.expiry;
-  return a.tenancyStart ? guaranteeExpiry(a.tenancyStart) : null;
+export function coverEnds(a: Pick<InForceRow, 'expiry' | 'tenancyStart' | 'refunded' | 'refundedAt'>): Date | null {
+  const natural = a.expiry ?? (a.tenancyStart ? guaranteeExpiry(a.tenancyStart) : null);
+  /* A REFUND ENDS COVER EARLY. Matt (ak): "bordereau from the refund date".
+     Whichever comes first: a refund after the guarantee had already run its
+     year does not extend anything. */
+  if (a.refunded && a.refundedAt) {
+    if (!natural) return a.refundedAt;
+    return a.refundedAt.getTime() < natural.getTime() ? a.refundedAt : natural;
+  }
+  return natural;
 }
 
 /**
@@ -92,11 +104,27 @@ export function coverEnds(a: Pick<InForceRow, 'expiry' | 'tenancyStart'>): Date 
  * reported to the insurer as live business.
  */
 export function inForceDuring(a: InForceRow, start: Date, end: Date): boolean {
-  if (a.deedState !== 'executed') return false;
-  if (a.refunded || a.withdrawn) return false;
+  /* 'cancelled' COUNTS AS A DEED THAT EXISTED. A cancelled guarantee WAS in
+     force until the refund, and the months it ran are months the underwriter
+     was on risk for it. Excluding it on deed state would rewrite history:
+     January's bordereau would quietly lose a guarantee that really was live
+     in January because the fee came back in June.
+
+     The shortened `coverEnds` is what takes it off from the refund date, and
+     that is the whole mechanism. No clause here needs to know about refunds. */
+  if (a.deedState !== 'executed' && a.deedState !== 'cancelled') return false;
+  if (a.withdrawn) return false;
+  /* A REFUNDED ROW WITH NO REFUND DATE still excludes outright, as it always
+     did. Without a date there is no way to say when cover stopped, and
+     reporting an unknown end to an insurer is worse than reporting nothing. */
+  if (a.refunded && !a.refundedAt) return false;
   if (!a.tenancyStart) return false;
   const ends = coverEnds(a);
   if (!ends) return false;
+  /* THE WINDOW CAN NOW BE EMPTY, which it never could before: a refund
+     BEFORE the tenancy started puts `ends` earlier than `tenancyStart`, and
+     cover never ran at all. Both comparisons are needed to answer no. */
+  if (ends.getTime() < a.tenancyStart.getTime()) return false;
   return a.tenancyStart.getTime() <= end.getTime() && ends.getTime() >= start.getTime();
 }
 

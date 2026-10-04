@@ -81,9 +81,15 @@ export interface PaymentInfo {
    application with no document and no error is being prepared, which is the normal
    state in the seconds after payment.
    ===================================================================== */
-export type DeedCard = 'awaiting_tenant' | 'preparing' | 'declined' | 'voided' | 'error';
+export type DeedCard = 'awaiting_tenant' | 'preparing' | 'declined' | 'voided' | 'error' | 'cancelled';
 
 export function deedCardState(pi: Pick<PaymentInfo, 'deedState' | 'pandadocDocumentId'>): DeedCard {
+  /* FIRST, BECAUSE THE FALLBACK IS 'preparing'. A cancelled deed matches none
+     of the tests below and would have fallen through to "the deed is being
+     prepared" -- a guarantee that has ENDED, telling the agent one is on its
+     way. The default being a hopeful state is exactly why a new state has to
+     be added at the top rather than relied on to land somewhere sensible. */
+  if (pi.deedState === 'cancelled') return 'cancelled';
   if (pi.deedState === 'declined') return 'declined';
   if (pi.deedState === 'voided') return 'voided';
   if (pi.deedState === 'error') return 'error';

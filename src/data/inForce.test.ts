@@ -242,3 +242,76 @@ describe('guaranteed rent is never less than the fees from the same deeds', () =
     expect(guaranteedInForce([row({ withdrawn: true })], ...EVER)).toBe(0);
   });
 });
+
+/* A REFUND TAKES COVER OFF FROM THE REFUND DATE, NOT FROM THE BEGINNING.
+ *
+ * Matt (ak): the deed reads cancelled "everywhere (application page, tenancy
+ * box, exports, bordereau from the refund date)".
+ *
+ * WHAT IT USED TO DO, and why that was wrong for an underwriter. `refunded`
+ * was a flat exclusion: a guarantee that ran from January and was refunded in
+ * June vanished from EVERY bordereau, including January's. The insurer was on
+ * risk for it for five months. Rewriting those months out of the record
+ * because of something that happened in the sixth is not a correction, it is
+ * a different document.
+ *
+ * THE MECHANISM IS coverEnds, NOT A NEW CLAUSE. Cover now ends at the earlier
+ * of the expiry and the refund, and every existing clause carries on asking
+ * the question it already asked. That matters because the same function backs
+ * Reporting's guaranteed-rent tile, and a second rule here would be a second
+ * place for the two to disagree.
+ */
+describe('a refund ends cover on the refund date', () => {
+  const REFUNDED = {
+    deedState: 'cancelled' as const,
+    tenancyStart: D('2026-08-01'),
+    expiry: D('2027-07-31'),
+    refunded: true,
+  };
+
+  it('counts for the months it really did run', () => {
+    expect(inForceDuring(row({ ...REFUNDED, refundedAt: D('2026-10-20') }), ...OCT)).toBe(true);
+  });
+
+  it('and stops counting for the months after the refund', () => {
+    expect(inForceDuring(row({ ...REFUNDED, refundedAt: D('2026-09-15') }), ...OCT)).toBe(false);
+  });
+
+  /* THE BOUNDARY, both inclusive like every other one in this file: a
+     guarantee in force for one day of the period was in force during it. */
+  it('counts on the day of the refund itself', () => {
+    expect(inForceDuring(row({ ...REFUNDED, refundedAt: D('2026-10-01') }), ...OCT)).toBe(true);
+  });
+
+  /* CANCELLED IS NOT A REASON TO EXCLUDE, which is the half most likely to be
+     "tidied" back out by somebody reading deed_state as a liveness test. */
+  it('a cancelled deed is still a deed that existed', () => {
+    expect(inForceDuring(row({
+      deedState: 'cancelled', refunded: true, refundedAt: D('2026-10-20'),
+    }), ...OCT)).toBe(true);
+  });
+
+  /* REFUNDED BEFORE THE TENANCY EVEN STARTED. Cover never ran, so the window
+     is empty rather than merely short, and the inclusive comparisons that
+     answer every other case would say yes without the explicit test. */
+  it('never counts where the refund came before the tenancy began', () => {
+    expect(inForceDuring(row({
+      deedState: 'cancelled', tenancyStart: D('2026-10-02'), expiry: D('2027-10-01'),
+      refunded: true, refundedAt: D('2026-09-20'),
+    }), ...OCT)).toBe(false);
+  });
+
+  /* NO DATE MEANS NO CLAIM. An unknown end reported to an insurer is worse
+     than nothing reported, so this stays the flat exclusion it always was. */
+  it('excludes outright where the refund has no date', () => {
+    expect(inForceDuring(row({ ...REFUNDED, refundedAt: null }), ...OCT)).toBe(false);
+  });
+
+  /* R2 SURVIVES ALL OF THIS. A part refund moves money, not the guarantee,
+     and must not shorten cover by so much as a day. */
+  it('and a PART refund still shortens nothing', () => {
+    expect(inForceDuring(row({
+      deedState: 'executed', partiallyRefunded: true, refunded: false, refundedAt: D('2026-09-15'),
+    }), ...OCT)).toBe(true);
+  });
+});

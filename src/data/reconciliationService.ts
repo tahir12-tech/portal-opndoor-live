@@ -462,6 +462,29 @@ export async function loadRefundQuestions(): Promise<RefundQuestion[]> {
   }));
 }
 
+/* HOW MANY CO-TENANT REFUNDS STRIPE WOULD NOT TAKE.
+ *
+ * Matt (al): "if any co-tenant's refund fails, alert ops and show it on
+ * Home." The ops half is report_ops_incident, raised by the cascade itself;
+ * this is the Home half.
+ *
+ * THE COUNT IS ALL HOME NEEDS. The detail -- which tenant, which error, how
+ * many attempts -- is on the application and in the ops alert, and a Home
+ * warning that tries to summarise a Stripe error is a Home warning nobody
+ * can act on. The number and a route to it is the whole job.
+ *
+ * NO ROLE TEST HERE. refund_cascade_failures() carries is_opndoor_staff() in
+ * its own WHERE and returns an empty set to everybody else, so this is one
+ * code path rather than a gate the caller could get wrong. A failed read
+ * answers zero: a question we could not ask is not an alarm.
+ */
+export async function countFailedRefundCascades(): Promise<number> {
+  if (!SUPABASE_ENABLED) return 0;
+  const { data, error } = await sb().rpc('refund_cascade_failures');
+  if (error) return 0;
+  return Array.isArray(data) ? data.length : 0;
+}
+
 export async function decideRefundQuestion(
   id: string, decision: 'reissue' | 'deduct',
 ): Promise<void> {

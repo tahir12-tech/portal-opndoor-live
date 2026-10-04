@@ -68,10 +68,24 @@ describe('the guarantee is still in force', () => {
     expect(rows).toHaveLength(1);
   });
 
-  it('while a FULLY refunded one is correctly off it', () => {
+  /* THE CONTROL, REWRITTEN ON 2026-10-04 and worth saying why rather than
+     quietly flipping. It used to assert that a fully refunded guarantee was
+     off the bordereau for EVERY month. Matt (ak) asked for the deed to read
+     cancelled "on the bordereau FROM THE REFUND DATE", which is a different
+     and better rule: this guarantee ran from 1 June and the fee came back on
+     the 10th, so the underwriter really was on risk for ten days of June.
+     Erasing it from June would be rewriting a month that happened.
+
+     SO THE CONTROL IS NOW TWO MONTHS, which is a stronger test than the one
+     it replaces: present where it ran, absent after. A single assertion in
+     either direction can be satisfied by a flat rule, and the whole point is
+     that the rule is no longer flat. */
+  it('while a FULLY refunded one comes off from the refund date, not from the start', () => {
     hydrateFull([fullyRefunded()]);
-    const { rows } = buildLiveBordereau(2026, 5, 13.5);
-    expect(rows).toHaveLength(0);
+    // June: cover ran 1 to 10 June before the money went back.
+    expect(buildLiveBordereau(2026, 5, 13.5).rows).toHaveLength(1);
+    // July: nothing was on risk.
+    expect(buildLiveBordereau(2026, 6, 13.5).rows).toHaveLength(0);
   });
 
   /* THE AGENCY ONE, and the measured symptom. Losing the whole commission

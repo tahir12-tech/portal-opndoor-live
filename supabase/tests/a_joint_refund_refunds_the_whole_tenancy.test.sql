@@ -19,7 +19,7 @@
 -- nothing to refund.
 
 begin;
-select plan(14);
+select plan(16);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
                              is_house_route, refers_own_stock, portal_referrals_enabled, api_access_enabled, partner_kind)
@@ -167,7 +167,26 @@ select is(
   'AND COMES BACK AS WORK, which is the whole of "resumable"');
 
 -- ===========================================================================
--- 12-13. THE HOME WARNING, and who may read it.
+-- 12-13. BUT NOT FOREVER. A permanent Stripe refusal fails exactly like a
+--        timeout, and with no ceiling it is retried on every refund webhook
+--        this estate ever receives, raising an alert each time and burying
+--        itself. Five attempts, then it stops ASKING.
+--
+--        AND GOES ON MATTERING, which is the half that makes the cap safe:
+--        the row stays failed, so it stays on Home until somebody deals with
+--        it. Assertion 15 is the one that would catch a "fix" that cleared
+--        the row instead of parking it.
+-- ===========================================================================
+update public.refund_cascades set attempts = 5
+ where application_id='d0000000-0000-0000-0000-0000000000f2';
+
+select is(
+  (select count(*) from public.refund_cascade_work()),
+  0::bigint,
+  'after five attempts it stops being retried');
+
+-- ===========================================================================
+-- 14-15. THE HOME WARNING, and who may read it.
 -- ===========================================================================
 select set_config('request.jwt.claims',
   '{"sub":"d0000000-0000-0000-0000-00000000c001","role":"authenticated","aal":"aal2"}', true);
@@ -192,17 +211,24 @@ select is(
   (select guarantee_ref from public.refund_cascade_failures()),
   'GR-ZZJR02',
   'and opndoor sees it, named, for the Home warning');
+
+select is(
+  (select attempts from public.refund_cascade_failures()),
+  5,
+  'STILL on Home after it stopped being retried, which is the point of the cap');
 reset role;
 
 -- ===========================================================================
--- 14. A SUCCESS CLOSES IT, and clears the error that is no longer true.
+-- 16. A SUCCESS CLOSES IT, and clears the error that is no longer true. A
+--     row that reads "succeeded" while still carrying last_error shows as a
+--     failure in every list that renders the error.
 -- ===========================================================================
 select public.record_refund_cascade('d0000000-0000-0000-0000-0000000000f2','succeeded','re_zzjr_02',null);
 select is(
-  (select state || '/' || coalesce(last_error,'cleared') || '/' || attempts::text
+  (select state || '/' || coalesce(last_error,'cleared') || '/' || stripe_refund_id
      from public.refund_cascades where application_id='d0000000-0000-0000-0000-0000000000f2'),
-  'succeeded/cleared/2',
-  'succeeded, error cleared, and both attempts counted');
+  'succeeded/cleared/re_zzjr_02',
+  'succeeded, error cleared, refund id kept');
 
 select * from finish();
 rollback;

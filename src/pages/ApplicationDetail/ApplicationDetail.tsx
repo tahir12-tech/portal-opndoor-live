@@ -220,6 +220,11 @@ const BUSINESS_LABEL: Record<string, string> = {
   // old -> new detail, which should show to every viewer (not be genericised).
   deed_archived: 'Signed deed archived before amendment',
   deed_reissued: 'Deed reissued for signing',
+  // (ak) "never 'Deed executed'". The guarantee has ended, and the agent who
+  // placed this tenant is the person who most needs to know.
+  deed_cancelled: 'Deed of Guarantee cancelled because the fee was refunded',
+  refund_cascade_started: 'Refund started automatically because a co-tenant on this tenancy was refunded',
+  cancellation_notice_sent: 'Cancellation notice sent to the agent',
   // #2 'withdrawn' intentionally omitted: its stored message carries the
   // partner-safe reason, which should show verbatim to every viewer.
 };
@@ -727,6 +732,15 @@ export function ApplicationDetail() {
     deedNote = d.status === 'expired'
       ? 'Not issued: application expired'
       : 'Not issued: application withdrawn';
+  } else if (paymentInfo?.deedState === 'cancelled') {
+    /* BEFORE THE STATUS TEST, because cancelling does not move `status` off
+       'deed' -- the application did reach the deed stage, and every status
+       filter, count and export depends on it staying there. Without this
+       line the next branch says "Signed by tenant and issued" about a
+       guarantee that has ended, which is the sentence (ak) was written to
+       get rid of. Both halves are true and the second is what matters. */
+    deedDate = 'Cancelled';
+    deedNote = 'Signed and issued, then cancelled because the fee was refunded';
   } else if (d.status === 'deed') {
     deedNote = 'Signed by tenant and issued';
   } else if (paymentInfo?.deedState === 'awaiting_tenant') {
@@ -906,7 +920,12 @@ export function ApplicationDetail() {
   const reissues = d.status !== 'sent';
   // #82 Amending a SIGNED (executed) deed is destructive: void + reissue + agent
   // re-notification. It needs an explicit consequence confirmation before saving.
-  const executed = d.status === 'deed' || paymentInfo?.deedState === 'executed';
+  /* A CANCELLED DEED IS NOT AN EXECUTED ONE. `status` stays 'deed' through a
+     cancellation, so without the first clause this read true and the amend
+     dialog offered to "void the signed deed and reissue a corrected one" on
+     a guarantee that no longer exists. */
+  const executed = paymentInfo?.deedState !== 'cancelled'
+    && (d.status === 'deed' || paymentInfo?.deedState === 'executed');
   /* HAS THE TENANCY STARTED, which is now the whole of the amend rule.
      Matt, 2026-10-04: "agency and supplier users can change a start date only
      before the tenancy starts (signed or not); after the start date, only
@@ -1443,6 +1462,22 @@ export function ApplicationDetail() {
                   <div className="grow">
                     <div className="deed__t">Deed being prepared</div>
                     <div className="deed__s">It is issued automatically and sent to the tenant to sign. Reload to see the latest.</div>
+                  </div>
+                </div>
+              );
+            }
+            /* NOT AN ANOMALY. A cancelled guarantee is a settled outcome, not
+               something for somebody to review, and the alert styling below
+               would have an agent ringing us about a let they already know
+               fell through. It is the one state in this card that is FINISHED
+               rather than stuck. */
+            if (card === 'cancelled') {
+              return (
+                <div className="deed" style={{ opacity: 0.95 }}>
+                  <span className="deed__ic" style={{ color: 'var(--ink-mute, #7a7a8c)' }}><Icon name="info" strokeWidth={1.8} /></span>
+                  <div className="grow">
+                    <div className="deed__t">Deed of Guarantee cancelled</div>
+                    <div className="deed__s">The guarantee fee was refunded, so this guarantee has ended. The signed deed is kept on the record.</div>
                   </div>
                 </div>
               );
