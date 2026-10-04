@@ -3337,6 +3337,24 @@ the one real assertion that has never run.
   promising something the product does not do.
 - "Management team", correctly, not Director: the supplier ladder again.
 
+### (vv) Add from the picker, with the typed name carried in
+
+> New application, Agency and Office pickers (supplier users): when what's typed doesn't match an existing agency or office, show an option at the bottom of the list, "Add 'New Agency' as a new agency", that opens the add fields with the name already filled in. Same for offices. Keep the duplicate check (if it nearly matches an existing one, show that first with "Did you mean…?").
+
+- REFINES (ii). That made the add route reachable; this says where it
+  should live: at the BOTTOM OF THE LIST, found while typing, rather than
+  as a separate button to notice.
+- **"WITH THE NAME ALREADY FILLED IN" IS THE WHOLE VALUE.** Typing a name,
+  being told there is no match and then retyping it into a dialog is the
+  failure this removes.
+- THE DUPLICATE CHECK COMES FIRST AND STAYS: near-matches above the add
+  option, with "Did you mean...?". Dev's two "Frost Partnership" agencies
+  are why that matters, and `normalise_org_name` plus the 0.55 trigram
+  threshold already exist for it.
+- THE TYPE-AHEAD CREATE ROW ALREADY EXISTS for admins (`mayInventAgency`,
+  gated `!addsViaDialog`). So this is largely making the supplier path use
+  the control admins already have, rather than a new one.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
