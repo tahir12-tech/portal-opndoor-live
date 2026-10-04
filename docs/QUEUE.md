@@ -3409,6 +3409,18 @@ the one real assertion that has never run.
   catch exactly that, so this is the second screen today showing a raw
   ISO date past a guard that exists to stop it. See (w).
 
+### (zz) Prefill the invite from the referral
+
+> Also: when a referred tenant opens their invite, prefill the account form with the name, email and mobile from the referral (editable), and skip asking again for property details the referral already holds.
+
+- THE REST OF (yy)'s FIRST HALF: even on the right journey, a referred
+  tenant should not be retyping what the referral already carries.
+- "EDITABLE" MATTERS: prefilled, not fixed. The referral's record of a
+  tenant's mobile can be wrong and they are the one who knows.
+- DEPENDS ON (xx) BEING FIXED FIRST for the property half: a referral on
+  the right mode skips the property questions entirely, so fixing the mode
+  may remove most of this.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
