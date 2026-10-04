@@ -3186,6 +3186,22 @@ the one real assertion that has never run.
 - THE PROVENANCE LINE IS SEPARATE AND SMALL: "added while referring"
   describes the ROUTE somebody used, and the reader wants the PERSON.
 
+### (ll) Supplier Management may edit their own agencies and offices
+
+> Supplier Management (not Referrers) can edit their own agencies' and offices' name, address and email, from the agency's Overview: an "Edit" button, the same duplicate-name check as adding, a confirmation for email changes ("Signed deeds will go to…"), recorded in Recent changes with who did it. Opndoor admins can edit them too. Show it working as Kestrel Management on dev.
+
+- **A SECOND ACCESS-WIDENING ITEM, after (bb)/(cc)**, and the same rule
+  applies: the level test belongs in SQL, because a page that shows an Edit
+  button to the wrong person is not the same as a database that refuses them.
+  Management yes, Referrer no, admin yes.
+- "THE SAME DUPLICATE-NAME CHECK AS ADDING" points at an existing check
+  rather than a new one, which is the right instinct: a rename can collide
+  exactly as a creation can, and dev already holds two agencies of one name
+  in different estates, so the check must be per estate.
+- THE EMAIL CONFIRMATION IS THE CAREFUL PART. Changing an agency's email
+  changes where SIGNED DEEDS go, so it is confirmed rather than saved
+  silently.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
