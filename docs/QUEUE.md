@@ -3002,6 +3002,19 @@ the one real assertion that has never run.
   checked in both directions and for volume tiers as well as bands.
 - WORTH MEASURING ON DEV: whether any live deal already has this shape.
 
+### (y) The opndoor team page's own words
+
+> opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
+
+- THREE SMALL THINGS ON ONE SCREEN, and the third is the only one with any
+  thinking in it: the level key currently describes some of the levels this
+  page can show, and both opndoor levels have to be in it.
+- "opndoor" IS LOWERCASE in this product's copy, which the heading and
+  subtitle both carry.
+- RELATED TO (n) BUT NOT THE SAME: that sweep replaces "partner" with
+  supplier or agency; this renames a page from a model word ("Users") to
+  what the page is.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
