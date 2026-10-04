@@ -3562,6 +3562,31 @@ and the three creation paths say no. Not guessing on a money record.
 - THE BUTTON MUST HANDLE THE ALREADY-SIGNED CASE, which the pay page
   already does through requestSigningLinkByToken.
 
+### (aj) Every referral freezes its commission lines, whatever the route
+
+> (ah): yes. Every referral freezes its commission lines at creation, whatever the route: agency or supplier, portal (single and joint) or API. Make all three creation paths do it for suppliers, backfill the stored lines for existing supplier referrals on dev (and in the live migration) from their frozen rates, and confirm statements, settlement and Reporting all read the stored lines. Then the export (item 2), and confirm (yy) clears.
+
+- **"FROM THEIR FROZEN RATES" IS THE DESIGN DECISION AND IT ANSWERS THE ONE
+  I WAS ABOUT TO ASK.** The lines come from `applications.partner_rate` and
+  `agent_rate`, the values already on the row, NOT from re-running
+  commission_split. That matters: on a Kestrel referral those two disagree,
+  because the frozen share is the supplier's deal (0.10) while
+  commission_split returns the agency-scope commission deal (0.12/0.20/0.24)
+  that (o) and (gg) are in the middle of regularising. Re-deriving would
+  write the number the screen is being fixed to stop showing.
+- SO THE RULE IS: the stored line restates what the referral was frozen at.
+  One source, the row itself, which is also what makes a backfill possible
+  at all: there is nothing else to reconstruct them from.
+- THREE CREATION PATHS, NAMED: create_referral, create_referral_api,
+  create_joint_referral. All three gate the freeze on `v_estate` today.
+- **THE LAST CLAUSE IS A VERIFICATION, NOT A BUILD: "confirm statements,
+  settlement and Reporting all read the stored lines."** Today
+  supplier_statement_lines computes from the application rather than
+  reading them, so that confirmation is likely to come back NO for at
+  least one reader, and saying so is the deliverable.
+- A LIVE DATA MIGRATION AGAIN, like (ac), so the same care: scoped,
+  idempotent, and it must not touch a line that already exists.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
