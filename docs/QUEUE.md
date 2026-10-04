@@ -4543,6 +4543,17 @@ both estates, the dialog, and FAQ 9 on both rails.
   something else appends a second parenthetical -- the estate in one
   place, the kind in the other. One label builder, named once.
 
+### (bv) QUESTION, NOT A CHANGE: what the bordereau's rule actually is
+
+> Bordereau: September lists only GR-20621. Confirm the rule: is it "guarantees in force during the month" (tenancy start on or before the month's end, expiry after its start)? Show me which guarantees October's and November's bordereaux will contain on today's data (they can't be downloaded yet), and confirm refunded/cancelled deeds are left out. Don't change anything; I'll confirm with the underwriter whether they want in-force or issued-in-month.
+
+- **"DON'T CHANGE ANYTHING" IS THE INSTRUCTION**, and the decision is the
+  underwriter's, not ours. The deliverable is a reading of the rule as
+  built plus the two lists, nothing else.
+- THE ANSWER MUST BE READ OFF THE CODE AND MEASURED ON DEV, not inferred
+  from the queue: Matt has proposed a rule in the question and the
+  honest answer may be that the code does something else.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
