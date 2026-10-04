@@ -4252,6 +4252,23 @@ both estates, the dialog, and FAQ 9 on both rails.
   login and is already excluded -- so this is the same question asked of a
   second case the existing rule missed, not a new rule.
 
+### (bg) The signed deed did not reach the referrer
+
+> GR-26262 (Kestrel joint, signed 21:47): the signed deed went to the agency (test@lettings.com) and the tenant, but not to the referrer, Test Referrer (test@referrer.com). Per my notifications rule, the referrer gets a copy by default unless they've switched it off. Check whether that's built yet; if so, find why it didn't send.
+
+- **A DIAGNOSIS FIRST, which is what he asked for.** "Check whether that's
+  built yet" is the question, and answering it with a fix would skip the
+  part that decides what the fix is.
+- THE RULE IS (ap): every email to a portal user is on by default, and
+  delivery of the signed deed to the agency it is for can never be switched
+  off. The referrer's COPY is the defaultable half.
+- THREE CANDIDATE CAUSES and they call for different work: the ladder is
+  not consulted at all on this path; it is consulted and the supplier rail
+  resolves to nobody; or it is consulted and the referrer's own setting is
+  off by default rather than on.
+- **GR-26262 IS THE SUPPLIER JOINT TENANCY from (ba)**, so whatever is found
+  here is on the rail that is newest and least walked.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
