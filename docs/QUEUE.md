@@ -4211,6 +4211,27 @@ both estates, the dialog, and FAQ 9 on both rails.
   column alongside Status, so the two have to agree rather than one
   overriding the other.
 
+### (be) The signing button should open the signing page
+
+> Tenant "Sign your Deed of Guarantee" email button: open the signing page directly, not the "This fee has been paid / Sign your deed now" page first. If the deed is already signed, show "Your deed is already signed. Nothing more to do."
+
+- **A SECOND CLICK BETWEEN THE TENANT AND THE ONLY THING WE WANT THEM TO
+  DO.** The email button says "Sign your Deed of Guarantee" and lands on a
+  page that says the fee is paid and offers another button. Every extra
+  press is tenants who do not sign.
+- IT IS MY OWN DOING, FROM (ai) THIS EVENING: I pointed the button at
+  `/pay?token=`, which is the payment page, because that token is the
+  durable door and the page already knows how to mint a signing session.
+  The right link was always that page in a SIGNING mode, not its payment
+  landing.
+- THE ALREADY-SIGNED CASE IS THE REASON THE PAGE EXISTS IN BETWEEN, and it
+  still has to be handled: `requestSigningLinkByToken` answers `deedSigned`,
+  so the page can say Matt's sentence rather than opening a session on a
+  signed deed or bouncing the tenant to a Stripe error.
+- SO THE SHAPE IS: same token, a parameter that says "go straight to
+  signing", and the landing page resolving it before it renders anything
+  else.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
