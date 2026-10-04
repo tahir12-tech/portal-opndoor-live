@@ -3202,6 +3202,20 @@ the one real assertion that has never run.
   changes where SIGNED DEEDS go, so it is confirmed rather than saved
   silently.
 
+### (mm) Referral rows that do not open
+
+> Agency page → Referrals tab (seen as Kestrel Management on Frost Partnership): clicking a referral row (Tom Kestrel, GR-FROST-KES) does nothing. Every referral row on every agency, office and supplier Referrals tab must open that application, for every level that can see it. Check them all.
+
+- THE THIRD DEAD CONTROL REPORTED TODAY, after the Add agency form and the
+  Application export. A row that looks clickable and is not is the same
+  fault as a button that does nothing.
+- "FOR EVERY LEVEL THAT CAN SEE IT" ties the fix to visibility rather than
+  to role: if a level can see the row, the row opens. That is one rule and
+  it should be one implementation rather than a handler per tab.
+- WORTH CHECKING WHETHER THE ROW IS A LINK AT ALL or whether the detail
+  route refuses the reader, because those fail identically on screen and
+  need opposite fixes.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
