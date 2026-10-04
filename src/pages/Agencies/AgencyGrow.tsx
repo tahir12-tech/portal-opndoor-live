@@ -16,6 +16,8 @@ import { Modal } from '@/components/ui/Modal';
 import { Field } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
+import { MissingFields } from '@/components/ui/MissingFields';
+import { useMissingFields } from '@/lib/useMissingFields';
 
 export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onDone }: {
   mode: 'branch' | 'agency';
@@ -29,6 +31,9 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
   const toast = useToast();
   const { refresh } = useSession();
   const [busy, setBusy] = useState(false);
+  /* PRESSED, which is what turns "Required" on. A form that has not been
+     submitted is not missing anything, it is being filled in. */
+  const [tried, setTried] = useState(false);
 
   // add-branch fields
   const [branchAgencyId, setBranchAgencyId] = useState(anchorAgencyId ?? agencies[0]?.id ?? '');
@@ -79,12 +84,55 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
   // Blank is fine; a typo is not.
   const emailUsable = !contactEmail.trim() || EMAIL_RE.test(contactEmail.trim());
 
-  const canBranch = mode === 'branch' && !!branchName.trim() && !!branchAgencyId && !busy && emailUsable;
-  const canAgency = mode === 'agency' && !!newAgency.trim() && !!newBranch.trim()
-    && (group ? true : !!groupName.trim()) && !busy && emailUsable;
+  /* =====================================================================
+     WHAT IS MISSING, AS A LIST, because the button no longer hides it.
+
+     Matt, 2026-10-04: "enable the button, and on press with anything missing,
+     scroll to the first missing field, mark each one, and show 'N things
+     still need filling in' by the button."
+
+     THE LIST IS WHY THE BUTTON AND THE FIELDS CANNOT DISAGREE. The old
+     `canBranch` and `canAgency` were booleans with no voice: they knew the
+     form was incomplete and could only express it by going grey, and nothing
+     anywhere said which of twelve fields they were waiting for. Deriving the
+     refusal FROM the list means a refused press always has at least one
+     marked field to count and to jump to. A boolean beside a separate set of
+     error props is the arrangement where a press can still do nothing,
+     because the two can drift apart.
+
+     THE EMAIL IS HERE BUT MARKS ITSELF LIVE, and that is deliberate. A typo
+     is a fact about something already typed and is worth saying at once; a
+     "Required" on a field the reader has not reached yet is a scold. Both
+     stop the save, so both belong in this list; only one waits for a press.
+     The count still waits, because useMissingFields reads nothing until
+     `tried`. */
+  const problems: { field: string; why: string }[] = [];
+  if (mode === 'branch') {
+    if (!branchName.trim()) problems.push({ field: 'ag-branch-name', why: 'Required' });
+    /* ONLY WHERE THE READER CAN ANSWER IT. The agency picker is drawn only
+       when there is a choice to make; where it is not drawn the value is
+       already the anchor or the only agency, so a problem naming it would be
+       one nobody could clear. */
+    if (!branchAgencyId && agencies.length > 1 && !anchorAgencyId) {
+      problems.push({ field: 'ag-branch-agency', why: 'Required' });
+    }
+    if (!emailUsable) problems.push({ field: 'ag-branch-email', why: 'That is not an email address.' });
+  } else {
+    if (!group && !groupName.trim()) problems.push({ field: 'ag-groupname', why: 'Required' });
+    if (!newAgency.trim()) problems.push({ field: 'ag-newagency', why: 'Required' });
+    if (!newBranch.trim()) problems.push({ field: 'ag-newbranch', why: 'Required' });
+    if (!emailUsable) problems.push({ field: 'ag-agency-email', why: 'That is not an email address.' });
+  }
+  const problemFor = (field: string) => problems.find((p) => p.field === field)?.why;
+
+  const missing = useMissingFields<HTMLDivElement>(tried);
 
   const saveBranch = async () => {
-    if (!canBranch) return;
+    if (busy) return;
+    /* SAYS WHY NOT, rather than nothing. This is the whole change: the press
+       now always does one of two things, and the one it does when the form is
+       incomplete is visible. */
+    if (problems.length) { setTried(true); missing.jump(); return; }
     const agency = agencies.find((a) => a.id === branchAgencyId);
     if (!agency) return;
     setBusy(true);
@@ -101,7 +149,8 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
   };
 
   const saveAgency = async () => {
-    if (!canAgency) return;
+    if (busy) return;
+    if (problems.length) { setTried(true); missing.jump(); return; }
     setBusy(true);
     try {
       const existing = agencies[0];
@@ -134,19 +183,27 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
         ? `Add branch to ${targetAgency?.name ?? 'agency'}`
         : group ? `Add agency to ${group.name}` : 'Add another agency'}
       sub={sentence}
+      /* `disabled={busy}` AND NOTHING ELSE. It used to be
+         `disabled={!canBranch}`, which is the failure this is fixing: a
+         control that cannot be pressed cannot report, so the reader was left
+         to guess which field the form wanted. */
       footer={<><Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-        <Button variant="primary" onClick={mode === 'branch' ? saveBranch : saveAgency} disabled={mode === 'branch' ? !canBranch : !canAgency}>{busy ? 'Saving…' : mode === 'branch' ? 'Add branch' : 'Add agency'}</Button></>}
+        <MissingFields count={missing.count} onJump={missing.jump} />
+        <Button variant="primary" onClick={mode === 'branch' ? saveBranch : saveAgency} disabled={busy}>{busy ? 'Saving…' : mode === 'branch' ? 'Add branch' : 'Add agency'}</Button></>}
     >
+      {/* A PLAIN WRAPPER CARRYING THE REF, so the count and the jump read
+          this dialog's fields and not a form behind it. */}
+      <div ref={missing.formRef}>
       {mode === 'branch' ? (
         <>
           {agencies.length > 1 && !anchorAgencyId && (
-            <Field label="Agency" htmlFor="ag-branch-agency">
+            <Field label="Agency" htmlFor="ag-branch-agency" error={tried ? problemFor('ag-branch-agency') : undefined}>
               <select id="ag-branch-agency" value={branchAgencyId} onChange={(e) => setBranchAgencyId(e.target.value)}>
                 {agencies.filter((a) => a.id).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </Field>
           )}
-          <Field label="Branch name" htmlFor="ag-branch-name"><input id="ag-branch-name" type="text" autoComplete="off" placeholder="e.g. Headingley" value={branchName} onChange={(e) => setBranchName(e.target.value)} /></Field>
+          <Field label="Branch name" htmlFor="ag-branch-name" error={tried ? problemFor('ag-branch-name') : undefined}><input id="ag-branch-name" type="text" autoComplete="off" placeholder="e.g. Headingley" value={branchName} onChange={(e) => setBranchName(e.target.value)} /></Field>
           <Field label="Postcode" htmlFor="ag-postcode" hint={addressLookupAvailable() ? 'Look up the address, then pick it.' : 'Lookup off; type the address below.'}>
             <div style={{ display: 'flex', gap: 8 }}>
               <input id="ag-postcode" type="text" autoComplete="off" placeholder="e.g. LS6 3AA" value={postcode} onChange={(e) => setPostcode(e.target.value)} />
@@ -176,10 +233,10 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
       ) : (
         <>
           {!group && (
-            <Field label="Group name" htmlFor="ag-groupname" hint="The group that will sit above both agencies."><input id="ag-groupname" type="text" autoComplete="off" placeholder="e.g. Example Property Group" value={groupName} onChange={(e) => setGroupName(e.target.value)} /></Field>
+            <Field label="Group name" htmlFor="ag-groupname" hint="The group that will sit above both agencies." error={tried ? problemFor('ag-groupname') : undefined}><input id="ag-groupname" type="text" autoComplete="off" placeholder="e.g. Example Property Group" value={groupName} onChange={(e) => setGroupName(e.target.value)} /></Field>
           )}
-          <Field label="New agency name" htmlFor="ag-newagency"><input id="ag-newagency" type="text" autoComplete="off" placeholder="e.g. Example Lettings" value={newAgency} onChange={(e) => setNewAgency(e.target.value)} /></Field>
-          <Field label="Its first branch" htmlFor="ag-newbranch"><input id="ag-newbranch" type="text" autoComplete="off" placeholder="e.g. City Centre" value={newBranch} onChange={(e) => setNewBranch(e.target.value)} /></Field>
+          <Field label="New agency name" htmlFor="ag-newagency" error={tried ? problemFor('ag-newagency') : undefined}><input id="ag-newagency" type="text" autoComplete="off" placeholder="e.g. Example Lettings" value={newAgency} onChange={(e) => setNewAgency(e.target.value)} /></Field>
+          <Field label="Its first branch" htmlFor="ag-newbranch" error={tried ? problemFor('ag-newbranch') : undefined}><input id="ag-newbranch" type="text" autoComplete="off" placeholder="e.g. City Centre" value={newBranch} onChange={(e) => setNewBranch(e.target.value)} /></Field>
           <Field label="Contact email (optional)" htmlFor="ag-agency-email"
             hint="A signed deed also goes here, and the first branch uses it too. Leave it blank and the deed still reaches whoever sent the referral."
             error={!emailUsable ? 'That is not an email address.' : undefined}>
@@ -190,6 +247,7 @@ export function AgencyGrow({ mode, agencies, group, anchorAgencyId, onClose, onD
           </Field>
         </>
       )}
+      </div>
     </Modal>
   );
 }
