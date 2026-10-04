@@ -3285,6 +3285,22 @@ the one real assertion that has never run.
   alone.
 - "opndoor" lowercase, as everywhere else in the copy.
 
+### (rr) Kestrel's refers_own_stock goes false, and the rehearsal checks it
+
+> Set refers_own_stock to false for Kestrel on dev, so it matches how Rightmove is set up, and tell me which tenant email wording that gives (it should be the approved supplier wording). Add to HANDOVER-BALAL.md's rehearsal checks: confirm Rightmove's refers_own_stock is false on live, and that a Rightmove referral's tenant email is the supplier wording. Then carry on with item 1's end-to-end proof and item 2.
+
+- ANSWERS THE DECISION I PARKED, and goes further than the flag: the
+  rehearsal has to CONFIRM it on live rather than assume it, which is the
+  right instinct because dev matching Rightmove is evidence about dev, not
+  about live.
+- "IT SHOULD BE THE APPROVED SUPPLIER WORDING" IS A PREDICTION TO TEST, not
+  an instruction to assert. Report which template the rail actually
+  selects.
+- THE FLAG ALSO DRIVES `may_add_agency` TODAY, which 20261008040000 has
+  just stopped it doing, so this change and that one are independent and
+  both are needed: the flag is right because of what it MEANS, and the
+  permission no longer depends on it.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
