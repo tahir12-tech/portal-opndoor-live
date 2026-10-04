@@ -3096,6 +3096,34 @@ the one real assertion that has never run.
   "In customer views" is the scope: Opndoor's own screens should keep the
   real name, because internally it matters who did it.
 
+### (ff) The same wording on the supplier's Performance export
+
+> For (q): apply the same wording to the supplier's Performance export: "Owed to you", the agencies' commission worded by who pays it, and "Total commission on your referrals", instead of "Supplier commission / Agent commission". Drop the "Commission by supplier" section from a supplier's own export (it only ever has one row: themselves).
+
+- A FOURTH SURFACE FOR (q)'s WORDING, after the screen, the statement
+  PDF/CSV and the zip. Four readers of one arrangement is the argument for
+  one helper rather than four sets of labels.
+- THE DROPPED SECTION IS A DIFFERENT KIND OF FIX: not wording but a section
+  that cannot say anything. "Commission by supplier" in a supplier's own
+  export is a one-row table whose row is the reader.
+
+### (gg) A supplier's agencies have no commission editor of their own
+
+> Change of approach for (o): an agency or office inside a supplier's estate must not have its own commission editor; its deal is set only on the supplier's Commission tab under "Agencies on different terms". Remove the deal editor from supplier-estate agency pages (show "Commission for this agency is set on [supplier]'s Commission tab", linking there). For the existing hidden deal e4b75778 on dev: show me how you'd convert it into an equivalent deal on Kestrel's tab before doing it. The Commission tab must also still show any agency- or group-scope deal that already exists, so nothing can be hidden.
+
+- **A BETTER FIX THAN THE ONE (o) ASKED FOR, and it closes the hole at the
+  source.** (o) said "surface every deal on the tab"; this says also stop
+  the other door creating them. Surfacing alone leaves two editors writing
+  one agency's terms.
+- **A HOLD POINT, STATED PLAINLY: "show me how you'd convert it ... before
+  doing it."** No conversion of e4b75778 until Matt has seen the plan.
+- AND THE SURFACING IS STILL REQUIRED: "must also still show any agency- or
+  group-scope deal that already exists, so nothing can be hidden." Removing
+  the editor does not unwrite the deal that is already there, and a deal the
+  screen cannot show is the fault being fixed.
+- SO THREE PARTS: remove the editor and link out; surface existing non-
+  partner deals on the tab; and the conversion, which waits.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
