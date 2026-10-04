@@ -2268,6 +2268,35 @@ sign-in are unexercised. Somebody has to click it.
   would take" means the After launch entry has to be good enough to build
   from.
 
+## SENT: KESTREL'S SEPTEMBER STATEMENT, ON DEV (2026-10-04).
+
+Matt: *"Send Kestrel's September 2026 statement on dev now (it goes to the
+review inbox) so I can check the email, PDF and agency schedules."*
+
+**Done at 06:21 UTC. `posted: 2, failed: 0`.** Every send on dev is redirected
+to the review inbox, because `EMAIL_REVIEW_ADDRESS` is set as a project secret,
+so neither Kestrel nor the Frost contacts received anything.
+
+| payee | total | reference | attachments |
+|---|---|---|---|
+| Kestrel Lettings | £600.00 | `STMT-2026-09-0006` | statement PDF, CSV, and `opndoor-commission-2026-09-kestrel-lettings.zip` (the per-agency schedules) |
+| Frost Partnership (our estate) | £240.00 | `STMT-2026-09-0007` | statement PDF, CSV |
+
+**TWO WENT, NOT ONE, and that is the run rather than a mistake.** This is the
+monthly run for 2026-09; it cannot be narrowed to one payee, and Frost
+Partnership on our own estate was unposted for exactly the same reason Kestrel
+was: both rows were inserted on 2 October with `paid_at` back-dated into
+September, after the 1 October run had been and gone.
+
+**SEPTEMBER IS NO LONGER A DRAFT ON DEV.** The references are minted and the
+send rows are written, so Kestrel's Commission tab stops saying "Draft: this
+month's statement hasn't been sent yet" and says the documents were emailed. A
+re-run now posts nothing: `alreadySent: 5`, nothing left to send.
+
+**NOT TOUCHED:** the settlement row, which was already sent on 1 October at
+£3,231.54 and now understates the month by the £840 these two carry. That is
+the hard half of the catch-up, written up under After launch.
+
 ## THE MORNING SUMMARY (2026-10-04, written overnight)
 
 Plain English, as asked. Three sections: what is done, what is waiting on you,
