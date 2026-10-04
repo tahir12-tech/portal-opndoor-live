@@ -2863,6 +2863,29 @@ the one real assertion that has never run.
 - SO THE RISK IS A FOURTH IMPLEMENTATION. The right fix routes the headline
   through the shared helper rather than repeating the subtraction.
 
+### (q) Three lines on the supplier's Reporting, worded by who pays
+
+> Supplier's own Reporting (View as Kestrel): replace the single "Commission payable" figure with:
+> - "Owed to you": what Opndoor pays the supplier.
+> - The agencies' commission, always shown, worded by who pays it (per referral, using the setting frozen on it): "Paid by Opndoor directly to your agencies" for referrals under "opndoor pays the agents"; "Your agencies' share, included above for you to pass on" for referrals under "the supplier pays its own agents". If a period has both kinds, show both lines.
+> - "Total commission on your referrals".
+> For GR-FROST-KES that's: Owed to you £600; Paid by Opndoor directly to your agencies £240; Total £840. Also, "once the month's statement is posted" only for unposted months; September is posted, so "Opndoor pays this on 15 Oct 2026."
+
+- **SUPERSEDES THE FIRST HALF OF (p)**, which said only "show 600 not 840".
+  This says show all three figures and word the middle one by who pays. (p)
+  is not a separate piece of work any more; this is the spec.
+- "PER REFERRAL, USING THE SETTING FROZEN ON IT" is the hard requirement and
+  it is already the law elsewhere: `supplierPayableOf` and
+  `paidDirectToAgents` read `settles_own` PER LINE for exactly this reason,
+  because a supplier's arrangement can change and every referral keeps the
+  one it was created under. "If a period has both kinds, show both lines" is
+  that same fact said from the screen's side.
+- "ALWAYS SHOWN" means the agencies' line appears even at zero. A line that
+  disappears when it is nought makes the reader wonder whether it was
+  forgotten.
+- THE PAID-ON CLAUSE IS (k) AGAIN, now asked for a third time. It is one
+  defect: the posted test reads a lookup that asks with the wrong key.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
