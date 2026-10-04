@@ -146,7 +146,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // the one meant here: the single owning partner, the same one partner_id resolves
     // to. The many-to-many would return an array and, for a shared agency, the wrong
     // partner.
-    client.from('agencies').select('id, name, group_name, group_id, referencing_mode, review_state, is_placeholder, partner_id, partner:partners!agencies_partner_id_fkey(slug)'),
+    client.from('agencies').select('id, name, address, group_name, group_id, referencing_mode, review_state, is_placeholder, partner_id, partner:partners!agencies_partner_id_fkey(slug)'),
     // Agency groups — the top commission tier and the target of a "whole group"
     // position. RLS scopes them to the caller's partner (or all, for admin/staff).
     client.from('agency_groups').select('id, name, partner_id'),
@@ -427,6 +427,13 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
       contacts: (contactsByAgency[a.id] ?? []).map(toContact),
       branches: brs,
     };
+    /* THE ADDRESS AND THE DEED EMAIL, for the editor. The email is read off
+       the primary contact rather than stored twice: it IS that row, and a
+       copy on the agency would be a second answer to "where do signed deeds
+       go" the moment somebody edited one of them. */
+    if (a.address) agency.address = a.address as string;
+    const primary = (contactsByAgency[a.id] ?? []).find((c) => c.is_primary);
+    if (primary?.email) agency.email = primary.email as string;
     if (a.group_name) agency.group = a.group_name;
     if (a.group_id) agency.groupId = a.group_id;
     // Preserve null (inherit) rather than coercing to 0 (a real 0% override).

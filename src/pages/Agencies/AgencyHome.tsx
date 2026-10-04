@@ -62,7 +62,8 @@ import { liveByCustomer } from '@/data/liveAnalytics';
 import { agencyLevelOf, AGENCY_LEVELS, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
 import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import { getOrgDepartedReferrals, departedReferralsLine, type DepartedReferrals } from '@/data/positionsService';
-import { partyIsSupplier, readerIsTopOfEstate } from '@/data/capabilities';
+import { partyIsSupplier, readerIsTopOfEstate, mayEditOwnEstateOrg } from '@/data/capabilities';
+import { EditOrgDetails, type EditOrgTarget } from './EditOrgDetails';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions, type PersonAction } from '@/components/people/PersonActions';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
@@ -185,6 +186,9 @@ export function AgencyHome() {
   /* Creation is anchored to a node, so the modal can say what it is adding and
      where. `growAgency` is the agency a branch is being added to. */
   const [grow, setGrow] = useState<null | { mode: 'branch' | 'agency'; agencyId?: string }>(null);
+  // The agency or office whose own details are being corrected. See (am)'s
+  // sibling instruction: supplier Management may edit their own.
+  const [editOrg, setEditOrg] = useState<EditOrgTarget | null>(null);
 
   const org = useMemo<Org | null>(() => {
     void dataVersion; void tick;
@@ -1593,6 +1597,21 @@ export function AgencyHome() {
                         onClick={() => openNode('agency', a.id ?? a.name, a.name)}
                       >{a.name}</button>
                       <span className="ah-node-level">Agency</span>
+                      {/* CORRECT ITS OWN DETAILS. Matt: supplier Management
+                          (not Referrers) may edit their agencies' and
+                          offices' name, address and email, from here.
+                          Opndoor admins too.
+
+                          ON THE NODE RATHER THAN IN A MENU, because the
+                          thing being corrected is the name sitting two
+                          inches to its left, and most of these agencies
+                          were typed into a referral form in a hurry. */}
+                      {mayEditOwnEstateOrg(role, partnerScope) && a.id && (
+                        <button
+                          className="ah-linkbtn ah-linkbtn--quiet"
+                          onClick={() => setEditOrg({ level: 'agency', id: a.id!, name: a.name, address: a.address ?? null, email: a.email ?? null })}
+                        >Edit</button>
+                      )}
                       {RateLine({ level: 'agency', id: a.id, name: a.name, own: a.agentRate, deal: a.id ? agreements[a.id] : null })}
                       {/* The merged office reads as the agency's own, and is the
                           way into its branch view. */}
@@ -1946,6 +1965,13 @@ export function AgencyHome() {
       )}
       {/* No bump() on close: the panel owns its own reload and this page no
           longer reads any of what it changes. */}
+      {editOrg && (
+        <EditOrgDetails
+          target={editOrg}
+          onClose={() => setEditOrg(null)}
+          onSaved={() => { setEditOrg(null); refreshSession(); }}
+        />
+      )}
       {notifFor && (
         <PersonNotifications
           /* (qq) Whether opndoor is the only level above this reader, which

@@ -357,6 +357,31 @@ export function mayAddOwnEstateAgency(role: Role, scope: PartnerScope): boolean 
 }
 
 /**
+ * May this reader CORRECT an agency's or office's name, address or email?
+ *
+ * Matt: "Supplier Management (not Referrers) can edit their own agencies'
+ * and offices' name, address and email ... Opndoor admins can edit them
+ * too."
+ *
+ * THE SAME SHAPE AS ADDING, DELIBERATELY: whoever may put an agency into an
+ * estate may correct one in it. It is a separate function rather than a
+ * second caller of `mayAddOwnEstateAgency` because the two answer different
+ * questions and will not always agree -- an estate could stop taking
+ * additions while still needing its existing records corrected, and a
+ * shared predicate would silently freeze them.
+ *
+ * "NOT REFERRERS" IS THE CLAUSE THAT NEEDS SAYING. A Referrer adds most of
+ * these agencies, from the referral form, and creating one is not the right
+ * to rename it afterwards. The server refuses them too (set_agency_details),
+ * so this screen test and that guard agree rather than one covering for the
+ * other.
+ */
+export function mayEditOwnEstateOrg(role: Role, scope: PartnerScope): boolean {
+  if (role === 'superadmin') return true;
+  return role === 'management' && partyIsSupplier(scope);
+}
+
+/**
  * May this reader add an agency or office WHILE REFERRING?
  *
  * Both levels that can refer, which is Matt's instruction in his own words:

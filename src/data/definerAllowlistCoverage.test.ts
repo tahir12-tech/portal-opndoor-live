@@ -364,7 +364,18 @@ describe('the definer allowlist', () => {
        agency already sees, on its own application, an activity row saying
        the automatic refund could not be taken. So the exposure is the
        aggregate list, not the fact. */
-    expect(allowlist.length).toBeLessThanOrEqual(159);
+    /* 159 -> 161, RAISED IN THE SAME COMMIT AS THE TWO FUNCTIONS THAT
+       WIDEN IT: set_agency_details and set_branch_details.
+
+       WHY THEY ARE SAFE TO HAND TO EVERY SIGNED-IN USER. Each begins with
+       is_aal2() and then admits only an admin, or a supplier's own
+       Management on their own estate -- so a Referrer, a Developer and
+       another supplier's manager are all refused INSIDE rather than by who
+       may call. They write a name, an address and an email the caller
+       already supplied and return void; there is nothing to read back and
+       nothing to leak. a_supplier_may_correct_its_own_agencies asserts the
+       three refusals. */
+    expect(allowlist.length).toBeLessThanOrEqual(161);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

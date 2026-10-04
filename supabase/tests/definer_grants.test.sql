@@ -227,6 +227,14 @@ insert into allowed(name) values
   ('save_share_deal'),
   ('send_deed_to_agent'),
   ('send_deed_to_landlord'),
+  /* CORRECTING AN AGENCY'S OR OFFICE'S OWN DETAILS. Reachable by any
+     signed-in user because the dialog is on a page several levels read,
+     and the functions close themselves: each starts with is_aal2() and
+     then admin OR the supplier's own management on their own estate, so a
+     Referrer or another supplier's manager is refused inside rather than
+     by who may call. Nothing to leak -- they write a name, an address and
+     an email the caller supplied, and return void. */
+  ('set_agency_details'),
   ('set_agency_group'),
   ('set_agency_level'),
   ('set_agency_rates'),
@@ -239,6 +247,8 @@ insert into allowed(name) values
   ('set_app_setting_text'),
   ('set_application_status'),
   ('set_branch_deed_recipient'),
+  /* The office half of the same editor as set_agency_details. */
+  ('set_branch_details'),
   ('set_group_rates'),
   ('set_home_branch'),
   /* Notifications became per person (20261006900000). set_my_notification

@@ -538,6 +538,13 @@ export interface Agency {
   name: string;
   /** Legacy free-text group label (agencies.group_name). Superseded by groupId. */
   group?: string;
+  /** Their postal address, as their own people maintain it. Added with the
+      editor: there was no address field on an agency at all before. */
+  address?: string | null;
+  /** The email signed deeds for this agency's branches go to, read off its
+      primary contact. Carried here so the editor can show what it is about
+      to change without a second fetch. */
+  email?: string | null;
   /** The real agency_groups row this agency belongs to (its brand's group), or
       absent when ungrouped. */
   groupId?: string;

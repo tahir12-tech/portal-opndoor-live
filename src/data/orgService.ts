@@ -1162,3 +1162,40 @@ export function orgCounts(partnerId: string): { agencies: number; branches: numb
   });
   return { agencies, branches };
 }
+
+/* CORRECTING AN AGENCY'S OR OFFICE'S OWN DETAILS.
+ *
+ * Matt: "Supplier Management (not Referrers) can edit their own agencies'
+ * and offices' name, address and email, from the agency's Overview."
+ *
+ * THERE WAS NO WAY TO EDIT ANY OF THE THREE before 20261008190000: every
+ * set_agency_* function on dev changed a SETTING -- group, level, rates,
+ * referencing mode, share deal -- and an agency created with a typo stayed
+ * that way. Most of them are created by a Referrer filling in a referral
+ * form, which is exactly where typos come from.
+ *
+ * THE SERVER DECIDES WHO, not this. mayEditOwnEstateOrg is the screen's
+ * answer and set_agency_details is the database's, and they agree rather
+ * than one standing in for the other.
+ */
+export async function setAgencyDetails(
+  agencyId: string, name: string, address: string, email: string,
+): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  const { error } = await sb().rpc('set_agency_details', {
+    p_agency: agencyId, p_name: name, p_address: address, p_email: email,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** The same for one office. Its email is an OVERRIDE of its agency's, so
+ *  clearing it is a real act and means "use the agency's". */
+export async function setBranchDetails(
+  branchId: string, name: string, address: string, email: string,
+): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  const { error } = await sb().rpc('set_branch_details', {
+    p_branch: branchId, p_name: name, p_address: address, p_email: email,
+  });
+  if (error) throw new Error(error.message);
+}
