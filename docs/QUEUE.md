@@ -4315,6 +4315,30 @@ both estates, the dialog, and FAQ 9 on both rails.
 - THE ALREADY-SIGNED LINE IS THE SAME SENTENCE (ag) PUT ON THE RECEIPT, and
   for the same reason: a resend can cross with a signature.
 
+### (bk) One signed-deed email per recipient, each written for them
+
+> Signed-deed emails: send one email per recipient, never several addresses on one email. The agency's version keeps "Contact Kestrel Lettings, who referred this tenant"; the referrer's version (a portal user) gets the portal link and "Wrong tenancy start date? Change it here."
+
+- **THIS REVISES (bf) AND (bg) TOGETHER, and resolves the tension I left in
+  them.** (bg) made the supplier's referrer a copy on the agency's email;
+  (bf) then stripped the portal and correction lines from that email because
+  the ADDRESSEE has no login. The referrer, who does, lost them too. I noted
+  that and chose the addressee. Matt's answer is better: stop sending one
+  email to two kinds of reader.
+- **AND IT IS A PRIVACY FIX AS WELL AS A COPY ONE.** One message to several
+  addresses shows each recipient the others. An agency in a supplier's
+  estate seeing the supplier's staff list is not a disclosure anybody
+  decided to make.
+- THE COMMENT IN deedEmail.ts ARGUES THE OPPOSITE -- "one message with each
+  of them as a recipient, not one message each: the deed is a single event,
+  and the people on it should see who else has it" -- so this is a reversal
+  of a stated decision, not a gap. It was written when every recipient was
+  on one agency's ladder and could reasonably see each other.
+- THE DELIVERY RECORD IS THE THING TO WATCH: `deed_delivered_to` and
+  `record_delivery_attempt` take one address and a recipient list, and one
+  send becoming several must not turn into several conflicting records of
+  who the deed went to.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
