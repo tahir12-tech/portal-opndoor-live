@@ -86,7 +86,7 @@ const NOT_YET_COVERED = [
   // name, as a password-only session and then at aal2.
   'count_pending_tenancy_corrections', 'dismiss_agency_match',
   'end_agreement', 'my_partner_summary', 'origin_is_agent_estate',
-  'referral_fee_preview', 'resolve_agency_match',
+  'resolve_agency_match',
   /* 35 -> 36, AND THE RATCHET DID NOT GO BACKWARDS: the measurement got
      honest. `dev_sandbox_application_document` was counted as covered by
      a has_function_privilege assertion, which tests the GRANT and not the
@@ -388,7 +388,7 @@ describe('every allowlisted function is exercised by a pgTAP test', () => {
      the length follows, and the literal 36 read as "one more is
      tolerated" when nothing tolerated anything. Replaced by the one that
      keeps the two in step and cannot drift. */
-  it('the uncovered list is the uncovered set, exactly, and is 33', () => {
+  it('the uncovered list is the uncovered set, exactly, and is 29', () => {
     expect(NOT_YET_COVERED.length).toBe(uncovered.length);
     /* 36 -> 33, 2026-10-01, and the ratchet turned the right way: three
        Dev Centre readers gained a pgTAP test because the supplier
@@ -399,7 +399,12 @@ describe('every allowlisted function is exercised by a pgTAP test', () => {
        covered by an_admin_revokes_one_key.test.sql as the two doors the
        admin one is NOT -- the first returns an admin nothing, the
        second refuses them. */
-    expect(NOT_YET_COVERED.length).toBe(30);
+    /* 30 -> 29, 2026-10-04: referral_fee_preview, covered by
+       the_preview_says_which_unit.test.sql. It gained a test because it had
+       to change -- it was dropping resolve_fee's UNIT, so the form worded a
+       one-month band as "1 weeks of rent" -- and a definer function being
+       edited is the moment its coverage is cheapest to add. */
+    expect(NOT_YET_COVERED.length).toBe(29);
   });
 
   /* AND THE SORTED CLAIM IS NOW TRUE OF THE FILE. The literal is `.sort()`ed
