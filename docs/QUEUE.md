@@ -4527,6 +4527,22 @@ both estates, the dialog, and FAQ 9 on both rails.
   emails -- which makes those the definition of right, and Reporting the
   only place that disagrees.
 
+### (bu) (r) again: the schedule line, and Kestrel named twice
+
+> (r) is still not built: the settlement download for a supplier-estate agency (Frost Partnership via Kestrel, September) says "Reference assigned when the statement is posted · Draft: not yet posted". It must say "Included as a schedule in Kestrel Lettings' statement STMT-2026-09-0006", with no Draft status. Also the payee line reads "Frost Partnership (via Kestrel Lettings) (Kestrel Lettings)"; name Kestrel once.
+
+- **"STILL NOT BUILT" IS CORRECT AND I REPORTED IT MYSELF** in the
+  2026-10-04 audit: "Included as a schedule in" appears only in queue
+  commits, never in `src/`. It is the third of (q)(s)(t)'s three phrases.
+- AN AGENCY INSIDE A SUPPLIER'S ESTATE HAS NO STATEMENT OF ITS OWN, which
+  is why "Draft: not yet posted" is not merely the wrong words: it
+  promises a document that will never exist. Its money is a schedule to
+  the supplier's statement, and that statement has a real reference.
+- **THE DOUBLED BRACKET IS THE SAME FAULT AS (bp)(3)** and the pair gives
+  the cause: a payee label composes "(via Kestrel Lettings)" and then
+  something else appends a second parenthetical -- the estate in one
+  place, the kind in the other. One label builder, named once.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
