@@ -3064,6 +3064,20 @@ the one real assertion that has never run.
 - SO (bb) AND (cc) ARE ONE ITEM with one isolation test proving both halves:
   what an opndoor manager may now reach, and what they still may not.
 
+### (dd) Dev's data does not go to live
+
+> On hello@example.com and joe@joe.com: dev's people and data don't go to live (cutover moves code only; live keeps its own data), so nothing to do. Carry on: (o), then (q)+(s)+(t), then (bb) and (cc) together as you suggest, then the rest.
+
+- CLOSES THE RISK I RAISED and is worth keeping as a FACT ABOUT THE PROJECT
+  rather than an answer to one question: dev's estate is full of test
+  accounts with real-looking addresses and seeded deals, and none of it
+  travels.
+- **THE DISTINCTION TO CARRY FORWARD IS DATA VERSUS BEHAVIOUR.** A dev ROW
+  that looks dangerous is a fixture question and usually needs nothing.
+  Behaviour, schema and code DO reach live and still deserve the alarm.
+  Saved to memory so it is not re-raised.
+- ORDER CONFIRMED AGAIN, including (bb) and (cc) together.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
