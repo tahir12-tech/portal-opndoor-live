@@ -2703,6 +2703,23 @@ the one real assertion that has never run.
 - "ON EVERY FORM FOR EVERY LEVEL" is the sweep clause from (c), still open at
   the time of this message.
 
+### (h) AgencyGrow gets the same treatment
+
+> Fix AgencyGrow now, the same way as the others: enable the button, and on press with anything missing, scroll to the first missing field, mark each one, and show "N things still need filling in" by the button. Tell me when done and stopped editing.
+
+- THE OTHER HALF OF WHAT useMissingFields WAS WRITTEN FOR. Every form fixed so
+  far had a live button and errors nobody could find. This one has the
+  opposite: `disabled={!canBranch}` / `disabled={!canAgency}`, so there is
+  nothing to press and nothing to report, and a reader has no way to learn
+  which field the form is waiting for.
+- **"ENABLE THE BUTTON" IS THE INSTRUCTION AND IT IS A BEHAVIOUR CHANGE, not
+  an addition.** `canBranch` and `canAgency` stop gating the control and start
+  deciding whether the press SAYS something instead of saving.
+- "MARK EACH ONE" is the part this form cannot currently do at all: it passes
+  an `error` prop to only two of its twelve fields, so the rest have nothing
+  to mark. The marking has to be built before the count can count it.
+- SAME WORDS AS EVERYWHERE ELSE: "N things still need filling in".
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
