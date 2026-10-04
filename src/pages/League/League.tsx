@@ -319,10 +319,6 @@ function ReferrerLeagueView() {
 
   return (
     <>
-      <div className="backbar" style={{ marginBottom: 16 }}>
-        <Button variant="quiet" size="sm" to="/dashboard"><Icon name="arrowLeft" /> Back to dashboard</Button>
-      </div>
-
       <div className="page-head">
         <div>
           <Eyebrow>Performance · {period.label} · {scope === 'mine' ? 'My branch' : 'Whole company'}</Eyebrow>
@@ -589,10 +585,6 @@ function FullLeagueView() {
 
   return (
     <>
-      <div className="backbar" style={{ marginBottom: 16 }}>
-        <Button variant="quiet" size="sm" to="/dashboard"><Icon name="arrowLeft" /> Back to dashboard</Button>
-      </div>
-
       <div className="page-head">
         <div>
           {/* #100 Name the active scope truthfully (the table is scoped by the
