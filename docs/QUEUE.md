@@ -3047,6 +3047,23 @@ the one real assertion that has never run.
   will offer a choice the database refuses.**
 - TEST ACCOUNT NAMED: test@123.com.
 
+### (cc) Reconciliation is admins only
+
+> Also remove Reconciliation from opndoor managers (sidebar, Home tile and the page itself); admins only. Update the opndoor manager description in the invite dialog to match.
+
+- **THE INVERSE OF (bb) AND THE SAME PIECE OF WORK.** One instruction widens
+  what an opndoor manager reaches and this one narrows it; building them
+  apart means defining that level twice, a week apart, and the second
+  definition quietly disagreeing with the first.
+- "THE PAGE ITSELF" IS THE ONLY ONE THAT COUNTS. The sidebar and the Home
+  tile are how you GET there; removing them leaves the route, and a route
+  you can still type is still access. The predicate is the fix and the two
+  entry points follow from it.
+- THE INVITE DIALOG'S DESCRIPTION IS A PROMISE ABOUT ACCESS, so it has to
+  move with the access or it becomes the thing somebody onboards against.
+- SO (bb) AND (cc) ARE ONE ITEM with one isolation test proving both halves:
+  what an opndoor manager may now reach, and what they still may not.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
