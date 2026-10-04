@@ -96,15 +96,26 @@ select is(
   2,
   'both applications freeze the total from the two-or-more band');
 
-/* AND THE TWO RATES NOW AGREE ABOUT THE TENANT COUNT, which is the sentence
-   Matt wrote. Asserted as a relationship rather than as two numbers, because
-   the point is that one count feeds both and not that either is 0.40. */
+/* AND THE TWO RATES AGREE ABOUT THE TENANT COUNT, which is the sentence Matt
+   wrote for this migration. Asserted as a relationship rather than as two
+   numbers, because the point is that ONE count feeds both and not that either
+   is 0.40.
+
+   RETARGETED BY 20261008010000, AND THE REASON IS WORTH KEEPING. It used to
+   read `agent_rate = commission_total(...)`, which was this path's behaviour
+   when it was written and is now deliberately wrong on a supplier: Matt's
+   next instruction put the estate check on the joint path, so a supplier's
+   share comes from resolve_rates and only our own estate takes the additive
+   split. This fixture IS a supplier, so both rates now come from
+   resolve_rates, and the assertion says so. The claim being tested has not
+   changed: one tenant count, read once, feeding both columns. */
 select is(
   (select count(*)::int from public.applications a
     where a.tenant_email in ('zzz.f1@t.test','zzz.f2@t.test')
       and a.partner_rate = (select r.partner_rate from public.resolve_rates(
             a.branch_id, a.partner_id, 2) r)
-      and a.agent_rate = public.commission_total(a.branch_id, a.partner_id, 2)),
+      and a.agent_rate = (select r.agent_rate from public.resolve_rates(
+            a.branch_id, a.partner_id, 2) r)),
   2,
   'the frozen total and the frozen share both read the two-tenant band');
 
