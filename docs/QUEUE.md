@@ -4269,6 +4269,35 @@ both estates, the dialog, and FAQ 9 on both rails.
 - **GR-26262 IS THE SUPPLIER JOINT TENANCY from (ba)**, so whatever is found
   here is on the rail that is newest and least walked.
 
+### (bh) The Property row on the payment page has no layout
+
+> Tenant payment page, details box: the "Property" row has no gap between label and value and the address wraps under the label. Give it the same layout as the other rows (label left, value right-aligned, wrapping within its own column), on desktop and mobile.
+
+- **THE ONLY ROW WITH LONG CONTENT, which is why it is the only one broken.**
+  Reference, Amount and the rest are short enough that a row with no column
+  rule still looks like one. An address is not, so it is the first thing to
+  reveal that the box has no layout.
+- THE TENANT READS THIS WITH THEIR CARD IN THEIR HAND, so a row that looks
+  broken is read as a site that might be.
+- "ON DESKTOP AND MOBILE" rules out a fixed label width.
+
+### (bi) Name the agency first, the supplier as the route
+
+> Tenant-facing pages and emails for supplier referrals: name the letting agency first and the supplier as the route, e.g. "Test Lettings asda has referred you, through Kestrel Lettings, for opndoor's professional guarantor service". Agency referrals (no supplier) just name the agency, as now. Make the payment page, payment emails, receipt and signed-deed emails consistent.
+
+- **THE TENANT KNOWS THE AGENCY AND HAS NEVER HEARD OF THE SUPPLIER.** They
+  dealt with Test Lettings asda; Kestrel is plumbing to them. Naming the
+  supplier first, or only, asks them to recognise a company they have no
+  relationship with at the moment they are being asked to pay.
+- AND THE SUPPLIER STILL HAS TO APPEAR, because the agency may not be able
+  to answer a question about the guarantee: "through Kestrel Lettings" is
+  the route, which is what it is.
+- FOUR SURFACES NAMED, and the risk is the usual one: the payment page, the
+  payment email, the receipt and the signed-deed email each compose their
+  own sentence today, so this is one phrase in one place or it is four
+  near-identical ones that drift.
+- AN AGENCY REFERRAL IS UNCHANGED, which is most of the book.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
