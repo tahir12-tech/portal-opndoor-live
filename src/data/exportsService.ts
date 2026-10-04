@@ -72,17 +72,55 @@ function generatedOn(): string {
  * Build and download a branded workbook. Lazily loads the xlsx library so it
  * is fetched only when a user runs an export, not on first paint.
  */
-export async function exportBranded(built: BrandedExport): Promise<void> {
-  /* AN EMPTY EXPORT DOWNLOADS NOTHING, AND THAT IS THE WHOLE POINT OF IT.
-     emptyExport promises above that a refused document "downloads nothing instead
-     of crashing the page it was clicked from", and it did not keep that promise:
-     XLSX.write throws on a workbook with no sheets, so a refusal arrived as an
-     exception rather than as nothing. That was reachable only by a referrer on a
-     mis-wired button, and is now reachable by every Manager, who is refused all
-     four commission statements. Refuse quietly, as the comment always said. */
-  if (!built.sheets.length) return;
-  const { buildBrandedWorkbook, downloadXlsx } = await import('./xlsxTemplate');
-  downloadXlsx(buildBrandedWorkbook(built.sheets), built.filename);
+/** What an export did. `ok` downloaded; anything else has a sentence for the
+    reader, because an export that does nothing is indistinguishable from a
+    broken page. */
+export type ExportOutcome =
+  | { ok: true }
+  | { ok: false; reason: 'empty' | 'failed'; message: string };
+
+export async function exportBranded(built: BrandedExport | null): Promise<ExportOutcome> {
+  /* "REFUSE QUIETLY" WAS THE RULE AND IT WAS THE WRONG RULE.
+
+     Matt, 2026-10-04: "Reporting -> Application export: pressing it does
+     nothing, with no download and no message. ... make any export that fails
+     show a clear message instead of doing nothing."
+
+     This returned silently on a sheetless document, and the comment that used
+     to stand here explained why: XLSX.write throws on a workbook with no
+     sheets, so a refusal used to arrive as an exception. Not crashing was
+     right. Saying nothing was not, and the two were fixed together as though
+     they were one thing.
+
+     AND THE THROW WAS NEVER THE ONLY WAY TO SILENCE. Every caller writes
+     `void exportBranded(...)`, so anything this function rejects with -- the
+     dynamic import failing, the workbook builder throwing on a shape it has
+     not met -- became an unhandled rejection and a button that did nothing.
+     That is the same defect as the statementReference one fixed this morning,
+     on a second surface.
+
+     SO IT RETURNS AN OUTCOME AND NEVER REJECTS. The caller shows the
+     sentence; this decides what happened. */
+  if (!built || !built.sheets.length) {
+    return {
+      ok: false,
+      reason: 'empty',
+      message: 'There is nothing to export for this selection. Try a different period, or a different filter.',
+    };
+  }
+  try {
+    const { buildBrandedWorkbook, downloadXlsx } = await import('./xlsxTemplate');
+    downloadXlsx(buildBrandedWorkbook(built.sheets), built.filename);
+    return { ok: true };
+  } catch {
+    /* THE READER CANNOT ACT ON THE EXCEPTION, so they are told what happened
+       and what to do, not what threw. */
+    return {
+      ok: false,
+      reason: 'failed',
+      message: 'The export could not be built. Please try again, and tell opndoor if it keeps happening.',
+    };
+  }
 }
 
 const DAY = 86400000;

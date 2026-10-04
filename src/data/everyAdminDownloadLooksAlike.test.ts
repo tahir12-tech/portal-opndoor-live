@@ -120,7 +120,14 @@ describe('nothing builds the expiries file as a CSV any more', () => {
   it('and the dashboard downloads it through exportBranded', () => {
     const dash = read('src/pages/Dashboard/Dashboard.tsx');
     expect(dash).toContain('buildExpiriesDoc(role, +mv[0], +mv[1] - 1)');
-    expect(dash).toContain('void exportBranded(out)');
+    /* RETARGETED, NOT RELAXED. This read `void exportBranded(out)`, the exact
+       call shape, and 2026-10-04 routed every export on this page through one
+       `run` helper so a refusal or a throw reaches the reader as a sentence
+       instead of as a dead button. The CLAIM is unchanged, and is the two
+       assertions below: this file goes through exportBranded, and nothing
+       here builds a CSV. Pinning the literal call pinned the wrong half. */
+    expect(dash).toMatch(/void run\(buildExpiriesDoc\(/);
+    expect(dash).toMatch(/const out = await exportBranded\(built\)/);
     expect(dash).not.toContain('downloadCsv');
   });
 });

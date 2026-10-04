@@ -46,6 +46,7 @@ import { liveScopeShape } from '@/data/liveAnalytics';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
+import { useToast } from '@/components/ui/Toast';
 import { withoutVia, rowIsItsOwnPartner } from '@/data/viaSupplier';
 import { Icon } from '@/components/ui/Icon';
 import { Card, CardFoot } from '@/components/ui/Card';
@@ -393,6 +394,7 @@ function ReferrerLeagueView() {
 
 // ---- Full view (management / opndoor admin): unchanged tables + the #79 setting. ----
 function FullLeagueView() {
+  const toast = useToast();
   usePageMeta('league', 'League tables', ['Home', 'League tables']);
   const { role, partnerScope, currentUserId, scopeSel, setScopeSel, dataVersion } = useSession();
   const [params] = useSearchParams();
@@ -627,7 +629,7 @@ function FullLeagueView() {
               the whole workbook away from a Manager to withhold one column, and
               took it from opndoor_manager and developer as well, neither of whom
               the sweep was about. Withheld figures, not withheld documents. */}
-          <Button variant="dark" size="sm" onClick={() => void exportBranded(buildLeagueDoc(role, partnerScope, partner, period, view, branchIds))} title={`Downloads the ${TABS.find((t) => t.id === view)?.label} table as a branded Excel workbook`}>
+          <Button variant="dark" size="sm" onClick={() => void exportBranded(buildLeagueDoc(role, partnerScope, partner, period, view, branchIds)).then((r) => { if (!r.ok) toast(r.message, 'error'); })} title={`Downloads the ${TABS.find((t) => t.id === view)?.label} table as a branded Excel workbook`}>
             <Icon name="download" /> Export
           </Button>
         </div>
