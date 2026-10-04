@@ -33,7 +33,7 @@
 -- The supplier and direct rails are untouched, and still singular.
 
 begin;
-select plan(16);
+select plan(17);
 
 -- ===========================================================================
 -- ONE AGENCY ON THE HOUSE PARTNER, A SUPPLIER, AND A DIRECT TENANT
@@ -176,11 +176,30 @@ select is(
 -- ===========================================================================
 -- THE OTHER TWO RAILS STAY SINGULAR
 -- ===========================================================================
-select is((select count(*)::int from public.deed_delivery_target('94000000-0000-0000-0000-00000000e002')), 1,
-  'a supplier referral still resolves to one contact');
-select is((select t.email from public.deed_delivery_target('94000000-0000-0000-0000-00000000e002') t),
+/* THE SUPPLIER RAIL IS NO LONGER SINGULAR, and that is Matt's (bg) rather
+   than a regression. The signed deed on GR-26262 reached the agency and the
+   tenant and not Test Referrer, who sent it; (ap) is estate-wide, so the
+   referrer now gets a copy on this rail too.
+
+   THE AGENCY IS STILL THE ADDRESSEE, which is the half that must not move:
+   it is first, so `deed_delivered_to` records it, and (ap) says delivery of
+   the signed deed to the agency it is for can never be switched off. The
+   referrer follows as a copy.
+
+   ASSERTED BY POSITION, not by count alone: "two rows" would also be
+   satisfied by the referrer displacing the agency, which is the one outcome
+   this rail must never have. */
+select is((select count(*)::int from public.deed_delivery_target('94000000-0000-0000-0000-00000000e002')), 2,
+  'a supplier referral resolves to the agency AND the referrer who sent it');
+select is((select t.email from public.deed_delivery_target('94000000-0000-0000-0000-00000000e002') t limit 1),
   'supplierdesk@t.test',
-  'and it is the branch agent contact');
+  'the branch agent contact is FIRST, so it stays the addressee');
+select is((select t.email from public.deed_delivery_target('94000000-0000-0000-0000-00000000e002') t
+            where t.source = 'referrer'),
+  -- The SUPPLIER's own referrer, not the agency negotiator: this fixture's
+  -- supplier referral was sent by zzz.tick.supref.
+  'zzz.tick.supref@t.test',
+  'and the referrer who sent it is the copy');
 select is((select count(*)::int from public.deed_delivery_target('94000000-0000-0000-0000-00000000e003')), 1,
   'a direct referral still resolves to one contact');
 select is((select t.email from public.deed_delivery_target('94000000-0000-0000-0000-00000000e003') t),

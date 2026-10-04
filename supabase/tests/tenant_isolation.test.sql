@@ -429,8 +429,13 @@ select ok(not exists (select 1 from public.agency_notification_recipients('90000
 -- RULE 2: the other two rails are untouched by any of this.
 select is((select count(*)::int from public.agency_notification_recipients('90000000-0000-0000-0000-00000000e004')), 0,
   'a supplier referral has no agency-rail recipients at all');
-select is((select t.email from public.deed_delivery_target('90000000-0000-0000-0000-00000000e004') t), 'zzz.gammadesk@iso.test',
-  'its deed goes to the branch agent contact, as it always did');
+/* THE SUPPLIER RAIL GAINED THE REFERRER on 2026-10-04, Matt's (bg), so this
+   is no longer a single row and the scalar subquery it used to be raised
+   21000 the moment it was two. THE RULE THIS FILE IS ABOUT IS UNCHANGED and
+   is the stronger half: the agency contact is still the ADDRESSEE, and
+   nothing from another route appears at all. */
+select is((select t.email from public.deed_delivery_target('90000000-0000-0000-0000-00000000e004') t limit 1), 'zzz.gammadesk@iso.test',
+  'its deed still goes to the branch agent contact first, as it always did');
 select is((select t.email from public.deed_delivery_target('90000000-0000-0000-0000-00000000e005') t), 'zzz.tenantchoice@iso.test',
   'and a DIRECT tenant''s deed goes to the contact the tenant named');
 select is((select t.source from public.deed_delivery_target('90000000-0000-0000-0000-00000000e005') t), 'delivery_contact',

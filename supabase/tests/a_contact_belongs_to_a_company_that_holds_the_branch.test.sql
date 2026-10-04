@@ -39,7 +39,7 @@
 -- write alone is not enough.
 
 begin;
-select plan(10);
+select plan(11);
 
 -- ===========================================================================
 -- THE WORLD. Two suppliers and one agency each, plus one shared agency.
@@ -199,8 +199,14 @@ values ('c8000000-0000-0000-0000-0000000000f1','GR-ZZR101',
         '1 Victim Street','London','VC1 1AA',
         1500, current_date + 30, 0.30, 0.10, 'pre_referenced_open');
 
+/* FIRST, not only. The supplier rail now also copies the referrer who sent
+   it (Matt's (bg), 2026-10-04), so this became two rows and the scalar form
+   raised 21000. What this file is about is unaffected and is the stronger
+   claim: the ADDRESSEE is the contact of the route the application is on,
+   and the other supplier's contact appears nowhere -- which the second
+   assertion below still proves outright. */
 select is(
-  (select email from public.deed_delivery_target('c8000000-0000-0000-0000-0000000000f1')),
+  (select email from public.deed_delivery_target('c8000000-0000-0000-0000-0000000000f1') limit 1),
   'rightful@victim.test',
   'the deed goes to the contact of the route the application is actually on');
 
@@ -218,10 +224,26 @@ values ('c8000000-0000-0000-0000-0000000000e3', null,'c8000000-0000-0000-0000-00
 
 delete from public.agent_contacts where id = 'c8000000-0000-0000-0000-0000000000e1';
 
+/* THE INVARIANT IS "NEVER THE OTHER SUPPLIER'S", and that is what this now
+   says. It used to say "nobody at all", which was the same thing while the
+   supplier rail resolved exactly one address. Since (bg) it also copies the
+   referrer who sent the referral -- a person on the RIGHT route -- so the
+   deed no longer reaches nobody, and asserting that it does would be
+   asserting the absence of a copy this file has no opinion about.
+
+   WHAT MUST NEVER HAPPEN is unchanged and is now stated directly rather
+   than implied by a count: the other supplier's contact does not appear. */
 select is(
-  (select email from public.deed_delivery_target('c8000000-0000-0000-0000-0000000000f1')),
-  null,
-  'and with no contact on its own route it reaches nobody, never the other supplier''s');
+  (select count(*)::int from public.deed_delivery_target('c8000000-0000-0000-0000-0000000000f1') t
+    where t.email = 'other-route@other.test'),
+  0,
+  'and with no contact on its own route it NEVER falls back to the other supplier''s');
+
+select is(
+  (select count(*)::int from public.deed_delivery_target('c8000000-0000-0000-0000-0000000000f1') t
+    where t.source <> 'referrer' and coalesce(btrim(t.email), '') <> ''),
+  0,
+  'and reaches no CONTACT at all: the only address left is the referrer''s own');
 
 -- ===========================================================================
 -- 10. AND RE-LABELLING AN EXISTING ROW IS THE SAME HOLE BY ANOTHER DOOR.
