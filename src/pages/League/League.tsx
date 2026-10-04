@@ -328,11 +328,30 @@ function ReferrerLeagueView() {
           <Eyebrow>Performance · {period.label} · {scope === 'mine' ? 'My branch' : 'Whole company'}</Eyebrow>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>Referrer leaderboard</h1>
           <p className="page-head__sub">
+            {/* THE SENTENCE NOW MATCHES THE ORDER. Matt, 2026-10-04: "it says
+                'How you rank... by referrals sent' but ranks by fees collected
+                (Rosa Vance, 4 referrals, is 2nd behind Joe Joe's 3). Rank by
+                what the description says, or change the description to match;
+                keep it consistent with the Referrers tab admins see."
+
+                THE DESCRIPTION MOVED, NOT THE ORDER, and the deciding clause
+                is the last one. Every board in this file, including the
+                Referrers tab an admin reads, is ordered by fees collected then
+                referrals then name (groupRows in liveAnalytics). Reordering
+                this one view to match its own sentence would have made a
+                Negotiator's board disagree with the board their Director reads
+                of the same people -- two leagues of one branch.
+
+                WHY IT LOOKED ARBITRARY RATHER THAN MERELY MISLABELLED: Rosa
+                has MORE referrals and sits BELOW Joe, so the reader can see
+                the contradiction without being told. A tie-break on referrals
+                is in there too, which is why it is named: it is what separates
+                two people on the same fees. */}
             {mode === 'private'
               ? 'Your own referral performance for the selected period.'
               : scope === 'mine'
-                ? 'How you rank among referrers at your branch, by referrals sent in the selected period.'
-                : 'How you rank among referrers across your whole company, by referrals sent in the selected period.'}
+                ? 'How you rank among referrers at your branch, by guarantee fees collected in the selected period, then by referrals sent.'
+                : 'How you rank among referrers across your whole company, by guarantee fees collected in the selected period, then by referrals sent.'}
           </p>
         </div>
         <div className="page-head__actions">

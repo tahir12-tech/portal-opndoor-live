@@ -32,7 +32,7 @@ import { formatLondonDate, formatMonth, gbpPence, possessive, formatDate } from 
 import { BASIS_META, type ExportBasis } from '@/data';
 import { nextExpiryMonth } from '@/data/exportsService';
 import { getAgentRailFunnel, viewerRunsEligibilityJourney, type AgentRailFunnel } from '@/data/agentFunnel';
-import { isAgencyUser, partyIsSupplier } from '@/data/capabilities';
+import { isAgencyUser, partyIsSupplier, whoSeesEverything } from '@/data/capabilities';
 import { ORIGIN_ALL, originFromParams, originLabel, selectionIsAgency } from '@/data/origin';
 import { scopedSummaries } from '@/data/applicationsService';
 import type { Role } from '@/data';
@@ -646,9 +646,15 @@ export function Dashboard() {
           Opndoor's estate rather than the reader's own shop. A Negotiator being
           told what they cannot see should be told it in the names their own
           colleagues go by, which are the three the invite dialog offers. */}
+      {/* AND NOT EVERY READER IS ON THE AGENCY LADDER. Matt, 2026-10-04:
+          for supplier referrers say "Management sees all of [supplier]'s
+          referrals", because "Directors and Managers" is agency wording and
+          a supplier has neither. `whoSeesEverything` holds both ladders so
+          this sentence cannot drift from the three other places that name
+          the level above the reader. */}
       <RoleOnly roles={['referrer']}>
         <RoleNote style={{ marginBottom: 18 }}>
-          You are viewing your <b>own referrals only</b>. Directors and Managers see the whole agency.
+          You are viewing your <b>own referrals only</b>. {whoSeesEverything(partnerScope)}.
         </RoleNote>
       </RoleOnly>
 

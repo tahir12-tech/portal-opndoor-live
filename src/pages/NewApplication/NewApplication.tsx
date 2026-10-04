@@ -16,7 +16,8 @@
    fact under Tenancy have all gone: somebody filing from their only office knows
    where they work. See `oneOffice` below.
 
-   MORE THAN ONE TENANT. A joint tenancy is one guarantee over one property, and
+   MORE THAN ONE TENANT. A joint tenancy is one let over one property with a
+   deed per tenant over that tenant's share (20261005110000), and
    the form says so: the same tenant fields repeat, the Tenancy section grows a
    share row per tenant, and the fee is shown at the count actually entered
    BEFORE anything is sent. A sole tenant sees none of it — no share fields, no
@@ -728,7 +729,16 @@ export function NewApplication() {
             style={referredByDone ? undefined : { opacity: 0.45, pointerEvents: 'none' }}>
             <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div>
               <div className="sec__title">{joint ? 'Tenants' : 'Tenant'}</div>
-              <div className="sec__sub">{joint ? `${countOf(tenantCount, 'tenant')} on one tenancy, one guarantee` : 'The tenant being referred'}</div>
+              {/* "ONE GUARANTEE" WAS TRUE UNTIL 20261005110000 and then was
+                  not. Matt, 2026-10-04: say "2 tenants on one tenancy. Each
+                  signs their own Deed of Guarantee for their share."
+
+                  IT MATTERS MORE THAN A HEADER USUALLY WOULD, because this is
+                  the sentence an agent reads immediately before telling a
+                  tenant what they are about to sign. An agent who has read
+                  "one guarantee" will say so, and the tenant then gets a deed
+                  for a share. */}
+              <div className="sec__sub">{joint ? `${countOf(tenantCount, 'tenant')} on one tenancy. Each signs their own Deed of Guarantee for their share.` : 'The tenant being referred'}</div>
             </div></div>
             <CardBody>
               {joint && <div className="tn-label">Tenant 1</div>}

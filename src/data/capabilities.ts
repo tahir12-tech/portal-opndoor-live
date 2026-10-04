@@ -367,3 +367,34 @@ export function mayAddWhileReferring(role: Role, scope: PartnerScope): boolean {
   if (role === 'superadmin') return false; // An admin has the type-ahead's own create row.
   return (role === 'management' || role === 'referrer') && ownEstateTakesAdditions(scope);
 }
+
+/* WHO IS ABOVE A REFERRER, IN THEIR OWN ESTATE'S WORDS.
+ *
+ * Matt, 2026-10-04 (ss): 'Referrer Reporting note: for supplier referrers say
+ * "You are viewing your own referrals only. Management sees all of
+ * [supplier]'s referrals." (Directors and Managers is agency wording.)'
+ *
+ * THE FOURTH SITE TODAY where the agency ladder turned up in supplier copy,
+ * after the Commission tab, the FAQs and the notifications dialog. Four
+ * strings and one cause, so this is the shared answer rather than a fourth
+ * correction: the ladders are genuinely different shapes, not different
+ * words for one shape.
+ *
+ *   agency    Director > Manager > Negotiator. Two levels sit above a
+ *             Negotiator and both are named, because an agency reader
+ *             knows which of their colleagues is which.
+ *   supplier  Management > Referrer. ONE level above, called Management,
+ *             and there is no Director to appeal to.
+ *
+ * THE SUPPLIER IS NAMED because "Management" alone is ambiguous to somebody
+ * who also deals with opndoor: it is Kestrel's management, not ours.
+ */
+export function whoSeesEverything(scope: PartnerScope): string {
+  if (!partyIsSupplier(scope)) return 'Directors and Managers see the whole agency';
+  const name = getPartner(scope)?.name;
+  return name
+    ? `Management sees all of ${name}'s referrals`
+    // No resolved name is not a reason to say "Kestrel" or to say nothing:
+    // the sentence still has to name a level the reader recognises.
+    : 'Management sees all of your referrals';
+}
