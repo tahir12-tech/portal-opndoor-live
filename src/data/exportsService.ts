@@ -2141,8 +2141,9 @@ function statementRows(apps: SettlementApp[]): { rows: TableRow[]; totalFee: num
     totalFee += ap.fee;
     totalComm += ap.commission;
     const rate = ap.fee ? ap.commission / ap.fee : 0; // derived applied rate = commission / fee
-    // Tenant shown as INITIALS ONLY; the guarantee reference stands alone when unknown.
-    return [ap.ref, ap.tenantInitials || '', dmy(ap.paidAt), money(ap.fee), rate, money(ap.commission)];
+    // (bt) The tenant's full name, as on the Commission tabs and in the
+    // monthly emails; the guarantee reference stands alone when unknown.
+    return [ap.ref, ap.tenant || '', dmy(ap.paidAt), money(ap.fee), rate, money(ap.commission)];
   });
   /* NO TOTAL ROW INSIDE THE TABLE. Fold F3: "No blended rate in the total
      row." Both callers already print the total as a labelled figure under

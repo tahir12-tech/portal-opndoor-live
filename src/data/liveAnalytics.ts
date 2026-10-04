@@ -1092,18 +1092,29 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
   return months.map((m) => ({ label: m.label, refs: m.refs, fees: m.fees, deeds: m.deeds, comm: m.comm, payable: m.payable }));
 }
 
-/* ---------- Tenant initials (privacy-preserving) ----------
-   Settlement statements identify the tenant by INITIALS ONLY, never the full
-   name. FullApp carries no tenant name, so the initials are read from the
-   pseudonymised application record (findRecord) — the same source the live
-   bordereau uses. Empty string when no record/name is resolvable (e.g. mock mode),
-   so the statement falls back to the guarantee reference alone. */
-function nameInitials(n: string): string {
-  return n.trim().split(/\s+/).map((p) => p[0] ?? '').slice(0, 2).join('').toUpperCase();
-}
-function tenantInitialsFor(ref: string): string {
+/* ---------- The tenant on a settlement statement ----------
+ *
+ * Matt (bt): "Supplier settlement statement download: show the tenant's
+ * full name, as on every other statement, not initials ('TK')." And, in
+ * the next breath: "All settlement statement downloads on Reporting
+ * (supplier and agent): show tenants' full names, matching the statements
+ * on each Commission tab and in the monthly emails, not initials."
+ *
+ * IT READ AS A PRIVACY DECISION AND IT WAS NOT ONE. The comment here said
+ * "INITIALS ONLY, never the full name", which is the shape of a rule
+ * somebody agreed -- and if it had been, the answer would have been to
+ * change the other statements rather than this one. It was not: the
+ * Commission tabs and the monthly emails already print the full name to
+ * the same reader, and that reader has already seen it on the referral,
+ * the payment page and the signed deed. Nothing was being protected; one
+ * document out of the set was simply different.
+ *
+ * STILL EMPTY WHEN NOTHING RESOLVES, so a statement in mock mode or
+ * against a record we cannot find falls back to the guarantee reference
+ * alone rather than printing a gap where a name should be. */
+function tenantNameFor(ref: string): string {
   const rec = findRecord(ref);
-  return rec?.name ? nameInitials(rec.name) : '';
+  return rec?.name ?? '';
 }
 
 /* ---------- Partner commission settlement ----------
@@ -1120,7 +1131,10 @@ export interface SettlementApp {
       statement that prints rent under "Fee" states a price nobody paid and a
       derived rate nobody agreed. Added because it was doing exactly that. */
   fee: number;
-  commission: number; tenantInitials: string;
+  commission: number;
+  /** The tenant's full name, as on every other statement (bt). Empty when
+      no record resolves, and then the line is the reference alone. */
+  tenant: string;
 }
 export interface PartnerSettlement { partner: string; partnerName: string; commission: number; apps: SettlementApp[]; }
 export interface CommissionSettlement {
@@ -1212,7 +1226,7 @@ export function getCommissionSettlement(role: Role, scope: PartnerScope, window:
     let ps = byPartner.get(a.partner);
     if (!ps) { ps = { partner: a.partner, partnerName: partnerName(a.partner), commission: 0, apps: [] }; byPartner.set(a.partner, ps); }
     ps.commission += commission;
-    ps.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, fee: feeBaseFor(a), commission, tenantInitials: tenantInitialsFor(a.ref) });
+    ps.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, fee: feeBaseFor(a), commission, tenant: tenantNameFor(a.ref) });
   }
   const partners = [...byPartner.values()].sort((x, y) => y.commission - x.commission);
   partners.forEach((p) => p.apps.sort((x, y) => y.commission - x.commission));
@@ -1414,7 +1428,7 @@ function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
         byPayee.set(key, row);
       }
       row.commission += p.amount;
-      row.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, fee, commission: p.amount, tenantInitials: tenantInitialsFor(a.ref) });
+      row.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, fee, commission: p.amount, tenant: tenantNameFor(a.ref) });
       row.lines.push({
         ref: a.ref,
         // The summary store carries the name; a row whose summary has not
