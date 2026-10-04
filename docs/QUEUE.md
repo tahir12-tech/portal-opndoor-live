@@ -3078,6 +3078,24 @@ the one real assertion that has never run.
   Saved to memory so it is not re-raised.
 - ORDER CONFIRMED AGAIN, including (bb) and (cc) together.
 
+### (ee) The paid-on sentence as Kestrel, and whose name a customer sees
+
+> Two checks as Kestrel Management: 1) "Opndoor pays this on 15 Oct 2026, once the month's statement is posted" still shows for September, which is posted (STMT-2026-09-0006); (k) was meant to fix this, so check this panel uses the corrected lookup. 2) Referrals an Opndoor admin made on a customer's behalf still show the admin's name ("Nicholas Dwyer") in that customer's referrer lists and charts; show "opndoor (on your behalf)" instead in customer views.
+
+- **(1) IS A CHECK ON MY OWN FIX AND I SHOULD NOT ASSUME IT PASSED.** (k)
+  changed three builders in exportsService. The panel a SUPPLIER reads is a
+  component, and whether it reaches the same corrected lookup is a question
+  to answer by reading it, not by pointing at the commit.
+- AND THERE IS A REASON TO DOUBT IT. The client accumulator builds payees at
+  group, agency and branch level; a supplier's own statement is
+  `partner:<uuid>`. If the supplier's panel has no partner-level payee it was
+  never asking the question that (k) corrected, and the sentence has a
+  different cause.
+- (2) IS A SEPARATE AND SIMPLER THING: an admin acting on a customer's behalf
+  is OPNDOOR acting, and the customer's own lists and charts should say so.
+  "In customer views" is the scope: Opndoor's own screens should keep the
+  real name, because internally it matters who did it.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
