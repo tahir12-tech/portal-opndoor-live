@@ -240,6 +240,15 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
     && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(agEmail.trim());
   const missingOrg = showErrors && (!selectedAgency || !selectedBranch);
   const [addOrg, setAddOrg] = useState<'agency' | 'branch' | null>(null);
+  /* (vv) THE NAME THEY TYPED, CARRIED INTO THE DIALOG. Matt: "an option
+     at the bottom of the list, 'Add “New Agency” as a new agency',
+     that opens the add fields with the name already filled in." Held
+     beside `addOrg` rather than read off the field when the dialog
+     renders, because the button under the picker opens the same dialog
+     with nothing typed, and the two openings must not borrow each
+     other's text. */
+  const [addOrgName, setAddOrgName] = useState('');
+  const openAddOrg = (what: 'agency' | 'branch', seed = '') => { setAddOrgName(seed); setAddOrg(what); };
 
   // The partner the referral resolves to.
   const resolvedPartner = (() => {
@@ -459,6 +468,35 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
   // Only a supplier invents an agency mid-referral. For an agent a new agency
   // is an acquisition, and that belongs to an admin on the Agencies screen, not
   // to whoever happens to be sending a referral.
+  /* (vv) THE SUPPLIER'S ROUTE IN, AT THE BOTTOM OF THE LIST.
+
+     Matt: "when what's typed doesn't match an existing agency or office,
+     show an option at the bottom of the list ... Keep the duplicate check
+     (if it nearly matches an existing one, show that first with 'Did you
+     mean...?')."
+
+     THE DUPLICATE CHECK IS KEPT BY DOING NOTHING TO IT, which is the
+     point of putting this at the BOTTOM: `agentOptions` above is already
+     every match for what they typed, so the near-misses are the rows
+     ABOVE this one. The exact check that follows is the server's, inside
+     the dialog -- "Kestrel Lettings already has an agency called Frost
+     Partnership" -- and on this form its offer SELECTS the existing one
+     rather than navigating away.
+
+     NOT INSTEAD OF THE BUTTON UNDER THE PICKER. That one is for a reader
+     who has not typed anything yet and knows the agency is not there;
+     this one is for the reader who has typed and been told so. Same
+     dialog, and the only difference is what the name field starts as. */
+  if (agentQuery && !agentExact && addsViaDialog) {
+    agentOptions.push({
+      id: '__add-agency',
+      icon: <Icon name="plus" />,
+      main: <>Add &ldquo;{agentQuery}&rdquo; as a new agency</>,
+      sub: agentMatches.length ? 'None of the above is the one' : 'Add an agency not in the list',
+      isNew: true,
+      onSelect: () => openAddOrg('agency', agentQuery),
+    });
+  }
   if (agentQuery && !agentExact && mayInventAgency(shape) && !addsViaDialog) {
     agentOptions.push({
       id: '__create-agent',
@@ -520,6 +558,20 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
      on mayAddBranch would have taken it away from exactly the readers who
      just gained the Add a new office button. */
   const mayReachOtherOffices = mayInventBranch(shape);
+  /* (vv) AND THE SAME FOR AN OFFICE. Only once there is an agency to put
+     it under: admin_add_branch takes the agency's id, so offering it
+     before one is chosen would open a dialog that could only fail on
+     save -- the same reason the button below waits. */
+  if (addsViaDialog && branchQuery && !branchExact && selectedAgency) {
+    branchOptions.push({
+      id: '__add-branch',
+      icon: <Icon name="plus" />,
+      main: <>Add &ldquo;{branchQuery}&rdquo; as a new office</>,
+      sub: `In ${selectedAgency}`,
+      isNew: true,
+      onSelect: () => openAddOrg('branch', branchQuery),
+    });
+  }
   if (mayAddBranch && branchQuery && !branchExact && selectedAgency) {
     branchOptions.push({
       id: '__create-branch',
@@ -730,7 +782,7 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
               first thing to try, and this is what to do when the agency is not
               in it. */}
           {addsViaDialog && (
-            <button type="button" className="abp-addorg" onClick={() => setAddOrg('agency')}>
+            <button type="button" className="abp-addorg" onClick={() => openAddOrg('agency')}>
               <Icon name="plus" size={13} /> Add a new agency
             </button>
           )}
@@ -820,7 +872,7 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
               takes the agency's id), so the button waits rather than opening a
               dialog that could only fail on save. */}
           {addsViaDialog && selectedAgency && (
-            <button type="button" className="abp-addorg" onClick={() => setAddOrg('branch')}>
+            <button type="button" className="abp-addorg" onClick={() => openAddOrg('branch')}>
               <Icon name="plus" size={13} /> Add a new office
             </button>
           )}
@@ -914,6 +966,7 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
           partnerSlug={partnerScope === ALL_PARTNERS ? '' : String(partnerScope)}
           partnerName={partnerName(String(partnerScope))}
           agency={addOrg === 'branch' && selectedAgency ? (findAgency(selectedAgency) ?? null) : null}
+          initialName={addOrgName}
           onClose={() => setAddOrg(null)}
           onUseExisting={(name) => {
             if (addOrg === 'agency') chooseAgency(name, false);

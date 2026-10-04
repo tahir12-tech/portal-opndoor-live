@@ -33,12 +33,18 @@ import { useMissingFields } from '@/lib/useMissingFields';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-export function SupplierAddOrg({ mode, partnerSlug, partnerName, agency, onClose, onDone, onUseExisting }: {
+export function SupplierAddOrg({ mode, partnerSlug, partnerName, agency, initialName, onClose, onDone, onUseExisting }: {
   mode: 'agency' | 'branch';
   partnerSlug: string;
   partnerName: string;
   /** The agency a branch is going under. Unused when adding an agency. */
   agency?: Agency | null;
+  /* WHAT THEY ALREADY TYPED. (vv): "an option at the bottom of the list,
+     'Add \u201cNew Agency\u201d as a new agency', that opens the add fields
+     with the name already filled in." Typing a name, being told there is
+     no match, and then retyping it into a dialog is the whole of what
+     that item removes. */
+  initialName?: string;
   onClose: () => void;
   /** Saved. The name that was created, for a caller that has to select it. */
   onDone: (name: string) => void;
@@ -60,7 +66,11 @@ export function SupplierAddOrg({ mode, partnerSlug, partnerName, agency, onClose
 }) {
   const toast = useToast();
   const { refresh, dataVersion } = useSession();
-  const [name, setName] = useState('');
+  /* SEEDED ONCE, NOT BOUND. The picker's field keeps changing as the
+     reader types; this dialog opens over the top of it with what was
+     there at that moment, and from then on the name is the dialog's to
+     edit. A prop that kept tracking would overwrite their correction. */
+  const [name, setName] = useState(initialName ?? '');
   const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
