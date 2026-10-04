@@ -139,15 +139,30 @@ describe('Agencies list: collapse and scale', () => {
     fireEvent.click(btn('Expand all'));
     expect(shows(container, 'Northgate Lettings')).toBe(true);
     expect(shows(container, 'Northgate Central')).toBe(true);
-    /* NM-P, 2026-09-30. Brighton Marina is Harborview's ONLY office, and a
-       single-office agency now shows as the agency alone: "No '1 branch',
-       no branch row, no branch name." So expanding no longer reveals it,
-       and that is the rule working rather than the expander breaking.
+    /* =====================================================================
+       AND BRIGHTON MARINA IS BACK, 2026-10-04.
 
-       Northgate Central above is the control and is deliberately left
-       asserting TRUE: its agency has two offices, so it still names them.
-       The pair is what shows this test is still about expanding. */
-    expect(shows(container, 'Brighton Marina')).toBe(false);
+       Matt: "Office naming: apply it everywhere; show the office's own name
+       wherever an office is shown."
+
+       THIS ASSERTION HAS NOW BEEN BOTH WAYS and the history is the point.
+       NM-P (2026-09-30) collapsed a single-office agency to the agency, so
+       Harborview's only office stopped being revealed by Expand all and this
+       line was flipped to false with a note saying the rule was working.
+
+       The rule rested on his sentence "where the system needs an office
+       behind the scenes, it uses the agency's own name and address", and
+       Brighton Marina is not that: it is a name a person chose for
+       Harborview's one office, and the reader cannot get it from anywhere
+       else. Measured across dev, five of eight single-office agencies are in
+       that position. So the rule is the NAME now, not the count, and
+       expanding reveals it again.
+
+       Northgate Central above is still the control, still asserting true for
+       its own reason: its agency has two offices. The pair is what shows
+       this test is about expanding rather than about either rule.
+       ===================================================================== */
+    expect(shows(container, 'Brighton Marina')).toBe(true);
 
     fireEvent.click(btn('Collapse all'));
     /* COLLAPSED MEANS THE ROWS ARE GONE, not the name. Since 2026-10-02

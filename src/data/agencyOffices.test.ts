@@ -50,6 +50,33 @@ const seeded = () => ORG_SEED.map((a) => ({ ...a }));
 const MANY = 'Foxglove Residential';
 const ONE = 'Riverside Homes';
 
+/* =====================================================================
+   THE RULE CHANGED ON 2026-10-04 AND THESE FIXTURES ARE WHY IT HAD TO.
+
+   Matt: "Office naming: apply it everywhere; show the office's own name
+   wherever an office is shown." Choosing between three options I put to him
+   after he reported that Kestrel's Frost showed as "Frost Partnership" with
+   no agency anywhere on the row.
+
+   NM-P USED TO COLLAPSE ON THE COUNT: one office, show the agency. It rests
+   on his own sentence of 2026-09-30, "where the system needs an office behind
+   the scenes, it uses the agency's own name and address", and that is true of
+   three single-office agencies on dev and false of five. Riverside's one
+   office is called "Bermondsey" -- a name a person chose -- and the old rule
+   threw it away.
+
+   SO THERE ARE TWO SINGLE-OFFICE SHAPES NOW and the fixtures name them:
+   `ONE` whose office carries information, and `SAME`/`HEADOFFICE` whose do
+   not. Every assertion below that used to read "one office, therefore
+   collapsed" is now one of the two. */
+const SAME = 'Selfsame Lettings';
+const HEADOFFICE = 'Autogen Lettings';
+const withTwoShapes = () => [
+  ...seeded(),
+  { name: SAME, partner: 'northwind', branches: [{ name: SAME }] },
+  { name: HEADOFFICE, partner: 'northwind', branches: [{ name: `${HEADOFFICE}, Head office` }] },
+] as unknown as Agency[];
+
 beforeEach(() => hydrateOrg(seeded()));
 afterEach(() => hydrateOrg(seeded()));
 
@@ -84,8 +111,35 @@ describe('the predicate every surface asks', () => {
     expect(showsOffices(MANY)).toBe(true);
   });
 
-  it('and a single-office agency does not', () => {
-    expect(showsOffices(ONE)).toBe(false);
+  /* A SINGLE OFFICE WITH A NAME OF ITS OWN IS STILL SHOWN, which is the
+     2026-10-04 change: "Bermondsey" is where the let is, and the reader
+     cannot get it back from anywhere else on the row. */
+  it('and a single-office agency whose office has its own name still does', () => {
+    expect(showsOffices(ONE)).toBe(true);
+  });
+
+  /* AND THE CASE THE ORIGINAL RULING WAS WRITTEN FOR still collapses: an
+     office named after its agency says nothing the agency has not. */
+  it('but not one whose office is named after the agency', () => {
+    hydrateOrg(withTwoShapes());
+    expect(showsOffices(SAME)).toBe(false);
+  });
+
+  /* NOR THE AUTO ONE. "[Agency], Head office" is what the referral form
+     creates when nobody names an office, which is the system using the
+     agency's own name -- Matt's sentence exactly. */
+  it('nor one whose office is the auto Head office', () => {
+    hydrateOrg(withTwoShapes());
+    expect(showsOffices(HEADOFFICE)).toBe(false);
+  });
+
+  /* CASE AND SPACING DO NOT MAKE A NAME INFORMATIVE, which is worth pinning
+     because the two strings come from different places: one is typed into
+     the Agencies screen and the other is built by SQL. */
+  it('and ignores case and spacing when deciding that', () => {
+    hydrateOrg([{ name: 'Spaced  Lettings', partner: 'northwind',
+      branches: [{ name: 'spaced lettings' }] }] as unknown as Agency[]);
+    expect(showsOffices('Spaced  Lettings')).toBe(false);
   });
 
   /* UNKNOWN SHOWS THE OFFICE, which is today's behaviour and the safe
@@ -117,7 +171,23 @@ describe('the predicate every surface asks', () => {
     } as unknown as Agency]);
     const r = agencyOffices('One Real Office');
     expect(r.known && r.offices).toBe(1);
-    expect(showsOffices('One Real Office')).toBe(false);
+    /* COUNTED AS ONE, and shown because that one is called Chelsea. The
+       count is what this test is about; which way `showsOffices` then goes
+       is the 2026-10-04 rule and is asserted on its own above. */
+    expect(r.known && r.onlyOfficeName).toBe('Chelsea');
+    expect(showsOffices('One Real Office')).toBe(true);
+  });
+
+  /* THE SAME COUNT, THE OTHER WAY, so the placeholder rule is not quietly
+     carrying the collapse: one real office named after the agency, plus a
+     placeholder, still collapses. */
+  it('and the same agency collapses when its one real office repeats its name', () => {
+    hydrateOrg([{
+      name: 'Selfsame Two', partner: 'northwind',
+      branches: [{ name: 'Selfsame Two' }, { name: 'Unattached', isPlaceholder: true }],
+    } as unknown as Agency]);
+    expect(agencyOffices('Selfsame Two').known && agencyOffices('Selfsame Two').offices).toBe(1);
+    expect(showsOffices('Selfsame Two')).toBe(false);
   });
 });
 
@@ -128,8 +198,16 @@ describe('the label a branch-shaped row must carry', () => {
     expect(officeLabel(MANY, 'Chelsea')).toBe('Chelsea');
   });
 
-  it('and the agency’s own name where it has one office', () => {
-    expect(officeLabel(ONE, 'Bermondsey')).toBe(ONE);
+  /* THE OFFICE'S OWN NAME, SINCE 2026-10-04: "show the office's own name
+     wherever an office is shown". This used to answer with the agency. */
+  it('and the office’s own name where that name says something', () => {
+    expect(officeLabel(ONE, 'Bermondsey')).toBe('Bermondsey');
+  });
+
+  it('and the agency where the office merely repeats it', () => {
+    hydrateOrg(withTwoShapes());
+    expect(officeLabel(SAME, SAME)).toBe(SAME);
+    expect(officeLabel(HEADOFFICE, `${HEADOFFICE}, Head office`)).toBe(HEADOFFICE);
   });
 
   it('and the office name when the agency is unknown, which is today’s answer', () => {
@@ -148,13 +226,32 @@ describe('the label a branch-shaped row must carry', () => {
 describe('the flip, which is the half that makes this a rule and not a fixture', () => {
   /* "As soon as a second office is added, both appear as branches." So the
      answer must change on the next read, with no cached flag to go stale. */
-  it('a single-office agency shows its offices the moment it gains a second', () => {
-    expect(showsOffices(ONE)).toBe(false);
-    const grown = seeded().map((a) => (a.name === ONE
+  /* THE FLIP IS NOW ON THE COLLAPSING SHAPE, because `ONE` no longer
+     collapses: Riverside's office is called Bermondsey and is shown from the
+     start. The agency that does collapse is the one whose office repeats its
+     name, so that is the one whose answer has to change when it grows. */
+  it('a collapsed agency shows its offices the moment it gains a second', () => {
+    hydrateOrg(withTwoShapes());
+    expect(showsOffices(SAME)).toBe(false);
+    const grown = withTwoShapes().map((a) => (a.name === SAME
       ? { ...a, branches: [...(a.branches ?? []), { name: 'Rotherhithe' }] }
       : a));
     hydrateOrg(grown as Agency[]);
-    expect(showsOffices(ONE)).toBe(true);
-    expect(officeLabel(ONE, 'Bermondsey')).toBe('Bermondsey');
+    expect(showsOffices(SAME)).toBe(true);
+    expect(officeLabel(SAME, 'Rotherhithe')).toBe('Rotherhithe');
+  });
+
+  /* AND THE OTHER DIRECTION, which the 2026-10-04 rule makes possible and
+     the count rule never could: RENAMING the one office flips it too, with
+     no cached flag to go stale. */
+  it('and a collapsed agency shows its office the moment that office is renamed', () => {
+    hydrateOrg(withTwoShapes());
+    expect(showsOffices(SAME)).toBe(false);
+    const renamed = withTwoShapes().map((a) => (a.name === SAME
+      ? { ...a, branches: [{ name: 'Bermondsey' }] }
+      : a));
+    hydrateOrg(renamed as Agency[]);
+    expect(showsOffices(SAME)).toBe(true);
+    expect(officeLabel(SAME, 'Bermondsey')).toBe('Bermondsey');
   });
 });

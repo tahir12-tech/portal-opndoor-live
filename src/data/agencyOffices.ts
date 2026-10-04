@@ -199,11 +199,68 @@ export function orgCell(name: string | null | undefined): string {
  * for an agency we do not know. False only where we KNOW there is exactly
  * one, which is the one case Matt's rule is about.
  */
+/* =====================================================================
+   DOES THE ONE OFFICE'S NAME TELL THE READER ANYTHING?
+
+   Matt, 2026-10-04, choosing between the three options I put to him:
+   "Office naming: apply it everywhere; show the office's own name wherever an
+   office is shown."
+
+   WHAT HE IS DECIDING. NM-P, his own ruling of 2026-09-30, collapses a
+   single-office agency to the agency's name, and it rests on one sentence of
+   his: "Where the system needs an office behind the scenes, it uses the
+   agency's own name and address and is never shown separately."
+
+   THAT ASSUMPTION IS TRUE OF THREE AGENCIES ON DEV AND FALSE OF FIVE.
+   Measured before proposing the change, every single-office agency we hold:
+
+     Harbour Lets          office "Harbour Lets"        repeats the agency
+     Kestrel's "123"       office "123"                 repeats the agency
+     New Independent       office "New Independent"     repeats the agency
+     Kestrel's Frost       office "Frost Mayfair"       a real, chosen name
+     our Frost             office "Frost Mayfair"       a real, chosen name
+     Harborview Lettings   office "Brighton Marina"     a real, chosen name
+     Regent's Lettings     office "Regent's Park"       a real, chosen name
+     Southbank Residential office "Southbank Quay"      a real, chosen name
+
+   The three that repeat are offices the system created behind the scenes,
+   which is the case his sentence described. The five that do not are offices
+   a person named, and hiding one of those loses a fact the reader cannot get
+   back from the row: "Frost Mayfair" is where the let is.
+
+   SO THE RULE IS HIS REASON RATHER THAN HIS PROXY: collapse when the name
+   carries nothing, not merely when there is one of them. New Independent, his
+   own example from the original ruling, still collapses.
+
+   IT CHANGES REGENT, which is why it was put to him rather than done: their
+   Office column now reads "Regent's Park" where it read "Regent's Lettings",
+   two days before they go live. He has chosen that, in wider terms than I
+   proposed -- "wherever an office is shown", not only the two places he
+   reported.
+
+   TWO SHAPES CARRY NOTHING: the office named exactly after the agency, and
+   the auto "[Agency], Head office" the referral form creates. Both are the
+   system using the agency's own name, which is his sentence.
+
+   AN UNKNOWN NAME READS AS "carries nothing", which keeps NM-P's behaviour
+   for the case it was written for and for any row we cannot resolve. The
+   failure direction is unchanged: the worst it does is leave the old screen.
+   ===================================================================== */
+function officeNameAddsNothing(agencyName: string, officeName: string): boolean {
+  const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, ' ');
+  const a = norm(agencyName);
+  const o = norm(officeName);
+  if (!o) return true;
+  return o === a || o === `${a}, head office`;
+}
+
 export function showsOffices(
   agencyName: string | null | undefined, estate?: string | null,
 ): boolean {
   const r = agencyOffices(agencyName, estate);
-  return !r.known || !r.singleOffice;
+  if (!r.known) return true;
+  if (!r.singleOffice) return true;
+  return !officeNameAddsNothing((agencyName ?? '').trim(), r.onlyOfficeName ?? '');
 }
 
 /**
