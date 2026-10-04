@@ -1491,76 +1491,112 @@ had. Nothing to remove.
 
 *(Recorded, NOT built. Nothing in this section is in the go-live scope.)*
 
-### The catch-up for data arriving after the send day (2026-10-04)
+### Late commission lines roll into the next month (2026-10-04)
 
-Matt: *"The catch-up for data arriving after the monthly send day goes under
-'After launch'; tell me there what it would take."*
+Matt's decision, verbatim: *"Catch-up decision: roll late payees into the next
+month's statement and settlement, with a line on the statement saying which
+month the late item belongs to. Keep it under 'After launch'."*
 
-**THE FAULT, IN ONE SENTENCE.** `commission-statements` runs only on the send
-day (the 1st, or the next working day). A payee whose lines arrive after that
-is never posted for that month, and nothing says so.
+**NOT BUILT. This entry is the specification.**
 
-**IT IS NOT HYPOTHETICAL AND WE HAVE SEEN IT.** Kestrel's September was missed
-exactly this way: the referral was recorded at 00:07 on 2 October with
-`paid_at` back-dated to 27 September, seventeen hours after the run. On live
-the same shape is a late Stripe webhook, a correction, a back-dated amendment,
-or an integrator posting last month's referrals in a batch.
+#### The fault
 
-**MOST OF THE MECHANISM ALREADY EXISTS**, which is why this is a small build
-with one hard part. `commission_statement_sends` holds one row per (month,
-payee) and the loop skips anybody already in it, so a second run of the same
-month posts only what is missing. That is the whole of the idempotency and it
-is already load-bearing: the function runs twice a day as it is.
+A line's month comes from `paid_at`, which can be back-dated: a referral
+recorded on 2 October with `paid_at` of 27 September lands in September's
+bucket after September has been and gone. The monthly run fires once on the
+send day, so anything arriving afterwards is never reported at all. Kestrel's
+September was exactly this, and so was Frost Partnership's on our own estate.
 
-#### What it would take
+#### His decision replaces most of what I first specced, and improves it
 
-1. **A third gate, not a new function.** Today: `if (!test && !dry) { hour
-   check; isSendDay check }`. A catch-up keeps the hour and replaces the day
-   rule with "this month is CLOSED and is not fully posted". Same function,
-   same loop, same idempotency.
+I offered three ways to deal with the settlement. He picked none of them
+cleanly: he rolls the late item into the next month's **statement** as well as
+its settlement, which keeps the two in step. **A closed month is never
+reopened.** That removes three of the five things I said it would take:
 
-2. **A bounded look-back.** Two months, not all of history: without a bound,
-   the first run after deploy posts every month a partner has ever been owed,
-   including months that were deliberately never sent. Two is enough for a
-   late webhook and short enough that a mistake is visible.
+- no catch-up RUN, no third gate, no second schedule: the ordinary monthly run
+  does it;
+- no re-issued or superseded settlement, because the late money simply lands
+  in the next one;
+- no out-of-sequence reference, because no extra statement is ever minted.
 
-3. **THE SETTLEMENT ROW IS THE HARD PART, and it is the reason this is not a
-   two-line change.** `@settlement` is posted once per month and September's
-   has gone, saying £3,231.54. Posting Kestrel's £600 afterwards makes the
-   month £3,831.54, and the settlement nobody will re-read still says the old
-   figure. Three options, and this is the decision to make before building:
-   - re-issue the settlement, with a line saying it supersedes;
-   - leave it and put the late payees in the NEXT month's settlement, which
-     is what a ledger would do but makes a month's statement and its
-     settlement disagree on purpose;
-   - post the payee and alert Opndoor to settle it by hand.
+It also dissolves the missing-payee case. Kestrel had no September statement at
+all, which is a different shape from "the statement went out and was
+incomplete", and under this rule both are the same thing: an unreported line
+goes on the next statement, labelled.
 
-4. **A late statement should say it is late.** Its reference is out of
-   sequence for the month and finance will query it. One line: "Sent on 9
-   October for September 2026, after a late record." Nothing else in the
-   document changes.
+#### What it actually takes
 
-5. **Opndoor is told.** A payee arriving after the send day usually means
-   something upstream was late, so the catch-up posting anything is worth an
-   ops alert rather than a silent success.
+**1. Answering "has this line already been reported?" This is now the whole of
+the work.** Nothing records it: `commission_statement_sends` is one row per
+(month, payee) and there is no line-level record anywhere.
 
-6. **Deductions need no work.** `settle_statement_deductions` runs per payee
-   at the moment of posting, so a catch-up inherits the right behaviour.
+It is derivable with no new table. `application_commission_lines.created_at` is
+when the line was frozen; a send row carries `sent_at`. A line cannot have been
+on a statement that went out before the line existed. So:
 
-#### What it does NOT need
+> a line is UNREPORTED when there is no send row for (its month, its payee),
+> or there is one whose `sent_at` is earlier than the line's `created_at`.
 
-- No new table, no new state on a statement, no change to the documents.
-- No change to the per-payee idempotency, which is what makes it safe.
+Checked against the three real lines on dev and it gives the right verdict for
+each, including the two posted on 4 October. **Caveat worth knowing before
+building: that probe joined the payee approximately. The real thing has to
+build the proper `payee_key`, which is the same key the run already uses.**
 
-#### The test that would have to come with it
+A column recording the statement month a line was reported on would be firmer
+than a derivation, and is the alternative if the derivation ever disagrees with
+a document somebody has. It needs a backfill with a value nobody knows for
+historical rows, which is why the derivation is the first choice.
 
-A pgTAP that posts a month, adds a payee's lines afterwards, runs the
-catch-up, and asserts: the new payee is posted once, the three already posted
-are untouched, their references do not move, and a second catch-up run posts
-nothing at all.
+**2. The run's line selection.** `commission_statement_lines(p_month)` becomes
+"lines whose month is p_month, plus unreported lines from earlier months". The
+payee grouping, the rates, the deductions and the idempotency are untouched.
 
-**Estimate: half a day for 1, 2, 4, 5 and the tests. Point 3 is yours to
-decide first and is most of the risk.**
+**3. The label, which is Matt's own sentence.** A rolled-in line says which
+month it belongs to. It is a line-level fact, not a note on the document: an
+October statement can carry September and August items at once. The CSV and
+the per-agency schedules need the same column.
+
+**4. A sanity bound on how far back.** Not a window of runs any more, but a
+limit on how old an unreported line may be before it is flagged to Opndoor
+instead of rolled silently. A line six months late is a fault upstream, not a
+late payment.
+
+**5. Opndoor is told when anything rolls.** Same reason as before: a line
+arriving after its month usually means something upstream was late.
+
+#### Four consequences to design for
+
+- **A payee with no business this month still gets a statement** if they have
+  a late item. Today the loop skips a payee with no lines as `nothingDue`;
+  with a rolled-in line they have one, so they are posted. Correct, and the
+  statement's own total will not match their month's trading.
+- **The total will not reconcile against the payee's own book for that month**,
+  which is exactly what the label is for. It is worth a sentence in the
+  document as well as the column.
+- **Ordering.** Late lines should be grouped and not interleaved by date, or a
+  September date appears in the middle of an October list.
+- **Refunds need nothing.** `paid` already excludes `payment_state =
+  'refunded'`, so a late line refunded before it is ever reported never
+  appears.
+
+#### The test that comes with it
+
+A pgTAP that posts a month, adds a line to that month afterwards, runs the
+NEXT month, and asserts: the late line is on the next statement, labelled with
+its own month; the closed month's send rows and references are untouched; the
+next month's settlement includes it; and running again posts nothing.
+
+**Estimate: a day, most of it in point 1 and in the document changes.**
+
+#### One live consequence of the send on 4 October
+
+Sending September's two statements this morning, which Matt asked for,
+produced exactly the state this rule exists to prevent: the statements say
+September and September's settlement, sent on 1 October, still says
+£3,231.54, so it understates the month by £840. On dev only, and harmless
+there. Under this rule it would not have happened: those two lines would have
+rolled into October's statement and October's settlement, labelled September.
 
 ### Refusing referrals for a supplier with no deal (2026-10-03)
 
