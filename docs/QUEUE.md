@@ -4156,6 +4156,44 @@ both estates, the dialog, and FAQ 9 on both rails.
 - THE SIXTH SITE TODAY where the supplier rail reads differently from the
   agency rail for no reason anybody chose.
 
+### (bb) A cascaded tenant is not told why
+
+> Refund emails: a tenant refunded automatically by the cascade (e.g. GR-23854) gets the plain "Your guarantee fee has been refunded" email with no explanation. Send them: "Your guarantee fee has been refunded and your Deed of Guarantee is cancelled, because the tenancy at [property] is not going ahead. You don't need to do anything." Every refund email says the money goes back "to the way you paid", not "the card you paid with" (Klarna and Revolut Pay exist).
+
+- **THE TENANT WHO DID NOTHING IS THE ONE WHO NEEDS THE MOST EXPLANATION.**
+  GR-23854 did not ask for a refund, did not fail anything, and got an email
+  saying their money is coming back with no reason attached. The first thing
+  they do is ring the agent.
+- "YOU DON'T NEED TO DO ANYTHING" IS THE SENTENCE THAT STOPS THE CALL, and
+  is Matt's, not a flourish.
+- **"TO THE WAY YOU PAID" IS A FACTUAL CORRECTION, not a style one.** Stripe
+  takes Klarna and Revolut Pay, so "the card you paid with" is wrong for
+  anybody who used either, and it is wrong in a way that makes them look for
+  a card refund that is never coming.
+- MY OWN refundEmail ALREADY HAS A deedCancelled ARM from (ak), so this is
+  a third arm rather than a new template: cancelled-and-why.
+
+### (bc) BUG I SHIPPED: the cancellation notice goes once per tenant
+
+> Refund cascade emails: the "These guarantees have been cancelled" email went twice each to joe@joe.com and landlord@landlord.com (once per refunded tenant). Send it exactly once per tenancy, after the last tenant's refund, and never again on webhook redeliveries. Add a test for a 2- and 3-tenant cascade.
+
+- **MINE, FROM THIS AFTERNOON, AND THE CAUSE IS THE THING I WAS PLEASED
+  ABOUT.** Each cascaded refund raises its own `charge.refunded`, which I
+  made run the whole per-tenant path "so there is ONE code path for a tenant
+  being refunded". The per-PROPERTY email was inside that path, so it fires
+  once per tenant. On a three-tenant let the agent gets three.
+- **"AFTER THE LAST TENANT'S REFUND" IS THE HARD HALF.** The webhook that
+  should send it is the one with no way of knowing it is last: each arrives
+  independently and none of them is told how many siblings there are.
+- **AND "NEVER AGAIN ON REDELIVERIES" RULES OUT DOING IT IN MEMORY.** Stripe
+  redelivers; a flag held in the function dies with it. This needs a durable
+  once-per-tenancy record, the same shape as the cascade ledger.
+- A COUNTED CONDITION ALONE IS NOT ENOUGH EITHER: "every tenant is now
+  refunded" is true for every redelivery after the last one, so it would
+  send again each time. The record and the condition are both needed.
+- MATT ASKS FOR 2- AND 3-TENANT TESTS BY NAME, which is right: a 2-tenant
+  cascade passes a naive "is anyone left" check that a 3-tenant one fails.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
