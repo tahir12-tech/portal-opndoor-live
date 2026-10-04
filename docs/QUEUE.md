@@ -3471,6 +3471,28 @@ the one real assertion that has never run.
   admin board's order is the fact to establish first, and then the two
   agree rather than being independently chosen.
 
+### (ae) Help document decisions, and a question held open
+
+> Help documents, my decisions:
+> 1. Refunds: full refund if the tenancy doesn't go ahead; non-refundable from the tenancy start date. Make every place say exactly that: pay page, tenant leaflet, landlord leaflet, Sales guide, FAQs, emails.
+> 2. The underwriting rules stay in the Sales guide for suppliers.
+> 3. Complaints go to support@opndoor.co (claims stay at claims@opndoor.co). Agent one-pager: support@opndoor.co instead of hello@opndoor.co.
+> 4. Sales guide and agent one-pager: open as pages with "Save as PDF" like the referrer guide; no fixed rates ("the guarantee fee agreed with your agency, usually one month's rent", "your commission is set out in your agreement", never "you earn 10%"); remove every rent guarantee / "extra layer" / "bonus" mention; joint tenancies as the portal works (priced once, split, each tenant has their own deed for their share); "in favour of the property"; "guarantee fee"; no em dashes.
+> 5. Start-date changes: tell me in plain English what the rule is today (who can change it, how late, how far), where that rule came from (my decision, a spec, or a default), and what you'd recommend for guarantees already signed. Don't change it yet.
+
+- **ITEM 1 IS THE CONSUMER-FACING ONE AND IS A PROMISE ABOUT MONEY.** Six
+  surfaces have to say the same two sentences, so it is one string read six
+  times rather than six edits. Any surface saying something else is a
+  different refund policy.
+- ITEM 4 SUPERSEDES AND WIDENS (nn), which covered the Sales guide only.
+  "Remove every rent guarantee / extra layer / bonus mention" is new and is
+  the most important part of it: those describe a product we do not sell.
+- **ITEM 5 IS ANSWER ONLY AND SAYS SO TWICE** ("tell me", "Don't change it
+  yet"), and it asks for PROVENANCE: whether today's rule is his decision,
+  a spec, or a default nobody chose. That is a question about history, so
+  it is answered from the migrations, the queue and git rather than from
+  the code alone. It also unblocks FAQ 9, which (pp) holds.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
