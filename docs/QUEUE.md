@@ -3373,6 +3373,27 @@ the one real assertion that has never run.
 - ITEM 3 FINISHES (vv): adding an agency should leave it SELECTED, not
   leave the reader to find it.
 
+### (xx) BLOCKER: a supplier's tenant got opndoor's full application email
+
+> Blocker: a Kestrel Referrer's referral (GR-25831, through the newly added agency "Test Test Test") sent the tenant Opndoor's full application email ("address history for the last three years, your income, and a couple of documents"), but Kestrel is set to "They check tenants, and Opndoor accepts them as sent", so the tenant should go straight to payment. Find why: does a newly added agency or office in a supplier's estate get its own referencing mode instead of following the supplier's, or did changing refers_own_stock change the route? Every referral through a supplier, including through newly added agencies, must follow the supplier's checking setting. Check GR-25831 and existing Kestrel referrals, tell me what each would get, and fix it. Test single and joint through Kestrel end to end on dev.
+
+- **THE MOST SERIOUS ITEM OF THE DAY. A REAL TENANT WAS ASKED FOR THREE
+  YEARS OF ADDRESS HISTORY, THEIR INCOME AND DOCUMENTS** under an
+  arrangement where opndoor checks nothing and accepts the supplier's word.
+  That is not a wrong label; it is asking a person for personal data we had
+  no basis to ask for, and it goes out by email the moment Send is pressed.
+- HE NAMES TWO CANDIDATES AND BOTH ARE TESTABLE. A new agency inheriting
+  nothing and defaulting to `opndoor_referenced`; or refers_own_stock
+  changing which route resolves. The second is MINE, changed today on
+  instruction, and has to be ruled in or out first and honestly.
+- `resolve_referencing_mode(branch, route)` IS THE FUNCTION: "the agency's
+  own mode if it has said, else the route partner's". So an agency whose
+  own mode is set, rather than null, overrides its supplier. A newly
+  created agency that is given a mode instead of null would do exactly
+  this.
+- THE DELIVERABLE IS THREE THINGS: what GR-25831 and the existing Kestrel
+  referrals would each get, the fix, and single AND joint tested end to end.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
