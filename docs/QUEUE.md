@@ -4727,6 +4727,37 @@ both estates, the dialog, and FAQ 9 on both rails.
   knows and the People tab already obeys. Two more controls that the
   same predicate should have taken away.
 
+### (cj) Reporting and Commission for an agency inside a supplier's estate
+
+> Supplier-estate agency Reporting tab (Test Lettings asda under Kestrel, as admin): "No referrals from this customer in this period" for Last 12 months, though it has 2 paid referrals (GR-26262/3, 4 Oct). Fix the lookup for agencies inside a supplier's estate, and check Frost Partnership (via Kestrel) the same way.
+
+> Supplier-estate agency Commission tab (Test Lettings asda under Kestrel), still not built from earlier: 1) show the supplier's deal for this agency ("On Kestrel Lettings' agency deal: 10% (1 to 5 tenants), 15% (6 to 10)"), not "Opndoor standard"; 2) say who pays per the frozen setting ("Kestrel Lettings pays this agency" or "Opndoor pays this agency directly"), never "Opndoor pays this" when Kestrel does; 3) "What they earned" must list GR-26262/3 (£378.90 for October), not "No commission accrued". Same fix for every supplier-estate agency and the Reporting tab above.
+
+- THE SECOND IS **(kk)**, which I recorded and did not build: (gg) took
+  the editor away and (kk) is what goes in its place. Taking the editor
+  out first has left the tab emptier than it was, which is on me.
+- **THE REPORTING ONE IS LIKELY THE SAME ROOT CAUSE**, and that is the
+  thing to check before fixing either: a lookup that matches an agency
+  by name within `app_partner()` finds nothing for an agency whose
+  estate is the supplier's, which is exactly "no referrals in this
+  period" on an agency with two.
+- £378.90 AGAIN -- the fourth report of the same figure.
+
+### (ck) The duplicate check does not catch the duplicates it was built for
+
+> Reconciliation duplicate check: "Test Lettings" and "Test Lettings asda" (both under Kestrel, same email test@lettings.com, created 2 minutes apart) both show "Nothing similar found". Flag as "Might already exist" when a new agency or office shares an email with an existing one, or its name starts with or contains another's name, within the same supplier or Opndoor's own estate. Show the possible match side by side, with "Merge into [existing]" and "Keep both".
+
+- **"NOTHING SIMILAR FOUND" ON A PAIR THAT SHARE AN EMAIL AND A PREFIX**
+  is the clearest possible statement that the check is not asking the
+  right questions. Matt has given all three: shared email, name
+  prefix, name containment, scoped to one estate.
+- THE TRIGRAM THRESHOLD IS WHY. "Test Lettings" against "Test Lettings
+  asda" is a containment, and similarity at 0.55 does not reliably
+  catch a short name inside a longer one.
+- THE ACTIONS ARE PART OF IT: side by side, "Merge into [existing]" and
+  "Keep both". A warning with no verb leaves the reader where they
+  were.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
