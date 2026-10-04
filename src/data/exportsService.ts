@@ -1784,11 +1784,30 @@ export function draftLabel(monthKey: string, ref: string): string | null {
 
 export async function statementReference(monthKey: string, payeeKey: string): Promise<string> {
   if (!SUPABASE_ENABLED) return EMPTY;
-  const { data, error } = await sb().rpc('commission_statement_ref', {
-    p_month: monthKey, p_payee_key: payeeKey,
-  });
-  if (error) return EMPTY;
-  return typeof data === 'string' && data ? data : REFERENCE_ON_POST;
+  /* IT RETURNS A STRING OR IT RETURNS A STRING. Its type says Promise<string>
+     and it handled the `error` channel while leaving a THROW to escape, which
+     is the same failure arriving by the other door and getting a different
+     answer.
+
+     ITS ONE UI CALLER CANNOT CATCH IT. CommissionStatement runs this in a
+     `void (async () => ...)()` effect, so a rejection is unhandled: it reaches
+     the browser as an uncaught promise rejection and, worse, breaks the loop,
+     so every payee AFTER the one that failed keeps no reference at all. A
+     reference is what `isPostedReference` reads, so the visible result is a
+     POSTED statement labelled "Draft: not yet posted, figures may change".
+
+     EMPTY, because that is already this function's answer when the RPC
+     returns an error, and two kinds of not-knowing should not render
+     differently. */
+  try {
+    const { data, error } = await sb().rpc('commission_statement_ref', {
+      p_month: monthKey, p_payee_key: payeeKey,
+    });
+    if (error) return EMPTY;
+    return typeof data === 'string' && data ? data : REFERENCE_ON_POST;
+  } catch {
+    return EMPTY;
+  }
 }
 
 /** Has this statement actually been posted? The reference IS the record of
