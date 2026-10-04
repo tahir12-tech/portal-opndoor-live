@@ -3216,6 +3216,23 @@ the one real assertion that has never run.
   route refuses the reader, because those fail identically on screen and
   need opposite fixes.
 
+### (nn) The sales guide: a page, no fixed rates, one phrase
+
+> Sales and conversation guide (Help): open it as a page with "Save as PDF", like the referrer guide, not in a PDF viewer. Remove fixed rates: say "the guarantee fee agreed with your agency, usually one month's rent" and "your commission is set out in your agreement", never "you earn 10%". Use "in favour of the property", matching the deed and the other guides. No em dashes, including the document title. Check the agent one-pager for the same fixed rates.
+
+- **"NEVER 'you earn 10%'" IS THE SERIOUS HALF.** A guide quoting a rate
+  states somebody else's commercial terms to them as fact, and the whole
+  point of the deals model is that the rate is per party and per band. A
+  reader on 12/20/24 reading "you earn 10%" has been told something untrue
+  by us.
+- SAME FOR THE FEE: "usually one month's rent" is the honest form, because
+  a negotiated basis is now normal rather than exceptional.
+- "in favour of the property" MATCHES THE DEED, so this is one phrase across
+  the deed, the guides and the one-pager, not a preference.
+- THE EM DASH RULE EXPLICITLY INCLUDES THE TITLE, which suggests the guard
+  does not scan it. Worth checking rather than just fixing the title.
+- AND THE SWEEP: the agent one-pager, for the same fixed rates.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
