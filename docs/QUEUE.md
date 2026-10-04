@@ -4697,6 +4697,20 @@ both estates, the dialog, and FAQ 9 on both rails.
 - SAME FAMILY AS (bp)(2): two surfaces counting different sets and
   presenting the result as the same measure.
 
+### (ch) BLOCKER: Referrals-tab rows do not open the application
+
+> Still broken: Agency page -> Referrals tab (as admin on Regent's Lettings, and earlier as Kestrel Management on Frost Partnership), clicking a referral row does nothing. Every row on every agency, office and supplier Referrals tab must open that application, for every level that can see it. Add it to your built/partial/not-built list and test by clicking, not just by reading the code.
+
+- **"STILL BROKEN" AND "TEST BY CLICKING, NOT JUST BY READING THE CODE"
+  ARE BOTH CORRECTIONS OF ME.** A source assertion that a `<Link>`
+  exists passes while the row is unclickable for any number of reasons
+  -- the handler on the wrong element, a cell swallowing the event, a
+  guard returning early. The test has to dispatch a click and assert
+  the route changed.
+- THE SCOPE IS THREE TABS TIMES EVERY LEVEL: agency, office and
+  supplier Referrals, for every level that can see the tab. Two of
+  those combinations are the ones he has now reported twice.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
