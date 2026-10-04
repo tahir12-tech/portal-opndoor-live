@@ -4647,6 +4647,14 @@ both estates, the dialog, and FAQ 9 on both rails.
   plain sentence; `pre_referenced_open` is the stored value and must
   not be what the header says.
 
+### (cd) Supplier People tab says "Change role"
+
+> Supplier People tab: "Change level", not "Change role", matching every other people list.
+
+- ONE MORE OF THE SAME FAMILY AS (bg) AND (ss): "role" is the stored
+  column and "level" is the word the product uses to readers. This is
+  the last people list still saying the column name.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
