@@ -843,7 +843,12 @@ export function guaranteedAnnual(r: { rent: number; shareAmount?: number | null 
   return base * 12;
 }
 
-function feeLabels(r: { rent: number; fee?: number | null; sharePercent?: number | null }):
+/* EXPORTED FOR ITS TEST, and the rule is worth testing directly. It is a
+   pure function of three numbers that decides a sentence a tenant acts on;
+   reaching it through getApplicationDetail means hydrating a FullApp AND a
+   summary, and a fixture that elaborate tests the hydration as much as the
+   rule. Nothing else imports it. */
+export function feeLabels(r: { rent: number; fee?: number | null; sharePercent?: number | null }):
   { feeGBP?: string; feeBasisLabel?: string } {
   const fee = r.fee ?? null;
   if (fee == null) return {};
@@ -857,10 +862,27 @@ function feeLabels(r: { rent: number; fee?: number | null; sharePercent?: number
      feeBasisOf in commissionSplit.ts does, so the two helpers now agree. */
   const share = r.sharePercent != null && r.sharePercent > 0 ? r.sharePercent / 100 : 1;
   const base = r.rent * share;
-  if (Math.abs(fee - base) < 0.005) return { feeGBP: gbp, feeBasisLabel: "one month's rent" };
-  const weeks = base > 0 ? (fee * 52) / (base * 12) : 0;
-  const suffix = r.sharePercent != null && r.sharePercent < 100
+  /* THE SHARE SUFFIX IS HOISTED, because the early return below skipped it.
+   *
+   * Matt, 2026-10-04 (ba): 'Supplier joint referrals: the Payment section
+   * says "£1,250.37 · one month's rent" without "(this tenant's 33% share)";
+   * match the agency wording.'
+   *
+   * IT IS NOT A RAIL SPLIT, WHICH IS WORTH KNOWING: nothing here reads the
+   * partner. It is a FEE BASIS split. A deal priced in weeks takes the
+   * branch at the bottom, which has always appended the share; a deal priced
+   * at one month's rent returns early, and the suffix was written after that
+   * line rather than before it. Matt met it on Kestrel because Kestrel's
+   * basis is one month; Regent on a one-month deal would read exactly the
+   * same, and an agency tenant being told they owe "one month's rent" when
+   * they owe a third of one is the same error with more money behind it.
+   *
+   * £1,250.37 IS A THIRD OF £3,789.01 AND THE SENTENCE SAID IT WAS ALL OF
+   * IT. The figure was never wrong; the words around it were. */
+  const suffix = r.sharePercent != null && r.sharePercent > 0 && r.sharePercent < 100
     ? ` (this tenant's ${r.sharePercent}% share)` : '';
+  if (Math.abs(fee - base) < 0.005) return { feeGBP: gbp, feeBasisLabel: `one month's rent${suffix}` };
+  const weeks = base > 0 ? (fee * 52) / (base * 12) : 0;
   return { feeGBP: gbp, feeBasisLabel: `${Number(weeks.toFixed(2))} weeks of rent${suffix}` };
 }
 
