@@ -3355,6 +3355,24 @@ the one real assertion that has never run.
   gated `!addsViaDialog`). So this is largely making the supplier path use
   the control admins already have, rather than a new one.
 
+### (ww) A Kestrel Referrer, and a regression I caused
+
+> As a Kestrel Referrer on New application: 1) Joint tenancies are blocked ("This supplier sends us referrals one tenant at a time. Refer each tenant separately."), though suppliers may refer joint tenancies; this likely changed when Kestrel's refers_own_stock was set to false. Allow joint tenancies for suppliers through the portal regardless of that setting. 2) "The eligibility check runs against their legal name" must only show when Opndoor actually checks tenants (not for suppliers set to "accepts them as sent"). 3) After "Add a new agency", the new agency should be selected in the Agency field and its office offered. Test as the Kestrel Referrer end to end.
+
+- **ITEM 1 IS A REGRESSION I CAUSED TODAY and Matt has diagnosed it
+  correctly.** Setting refers_own_stock false flipped the client's `estate`
+  input, and `mayAddAnotherTenant` reads `estate` for a non-admin. So
+  Kestrel referrers could refer joint tenancies this morning and cannot
+  now. Mine, and first.
+- IT IS THE SAME ROOT CAUSE AS (ii), one layer along: an OWNERSHIP flag
+  being read as a permission. "Regardless of that setting" is Matt saying
+  so too. The fix is the same shape: ask whether the party is a supplier
+  estate, not who owns the stock.
+- ITEM 2 IS A SEPARATE TRUTHFULNESS BUG: a supplier set to "accepts them as
+  sent" has no eligibility check, so promising one is wrong.
+- ITEM 3 FINISHES (vv): adding an agency should leave it SELECTED, not
+  leave the reader to find it.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
