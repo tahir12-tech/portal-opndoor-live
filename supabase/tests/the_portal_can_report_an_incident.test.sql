@@ -8,7 +8,7 @@
    function is the one door the browser gets, so what it will not do is the
    whole of its value. */
 begin;
-select plan(8);
+select plan(11);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                         email_confirmed_at, created_at, updated_at)
@@ -90,6 +90,34 @@ select is(
   ((public.cron_health() -> 'counts' ->> 'portal_errors'))::int,
   1,
   'and Health shows it in the last 24 hours');
+
+-- ===========================================================================
+-- 5. THE SECOND TYPE, added by 20261008080000 for a failed export.
+-- ===========================================================================
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"ef100000-0000-0000-0000-00000000c001","role":"authenticated","aal":"aal1"}', true);
+
+select lives_ok(
+  $$select public.report_portal_incident('portal_export_failed','application')$$,
+  'a failed export can be reported');
+
+/* THE EXPORT'S NAME IS A FIXED LIST TOO, which is the whole reason the
+   second argument stopped being called p_month rather than being loosened
+   into free text: Health says WHICH download is failing and the browser
+   still chooses none of the words. */
+select throws_ok(
+  $$select public.report_portal_incident('portal_export_failed','anything i like')$$,
+  '22023', null,
+  'and an export name that is not on the list is refused');
+
+/* AND THE TWO TYPES DO NOT SHARE A CONTEXT. A month is not an export name,
+   so passing one where the other belongs is refused rather than quietly
+   written into an alert. */
+select throws_ok(
+  $$select public.report_portal_incident('portal_export_failed','2026-09')$$,
+  '22023', null,
+  'and a month is not an export name');
 
 select * from finish();
 rollback;

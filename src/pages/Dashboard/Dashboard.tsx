@@ -23,7 +23,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  ALL_PARTNERS, READS_THE_WHOLE_BOOK, isOpndoorStaff, readsTheWholeBook, buildApplicationDoc, buildExpiriesDoc, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, exportBranded, type BrandedExport,
+  ALL_PARTNERS, READS_THE_WHOLE_BOOK, isOpndoorStaff, readsTheWholeBook, buildApplicationDoc, buildExpiriesDoc, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, exportBranded, type BrandedExport, type ExportKind,
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPeriods, getTrend, maySeeCommission, partnerName,
   statementMonths, leagueLink,
   type LeagueRow, type Period, type TrendRow,
@@ -241,7 +241,7 @@ export function Dashboard() {
   /* THROUGH `run` LIKE THE OTHERS, so a supplier statement that cannot be
      built says so instead of being a dead menu item. */
   const downloadPartnerStatement = (partnerId: string) =>
-    void buildPartnerStatementDoc(role, partnerScope, partnerId).then(run);
+    void buildPartnerStatementDoc(role, partnerScope, partnerId).then((d) => run(d, 'statement'));
   const downloadAgentStatement = (partner: string, agency: string) => void buildAgentStatementDoc(role, partnerScope, partner, agency).then(exportBranded);
 
   // ---- Needs-attention row (compact stat-lines promoted from existing data) ----
@@ -518,20 +518,20 @@ export function Dashboard() {
      refusal and a thrown builder both arrived as a button that did nothing.
      `exportBranded` now returns an outcome and never rejects, and this is the
      one place that turns it into a sentence. */
-  async function run(built: BrandedExport | null) {
-    const out = await exportBranded(built);
+  async function run(built: BrandedExport | null, kind: ExportKind) {
+    const out = await exportBranded(built, kind);
     if (!out.ok) toast(out.message, 'error');
   }
 
   function exportSummary() {
-    void run(buildPerformanceDoc(role, period as Period));
+    void run(buildPerformanceDoc(role, period as Period), 'performance');
   }
   function runAppsExport() {
     /* THE NULL IS A REFUSAL AND IS REPORTED AS ONE. `buildApplicationDoc`
        returns null for a reader who may not have this document, and
        `if (built)` silently dropped that on the floor along with everything
        else. */
-    void run(buildApplicationDoc(role, period as Period, appsBasis));
+    void run(buildApplicationDoc(role, period as Period, appsBasis), 'application');
     setAppsOpen(false);
   }
   function runExpiries() {
@@ -540,7 +540,7 @@ export function Dashboard() {
        "produce the Expiries export as a branded Excel file using the
        existing branded template (BrandedDoc, as the commission statements
        use), not a plain CSV ... so all admin downloads look alike." */
-    void run(buildExpiriesDoc(role, +mv[0], +mv[1] - 1));
+    void run(buildExpiriesDoc(role, +mv[0], +mv[1] - 1), 'expiries');
     setExpOpen(false);
   }
   return (

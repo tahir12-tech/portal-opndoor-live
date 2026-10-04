@@ -127,7 +127,7 @@ describe('nothing builds the expiries file as a CSV any more', () => {
        assertions below: this file goes through exportBranded, and nothing
        here builds a CSV. Pinning the literal call pinned the wrong half. */
     expect(dash).toMatch(/void run\(buildExpiriesDoc\(/);
-    expect(dash).toMatch(/const out = await exportBranded\(built\)/);
+    expect(dash).toMatch(/const out = await exportBranded\(built, kind\)/);
     expect(dash).not.toContain('downloadCsv');
   });
 });

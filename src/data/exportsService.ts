@@ -79,7 +79,24 @@ export type ExportOutcome =
   | { ok: true }
   | { ok: false; reason: 'empty' | 'failed'; message: string };
 
-export async function exportBranded(built: BrandedExport | null): Promise<ExportOutcome> {
+/** Which download this is, for the console line and for Health. One of a
+    fixed set: `report_portal_incident` refuses anything else. */
+export type ExportKind = 'application' | 'performance' | 'expiries' | 'statement' | 'league';
+
+/* TELL HEALTH, AND NEVER FAIL DOING IT. The same shape as reportUnreadable:
+   fire and forget in both directions, silent without a back end, and the
+   alert text is built in the RPC so nothing from here reaches a human-read
+   alert. */
+function reportExportFailure(kind: ExportKind): void {
+  if (!SUPABASE_ENABLED) return;
+  try {
+    void sb()
+      .rpc('report_portal_incident', { p_type: 'portal_export_failed', p_context: kind })
+      .then(() => {}, () => {});
+  } catch { /* The export already failed. A second failure helps nobody. */ }
+}
+
+export async function exportBranded(built: BrandedExport | null, kind: ExportKind = 'application'): Promise<ExportOutcome> {
   /* "REFUSE QUIETLY" WAS THE RULE AND IT WAS THE WRONG RULE.
 
      Matt, 2026-10-04: "Reporting -> Application export: pressing it does
@@ -112,9 +129,20 @@ export async function exportBranded(built: BrandedExport | null): Promise<Export
     const { buildBrandedWorkbook, downloadXlsx } = await import('./xlsxTemplate');
     downloadXlsx(buildBrandedWorkbook(built.sheets), built.filename);
     return { ok: true };
-  } catch {
+  } catch (e) {
     /* THE READER CANNOT ACT ON THE EXCEPTION, so they are told what happened
-       and what to do, not what threw. */
+       and what to do, not what threw. THE EXCEPTION STILL HAS TO GO
+       SOMEWHERE, which is Matt's 2026-10-04 point: "log it to the console
+       and Health's portal errors". A caught exception nobody can see is only
+       marginally better than a silent one, and the first one of these cost a
+       day of not knowing which path the button took.
+
+       THE CONSOLE GETS THE ERROR, because that is where somebody debugging
+       looks and it is the only place the stack survives. HEALTH GETS THE
+       FACT, because that is where somebody who is not debugging would ever
+       find out it happened at all. */
+    console.error(`[opndoor] ${kind} export failed to build`, e);
+    reportExportFailure(kind);
     return {
       ok: false,
       reason: 'failed',
@@ -1420,7 +1448,24 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
          04/10/2026. Leave Tenancy start blank until the tenant has given one."
          See data/tenancyStartGiven for where that date comes from. */
       tenancyStartGiven(a) && a.tenancyStart ? dmy(a.tenancyStart) : '', exp ? dmy(exp) : '',
-      a.refundAfterStart ? 'Yes - refunded after tenancy start' : '',
+      /* THE CELL FOLLOWS ITS COLUMN, WHICH IT DID NOT, AND THAT IS THE WHOLE
+         BUG MATT REPORTED AS "pressing it does nothing".
+
+         The column is `...(forCustomer ? [] : [Refund policy anomaly])` --
+         dropped for a customer, from his own 2026-10-03 instruction -- and
+         this cell was pushed UNCONDITIONALLY. So every customer's row was one
+         cell longer than its header, and buildBrandedSheet does
+
+             const col = b.columns[ci];
+             if (col.type === 'text') ...
+
+         which reads `type` off undefined on that last cell and throws.
+
+         IT BROKE THE EXPORT FOR EVERY NON-OPNDOOR READER, because
+         customerFacing is `!isOpndoorStaff`: every agency Director, Manager
+         and Negotiator and every supplier level. Opndoor's own staff keep the
+         column, so their rows matched and nobody here ever saw it. */
+      ...(forCustomer ? [] : [a.refundAfterStart ? 'Yes - refunded after tenancy start' : '']),
     ];
     if (basis === 'activity') row.push(ev.join(', '));
     return row;

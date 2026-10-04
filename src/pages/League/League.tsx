@@ -629,7 +629,7 @@ function FullLeagueView() {
               the whole workbook away from a Manager to withhold one column, and
               took it from opndoor_manager and developer as well, neither of whom
               the sweep was about. Withheld figures, not withheld documents. */}
-          <Button variant="dark" size="sm" onClick={() => void exportBranded(buildLeagueDoc(role, partnerScope, partner, period, view, branchIds)).then((r) => { if (!r.ok) toast(r.message, 'error'); })} title={`Downloads the ${TABS.find((t) => t.id === view)?.label} table as a branded Excel workbook`}>
+          <Button variant="dark" size="sm" onClick={() => void exportBranded(buildLeagueDoc(role, partnerScope, partner, period, view, branchIds), 'league').then((r) => { if (!r.ok) toast(r.message, 'error'); })} title={`Downloads the ${TABS.find((t) => t.id === view)?.label} table as a branded Excel workbook`}>
             <Icon name="download" /> Export
           </Button>
         </div>
