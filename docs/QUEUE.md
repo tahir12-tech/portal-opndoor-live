@@ -4232,6 +4232,26 @@ both estates, the dialog, and FAQ 9 on both rails.
   signing", and the landing page resolving it before it renders anything
   else.
 
+### (bf) The signed-deed email offers a portal to people who have none
+
+> Signed-deed email to an agency without portal access (any agency in a supplier's estate, e.g. Test Lettings asda for Kestrel): remove "You can also view it any time in the portal" and the "Wrong tenancy start date? Change it here" link. Instead: "Wrong tenancy start date? Contact [supplier name], who referred this tenant." Keep the portal lines for recipients who have a login.
+
+- **TWO DEAD LINKS IN ONE EMAIL, to the person holding the guarantee.** An
+  agency inside a supplier's estate has no login at all: the supplier
+  refers, and the agency is a record in the supplier's book. Both lines
+  invite them somewhere they cannot go.
+- **THE SECOND ONE IS WORSE THAN A DEAD LINK.** "Wrong tenancy start date?
+  Change it here" is about the date the cover runs from. Somebody who
+  notices an error and cannot act on it does nothing, and the deed stays
+  wrong.
+- THE REPLACEMENT NAMES WHO CAN, which is the supplier, and that is the
+  right answer rather than "contact opndoor": the supplier owns the
+  relationship and can amend it themselves before the tenancy starts.
+- **THE TEST IS "HAS A LOGIN", NOT "IS AN AGENCY".** deedEmail already
+  decides a portal line by `managedByFor` -- a private landlord has no
+  login and is already excluded -- so this is the same question asked of a
+  second case the existing rule missed, not a new rule.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
