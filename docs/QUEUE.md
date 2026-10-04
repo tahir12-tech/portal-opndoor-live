@@ -3756,6 +3756,24 @@ BLOCK 3, the wording sweeps, guides and copy: everything else.
   trace; the console and Health are where it belongs.
 - "PLUS EVERY OTHER LEVEL" is the same nine-level matrix as (hh).
 
+### (as) The Dev Centre Sandbox warning after the PandaDoc change
+
+> Also update the Dev Centre Sandbox warning to match how signing emails work after the PandaDoc change.
+
+- DEPENDS ON (ai) AND MUST FOLLOW IT. The warning describes who emails a
+  tenant in sandbox, and (ai) changes that from PandaDoc to opndoor. Writing
+  it first would document a product that does not exist yet.
+
+### (at) A supplier Developer sees no League or Reporting
+
+> Supplier Developer level: hide League and Reporting (they're for referral performance and show nothing useful to a developer); keep Applications and Dev Centre. Low priority.
+
+- MATT HAS MARKED IT LOW PRIORITY HIMSELF, so block 3.
+- IT IS NAVIGATION, NOT ISOLATION: a Developer can already see those pages
+  and they hold nothing for them. Hiding a page that shows nothing useful is
+  a different act from closing one that shows something they may not see,
+  and this is the first kind, so it does not need the isolation suite.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
