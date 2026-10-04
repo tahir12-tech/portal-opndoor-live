@@ -3249,6 +3249,24 @@ the one real assertion that has never run.
 - "ONE-PAGE LEAFLETS FIT ON ONE A4 PAGE" is measurable and testable: the
   leaflet's own CSS has to fit 297mm less our padding.
 
+### (pp) Rewrite every audience's FAQs to match the portal today
+
+> Help FAQs: the supplier view shows an older set of 12. Rewrite every audience's FAQs to match the portal today, in plain English, no "partner", "estate", "canonical", "reconciliation" or em dashes: form order as it actually is ("Agency and office" first; "Agency" and "Office", not "Agent" and "branch"); levels per audience (agencies: Director, Manager, Negotiator; suppliers: Management, Referrer, Developer), with who sees commission; statuses including Awaiting signature; exports as branded Excel; suppliers can add agencies and offices while referring, agencies can't. Leave FAQ 9 (changing the start date) as it is until I confirm the rule.
+
+- **THE BANNED WORDS ARE THE MODEL'S VOCABULARY LEAKING INTO HELP**, and
+  three of the four are ours alone: "estate", "canonical" and
+  "reconciliation" are how we talk to each other. This overlaps (n) and
+  should be done with it where they meet on the word "partner".
+- "MATCH THE PORTAL TODAY" MAKES EVERY LINE CHECKABLE against a screen, so
+  each claim is verified rather than rewritten from memory. Several named
+  facts are things fixed only today, including Agency and Office and the
+  supplier add route from (ii).
+- **FAQ 9 IS EXPLICITLY HELD** until Matt confirms the rule. Do not touch
+  it, and do not renumber around it in a way that moves it.
+- THE AUDIENCES ARE SEPARATE SETS with different ladders: agencies have
+  three levels, suppliers have three different ones, and who sees
+  commission differs.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
