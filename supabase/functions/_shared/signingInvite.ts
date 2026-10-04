@@ -114,7 +114,12 @@ export async function deliverSigningInvite(
       tenantName: `${app.tenant_first_name ?? ""} ${app.tenant_last_name ?? ""}`.trim(),
       propertyAddr: [app.prop_addr1, app.prop_postcode].filter(Boolean).join(", "),
       tenancyStartLabel: app.tenancy_start ? spelledDate(app.tenancy_start) : null,
-      signUrl: `${base}/pay?token=${token}`,
+      /* `sign=1` TAKES THEM STRAIGHT TO THE DEED. Matt (be): the button must
+         "open the signing page directly, not the 'This fee has been paid /
+         Sign your deed now' page first". Same token and same door; the
+         parameter is what tells the landing page which question the tenant
+         is asking. */
+      signUrl: `${base}/pay?token=${token}&sign=1`,
       reissue: opts.reissue === true,
     }),
   });

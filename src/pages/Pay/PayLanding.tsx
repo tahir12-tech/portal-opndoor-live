@@ -43,6 +43,21 @@ export function PayLanding() {
   const [params] = useSearchParams();
   const token = params.get('token') ?? '';
   const utm = params.get('utm_source') || 'confirmation_page';
+  /* STRAIGHT TO SIGNING. Matt (be): the "Sign your Deed of Guarantee" button
+     in the tenant's email must "open the signing page directly, not the
+     'This fee has been paid / Sign your deed now' page first".
+
+     MY OWN DOING, FROM (ai) THIS EVENING. I pointed that button at
+     `/pay?token=` because the token is the door that survives 90 days in an
+     inbox and this page already knows how to mint a session. What I gave
+     them was the PAYMENT landing, which tells a tenant their fee is paid --
+     which they know -- and offers a second button. Every extra press is
+     tenants who do not sign.
+
+     A PARAMETER RATHER THAN A SECOND ROUTE, because the resolution is
+     identical: the same token, the same RPC, the same three outcomes. A
+     second route would be a second place for them to diverge. */
+  const wantsSign = params.get('sign') === '1';
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [data, setData] = useState<PayPageData | null>(null);
@@ -78,6 +93,17 @@ export function PayLanding() {
     setSigning(false);
     setSignErr(true);
   }, [token, signing]);
+
+  /* RESOLVED BEFORE ANYTHING IS DRAWN, so the intermediate page does not
+     flash past on the way. Only when the deed is actually signable: an
+     already-signed one gets Matt's sentence below, and one still being
+     prepared gets the honest "it is coming", because sending either of them
+     to a signing session would fail in front of the tenant. */
+  useEffect(() => {
+    if (!wantsSign || phase !== 'paid' || !data) return;
+    if (data.deedSigned || data.deedReady !== true) return;
+    void onSignFromLink();
+  }, [wantsSign, phase, data, onSignFromLink]);
 
   const [declineReason, setDeclineReason] = useState('another_guarantor');
 
@@ -149,6 +175,46 @@ export function PayLanding() {
        and a tenant comparing them should not find two answers. */
     const signedOff = data?.deedSigned === true;
     const readyToSign = data?.deedReady === true;
+
+    /* ARRIVED FROM THE SIGNING BUTTON AND ALREADY SIGNED. Matt (be): show
+       "Your deed is already signed. Nothing more to do."
+
+       A DIFFERENT SENTENCE FROM "You are all set", and deliberately so. That
+       one answers somebody who reopened their PAYMENT link and is being told
+       where they are. This one answers somebody who pressed a button saying
+       "sign" and needs to know why nothing opened. The question is different,
+       so the answer is. */
+    if (signedOff && wantsSign) {
+      return (
+        <PayFrame>
+          <div className="pay__icon pay__icon--ok"><Icon name="check" /></div>
+          <h1 className="pay__title">Your deed is already signed</h1>
+          <p className="pay__lead">Nothing more to do{data?.ref ? <> (reference <b>{data.ref}</b>)</> : null}. A copy was emailed to you.</p>
+        </PayFrame>
+      );
+    }
+
+    /* AND WHILE THE SESSION IS BEING MINTED, rather than the payment page
+       flashing past on the way to PandaDoc. The effect above has already
+       started it. */
+    if (wantsSign && readyToSign) {
+      return (
+        <PayFrame>
+          <div className="pay__icon pay__icon--ok"><Icon name="edit" /></div>
+          <h1 className="pay__title">Opening your deed</h1>
+          <p className="pay__lead">One moment, we are opening your Deed of Guarantee to sign.</p>
+          {signErr && (
+            <>
+              <button className="pay__btn pay__btn--primary" onClick={() => void onSignFromLink()} disabled={signing}>
+                <Icon name="edit" strokeWidth={2} /> {signing ? 'Opening…' : 'Try again'}
+              </button>
+              <p className="pay__muted">We couldn&rsquo;t open the signing session just now. We&rsquo;ll email your signing link shortly.</p>
+            </>
+          )}
+        </PayFrame>
+      );
+    }
+
     return (
       <PayFrame>
         <div className="pay__icon pay__icon--ok"><Icon name="check" /></div>

@@ -39,7 +39,9 @@ async function signUrlFor(service: any, ref: string): Promise<string | null> {
   if (!base) return null;
   try {
     const { data, error } = await service.rpc("mint_payment_page_token", { p_ref: ref });
-    return error || !data ? null : `${base}/pay?token=${data}`;
+    // `sign=1`: see signingInvite.ts. This button says "Sign your Deed of
+    // Guarantee" and must do exactly that. (be)
+    return error || !data ? null : `${base}/pay?token=${data}&sign=1`;
   } catch {
     return null;
   }
