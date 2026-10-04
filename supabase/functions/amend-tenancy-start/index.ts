@@ -214,7 +214,17 @@ Deno.serve(async (req) => {
       // Audit line the ruling requires, kept as an INTERNAL supporting step so the
       // single business tenancy_amended entry (below) is the only partner-visible
       // row, matching the executed branch and the one-business-entry-per-amend rule.
-      await service.from("activity_log").insert({ application_id: app.id, kind: "deed_regenerated", message: "Deed regenerated after tenancy amendment.", actor, visibility: "internal" });
+      /* BUSINESS, NOT INTERNAL. Matt, 2026-10-04: "Yes, show 'Deed
+         regenerated' in the activity log." He had reported seeing no new
+         "sent for signature" entry after an amendment; there was one, and it
+         was invisible to him.
+
+         A TENANT BEING ASKED TO SIGN AGAIN IS SOMETHING THE AGENT IS
+         ANSWERABLE FOR. The tenancy_amended row says the date moved; it does
+         not say a fresh signature is now outstanding, which is the part
+         somebody has to chase. The message says who it went to rather than
+         just that it happened. */
+      await service.from("activity_log").insert({ application_id: app.id, kind: "deed_regenerated", message: "A corrected Deed of Guarantee was sent to the tenant to sign.", actor, visibility: "business" });
       await logAmend(" The outstanding deed was replaced with a corrected one for signing.");
       await notifyReferrer(service, app.id, "corrected", { oldDate: oldDmy, newDate: newDmy, by: actor, deedReissued: true });
       return json({ ok: true, message: "Tenancy start amended. The outstanding deed was replaced with a corrected one." });
