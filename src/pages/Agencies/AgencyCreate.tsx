@@ -33,6 +33,8 @@ import { fmtRatePct } from '@/lib/format';
    pulled AgencyHome.css in. A component imports the CSS it needs. */
 import './AgencyHome.css';
 import { plural } from '@/lib/plural';
+import { MissingFields } from '@/components/ui/MissingFields';
+import { useMissingFields } from '@/lib/useMissingFields';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const HOUSE = 'opndoor-agents';
@@ -184,13 +186,28 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
   const problemFor = (field: string) => problems.find((p) => p.field === field)?.why;
   const [showProblems, setShowProblems] = useState(false);
 
+  /* THE COUNT BY THE BUTTON, and the jump to the first one.
+
+     Matt, 2026-10-04: "Send must scroll to the first missing field and show
+     'N things still need filling in' by the button, on every form for every
+     level."
+
+     THIS FORM ALREADY ANSWERED HALF OF IT. It lists every problem in
+     `.ac-problems` at the TOP, which is why pressing Create here never did
+     literally nothing. But the button is in the modal footer and the form is
+     fourteen fields long, so on the shape that fills the dialog the summary
+     opens above the fold and the reader pressing Create sees no change. The
+     top summary stays, because it names each problem and this does not; what
+     is added is the count where the reader is looking and a way back up. */
+  const missing = useMissingFields<HTMLDivElement>(showProblems);
+
   const save = async () => {
     if (busy || !shape) return;
     /* THE BUTTON IS ALWAYS LIVE. Pressing it either creates or SAYS WHY NOT,
        which is the whole instruction: a control that does nothing teaches
        the reader that the form is broken, and they have no way to find out
        which of eight fields it is waiting for. */
-    if (problems.length) { setShowProblems(true); return; }
+    if (problems.length) { setShowProblems(true); missing.jump(); return; }
     setBusy(true);
     try {
       const specs: AgencySpec[] = namedAgencies.map((d) => ({
@@ -287,10 +304,16 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
       footer={shape
         ? <>
             <Button variant="ghost" onClick={() => setShape(null)} disabled={busy}>Back</Button>
+            <MissingFields count={missing.count} onJump={missing.jump} />
             <Button variant="primary" onClick={save} disabled={busy}>{busy ? 'Creating…' : 'Create'}</Button>
           </>
         : <Button variant="ghost" onClick={close}>Cancel</Button>}
     >
+      {/* A PLAIN WRAPPER, carrying nothing but the ref: the count and the jump
+          read `.field.is-invalid` inside it, and scoping them to this dialog
+          is what stops a form behind the modal being counted. Same shape as
+          the branch dialog in OrgManagement. */}
+      <div ref={missing.formRef}>
       {/* AND AT THE TOP, because a reason beside a field the reader has
           scrolled past is a reason they will not find. Matt: "show the
           reason next to the field or at the top of the form" -- both, since
@@ -386,6 +409,7 @@ export function AgencyCreate({ open, onClose }: { open: boolean; onClose: () => 
           </div>
         </div>
       )}
+      </div>
     </Modal>
   );
 }

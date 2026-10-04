@@ -881,7 +881,13 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
               <input id="ag-phone" type="tel" placeholder="020 7946 0000" value={agPhone} onChange={(e) => setAgPhone(e.target.value)} />
             </div>
           </div>
-          <span className="hint">Required for a new agency. Becomes its default contact for deed delivery and the bordereau.</span>
+          {/* THE SECOND COPY OF THIS SENTENCE IS GONE, not reworded. It sat
+              below the grid saying "Becomes its default contact for deed
+              delivery and the bordereau" while the Agency email field above
+              it already said the same thing in Matt's words, so the form
+              stated one rule twice and the two had already drifted: I
+              replaced one of them on 2026-10-04 and left this one saying the
+              old thing. One statement, next to the control it is about. */}
         </div>
       )}
 

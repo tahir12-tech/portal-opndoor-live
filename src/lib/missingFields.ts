@@ -49,14 +49,18 @@ export function invalidFields(form: Element | null): HTMLElement[] {
  */
 export function missingFieldsLine(n: number): string {
   if (n <= 0) return '';
-  /* "THINGS", NOT "FIELDS", since 2026-10-04. Matt's own word the second time
-     he asked for this sentence, and the reason is in what it now counts: the
-     org section's missing answers include "whether this is a single-office
-     agency", which is a radio pair and not a field anybody fills IN. One word
-     covers both, and "needs filling in" goes with it. */
+  /* MATT'S SENTENCE, VERBATIM, and he has now written it three times without
+     changing it: "N things still need filling in".
+
+     "THINGS" NOT "FIELDS" is his own correction, because the org section's
+     missing answers include "whether this is a single-office agency", a radio
+     pair that nobody fills IN. I took that as licence to change the verb as
+     well, to "still need your attention", reasoning that a radio pair is not
+     filled in either. That was mine and not his, he has restated the sentence
+     unchanged since, and it is his copy. "Things" and "filling in" together. */
   return n === 1
-    ? '1 thing still needs your attention'
-    : `${n} things still need your attention`;
+    ? '1 thing still needs filling in'
+    : `${n} things still need filling in`;
 }
 
 /**

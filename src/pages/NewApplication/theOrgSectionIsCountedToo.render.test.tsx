@@ -69,8 +69,8 @@ describe('the form the admin was looking at', () => {
     const v = openAsAdmin();
     await waitFor(() => expect(sendButton()).toBeTruthy());
     fireEvent.click(sendButton());
-    await waitFor(() => expect(body()).toMatch(/\d+ things still need your attention/));
-    const shown = Number(/(\d+) things still need your attention/.exec(body())![1]);
+    await waitFor(() => expect(body()).toMatch(/\d+ things still need filling in/));
+    const shown = Number(/(\d+) things still need filling in/.exec(body())![1]);
     expect(shown).toBe(invalid(v).length);
   });
 
@@ -80,8 +80,15 @@ describe('the form the admin was looking at', () => {
     openAsAdmin();
     await waitFor(() => expect(sendButton()).toBeTruthy());
     fireEvent.click(sendButton());
-    await waitFor(() => expect(body()).toMatch(/still need your attention/));
-    expect(body()).not.toMatch(/still need[s]? filling in/);
+    await waitFor(() => expect(body()).toMatch(/\d+ things still need filling in/));
+    /* THE WORD UNDER TEST IS "THINGS", and it is the only one this file ever
+       claimed. The second line used to forbid "filling in", because on
+       2026-10-04 I had replaced the verb as well as the noun; Matt has since
+       written his sentence out twice more unchanged, "N things still need
+       filling in", so the verb is his and only the noun was ever the point.
+       What must never come back is "fields", which undercounts the org
+       section's radio pair that nobody fills IN. */
+    expect(body()).not.toMatch(/\d+ fields? still need/);
   });
 });
 
@@ -105,7 +112,7 @@ describe('the org section is in the population now', () => {
     openAsAdmin();
     await waitFor(() => expect(sendButton()).toBeTruthy());
     fireEvent.click(sendButton());
-    await waitFor(() => expect(body()).toMatch(/still need your attention/));
+    await waitFor(() => expect(body()).toMatch(/still need filling in/));
     expect(body()).not.toMatch(/Select an agent and a branch/);
     expect(body()).not.toMatch(/Select the partner this new agency belongs to/);
   });
@@ -118,7 +125,7 @@ describe('the org section is in the population now', () => {
     const v = openAsAdmin();
     await waitFor(() => expect(sendButton()).toBeTruthy());
     fireEvent.click(sendButton());
-    await waitFor(() => expect(body()).toMatch(/still need your attention/));
+    await waitFor(() => expect(body()).toMatch(/still need filling in/));
     const first = invalid(v)[0].querySelector('input, select, textarea') as HTMLElement;
     const jump = screen.getAllByRole('button').find((b) => b.textContent === 'Go to the first one')!;
     fireEvent.click(jump);

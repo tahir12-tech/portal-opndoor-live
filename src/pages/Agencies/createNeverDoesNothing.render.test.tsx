@@ -90,6 +90,35 @@ describe('Create is never a dead button', () => {
     expect(summary!.textContent).not.toMatch(/contact email/i);
   });
 
+  /* AND BY THE BUTTON, NOT ONLY AT THE TOP.
+
+     Matt, 2026-10-04: "Send must scroll to the first missing field and show
+     'N things still need filling in' by the button, on every form for every
+     level."
+
+     The summary above is at the TOP of a fourteen-field dialog and Create is
+     in the FOOTER, so on the shape that fills the screen a reader pressing
+     Create sees the page not change. The count goes where they are looking
+     and the jump takes them back up. The top summary stays: it names each
+     problem, and this one does not. */
+  it('and the count is beside Create, in Matt\u2019s words', async () => {
+    await independentForm();
+    await act(async () => { fireEvent.click(btn('Create')!); });
+    expect(dialog().textContent).toMatch(/\d+ things still need filling in/);
+  });
+
+  it('and the jump from it reaches the first missing field', async () => {
+    await independentForm();
+    await act(async () => { fireEvent.click(btn('Create')!); });
+    const first = dialog().querySelector<HTMLElement>('.field.is-invalid input, .field.is-invalid select');
+    expect(first, 'nothing was marked invalid to jump to').toBeTruthy();
+    const jump = [...dialog().querySelectorAll('button')]
+      .find((b) => b.textContent === 'Go to the first one')!;
+    expect(jump, 'no jump button beside Create').toBeTruthy();
+    await act(async () => { fireEvent.click(jump); });
+    await waitFor(() => expect(document.activeElement).toBe(first));
+  });
+
   /* THE REPORTED CASE, which used to be a dead button and silence. */
   it('and with only the name, says the address is what is missing', async () => {
     const spy = vi.spyOn(shapes, 'createOrgShape');

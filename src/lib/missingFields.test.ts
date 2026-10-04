@@ -30,7 +30,7 @@ describe('the count sentence', () => {
      field left is what a reader usually has, and "1 fields still need filling
      in" is the sort of thing that makes a careful person distrust the page. */
   it('agrees with itself on one', () => {
-    expect(missingFieldsLine(1)).toBe('1 thing still needs your attention');
+    expect(missingFieldsLine(1)).toBe('1 thing still needs filling in');
   });
 
   it('and uses Matt’s own wording on more', () => {
@@ -40,8 +40,8 @@ describe('the count sentence', () => {
        single-office agency", a radio pair nobody fills IN, so "fields still
        need filling in" was wrong about two of the four things on the form he
        was looking at. */
-    expect(missingFieldsLine(3)).toBe('3 things still need your attention');
-    expect(missingFieldsLine(11)).toBe('11 things still need your attention');
+    expect(missingFieldsLine(3)).toBe('3 things still need filling in');
+    expect(missingFieldsLine(11)).toBe('11 things still need filling in');
   });
 
   // Nothing to say, so nothing is said: the component renders null on ''.

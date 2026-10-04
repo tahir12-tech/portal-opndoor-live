@@ -2678,6 +2678,31 @@ the one real assertion that has never run.
 - At least one real assertion has never run:
   `a_refund_after_a_statement_is_a_question.test.sql:200`.
 
+### (g) A check on (a) and (c), which found two things still wrong
+
+> Did you get and do these two? If not, do them now:
+> 1. Admin New application: the Supplier dropdown lists "Harbour Lets" (an agency); list suppliers only. Use "Agency" and "Office" instead of "Agent" and "Branch". Email help text: "Required for a new agency. Signed deeds go here unless the office has its own email." (not "deed delivery and the bordereau").
+> 2. Admin New application: with required fields missing, Send must scroll to the first missing field and show "N things still need filling in" by the button, on every form for every level.
+> Tell me when done and stopped editing.
+
+- RECORDED AFTER THE CHECK BEGAN, which is out of order and is noted rather
+  than tidied away. The two instructions are (a) and (c) and were already in
+  this queue verbatim; I read this as a status question and started verifying
+  before writing it down. The two SPECIFICS below are new and should have been
+  recorded first.
+- **"(not 'deed delivery and the bordereau')" IS NEW AND IT CAUGHT A REAL
+  MISS.** That sentence was still on the form: the new-agency block printed
+  the hint TWICE, once under the Agency email field and once below the grid,
+  and on 2026-10-04 I replaced the first and left the second saying the old
+  thing.
+- **"N things still need filling in" IS HIS SENTENCE, NOW WRITTEN THREE TIMES
+  UNCHANGED.** I had shipped "N things still need your attention": he
+  corrected "fields" to "things" and I changed the verb as well, on my own
+  reasoning that a radio pair is not filled in either. The noun was his, the
+  verb was mine, and the verb was wrong.
+- "ON EVERY FORM FOR EVERY LEVEL" is the sweep clause from (c), still open at
+  the time of this message.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
