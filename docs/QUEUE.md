@@ -2772,6 +2772,23 @@ the one real assertion that has never run.
 - HE NAMES BOTH SURFACES: the supplier settlement download AND the agency
   settlement downloads, plus "every download and screen".
 
+### (l) The bordereau's Landlord Name column
+
+> Bordereau "Landlord Name" column: use the landlord's name if one is recorded (e.g. from "Send deed to landlord"); otherwise the letting agency's name (for supplier referrals, the agency in the supplier's estate, e.g. "Frost Partnership"); otherwise, for direct tenants with no agent, leave it blank. Keep the column heading as the underwriter's format requires.
+
+- ARRIVED MID-TURN while (k) was being diagnosed. (k) is finished first: it
+  is a wrong number on a money surface on the go-live path, and the
+  diagnosis was already in hand.
+- A THREE-STEP FALLBACK, in his order: recorded landlord, else the letting
+  agency, else blank. "Else blank" is explicit and is NOT "-" or "Unknown".
+- **"THE AGENCY IN THE SUPPLIER'S ESTATE"** is the part that will be got
+  wrong by accident: dev holds two "Frost Partnership" agencies, one per
+  estate, so this must resolve through the application's own agency id and
+  never through the name.
+- "KEEP THE COLUMN HEADING AS THE UNDERWRITER'S FORMAT REQUIRES" means the
+  header string is fixed: the C&C template owns it, and only the VALUES
+  change.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
