@@ -68,6 +68,12 @@ Deno.serve(async (req) => {
        caller may not be able to read their own row through RLS on every
        rail, and a missing name only costs the email a clause. */
     let actorName: string | null = null;
+    /* (bm) AND WHETHER IT WAS US. The authoriser admits an admin OR the
+       party's own management, so this email is as often from a reader's
+       own Director as from opndoor -- and it used to tell them their
+       Director was "at opndoor". Asked of is_opndoor_staff() as the
+       CALLER, because that is the question it answers. */
+    let byOpndoor = false;
     try {
       const service = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
       const { data: me } = await asCaller.auth.getUser();
@@ -75,9 +81,11 @@ Deno.serve(async (req) => {
         const { data: row } = await service.from("users").select("full_name").eq("id", me.user.id).maybeSingle();
         actorName = (row?.full_name as string) ?? null;
       }
+      const { data: staff } = await asCaller.rpc("is_opndoor_staff");
+      byOpndoor = staff === true;
     } catch { /* the template has a line for when nobody is named */ }
 
-    const res = await sendMessage({ to: String(address), message: twoFactorResetEmail({ actorName }) });
+    const res = await sendMessage({ to: String(address), message: twoFactorResetEmail({ actorName, byOpndoor }) });
     /* A FAILED SEND IS REPORTED, not swallowed. The RESET already happened
        and is not undone by this: the caller treats a failure here as "the
        reset worked, the email did not", which is what the toast says. */

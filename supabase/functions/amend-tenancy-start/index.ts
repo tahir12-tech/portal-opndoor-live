@@ -52,10 +52,38 @@ Deno.serve(async (req) => {
 
     const userClient = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
     const { data: userData } = await userClient.auth.getUser();
+    /* WHO CHANGED IT, AND "BY OPNDOOR" WHEN IT WAS US.
+
+       Matt (bm): "when Opndoor staff make a change (start date,
+       withdrawal, anything), say 'by opndoor', never the staff member's
+       name."
+
+       IT IS A PRIVACY RULE AS MUCH AS A COPY ONE. An agency has no
+       business knowing which of us touched their record, and naming one
+       invites them to ask for that person next time.
+
+       ONE PLACE, because `actor` reaches five sentences from here: two
+       activity messages, the activity rows' own actor column, the
+       "corrected deed sent" line through deliverSigningInvite, and the
+       referrer's "the tenancy start date has changed ... by X" email.
+       Rewriting those five would be five chances to miss one.
+
+       AND NOT FOR A CUSTOMER'S OWN PEOPLE. An agency Manager amending
+       their own referral is still named: that is a colleague, and the
+       agency has every reason to know which of them moved a date. The
+       rule is about us, so the test is is_opndoor_staff() -- asked of
+       the database rather than recomputed from role strings here, so
+       this cannot drift from the definition the rest of the product
+       authorises with. */
     let actor = "A user";
     if (userData.user?.id) {
-      const { data: prof } = await userClient.from("users").select("full_name").eq("id", userData.user.id).maybeSingle();
-      if (prof?.full_name) actor = prof.full_name;
+      const { data: isStaff } = await userClient.rpc("is_opndoor_staff");
+      if (isStaff === true) {
+        actor = "opndoor";
+      } else {
+        const { data: prof } = await userClient.from("users").select("full_name").eq("id", userData.user.id).maybeSingle();
+        if (prof?.full_name) actor = prof.full_name;
+      }
     }
 
     // RLS-scoped read of the pre-amend state (drives the deed orchestration and

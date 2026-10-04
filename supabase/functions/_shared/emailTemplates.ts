@@ -272,15 +272,31 @@ export function passwordResetEmail(link: string, audience: "tenant" | "portal" =
    thing for a phisher to imitate on the one email most likely to make
    somebody anxious.
    ===================================================================== */
-export function twoFactorResetEmail(p: { actorName: string | null }): Message {
+/* WHO RESET IT, AND TWO THINGS WRONG WITH THE OLD SENTENCE.
+ *
+ * (bm): "when Opndoor staff make a change ... say 'by opndoor', never
+ * the staff member's name."
+ *
+ * 1. IT NAMED US. "Nicholas Dwyer at opndoor has reset..." is exactly
+ *    the staff name (bm) takes out of customer-facing copy.
+ * 2. IT CALLED THEIR OWN MANAGER ONE OF US. authorise_mfa_reset_notice
+ *    admits an admin OR the party's own management, so most of these
+ *    are sent because an agency Director reset their negotiator -- and
+ *    the email told the negotiator their Director was "at opndoor".
+ *    A sweep for the first fault is how the second was found.
+ *
+ * So the actor arrives as a flag plus a name: us, and it says opndoor;
+ * their own, and it says the person, who is a colleague they know. */
+export function twoFactorResetEmail(p: { actorName: string | null; byOpndoor?: boolean }): Message {
   const who = (p.actorName ?? "").trim();
+  const didIt = p.byOpndoor ? "opndoor" : who;
   return {
     audience: "portal",
     subject: "Your opndoor two-factor has been reset",
     heading: "Set up your authenticator again",
     blocks: [
-      { p: who
-        ? `${who} at opndoor has reset the two-factor authentication on your account. You have been signed out everywhere, and your old authenticator code will no longer work.`
+      { p: didIt
+        ? `${didIt} has reset the two-factor authentication on your account. You have been signed out everywhere, and your old authenticator code will no longer work.`
         : "The two-factor authentication on your opndoor account has been reset. You have been signed out everywhere, and your old authenticator code will no longer work." },
       { p: "Next time you sign in you will be shown a new QR code to scan." },
       /* MATT'S SENTENCE, ON ITS OWN AND BEFORE THE REASSURANCE, because
