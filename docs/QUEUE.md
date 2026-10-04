@@ -2664,6 +2664,20 @@ they are Matt's: whether a plan mismatch becomes a failure, whether `TAP_FNS`
 becomes an allow-list at all rather than being derived, and what to do about
 the one real assertion that has never run.
 
+### (f) alike and throws_like join TAP_FNS
+
+> Add alike and throws_like to TAP_FNS in pgtap-against-dev.py, rerun the suite, and tell me if anything that wasn't running now fails.
+
+- THE NARROW HALF OF THE THREE THINGS I LISTED. This adds the two names to
+  the allow-list so their assertions are collected. It does NOT make a plan
+  mismatch a failure, and it does not stop TAP_FNS being an allow-list. Both
+  of those are still open and still Matt's.
+- IT CAN CHANGE WHAT COUNTS AS PASSING, by the only route that matters: an
+  assertion that was never collected can now report `not ok`. That is the
+  question he is asking, so the answer has to be measured and not assumed.
+- At least one real assertion has never run:
+  `a_refund_after_a_statement_is_a_question.test.sql:200`.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
