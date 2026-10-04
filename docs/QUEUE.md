@@ -3713,6 +3713,32 @@ and the three creation paths say no. Not guessing on a money record.
   work.
 - ITEM 4 IS THE COPY, and it depends on 2 and 3 being true first.
 
+### (aq) THE WORKING ORDER: three blocks
+
+> Agreed. Work in this order: 1) blockers and anything touching money, deeds, refunds or where a tenant is sent (the export, the refund cascade (al), supplier statements reading stored lines, start-date changes and deed state, notifications for start-date changes, Kestrel straight-to-payment confirmed); 2) the answer-first items I'm waiting on (start-date rule, £20 fee); 3) then the wording sweeps, guides and copy. Work straight through without waiting for me, and report when each block is done.
+
+**THIS SUPERSEDES EVERY EARLIER ORDERING.** Work the blocks, report at the
+end of each, do not wait between items.
+
+BLOCK 1, money, deeds, refunds and where a tenant is sent:
+  - (hh) the dead Application export
+  - (al) the refund cascade, with (ak) for everything that is not the
+    joint case
+  - supplier statements reading the stored lines, with the before/after
+    on Kestrel's September statement, which must be identical
+  - (ao) start-date changes: the audit row, the deed state, the co-tenant
+  - (ap) item 1, the start-date notification, which needs (ao) item 1
+    first because the sentence names the old date
+  - (yy) confirm Kestrel now goes straight to payment
+
+BLOCK 2, the answers he is waiting on:
+  - (ae) item 5, the start-date rule: who, how late, how far, where it
+    came from, and a recommendation for signed guarantees
+  - (yy) who is charged the GBP 20 application fee today. HELD: answer
+    only, change nothing.
+
+BLOCK 3, the wording sweeps, guides and copy: everything else.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
