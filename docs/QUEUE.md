@@ -3421,6 +3421,20 @@ the one real assertion that has never run.
   the right mode skips the property questions entirely, so fixing the mode
   may remove most of this.
 
+### (ab) An agency invite names the agency
+
+> Invite emails for agency users (including resends) should name the agency, e.g. "…invited you to the opndoor Guarantee Referral Portal for Regent's Lettings", as supplier invites already do.
+
+- **"AS SUPPLIER INVITES ALREADY DO" IS THE WHOLE SPEC AND THE WHOLE RISK.**
+  There is a working sentence to copy, so the job is to reach the same
+  wording rather than to write a second one; two invite sentences that
+  nearly agree is how the supplier and agency rails drifted everywhere
+  else today.
+- "INCLUDING RESENDS" IS NAMED BECAUSE RESEND IS A SEPARATE PATH and is
+  exactly the kind of second caller that keeps the old wording.
+- THE AGENCY, NOT THE GROUP: a person invited to Regent's has never heard
+  of the holding company, which is the rule the tenant emails already keep.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
