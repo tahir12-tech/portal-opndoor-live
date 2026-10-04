@@ -50,6 +50,25 @@
   white-space: nowrap;
 }
 
+/* THE REFERENCE AND THE TENANT MAY WRAP; THE NUMBERS MAY NOT. Matt (s): "The
+   guarantee reference is still truncated ('GR-FROST...'); let the column wrap
+   so references show in full."
+
+   `nowrap` on every cell is right for the money, rate and date columns --
+   tabular figures broken across two lines are unreadable, and that is what
+   the rule was added for. It is wrong for the two columns that carry names:
+   a reference squeezed to fit is the one cell on the statement somebody
+   needs to quote back to us, and a truncated one is worse than a tall row.
+
+   THE FIRST TWO COLUMNS BY POSITION, which holds because the reference and
+   the tenant lead every rendering of this table -- the component, the PDF
+   and both CSVs all build from MONTH_STATEMENT_COLS in that order. */
+.stmt__table td:first-child,
+.stmt__table td:nth-child(2) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .stmt__table th {
   font-size: 11.5px;
   font-weight: 700;

@@ -977,6 +977,20 @@ export function Dashboard() {
                   <span style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 18, color: 'var(--ink)' }}>{d.commThirdVal}</span>
                 </div>
               )}
+              {/* AND THE TOTAL, on a supplier's tile. Matt (q): the three
+                  lines are "Owed to you", the agencies' share worded by who
+                  pays it, and "Total commission on your referrals".
+
+                  SET APART, because it is the only one of the four that is
+                  a sum of the others rather than a payment to somebody. A
+                  reader scanning four money rows of equal weight has to work
+                  out which is the arithmetic. */}
+              {d.commFourthShown && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <span style={{ fontSize: 13, fontWeight: 650 }}>{d.commFourthLbl}</span>
+                  <span style={{ fontFamily: 'var(--display)', fontWeight: 800, fontSize: 18, color: 'var(--ink)' }}>{d.commFourthVal}</span>
+                </div>
+              )}
               {d.live && d.refundCount > 0 && (
                 <div className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>{d.commExclDetail} excluded on refunded fees</div>
               )}

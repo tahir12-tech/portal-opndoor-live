@@ -226,17 +226,39 @@ describe('every money cell in every export is a penny figure', () => {
        string one used for the text exports above. */
     const moneyAt = head.map((h, i) => ({ h, i })).filter(({ h }) => /fee charged|commission/i.test(h));
     expect(moneyAt.length, 'the CSV states a fee and a commission').toBe(2);
+    /* FORMATTED TEXT SINCE (t), not a bare number, so the penny check reads
+       the STRING. Matt: "format money as £2,400.00 and rates as 25%". A CSV
+       cell is what it says -- there is no cell format to apply afterwards --
+       so this file emitted 2400 against a column headed "Fee charged".
+
+       THE GUARD'S JOB IS UNCHANGED and is the reason it is rewritten rather
+       than dropped: it exists to catch 2769.2299999999996 reaching a money
+       column. Two decimal places, always, is the same claim about the same
+       dust, made against the shape the cell now has. */
     let seen = 0;
     for (const r of rows.slice(1)) {
       if (r.length !== head.length) continue;
       for (const { h, i } of moneyAt) {
-        const v = Number(r[i]);
-        if (!Number.isFinite(v)) continue;
+        const cell = String(r[i] ?? '');
+        if (!cell.trim()) continue;
         seen += 1;
-        expect(Math.round(v * 100) / 100, `all-statements CSV / "${h}"`).toBe(v);
+        expect(cell, `all-statements CSV / "${h}" is not £ with pence`)
+          .toMatch(/^-?£[\d,]+\.\d{2}$/);
       }
     }
     expect(seen, 'the all-statements CSV carried no money at all').toBeGreaterThan(0);
+
+    /* AND THE TWO INTERNAL COLUMNS ARE GONE, asserted here because this is
+       the only test that parses this file's header. */
+    expect(head).not.toContain('Payee level');
+    expect(head).not.toContain('Source');
+    // Rates read as rates, not as 0.25.
+    const rateAt = head.indexOf('Rate');
+    expect(rateAt).toBeGreaterThan(-1);
+    for (const r of rows.slice(1)) {
+      if (r.length !== head.length) continue;
+      if (String(r[rateAt] ?? '').trim()) expect(String(r[rateAt])).toMatch(/^[\d.]+%$/);
+    }
   });
 
   it.each([

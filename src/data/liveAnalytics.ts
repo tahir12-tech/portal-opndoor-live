@@ -135,6 +135,17 @@ export interface LiveAgg {
      opndoor's revenue as money leaving the business. */
   supplierCommNet: number;
   agentCommNet: number;
+  /* THE AGENCIES' COMMISSION, SPLIT BY WHO PAYS IT. (q): the supplier's
+     Reporting shows the agencies' share "worded by who pays it (per
+     referral, using the setting frozen on it)".
+
+     `opndoor_pays_agents_at_freeze` is frozen on each application, so a
+     period really can hold both kinds -- an arrangement changed mid-month
+     leaves referrals on either side of it -- and Matt says to show both
+     lines when it does. Two accumulators rather than one and a flag,
+     because a flag cannot represent "both". */
+  agentCommOpndoorPays: number;
+  agentCommSupplierPasses: number;
   partnerCommExcl: number; // commission excluded because the fee was refunded (in period)
   agentCommExcl: number;
   // Current-state operational metrics (whole scoped book, not period-filtered)
@@ -167,6 +178,29 @@ export interface LiveAgg {
 }
 
 /** Aggregate the scoped set for a period (event-in-period money/counts + current-state ops). */
+/* WHICH SIDE OF THE AGENCIES' COMMISSION THIS REFERRAL IS ON.
+ *
+ * (q): the agencies' share is "worded by who pays it (per referral, using
+ * the setting frozen on it)".
+ *
+ * THE FROZEN FLAG, NEVER THE PARTNER'S CURRENT ONE. `opndoor_pays_agents`
+ * on the partner is what the arrangement is TODAY; what matters for money
+ * already earned is what it was when the referral was taken, which is why
+ * `opndoor_pays_agents_at_freeze` exists on the row. Reading the live flag
+ * would re-word last month's statement every time somebody changed a
+ * setting.
+ *
+ * NULL FALLS TO "the supplier passes it on", which is the arrangement
+ * before the flag existed and so is what an unfrozen row actually was.
+ * Guessing the other way would tell a supplier opndoor had paid an agency
+ * directly when nobody had.
+ */
+function addAgentSide(a: LiveAgg, app: FullApp, agentComm: number): void {
+  if (agentComm === 0) return;
+  if (app.opndoorPaysAgentsAtFreeze === true) a.agentCommOpndoorPays += agentComm;
+  else a.agentCommSupplierPasses += agentComm;
+}
+
 export function liveAggregate(role: Role, scope: PartnerScope, period: Period): LiveAgg {
   const [start, end] = periodRange(period);
   // Asked once, outside the loop: whether this reader may be told what the agency
@@ -201,7 +235,8 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
   const set = scopeFull(allFull(), role, scope).filter(reachedPayment);
   const a: LiveAgg = {
     sent: 0, paid: 0, deed: 0, feesGross: 0, refundValue: 0, refundCount: 0, feesNet: 0,
-    guaranteed: 0, guaranteedNotStarted: 0, partnerCommNet: 0, supplierCommNet: 0, agentCommNet: 0, partnerCommExcl: 0, agentCommExcl: 0,
+    guaranteed: 0, guaranteedNotStarted: 0, partnerCommNet: 0, supplierCommNet: 0, agentCommNet: 0,
+    agentCommOpndoorPays: 0, agentCommSupplierPasses: 0, partnerCommExcl: 0, agentCommExcl: 0,
     stuckSent: 0, stuckPaid: 0, awaiting: 0, awaitingAged: 0, avgRent: 0,
     avgSentToPaidDays: null, avgPaidToDeedDays: null, bookSize: set.length,
     sentTenancies: 0, paidTenancies: 0,
@@ -292,6 +327,7 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
         a.partnerCommNet += supplierComm;
         if (!isHousePartner(app.partner)) a.supplierCommNet += supplierComm;
         a.agentCommNet += agentComm;
+        addAgentSide(a, app, agentComm);
       } else {
         a.partnerCommNet += supplierComm;
         // Only a genuine supplier is owed the partner cut; a house route's is
@@ -299,6 +335,7 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
         // uses to keep plumbing partners off it.
         if (!isHousePartner(app.partner)) a.supplierCommNet += supplierComm;
         a.agentCommNet += agentComm;
+        addAgentSide(a, app, agentComm);
       }
     }
     /* PER DEED, AND A DEED COVERS A SHARE. This summed the whole tenancy's rent

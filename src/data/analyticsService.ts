@@ -117,6 +117,14 @@ export interface DashboardModel {
   commThirdLbl: string;
   commThirdVal: string;
   commThirdShown: boolean;
+  /* A FOURTH LINE, for (q)'s "Total commission on your referrals". A
+     supplier's tile has three things to say -- what opndoor owes them,
+     what the agencies get and who pays it, and the total -- and the
+     agencies' half can itself be two lines when a period holds referrals
+     frozen on both arrangements. Three slots could not carry four. */
+  commFourthLbl: string;
+  commFourthVal: string;
+  commFourthShown: boolean;
   /** False on the agent rail, where there is no partner to pay and the second
       line would be a structural zero presented as a figure. */
   commSecondShown: boolean;
@@ -180,11 +188,13 @@ export interface DashboardModel {
 type CommissionPart = Pick<DashboardModel,
   'commLbl' | 'commTag' | 'commHeadline' | 'commSecondLbl' | 'commSecondVal'
   | 'commSecondShown' | 'commThirdLbl' | 'commThirdVal' | 'commThirdShown'
+  | 'commFourthLbl' | 'commFourthVal' | 'commFourthShown'
   | 'commExcl' | 'commExclDetail'>;
 
 const NO_COMMISSION: CommissionPart = {
   commLbl: '', commTag: '', commHeadline: '', commSecondLbl: '', commSecondVal: '',
   commThirdLbl: '', commThirdVal: '', commThirdShown: false,
+  commFourthLbl: '', commFourthVal: '', commFourthShown: false,
   commSecondShown: false, commExcl: '', commExclDetail: '',
 };
 
@@ -357,18 +367,43 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
       // No "partner" pill on the admin tile: the split below names who is owed,
       // and "partner" is our word for one of the two kinds.
       : 'Net of refunds',
-    commHeadline: ownOnly || noPartner ? fmtMoney(a.agentCommNet)
+    /* "OWED TO YOU" IS THE SUPPLIER'S OWN CUT, not the total. Matt (q):
+       "the 'Commission payable' headline still shows £840; it must show
+       what Opndoor owes the supplier itself (£600)."
+
+       The old expression handed a supplier `agentCommNet +
+       supplierCommNet`, which on a siblings arrangement is their own
+       commission PLUS money opndoor pays their agencies directly -- so the
+       headline over the words "payable to you" was a number nobody owed
+       them. The total still appears, on its own line, named as a total. */
+    commHeadline: supplierFacing ? fmtMoney(a.supplierCommNet)
+      : ownOnly || noPartner ? fmtMoney(a.agentCommNet)
       : fmtMoney(a.agentCommNet + a.supplierCommNet),
     // Rate-free for an agency even though commSecondShown is false for them and
     // this string is not currently drawn: the rule is about the TILE, and the
     // next person to draw a second line there must not smuggle the blend back in.
+    /* THE AGENCIES' SHARE, WORDED BY WHO PAYS IT. Matt (q), per referral and
+       from the setting FROZEN on it: "Paid by Opndoor directly to your
+       agencies" where opndoor pays the agents, and "Your agencies' share,
+       included above for you to pass on" where the supplier does.
+
+       TWO LINES, BECAUSE A PERIOD CAN HOLD BOTH. The flag is frozen per
+       application, so an arrangement changed mid-month leaves referrals on
+       either side of it, and Matt says to show both lines when it does.
+       Each is shown only when it has money in it, so the ordinary month
+       with one arrangement still reads as one line. */
     commSecondLbl: agencyFacing
       ? 'Agent commission (net of refunds)'
+      : supplierFacing
+      ? 'Paid by opndoor directly to your agencies'
       : ownOnly
       ? `Passed to opndoor as partner (${pPct}, net)`
       : 'Agencies',
-    commSecondVal: ownOnly ? fmtMoney(a.partnerCommNet) : fmtMoney(a.agentCommNet),
-    commSecondShown: !noPartner && !supplierFacing,
+    commSecondVal: supplierFacing ? fmtMoney(a.agentCommOpndoorPays)
+      : ownOnly ? fmtMoney(a.partnerCommNet) : fmtMoney(a.agentCommNet),
+    commSecondShown: supplierFacing
+      ? a.agentCommOpndoorPays > 0
+      : !noPartner && !supplierFacing,
     /* The other half of the payable split. Admin only: an agency has no
        suppliers and a single-partner reader is looking at their own cut.
 
@@ -377,9 +412,19 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
        DOES read the whole book -- their own -- so every term here was true
        for them and the split drew. The gate now says what the sentence above
        it always claimed. */
-    commThirdLbl: 'Suppliers',
-    commThirdVal: fmtMoney(a.supplierCommNet),
-    commThirdShown: !agencyFacing && !ownOnly && !noPartner && !supplierFacing,
+    commThirdLbl: supplierFacing
+      ? 'Your agencies\u2019 share, included above for you to pass on'
+      : 'Suppliers',
+    commThirdVal: supplierFacing ? fmtMoney(a.agentCommSupplierPasses) : fmtMoney(a.supplierCommNet),
+    commThirdShown: supplierFacing
+      ? a.agentCommSupplierPasses > 0
+      : !agencyFacing && !ownOnly && !noPartner && !supplierFacing,
+    /* AND THE TOTAL, ALWAYS, on a supplier's tile. Matt (q) asks for it by
+       name, and it is the figure that used to be the headline: showing it
+       as a total rather than as "payable" is the whole correction. */
+    commFourthLbl: 'Total commission on your referrals',
+    commFourthVal: fmtMoney(a.supplierCommNet + a.agentCommNet),
+    commFourthShown: supplierFacing,
     commExcl: signedNeg(a.partnerCommExcl + a.agentCommExcl),
     commExclDetail: noPartner
       ? fmtMoney(a.agentCommExcl)
@@ -528,6 +573,12 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
     commThirdLbl: 'Suppliers',
     commThirdVal: fmtMoney(feesNum * rates.partner),
     commThirdShown: !agencyFacing && !ownOnly && !supplierFacing,
+    /* NO FOURTH LINE IN MOCK MODE, and not because it is hard: the synthetic
+       model multiplies one pair of rates by the period's fees, so it has no
+       frozen per-referral arrangement to split by and no honest total to
+       report under (q)'s wording. An invented one would be demo furniture
+       sitting where a real figure goes. */
+    commFourthLbl: '', commFourthVal: '', commFourthShown: false,
     // The synthetic model prices every referral at one month's rent by
     // construction, so it always has a partner line and a single basis. One of
     // our own agencies is the exception: there is no supplier above them, and a

@@ -689,7 +689,25 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
           ...(a.noPartnerCut ? [] : [
             moneyKv('Supplier commission (net of refunds)', a.partnerCommNet),
           ]),
-          moneyKv('Agent commission (net of refunds)', a.agentCommNet),
+          /* THE AGENCIES' LINE, WORDED BY WHO PAYS IT, as on the supplier's
+             Reporting. Matt (s): "use the same wording as (p) ... label the
+             agency line 'Paid by Opndoor directly to Frost Partnership', not
+             'Of which agents' share'."
+
+             SAME SPLIT AS THE TILE, from the same frozen per-referral flag,
+             so the export and the screen cannot describe one month two ways
+             -- which is the whole reason (s) exists as a separate
+             instruction from (q). Two lines where a period holds both
+             arrangements; one where it holds one; the old single line where
+             it holds neither, which is every agency-rail export. */
+          ...(partyIsSupplier(scope) && (a.agentCommOpndoorPays > 0 || a.agentCommSupplierPasses > 0) ? [
+            ...(a.agentCommOpndoorPays > 0
+              ? [moneyKv('Paid by opndoor directly to your agencies', a.agentCommOpndoorPays)] : []),
+            ...(a.agentCommSupplierPasses > 0
+              ? [moneyKv('Your agencies\u2019 share, included above for you to pass on', a.agentCommSupplierPasses)] : []),
+          ] : [
+            moneyKv('Agent commission (net of refunds)', a.agentCommNet),
+          ]),
         ]) : []),
         // Per TENANCY, not per applicant: every sibling row carries the whole
         // let's rent, so averaging over applicants inflated it by the tenant count.
@@ -724,7 +742,18 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
           ...(a.noPartnerCut ? [] : [
             moneyKv('Supplier commission (net of refunds)', a.partnerCommNet),
           ]),
-          moneyKv('Agent commission (net of refunds)', a.agentCommNet),
+          /* THE SAME SPLIT AS THE OTHER EXPORT, and the reason (s) names the
+             documents separately: this block is a near-copy of the one in
+             buildLivePerformanceDoc, so a wording fix applied to one leaves
+             the other describing the same month differently. */
+          ...(partyIsSupplier(scope) && (a.agentCommOpndoorPays > 0 || a.agentCommSupplierPasses > 0) ? [
+            ...(a.agentCommOpndoorPays > 0
+              ? [moneyKv('Paid by opndoor directly to your agencies', a.agentCommOpndoorPays)] : []),
+            ...(a.agentCommSupplierPasses > 0
+              ? [moneyKv('Your agencies\u2019 share, included above for you to pass on', a.agentCommSupplierPasses)] : []),
+          ] : [
+            moneyKv('Agent commission (net of refunds)', a.agentCommNet),
+          ]),
           moneyKv(a.noPartnerCut ? 'Commission excluded on refunded fees' : 'Commission excluded on refunded fees (supplier + agent)', a.partnerCommExcl + a.agentCommExcl),
         ]) : []),
       ],
@@ -2317,7 +2346,13 @@ export async function buildAgentStatementDoc(role: Role, scope: PartnerScope, pa
    the Reference column forty-four characters wide. The screen skips keepColumns
    for the same reason and says so at its HEADS list. */
 const MONTH_STATEMENT_COLS: (Column & { dim?: StatementDimension })[] = [
-  { header: 'Guarantee reference', type: 'text' },
+  /* WIDE ENOUGH FOR THE LONGEST REFERENCE WE ISSUE. Matt (s) reported
+     "GR-FROST..." truncated. `defaultWidth('text')` is 22 characters and a
+     spreadsheet column does not grow to fit, so a reference like
+     GR-FROST-OURS sat against the edge and any longer one clipped. 26 is the
+     same floor the first column already gets in xlsxTemplate, said here so
+     it does not depend on this staying column zero. */
+  { header: 'Guarantee reference', type: 'text', width: 26 },
   { header: 'Tenant', type: 'text' },
   { header: 'Branch', type: 'text', dim: 'branch' },
   { header: 'Tenancy', type: 'text' },
@@ -2360,15 +2395,33 @@ export function buildAllStatementsCsv(
     .filter((st) => st.total > 0 && st.lines.length > 0);
   if (!statements.length) return null;
 
+  /* TWO INTERNAL COLUMNS GONE, AND THE REST FORMATTED LIKE MONEY AND RATES.
+     Matt (t): "format money as £2,400.00 and rates as 25%; months as
+     'September 2026'; remove the 'Source' and 'Payee level' columns
+     (internal) ... never 'Opndoor standard' or 'Not recorded'."
+
+     "PAYEE LEVEL" AND "SOURCE" ARE OUR VOCABULARY, not the reader's.
+     "Payee level: agency" says the same thing on every line of a statement
+     addressed to that agency, and "Source" answers where a RATE came from,
+     which is a question about how we store a deal. Matt offered to keep a
+     source column if it named the actual deal; it cannot -- the two values
+     it can produce are "Opndoor standard" and "Not recorded", which he
+     named as the two it must never show. So it goes rather than being
+     rewritten into something it has no data for.
+
+     AND THE NUMBERS ARE STRINGS HERE, deliberately, where elsewhere in this
+     file they are numbers. A spreadsheet cell can be formatted after the
+     fact; a CSV cell is what it says. `money()` was emitting 2400 and
+     `String(l.rate)` was emitting 0.25, so the file Matt opened really did
+     read "2400" and "0.25" against columns headed Fee and Rate. */
   const rows: CsvRow[] = [[
-    'Payee', 'Payee level', 'Month', 'Reference', 'Tenant', 'Branch', 'Tenancy',
-    'Share', 'Paid', 'Fee charged', 'Rate', 'Source', 'Commission',
+    'Payee', 'Month', 'Reference', 'Tenant', 'Branch', 'Tenancy',
+    'Share', 'Paid', 'Fee charged', 'Rate', 'Commission',
   ]];
   for (const st of statements) {
     for (const l of st.lines) {
       rows.push([
         st.payeeName,
-        st.level,
         st.monthLabel,
         l.ref,
         l.tenant,
@@ -2377,10 +2430,9 @@ export function buildAllStatementsCsv(
         l.tenancyPlace || 'Single',
         l.sharePercent == null ? '100%' : `${l.sharePercent}%`,
         dmy(l.paidAt),
-        money(l.fee),
-        String(l.rate),
-        l.source ? (SOURCE_WORD[l.source] ?? l.source) : 'Not recorded',
-        money(l.commission),
+        moneyText(l.fee),
+        `${Number((l.rate * 100).toFixed(2))}%`,
+        moneyText(l.commission),
       ]);
     }
   }
