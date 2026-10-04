@@ -4298,6 +4298,23 @@ both estates, the dialog, and FAQ 9 on both rails.
   near-identical ones that drift.
 - AN AGENCY REFERRAL IS UNCHANGED, which is most of the book.
 
+### (bj) The signing email is written for the agent, not the tenant
+
+> Resend signature request email to the tenant (GR-26263): subject "Please sign your Deed of Guarantee, GR-26263"; remove "You remain the claim contact" (that's agent wording); add "Already signed? Then you're all set and can ignore this." Match the tone of the payment-received email.
+
+- **"YOU REMAIN THE CLAIM CONTACT" IS ADDRESSED TO THE WRONG PERSON.** The
+  claim contact is the agent or landlord, who claims UNDER the deed. The
+  tenant is the person guaranteed; telling them they are the claim contact
+  is not a tone problem, it is wrong.
+- IT CAME FROM deedToSignEmail BEING WRITTEN FOR A MIXED AUDIENCE and then
+  pointed at tenants by (ai) this evening, when opndoor took over sending
+  the signing email from PandaDoc. My doing.
+- **THE SUBJECT IS A DEADLINE, NOT A NOTIFICATION.** "Deed of Guarantee
+  issued for GR-26263" describes an event that has happened; "Please sign
+  your Deed of Guarantee" asks for the one thing we need.
+- THE ALREADY-SIGNED LINE IS THE SAME SENTENCE (ag) PUT ON THE RECEIPT, and
+  for the same reason: a resend can cross with a signature.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
