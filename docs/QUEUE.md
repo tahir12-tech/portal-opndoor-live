@@ -4597,6 +4597,18 @@ both estates, the dialog, and FAQ 9 on both rails.
   that wins: "4 Oct 2026". `oneDateFormat` is already a repo guard, so
   the question is which of these escaped it.
 
+### (bz) The League carries the carved share too, and a missing badge
+
+> League (Agencies, Branches, Referrers, Suppliers tabs and exports): same rule as the Performance export, so a carved-out agency share shows as included in the supplier's commission, never as a second amount. Also give the "Kestrel Lettings" agency row its "Kestrel Lettings" badge like the others.
+
+- **THE THIRD SURFACE OF ONE FAULT**, after (bp)(1) and (bq)(2). Three
+  screens asked to agree means the carved-versus-siblings answer is one
+  function with one name, read by all three -- not three folds that
+  happen to match today.
+- THE BADGE IS THE SAME SHAPE AS (bu)'s doubled bracket: a label built
+  per row, correct for every row except the one whose agency name
+  equals its supplier's.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
