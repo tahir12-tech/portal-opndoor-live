@@ -2804,6 +2804,25 @@ the one real assertion that has never run.
   and is the larger half: wherever else that feed prints stored values
   instead of English, it has the same fault.
 
+### (n) "Partner" is not a word the reader uses
+
+> Sweep all user-facing text (screens, empty states, emails, exports, help) for "partner" and replace it with "supplier" or "agency" as appropriate, e.g. "No agencies under this supplier", "No users for this supplier". Leave internal code names alone.
+
+- FOURTH INSTRUCTION TO ARRIVE MID-TURN. Order is (k), (l), (m), then this.
+- **"LEAVE INTERNAL CODE NAMES ALONE" IS THE WHOLE RISK.** `partner_id`,
+  `app_partner()`, `partnerId`, `PartnerScope`, `partner_kind`, the
+  `opndoor-agents` slug and the partner API's own field names are the
+  model's vocabulary and a blind rename would break the rails, the API
+  contract and every migration that reads them.
+- SO IT IS A SWEEP OF STRINGS A READER SEES, not of identifiers: JSX text,
+  copy constants, email templates, export headers and the help content.
+- AND "AS APPROPRIATE" MEANS IT CANNOT BE MECHANICAL. Each occurrence is
+  either a supplier, an agency, or genuinely neither; the right word depends
+  on which rail the screen is on, which is the distinction the whole
+  three-rail model turns on.
+- THE PARTNER API IS A PUBLISHED CONTRACT. Its field names and its
+  documentation of them are not user-facing copy in this sense.
+
 ### (c) The form validation does not reach the org section
 
 > Admin New application form: with required fields missing, pressing Send shows the messages ("Tell us whether this is a single-office agency", "Enter a contact email…") only in the sections above, so from the bottom of the page nothing seems to happen. On Send, scroll to the first missing field, mark every missing field, and show "N things still need filling in" next to the Send button with a link to the first. Check this on every form for every level, including admin.
