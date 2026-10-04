@@ -3774,6 +3774,17 @@ BLOCK 3, the wording sweeps, guides and copy: everything else.
   a different act from closing one that shows something they may not see,
   and this is the first kind, so it does not need the isolation suite.
 
+### (au) A Manager's view of Director rows, and what a Manager may invite
+
+> Agency Team as a Manager: on Director rows say "Only a Director or opndoor can change a Director." (A Director's own view keeps "contact your account manager".) Also check a Manager's Invite only offers Manager and Negotiator.
+
+- TWO HALVES AND ONLY ONE IS COPY. The sentence is copy; "check a Manager's
+  Invite only offers Manager and Negotiator" is a LADDER question, and if
+  the answer is no it is an isolation fault rather than a wording one.
+- THE SAME SENTENCE DIFFERS BY WHO IS READING IT, which is the point: a
+  Manager is told who can, a Director is told where to go. One string per
+  reader rather than one string.
+
 ### (y) The opndoor team page's own words
 
 > opndoor team page: heading "opndoor team" (not "Users"); subtitle "opndoor staff"; the level key describes both opndoor admin and opndoor manager.
