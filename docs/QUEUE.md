@@ -4505,6 +4505,19 @@ both estates, the dialog, and FAQ 9 on both rails.
   well as the office". On a supplier's statement the office alone does
   not say whose it is.
 
+### (bt) The supplier settlement statement initialises the tenant
+
+> Supplier settlement statement download: show the tenant's full name, as on every other statement, not initials ("TK").
+
+- "AS ON EVERY OTHER STATEMENT" IS THE RULE AND THE TEST: one statement
+  out of the set abbreviates, so this is a consistency fix, not a policy
+  decision about what a supplier may see.
+- WORTH KNOWING WHY IT INITIALISES BEFORE CHANGING IT. Initials on a
+  supplier-facing document look like a deliberate minimisation, and if
+  they were, the answer would be to change the others. They are not: the
+  supplier already sees the tenant's full name on the referral, the
+  payment page and the signed deed.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
