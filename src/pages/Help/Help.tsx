@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { isAgencyUser } from '@/data/capabilities';
-import { helpService, type HelpResource, type HelpResourceSection, type Role } from '@/data';
+import { helpService, getPartner, type HelpResource, type HelpResourceSection, type Role, type ReferencingMode } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -105,9 +105,30 @@ function readsCommission(v: HelpViewer): boolean {
   return v.role === 'superadmin' || v.seesCommission;
 }
 
+/* (dk) DOES THIS DESCRIBE THE JOURNEY THIS ORGANISATION IS ON?
+
+   Untagged means all three, which is the right default: most of the
+   catalogue is about signing in, finding an application and who sees
+   what, none of which changes with the checking setting. Only the
+   pieces that describe what happens AFTER a referral are tagged.
+
+   THE SETTING IS THE ORGANISATION'S, NOT THE READER'S. An opndoor
+   admin looking at Kestrel's Help should see Kestrel's journey; a
+   guide is wrong or right about a company, not about a person. */
+export function appliesToMode(
+  x: { modes?: ReferencingMode[] }, mode: ReferencingMode | null,
+): boolean {
+  if (!x.modes || !x.modes.length) return true;
+  // No setting resolved yet: show it rather than hide it. An empty
+  // shelf while the org loads reads as "there is nothing for you".
+  if (!mode) return true;
+  return x.modes.includes(mode);
+}
+
 /** An FAQ answers to the same rail and commission rules as a resource; it has no
     role ladder of its own. */
-export function mayOpenFaq(f: { rail?: 'supplier' | 'agency'; needsCommission?: boolean }, v: HelpViewer): boolean {
+export function mayOpenFaq(f: { rail?: 'supplier' | 'agency'; needsCommission?: boolean; modes?: ReferencingMode[] }, v: HelpViewer): boolean {
+  if (!appliesToMode(f, v.mode ?? null)) return false;
   if (f.rail === 'supplier' && v.agency) return false;
   if (f.rail === 'agency' && !v.agency && !v.admin) return false;
   if (f.needsCommission && !readsCommission(v)) return false;
@@ -123,6 +144,11 @@ export interface HelpViewer {
   agency: boolean;
   /** opndoor's own staff, who see everything including drafts. */
   admin: boolean;
+  /** (dk) The ORGANISATION's checking setting, which decides which
+      journey the guides describe. Optional so every existing caller
+      and test keeps working: absent means "show everything", which
+      is what the page did before the axis existed. */
+  mode?: ReferencingMode | null;
 }
 
 /* WHAT A READER MAY OPEN. Three tests, and the first two are things minRole
@@ -142,6 +168,7 @@ export interface HelpViewer {
 
    THE LADDER stays for everything else, unchanged. */
 export function mayOpenResource(r: HelpResource, v: HelpViewer): boolean {
+  if (!appliesToMode(r, v.mode ?? null)) return false;
   if (r.minRole && ROLE_RANK[v.role] < ROLE_RANK[r.minRole]) return false;
   if (r.rail === 'supplier' && v.agency) return false;
   if (r.rail === 'agency' && !v.agency && !v.admin) return false;
@@ -177,11 +204,17 @@ export function Help() {
   const { hash } = useLocation();
   const { role, seesCommission, partnerScope } = useSession();
   const isAdmin = role === 'superadmin';
+  /* (dk) THE ORGANISATION'S CHECKING SETTING, which decides which
+     journey the guides describe. `getPartner` is the same read the
+     rest of the product uses for this; null while the scope is
+     resolving, and `appliesToMode` shows everything then rather than
+     emptying the shelf for a frame. */
   const helpViewer: HelpViewer = {
     role,
     seesCommission,
     agency: isAgencyUser(role, partnerScope),
     admin: role === 'superadmin' || role === 'opndoor_manager',
+    mode: getPartner(partnerScope)?.referencingMode ?? null,
   };
 
   const toast = useToast();

@@ -39,7 +39,15 @@ export const HELP_SEED: HelpContent = {
        THE .pdf FILES ARE LEFT IN PLACE rather than deleted: links to them
        exist outside this portal, in emails and on agents' intranets, and a
        deleted file is a broken link for somebody we cannot tell. ===== */
-    { id: 'tp2', icon: 'doc', type: 'Leaflet', title: 'Tenant explainer leaflet', desc: 'A one-page explainer to share with tenants: what the opndoor guarantee service is, the fee, and how it works.', meta: 'Page', href: '/help-docs/opndoor-for-tenants.html' },
+    /* (dk) THE LEAFLET LEAVES THE BUILDING, which makes it the
+       sharpest case on this list: an agent hands it to a tenant. It
+       describes the fee and the journey as they are where opndoor
+       accepts tenants as sent. Handed to the tenant of an agency
+       opndoor checks, it omits a GBP 20 fee they are about to be
+       charged -- a false statement about money, given to a consumer.
+       So it is tagged to the journey it actually describes and the
+       other two show as missing. */
+    { id: 'tp2', icon: 'doc', type: 'Leaflet', modes: ['pre_referenced_open'], title: 'Tenant explainer leaflet', desc: 'A one-page explainer to share with tenants: what the opndoor guarantee service is, the fee, and how it works.', meta: 'Page', href: '/help-docs/opndoor-for-tenants.html' },
     { id: 'tplg', icon: 'doc', type: 'Guide', title: 'Landlord guide', desc: 'A one-page guide to share with landlords: what the Deed of Guarantee means for their property, that it is not insurance, and that either the landlord or the agent can make a claim.', meta: 'Page', href: '/help-docs/opndoor-for-landlords.html' },
     { id: 'tp1', icon: 'doc', type: 'Checklist', title: 'Referral information checklist', desc: 'The tenant, property and tenancy details to gather before you start an application.', meta: 'In the referrer guide', href: '/help-docs/referrer-guide.html#send' },
     { id: 'tp3', icon: 'image', type: 'Assets', title: 'Co-branding assets', desc: 'Logos and brand guidance for white-labelling the portal with your own branding.', meta: '', rail: 'supplier' },
@@ -47,7 +55,7 @@ export const HELP_SEED: HelpContent = {
   faqs: [
     { id: 'f1', q: 'What is the Guarantee Referral Portal for?', a: 'It lets partner staff refer tenants who cannot pass referencing to opndoor’s professional guarantor service, and track each referral from <b>Sent</b> to <b>Paid</b> to <b>Deed Issued</b>, with live analytics on volume, conversion and fees.', rail: 'supplier' },
     { id: 'f2', q: 'What does opndoor do as guarantor?', a: 'opndoor provides a <b>Deed of Guarantee</b> in favour of the property, for tenants who cannot provide their own guarantor. opndoor is not a party to, or named on, the tenancy agreement. It is a professional guarantor service, not insurance. Either the landlord or the agent can make a claim under the deed.', rail: 'supplier' },
-    { id: 'f3', q: 'What do Sent, Paid and Deed Issued mean?', a: '<b>Sent</b> means the referral has been sent to the tenant. <b>Paid</b> means the guarantee fee has been paid. <b>Deed Issued</b> means the Deed of Guarantee has been issued and stored against the record.', rail: 'supplier' },
+    { id: 'f3', modes: ['pre_referenced_open'], q: 'What do Sent, Paid and Deed Issued mean?', a: '<b>Sent</b> means the referral has been sent to the tenant. <b>Paid</b> means the guarantee fee has been paid. <b>Deed Issued</b> means the Deed of Guarantee has been issued and stored against the record.', rail: 'supplier' },
     { id: 'f4', q: 'How do I refer a tenant?', a: 'Open <b>New application</b> and complete the sections in order: Tenant, Property, Tenancy, then Agent and branch. You can search for an existing agent and branch or add a new one on the fly. Submit to send the referral.', rail: 'supplier' },
     { id: 'f5', q: 'Are the guarantee reference, issue date and expiry entered by hand?', a: 'No. The guarantee reference, issue date and expiry are <b>assigned automatically</b> once the guarantee is issued. They are not entered on the form; they appear on the application detail view.', rail: 'supplier' },
     { id: 'f6', q: 'Who can use the portal and what can each role see?', a: '<b>opndoor admins</b> are opndoor’s internal team and manage everything, including reconciliation and record mapping. <b>Management</b> sees all tracking and analytics across the whole estate and can add their own users, but cannot edit canonical records or portal settings. <b>Referrers</b> see and track only their own referrals and can add agencies and branches on the fly.', rail: 'supplier' },
@@ -109,11 +117,25 @@ export const HELP_SEED: HelpContent = {
       a: 'It is where you refer a tenant who cannot pass referencing to opndoor for a guarantee, and follow what happens next. Every referral you send is tracked from <b>Sent</b> to <b>Paid</b> to <b>Deed Issued</b>, so you can see which tenancies are covered and which are still waiting on the tenant.' },
     { id: 'af2', rail: 'agency', q: 'What does opndoor do as guarantor?',
       a: 'opndoor provides a <b>Deed of Guarantee</b> in favour of the property, for a tenant who cannot provide a guarantor of their own. opndoor is not named on the tenancy agreement and is not a party to it. It is a professional guarantor service and it is not insurance. Either the landlord or the agent can make a claim under the deed.' },
-    { id: 'af3', rail: 'agency', q: 'What do Sent, Paid and Deed Issued mean?',
+    /* (dk) STRAIGHT TO PAYMENT ONLY. This answer walks Sent -> Paid ->
+       Deed Issued with nothing between the referral and the payment,
+       which is true where opndoor accepts tenants as sent and false
+       on the other two: there a referral waits for a decision, and on
+       "opndoor checks" the tenant pays a GBP 20 application fee for
+       an eligibility check first. Tagged rather than reworded, so the
+       other two journeys show as a GAP in the matrix instead of
+       being told something untrue. */
+    { id: 'af3', rail: 'agency', modes: ['pre_referenced_open'], q: 'What do Sent, Paid and Deed Issued mean?',
       a: '<b>Sent</b> means the referral has gone to the tenant and they have been asked to pay. <b>Paid</b> means they have paid the guarantee fee. <b>Deed Issued</b> means they have signed the Deed of Guarantee and it is stored against the record. A joint tenancy reaches Deed Issued one tenant at a time, because each tenant signs their own deed covering their own share.' },
     { id: 'af4', rail: 'agency', q: 'How do I refer a tenant?',
       a: 'Open <b>New application</b> and work down the form: the tenant, the property, the tenancy, and the office if your agency has more than one. For a joint tenancy use <b>Add another tenant</b> and set each one\u2019s share of the rent. Send it, and the tenant is emailed a link to pay.' },
-    { id: 'af5', rail: 'agency', q: 'What does the tenant pay?',
+    /* (dk) THE GUARANTEE FEE AND NOTHING ELSE, which is the whole
+       answer where opndoor accepts tenants as sent or applies its own
+       criteria. Where OPNDOOR CHECKS, the tenant also pays a GBP 20
+       application fee for the eligibility check, and that sentence
+       exists nowhere in this catalogue -- so that journey has no
+       answer to this question and the matrix says so. */
+    { id: 'af5', rail: 'agency', modes: ['pre_referenced_open', 'pre_referenced_screened'], q: 'What does the tenant pay?',
       a: 'The guarantee fee, calculated from the fee basis your agency has agreed with opndoor. The exact amount appears on the referral form before you send it, and on the application afterwards, so you can tell the tenant what to expect before they open the email. On a joint tenancy the fee is divided between the tenants in the same shares as the rent.' },
     { id: 'af6', rail: 'agency', q: 'Who sees what, across Director, Manager and Negotiator?',
       a: 'Everyone uses the same portal. A <b>Negotiator</b> sees the referrals they sent. A <b>Manager</b> sees every referral across the agency, every office and the whole team, and can invite people and manage their access. A <b>Director</b> sees everything a Manager sees, and also what the agency has earned. Figures about earnings are shown to Directors only.' },

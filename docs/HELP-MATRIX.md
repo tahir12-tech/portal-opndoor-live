@@ -13,20 +13,24 @@ payment, Opndoor’s decision first, or the tenant’s eligibility check with th
 documents for all three journeys, and this table has one column where three
 were asked for. That is a content build, not a gate, and it is **not done**.
 
-## Counts
+## Counts, by level and by checking setting
 
-| Reader | Guides, leaflets and templates | FAQs |
-| --- | ---: | ---: |
-| opndoor admin | 10 | 20 |
-| opndoor manager | 8 | 19 |
-| agency Director | 6 | 8 |
-| agency Manager | 5 | 8 |
-| agency Negotiator | 5 | 8 |
-| supplier Management | 9 | 12 |
-| supplier Referrer | 8 | 11 |
-| supplier Developer | 8 | 11 |
+`docs / FAQs` in each cell.
+
+| Reader | accepts as sent | applies its own criteria | opndoor checks |
+| --- | ---: | ---: | ---: |
+| opndoor admin | 10 / 20 | 9 / 18 | 9 / 17 |
+| opndoor manager | 8 / 19 | 7 / 17 | 7 / 16 |
+| agency Director | 6 / 8 | 5 / 7 | 5 / 6 |
+| agency Manager | 5 / 8 | 4 / 7 | 4 / 6 |
+| agency Negotiator | 5 / 8 | 4 / 7 | 4 / 6 |
+| supplier Management | 9 / 12 | 8 / 11 | 8 / 11 |
+| supplier Referrer | 8 / 11 | 7 / 10 | 7 / 10 |
+| supplier Developer | 8 / 11 | 7 / 10 | 7 / 10 |
 
 ## opndoor admin
+
+### accepts as sent
 
 **Resources**
 
@@ -64,7 +68,79 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Can a tenancy start date be changed after a referral?
 - How do I find an application?
 
+### applies its own criteria
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Management guide _(Getting started, commission)_
+- opndoor admin guide _(Getting started)_
+- Sales and conversation guide _(Getting started, supplier rail)_
+- Welcome to the portal _(Getting started)_
+- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+- Co-branding assets _(Templates, supplier rail)_
+
+**FAQs**
+
+- What is the Guarantee Referral Portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Are the guarantee reference, issue date and expiry entered by hand?
+- Who can use the portal and what can each role see?
+- Can I add an agency or branch that is not listed?
+- How are the guarantee fee and commission calculated?
+- Can a tenancy start date be changed after a referral?
+- How do I find a specific application?
+- What time period does the dashboard cover?
+- I have a question that is not answered here.
+- What is this portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- What does the tenant pay?
+- Who sees what, across Director, Manager and Negotiator?
+- Can a tenancy start date be changed after a referral?
+- How do I find an application?
+
+### opndoor checks
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Management guide _(Getting started, commission)_
+- opndoor admin guide _(Getting started)_
+- Sales and conversation guide _(Getting started, supplier rail)_
+- Welcome to the portal _(Getting started)_
+- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+- Co-branding assets _(Templates, supplier rail)_
+
+**FAQs**
+
+- What is the Guarantee Referral Portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Are the guarantee reference, issue date and expiry entered by hand?
+- Who can use the portal and what can each role see?
+- Can I add an agency or branch that is not listed?
+- How are the guarantee fee and commission calculated?
+- Can a tenancy start date be changed after a referral?
+- How do I find a specific application?
+- What time period does the dashboard cover?
+- I have a question that is not answered here.
+- What is this portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Who sees what, across Director, Manager and Negotiator?
+- Can a tenancy start date be changed after a referral?
+- How do I find an application?
+
+
 ## opndoor manager
+
+### accepts as sent
 
 **Resources**
 
@@ -99,7 +175,73 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Can a tenancy start date be changed after a referral?
 - How do I find an application?
 
+### applies its own criteria
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Sales and conversation guide _(Getting started, supplier rail)_
+- Welcome to the portal _(Getting started)_
+- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+- Co-branding assets _(Templates, supplier rail)_
+
+**FAQs**
+
+- What is the Guarantee Referral Portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Are the guarantee reference, issue date and expiry entered by hand?
+- Who can use the portal and what can each role see?
+- Can I add an agency or branch that is not listed?
+- Can a tenancy start date be changed after a referral?
+- How do I find a specific application?
+- What time period does the dashboard cover?
+- I have a question that is not answered here.
+- What is this portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- What does the tenant pay?
+- Who sees what, across Director, Manager and Negotiator?
+- Can a tenancy start date be changed after a referral?
+- How do I find an application?
+
+### opndoor checks
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Sales and conversation guide _(Getting started, supplier rail)_
+- Welcome to the portal _(Getting started)_
+- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+- Co-branding assets _(Templates, supplier rail)_
+
+**FAQs**
+
+- What is the Guarantee Referral Portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Are the guarantee reference, issue date and expiry entered by hand?
+- Who can use the portal and what can each role see?
+- Can I add an agency or branch that is not listed?
+- Can a tenancy start date be changed after a referral?
+- How do I find a specific application?
+- What time period does the dashboard cover?
+- I have a question that is not answered here.
+- What is this portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Who sees what, across Director, Manager and Negotiator?
+- Can a tenancy start date be changed after a referral?
+- How do I find an application?
+
+
 ## agency Director
+
+### accepts as sent
 
 **Resources**
 
@@ -121,7 +263,49 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Can a tenancy start date be changed after a referral?
 - How do I find an application?
 
+### applies its own criteria
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Management guide _(Getting started, commission)_
+- Welcome to the portal _(Getting started)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+
+**FAQs**
+
+- What is this portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- What does the tenant pay?
+- Who sees what, across Director, Manager and Negotiator?
+- Can a tenancy start date be changed after a referral?
+- How do I find an application?
+
+### opndoor checks
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Management guide _(Getting started, commission)_
+- Welcome to the portal _(Getting started)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+
+**FAQs**
+
+- What is this portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Who sees what, across Director, Manager and Negotiator?
+- Can a tenancy start date be changed after a referral?
+- How do I find an application?
+
+
 ## agency Manager
+
+### accepts as sent
 
 **Resources**
 
@@ -141,9 +325,49 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Who sees what, across Director, Manager and Negotiator?
 - Can a tenancy start date be changed after a referral?
 - How do I find an application?
+
+### applies its own criteria
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Welcome to the portal _(Getting started)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+
+**FAQs**
+
+- What is this portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- What does the tenant pay?
+- Who sees what, across Director, Manager and Negotiator?
+- Can a tenancy start date be changed after a referral?
+- How do I find an application?
+
+### opndoor checks
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Welcome to the portal _(Getting started)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+
+**FAQs**
+
+- What is this portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Who sees what, across Director, Manager and Negotiator?
+- Can a tenancy start date be changed after a referral?
+- How do I find an application?
+
 
 ## agency Negotiator
 
+### accepts as sent
+
 **Resources**
 
 - Referrer guide _(Getting started)_
@@ -163,7 +387,47 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Can a tenancy start date be changed after a referral?
 - How do I find an application?
 
+### applies its own criteria
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Welcome to the portal _(Getting started)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+
+**FAQs**
+
+- What is this portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- What does the tenant pay?
+- Who sees what, across Director, Manager and Negotiator?
+- Can a tenancy start date be changed after a referral?
+- How do I find an application?
+
+### opndoor checks
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Welcome to the portal _(Getting started)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+
+**FAQs**
+
+- What is this portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Who sees what, across Director, Manager and Negotiator?
+- Can a tenancy start date be changed after a referral?
+- How do I find an application?
+
+
 ## supplier Management
+
+### accepts as sent
 
 **Resources**
 
@@ -192,7 +456,64 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - What time period does the dashboard cover?
 - I have a question that is not answered here.
 
+### applies its own criteria
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Management guide _(Getting started, commission)_
+- Sales and conversation guide _(Getting started, supplier rail)_
+- Welcome to the portal _(Getting started)_
+- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+- Co-branding assets _(Templates, supplier rail)_
+
+**FAQs**
+
+- What is the Guarantee Referral Portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Are the guarantee reference, issue date and expiry entered by hand?
+- Who can use the portal and what can each role see?
+- Can I add an agency or branch that is not listed?
+- How are the guarantee fee and commission calculated?
+- Can a tenancy start date be changed after a referral?
+- How do I find a specific application?
+- What time period does the dashboard cover?
+- I have a question that is not answered here.
+
+### opndoor checks
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Management guide _(Getting started, commission)_
+- Sales and conversation guide _(Getting started, supplier rail)_
+- Welcome to the portal _(Getting started)_
+- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+- Co-branding assets _(Templates, supplier rail)_
+
+**FAQs**
+
+- What is the Guarantee Referral Portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Are the guarantee reference, issue date and expiry entered by hand?
+- Who can use the portal and what can each role see?
+- Can I add an agency or branch that is not listed?
+- How are the guarantee fee and commission calculated?
+- Can a tenancy start date be changed after a referral?
+- How do I find a specific application?
+- What time period does the dashboard cover?
+- I have a question that is not answered here.
+
+
 ## supplier Referrer
+
+### accepts as sent
 
 **Resources**
 
@@ -218,9 +539,62 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - How do I find a specific application?
 - What time period does the dashboard cover?
 - I have a question that is not answered here.
+
+### applies its own criteria
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Sales and conversation guide _(Getting started, supplier rail)_
+- Welcome to the portal _(Getting started)_
+- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+- Co-branding assets _(Templates, supplier rail)_
+
+**FAQs**
+
+- What is the Guarantee Referral Portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Are the guarantee reference, issue date and expiry entered by hand?
+- Who can use the portal and what can each role see?
+- Can I add an agency or branch that is not listed?
+- Can a tenancy start date be changed after a referral?
+- How do I find a specific application?
+- What time period does the dashboard cover?
+- I have a question that is not answered here.
+
+### opndoor checks
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Sales and conversation guide _(Getting started, supplier rail)_
+- Welcome to the portal _(Getting started)_
+- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+- Co-branding assets _(Templates, supplier rail)_
+
+**FAQs**
+
+- What is the Guarantee Referral Portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Are the guarantee reference, issue date and expiry entered by hand?
+- Who can use the portal and what can each role see?
+- Can I add an agency or branch that is not listed?
+- Can a tenancy start date be changed after a referral?
+- How do I find a specific application?
+- What time period does the dashboard cover?
+- I have a question that is not answered here.
+
 
 ## supplier Developer
 
+### accepts as sent
+
 **Resources**
 
 - Referrer guide _(Getting started)_
@@ -245,3 +619,54 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - How do I find a specific application?
 - What time period does the dashboard cover?
 - I have a question that is not answered here.
+
+### applies its own criteria
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Sales and conversation guide _(Getting started, supplier rail)_
+- Welcome to the portal _(Getting started)_
+- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+- Co-branding assets _(Templates, supplier rail)_
+
+**FAQs**
+
+- What is the Guarantee Referral Portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Are the guarantee reference, issue date and expiry entered by hand?
+- Who can use the portal and what can each role see?
+- Can I add an agency or branch that is not listed?
+- Can a tenancy start date be changed after a referral?
+- How do I find a specific application?
+- What time period does the dashboard cover?
+- I have a question that is not answered here.
+
+### opndoor checks
+
+**Resources**
+
+- Referrer guide _(Getting started)_
+- Sales and conversation guide _(Getting started, supplier rail)_
+- Welcome to the portal _(Getting started)_
+- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Landlord guide _(Templates)_
+- Referral information checklist _(Templates)_
+- Co-branding assets _(Templates, supplier rail)_
+
+**FAQs**
+
+- What is the Guarantee Referral Portal for?
+- What does opndoor do as guarantor?
+- How do I refer a tenant?
+- Are the guarantee reference, issue date and expiry entered by hand?
+- Who can use the portal and what can each role see?
+- Can I add an agency or branch that is not listed?
+- Can a tenancy start date be changed after a referral?
+- How do I find a specific application?
+- What time period does the dashboard cover?
+- I have a question that is not answered here.
+

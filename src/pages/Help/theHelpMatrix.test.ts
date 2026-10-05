@@ -43,6 +43,17 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { HELP_SEED } from '@/data/mock/help';
 import { mayOpenResource, mayOpenFaq, type HelpViewer } from './Help';
+import type { ReferencingMode } from '@/data';
+
+/* (do) THE THIRD AXIS. Matt: "I asked for it to vary by checking
+   setting too (accepts as sent, applies its own criteria, opndoor
+   checks) ... so I can see e.g. that an 'accepts as sent' agency never
+   sees eligibility checks or the GBP 20 fee." */
+const MODES: { id: ReferencingMode; label: string }[] = [
+  { id: 'pre_referenced_open', label: 'accepts as sent' },
+  { id: 'pre_referenced_screened', label: 'applies its own criteria' },
+  { id: 'opndoor_referenced', label: 'opndoor checks' },
+];
 
 /** Matt's eight, in his order. */
 const READERS: { label: string; v: HelpViewer }[] = [
@@ -71,6 +82,7 @@ const seenBy = (v: HelpViewer) => ({
   resources: allResources().filter(({ r }) => mayOpenResource(r, v)),
   faqs: (HELP_SEED.faqs ?? []).filter((f) => mayOpenFaq(f, v)),
 });
+const seenIn = (v: HelpViewer, mode: ReferencingMode) => seenBy({ ...v, mode });
 
 describe('the Help matrix', () => {
   it('is written to docs/HELP-MATRIX.md from the real gates', () => {
@@ -90,26 +102,34 @@ describe('the Help matrix', () => {
       'documents for all three journeys, and this table has one column where three',
       'were asked for. That is a content build, not a gate, and it is **not done**.',
       '',
-      '## Counts',
+      '## Counts, by level and by checking setting',
       '',
-      '| Reader | Guides, leaflets and templates | FAQs |',
-      '| --- | ---: | ---: |',
+      '`docs / FAQs` in each cell.',
+      '',
+      `| Reader | ${MODES.map((m) => m.label).join(' | ')} |`,
+      '| --- | ---: | ---: | ---: |',
     ];
     for (const { label, v } of READERS) {
-      const s = seenBy(v);
-      lines.push(`| ${label} | ${s.resources.length} | ${s.faqs.length} |`);
+      const cells = MODES.map((m) => {
+        const s = seenIn(v, m.id);
+        return `${s.resources.length} / ${s.faqs.length}`;
+      });
+      lines.push(`| ${label} | ${cells.join(' | ')} |`);
     }
     for (const { label, v } of READERS) {
-      const s = seenBy(v);
       lines.push('', `## ${label}`, '');
-      lines.push('**Resources**', '');
-      for (const { section, r } of s.resources) {
-        lines.push(`- ${r.title} _(${section}${r.needsCommission ? ', commission' : ''}${r.rail ? `, ${r.rail} rail` : ''})_`);
+      for (const m of MODES) {
+        const s = seenIn(v, m.id);
+        lines.push(`### ${m.label}`, '', '**Resources**', '');
+        for (const { section, r } of s.resources) {
+          lines.push(`- ${r.title} _(${section}${r.needsCommission ? ', commission' : ''}${r.rail ? `, ${r.rail} rail` : ''})_`);
+        }
+        if (!s.resources.length) lines.push('- _none_');
+        lines.push('', '**FAQs**', '');
+        for (const f of s.faqs) lines.push(`- ${f.q}`);
+        if (!s.faqs.length) lines.push('- _none_');
+        lines.push('');
       }
-      if (!s.resources.length) lines.push('- _none_');
-      lines.push('', '**FAQs**', '');
-      for (const f of s.faqs) lines.push(`- ${f.q}`);
-      if (!s.faqs.length) lines.push('- _none_');
     }
     mkdirSync(join(process.cwd(), 'docs'), { recursive: true });
     writeFileSync(join(process.cwd(), 'docs/HELP-MATRIX.md'), `${lines.join('\n')}\n`, 'utf8');
@@ -159,6 +179,39 @@ describe('and nothing reaches a reader who should not have it', () => {
     '%s is not shown the opndoor admin guide', (_label, v) => {
       expect(seenBy(v).resources.some((x) => x.r.minRole === 'superadmin')).toBe(false);
     });
+
+  /* (do) MATT'S OWN ACCEPTANCE TEST, in his words: "so I can see e.g.
+     that an 'accepts as sent' agency never sees eligibility checks or
+     the GBP 20 fee."
+
+     ASSERTED OVER THE ANSWER TEXT, not over the tags. Tagging an item
+     to a journey is the mechanism; what matters is that no WORD about
+     an eligibility check or an application fee reaches a reader whose
+     organisation has neither. A tag applied to the wrong item would
+     pass a tag-shaped assertion and fail this one. */
+  const ELIGIBILITY = /eligibility check|application fee|\u00a320|GBP 20/i;
+
+  it.each(READERS.map((r) => [r.label, r.v] as const))(
+    '%s on "accepts as sent" is told nothing about an eligibility check or a fee for one',
+    (_label, v) => {
+      const s = seenIn(v, 'pre_referenced_open');
+      const offenders = s.faqs.filter((f) => ELIGIBILITY.test(`${f.q} ${f.a}`)).map((f) => f.q);
+      expect(offenders).toEqual([]);
+      expect(s.resources.filter((x) => ELIGIBILITY.test(`${x.r.title} ${x.r.desc}`))).toEqual([]);
+    });
+
+  /* AND THE MIRROR, WHICH IS TODAY'S REAL FAILURE AND IS RECORDED AS
+     ONE RATHER THAN ASSERTED AWAY. Where opndoor checks the tenant,
+     there IS a GBP 20 application fee and the catalogue says nothing
+     about it anywhere -- so this test cannot demand the sentence
+     exists without failing on content nobody has written. It pins the
+     absence instead, so the day somebody writes it they are told to
+     come back and turn this into the positive assertion. */
+  it('while "opndoor checks" has no answer about the GBP 20 fee yet, which is the gap', () => {
+    const all = [...(HELP_SEED.faqs ?? [])].map((f) => `${f.q} ${f.a}`).join(' ');
+    expect(ELIGIBILITY.test(all), 'somebody has written the fee copy: make this a positive assertion')
+      .toBe(false);
+  });
 
   /* NOBODY IS SHOWN NOTHING. A reader with an empty shelf is a
      mis-gate, not a policy -- every level has something to read. */
