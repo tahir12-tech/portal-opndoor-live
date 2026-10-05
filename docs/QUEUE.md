@@ -5700,7 +5700,7 @@ the standard-terms default rather than a deal anybody agreed, and C
 would show "No Deal Supplier" in a list of suppliers with a deal. But
 it is a commercial judgement and it is yours.
 
-### I BROKE SOMETHING ON DEV AND IT NEEDS ONE APPROVAL TO PUT BACK
+### I BROKE SOMETHING ON DEV. PUT BACK 2026-10-05, WITH MATT'S APPROVAL
 
 **What happened.** Writing `merge_branches`, I checked whether the
 browser could call `merge_agencies` at all -- the question that turned
@@ -5756,13 +5756,23 @@ Southbank was in it is recorded nowhere that survived the merge, so the
 SQL above leaves it ungrouped rather than inventing the membership. If it
 was in that group, it is one click on the Agencies screen.
 
-**What I have changed so it cannot happen again.** Nothing in the repo:
-this was not a code fault, it was me running a write against dev to
-answer a question a transaction would have answered. Every check of that
-shape from here is a `begin ... rollback`, which is what the pgTAP suite
-does and what I should have done. The `merge_agencies` grant that the
-check was about IS a real fault and is fixed in the same migration as
-`merge_branches`.
+**DONE.** Matt approved the reversal and it was run on 2026-10-05: the
+agency row is back with a new id, its office and its three applications
+are under it again, and it is ungrouped on his instruction. The
+per-agency table in `docs/MONEY-BEFORE-DG.md` was checked row for row
+afterwards and matches again, Northgate 12,100.00 and Southbank
+4,200.00.
+
+**And the rule it produced is now a standing one**, in his words:
+"Anything you test from now on, do it inside a transaction or on
+records you create for the test." It is in CLAUDE.md with the other
+rules, because this was not a code fault and nothing in the repo would
+otherwise have carried it: it was me running a write against dev to
+answer a question a `begin ... rollback` would have answered, which is
+what the pgTAP suite does on every one of its 143 files.
+
+The `merge_agencies` grant the check was about IS a real fault and is
+fixed in the same migration as `merge_branches`.
 
 ### For Matt in the morning (2026-10-05 night run)
 

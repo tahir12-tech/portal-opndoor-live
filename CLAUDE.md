@@ -63,6 +63,11 @@ trigger.
 - Tests are `npm test` (`vitest run --environment jsdom`) and
   `npm run test:db` (pgTAP). Never report a bare test total: report added,
   removed and renamed separately.
+- **Anything you test, test inside a transaction or on records you create
+  for the test.** Matt, 2026-10-05, after a check of whether the browser
+  could call `merge_agencies` was run against two real dev agencies and
+  merged them. Every pgTAP file here is already `begin ... rollback`; an
+  ad-hoc check against dev must be too, or must use rows it made itself.
 - Deno is not installed here, so `deno test` and `deno check` cannot run. Syntax
   check an edge function with
   `./node_modules/.bin/esbuild --loader=ts < supabase/functions/<fn>/index.ts`.
