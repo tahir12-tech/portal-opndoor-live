@@ -71,7 +71,20 @@ export const HELP_SEED: HelpContent = {
       meta: 'Page', href: '/help-docs/opndoor-for-tenants-eligibility.html' },
     { id: 'tp2', icon: 'doc', type: 'Leaflet', modes: ['pre_referenced_open', 'pre_referenced_screened'], title: 'Tenant explainer leaflet', desc: 'A one-page explainer to share with tenants: what the opndoor guarantee service is, the fee, and how it works.', meta: 'Page', href: '/help-docs/opndoor-for-tenants.html' },
     { id: 'tplg', icon: 'doc', type: 'Guide', title: 'Landlord guide', desc: 'A one-page guide to share with landlords: what the Deed of Guarantee means for their property, that it is not insurance, and that either the landlord or the agent can make a claim.', meta: 'Page', href: '/help-docs/opndoor-for-landlords.html' },
-    { id: 'tp1', icon: 'doc', type: 'Checklist', title: 'Referral information checklist', desc: 'The tenant, property and tenancy details to gather before you start an application.', meta: 'In the referrer guide', href: '/help-docs/referrer-guide.html#send' },
+    /* (dr5) AN ACTUAL CHECKLIST. Matt: "'Referral information
+       checklist' shows the whole Referrer guide. Make it an actual
+       checklist of what to gather before referring, taken from the
+       form's fields."
+
+       IT WAS AN ANCHOR INTO ANOTHER DOCUMENT -- referrer-guide.html#send
+       -- so clicking a thing called a checklist opened a guide, at a
+       heading. Its own meta said "In the referrer guide", which is the
+       shelf admitting it is not a checklist.
+
+       TAKEN FROM THE FORM, field by field, with required and optional
+       marked as the form marks them, so it cannot drift into
+       describing a form that does not exist. */
+    { id: 'tp1', icon: 'doc', type: 'Checklist', title: 'Referral information checklist', desc: 'The tenant, property and tenancy details to gather before you start an application, field by field.', meta: 'Page', href: '/help-docs/referral-checklist.html' },
     { id: 'tp3', icon: 'image', type: 'Assets', title: 'Co-branding assets', desc: 'Logos and brand guidance for white-labelling the portal with your own branding.', meta: '', rail: 'supplier' },
   ],
   faqs: [
