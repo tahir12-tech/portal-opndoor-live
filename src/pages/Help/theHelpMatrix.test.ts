@@ -213,6 +213,30 @@ describe('and nothing reaches a reader who should not have it', () => {
       .toBe(false);
   });
 
+  /* (dr4) ONLY A SUPPLIER ADDS AN AGENCY WHILE REFERRING, and nothing
+     an agency reader sees may say otherwise. The guide's own text was
+     already conditioned ("If you work at a supplier, you can...") and
+     the three FAQs are rail-gated; it was the shelf DESCRIPTION,
+     which is what they read before opening anything. */
+  const ADDS_ORGS = /add (?:agencies|an agency|a new agency).{0,40}(?:on the fly|while)/i;
+
+  it.each(READERS.filter((r) => r.v.agency).map((r) => [r.label, r.v] as const))(
+    '%s is never told they can add an agency while referring', (_label, v) => {
+      const s = seenBy(v);
+      expect(s.resources.filter((x) => ADDS_ORGS.test(x.r.desc)).map((x) => x.r.title)).toEqual([]);
+      expect(s.faqs.filter((f) => ADDS_ORGS.test(f.a)).map((f) => f.q)).toEqual([]);
+    });
+
+  /* AND A SUPPLIER STILL IS, because the capability is real and
+     removing the claim from everybody would have hidden it from the
+     readers who have it. */
+  it('while a supplier Referrer still is', () => {
+    const v = READERS.find((r) => r.label === 'supplier Referrer')!.v;
+    const s = seenBy(v);
+    const says = [...s.resources.map((x) => x.r.desc), ...s.faqs.map((f) => f.a)];
+    expect(says.some((t) => /adding an agency or office while you refer|add a new one on the fly/i.test(t))).toBe(true);
+  });
+
   /* NOBODY IS SHOWN NOTHING. A reader with an empty shelf is a
      mis-gate, not a policy -- every level has something to read. */
   it.each(READERS.map((r) => [r.label, r.v] as const))(

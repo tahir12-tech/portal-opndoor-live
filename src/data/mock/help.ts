@@ -10,7 +10,19 @@ export const HELP_SEED: HelpContent = {
     // #110 Three role-specific portal guides (authored HTML, print-to-PDF) + the
     // shipped Sales & Conversation Guide PDF. Referrer guide = all roles; Management
     // guide = management + opndoor admin; opndoor admin guide = opndoor admin only.
-    { id: 'gs0', icon: 'doc', type: 'Guide', title: 'Referrer guide', desc: 'How to sign in, send a referral, add agencies and branches on the fly, track your applications, and read your League ranking. For everyone who refers.', meta: 'For all roles', href: '/help-docs/referrer-guide.html' },
+    /* (dr4) THE DESCRIPTION CLAIMED SOMETHING ONLY A SUPPLIER CAN DO.
+       Matt: "Only suppliers can add agencies and offices while
+       referring. Remove that claim from what agency staff see
+       (Referrer guide description and FAQs)."
+
+       THE GUIDE ITSELF WAS ALREADY RIGHT -- referrer-guide.html opens
+       that paragraph "If you work at a supplier, you can..." -- and
+       the three FAQs that describe it are already rail-gated. Only
+       this one-line description said it to everybody, which is the
+       line an agency reader sees on the shelf before they open
+       anything. The capability is kept for the readers who have it,
+       conditioned the same way the guide conditions it. */
+    { id: 'gs0', icon: 'doc', type: 'Guide', title: 'Referrer guide', desc: 'How to sign in, send a referral, track your applications, and read your League ranking. For everyone who refers. If you work at a supplier, it also covers adding an agency or office while you refer.', meta: 'For all roles', href: '/help-docs/referrer-guide.html' },
     { id: 'gsmg', icon: 'users', type: 'Guide', title: 'Management guide', desc: 'Estate analytics, the fee and commission, settlements, exports, managing agencies, branches and users, the full League, and the Referrer & Period filters.', meta: 'Management & opndoor admin', href: '/help-docs/management-guide.html', minRole: 'management', needsCommission: true },
     { id: 'gsag', icon: 'users', type: 'Guide', title: 'opndoor admin guide', desc: 'Reconciliation, partners and rate management (the rate-snapshot law), the premium bordereau, Health, the opndoor team, and the CRM sync.', meta: 'opndoor admin only', href: '/help-docs/opndoor-admin-guide.html', minRole: 'superadmin' },
     { id: 'gs0b', icon: 'doc', type: 'Guide', title: 'Sales and conversation guide', desc: 'How to talk to the agent and the tenant, who qualifies, how claims work, and where the line is between a guarantor service and insurance.', meta: 'PDF · all roles', href: '/help-docs/opndoor-sales-and-conversation-guide.pdf', rail: 'supplier' },
