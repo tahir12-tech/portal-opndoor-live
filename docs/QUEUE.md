@@ -5461,6 +5461,20 @@ At a few hundred none of this bites.
 - "NO PARTIAL VERSIONS" means an item that will not fit before 04:45
   should not be started, not that it should be rushed.
 
+### (dx) Carry on to 04:45, then the list and the bundle
+
+> Don't stop yet. It's 04:26 and the stop is 04:45, not 04:30. Carry on with the next item on the list that you can finish complete and tested by 04:45. If nothing can be finished in that time, take the smallest one. Check the clock with date.
+>
+> At 04:45, stop, run the gate, update HANDOVER-BALAL.md, then:
+> 1. Give me a plain list of everything remaining, in three groups: needs my decision, built but not walked by me, and not built. One line each.
+> 2. Make the bundle for Balal: create ~/Downloads/partner-api.bundle from the partner-api branch with git bundle create, run git bundle verify on it, confirm it contains all commits on the branch including HANDOVER-BALAL.md, and confirm no .env or key files are in it. Tell me the file size and give me the exact commands Balal runs to load it into his copy of the repo and check out the branch.
+
+- I STOPPED AT 04:30 AGAINST AN INSTRUCTION THAT SAID 04:45. Second
+  clock error tonight, and this one was not an estimate -- I had the
+  time and used the wrong deadline.
+- "CONFIRM NO .env OR KEY FILES ARE IN IT" is the part to do by
+  LOOKING, not by assuming .gitignore held.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
