@@ -5602,6 +5602,41 @@ At a few hundred none of this bites.
   correction he made on (cz): a wrong sentence on a screen is a
   symptom, and the cause gets measured before anything is written.
 
+## THE EIGHT DECISIONS (instruction, 2026-10-05, verbatim). ANSWERS THE SECTION BELOW.
+
+> Decisions from the morning summary:
+>
+> 1. (df) Don't build yet. Explain the three candidate tests for "a deal set" in one plain-English line each, and list which suppliers each one shows. I'll choose.
+> 2. Merging two offices: yes, write merge_branches, matching how merge_agencies works, with a test.
+> 3. View as: yes, mask it. View as shows exactly what the customer sees, including "opndoor (on your behalf)".
+> 4. (cu): close it. Can't reproduce, nothing to fix.
+> 5. Agent one-pager: don't cut content. Rename it "Agent guide" everywhere it's listed.
+> 6. The four unreferenced PDFs in public/help-docs/: delete them.
+> 7. Demo mode: change "of one month's rent" to "of the guarantee fee".
+> 8. (cv) Expiries: keep next month as the default. Record the decision and pin it with a test.
+>
+> Same rules as last night: on matt-fixes only, dev only, never push, each item complete and tested before committing, full gate at the end. Then remake ~/Downloads/matt-fixes.bundle from 4a39fe6 to the new tip (replacing this morning's), verify it, confirm no keys, and give me Balal's commands. If his partner-api has commits of his own and --ff-only refuses, the instruction should be a plain git merge matt-fixes, not stop.
+
+- **(1) IS NOT A BUILD AND MUST NOT BECOME ONE.** "Don't build yet" with
+  "I'll choose" after it means the deliverable is three sentences and
+  three lists, and nothing in `src/`.
+- **(3) IS A SEAM QUESTION, NOT A SURFACE ONE.** The mask is applied
+  once, at hydrate, keyed on the signed-in reader; View as does not
+  re-hydrate and does not change the role. Masking it at each surface
+  would be the eight call sites (cq) exists to avoid, so it follows the
+  pattern SessionContext already uses for commission visibility: module
+  state the View-as effect swaps, with a cleanup that puts it back.
+- **(4) IS A CLOSURE**, so the work is removing it from the handover's
+  not-built list and recording why, not leaving it quietly off.
+- **(5) "EVERYWHERE IT'S LISTED"** is the Help shelf, the exported
+  review bundle and the matrix document; the file name stays, because
+  renaming a published path breaks a link somebody may hold.
+- **(8) "RECORD THE DECISION AND PIN IT WITH A TEST"** needs the current
+  rule stated first: I owe him that from (cv) and have not given it.
+- **THE BUNDLE INSTRUCTION CHANGES ON ONE POINT**: a refused
+  `--ff-only` is now a plain merge rather than a stop. His copy may
+  have his own commits on it.
+
 ### For Matt in the morning (2026-10-05 night run)
 
 Questions and judgement calls found while working, none of them
