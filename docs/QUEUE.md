@@ -5450,6 +5450,17 @@ At a few hundred none of this bites.
   GUESSING" is the standing rule applied to a new medium.
 - NO MORE PUSH ATTEMPTS. A bundle at the end instead.
 
+### (dw) Finish the list: (dj), the middle leaflet, then my own order
+
+> Keep going and finish everything left: (dj) API docs per checking setting, the "applies its own criteria" tenant leaflet, then the rest of the not-built list in the order you think matters most for go-live. Same rules as tonight: each item complete and tested before you commit, no partial versions, nothing decided on my behalf (anything that needs my call goes in the handover as a question). Leave the whole-book sign-in load in After launch; that needs my answer. Check the clock with date. At 04:45 stop wherever you are, run the full gate, update HANDOVER-BALAL.md with what's done and what's left, and tell me it's ready.
+
+- **"NOTHING DECIDED ON MY BEHALF"** is the constraint that shapes the
+  rest: where an item needs a commercial or editorial judgement I do
+  not have, it goes to the handover as a QUESTION rather than being
+  resolved plausibly.
+- "NO PARTIAL VERSIONS" means an item that will not fit before 04:45
+  should not be started, not that it should be rushed.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
