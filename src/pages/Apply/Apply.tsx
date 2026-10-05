@@ -905,20 +905,33 @@ export function Apply() {
                         No payment was taken. You can pay whenever you are ready, and nothing has changed.
                       </div>
                     )}
+                    {/* (dt) THE THREE FACTS, IN THE SAME WORDS AS THE FAQ AND
+                        THE LEAFLET. Matt settled them: GBP 20 per tenant,
+                        non-refundable in every case, and ON TOP of the
+                        guarantee fee rather than coming off it.
+
+                        TWO OF THE THREE WERE WRONG HERE, on the screen that
+                        actually takes the money. It said "not refunded if the
+                        reference comes back declined", which is narrower than
+                        the rule and reads as though stopping after paying, or
+                        our failing to complete the check, might get it back.
+                        And nothing said per tenant or on top. */}
                     <p className="ap-p">
-                      <strong>£20, once.</strong> It covers the eligibility check on your application,
-                      and it is not the guarantee fee. If you are approved, the guarantee itself is one month&rsquo;s
-                      rent and we will tell you before anything is due.
+                      <strong>£20 per tenant, once.</strong> It covers the eligibility check on your
+                      application. It is not the guarantee fee and does not come off it: it is on top.
+                      If you are approved, the guarantee fee is usually one month&rsquo;s rent, and we
+                      will tell you the exact amount before anything is due.
                     </p>
                     <p className="ap-p">
-                      We ask for it now because the next step is the long one, and because the
-                      eligibility check is what costs us. Nothing is sent until this clears.
+                      You pay it near the start of your application. Your application is not sent for
+                      referencing until it has been paid.
                     </p>
                     <ul className="ap-list">
                       <li>The sections after this unlock as soon as it goes through.</li>
                       <li>You can still stop and come back at any point.</li>
-                      <li>It is not refunded if the reference comes back declined, so read the
-                          two sections above once more if you are unsure.</li>
+                      <li>It is not refunded in any case: not if the reference comes back declined,
+                          not if you stop after paying, and not if we cannot complete the check. So
+                          read the two sections above once more if you are unsure.</li>
                     </ul>
                     {!stepDone.property || !stepDone.about ? (
                       <div className="ap-pre ap-pre--wait">

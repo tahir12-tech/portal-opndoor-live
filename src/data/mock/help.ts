@@ -59,7 +59,17 @@ export const HELP_SEED: HelpContent = {
        charged -- a false statement about money, given to a consumer.
        So it is tagged to the journey it actually describes and the
        other two show as missing. */
-    { id: 'tp2', icon: 'doc', type: 'Leaflet', modes: ['pre_referenced_open'], title: 'Tenant explainer leaflet', desc: 'A one-page explainer to share with tenants: what the opndoor guarantee service is, the fee, and how it works.', meta: 'Page', href: '/help-docs/opndoor-for-tenants.html' },
+    /* (dt) THE SECOND LEAFLET, for the journey where opndoor checks the
+       tenant. The original says "there's nothing more to pay after
+       that", which is false for a tenant who also pays GBP 20 -- a
+       false statement about money in a document an agent hands to a
+       consumer. Two files rather than one conditioned file, because a
+       leaflet is printed and handed over: it has to be right on
+       paper, with nothing to toggle. */
+    { id: 'tp2b', icon: 'doc', type: 'Leaflet', modes: ['opndoor_referenced'], title: 'Tenant explainer leaflet',
+      desc: 'A one-page explainer to share with tenants whose application opndoor checks: the £20 eligibility check, the guarantee fee, and how it works.',
+      meta: 'Page', href: '/help-docs/opndoor-for-tenants-eligibility.html' },
+    { id: 'tp2', icon: 'doc', type: 'Leaflet', modes: ['pre_referenced_open', 'pre_referenced_screened'], title: 'Tenant explainer leaflet', desc: 'A one-page explainer to share with tenants: what the opndoor guarantee service is, the fee, and how it works.', meta: 'Page', href: '/help-docs/opndoor-for-tenants.html' },
     { id: 'tplg', icon: 'doc', type: 'Guide', title: 'Landlord guide', desc: 'A one-page guide to share with landlords: what the Deed of Guarantee means for their property, that it is not insurance, and that either the landlord or the agent can make a claim.', meta: 'Page', href: '/help-docs/opndoor-for-landlords.html' },
     { id: 'tp1', icon: 'doc', type: 'Checklist', title: 'Referral information checklist', desc: 'The tenant, property and tenancy details to gather before you start an application.', meta: 'In the referrer guide', href: '/help-docs/referrer-guide.html#send' },
     { id: 'tp3', icon: 'image', type: 'Assets', title: 'Co-branding assets', desc: 'Logos and brand guidance for white-labelling the portal with your own branding.', meta: '', rail: 'supplier' },
@@ -139,6 +149,19 @@ export const HELP_SEED: HelpContent = {
        being told something untrue. */
     { id: 'af3', rail: 'agency', modes: ['pre_referenced_open'], q: 'What do Sent, Paid and Deed Issued mean?',
       a: '<b>Sent</b> means the referral has gone to the tenant and they have been asked to pay. <b>Paid</b> means they have paid the guarantee fee. <b>Deed Issued</b> means they have signed the Deed of Guarantee and it is stored against the record. A joint tenancy reaches Deed Issued one tenant at a time, because each tenant signs their own deed covering their own share.' },
+    /* (dr1) THE SAME QUESTION FOR THE OTHER TWO JOURNEYS. Matt: "don't
+       just hide things ... the status FAQs must describe that route's
+       actual journey (decision or eligibility step before payment),
+       not drop the material."
+
+       WRITTEN FROM THE RECORDED STATUS LABELS and nothing else:
+       `referencing` is "Awaiting decision" (applicationsService:196),
+       which is the step the straight-to-payment answer has no room
+       for. The GBP 20 facts are Matt's own, settled in (dt). */
+    { id: 'af3b', rail: 'agency', modes: ['pre_referenced_screened'], q: 'What do Sent, Paid and Deed Issued mean?',
+      a: '<b>Sent</b> means the referral has been sent to the tenant. <b>Awaiting decision</b> means opndoor is applying its own criteria to it: your agency references the tenant first, and opndoor then decides whether to stand as guarantor, so a referral is not automatically accepted. <b>Paid</b> means the guarantee fee has been paid, which happens only once the referral has been accepted. <b>Deed Issued</b> means the Deed of Guarantee has been issued and stored against the record.' },
+    { id: 'af3c', rail: 'agency', modes: ['opndoor_referenced'], q: 'What do Sent, Paid and Deed Issued mean?',
+      a: '<b>Sent</b> means the referral has been sent to the tenant. The tenant then completes their application and pays <b>£20 per tenant</b> for the eligibility check, which is not the guarantee fee and does not come off it. <b>Awaiting decision</b> means opndoor is checking them: the application is not sent for referencing until the £20 has been paid, and opndoor then decides whether to stand as guarantor. <b>Paid</b> means the guarantee fee has been paid, which happens only once the referral has been accepted. <b>Deed Issued</b> means the Deed of Guarantee has been issued and stored against the record.' },
     { id: 'af4', rail: 'agency', q: 'How do I refer a tenant?',
       a: 'Open <b>New application</b> and work down the form: the tenant, the property, the tenancy, and the office if your agency has more than one. For a joint tenancy use <b>Add another tenant</b> and set each one\u2019s share of the rent. Send it, and the tenant is emailed a link to pay.' },
     /* (dk) THE GUARANTEE FEE AND NOTHING ELSE, which is the whole
@@ -149,6 +172,15 @@ export const HELP_SEED: HelpContent = {
        answer to this question and the matrix says so. */
     { id: 'af5', rail: 'agency', modes: ['pre_referenced_open', 'pre_referenced_screened'], q: 'What does the tenant pay?',
       a: 'The guarantee fee, calculated from the fee basis your agency has agreed with opndoor. The exact amount appears on the referral form before you send it, and on the application afterwards, so you can tell the tenant what to expect before they open the email. On a joint tenancy the fee is divided between the tenants in the same shares as the rent.' },
+    /* (dt) THE "opndoor checks" ANSWER TO THE SAME QUESTION af5 answers
+       for the other two journeys. Written only from rules Matt has
+       recorded: the three facts he settled, plus the existing fee
+       wording. Nothing here is inferred.
+
+       af5 COVERS THE OTHER TWO and is tagged to them, so exactly one
+       of the pair reaches any reader. */
+    { id: 'af5b', rail: 'agency', modes: ['opndoor_referenced'], q: 'What does the tenant pay?',
+      a: 'Two things, and they are separate.<br><br><b>£20 per tenant, once</b>, for the eligibility check on their application. It is not the guarantee fee and does not come off it: it is on top. They pay it near the start, after the property details and their own, and the application is not sent for referencing until it has been paid. It is not refunded in any case: not if the reference comes back declined, not if the tenant stops after paying, and not if opndoor cannot complete the check.<br><br>Then, if they are approved, <b>the guarantee fee</b>, calculated from the fee basis your agency has agreed with opndoor. The exact amount appears on the referral form before you send it, and on the application afterwards, so you can tell the tenant what to expect before they open the email. On a joint tenancy the fee is divided between the tenants in the same shares as the rent, and each tenant pays their own £20.' },
     { id: 'af6', rail: 'agency', q: 'Who sees what, across Director, Manager and Negotiator?',
       a: 'Everyone uses the same portal. A <b>Negotiator</b> sees the referrals they sent. A <b>Manager</b> sees every referral across the agency, every office and the whole team, and can invite people and manage their access. A <b>Director</b> sees everything a Manager sees, and also what the agency has earned. Figures about earnings are shown to Directors only.' },
     /* THE SAME CORRECTION ON THIS RAIL, and the same measurement behind it:

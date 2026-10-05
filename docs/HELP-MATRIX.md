@@ -19,14 +19,14 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 
 | Reader | accepts as sent | applies its own criteria | opndoor checks |
 | --- | ---: | ---: | ---: |
-| opndoor admin | 10 / 20 | 9 / 18 | 9 / 17 |
-| opndoor manager | 8 / 19 | 7 / 17 | 7 / 16 |
-| agency Director | 6 / 8 | 5 / 7 | 5 / 6 |
-| agency Manager | 5 / 8 | 4 / 7 | 4 / 6 |
-| agency Negotiator | 5 / 8 | 4 / 7 | 4 / 6 |
-| supplier Management | 9 / 12 | 8 / 11 | 8 / 11 |
-| supplier Referrer | 8 / 11 | 7 / 10 | 7 / 10 |
-| supplier Developer | 8 / 11 | 7 / 10 | 7 / 10 |
+| opndoor admin | 10 / 20 | 10 / 19 | 10 / 19 |
+| opndoor manager | 8 / 19 | 8 / 18 | 8 / 18 |
+| agency Director | 6 / 8 | 6 / 8 | 6 / 8 |
+| agency Manager | 5 / 8 | 5 / 8 | 5 / 8 |
+| agency Negotiator | 5 / 8 | 5 / 8 | 5 / 8 |
+| supplier Management | 9 / 12 | 9 / 11 | 9 / 11 |
+| supplier Referrer | 8 / 11 | 8 / 10 | 8 / 10 |
+| supplier Developer | 8 / 11 | 8 / 10 | 8 / 10 |
 
 ## opndoor admin
 
@@ -78,6 +78,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
 - Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 - Co-branding assets _(Templates, supplier rail)_
@@ -97,6 +98,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - I have a question that is not answered here.
 - What is this portal for?
 - What does opndoor do as guarantor?
+- What do Sent, Paid and Deed Issued mean?
 - How do I refer a tenant?
 - What does the tenant pay?
 - Who sees what, across Director, Manager and Negotiator?
@@ -113,6 +115,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
 - Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 - Co-branding assets _(Templates, supplier rail)_
@@ -132,7 +135,9 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - I have a question that is not answered here.
 - What is this portal for?
 - What does opndoor do as guarantor?
+- What do Sent, Paid and Deed Issued mean?
 - How do I refer a tenant?
+- What does the tenant pay?
 - Who sees what, across Director, Manager and Negotiator?
 - Can a tenancy start date be changed after a referral?
 - How do I find an application?
@@ -183,6 +188,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
 - Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 - Co-branding assets _(Templates, supplier rail)_
@@ -201,6 +207,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - I have a question that is not answered here.
 - What is this portal for?
 - What does opndoor do as guarantor?
+- What do Sent, Paid and Deed Issued mean?
 - How do I refer a tenant?
 - What does the tenant pay?
 - Who sees what, across Director, Manager and Negotiator?
@@ -215,6 +222,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
 - Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 - Co-branding assets _(Templates, supplier rail)_
@@ -233,7 +241,9 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - I have a question that is not answered here.
 - What is this portal for?
 - What does opndoor do as guarantor?
+- What do Sent, Paid and Deed Issued mean?
 - How do I refer a tenant?
+- What does the tenant pay?
 - Who sees what, across Director, Manager and Negotiator?
 - Can a tenancy start date be changed after a referral?
 - How do I find an application?
@@ -270,6 +280,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Referrer guide _(Getting started)_
 - Management guide _(Getting started, commission)_
 - Welcome to the portal _(Getting started)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 
@@ -277,6 +288,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 
 - What is this portal for?
 - What does opndoor do as guarantor?
+- What do Sent, Paid and Deed Issued mean?
 - How do I refer a tenant?
 - What does the tenant pay?
 - Who sees what, across Director, Manager and Negotiator?
@@ -290,6 +302,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Referrer guide _(Getting started)_
 - Management guide _(Getting started, commission)_
 - Welcome to the portal _(Getting started)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 
@@ -297,7 +310,9 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 
 - What is this portal for?
 - What does opndoor do as guarantor?
+- What do Sent, Paid and Deed Issued mean?
 - How do I refer a tenant?
+- What does the tenant pay?
 - Who sees what, across Director, Manager and Negotiator?
 - Can a tenancy start date be changed after a referral?
 - How do I find an application?
@@ -332,6 +347,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 
 - Referrer guide _(Getting started)_
 - Welcome to the portal _(Getting started)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 
@@ -339,6 +355,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 
 - What is this portal for?
 - What does opndoor do as guarantor?
+- What do Sent, Paid and Deed Issued mean?
 - How do I refer a tenant?
 - What does the tenant pay?
 - Who sees what, across Director, Manager and Negotiator?
@@ -351,6 +368,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 
 - Referrer guide _(Getting started)_
 - Welcome to the portal _(Getting started)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 
@@ -358,7 +376,9 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 
 - What is this portal for?
 - What does opndoor do as guarantor?
+- What do Sent, Paid and Deed Issued mean?
 - How do I refer a tenant?
+- What does the tenant pay?
 - Who sees what, across Director, Manager and Negotiator?
 - Can a tenancy start date be changed after a referral?
 - How do I find an application?
@@ -393,6 +413,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 
 - Referrer guide _(Getting started)_
 - Welcome to the portal _(Getting started)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 
@@ -400,6 +421,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 
 - What is this portal for?
 - What does opndoor do as guarantor?
+- What do Sent, Paid and Deed Issued mean?
 - How do I refer a tenant?
 - What does the tenant pay?
 - Who sees what, across Director, Manager and Negotiator?
@@ -412,6 +434,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 
 - Referrer guide _(Getting started)_
 - Welcome to the portal _(Getting started)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 
@@ -419,7 +442,9 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 
 - What is this portal for?
 - What does opndoor do as guarantor?
+- What do Sent, Paid and Deed Issued mean?
 - How do I refer a tenant?
+- What does the tenant pay?
 - Who sees what, across Director, Manager and Negotiator?
 - Can a tenancy start date be changed after a referral?
 - How do I find an application?
@@ -465,6 +490,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
 - Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 - Co-branding assets _(Templates, supplier rail)_
@@ -492,6 +518,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
 - Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 - Co-branding assets _(Templates, supplier rail)_
@@ -548,6 +575,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
 - Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 - Co-branding assets _(Templates, supplier rail)_
@@ -573,6 +601,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
 - Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 - Co-branding assets _(Templates, supplier rail)_
@@ -628,6 +657,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
 - Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 - Co-branding assets _(Templates, supplier rail)_
@@ -653,6 +683,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
 - Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
 - Co-branding assets _(Templates, supplier rail)_

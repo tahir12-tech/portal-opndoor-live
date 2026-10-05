@@ -32,8 +32,32 @@ const AGENCY_LEVELS_ALL = [DIRECTOR, MANAGER, NEGOTIATOR];
 const text = (f: { q: string; a: string }) => `${f.q} ${f.a}`;
 
 describe('the set itself', () => {
-  it('is eight answers', () => {
-    expect(agency).toHaveLength(8);
+  /* (dt) NINE IN THE CATALOGUE, EIGHT TO ANY READER. af5 answers
+     "what does the tenant pay" for the two journeys with no
+     application fee, af5b for the one where opndoor checks and the
+     tenant also pays GBP 20. They are alternatives on the `modes`
+     axis, so exactly one of the pair ever reaches a reader -- which
+     the next test asserts per journey, and which is the assertion
+     that actually carries the rule.
+
+     THE RULE WAS NEVER ABOUT THE NUMBER EIGHT. It is "one set, shared
+     by all three levels": per-LEVEL copies are the thing not to
+     build. A per-JOURNEY answer is a different axis and a different
+     question, because the journeys genuinely differ. */
+  it('is eight questions, with a variant per journey where the journey differs', () => {
+    const ALL = ['opndoor_referenced', 'pre_referenced_open', 'pre_referenced_screened'];
+    // Eight distinct QUESTIONS, however many answers there are to them.
+    const questions = new Set(agency.map((f) => f.q.toLowerCase().trim()));
+    expect(questions.size).toBe(8);
+    // And every question is answered exactly once on every journey:
+    // no reader meets two answers to one question, and none meets none.
+    for (const q of questions) {
+      const answers = agency.filter((f) => f.q.toLowerCase().trim() === q);
+      for (const mode of ALL) {
+        const live = answers.filter((f) => !f.modes || f.modes.includes(mode as never));
+        expect(live, `"${q}" on ${mode}`).toHaveLength(1);
+      }
+    }
   });
 
   it('covers the eight things that were asked for', () => {
@@ -65,11 +89,14 @@ describe('the set itself', () => {
 describe('one set, shared by all three levels', () => {
   /* THE RULING, asserted directly. Per-level copies are the thing not to build,
      so the test that matters is that all three readers get the same eight. */
-  it('shows every level the same eight answers', () => {
-    const seen = AGENCY_LEVELS_ALL.map((v) => agency.filter((f) => mayOpenFaq(f, v)).map((f) => f.id));
-    expect(seen[0]).toHaveLength(8);
-    expect(seen[1]).toEqual(seen[0]);
-    expect(seen[2]).toEqual(seen[0]);
+  it('shows every level the same eight answers, on every journey', () => {
+    for (const mode of ['pre_referenced_open', 'pre_referenced_screened', 'opndoor_referenced'] as const) {
+      const seen = AGENCY_LEVELS_ALL.map((v) =>
+        agency.filter((f) => mayOpenFaq(f, { ...v, mode })).map((f) => f.id));
+      expect(seen[0], `journey ${mode}`).toHaveLength(8);
+      expect(seen[1]).toEqual(seen[0]);
+      expect(seen[2]).toEqual(seen[0]);
+    }
   });
 
   /* Which means no answer may be gated. A needsCommission flag on one of these
@@ -88,10 +115,12 @@ describe('one set, shared by all three levels', () => {
 });
 
 describe('the agency set replaces the supplier set rather than joining it', () => {
-  it('shows an agency reader the eight and none of the twelve', () => {
-    const shown = HELP_SEED.faqs.filter((f) => mayOpenFaq(f, DIRECTOR));
-    expect(shown).toHaveLength(8);
-    expect(shown.every((f) => f.rail === 'agency')).toBe(true);
+  it('shows an agency reader the eight and none of the twelve, on every journey', () => {
+    for (const mode of ['pre_referenced_open', 'pre_referenced_screened', 'opndoor_referenced'] as const) {
+      const shown = HELP_SEED.faqs.filter((f) => mayOpenFaq(f, { ...DIRECTOR, mode }));
+      expect(shown, `journey ${mode}`).toHaveLength(8);
+      expect(shown.every((f) => f.rail === 'agency')).toBe(true);
+    }
   });
 
   it('leaves a supplier reader the twelve they had', () => {
@@ -146,10 +175,22 @@ describe('the sweep', () => {
 
   /* The fee basis is per agreement: Regent's is 3 weeks for a single tenant and
      5 shared between joint ones, and the next agency's is not. Any figure or
-     fixed basis in this copy is wrong for somebody. */
+     fixed basis in this copy is wrong for somebody.
+
+     (dt) THE GBP 20 IS THE ONE EXCEPTION, and it is an exception for
+     the exact reason the rule exists. The rule bans a figure that
+     VARIES BY AGREEMENT from being stated as though it were fixed.
+     The eligibility check fee does not vary: Matt settled it as GBP 20
+     per tenant, the same for everybody who pays it, and the whole
+     point of writing this copy was that an agency opndoor checks for
+     was never told the figure. Excluded by NAME rather than by
+     loosening the pattern, so the guarantee fee is still protected. */
   it('states no fee figure and no fixed basis', () => {
     for (const f of agency) {
-      const a = text(f).toLowerCase();
+      // The eligibility fee is fixed and is allowed to be named; the
+      // guarantee fee is not. Removing only "£20" keeps every other
+      // figure banned, including a second one in the same answer.
+      const a = text(f).toLowerCase().replace(/£\s?20\b/g, '[eligibility fee]');
       expect(a, f.q).not.toContain("one month's rent");
       expect(a, f.q).not.toContain('one month of rent');
       expect(a, f.q).not.toMatch(/\b\d+\s*weeks?['’]? rent\b/);
