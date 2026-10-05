@@ -9,6 +9,8 @@
    ===================================================================== */
 import { Button } from '@/components/ui/Button';
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
+import { CheckingJourney } from './CheckingJourney';
+import type { ReferencingMode } from '@/data';
 import { Icon } from '@/components/ui/Icon';
 import { parseBlocks, partnerDocSections, specAvailable, type Block } from './apiDocs';
 
@@ -47,11 +49,18 @@ function Blocks({ blocks }: { blocks: Block[] }) {
   );
 }
 
-export function ApiDocsPanel() {
+/* (dj) THE SAME PROPS AS GettingStarted, so the reference tab and the
+   sequence tab agree about whose journey they describe. The panel
+   renders the journey above the generated reference: the reference is
+   the same for everybody, and which EVENTS and STATUSES a reader will
+   actually see is not. */
+export function ApiDocsPanel({ mode, orgName }: { mode?: ReferencingMode | null; orgName?: string | null } = {}) {
   const sections = specAvailable ? partnerDocSections() : [];
 
   if (!sections.length) {
     return (
+      <>
+      <CheckingJourney mode={mode ?? null} orgName={orgName ?? null} />
       <Card>
         <CardHead title="API documentation" sub="Generated from the specification" />
         <CardBody>
@@ -62,10 +71,13 @@ export function ApiDocsPanel() {
         </p>
         </CardBody>
       </Card>
+      </>
     );
   }
 
   return (
+    <>
+    <CheckingJourney mode={mode ?? null} orgName={orgName ?? null} />
     <Card>
       <CardHead
         title="API documentation"
@@ -108,5 +120,6 @@ export function ApiDocsPanel() {
       </div>
       </CardBody>
     </Card>
+    </>
   );
 }

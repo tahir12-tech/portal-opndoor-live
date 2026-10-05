@@ -10,6 +10,8 @@
    ===================================================================== */
 import { Card, CardBody, CardHead } from '@/components/ui/Card';
 import { PARTNER_API_BASE_URL } from '@/config/partnerApi';
+import { CheckingJourney } from './CheckingJourney';
+import type { ReferencingMode } from '@/data';
 
 /*
  * No env prop. It used to take 'live' | 'sandbox' from the deployment, which was
@@ -17,7 +19,12 @@ import { PARTNER_API_BASE_URL } from '@/config/partnerApi';
  * use a sandbox key throughout: somebody reading a getting-started guide is
  * starting, and starting against live would be the wrong advice.
  */
-export function GettingStarted() {
+/* (dj) THE SETTING COMES IN AS A PROP rather than being read here,
+   because the Dev Centre already knows whose page it is: a supplier
+   reading their own, or an admin viewing one. Reading the session
+   here would give an admin their own non-existent setting instead of
+   the supplier's. */
+export function GettingStarted({ mode, orgName }: { mode?: ReferencingMode | null; orgName?: string | null } = {}) {
   // One configured value, rendered rather than written out. It used to be a
   // literal '/functions/v1/partner-api/v1' against a '<your-project>.supabase.co'
   // placeholder, which asked a partner to hardcode both our hosting arrangement
@@ -26,6 +33,12 @@ export function GettingStarted() {
   const keyExample = 'opnd_test_...';
 
   return (
+    <>
+    {/* (dj) BEFORE THE STEPS, not after. Which journey the integration
+        is building for decides what the steps mean, so a developer who
+        reads the sequence first has already made assumptions by the
+        time they reach it. */}
+    <CheckingJourney mode={mode ?? null} orgName={orgName ?? null} />
     <Card>
       <CardHead title="Getting started" sub="Five steps, in the order that works" />
       <CardBody>
@@ -152,5 +165,6 @@ function verify(rawBody, header, secret) {
       </div>
       </CardBody>
     </Card>
+    </>
   );
 }

@@ -52,6 +52,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { FilterTabs } from '@/components/ui/FilterTabs';
 import { PartnerSelect } from '@/components/ui/Select';
+import { ALL_PARTNERS, getPartner } from '@/data';
 import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
@@ -68,7 +69,7 @@ import './DevCentre.css';
 type Tab = 'monitoring' | 'logs' | 'webhooks' | 'applications' | 'sandbox' | 'config';
 
 export function DevCentre() {
-  const { role } = useSession();
+  const { role, partnerScope } = useSession();
   const toast = useToast();
   usePageMeta('devcentre', 'Dev Centre', ['Home', 'Dev Centre']);
 
@@ -333,6 +334,12 @@ export function DevCentre() {
     ? (!!partnerId && selectedOption?.api_access_enabled === false)
     : myPartner?.api_access_enabled === false;
   const apiOffPartnerName = isAdmin ? selectedOption?.name : myPartner?.name;
+  /* (dj) THE CHECKING SETTING OF THE ORGANISATION THESE DOCS ARE FOR.
+     An admin with a supplier selected gets that supplier's; a
+     supplier's own developer gets their own; an admin with nothing
+     selected gets null, and the panel then shows all three rather
+     than guessing. */
+  const docsMode = getPartner(isAdmin ? (partnerId || ALL_PARTNERS) : partnerScope)?.referencingMode ?? null;
 
   return (
     <>
@@ -442,7 +449,14 @@ export function DevCentre() {
             <Icon name="arrowLeft" /> Back to configuration
           </Button>
           <div style={{ height: 12 }} />
-          {panel === 'guide' ? <GettingStarted /> : <ApiDocsPanel />}
+          {/* (dj) WHOSE SETTING. An admin viewing a supplier's Dev
+              Centre must see THAT supplier's journey, so the mode is
+              resolved from the partner being viewed and only falls
+              back to the reader's own scope when they are reading
+              their own. */}
+          {panel === 'guide'
+            ? <GettingStarted mode={docsMode} orgName={apiOffPartnerName ?? null} />
+            : <ApiDocsPanel mode={docsMode} orgName={apiOffPartnerName ?? null} />}
         </>
       )}
 
