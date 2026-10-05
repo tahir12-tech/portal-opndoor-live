@@ -1939,7 +1939,17 @@ line on dev today carries one, so it fires on nothing -- but if any
 ever lands without an id, a renamed agency silently reports GBP 0
 commission. Measured 2026-10-05: 27 lines, 0 without an id.
 
-## 12b. The 04:45 stop: the gate, and everything remaining in three groups
+## 12b. The 04:45 stop on `partner-api`: the gate, and what remained then
+
+> **SUPERSEDED IN PART, 2026-10-05.** This section is the record of the
+> FIRST night run, which ended at 04:45 on `partner-api` at `4a39fe6`.
+> A second run followed on the branch `matt-fixes`, and most of the
+> three groups below have moved: see "Done in the second night run"
+> and "Still not built" in 12a, which are current. Kept as it was,
+> because the gate figures in it are the ones the bundle Balal already
+> holds was cut on.
+
+## 12b (as written at 04:45). The gate, and everything remaining in three groups
 
 ### The gate, on `db7f4f3`
 
