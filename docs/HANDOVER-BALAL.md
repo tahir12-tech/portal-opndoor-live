@@ -1864,18 +1864,12 @@ entries that stood here are done; what follows is what is left, and why.
    Matt asked for -- every money figure on dev with the query behind it
    -- so the after is a comparison rather than a judgement. After
    launch.
-2. **(df) The supplier pickers.** Blocked on one answer, and the three
-   candidate tests are now written out plainly in QUEUE.md with the
-   suppliers each one shows: "Live from" set (1 of 10), a live
-   negotiated agreement (3), or a rate at all (8). Type-to-search and
-   the "Harbour Lets" duplicate label follow once Matt picks.
-3. **(cq)/(cy) historic activity actors.** The referrer half is done
+2. **(cq)/(cy) historic activity actors.** The referrer half is done
    (see below). The activity half turned out to have no reader at all:
    nothing in the product displays `activity_log.actor`, so the
    function written for it was withdrawn rather than shipped unread.
    If a surface ever shows it, the mask is 20 minutes' work.
-4. **(cv) The Expiries default month: ANSWERED.** See "Closed" below.
-5. **(nn)(oo) the remainder, and anything else in QUEUE.md not listed
+3. **(nn)(oo) the remainder, and anything else in QUEUE.md not listed
    here.** (oo) is done for the leaflets and the browser furniture.
 
 ### Closed, 2026-10-05, rather than left quietly off the list
@@ -1889,6 +1883,22 @@ entries that stood here are done; what follows is what is left, and why.
 - **The agent one-pager's length.** Matt: "don't cut content. Rename
   it 'Agent guide' everywhere it's listed." Done; it is a guide and
   three pages is what a guide is.
+- **(df) The supplier pickers.** Matt chose rule B on 2026-10-05: a
+  negotiated agreement that has not ended. The Referred by picker is
+  now type-to-search over the server's answer -- supplier-kind,
+  active, holding a live agreement -- with his note, "Only suppliers
+  with a live deal are shown". **"Harbour Lets" needed no label in the
+  end**: it is a partner row of kind `agency` plus an agency row, the
+  ordinary shape of an agency that is its own route, and it was only
+  ever in that list because the old one stripped the house routes and
+  nothing else. The server's answer cannot contain it.
+  **ONE SUPPLIER PICKER IS DELIBERATELY LEFT ALONE**: the "Supplier
+  this agency belongs to" control on the agency form. It already lists
+  supplier-kind only, from Matt's 2026-10-04 instruction, and the
+  live-deal filter does not belong there -- an agency is onboarded
+  under a supplier before there is a deal to filter on, so applying it
+  would block the first agency of every new supplier. Say the word if
+  you want it anyway.
 - **(cv) The Expiries dialog's default month.** Matt: "keep next month
   as the default." The rule it keeps, which is the answer (cv) asked
   for and had never been given: **the dialog opens on the earliest
