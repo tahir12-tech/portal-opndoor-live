@@ -1355,8 +1355,14 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
     row.feesGross += feeBaseFor(app);
     row.partnerCommGross += supplierComm;
     row.agentCommGross += agentComm;
+    /* (cg) THE FIFTH PLACE THE SUBTRACTION WAS WRITTEN, found by reading
+       the file again after fixing the other four. This one knew about a
+       full refund and not a partial one, so money that went back was
+       missing from a column headed Refunds. Same rule as everywhere
+       else now. */
+    row.refundValue += refundTaken(app);
     if (app.refunded) {
-      row.refundValue += app.refundedAmount ?? feeBaseFor(app);
+      // The commission is excluded; the amount was taken above.
     } else {
       row.partnerCommNet += supplierComm;
       row.agentCommNet += agentComm;

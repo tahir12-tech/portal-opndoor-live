@@ -28,7 +28,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { hydrateFull, type FullApp } from '@/data/applicationsService';
 import { refundTaken } from '@/data/commissionSplit';
-import { liveByCustomer, liveLeague, liveAggregate, liveMonths } from '@/data/liveAnalytics';
+import { liveByCustomer, liveLeague, liveAggregate, liveMonths, livePartnerBreakdown } from '@/data/liveAnalytics';
 import { ALL_PARTNERS, getPeriods } from '@/data';
 
 const D = (s: string) => new Date(s);
@@ -100,6 +100,17 @@ describe('every surface that says "Fees collected"', () => {
 
   it('the monthly trend', () => {
     expect(liveMonths('superadmin', ALL_PARTNERS).reduce((s, m) => s + m.fees, 0)).toBe(expected);
+  });
+
+  /* THE PARTNER BREAKDOWN, which is the FIFTH place the subtraction was
+     written and was found by reading the file again after the other four
+     were fixed. Its refund column knew about a full refund and not a
+     partial one, so money that went back was missing from a column
+     headed Refunds. */
+  it('the per-partner breakdown\u2019s refund column', () => {
+    const rows = livePartnerBreakdown('superadmin', ALL_PARTNERS, allTime);
+    expect(rows.reduce((s, r) => s + r.refundValue, 0)).toBe(1250);
+    expect(rows.reduce((s, r) => s + (r.feesGross - r.refundValue), 0)).toBe(expected);
   });
 
   /* AND THE TILE, which was already right and is the figure the others are
