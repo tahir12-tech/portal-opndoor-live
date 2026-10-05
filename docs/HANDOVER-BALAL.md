@@ -1785,17 +1785,62 @@ extraction. Render and read:
 The two source PDFs are still in `public/help-docs/` and are no longer
 referenced by the shelf. Delete them once Matt has reviewed the HTML.
 
-**(dj) The API docs do not vary by checking setting.** A supplier
-Developer gets the same text whichever journey their organisation is
-on. The three exported files are identical by construction and each
-says so at the top. The content and the "If your checking setting
-changes" section are unwritten.
+**(dj) DONE.** Both Dev Centre tabs open with the journey the
+reader's ORGANISATION gets: statuses in order, the webhook events
+they will receive, and the trap specific to that setting. The other
+two sit behind "If your checking setting changes", and the frozen
+rule is stated. An admin viewing a supplier sees that supplier's
+journey.
 
-**(dr1) remainder.** The guide and the status FAQs now cover all three
-routes. The TENANT LEAFLET has two versions (straight-to-payment and
-opndoor-checks) and the middle route -- "applies its own criteria" --
-shares the first, which is right about the fee and silent about the
-decision step. Worth a third version or a sentence.
+**(dk) DONE.** Three tenant leaflets, one per journey, each true
+standing alone -- a leaflet is printed and handed over, so it cannot
+be conditioned at render time.
+
+### Questions for Matt, which is why these are not built
+
+**(dr7) is done but one reading of it was left open.** An admin now
+sees one answer per question, with the agency answer winning where
+both rails have one. The alternative reading -- show an admin BOTH,
+labelled by rail, since they support both -- would change what an
+admin reads. It is one comparison in `oneAnswerPerQuestion`'s `keep`
+if Matt wants it.
+
+**(ca) the Branches board's missing agency line: answered and
+closed.** Matt ruled: keep the collapse, do not print the name twice.
+
+**The whole-book sign-in load (dg) needs his answer**, which is why
+it stays above: how many agencies will Rightmove have on day one?
+
+### Still not built, in the order I would take them
+
+1. **(cp)** A draft month has no statement reference by design, and
+   the Agency schedules panel reports that as "Reference couldn't be
+   loaded. Refresh to try again" -- then writes that sentence into
+   the EXPORT's filename. Visibly broken, and the real error still
+   has to be found rather than hidden.
+2. **(cq)/(cy)** A referral an admin made on a customer's behalf
+   still names the admin in referrer lists, charts and exports, and
+   historic activity rows still carry staff names. (bm) fixed the
+   WRITE; these are the read. Note the difficulty recorded in QUEUE
+   (cy): activity_log has no actor_id, so historic rows can only be
+   masked by matching the stored name.
+3. **(ci)** The server does not refuse a referencing mode set on a
+   supplier-estate agency. The screen half is done; this is the
+   binding half.
+4. **(bq)(br)(bs)** The export fixes: Refunded status everywhere, the
+   carved share, blank supplier columns on agency rows, voided-deed
+   status, "Activity in period", and the Export-all CSV's month,
+   tenancy and Agency column.
+5. **(ck)** The duplicate check misses "Test Lettings" against "Test
+   Lettings asda" -- shared email, name prefix, containment.
+6. **(cl)** An opndoor manager on a supplier page is told "no
+   commission deal set" when the truth is "not allowed to see".
+7. **(cs)** Supplier edits to an agency's name, address and email are
+   not in Recent changes.
+8. **(cu)** Sign-in lands on the last page visited.
+9. **(cv)(cw)** The Expiries default month (answer first) and the
+   sandbox proof.
+10. **(cx)(cg)(df)(db)(nn)(oo)(zz)** and the rest.
 
 **(ds) The two PDFs.** The Sales and conversation guide and the Agent
 one-pager open in the browser's PDF viewer while every other item
