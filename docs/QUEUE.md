@@ -5605,7 +5605,31 @@ guessed at. Numbered as they came up.
    the fix is to send a restored session to /home unless the URL was
    followed from a link, and "followed from a link" is the part I will
    not invent a test for. **Can you tell me the steps you took?**
-6. **THE DEMO'S OWN COMMISSION LABEL SAYS "of one month's rent".**
+6. **(df) WHAT COUNTS AS "a deal set"? Three answers, three different
+   lists.** You asked the supplier picker to show "only suppliers that
+   can take referrals (active, with a deal set)" and to hide "paused,
+   onboarding and no-deal" ones. Every supplier on dev is `active`, so
+   the whole of the rule is the deal half, and the schema offers three
+   tests that disagree:
+
+   | test | suppliers it would show, of 10 |
+   | --- | --- |
+   | `live_from` is set (what the Suppliers list means by "Live from") | **1** (Kestrel) |
+   | a partner-scope pricing agreement that has not ended | **3** (Kestrel, Letly, Test Supplier) |
+   | `partner_rate` is not null (standard terms count as a deal) | **8** |
+
+   I have not picked one. Choosing wrong hides a supplier that can take
+   referrals, which blocks real business, or shows one that cannot,
+   which prices a referral at 0%. **Which is it?** My own reading is
+   the middle one, with the note you asked for, because a rate with no
+   agreement is the standard-terms default rather than a negotiated
+   deal -- but that is a commercial judgement and it is yours.
+
+   The rest of (df) is unaffected and not built either: type-to-search
+   like the agency picker, and the "Harbour Lets" duplicate (it IS two
+   records, one a supplier partner and one of our own agencies, which
+   I can label once you have answered the above).
+7. **THE DEMO'S OWN COMMISSION LABEL SAYS "of one month's rent".**
    `analyticsService.ts:563`, on the mock and demo path only. It is
    TRUE of the synthetic figures, which are all priced at a month, so
    it is not a wrong statement about anybody's real deal. But the
