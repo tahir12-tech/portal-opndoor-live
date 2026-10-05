@@ -19,6 +19,7 @@
  * An arrangement changed mid-month leaves exactly that.
  */
 import { describe, it, expect } from 'vitest';
+import { PAID_DIRECT_BY_OPNDOOR, PASSED_ON_BY_SUPPLIER, TOTAL_ON_YOUR_REFERRALS } from './whoPaysTheAgency';
 import { liveAggregate } from './liveAnalytics';
 import { hydrateFull, type FullApp } from './applicationsService';
 import { getPeriods, ALL_PARTNERS } from '@/data';
@@ -99,8 +100,17 @@ describe('the supplier tile\'s live wording', () => {
   });
 
   it('words the agencies\' line by who pays it, both ways', () => {
-    expect(live).toContain("'Paid by opndoor directly to your agencies'");
-    expect(live).toContain("'Your agencies\\u2019 share, included above for you to pass on'");
+    /* THE WORDS MOVED TO whoPaysTheAgency AND THE ASSERTION FOLLOWED
+       THEM. Matt asked for "one shared rule ... used by all six
+       surfaces", so the two sentences are constants now and six
+       readers import them rather than six files spelling them. The
+       value is still asserted exactly -- these are Matt's words to the
+       letter -- and the tile is asserted to use the constants, which
+       is the pair that keeps them true together. */
+    expect(PAID_DIRECT_BY_OPNDOOR).toBe('Paid by opndoor directly to your agencies');
+    expect(PASSED_ON_BY_SUPPLIER).toBe('Your agencies\u2019 share, included above for you to pass on');
+    expect(live).toContain('? PAID_DIRECT_BY_OPNDOOR');
+    expect(live).toContain('supplierFacing ? PASSED_ON_BY_SUPPLIER');
   });
 
   /* EACH LINE ONLY WHEN IT HAS MONEY IN IT, so the ordinary month with one
@@ -111,7 +121,8 @@ describe('the supplier tile\'s live wording', () => {
   });
 
   it('with the total named as a total', () => {
-    expect(live).toContain("commFourthLbl: 'Total commission on your referrals'");
+    expect(TOTAL_ON_YOUR_REFERRALS).toBe('Total commission on your referrals');
+    expect(live).toContain('commFourthLbl: TOTAL_ON_YOUR_REFERRALS');
     expect(live).toContain('fmtMoney(a.supplierCommNet + a.agentCommNet)');
     expect(live).toContain('commFourthShown: supplierFacing');
   });

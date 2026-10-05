@@ -19,6 +19,7 @@
    kept apart now: see the note in liveDashboard.
    ===================================================================== */
 import type { LeagueRow, Period, PartnerScope, Role } from './types';
+import { OWED_TO_YOU, PAID_DIRECT_BY_OPNDOOR, PASSED_ON_BY_SUPPLIER, TOTAL_ON_YOUR_REFERRALS } from './whoPaysTheAgency';
 import { fmtRatePct } from '@/lib/format';
 import { isOpndoorStaff, maySeeCommission, readsTheWholeBook } from './types';
 import { KEYS, loadString, saveString } from './storage';
@@ -357,8 +358,15 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
        rate come from", which is a question an agency reading their own
        earnings is not asking. The source prefix stays off the agency's
        tag with it. */
+    /* (ce) THE SUPPLIER'S HEADLINE IS "Owed to you". Matt: "the headline
+       label still reads 'Commission payable'; it must read 'Owed to
+       you'." (q) had already corrected the FIGURE under it to the
+       supplier's own cut rather than the total; the label kept the old
+       word, so the right number sat under a heading that still invited
+       the reader to expect the total. */
     commLbl: agencyFacing
       ? (isOpndoorStaff(role) ? 'Agency commission' : 'Your commission')
+      : supplierFacing ? OWED_TO_YOU
       : ownOnly ? 'Commission earned' : 'Commission payable',
     commTag: agencyFacing
       ? 'net of refunds'
@@ -395,7 +403,7 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     commSecondLbl: agencyFacing
       ? 'Agent commission (net of refunds)'
       : supplierFacing
-      ? 'Paid by opndoor directly to your agencies'
+      ? PAID_DIRECT_BY_OPNDOOR
       : ownOnly
       ? `Passed to opndoor as partner (${pPct}, net)`
       : 'Agencies',
@@ -412,9 +420,7 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
        DOES read the whole book -- their own -- so every term here was true
        for them and the split drew. The gate now says what the sentence above
        it always claimed. */
-    commThirdLbl: supplierFacing
-      ? 'Your agencies\u2019 share, included above for you to pass on'
-      : 'Suppliers',
+    commThirdLbl: supplierFacing ? PASSED_ON_BY_SUPPLIER : 'Suppliers',
     commThirdVal: supplierFacing ? fmtMoney(a.agentCommSupplierPasses) : fmtMoney(a.supplierCommNet),
     commThirdShown: supplierFacing
       ? a.agentCommSupplierPasses > 0
@@ -422,7 +428,7 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     /* AND THE TOTAL, ALWAYS, on a supplier's tile. Matt (q) asks for it by
        name, and it is the figure that used to be the headline: showing it
        as a total rather than as "payable" is the whole correction. */
-    commFourthLbl: 'Total commission on your referrals',
+    commFourthLbl: TOTAL_ON_YOUR_REFERRALS,
     commFourthVal: fmtMoney(a.supplierCommNet + a.agentCommNet),
     commFourthShown: supplierFacing,
     commExcl: signedNeg(a.partnerCommExcl + a.agentCommExcl),
@@ -549,6 +555,7 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
        Matt, 2026-10-01: "Your commission, net of refunds". */
     commLbl: agencyFacing
       ? (isOpndoorStaff(role) ? 'Agency commission' : 'Your commission')
+      : supplierFacing ? OWED_TO_YOU
       : ownOnly ? 'Commission earned to date' : 'Commission payable',
     // No frozen lines to name a source from here and no refunds in the model, so
     // the agency tag is the bare "whose money is this", with no rate.

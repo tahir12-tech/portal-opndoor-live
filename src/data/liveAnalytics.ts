@@ -34,6 +34,7 @@
    the level rather than protect it.
    ===================================================================== */
 import { SUPABASE_ENABLED } from '@/lib/supabase';
+import { addAgencyShare } from './whoPaysTheAgency';
 import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
 import { ALL_PARTNERS, agencyLevelOf, maySeeCommission } from './types';
 import { showsOffices } from './agencyOffices';
@@ -196,9 +197,17 @@ export interface LiveAgg {
  * directly when nobody had.
  */
 function addAgentSide(a: LiveAgg, app: FullApp, agentComm: number): void {
-  if (agentComm === 0) return;
-  if (app.opndoorPaysAgentsAtFreeze === true) a.agentCommOpndoorPays += agentComm;
-  else a.agentCommSupplierPasses += agentComm;
+  /* THROUGH THE SHARED RULE since 2026-10-05. This was the original
+     implementation and the only one; Matt then reported the same fold
+     missing from the Performance export, the Application export, the
+     League and the statement, with the same two figures each time, and
+     asked for "one shared rule ... used by all six surfaces". So the
+     interpretation of the frozen flag lives in whoPaysTheAgency and
+     this is one of its six readers rather than its home. */
+  const split = { paidDirectByOpndoor: a.agentCommOpndoorPays, passedOnBySupplier: a.agentCommSupplierPasses };
+  addAgencyShare(split, agentComm, app.opndoorPaysAgentsAtFreeze);
+  a.agentCommOpndoorPays = split.paidDirectByOpndoor;
+  a.agentCommSupplierPasses = split.passedOnBySupplier;
 }
 
 export function liveAggregate(role: Role, scope: PartnerScope, period: Period): LiveAgg {
