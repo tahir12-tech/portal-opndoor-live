@@ -2320,6 +2320,7 @@ no screenshot is the thing this section exists to stop.
 | 4 | Stripe dashboard, top left | It says **Live mode**, not Test. The key the portal uses is `sk_live_` | `livemodeCredentials.ts` refuses a mismatch at the boundary, so a wrong key fails loudly rather than quietly |
 | 5 | Resend dashboard → Domains | `opndoor.co` **verified**, and the DKIM and SPF rows green | An unverified domain still sends, into spam. This is the row most likely to be amber on day one |
 | 6 | Dev Centre, as admin | **No sandbox banner.** The banner means the portal believes it is on test credentials | Section 14.4a |
+| 6a | The `payment_url` in an API response, or the link in a fee email | the real domain. **Measured on dev 2026-10-05**: a referral created through the partner API came back with `http://localhost:5174/pay?token=...`, which is right for dev and is a dead link anywhere else | this is a different setting from Site URL and APP_URL in section 7; all three point at a domain and all three must be the live one |
 
 ### 15.2 The emails are the real ones
 
