@@ -424,9 +424,34 @@ export function renderTablePdf(doc: PdfTableDoc): Uint8Array {
     }
 
     if (first && doc.meta?.length) {
+      /* THE VALUE COLUMN IS PLACED AFTER THE WIDEST LABEL, not at a
+         hardcoded 118pt.
+
+         EVERY LABEL WAS DRAWN UNMEASURED. Only the value went through
+         fitText, so a label longer than the 118pt gutter ran straight
+         under its own figure. It stayed invisible for as long as every
+         label was short -- "Applications", "Your share" -- and the
+         moment (cf) introduced "Your agencies' share, included above
+         for you to pass on" (224pt at 9pt, wider still in bold) the
+         statement printed GBP 378.90 inside the words "included above
+         f". The exact line and figure Matt had asked for, stamped on
+         top of each other.
+
+         ONE GUTTER FOR THE WHOLE BLOCK, from the widest label, so the
+         figures stay in a column a reader can run their eye down --
+         which is the point of a label/value block and is lost if each
+         row places its own. Bold is wider than the table this measures,
+         so a margin is added rather than trusting the metric exactly,
+         and the whole thing is capped so a runaway label cannot push
+         the values off the page: past the cap the label is truncated
+         instead, which is fitText's own bargain everywhere else. */
+      const LABEL_GAP = 10;
+      const MAX_LABEL = USABLE_WIDTH * 0.55;
+      const widest = doc.meta.reduce((w, [label]) => Math.max(w, textWidth(label, SIZE_META)), 0);
+      const labelCol = Math.min(Math.max(118, Math.ceil(widest * 1.06) + LABEL_GAP), MAX_LABEL);
       for (const [label, value] of doc.meta) {
-        ops.push({ t: "text", x: MARGIN_X, y, size: SIZE_META, s: label, colour: INK_SOFT, bold: true });
-        ops.push({ t: "text", x: MARGIN_X + 118, y, size: SIZE_META, colour: INK, s: fitText(value, USABLE_WIDTH - 118, SIZE_META) });
+        ops.push({ t: "text", x: MARGIN_X, y, size: SIZE_META, s: fitText(label, labelCol - LABEL_GAP, SIZE_META), colour: INK_SOFT, bold: true });
+        ops.push({ t: "text", x: MARGIN_X + labelCol, y, size: SIZE_META, colour: INK, s: fitText(value, USABLE_WIDTH - labelCol, SIZE_META) });
         y -= 13;
       }
       y -= 8;

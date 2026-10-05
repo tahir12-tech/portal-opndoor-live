@@ -80,7 +80,13 @@ const COLS: Record<LeagueView, Col[]> = {
      otherwise. So the branch board leads on fees generated, and the commission
      column shows a dash wherever the branch is not itself a payee — rather than
      repeating its agency's earnings against every branch name. */
-  branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees generated', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Own commission', true]],
+  /* (ca) "Fees collected", AS ON EVERY OTHER TAB. Matt: 'call the
+     measure "Fees collected" as on every other tab'. "Fees generated"
+     was this board's own word for the same column the agency, referrer
+     and supplier boards all call collected, and a reader comparing two
+     tabs has to decide whether two names mean two things. They do not:
+     all four read `fees`, which is gross fees on paid referrals. */
+  branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Own commission', true]],
   /* "REFERRERS", NOT "NEGOTIATORS". Matt, 2026-10-02: "call it
      'Referrers' on screen and in the export, since it includes Directors
      and supplier staff". Negotiator is one LEVEL on our estate's ladder,
@@ -195,9 +201,17 @@ function cellFor(col: SortKey, r: LeagueRow, view?: LeagueView) {
     case 'conv': return <ConvChip cv={r.conv} />;
     case 'partnerComm': return fmtBig(r.partnerComm);
     case 'agentComm':
-      // On the branch board an empty figure means "this branch holds no rate of
-      // its own", which is a different statement from "it earned nothing".
-      if (view === 'branch' && !r.agentComm) return <span className="soft">-</span>;
+      /* (ca) GBP 0, NOT A DASH, and this reverses a distinction that was
+         real. Matt: 'show GBP 0, not "-", for no commission.'
+
+         The dash said "this branch holds no rate of its own", which is
+         genuinely different from "it earned nothing" -- and on a
+         LEAGUE BOARD it is the wrong difference to draw. The board
+         exists to be sorted and compared; a dash sorts nowhere, reads
+         as "not applicable" or "not known", and makes a reader wonder
+         whether the figure is missing. The branch earned nothing,
+         which is a number. Where the rate is inherited rather than
+         held, the Commission tab is the place that says so. */
       return fmtBig(r.agentComm);
     default: return r.name;
   }

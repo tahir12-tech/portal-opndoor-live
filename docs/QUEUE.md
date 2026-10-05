@@ -4624,6 +4624,25 @@ both estates, the dialog, and FAQ 9 on both rails.
 - THE MISSING AGENCY IS LIKELY THE SAME ROW AS (bz)'s MISSING BADGE, and
   the two should be looked at together before either is fixed.
 
+**2026-10-05, two of the three built; the third needs Matt's call.**
+
+The measure is renamed and the dash is now GBP 0. The missing agency
+line is NOT a bug, which is why it is parked rather than guessed at:
+
+- `showsOffices` collapses a branch row into its agency ONLY where the
+  office name adds nothing -- it is the agency's own name, or the auto
+  "[Agency], Head office" the referral form creates. Test Lettings
+  asda's office is the auto one, so the row is NAMED by the agency and
+  has no sub-line, by a rule written on 2026-10-04 and tested.
+- So "every office shows its agency underneath" would, on this row,
+  print "Test Lettings asda, Head office" over "Test Lettings asdah" --
+  the same name twice, differing only by the rename and the suffix,
+  which is precisely what that rule exists to prevent.
+- THE QUESTION FOR MATT: does he want the collapse dropped on the
+  Branches board specifically, accepting the repeat, or is the real
+  complaint that the row shows the OLD name after a rename -- which is
+  (ct), and would fix itself?
+
 ### (cb) Suppliers list: who may change it, and "Not live yet"
 
 > Suppliers list: "Visible to opndoor staff only. Managers can view but not change anything." And "Live from -" should read "Not live yet".
