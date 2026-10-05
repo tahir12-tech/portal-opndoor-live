@@ -41,7 +41,7 @@ import { showsOffices } from './agencyOffices';
 import { allFull, findRecord, guaranteeExpiry, isHydrated, reachedPayment, type FullApp, guaranteedAnnual } from './applicationsService';
 import { getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
-import { payeesFor, orgAmountOf, agentAmountOf, agentEarnedOf, supplierAmountOf, supplierLineOf, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
+import { payeesFor, orgAmountOf, agentAmountOf, agentEarnedOf, supplierAmountOf, supplierLineOf, feeBaseFor, refundTaken, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
 import { deliveryStateOf } from './deliveryState';
 // Walk fix 21: one rule for the line under a referrer's name.
 import { whereTheyWork, type WhereReader } from './whereTheyWork';
@@ -311,9 +311,9 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
       a.paid += 1;
       paidSet.push(app);
       a.feesGross += feeBaseFor(app);
+      a.refundValue += refundTaken(app);
       if (app.refunded) {
         a.refundCount += 1;
-        a.refundValue += app.refundedAmount ?? feeBaseFor(app);
         a.partnerCommExcl += supplierComm;
         a.agentCommExcl += agentComm;
       } else if (app.partiallyRefunded) {
@@ -331,8 +331,11 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
            Commission stays on the WHOLE fee rather than being pro-rated down.
            That is the status quo for any application that was not refunded,
            and whether a partial refund should reduce it is a commercial
-           decision recorded as NM-I, not one to take in an arithmetic fix. */
-        a.refundValue += app.refundedAmount ?? 0;
+           decision recorded as NM-I, not one to take in an arithmetic fix.
+
+           THE SUBTRACTION ITSELF MOVED UP to refundTaken, once, for both
+           kinds: it was written here and in three other places, and only
+           two of the four knew about a partial refund at all. */
         a.partnerCommNet += supplierComm;
         if (!isHousePartner(app.partner)) a.supplierCommNet += supplierComm;
         a.agentCommNet += agentComm;
@@ -531,7 +534,11 @@ function emit(g: Group): LeagueRow {
     sub: g.sub,
     partner: g.partner,
     refs: g.refs,
-    fees: g.feesGross, // "Fees collected" is gross; commission below is net of refunds
+    /* (cg) NET. The comment here used to read "'Fees collected' is gross;
+       commission below is net of refunds", which is the contradiction
+       Matt found: hydrate.ts computes the same name net for the Agencies
+       list, five lines of comment away from saying so. */
+    fees: g.feesGross - g.refundValue,
     paid: g.paid,
     deed: g.deed,
     // Both applicant-grain. Sent to Deed briefly divided by LETS, which was
@@ -763,7 +770,11 @@ function groupRows(
       g.paid += 1; g.paidLets.add(letId); g.feesGross += feeBaseFor(app);
       // The refund is of the FEE, not of the rent. Matches liveAggregate and
       // livePartnerBreakdown, which both already said feeBaseFor.
-      if (app.refunded) { g.refundValue += app.refundedAmount ?? feeBaseFor(app); g.partnerCommExcl += supplierComm; g.agentCommExcl += agentComm; }
+      /* (cg) THE REFUND, THROUGH THE ONE RULE. This subtracted a full
+         refund and ignored a partial one, so a board could show more
+         collected than the tile above it. refundTaken answers both. */
+      g.refundValue += refundTaken(app);
+      if (app.refunded) { g.partnerCommExcl += supplierComm; g.agentCommExcl += agentComm; }
       else {
         g.partnerComm += supplierComm;
         g.agentComm += agentComm;
@@ -950,7 +961,11 @@ export function liveByCustomer(role: Role, scope: PartnerScope, period: Period):
     if (inRange(app.sentAt, start, end)) row.sent += 1;
     if (inRange(app.deedAt, start, end)) row.deeds += 1;
     if (inRange(app.paidAt, start, end)) {
-      row.fees += feeBaseFor(app);
+      /* (cg) NET, LIKE EVERY OTHER "Fees collected". This was gross and
+         the Agencies list was net, which is Matt's two figures for
+         Regent: 21,447.75 here and 15,219.29 there, both correct and one
+         of them wrong for the name above it. */
+      row.fees += feeBaseFor(app) - refundTaken(app);
       /* What leaves the business, and only on a fee that stayed. The
          agency's cut always; a real supplier's too, never a house route's,
          which is Opndoor's own margin. The same two terms as the trend's
@@ -1085,7 +1100,8 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
          commission, and zeroing by referencing mode would wipe a legitimate
          supplier settlement. :220 already draws the line this way. */
       if (m) {
-        m.fees += feeBaseFor(app);
+        // (cg) Net, like the tile, the boards and the Agencies list.
+        m.fees += feeBaseFor(app) - refundTaken(app);
         /* THE READER'S OWN COMMISSION, WHICH FOR AN AGENCY IS NOT THE
            PARTNER CUT. Matt, 2026-10-01: "Monthly trend: September 2026
            shows GBP 0 commission earned, but the statement shows GBP
