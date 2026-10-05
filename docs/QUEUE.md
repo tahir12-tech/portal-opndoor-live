@@ -4809,6 +4809,34 @@ both estates, the dialog, and FAQ 9 on both rails.
 - "REPORT WHEN 1 TO 3 ARE DONE SO I CAN RE-TEST" is a reporting
   instruction: report after 3, not after the whole list.
 
+### (cp) A draft month's missing reference is reported as a load error
+
+> As Kestrel Management, the Agency schedules panel says "Reference couldn't be loaded. Refresh to try again" for October (Kestrel Lettings, draft month). A draft month has no reference by design; it should say "Reference assigned when the statement is posted", never a load error. Find why it errored and log it to Health.
+
+- **THE SAME FAMILY AS (cl): A REFUSAL OR AN ABSENCE REPORTED AS A
+  FAULT.** There is nothing to load, so "couldn't be loaded" is the
+  screen inventing a problem and asking the reader to fix it.
+- "FIND WHY IT ERRORED AND LOG IT TO HEALTH" IS TWO THINGS, and the
+  second is the durable one: if a real load failure can also produce
+  this message, suppressing the message without logging would hide the
+  real failure as well as the imaginary one.
+- IT IS ALSO (bu)'s NEIGHBOUR: that one is the supplier-estate agency's
+  schedule line, this one is the supplier's own draft month.
+
+### (cq) A referral made on a customer's behalf still names the admin
+
+> Referrals an Opndoor admin made on a customer's behalf still show the admin's name ("Nicholas Dwyer") in that customer's referrer lists, charts and exports; show "opndoor (on your behalf)" in every customer view.
+
+- **THIS IS (bm) ON THE REFERRER FIELD**, which I did not sweep: I took
+  the staff name out of activity lines, withdrawal, decline, start-date
+  changes and the two-factor email, and left the person who SENT the
+  referral named on every list that groups by referrer.
+- THE WORDING ALREADY EXISTS -- "opndoor (on your behalf)" is Matt's
+  own from the earlier byline instruction -- so this is about reach,
+  not about words: referrer lists, charts AND exports.
+- AND IT IS A READ-TIME MASK, like agency_changes: the referrer_id is
+  the record and must not be rewritten.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
