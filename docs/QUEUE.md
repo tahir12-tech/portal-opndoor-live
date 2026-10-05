@@ -5377,6 +5377,19 @@ At a few hundred none of this bites.
 - (6) IS ALREADY HALF-BUILT: `hasResourceFile` exists in Help.tsx and
   is evidently not gating the shelf.
 
+### (ds) Every Help item should open the same way
+
+> The Sales and conversation guide and the Agent one-pager open as PDFs in the browser's PDF viewer, while every other guide opens as an HTML page in the modal with the Save as PDF button. Rebuild both as HTML guides in the same template as the Management guide (same fonts, header, layout, Save as PDF), keeping their content, with the commission fix from my last message applied. After that, every item in Help should open the same way.
+
+- IT PAIRS WITH (dr10): extracting those two PDFs' text is now the
+  FIRST STEP of rebuilding them as HTML, not a separate errand.
+- "THE SAME TEMPLATE AS THE MANAGEMENT GUIDE" is a concrete
+  specification -- public/help-docs/management-guide.html is the
+  model, so there is nothing to design.
+- "WITH THE COMMISSION FIX FROM MY LAST MESSAGE APPLIED" ties it to
+  (dr2): the rebuilt sales guide must not show commission to a reader
+  who may not see it.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
