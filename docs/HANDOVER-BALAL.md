@@ -1867,21 +1867,27 @@ entries that stood here are done; what follows is what is left, and why.
    candidate tests in this schema and they show 1, 3 and 8 of the ten
    suppliers. Type-to-search and the "Harbour Lets" duplicate label
    follow once it is settled.
-3. **(cu) Sign-in landing.** Cannot be reproduced from the code: the
-   app already lands on /home, the per-actor resolver, and nothing
-   stores or restores a route. The question back is in QUEUE.md.
-4. **(cv) The Expiries default month.** Matt asked to be told the
-   current rule before anything changes, and that is still owed.
-5. **(cq)/(cy) historic activity actors.** The referrer half is done
+3. **(cq)/(cy) historic activity actors.** The referrer half is done
    (see below). The activity half turned out to have no reader at all:
    nothing in the product displays `activity_log.actor`, so the
    function written for it was withdrawn rather than shipped unread.
    If a surface ever shows it, the mask is 20 minutes' work.
-6. **The agent one-pager is three pages.** It is called a one-pager.
-   Fitting it means cutting content, which is Matt's call; the
-   question is in QUEUE.md.
-7. **(nn)(oo) the remainder, and anything else in QUEUE.md not listed
+4. **(cv) The Expiries default month: ANSWERED, see below.** Matt,
+   2026-10-05: keep next month. Pinned by a test.
+5. **(nn)(oo) the remainder, and anything else in QUEUE.md not listed
    here.** (oo) is done for the leaflets and the browser furniture.
+
+### Closed, 2026-10-05, rather than left quietly off the list
+
+- **(cu) Sign-in landing.** Matt: "close it. Can't reproduce, nothing
+  to fix." What was checked is in QUEUE.md: `/login` already sends a
+  ready session to `/home`, a completed sign-in navigates there,
+  `/home` is the per-actor resolver, and nothing in the client stores
+  or restores a route. Sign-out already clears the persisted partner
+  scope, origin scope and recents.
+- **The agent one-pager's length.** Matt: "don't cut content. Rename
+  it 'Agent guide' everywhere it's listed." Done; it is a guide and
+  three pages is what a guide is.
 
 ### Done in the second night run, 2026-10-05 (branch `matt-fixes`)
 
