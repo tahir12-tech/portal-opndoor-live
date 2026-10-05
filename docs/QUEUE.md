@@ -4837,6 +4837,24 @@ both estates, the dialog, and FAQ 9 on both rails.
 - AND IT IS A READ-TIME MASK, like agency_changes: the referrer_id is
   the record and must not be rewritten.
 
+### (cr) A supplier's own exports should not keep saying "via" itself
+
+> Supplier's own exports (Kestrel Management): drop "(via Kestrel Lettings)" from agency and office names, and remove the Supplier column (it's always themselves). Keep "(via …)" only in Opndoor's own views.
+
+> Export headers for customers: "Scope: Your partner" should name them ("Kestrel Lettings"). Sweep every export header for "partner".
+
+- **"(via X)" IS AN OPNDOOR-FACING DISAMBIGUATION**, which is exactly
+  what (cn) just made the agency picker do on purpose. On the
+  supplier's own export there is nothing to disambiguate from: every
+  row is theirs. Same label, right in one audience and noise in the
+  other.
+- THE SUPPLIER COLUMN IS THE SAME FACT A THIRD TIME, after the suffix
+  and the header.
+- "SWEEP EVERY EXPORT HEADER FOR 'partner'" IS (n) AGAIN IN A SURFACE
+  THE SWEEP DID NOT COVER: thePartnerSweepHolds reads six SCREENS, and
+  an export header is neither a screen nor a comment. The guard should
+  grow rather than this being fixed by hand.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
