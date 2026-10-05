@@ -775,6 +775,25 @@ export interface HelpResource {
   file?: { name: string; url: string; mime: string };
   /** #110 Minimum role that may see this resource. Undefined = everyone.
       'management' = management + opndoor admin; 'superadmin' = opndoor admin only. */
+  /* WHICH CHECKING SETTING THIS DESCRIBES. Undefined = all three.
+
+     Matt (dk): "Guides and FAQs describe what happens after a referral
+     as it actually works for that organisation: straight to payment
+     (accepts as sent), Opndoor's decision first (applies its own
+     criteria), or the tenant's eligibility check with the GBP 20
+     application fee (Opndoor checks)."
+
+     IT IS A DIFFERENT AXIS FROM THE OTHER THREE. `rail`, `minRole` and
+     `needsCommission` are about WHO is reading; this is about which
+     product their organisation is actually on. A guide describing a
+     decision step to an agency that has none is wrong rather than
+     merely verbose, and a tenant leaflet naming a GBP 20 fee to the
+     tenant of an agency that goes straight to payment is a false
+     statement about money handed to a consumer.
+
+     THE SETTING IS THE ORGANISATION'S, not the reader's: an opndoor
+     admin looking at Kestrel's Help sees Kestrel's journey. */
+  modes?: ReferencingMode[];
   minRole?: Role;
   /** WHICH RAIL THIS IS WRITTEN FOR. Undefined = both.
 
@@ -798,6 +817,9 @@ export interface HelpFaq {
       Manager must not be shown however senior they are. */
   rail?: 'supplier' | 'agency';
   needsCommission?: boolean;
+  /** Which checking setting this answer describes. Undefined = all
+      three. See HelpResource.modes for why this is its own axis. */
+  modes?: ReferencingMode[];
 }
 export interface HelpManager {
   id: string;

@@ -5302,6 +5302,32 @@ At a few hundred none of this bites.
   that distinction for display, which is a good sign the data can
   support it.
 
+### (do) The table must vary by checking setting, and so must the API docs
+
+> The Help table only varies by level. I asked for it to vary by checking setting too (accepts as sent, applies its own criteria, opndoor checks). Show me the same table with a column per checking setting, so I can see e.g. that an "accepts as sent" agency never sees eligibility checks or the £20 fee. Then the same for the API docs: what a supplier Developer sees under each checking setting. Don't stop to ask, build what's missing and show me both tables.
+
+- **"BUILD WHAT'S MISSING" IS THE INSTRUCTION**, so reporting the axis
+  as absent -- which is what I did -- is not the answer. The axis gets
+  built.
+- HIS EXAMPLE IS THE ACCEPTANCE TEST: an "accepts as sent" agency must
+  never see eligibility checks or the GBP 20 fee. Measured first: the
+  GBP 20 fee appears NOWHERE in the Help catalogue at all, so today the
+  opposite failure is the live one -- an "opndoor checks" agency is
+  never told about a fee its tenants are charged.
+
+### (dp) Export the actual words, per reader per setting, zipped
+
+> Export every Help guide, leaflet, template and FAQ exactly as each reader sees them, one file per reader per checking setting where it differs (e.g. "supplier Referrer - accepts as sent.md"), plus the API docs as the supplier Developer sees them under each setting. Put them all in one zip in Downloads called help-review.zip. Don't summarise, I want the words the user reads.
+
+- **"DON'T SUMMARISE, I WANT THE WORDS THE USER READS"** is the whole
+  specification. A description of a guide is not the guide. The
+  guides are authored HTML under public/help-docs, so the export has
+  to carry their text, not their titles.
+- IT IS ALSO THE BEST POSSIBLE CHECK ON (do): a table says which cells
+  exist, and the export says what is IN them, which is where "no
+  commission for a Manager" and "no GBP 20 fee for an accepts-as-sent
+  agency" are actually settled.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
