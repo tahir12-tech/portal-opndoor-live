@@ -5347,6 +5347,36 @@ At a few hundred none of this bites.
   never changes. `officeNameAddsNothing` already draws that line for
   display and can draw it for the write.
 
+### (dr) Matt's review of help-review.zip: ten fixes
+
+> I've reviewed help-review.zip. Fix these:
+>
+> 1. Checking settings: don't just hide things. For "applies its own criteria" and "opndoor checks", the Referrer guide, tenant leaflet and status FAQs must describe that route's actual journey (decision or eligibility step before payment), not drop the material. The current guide tells them "Press Send and the tenant gets a secure link to pay", which is wrong for those routes.
+> 2. Make "who sees commission" consistent everywhere and true: agency Director, supplier Management and opndoor admin see it; agency Manager, referrers, Developers and opndoor manager don't.
+> 3. Supplier Management guide: explain the "Your agencies' share, included above for you to pass on" line on their screen and statement, in the same words the portal uses.
+> 4. Only suppliers can add agencies and offices while referring. Remove that claim from what agency staff see (Referrer guide description and FAQs).
+> 5. "Referral information checklist" shows the whole Referrer guide. Make it an actual checklist of what to gather before referring, taken from the form's fields.
+> 6. Hide "Welcome to the portal" and "Co-branding assets" until there's a file behind them.
+> 7. Admin sees two sets of FAQs with the same questions answered differently. One answer per question.
+> 8. The landlord guide claims 12 months, £120k cap, £10k legal costs, notify within two weeks of the second month of arrears, payments begin one month after eviction proceedings start. If the deed text is in the repo, check each against it and tell me any that don't match. If it isn't, list them for me to check. Don't change them.
+> 9. The API docs export captured page code, not the docs. Re-export the real text.
+> 10. Extract the text of the sales guide and agent one-pager PDFs so I can review them.
+>
+> Then make help-review-2.zip and tell me what changed.
+
+- **(1) IS THE BIG ONE AND IT CORRECTS MY APPROACH.** I tagged the
+  journey-specific items so the wrong journeys would show a GAP. Matt
+  is right that a gap is not an answer: a Referrer on "opndoor checks"
+  needs a guide describing THEIR route, not the absence of one. Tagging
+  was the mechanism; the content is the job.
+- **(9) IS A DEFECT IN MY OWN EXPORTER.** It read ApiDocsPanel.tsx and
+  ran it through an HTML-to-text pass, which on a React source file
+  yields page CODE. Honest answer: either render the panel, or extract
+  its copy properly.
+- (8) IS AN ANSWER-ONLY ITEM with an explicit "don't change them".
+- (6) IS ALREADY HALF-BUILT: `hasResourceFile` exists in Help.tsx and
+  is evidently not gating the shelf.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
