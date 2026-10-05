@@ -287,6 +287,16 @@ insert into allowed(name) values
      keeps is that supplier's commercial business, not something Opndoor
      publishes to its staff. Covered by a_supplier_has_two_deals.test.sql. */
   ('supplier_deal'),
+  /* The supplier's agents'-share deal as one of its agencies' pages
+     reads it (kk). Its own function rather than a kind argument on
+     agreement_for_agency, whose volume counters and next-rate
+     projection belong to the agency's own deal and mean nothing for
+     one that belongs to the supplier. It repeats that function's two
+     tests inside -- app_may_reach_agency AND may_see_commission --
+     because a deal is commercially sensitive and is also a commission
+     figure. Empty on our own estate. 20261008260000, covered by
+     a_supplier_estate_agency_reads_the_suppliers_deal.test.sql. */
+  ('supplier_deal_for_agency'),
   /* Deals in a supplier's estate that its own Commission tab did not
      write -- agency- or group-scope rows that supplier_share_deals, which
      asks only for partner-scope agents'-share deals, can never return.

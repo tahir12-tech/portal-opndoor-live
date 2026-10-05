@@ -835,6 +835,55 @@ export async function getSupplierDeal(
 }
 
 /* ===========================================================================
+   THE SUPPLIER'S DEAL, AS ONE OF ITS AGENCIES' PAGES READS IT.
+
+   Matt (kk)/(cj): "show the supplier's deal for this agency ('On Kestrel
+   Lettings' agency deal: 10% (1 to 5 tenants), 15% (6 to 10)'), not
+   'Opndoor standard'; say who pays per the frozen setting".
+
+   `getAgreementForAgency` cannot answer this and is not wrong: it
+   resolves the 'commission' kind, which on the agency rail IS the
+   agency's deal and on the supplier rail is what opndoor pays the
+   SUPPLIER. The agency's own money there is the 'agent_share' kind,
+   and it belongs to the supplier and is shared with its other
+   agencies.
+
+   EMPTY ON OUR OWN ESTATE, by design: there the agency's own deal is
+   the answer and this would be a second, emptier one on the same tab.
+   =========================================================================== */
+export interface SupplierDealForAgency {
+  supplierName: string;
+  supplierSlug: string;
+  /** The supplier's CURRENT setting, which is what a deal page describes. */
+  opndoorPaysAgents: boolean;
+  agreementId: string | null;
+  /** The supplier's default deal, or one this agency is named on. */
+  isDefault: boolean;
+  bands: AgreementView['bands'];
+  tiers: AgreementView['tiers'];
+  /** Where there is no deal at all: the rate a referral would price at. */
+  flatRate: number | null;
+}
+
+export async function getSupplierDealForAgency(agencyId: string): Promise<SupplierDealForAgency | null> {
+  if (!orgLive()) return null;
+  const { data, error } = await sb().rpc('supplier_deal_for_agency', { p_agency: agencyId });
+  if (error) throw new Error(cleanRpcError(error.message));
+  const r = (data ?? [])[0] as Record<string, unknown> | undefined;
+  if (!r) return null;
+  return {
+    supplierName: String(r.supplier_name ?? ''),
+    supplierSlug: String(r.supplier_slug ?? ''),
+    opndoorPaysAgents: r.opndoor_pays_agents === true,
+    agreementId: (r.agreement_id as string) ?? null,
+    isDefault: r.is_default === true,
+    bands: (r.bands ?? []) as AgreementView['bands'],
+    tiers: (r.tiers ?? []) as AgreementView['tiers'],
+    flatRate: r.flat_rate == null ? null : Number(r.flat_rate),
+  };
+}
+
+/* ===========================================================================
    DEALS IN THIS SUPPLIER'S ESTATE THAT THIS TAB DID NOT WRITE.
 
    Matt (gg): "The Commission tab must also still show any agency- or

@@ -5035,6 +5035,20 @@ report himself:
 - IT IS A DOCUMENT, NOT A BUILD, so it does not belong in the 1-2-3
   order; it goes with the rest of the not-built list.
 
+### (dc) An ultracode audit of the whole queue before the final summary
+
+> Before the final summary: run an ultracode audit of every item in docs/QUEUE.md from the last two days. For each, check the code and, where it has a screen, the screen itself, and mark it built, partial or not built with the evidence. Build anything not built that's in tonight's scope. Only then give me the final summary and stop, ready to push.
+
+- **"WITH THE EVIDENCE" IS THE STANDARD**, and it is the one I have
+  failed twice tonight: (r) and (kk) were both reported as recorded
+  when they were not built, and (cz) got a cause written down as a
+  finding before anything was measured. An audit that says "built"
+  without quoting the code is the same failure again.
+- "AND, WHERE IT HAS A SCREEN, THE SCREEN ITSELF" is (ch)'s correction
+  generalised: a source assertion that a control exists passes while
+  the control does nothing.
+- "STOP, READY TO PUSH" -- Matt pushes. Nothing is pushed from here.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04

@@ -395,7 +395,15 @@ describe('the definer allowlist', () => {
        which a_deal_a_supplier_cannot_see asserts, because the card
        reports a fault in opndoor's record-keeping and widening who reads
        a supplier's commercial terms is not part of fixing it. */
-    expect(allowlist.length).toBeLessThanOrEqual(163);
+    /* 163 -> 164, RAISED WITH supplier_deal_for_agency.
+
+       WHY IT IS SAFE. It refuses inside, on the same pair
+       agreement_for_agency uses: app_may_reach_agency says the reader
+       can see this org at all, may_see_commission says they may be
+       shown money. A Manager fails the second and a reader outside the
+       estate fails the first. It returns one row of terms and the
+       supplier's own name. */
+    expect(allowlist.length).toBeLessThanOrEqual(164);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

@@ -64,7 +64,8 @@ import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import { getOrgDepartedReferrals, departedReferralsLine, type DepartedReferrals } from '@/data/positionsService';
 import { partyIsSupplier, readerIsTopOfEstate, mayEditOwnEstateOrg, dealIsSetBySupplier } from '@/data/capabilities';
 import { EditOrgDetails, type EditOrgTarget } from './EditOrgDetails';
-import { bandSentence } from '@/data/orgService';
+import { bandSentence, getSupplierDealForAgency, type SupplierDealForAgency } from '@/data/orgService';
+import { whoPaysThisAgency } from '@/data/whoPaysTheAgency';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { PersonActions, type PersonAction } from '@/components/people/PersonActions';
 import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/PositionModal';
@@ -614,6 +615,18 @@ export function AgencyHome() {
       </span>
     </span>
   ) : null;
+  /* (kk) THE SUPPLIER'S DEAL FOR THIS AGENCY. Null on our own estate,
+     where the agency's own agreement above is the answer. */
+  const [supplierDeal, setSupplierDeal] = useState<SupplierDealForAgency | null>(null);
+  useEffect(() => {
+    if (!canSeeCommission || !dealSetBySupplier) { setSupplierDeal(null); return; }
+    const id = agencies[0]?.id;
+    if (!id) { setSupplierDeal(null); return; }
+    let alive = true;
+    getSupplierDealForAgency(id).then((v) => { if (alive) setSupplierDeal(v); }).catch(() => { if (alive) setSupplierDeal(null); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agencies[0]?.id, dataVersion, tick, canSeeCommission, dealSetBySupplier]);
   const reportPeriods = getPeriods();
   const [reportPeriod, setReportPeriod] = useState(
     () => reportPeriods.find((p) => p.id === 'last12m') ?? reportPeriods[reportPeriods.length - 1],
@@ -1162,6 +1175,50 @@ export function AgencyHome() {
         </Button>
       : null;
 
+    /* (kk) AN AGENCY IN A SUPPLIER'S ESTATE IS PRICED BY THE SUPPLIER'S
+       DEAL, and until now this card said "Opndoor standard" at it.
+
+       Matt: "it shows Opndoor's agency standard ... which is wrong.
+       Show the supplier's deal for this agency instead, e.g. 'On
+       Kestrel Lettings' agency deal: 10% (1 to 5 tenants), 15% (6 to
+       10)', and who pays it per the supplier's current setting."
+
+       THE OLD CARD WAS ANSWERING A DIFFERENT QUESTION CORRECTLY.
+       `agreement` is the 'commission' kind -- what opndoor pays the
+       route -- which on our own estate IS this agency's deal and on
+       the supplier rail is the supplier's. So the standard it reported
+       was real, and belonged to somebody else. */
+    if (dealSetBySupplier && supplierDeal) {
+      const words = supplierDeal.bands.length
+        ? dealWords(supplierDeal.bands.map((b) => ({ ...b, unit: b.unit ?? 'weeks' })), supplierDeal.tiers, true)
+        : supplierDeal.flatRate != null ? `${pctLabel(supplierDeal.flatRate)} of the guarantee fee` : null;
+      return (
+        <Card>
+          <CardHead title="Agreement" sub={`Set by ${supplierDeal.supplierName}`} />
+          <CardBody>
+            {words ? (
+              <p className="ah-agr__std">
+                <b>On {possessive(supplierDeal.supplierName)} agency deal:</b> {words}
+                {supplierDeal.isDefault ? '' : ' (a deal this agency is named on)'}
+              </p>
+            ) : (
+              <p className="ah-agr__std">
+                {supplierDeal.supplierName} has set no agency deal, so nothing is payable to this agency yet.
+              </p>
+            )}
+            {/* WHO PAYS, FROM THE CURRENT SETTING. Matt called this out as
+                the opposite of (q) and he is right: a statement follows
+                what was FROZEN on each referral, because that is what was
+                paid; a deal page describes the arrangement as it stands,
+                and there is no referral here to freeze. */}
+            <p className="ah-agr__std">
+              {whoPaysThisAgency(supplierDeal.supplierName, supplierDeal.opndoorPaysAgents)}.
+            </p>
+            {dealSetElsewhere}
+          </CardBody>
+        </Card>
+      );
+    }
     if (!agreement || agreement.isStandard) {
       return (
         <Card>
