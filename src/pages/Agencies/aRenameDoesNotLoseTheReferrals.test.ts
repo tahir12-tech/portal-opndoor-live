@@ -127,3 +127,49 @@ describe('the page', () => {
     expect(PAGE).toContain('r.agencyId && ids.size ? ids.has(r.agencyId) : names.has(r.agency)');
   });
 });
+
+/* =====================================================================
+   (cm) BACK TO A LIST THIS AGENCY IS ACTUALLY ON.
+
+   Matt: "the '<- Agencies' back link and the breadcrumb go to
+   Opndoor's own Agencies list, where this agency isn't listed. For
+   supplier-estate agencies, both should read '<- Kestrel Lettings'
+   and return to Kestrel's Agencies tab (for admins and managers), or
+   the supplier's own Agencies page for supplier users."
+
+   (bo) PROTECTED THIS LINK AND WAS RIGHT TO. A detail page's "back to
+   the list" goes somewhere the sidebar cannot, which is why it
+   survived the sweep that removed League's. It was pointing at the
+   WRONG list, which is the opposite failure and the worse one: the
+   reader lands on a page their agency is not on and has to work out
+   why.
+
+   TWO DESTINATIONS, BY READER, and that is not symmetry for its own
+   sake. Opndoor's staff reach a supplier through /partners, which a
+   supplier's own user cannot open; their estate lives on /agencies,
+   which for them already lists only their agencies. So the
+   supplier's people go where they always went and only we are
+   redirected.
+   ===================================================================== */
+describe('a supplier-estate agency page', () => {
+  it('sends opndoor staff back to the supplier, not to our own list', () => {
+    expect(PAGE).toContain("const backTo = dealSetBySupplier && !isAgencyUser(role, partnerScope)");
+    expect(PAGE).toContain("`/partners/${encodeURIComponent(String(partner))}?tab=agencies`");
+  });
+
+  it('and names the supplier rather than saying "Agencies"', () => {
+    expect(PAGE).toContain("? supplierName : 'Agencies';");
+  });
+
+  it('and the link renders whatever those resolved to', () => {
+    expect(PAGE).toContain('<Link className="ah-back" to={backTo}><Icon name="arrowLeft" size={14} /> {backLabel}</Link>');
+    expect(PAGE).not.toContain('<Link className="ah-back" to="/agencies"><Icon name="arrowLeft" size={14} /> Agencies</Link>');
+  });
+
+  /* ONE OF OUR OWN AGENCIES IS UNTOUCHED, and so is a supplier's own
+     user: both still go to /agencies, which for each of them lists
+     the agency they came from. */
+  it('while our own estate, and a supplier reading their own, still go to /agencies', () => {
+    expect(PAGE).toContain(": '/agencies';");
+  });
+});

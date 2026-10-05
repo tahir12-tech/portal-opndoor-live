@@ -62,7 +62,7 @@ import { liveByCustomer } from '@/data/liveAnalytics';
 import { agencyLevelOf, AGENCY_LEVELS, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
 import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import { getOrgDepartedReferrals, departedReferralsLine, type DepartedReferrals } from '@/data/positionsService';
-import { partyIsSupplier, readerIsTopOfEstate, mayEditOwnEstateOrg, dealIsSetBySupplier } from '@/data/capabilities';
+import { partyIsSupplier, readerIsTopOfEstate, mayEditOwnEstateOrg, dealIsSetBySupplier, isAgencyUser } from '@/data/capabilities';
 import { EditOrgDetails, type EditOrgTarget } from './EditOrgDetails';
 import { bandSentence, getSupplierDealForAgency, type SupplierDealForAgency } from '@/data/orgService';
 import { whoPaysThisAgency } from '@/data/whoPaysTheAgency';
@@ -617,6 +617,29 @@ export function AgencyHome() {
      hidden deal this closes the door on. */
   const dealSetBySupplier = dealIsSetBySupplier(partner);
   const supplierName = dealSetBySupplier ? (getPartner(partner)?.name ?? 'the supplier') : '';
+  /* (cm) BACK TO A LIST THIS AGENCY IS ACTUALLY ON.
+
+     Matt: "the '<- Agencies' back link and the breadcrumb go to
+     Opndoor's own Agencies list, where this agency isn't listed. For
+     supplier-estate agencies, both should read '<- Kestrel Lettings'
+     and return to Kestrel's Agencies tab (for admins and managers),
+     or the supplier's own Agencies page for supplier users."
+
+     (bo) PROTECTED THIS LINK AND WAS RIGHT TO: a detail page's "back
+     to the list" goes somewhere the sidebar cannot. It was pointing
+     at the wrong list, which is the opposite failure and a worse
+     one -- the reader lands on a page their agency is not on and has
+     to work out why.
+
+     TWO DESTINATIONS, BY READER. Opndoor's own staff reach the
+     supplier through /partners, which a supplier's user cannot open;
+     their own estate lives on /agencies, which for them already
+     lists only their agencies. So the supplier's people go where
+     they always went, and only we are redirected. */
+  const backTo = dealSetBySupplier && !isAgencyUser(role, partnerScope)
+    ? `/partners/${encodeURIComponent(String(partner))}?tab=agencies`
+    : '/agencies';
+  const backLabel = dealSetBySupplier && !isAgencyUser(role, partnerScope) ? supplierName : 'Agencies';
   /* THE SENTENCE AND THE LINK, once, so the two places that replace an
      editor cannot word it differently. */
   const dealSetElsewhere = dealSetBySupplier ? (
@@ -1585,7 +1608,7 @@ export function AgencyHome() {
       {confirmEl}
       <div className="page-head" style={{ alignItems: 'center' }}>
         <div>
-          <Link className="ah-back" to="/agencies"><Icon name="arrowLeft" size={14} /> Agencies</Link>
+          <Link className="ah-back" to={backTo}><Icon name="arrowLeft" size={14} /> {backLabel}</Link>
           <h1 className="page-head__title" style={{ marginTop: 8 }}>{title}</h1>
           {/* Each figure is the way into the tab that explains it. */}
           <p className="page-head__sub ah-sub">
