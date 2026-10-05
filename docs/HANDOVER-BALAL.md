@@ -1718,6 +1718,20 @@ is not.
 
 ## 12a. After launch: what is recorded and not built, 2026-10-05
 
+**THE STATE OF THE BRANCH YOU HAVE BEEN HANDED.** Measured on the tip
+commit, not remembered:
+
+| gate | result |
+| --- | --- |
+| `npm run drift` | clean. Dev matches a clean apply of the files: 403 functions, 115 policies, 51 triggers |
+| `npm run typecheck` | clean |
+| `npm test` | 333 files, 3,648 tests, 0 failing |
+| `npm run test:db` (pgTAP, against dev) | 135 files, 0 failing assertions, 0 errored files |
+
+Run all four yourself on the clone before you touch production; that is
+what section 1.1b is for. A green suite here is evidence about DEV, and
+the clone is the only place it becomes evidence about live.
+
 Everything below is in `docs/QUEUE.md` verbatim under the letter given.
 None of it blocks Wednesday; all of it was reported by Matt after the
 go-live branch was cut, and it is here so nothing is carried only in
