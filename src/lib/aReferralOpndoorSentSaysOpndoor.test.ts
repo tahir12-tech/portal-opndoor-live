@@ -54,6 +54,7 @@ import { hydrateFromSupabase } from './hydrate';
 import { hydrateApplications, hydrateFull, getApplications } from '@/data/applicationsService';
 import { ALL_PARTNERS } from '@/data/types';
 import { OPNDOOR_ON_YOUR_BEHALF } from '@/data/whoSentThisReferral';
+import { showReferrersAsCustomer } from '@/data/applicationsService';
 
 const ADMIN = 'u-admin';
 const NEGOTIATOR = 'u-neg';
@@ -123,11 +124,19 @@ describe('a customer reading their own referrals', () => {
     expect(byRef('GR-22162')?.referrer).toBe(OPNDOOR_ON_YOUR_BEHALF);
   });
 
-  /* THE STAFF NAME IS GONE, asserted on its own: the label being right
-     does not prove the name is not also somewhere in the row. */
-  it('and never sees the member of staff by name', async () => {
+  /* THE STAFF NAME IS GONE FROM THE WHOLE ROW, asserted on its own: the
+     label being right does not prove the name is not also somewhere in
+     it. This caught a real regression when View as was built -- the
+     row began carrying the real name in a second field so the mask
+     could be swapped, which would have shipped the thing (cq) exists
+     to withhold to the one browser that must not have it. A customer's
+     row carries no facts at all now. */
+  it('and never sees the member of staff by name, anywhere in the row', async () => {
     await hydrateFromSupabase(NEGOTIATOR);
-    expect(JSON.stringify(byRef('GR-22162'))).not.toContain('Nicholas Dwyer');
+    const row = byRef('GR-22162')!;
+    expect(JSON.stringify(row)).not.toContain('Nicholas Dwyer');
+    expect(row.referrerReal).toBeUndefined();
+    expect(row.referrerIsOpndoor).toBeUndefined();
   });
 
   it('and their own colleague is still named', async () => {
@@ -182,5 +191,74 @@ describe('when the question cannot be asked', () => {
     await hydrateFromSupabase(NEGOTIATOR);
     expect(byRef('GR-22162')?.referrer).toBe('Nicholas Dwyer');
     expect(byRef('GR-OWN')?.referrer).toBe('Rosa Vance');
+  });
+});
+
+/* =====================================================================
+   (cq) UNDER "View as", THE ADMIN SEES WHAT THE CUSTOMER SEES.
+
+   Matt, 2026-10-05: "View as: yes, mask it. View as shows exactly what
+   the customer sees, including 'opndoor (on your behalf)'."
+
+   THE MASK IS APPLIED AT HYDRATE, keyed on the signed-in reader, and
+   View as neither re-hydrates nor changes the role. So the swap is a
+   recompute over rows that kept both facts, which is what these
+   assert: the admin's book starts with the real name, reads as the
+   customer's while viewing, and comes back.
+
+   SessionContext drives it with an effect whose cleanup turns it off,
+   the same shape it already uses for commission visibility. This tests
+   the seam that effect calls, because the effect is three lines and
+   the recompute is the part that can be wrong.
+   ===================================================================== */
+describe('an admin looking through a customer\u2019s eyes', () => {
+  it('starts with the real name, as their own book', async () => {
+    await hydrateFromSupabase(ADMIN);
+    expect(byRef('GR-22162')?.referrer).toBe('Nicholas Dwyer');
+  });
+
+  it('and sees the label while viewing as them', async () => {
+    await hydrateFromSupabase(ADMIN);
+    showReferrersAsCustomer(true);
+    expect(byRef('GR-22162')?.referrer).toBe(OPNDOOR_ON_YOUR_BEHALF);
+  });
+
+  /* THE WAY BACK IS THE HALF THAT LEAKS. These rows are module state:
+     a label left on after View as closes is a stranger's answer on the
+     admin's own screen, which is the bug the cleanup exists for. */
+  it('and the real name again when they stop', async () => {
+    await hydrateFromSupabase(ADMIN);
+    showReferrersAsCustomer(true);
+    showReferrersAsCustomer(false);
+    expect(byRef('GR-22162')?.referrer).toBe('Nicholas Dwyer');
+  });
+
+  it('and a colleague is never relabelled either way', async () => {
+    await hydrateFromSupabase(ADMIN);
+    showReferrersAsCustomer(true);
+    expect(byRef('GR-OWN')?.referrer).toBe('Rosa Vance');
+    showReferrersAsCustomer(false);
+    expect(byRef('GR-OWN')?.referrer).toBe('Rosa Vance');
+  });
+
+  /* IDEMPOTENT. The effect runs again on every change of the viewed
+     party, so twice on must be the same as once. */
+  it('and twice on is the same as once', async () => {
+    await hydrateFromSupabase(ADMIN);
+    showReferrersAsCustomer(true);
+    showReferrersAsCustomer(true);
+    expect(byRef('GR-22162')?.referrer).toBe(OPNDOOR_ON_YOUR_BEHALF);
+    showReferrersAsCustomer(false);
+    expect(byRef('GR-22162')?.referrer).toBe('Nicholas Dwyer');
+  });
+});
+
+describe('a customer, who was never shown the name', () => {
+  /* NOTHING TO SWAP: their rows were masked at hydrate, and turning the
+     customer view off must not hand them a name they may not have. */
+  it('is not given the name by turning the view off', async () => {
+    await hydrateFromSupabase(NEGOTIATOR);
+    showReferrersAsCustomer(false);
+    expect(byRef('GR-22162')?.referrer).toBe(OPNDOOR_ON_YOUR_BEHALF);
   });
 });

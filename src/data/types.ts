@@ -654,6 +654,11 @@ export interface ApplicationSummary {
   sentAtTs?: number | null;
   /** True when the guarantor fee was refunded (status stays Paid, by design). */
   refunded?: boolean;
+  /* (cq) WHO ACTUALLY SENT IT, AND WHETHER THEY ARE ONE OF OURS, kept
+     beside the displayed `referrer` so View as can change the answer
+     without another sign-in. See whoSentThisReferral. */
+  referrerReal?: string | null;
+  referrerIsOpndoor?: boolean;
   /** #2 True when the application was withdrawn at Sent (terminal, pre-payment). */
   withdrawn?: boolean;
   /** #13 True when auto-expired (unpaid 14 days after Sent); terminal, pre-payment. */

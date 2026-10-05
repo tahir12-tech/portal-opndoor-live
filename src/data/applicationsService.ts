@@ -13,6 +13,7 @@
    ===================================================================== */
 import { gbpPence, formatDate, formatLongDate } from '@/lib/format';
 import type { CommissionLine, ApplicationDetail, ApplicationSummary, DeedState, PartnerScope, Role, Status, WithdrawReason } from './types';
+import { referrerShownTo, type ReferrerFacts } from './whoSentThisReferral';
 import { ALL_PARTNERS, isOpndoorStaff } from './types';
 import { AGENT_ADDR, APPLICATION_RECORDS as RECORDS_SEED, APPLICATIONS_LIST as LIST_SEED, type AppRecord } from './mock/applications';
 import { getPartner, partnerName } from './partnersService';
@@ -85,6 +86,14 @@ export interface FullApp {
   /** The referring user's actual role (superadmin/management/referrer), so the
       league can label who generated the referral truthfully. */
   referrerRole?: Role | null;
+  /* (cq) WHO ACTUALLY SENT IT, AND WHETHER THEY ARE ONE OF OURS.
+     `referrer` is what the CURRENT reader is shown and may be the
+     masked label; these two are what it was computed from, kept so
+     View as can recompute it without another sign-in. Not the same as
+     referrerRole, which comes from the embedded users row and is null
+     for exactly the rows that need masking. */
+  referrerReal?: string | null;
+  referrerIsOpndoor?: boolean;
   /** THE COMPANY THE REFERRER THEMSELVES WORKS FOR, by slug, or null.
    *
    *  Not `partner`, which is the rail the REFERRAL came in on. The two
@@ -176,6 +185,42 @@ let HYDRATED = true;
 export function hydrateFull(rows: FullApp[]): void {
   FULL = rows.slice();
   HYDRATED = true;
+}
+
+/* =====================================================================
+   (cq) READING AS THE CUSTOMER, WITHOUT ANOTHER SIGN-IN.
+
+   Matt, 2026-10-05: "View as: yes, mask it. View as shows exactly what
+   the customer sees, including 'opndoor (on your behalf)'."
+
+   THE MASK IS APPLIED AT HYDRATE, once, and View as neither
+   re-hydrates nor changes the role -- it changes the scope. So the
+   displayed `referrer` is recomputed here from the two facts every row
+   carries, and SessionContext calls this when View as starts and again
+   on the way out.
+
+   WHY NOT AT EACH SURFACE. Eight of them print a referrer: the
+   Applications list and its filter, the referrer chart, two League
+   boards, the application page, and three exports. Asking the question
+   in eight places is what (cq) exists to stop, and the one that gets
+   missed is a customer's name shown to nobody's benefit.
+
+   THE SAME SHAPE AS hydrateCommissionVisibility, which View as already
+   swaps the same way, for the same reason, with the same cleanup.
+
+   IDEMPOTENT, and that matters: the effect runs again on every change
+   of the viewed party, and a reader who is opndoor staff reading their
+   own book must get the real name back rather than a label that
+   stuck. */
+export function showReferrersAsCustomer(asCustomer: boolean): void {
+  const apply = <T extends ReferrerFacts & { referrer?: string | null }>(row: T): T => {
+    if (row.referrerReal === undefined) return row;   // mock rows carry no facts
+    row.referrer = referrerShownTo(row, asCustomer) ?? row.referrer;
+    return row;
+  };
+  LIST = LIST.map(apply);
+  FULL = FULL.map(apply);
+  RECORDS = RECORDS.map(apply);
 }
 
 /** The full application set (empty in mock mode). */

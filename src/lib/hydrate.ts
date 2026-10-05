@@ -14,7 +14,7 @@ import { LEAST_PRIVILEGED_ROLE,
   type Agency, type AgencyGroup, type AgentContact, type ApplicationSummary, type Branch, type CommissionLine, type FullApp, type ManagedUser, type Role,
   type Partner, type Status,
 } from '@/data';
-import { OPNDOOR_ON_YOUR_BEHALF } from '@/data/whoSentThisReferral';
+import { referrerShownTo } from '@/data/whoSentThisReferral';
 import type { AppRecord } from '@/data/mock/applications';
 import type { UpcomingGuaranteeSeed } from '@/data/mock/guarantees';
 import { isDirectRail, isHousePartner } from '@/data/channel';
@@ -327,11 +327,45 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     } catch { /* The name stays as it was. */ }
   }
   const readerIsOpndoor = opndoorPeople.has(userId);
-  /** What this reader is told about who sent a referral. */
-  const referrerOf = (a: any): string | null => (
-    !readerIsOpndoor && a.referrer_id && opndoorPeople.has(a.referrer_id)
-      ? OPNDOOR_ON_YOUR_BEHALF
-      : (a.referrer_name ?? emb(a.referrer)?.full_name ?? null));
+  /* THE TWO FACTS A ROW KEEPS, so the answer can change without another
+     sign-in. Matt, 2026-10-05: "View as shows exactly what the customer
+     sees, including 'opndoor (on your behalf)'." View as changes the
+     scope, not the role, and does not re-hydrate -- so the row carries
+     who sent it and whether they are one of ours, and the displayed
+     name is recomputed when the reader starts looking through a
+     customer's eyes. See referrerShownTo. */
+  const realReferrerOf = (a: any): string | null =>
+    (a.referrer_name ?? emb(a.referrer)?.full_name ?? null);
+  const isOpndoorReferrer = (a: any): boolean => {
+    if (!a.referrer_id) return false;
+    if (opndoorPeople.has(a.referrer_id)) return true;
+    /* AND THE ROWS WE COULD READ. An admin's own book answers this off
+       the embed, with no question asked of the database: the role is
+       right there. A customer's book cannot, which is why the question
+       above exists at all. */
+    const role = emb(a.referrer)?.role;
+    return role === 'superadmin' || role === 'opndoor_manager';
+  };
+  /* AND A CUSTOMER'S ROWS DO NOT CARRY THE NAME AT ALL.
+
+     Caught by the test that asserts the staff name appears nowhere in a
+     customer's row: carrying it in a second field so View as could swap
+     it would have shipped the thing (cq) exists to withhold to the one
+     browser that must not have it, unrendered but present.
+
+     Only an opndoor reader can start a View as, so only an opndoor
+     reader's rows need the pair. A customer's row has no facts, and
+     showReferrersAsCustomer leaves a row with no facts alone. */
+  const referrerFacts = (a: any) => (readerIsOpndoor
+    ? { referrerReal: realReferrerOf(a), referrerIsOpndoor: isOpndoorReferrer(a) }
+    : {});
+
+  /** What this reader is told about who sent a referral, as they read now. */
+  const referrerOf = (a: any): string | null =>
+    referrerShownTo(
+      { referrerReal: realReferrerOf(a), referrerIsOpndoor: isOpndoorReferrer(a) },
+      !readerIsOpndoor,
+    );
 
   const partnerSlug = new Map<string, string>(partners.map((p) => [p.id, p.slug]));
   // Fallback rates by partner (only used if a row somehow lacks its snapshot;
@@ -591,6 +625,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     referrerSeesCommission: emb(a.referrer)?.sees_commission === true,
     // #owner referrer name + sent-date for the Applications referrer/period filters.
     referrer: referrerOf(a),
+    ...referrerFacts(a),
     sentAtTs: a.sent_at ? new Date(a.sent_at).getTime() : null,
     refunded: a.payment_state === 'refunded',
     // R2. A partial refund moves money, not the guarantee. See FullApp.
@@ -652,6 +687,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // #97 Prefer the snapshotted referrer name (survives deactivation / users-RLS);
     // fall back to the live join, then a stable placeholder that is never counted.
     referrer: referrerOf(a) ?? '(unknown)',
+    ...referrerFacts(a),
     // Walk fix 18: is there a referring PERSON. The name above is a label and
     // a direct signup has one ("Direct signup") without having a referrer.
     referrerId: a.referrer_id ?? null,
@@ -731,6 +767,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     status: a.status as Status,
     date: eventDate(a),
     referrer: referrerOf(a) ?? '(unknown)', // #97
+    ...referrerFacts(a),
     owner: ownerFlag(a),
     referencingMode: a.referencing_mode ?? undefined,
     tenancyId: a.tenancy_id ?? null,
