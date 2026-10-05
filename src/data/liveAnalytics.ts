@@ -393,7 +393,25 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
     }
     // Current-state operational metrics (not period-filtered).
     if (app.status === 'sent') a.stuckSent += 1;
-    if (app.status === 'paid' && !app.deedAt && !app.refunded) a.stuckPaid += 1;
+    /* (bp)(2) A CANCELLED GUARANTEE IS NOT STUCK, it is over.
+
+       Matt: '"Stuck at Paid (awaiting deed)" says 15 while Reporting
+       says 4 awaiting signature. Check what it counts; refunded and
+       cancelled ones must not be included.'
+
+       MEASURED ON DEV BEFORE CHANGING IT, because "these two counts
+       may not be the same question" was a live possibility:
+
+         status paid, no deed, not refunded                      15
+         ... and deed_state is not 'cancelled'                    4
+         Reporting's awaiting signature                           4
+
+       They ARE the same question, and the eleven are deeds cancelled
+       for a refund whose own refunded_at never landed -- so the
+       refund test alone did not catch them. A cancelled guarantee has
+       nothing to wait for; counting it as stuck sends somebody to
+       chase a deed that was deliberately ended. */
+    if (app.status === 'paid' && !app.deedAt && !app.refunded && app.deedState !== 'cancelled') a.stuckPaid += 1;
     if (app.deedState === 'awaiting_tenant') {
       a.awaiting += 1;
       if (app.deedSentAt && (now - app.deedSentAt.getTime()) / DAY > 7) a.awaitingAged += 1;
