@@ -1766,15 +1766,33 @@ the GBP 20 copy and the refund lines.
 
 **STILL OPEN, and these are the ones to pick up:**
 
-**(ds) The two PDFs cannot be rebuilt from the PDFs.** The Sales and
-conversation guide and the Agent one-pager are to become HTML in the
-management-guide template so every Help item opens the same way.
-FIRST OBSTACLE, measured twice: both use subset fonts, so their text
-is glyph codes needing per-font ToUnicode resolution. A naive
-extraction returns `(a)(a)(a)`; a merged-CMap one recovers most words
-and CORRUPTS DIGITS, rendering the cap as "GBP 12f,fff"; a per-font
-attempt mis-resolved worse. **Do not transcribe figures from an
-extraction. Ask Matt for the source those PDFs were authored from.**
+**(ds) The Agent one-pager is done; the Sales guide is not.** Both
+were to become HTML in the management-guide template so every Help
+item opens the same way. The one-pager is rebuilt
+(`opndoor-for-letting-agents.html`) with its commission content
+removed. The Sales and conversation guide is TEN PAGES and is
+rendered but not transcribed.
+
+**HOW TO DO IT, because the obvious way does not work.** Both PDFs
+use subset fonts, so their text is glyph codes: a naive extraction
+returns `(a)(a)(a)`, and a merged-CMap one recovers most words while
+CORRUPTING DIGITS -- it renders the GBP 120,000 cap as "GBP 12f,fff".
+**Never transcribe a figure from an extraction.** Render the pages
+instead and read them:
+
+    osascript -l JavaScript scripts/render-pdf-pages.js \
+      public/help-docs/opndoor-sales-and-conversation-guide.pdf /tmp/pages sales
+
+That writes `/tmp/pages/sales-p1.png` upward. Cross-check every figure
+against the landlord guide, which carries the term, the cap and the
+legal costs, before writing it down. The one-pager was done exactly
+this way and all three agreed.
+
+Two things to apply while transcribing: **remove the commission**
+(the one-pager led on a 10% rate, which is per agreement and wrong
+for somebody), and **remove any fee basis** ("one month's rent" is
+per agreement too). The guides' own guards enforce both, so a slip
+fails the suite rather than shipping.
 
 **(dj) The API docs do not vary by checking setting.** A supplier
 Developer gets the same text whichever journey their organisation is
