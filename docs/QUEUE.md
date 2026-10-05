@@ -4944,6 +4944,42 @@ both estates, the dialog, and FAQ 9 on both rails.
 - SO THE ANSWER COMES BEFORE THE CHANGE: which address is the one that
   can never be switched off, per rail, read off deed_delivery_target.
 
+### (cy) Old activity entries still name the admin
+
+> Activity on an application, as seen by agency/supplier users (e.g. barb on GR-25832): older entries still say "by Nicholas Dwyer". Apply "by opndoor" when displaying any entry made by Opndoor staff, old or new, in every customer view.
+
+- **CORRECT, AND IT IS THE LIMIT OF WHAT (bm) DID.** I fixed the WRITE,
+  so every row from today says "opndoor"; every row written before
+  still carries the name.
+- **AND THERE IS A REAL DIFFICULTY TO SAY OUT LOUD RATHER THAN SOLVE
+  QUIETLY.** `agency_changes` masks at read time by `actor_id`, and its
+  own comment explains why: "the stored `actor` is a text snapshot ...
+  matching it against anything would be matching a string".
+  `activity_log` has NO actor_id column, only `actor` text, so for rows
+  already written there is nothing but the string to match on.
+- SO THE ANSWER IS PROBABLY BOTH: add `actor_id` and write it from now
+  on, and mask the historic rows by matching the stored name against
+  opndoor staff -- the compromise the missing column forces. Worth
+  telling Matt rather than picking one silently.
+
+### (cz) BLOCKER: an agency user's start-date change voids but never reissues
+
+> Blocker: an agency user's start-date change voids the signed deed but doesn't reissue it. As barb (Negotiator) on GR-25832 (signed, not started), changing 20 Dec → 21 Dec at 01:17 archived the signed deed, but no corrected deed was generated or sent (page: "This deed has not been issued yet… opndoor will pick it up"; no "corrected deed sent" entry). As admin the same action reissues immediately. Find why the reissue fails for agency and supplier users (permissions on the deed step?), reissue GR-25832's deed now, and test the change as every level allowed to make it: Negotiator, Manager, Director, supplier Referrer and Management, single and joint. Also: the log says "Signed deed archived before amendment" but has no "Tenancy start amended … by barb barb" line.
+
+- **THE WORST POSSIBLE HALF-FAILURE: the guarantee is destroyed and not
+  replaced.** The tenant had a signed deed; after a Negotiator moved
+  the date by one day they have none, and nothing is queued to fix it.
+- "AS ADMIN THE SAME ACTION REISSUES IMMEDIATELY" IS THE DIAGNOSIS
+  HANDED TO ME: the orchestration runs with the CALLER's client for
+  something it should do with the service client, so a non-admin is
+  refused partway through and the function carries on.
+- **THE MISSING "amended by" LINE IS EVIDENCE OF WHERE IT STOPS**, not a
+  separate cosmetic bug: that insert comes before the deed work, so if
+  the archive line wrote and the amend line did not, the sequence is
+  failing between them and the ordering tells me where.
+- THE TEST MATRIX IS SPECIFIED: Negotiator, Manager, Director, supplier
+  Referrer and Management, single and joint.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
