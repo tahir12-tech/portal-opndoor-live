@@ -15,6 +15,7 @@
    export format is identical regardless of source.
    ===================================================================== */
 import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
+import { INCLUDED_IN_SUPPLIER_COMMISSION } from './whoPaysTheAgency';
 import { ALL_PARTNERS, isOpndoorStaff, maySeeCommission, readsTheWholeBook } from './types';
 import {
   ANNUAL, APP_BRANCHES, APP_RENTS, APP_REFERRERS, AVG_RENT,
@@ -608,9 +609,29 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
       // #109: referrer breakdown rows carry NO commission columns. An agency
       // carries one: their own. Everyone else keeps both, in the old order.
       if (!showComm) return base as TableRow;
-      return (agency
-        ? [...base, money(e.agentComm)]
-        : [...base, money(e.partnerComm), money(e.agentComm)]) as TableRow;
+      /* (bp) THE AGENT COLUMN RECONCILES TO THE SUMMARY.
+
+         Matt: "Agency/branch breakdowns double-count commission on
+         referrals where the supplier passes on the agencies' share
+         (e.g. Test Lettings asda: Supplier GBP 947.25 and Agent GBP
+         378.90, but the GBP 378.90 is inside the GBP 947.25). The
+         breakdown's agent column must reconcile to the summary ...
+         show a carved-out share as 'Included in supplier commission:
+         GBP 378.90' or similar, never as a second payable amount."
+
+         SO THE AGENT COLUMN CARRIES ONLY WHAT IS GENUINELY EXTRA --
+         the share opndoor pays the agency itself -- and the carved
+         part moves to a column of its own, named for what it is. Added
+         rather than substituted: the money has not gone, it has
+         stopped being counted twice.
+
+         AN AGENCY'S OWN ROW IS UNCHANGED. On their own document there
+         is no supplier column to double against, and what they earned
+         is what they earned however it reaches them. */
+      if (agency) return [...base, money(e.agentComm)] as TableRow;
+      const direct = e.agentPaidDirect ?? e.agentComm;
+      const carved = e.agentPassedOn ?? 0;
+      return [...base, money(e.partnerComm), money(direct), money(carved)] as TableRow;
     });
   // #109: breakdown columns — commission columns for non-referrers only.
   const brkCols = (first: string, showParent: boolean, comm: string[]): Column[] =>
@@ -804,8 +825,23 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
   }
   /* The commission headings, per reader. An agency has exactly one commission,
      so it needs no adjective saying whose; everyone else keeps the pair. */
-  const NET_COMM: string[] = agency ? ['Commission (net)'] : ['Supplier commission (net)', 'Agent commission (net)'];
-  const ATTR_COMM: string[] = agency ? ['Attributed commission (net)'] : ['Attributed supplier commission (net)', 'Attributed agent commission (net)'];
+  /* (bp) THREE COLUMNS, NOT TWO, WHERE A SUPPLIER COLUMN IS PRESENT.
+     "Agent commission (net)" now carries only the share opndoor pays
+     the agency ITSELF, so Supplier + Agent reconciles to the summary;
+     the carved share, which is inside the supplier figure, has its own
+     column named for what it is rather than appearing as a second
+     payable amount. An agency's own document keeps its single column:
+     there is no supplier figure beside it to double against. */
+  const NET_COMM: string[] = agency
+    ? ['Commission (net)']
+    : ['Supplier commission (net)', 'Agent commission (net)', INCLUDED_IN_SUPPLIER_COMMISSION];
+  /* THE SAME THREE, ATTRIBUTED. (bp): "Make the referrer breakdown
+     consistent with the agency one." Two breakdowns of one export
+     disagreeing about what the agent column means is worse than either
+     being wrong on its own. */
+  const ATTR_COMM: string[] = agency
+    ? ['Attributed commission (net)']
+    : ['Attributed supplier commission (net)', 'Attributed agent commission (net)', INCLUDED_IN_SUPPLIER_COMMISSION];
   /* BREAKDOWNS APPEAR WHERE THERE IS SOMETHING TO BREAK DOWN. Over a single
      agency, "Breakdown by agency" is one row repeating the header above it, and
      over a single branch the branch table is that same row a third time. The

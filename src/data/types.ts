@@ -878,6 +878,13 @@ export interface LeagueRow {
   partnerComm: number;
   /** Agent commission (per-partner rate applied to fees). */
   agentComm: number;
+  /* THE SAME FIGURE SPLIT BY WHO PAYS IT -- see whoPaysTheAgency.
+     `agentComm` is the sum of the two and stays, because an agency
+     reading its own row wants what it earned regardless of who sends
+     it. A breakdown that sits beside a SUPPLIER column must use the
+     split, or it adds money that is already counted once. */
+  agentPaidDirect?: number;
+  agentPassedOn?: number;
   /** #107 Week-over-week rank movement vs the same table 7 days prior: positive =
       up N places, negative = down, 0 = held, null = new / not comparable. */
   movement?: number | null;

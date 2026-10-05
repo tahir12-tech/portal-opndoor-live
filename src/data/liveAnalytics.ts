@@ -488,6 +488,13 @@ interface Group {
   suppliers: Set<string>;
   feesGross: number; refundValue: number;
   partnerComm: number; agentComm: number;
+  /* THE AGENT SIDE SPLIT BY WHO PAYS IT. Matt (bp): the breakdown showed
+     "Supplier GBP 947.25 and Agent GBP 378.90" as two payable amounts
+     when the second is inside the first. Carried on the row rather than
+     recomputed by each reader, because the frozen flag is per
+     application and a reader holding only the group total cannot
+     recover the split from it. */
+  agentPaidDirect: number; agentPassedOn: number;
   partnerCommExcl: number; agentCommExcl: number;
 }
 
@@ -508,6 +515,8 @@ function emit(g: Group): LeagueRow {
     conv: g.refs ? g.deed / g.refs : 0,
     partnerComm: g.partnerComm, // already net: refunded applications are excluded below
     agentComm: g.agentComm,
+    agentPaidDirect: g.agentPaidDirect,
+    agentPassedOn: g.agentPassedOn,
   };
 }
 
@@ -651,7 +660,7 @@ function groupRows(
   const map = new Map<string, Group>();
   const get = (id: string, name: string, sub: string, partner: string): Group => {
     let g = map.get(id);
-    if (!g) { g = { id, name, sub, partner, refs: 0, paid: 0, deed: 0, refLets: new Set(), paidLets: new Set(), agencies: new Set(), branches: new Set(), suppliers: new Set(), feesGross: 0, refundValue: 0, partnerComm: 0, agentComm: 0, partnerCommExcl: 0, agentCommExcl: 0 }; map.set(id, g); }
+    if (!g) { g = { id, name, sub, partner, refs: 0, paid: 0, deed: 0, refLets: new Set(), paidLets: new Set(), agencies: new Set(), branches: new Set(), suppliers: new Set(), feesGross: 0, refundValue: 0, partnerComm: 0, agentComm: 0, agentPaidDirect: 0, agentPassedOn: 0, partnerCommExcl: 0, agentCommExcl: 0 }; map.set(id, g); }
     return g;
   };
   for (const app of set) {
@@ -729,7 +738,17 @@ function groupRows(
       // The refund is of the FEE, not of the rent. Matches liveAggregate and
       // livePartnerBreakdown, which both already said feeBaseFor.
       if (app.refunded) { g.refundValue += app.refundedAmount ?? feeBaseFor(app); g.partnerCommExcl += supplierComm; g.agentCommExcl += agentComm; }
-      else { g.partnerComm += supplierComm; g.agentComm += agentComm; }
+      else {
+        g.partnerComm += supplierComm;
+        g.agentComm += agentComm;
+        /* AND WHICH SIDE OF THE CARVE IT FALLS, through the shared rule.
+           Only the directly-paid part is money ON TOP of the supplier's;
+           the rest is already inside it. */
+        const sp = { paidDirectByOpndoor: g.agentPaidDirect, passedOnBySupplier: g.agentPassedOn };
+        addAgencyShare(sp, agentComm, app.opndoorPaysAgentsAtFreeze);
+        g.agentPaidDirect = sp.paidDirectByOpndoor;
+        g.agentPassedOn = sp.passedOnBySupplier;
+      }
     }
     if (deedIn) g.deed += 1;
   }
