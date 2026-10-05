@@ -5049,6 +5049,33 @@ report himself:
   the control does nothing.
 - "STOP, READY TO PUSH" -- Matt pushes. Nothing is pushed from here.
 
+### (dd) Re-test of items 1-3 as Kestrel Management
+
+> Re-test of items 1–3 as Kestrel Management (add to the audit, don't stop it):
+> 1) Reporting tile: "Owed to you" is right, but the "Your agencies' share, included above for you to pass on £378.90" line is missing for October (GR-26262/3 are frozen "supplier pays its own agents"); the statement already shows it correctly, so use the same rule.
+> 2) Agency schedules panel lists only Kestrel Lettings for October; it should list Test Lettings asdah.
+> 3) That panel says "Reference couldn't be loaded. Refresh to try again", and its Export writes that sentence into the file and the filename ("opndoor-statement-Reference_couldnt_be_loaded…xlsx"). A draft month has no reference by design: show "Reference assigned when the statement is posted", name the file by payee and month, and find the real error.
+> 4) "Nicholas Dwyer" is still listed as a Kestrel referrer; customers see "opndoor (on your behalf)".
+
+- **(1) IS ITEM 2's ACCEPTANCE TEST AND IT FAILS.** The label is right
+  and the figure is absent, which means the fold is not reaching those
+  rows rather than wording them wrongly. `commThirdShown` is
+  `agentCommSupplierPasses > 0`, so the aggregate is computing no agent
+  commission for GR-26262/3 at all -- which is the same symptom as
+  (cj)'s "no referrals from this customer" and points at the same
+  lookup.
+- **"THE STATEMENT ALREADY SHOWS IT CORRECTLY, SO USE THE SAME RULE" IS
+  THE INSTRUCTION AND THE CLUE.** The statement reads
+  supplier_statement_lines server-side, with settles_own per line. The
+  tile reads opndoorPaysAgentsAtFreeze off the hydrated row. If the
+  hydrate does not carry that column, or the rows are not in the
+  aggregate, the tile has nothing to fold.
+- (3) IS WORSE THAN THE DISPLAY BUG IN (cp): the error SENTENCE is
+  being used as a statement reference, so it reaches the filename. A
+  draft has no reference by design, so nothing should be failing at
+  all -- the real error still has to be found, not just hidden.
+- (4) IS (cq), unbuilt, confirmed on a second screen.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04

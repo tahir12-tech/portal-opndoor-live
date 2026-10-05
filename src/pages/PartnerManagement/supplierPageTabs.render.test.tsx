@@ -229,12 +229,25 @@ describe('the People tab', () => {
     expect(labels).toContain('Remove access');
   });
 
-  it('and says "Change role", not "Change level", because this rail has no levels', async () => {
+  /* (cd) ONE LABEL, AND THIS ASSERTION IS THE REVERSE OF WHAT IT WAS.
+
+     It read: says "Change role", not "Change level", because this rail
+     has no levels. That was decision D11 and it is true of the MODEL --
+     the agency rail has three levels, the supplier rail has roles.
+
+     Matt, 2026-10-05: 'Supplier People tab: "Change level", not "Change
+     role", matching every other people list.' The model fact turned out
+     to be the wrong thing to spend a reader's attention on: they are
+     looking at a row of people, and one button worded differently from
+     the same button everywhere else reads as a different button. The
+     old assertion is inverted rather than deleted, so the reversal is
+     visible to whoever reads this next. */
+  it('and says "Change level", like every other people list', async () => {
     const v = await open();
     await openTab(v, 'People');
-    const labels = [...v.container.querySelectorAll('.ah-rowacts button')].map((b) => b.textContent);
-    expect(labels).toContain('Change role');
-    expect(labels).not.toContain('Change level');
+    const labels = [...v.container.querySelectorAll('button')].map((b) => b.textContent?.trim());
+    expect(labels).toContain('Change level');
+    expect(labels).not.toContain('Change role');
   });
 
   it('and offers no Position, because positions are an agency-estate thing', async () => {

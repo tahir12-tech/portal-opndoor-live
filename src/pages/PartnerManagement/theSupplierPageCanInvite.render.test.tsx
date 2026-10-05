@@ -199,6 +199,12 @@ describe('sending one', () => {
 /* ===========================================================================
    EVERY ACTION ON THE PEOPLE TAB DOES THE THING, HERE.
 
+   RELABELLED "Change level" ON 2026-10-05 (cd): 'Supplier People tab:
+   "Change level", not "Change role", matching every other people list.'
+   Matt reversing his own wording. What these tests are about is that the
+   button OPENS THE DIALOG rather than pointing at the Users page, and
+   that is unchanged -- only the word on it moved.
+
    Matt, 2026-10-01, verbatim: 'Supplier People tab: "Change role" opens the
    role dialog right here (Management, Referrer, Developer), instead of a
    message pointing to the Users page. Check every other action on supplier
@@ -217,23 +223,23 @@ describe('changing a role, on the page the person is on', () => {
     [...v.container.querySelectorAll<HTMLButtonElement>('.ah-rowacts button')]
       .find((b) => (b.textContent ?? '').trim() === label);
 
-  it('offers Change role on the row', async () => {
-    expect(rowButton(await peopleTab(), 'Change role')).toBeTruthy();
+  it('offers Change level on the row', async () => {
+    expect(rowButton(await peopleTab(), 'Change level')).toBeTruthy();
   });
 
   /* THE ASSERTION THAT WOULD HAVE CAUGHT IT: a dialog, not a toast. */
   it('and opens a dialog rather than telling you to go to Users', async () => {
     const v = await peopleTab();
-    await act(async () => { fireEvent.click(rowButton(v, 'Change role')!); });
+    await act(async () => { fireEvent.click(rowButton(v, 'Change level')!); });
     const dialog = document.querySelector('[role="dialog"]');
-    expect(dialog, 'Change role opened no dialog').toBeTruthy();
+    expect(dialog, 'Change level opened no dialog').toBeTruthy();
     expect(dialog!.textContent).toContain('Change Sam Supplier’s role');
     expect(document.body.textContent).not.toMatch(/from Users/i);
   });
 
   it('and offers the supplier’s three levels, not the estate’s', async () => {
     const v = await peopleTab(true);
-    await act(async () => { fireEvent.click(rowButton(v, 'Change role')!); });
+    await act(async () => { fireEvent.click(rowButton(v, 'Change level')!); });
     const names = [...document.querySelectorAll('[role="dialog"] .roleopt__name')]
       .map((e) => (e.textContent ?? '').trim());
     expect(names).toEqual(['Management', 'Referrer', 'Developer']);
@@ -243,7 +249,7 @@ describe('changing a role, on the page the person is on', () => {
   /* THE SAME API GATE AS THE INVITE, because they read one list. */
   it('and drops Developer where API access is off', async () => {
     const v = await peopleTab(false);
-    await act(async () => { fireEvent.click(rowButton(v, 'Change role')!); });
+    await act(async () => { fireEvent.click(rowButton(v, 'Change level')!); });
     const names = [...document.querySelectorAll('[role="dialog"] .roleopt__name')]
       .map((e) => (e.textContent ?? '').trim());
     expect(names).toEqual(['Management', 'Referrer']);
@@ -253,8 +259,13 @@ describe('changing a role, on the page the person is on', () => {
      write the role somebody already has and report it as a change. */
   it('and will not save a role they already hold', async () => {
     const v = await peopleTab();
-    await act(async () => { fireEvent.click(rowButton(v, 'Change role')!); });
+    await act(async () => { fireEvent.click(rowButton(v, 'Change level')!); });
     const save = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      /* THE DIALOG'S OWN SAVE BUTTON, which still says "Change role":
+         (cd) renamed the button ON THE ROW, and the dialog's title and
+         confirm are about a role because that is what a supplier
+         person has. A blanket rename caught this one and the test went
+         looking for a button that does not exist. */
       .find((b) => (b.textContent ?? '').trim().startsWith('Change role') && b.closest('.modal'));
     expect(save, 'no save button in the dialog').toBeTruthy();
     expect(save!.disabled).toBe(true);
@@ -270,7 +281,7 @@ describe('and every other action on the row', () => {
     const labels = [...v.container.querySelectorAll<HTMLButtonElement>('.ah-rowacts button')]
       .map((b) => (b.textContent ?? '').trim());
     expect(labels).toEqual([
-      'Change role', 'Notifications', 'Send password reset', 'Reset two-factor', 'Remove access',
+      'Change level', 'Notifications', 'Send password reset', 'Reset two-factor', 'Remove access',
     ]);
   });
 

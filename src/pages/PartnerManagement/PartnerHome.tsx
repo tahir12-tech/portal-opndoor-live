@@ -851,7 +851,22 @@ export function PartnerHome() {
                   person={{ userId: u.id, name: u.name, email: u.email, status: u.status, agencyLevel: ROLE_LABEL[u.role] ?? u.role }}
                   isAdmin
                   manyOffices={false}
-                  changeLevelLabel="Change role"
+                  /* (cd) "Change level", like every other people list.
+                     Matt, 2026-10-05: 'Supplier People tab: "Change
+                     level", not "Change role", matching every other
+                     people list.'
+
+                     THIS REVERSES HIS OWN EARLIER WORDING and the
+                     reversal is written down so nobody restores it as
+                     a fix. "Change role" came from decision D11 on
+                     2026-10-01 -- the agency rail has three LEVELS and
+                     the supplier rail has roles -- which is true of
+                     the MODEL and turned out to be the wrong thing to
+                     spend a reader's attention on: they are looking at
+                     a row of people and one button is worded
+                     differently from the same button everywhere else.
+                     The prop now falls to its default, so there is one
+                     label and nothing to keep in step. */
                   onAction={(what, userId, who, email) => askPerson(what, userId, who, email)}
                   onCancelInvite={(userId, who) => askPerson('cancel', userId, who)}
                   onChangeLevel={(pr) => setRoleFor({ userId: pr.userId, name: pr.name, current: u.role })}
